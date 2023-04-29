@@ -13,8 +13,8 @@ Note: You will need Apple Developer Account to build iOS App locally.
     in build/config.cmake, set `USE_METAL` and `USE_LLVM` as ON
     ```
     make -j
-    export TVM_HOME=$(pwd)/relax
-    export PYTHONPATH=$PYTHONPATH:$TVM_HOME
+    export TVM_HOME=$(pwd)
+    export PYTHONPATH=$PYTHONPATH:$TVM_HOME/python
     ```
 
 2. Get Model Weight
@@ -33,6 +33,8 @@ Note: You will need Apple Developer Account to build iOS App locally.
 
 3. build model to library
     ```
+    git clone https://github.com/mlc-ai/mlc-llm.git
+    cd mlc-llm
     python3 build.py --model vicuna-v1-7b --dtype float16 --target iphone --quantization-mode int3 --quantization-sym --quantization-storage-nbit 16 --max-seq-len 768
     ```
 4. Prepare lib and params
