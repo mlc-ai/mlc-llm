@@ -46,7 +46,6 @@ class LibCompare(LibCompareVMInstrument):
         new_args: List[tvm.nd.NDArray],
         ret_indices: List[int],
     ):
-
         super().compare(name, ref_args, new_args, ret_indices)
 
         if self.time_eval and name not in self.time_eval_results:
@@ -99,7 +98,7 @@ def deploy_to_pipeline(args) -> None:
     primary_device = tvm.device(args.primary_device)
     const_params = utils.load_params(args.artifact_path, primary_device)
     state = TestState(args)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
 
     print("Tokenizing...")
     inputs = tvm.nd.array(

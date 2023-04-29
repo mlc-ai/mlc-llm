@@ -20,6 +20,7 @@ def argparse_add_common(args: argparse.ArgumentParser) -> None:
             "dolly-v2-12b",
             "stablelm-tuned-alpha-3b",
             "stablelm-tuned-alpha-7b",
+            "moss-moon-003-sft",
         ],
     )
     args.add_argument(
@@ -48,10 +49,15 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         from mlc_llm.relax_model import (  # pylint: disable=import-outside-toplevel
             gpt_neox,
         )
+
         if args.model.startswith("dolly-"):
             args.conv_template = "dolly"
         elif args.model.startswith("stablelm-"):
             args.conv_template = "stablelm"
+    elif args.model.startswith("moss-"):
+        from mlc_llm.relax_model import moss  # pylint: disable=import-outside-toplevel
+
+        args.conv_template = "moss"
     else:
         raise ValueError(f"Model {args.model} not supportqed")
 

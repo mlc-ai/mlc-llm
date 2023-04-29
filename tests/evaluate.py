@@ -90,7 +90,7 @@ def deploy_to_pipeline(args) -> None:
     )
     vm = relax.VirtualMachine(ex, device)
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
 
     print("Tokenizing...")
     inputs = tvm.nd.array(
