@@ -10,7 +10,7 @@ Supported platforms include:
 * CUDA on Windows and Linux;
 * WebGPU on browsers (through companion project WebLLM).
 
-**[Check out our instruction page to try out!](mlc.ai/mlc-llm)**
+**[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/)**
 
 <p align="center">
 <img src="site/demo.gif" height="700">
