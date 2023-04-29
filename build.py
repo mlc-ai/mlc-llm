@@ -119,7 +119,12 @@ def _parse_args():
     elif parsed.target == "metal_x86_64":
         from tvm.contrib import xcode
         parsed.target = tvm.target.Target(
-            tvm.target.Target("apple/m1-gpu"),
+            tvm.target.Target({
+                "kind": "metal",
+                "max_threads_per_block": 256,
+                "max_shared_memory_per_block": 32768,
+                "thread_warp_size": 1,
+            }),
             host="llvm -mtriple=x86_64-apple-darwin"
         )
         parsed.target_kind = "metal_x86_64"
