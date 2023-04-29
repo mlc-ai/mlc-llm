@@ -1,0 +1,8 @@
+# Run the following command to reformat a file:
+# clang-format -i -style=Google <file>
+# Or use clang-format-diff to only reformat the changed lines:
+# https://clang.llvm.org/docs/ClangFormat.html
+BasedOnStyle: Google
+DerivePointerAlignment: false
+ColumnLimit:     100
+PointerAlignment: Left
