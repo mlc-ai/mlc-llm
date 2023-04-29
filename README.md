@@ -12,7 +12,9 @@ Supported platforms include:
 
 **[Check out our instrcution page to try out!](site/index.md)**
 
+<p align="center">
 <img src="site/demo.gif" height="700">
+</p>
 
 ## What is MLC LLM?
 
