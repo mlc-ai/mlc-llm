@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <title>WebLLM | Home</title>
+        <title>MLC LLM | Home</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
         <link rel="stylesheet"
@@ -10,15 +10,11 @@
               crossorigin="anonymous">
         <link rel="stylesheet"
               href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
-        <link rel="stylesheet" href="/web-llm/assets/css/main.css">
-        <link rel="stylesheet" href="/web-llm/assets/css/group.css">
-        <!-- <link rel="stylesheet" href="/web-llm/css/table.css">          -->
-        <link rel="shortcut icon" href="/web-llm/assets/img/logo/mlc-favicon.png">
-        <meta http-equiv="origin-trial" content="Agx76XA0ITxMPF0Z8rbbcMllwuxsyp9qdtQaXlLqu1JUrdHB6FPonuyIKJ3CsBREUkeioJck4nn3KO0c0kkwqAMAAABJeyJvcmlnaW4iOiJodHRwOi8vbG9jYWxob3N0Ojg4ODgiLCJmZWF0dXJlIjoiV2ViR1BVIiwiZXhwaXJ5IjoxNjkxNzExOTk5fQ==">
-<meta http-equiv="origin-trial" content="AnmwqQ1dtYDQTYkZ5iMtHdINCaxjE94uWQBKp2yOz1wPTcjSRtOHUGQG+r2BxsEuM0qhxTVnuTjyh31HgTeA8gsAAABZeyJvcmlnaW4iOiJodHRwczovL21sYy5haTo0NDMiLCJmZWF0dXJlIjoiV2ViR1BVIiwiZXhwaXJ5IjoxNjkxNzExOTk5LCJpc1N1YmRvbWFpbiI6dHJ1ZX0=">
-<script src="dist/tvmjs_runtime.wasi.js"></script>
-<script src="dist/tvmjs.bundle.js"></script>
-
+        <link rel="stylesheet" href="/mlc-llm/assets/css/main.css">
+        <link rel="stylesheet" href="/mlc-llm/assets/css/group.css">
+        <!-- <link rel="stylesheet" href="/mlc-llm/css/table.css">          -->
+        <link rel="shortcut icon" href="/mlc-llm/assets/img/logo/mlc-favicon.png">
+        
     </head>
     <body>
         <div class="container">
@@ -27,7 +23,7 @@
                         flex-column
                         flex-md-row justify-content-md-between">
               <a href="/" id="navtitle">
-                  <img src="/web-llm/assets/img/logo/mlc-logo-with-text-landscape.svg" height="70px"
+                  <img src="/mlc-llm/assets/img/logo/mlc-logo-with-text-landscape.svg" height="70px"
                        alt="MLC" id="logo">
               </a>
               <ul id="topbar" class="nav nav-pills justify-content-center">
@@ -43,7 +39,7 @@
                       <li class="nav-item">
                          
                             <a class="nav-link active"
-                               href="/web-llm/">
+                               href="/mlc-llm/">
                                 Home
                             </a>
                          
@@ -60,7 +56,7 @@
                       <li class="nav-item">
                          
                             <a class="nav-link "
-                               href="https://github.com/mlc-ai/web-llm">
+                               href="https://github.com/mlc-ai/mlc-llm">
                                 Github
                             </a>
                          
@@ -76,102 +72,78 @@
             
             <!-- Schedule  -->
             
-                <h1 id="web-llm">Web LLM</h1>
+                <h1 id="mlc-llm">MLC LLM</h1>
 
-<p>This project brings large-language model and LLM-based chatbot to web browsers. <strong>Everything runs inside the browser with no server support and accelerated with WebGPU.</strong> This opens up a lot of fun opportunities to build AI assistants for everyone and enable privacy while enjoying GPU acceleration. Please check out our <a href="https://github.com/mlc-ai/web-llm">GitHub repo</a> to see how we did it. There is also a <a href="#chat-demo">demo</a> which you can try out.</p>
+<p>MLC LLM is a universal solution that allows any language model to be deployed natively on a diverse set of hardware backends and native applications, plus a productive framework for everyone to further optimize model performance for their own use cases. Checkout our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repository</a> to see how we did it. You can also read through instructions below for trying out demos.</p>
 
-<p><img src="img/fig/pitts.png" width="100%" /></p>
+<p align="center">
+<img src="demo.gif" height="700" />
+</p>
 
-<p>We have been seeing amazing progress in generative AI and LLM recently. Thanks to the open-source efforts like LLaMA, Alpaca, Vicuna and Dolly, we start to see an exciting future of building our own open source language models and personal AI assistant.</p>
+<h2 id="get-started">Get Started</h2>
 
-<p>These models are usually big and compute-heavy. To build a chat service, we will need a large cluster to run an inference server, while clients send requests to servers and retrieve the inference output. We also usually have to run on a specific type of GPUs where popular deep-learning frameworks are readily available.</p>
+<p>This section contains the instructions to run large-language models and chatbot natively on your environment.</p>
 
-<p>This project is our step to bring more diversity to the ecosystem. Specifically, can we simply bake LLMs directly into the client side and directly run them inside a browser? If that can be realized, we could offer support for client personal AI models with the benefit of cost reduction, enhancement for personalization and privacy protection. The client side is getting pretty powerful.</p>
+<h3 id="windows-linux-mac">Windows, Linux, Mac</h3>
 
-<p>Won’t it be even more amazing if we can simply open up a browser and directly bring AI natively to your browser tab? There is some level of readiness in the ecosystem. This project provides an affirmative answer to the question.</p>
+<p>We provide a CLI (command-line interface) app to chat with the bot in your terminal. Before installing
+the CLI app, we should install some dependencies first.</p>
+<ol>
+  <li>We use Conda to manage our app, so we need to install a version of conda. We can install <a href="https://docs.conda.io/en/latest/miniconda.html">Miniconda</a> or <a href="https://github.com/conda-forge/miniforge">Miniforge</a>.</li>
+  <li>On Windows and Linux, the chatbot application runs on GPU via the Vulkan platform. For Windows and Linux users,
+please install the latest <a href="https://developer.nvidia.com/vulkan-driver">Vulkan driver</a>.</li>
+</ol>
 
-<h2 id="instructions">Instructions</h2>
+<p>After installing all the dependencies, just follow the instructions below the install the CLI app:</p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Create a new conda environment and activate the environment.</span>
+conda create <span class="nt">-n</span> mlc-chat
+conda activate mlc-chat
 
-<p>WebGPU just shipped to Chrome and is in beta. We do our experiments in <a href="https://www.google.com/chrome/canary/">Chrome Canary</a>.  You can also try out the latest Chrome 113. Chrome version ≤ 112 is not supported, and if you are using it, the demo will raise an error like <code class="language-plaintext highlighter-rouge">Find an error initializing the WebGPU device OperationError: Required limit (1073741824) is greater than the supported limit (268435456). - While validating maxBufferSize - While validating required limits.</code>
-We have tested it on windows and mac, you will need a gpu with about 6.4G memory.</p>
+<span class="c"># Install Git and Git-LFS, which is used for downloading the model weights</span>
+<span class="c"># from Hugging Face.</span>
+conda <span class="nb">install </span>git git-lfs
 
-<p>If you have a Mac computer with Apple silicon, here are the instructions for you to run the chatbot demo on your browser locally:</p>
+<span class="c"># Install the chat CLI app from Conda.</span>
+conda <span class="nb">install</span> <span class="nt">-c</span> mlc-ai <span class="nt">-c</span> conda-forge mlc-chat-nightly
 
-<ul>
-  <li>Install <a href="https://www.google.com/chrome/canary/">Chrome Canary</a>, a developer version of Chrome that enables the use of WebGPU.</li>
-  <li>Launch Chrome Canary. You are recommended to launch from terminal with the following command (or replace Chrome Canary with Chrome):
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary --enable-dawn-features=disable_robustness
-</code></pre></div>    </div>
-    <p>This command turns off the robustness check from Chrome Canary that slows down chatbot reply to times. It is not necessary, but we strongly recommend you to start Chrome with this command.</p>
-  </li>
-  <li>Enter your inputs, click “Send” – we are ready to go! The chat bot will first fetch model parameters into local cache. The download may take a few minutes, only for the first run. The subsequent refreshes and runs will be faster.</li>
-</ul>
+<span class="c"># Create a directory, download the model weights from HuggingFace, and download the binary libraries</span>
+<span class="c"># from GitHub.</span>
+<span class="nb">mkdir</span> <span class="nt">-p</span> dist
+git lfs <span class="nb">install
+</span>git clone https://huggingface.co/mlc-ai/demo-vicuna-v1-7b-int3 dist/vicuna-v1-7b
+git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/lib
 
-<h2 id="chat-demo">Chat Demo</h2>
+<span class="c"># Enter this line and enjoy chatting with the bot running natively on your machine!</span>
+mlc_chat_cli
+</code></pre></div></div>
 
-<p>The chat demo is based on <a href="https://huggingface.co/lmsys/vicuna-7b-delta-v1.1">vicuna-7b-v1.1</a> model. More model support are on the way.</p>
+<h3 id="ios">iOS</h3>
 
-<script>
-  var tvmjsGlobalEnv = tvmjsGlobalEnv || {};
-</script>
+<p>Try out this <a href="https://testflight.apple.com/join/57zd7oxa">TestFlight page</a> (limited to the first 9000 users) to install and use
+our example iOS chat app built for iPhone. We will need a recent iPhone with 6GB (or more) of memory to run the app. We only tested the
+application on iPhone 14 Pro Max and iPhone 12 Pro. You can also check out our <a href="(https://github.com/mlc-ai/mlc-llm)">GitHub repo</a> to
+build the iOS app from source.</p>
 
-<script type="module">
-  async function getTokenizer(url) {
-    const mod = await import("./dist/sentencepiece/index.js");
-    return await mod.sentencePieceProcessor(url);
-  }
-  tvmjsGlobalEnv.sentencePieceProcessor = getTokenizer;
-</script>
+<p>Note: The text generation speed on the iOS app can be unstable from time to time. It might run slow
+for a while and recover to a normal speed then.</p>
 
-<script>
-  function handleChatUIInputEnter(event) {
-    if (event.keyCode === 13) {
-      tvmjsGlobalEnv.asyncOnGenerate();
-    }
-  }
-  async function getTokenizer(url) {
-    const mod = await import("./dist/sentencepiece/index.js");
-    return await mod.sentencePieceProcessor(url);
-  }
-  tvmjsGlobalEnv.sentencePieceProcessor = getTokenizer;
-</script>
+<h3 id="web-browser">Web Browser</h3>
 
-<script src="dist/llm_chat.js"></script>
-
-<link href="dist/llm_chat.css" rel="stylesheet" type="text/css" />
-
-<div class="chatui">
-  <div class="chatui-chat" id="chatui-chat" height="100">
-  </div>
-
-  <div class="chatui-inputarea">
-    <input id="chatui-input" type="text" class="chatui-input" onkeypress="handleChatUIInputEnter(event)" placeholder="Enter your message..." />
-    <button class="chatui-send-btn" onclick="tvmjsGlobalEnv.asyncOnGenerate()">Send</button>
-  </div>
-</div>
-
-<div class="chatui-extra-control">
-  <button class="chatui-reset-btn" onclick="tvmjsGlobalEnv.asyncOnReset()">Reset</button>
-  <label id="chatui-info-label"></label>
-</div>
+<p>Please check out <a href="https://mlc.ai/web-llm/">WebLLM</a>, our companion project that deploys models natively to browsers. Everything here runs inside the browser with no server support and accelerated with WebGPU.</p>
 
 <h2 id="links">Links</h2>
 
-<ul>
-  <li><a href="https://github.com/mlc-ai/web-llm">Web LLM Github</a></li>
-  <li>You might also be interested in <a href="https://mlc.ai/web-stable-diffusion/">Web Stable Diffusion</a>.</li>
-</ul>
+<p>You might also be interested in <a href="https://mlc.ai/web-stable-diffusion/">Web Stable Diffusion</a>.</p>
 
 <h2 id="disclaimer">Disclaimer</h2>
-
-<p>This demo site is for research purposes only, subject to the model License of LLaMA and Vicuna. Please contact us if you find any potential violation.</p>
+<p>The pre-packaged demos are for research purposes only, subject to the model License.</p>
 
             
         </div> <!-- /container -->
 
         <!-- Support retina images. -->
         <script type="text/javascript"
-                src="/web-llm/assets/js/srcset-polyfill.js"></script>
+                src="/mlc-llm/assets/js/srcset-polyfill.js"></script>
     </body>
 
 </html>
