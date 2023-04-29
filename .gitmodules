@@ -1,0 +1,6 @@
+[submodule "3rdparty/sentencepiece-js"]
+	path = 3rdparty/sentencepiece-js
+	url = https://github.com/tqchen/sentencepiece-js
+[submodule "3rdparty/argparse"]
+	path = 3rdparty/argparse
+	url = https://github.com/p-ranav/argparse

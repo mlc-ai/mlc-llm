@@ -1,0 +1,41 @@
+
+name: "MLC LLM"
+short_name: "MLC LLM"
+
+url: https://mlc.ai/mlc-llm
+
+exclude: [README.md, serve_local.sh]
+
+plugins:
+  - jekyll-remote-theme
+
+remote_theme: mlc-ai/jekyll-theme-mlc
+
+
+# Colorize code snippets with the rogue module if we want to deploy on GH.
+highlighter: rouge
+
+markdown: kramdown
+
+# The path structure for blog posts.
+permalink: /blog/:year/:month/:day/:title.html
+
+# Number of news stories on the front page.
+front_page_news: 8
+
+# Base pathname for links.
+base: '/mlc-llm'
+
+# make pages for the _projects folder
+collections:
+  projects:
+    output: true
+
+course_title:
+
+# Navigation bar links.
+navigation:
+  - title: Home
+    link: /
+  - title: Github
+    link: https://github.com/mlc-ai/mlc-llm
