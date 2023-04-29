@@ -3,7 +3,7 @@
 Note: You will need Apple Developer Account to build iOS App locally.
 
 1. Install TVM Unity. 
-    Because we have some local changes to TVM Unity, so please try out the mlc/relax repo for now. We will migrate change back to TVM Unity soon.
+    We have some local changes to TVM Unity, so please try out the mlc/relax repo for now. We will migrate change back to TVM Unity soon.
 
     ```
     git clone https://github.com/mlc-ai/relax.git
