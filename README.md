@@ -18,7 +18,8 @@ Supported platforms include:
 **[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/)**
 
 <p align="center">
-<img src="site/demo.gif" height="700">
+  <img src="site/demo.gif" height="400">
+  <img src="site/linux.gif" height="400">
 </p>
 
 ## What is MLC LLM?
