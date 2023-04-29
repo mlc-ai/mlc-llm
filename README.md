@@ -1,6 +1,6 @@
 # MLC LLM
 
-| [Project](https://mlc.ai/mlc-llm/) | [Demo: iOS app](https://mlc.ai/mlc-llm/demo.gif) | [Demo: Linux CLI](https://mlc.ai/mlc-llm/linux.gif) |
+| [Project](https://mlc.ai/mlc-llm/) | [Demo: iOS app](https://mlc.ai/mlc-llm/demo.gif) | [Demo: CLI](https://mlc.ai/mlc-llm/linux.gif) |
 
 
 MLC LLM is a **universal solution** that allows **any language models** to be **deployed natively** on a diverse set of hardware backends and native applications, plus a **productive framework** for everyone to further optimize model performance for their own use cases.
