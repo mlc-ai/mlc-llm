@@ -116,6 +116,24 @@ def _parse_args():
             host="llvm",
         )
         parsed.target_kind = parsed.target.kind.default_keys[0]
+    elif parsed.target == "metal_x86_64":
+        from tvm.contrib import xcode
+        parsed.target = tvm.target.Target(
+            tvm.target.Target({
+                "kind": "metal",
+                "max_threads_per_block": 256,
+                "max_shared_memory_per_block": 32768,
+                "thread_warp_size": 1,
+            }),
+            host="llvm -mtriple=x86_64-apple-darwin"
+        )
+        parsed.target_kind = "metal_x86_64"
+        parsed.export_kwargs = {
+            "fcompile": xcode.create_dylib,
+            "sdk": "macosx",
+            "arch": "x86_64",
+        }
+        parsed.lib_format = "dylib"
     else:
         parsed.target = tvm.target.Target(parsed.target, host="llvm")
         parsed.target_kind = parsed.target.kind.default_keys[0]

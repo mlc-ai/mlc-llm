@@ -87,6 +87,15 @@ std::vector<std::string> GetLibSuffixes() {
 }
 
 
+std::string GetArchSuffix() {
+#if defined(__x86_64__)
+  return "_x86_64";
+#elif defined(__aarch64__)
+  return "_arm64";
+#endif
+  return "";
+}
+
 
 std::vector<std::string> CountUTF8(const std::string& s) {
   // assume that the string is always valid utf8
@@ -163,7 +172,7 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_g
 
     std::string prev_printed = "";
     auto printed_UTF8_chars = CountUTF8(prev_printed);
-    
+
     std::cout << role1 << ": " << std::flush;
     f_encode(inp);
     for (size_t i = 0; !f_stop(); ++i) {
@@ -225,6 +234,8 @@ int main(int argc, char* argv[]) {
   std::string params = args.get<std::string>("--params");
 
   std::string lib_name = model + "_" + device_name;
+  std::string arch_suffix = GetArchSuffix();
+
   std::optional<std::filesystem::path> lib_path_opt;
   std::vector<std::string> dtype_candidates;
 
@@ -238,7 +249,13 @@ int main(int argc, char* argv[]) {
     std::vector<std::string> search_paths = {artifact_path + "/" + model + "/" + candidate,
                                              artifact_path + "/models/" + model,
                                              artifact_path + "/" + model, artifact_path + "/lib"};
-    lib_path_opt = FindFile(search_paths, {lib_name + "_" + candidate}, GetLibSuffixes());
+    std::string prefix = lib_name + "_" + candidate;
+    // search for lib_x86_64 and lib
+    lib_path_opt = FindFile(
+        search_paths,
+        {lib_name + arch_suffix + "_" + candidate,
+         lib_name + "_" + candidate},
+        GetLibSuffixes());
     if (lib_path_opt) {
       dtype = candidate;
       break;
