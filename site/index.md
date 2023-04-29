@@ -14,7 +14,6 @@ Check out our [GitHub repository](https://github.com/mlc-ai/mlc-llm) to see how 
 <img src="demo.gif" height="700">
 </p>
 
-
 ## Try it out
 
 This section contains the instructions to run large-language models and chatbot natively on your environment.
