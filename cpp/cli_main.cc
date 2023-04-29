@@ -87,7 +87,7 @@ std::vector<std::string> GetLibSuffixes() {
 }
 
 
-std::string GetArchSuffix(std::string lib_name) {
+std::string GetArchSuffix() {
 #if defined(__x86_64__)
   return "_x86_64";
 #elif defined(__aarch64__)
