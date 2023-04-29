@@ -1,6 +1,6 @@
 # MLC LLM
 
-MLC LLM is a **universal solution** that allows **any language models** to be **deployed natively** on a diverse set of hardware backends and native applications, plus a **productive framework** for everyone to further optimize model performance for their own usecases.
+MLC LLM is a **universal solution** that allows **any language models** to be **deployed natively** on a diverse set of hardware backends and native applications, plus a **productive framework** for everyone to further optimize model performance for their own use cases.
 
 Our mission is to **enable everyone to develop, optimize and deploy AI models natively on everyone's devices**.
 
@@ -8,9 +8,9 @@ Supported platforms include:
 * Metal GPUs on iPhone and Intel/ARM MacBooks;
 * AMD and NVIDIA GPUs via Vulkan on Windows and Linux;
 * CUDA on Windows and Linux;
-* WebGPU on broswers (through companion project WebLLM).
+* WebGPU on browsers (through companion project WebLLM).
 
-**[Check out our instrcution page to try out!](site/index.md)**
+**[Check out our instruction page to try out!](mlc.ai/mlc-llm)**
 
 <p align="center">
 <img src="site/demo.gif" height="700">
