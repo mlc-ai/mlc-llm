@@ -74,13 +74,13 @@
             
                 <h1 id="mlc-llm">MLC LLM</h1>
 
-<p>MLC LLM is a universal solution that allows any language model to be deployed natively on a diverse set of hardware backends and native applications, plus a productive framework for everyone to further optimize model performance for their own use cases. Checkout our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repository</a> to see how we did it. You can also read through instructions below for trying out demos.</p>
+<p>MLC LLM is a universal solution that allows any language model to be deployed natively on a diverse set of hardware backends and native applications, plus a productive framework for everyone to further optimize model performance for their own use cases. Check out our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repository</a> to see how we did it. You can also read through instructions below for trying out demos.</p>
 
 <p align="center">
 <img src="demo.gif" height="700" />
 </p>
 
-<h2 id="get-started">Get Started</h2>
+<h2 id="try-it-out">Try it out</h2>
 
 <p>This section contains the instructions to run large-language models and chatbot natively on your environment.</p>
 
@@ -91,7 +91,8 @@ the CLI app, we should install some dependencies first.</p>
 <ol>
   <li>We use Conda to manage our app, so we need to install a version of conda. We can install <a href="https://docs.conda.io/en/latest/miniconda.html">Miniconda</a> or <a href="https://github.com/conda-forge/miniforge">Miniforge</a>.</li>
   <li>On Windows and Linux, the chatbot application runs on GPU via the Vulkan platform. For Windows and Linux users,
-please install the latest <a href="https://developer.nvidia.com/vulkan-driver">Vulkan driver</a>.</li>
+please install the latest <a href="https://developer.nvidia.com/vulkan-driver">Vulkan driver</a>. For NVIDIA GPU users, please make sure to install
+Vulkan driver, as the CUDA driver may not be good.</li>
 </ol>
 
 <p>After installing all the dependencies, just follow the instructions below the install the CLI app:</p>
@@ -133,7 +134,11 @@ for a while and recover to a normal speed then.</p>
 
 <h2 id="links">Links</h2>
 
-<p>You might also be interested in <a href="https://mlc.ai/web-stable-diffusion/">Web Stable Diffusion</a>.</p>
+<ul>
+  <li>Check out our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repo</a> to see how we build, optimize and deploy the bring large-language models to various devices and backends.</li>
+  <li>Check out our companion project <a href="https://mlc.ai/web-llm/">WebLLM</a> to run the chatbot purely in your browser.</li>
+  <li>You might also be interested in <a href="https://mlc.ai/web-stable-diffusion/">Web Stable Diffusion</a>, which runs the stable-diffusion model purely in the browser.</li>
+</ul>
 
 <h2 id="disclaimer">Disclaimer</h2>
 <p>The pre-packaged demos are for research purposes only, subject to the model License.</p>
