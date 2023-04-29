@@ -10,10 +10,6 @@ MLC LLM is a universal solution that allows any language model to be deployed na
 **Everything runs locally  with no server support and accelerated with local GPUs on your phone and laptop**.
 Check out our [GitHub repository](https://github.com/mlc-ai/mlc-llm) to see how we did it. You can also read through instructions below for trying out demos.
 
-<p align="center">
-<img src="demo.gif" height="700">
-</p>
-
 ## Try it out
 
 This section contains the instructions to run large-language models and chatbot natively on your environment.
@@ -31,6 +27,10 @@ build the iOS app from source.
 
 Note: The text generation speed on the iOS app can be unstable from time to time. It might run slow
 in the beginning and recover to a normal speed then.
+
+<p align="center">
+<img src="demo.gif" height="700">
+</p>
 
 ### Windows Linux Mac
 
