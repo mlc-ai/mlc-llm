@@ -30,6 +30,7 @@ class ChatState : ObservableObject {
     private var stopRequested = false;
     
     init() {
+        threadWorker.qualityOfService = QualityOfService.userInteractive;
         threadWorker.start()
         self.systemInit()
     }
