@@ -47,9 +47,11 @@ We heavily rely on open-source ecosystem, more specifically, [TVM Unity](https:/
 
 ## Links
 
-- You might also be interested in [WebLLM](https://github.com/mlc-ai/web-llm/tree/main), our companion derived project that focus on bringing LLM to browsers
-- Project page for [instructions](site/index.md)
-- [Local build Instructions for ios App](ios/README.md)
+- You might also be interested in [WebLLM](https://github.com/mlc-ai/web-llm/tree/main), our companion derived project that focus on bringing LLM to browsers.
+- Project page for [instructions](site/index.md).
+- [Local build Instructions for ios App](ios/README.md).
+- You might want to check out our online public [Machine Learning Compilation course](https://mlc.ai) for a systematic
+walkthrough of our approaches.
 
 ## Acknowledgements
 

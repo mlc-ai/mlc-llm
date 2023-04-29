@@ -72,6 +72,8 @@ Please check out [WebLLM](https://mlc.ai/web-llm/), our companion project that d
 * Check out our [GitHub repo](https://github.com/mlc-ai/mlc-llm) to see how we build, optimize and deploy the bring large-language models to various devices and backends.
 * Check out our companion project [WebLLM](https://mlc.ai/web-llm/) to run the chatbot purely in your browser.
 * You might also be interested in [Web Stable Diffusion](https://mlc.ai/web-stable-diffusion/), which runs the stable-diffusion model purely in the browser.
+* You might want to check out our online public [Machine Learning Compilation course](https://mlc.ai) for a systematic
+walkthrough of our approaches.
 
 ## Disclaimer
 The pre-packaged demos are for research purposes only, subject to the model License.
