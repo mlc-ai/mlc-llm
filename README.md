@@ -7,7 +7,7 @@ Our mission is to **enable everyone to develop, optimize and deploy AI models na
 Supported platforms include:
 * Metal GPUs on iPhone and Intel/ARM MacBooks;
 * AMD and NVIDIA GPUs via Vulkan on Windows and Linux;
-* CUDA on Windows and Linux;
+* NVIDIA GPUs via CUDA on Windows and Linux;
 * WebGPU on browsers (through companion project [WebLLM](https://github.com/mlc-ai/web-llm/tree/main)).
 
 **[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/)**
@@ -55,4 +55,4 @@ We heavily rely on open-source ecosystem, more specifically, [TVM Unity](https:/
 
 This project is initiated by members from CMU catalyst, UW SAMPL, SJTU, OctoML and the MLC community. We would love to continue developing and supporting the open-source ML community.
 
-This project is only possible thanks to the shoulders open-source ecosystems that we stand on. We want to thank the Apache TVM community and developers of the TVM Unity effort. The open-source ML community members made these models publicly available. PyTorch and Hugging Face communities that make these models accessible. We would like to thank the teams behind vicuna, SentencePiece, LLaMA, Alpaca. We also would like to thank the Vulkan, Swift, C++, python Rust communities that enables this project.
+This project is only possible thanks to the shoulders open-source ecosystems that we stand on. We want to thank the Apache TVM community and developers of the TVM Unity effort. The open-source ML community members made these models publicly available. PyTorch and Hugging Face communities that make these models accessible. We would like to thank the teams behind Vicuna, SentencePiece, LLaMA, and Alpaca. We also would like to thank the Vulkan, Swift, C++, python Rust communities that enables this project.
