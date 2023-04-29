@@ -8,7 +8,7 @@ Supported platforms include:
 * Metal GPUs on iPhone and Intel/ARM MacBooks;
 * AMD and NVIDIA GPUs via Vulkan on Windows and Linux;
 * CUDA on Windows and Linux;
-* WebGPU on browsers (through companion project WebLLM).
+* WebGPU on browsers (through companion project [WebLLM](https://github.com/mlc-ai/web-llm/tree/main)).
 
 **[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/)**
 
