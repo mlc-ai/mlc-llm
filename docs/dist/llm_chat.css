@@ -1,0 +1,127 @@
+ .chatui {
+   display: flex;
+   flex-flow: column wrap;
+   justify-content: space-between;
+   width: 100%;
+   max-width: 867px;
+   margin: 25px 10px;
+   height: 600px;
+   border: 2px solid #ddd;
+   border-radius: 5px;
+   box-shadow: 0 15px 15px -5px rgba(0, 0, 0, 0.2);
+ }
+
+ s .chatui-header {
+   display: flex;
+   justify-content: space-between;
+   padding: 10px;
+   border-bottom: 2px solid #ddd;
+   background: #eee;
+   color: #666;
+ }
+
+ .chatui-chat {
+   flex: 1;
+   overflow-y: auto;
+   padding: 10px;
+ }
+
+ .chatui-chat::-webkit-scrollbar {
+   width: 6px;
+ }
+
+ .chatui-chat::-webkit-scrollbar-track {
+   background: #ddd;
+ }
+
+ .chatui-chat::-webkit-scrollbar-thumb {
+   background: #bdbdbd;
+ }
+
+ .msg {
+   display: flex;
+   align-items: flex-end;
+   margin-bottom: 10px;
+ }
+
+ .msg:last-of-type {
+   margin: 0;
+ }
+
+ .msg-bubble {
+   max-width: 450px;
+   padding: 15px;
+   border-radius: 15px;
+   background: #ececec;
+ }
+
+ .left-msg .msg-bubble {
+   border-bottom-left-radius: 0;
+ }
+
+ .error-msg .msg-bubble {
+  border-bottom-left-radius: 0;
+  color: #f15959;
+}
+
+.init-msg .msg-bubble {
+  border-bottom-left-radius: 0;
+}
+
+ .right-msg {
+   flex-direction: row-reverse;
+ }
+
+ .right-msg .msg-bubble {
+   background: #579ffb;
+   color: #fff;
+   border-bottom-right-radius: 0;
+ }
+
+ .chatui-inputarea {
+   display: flex;
+   padding: 10px;
+   border-top: 2px solid #ddd;
+   background: #eee;
+ }
+
+ .chatui-inputarea * {
+   padding: 10px;
+   border: none;
+   border-radius: 3px;
+   font-size: 1em;
+ }
+
+ .chatui-input {
+   flex: 1;
+   background: #ddd;
+ }
+
+ .chatui-reset-btn {
+   margin-left: 10px;
+   background: #ececec;
+   font-weight: bold;
+   border-radius: 8px;
+   width: 200px;
+   cursor: pointer;
+ }
+
+ .chatui-reset-btn:hover {
+  background: #dcdada;
+}
+
+ .chatui-send-btn {
+  margin-left: 10px;
+  background: #579ffb;
+  color: #fff;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.chatui-send-btn:hover {
+  background: #577bfb;
+}
+
+ .chatui-chat {
+   background-color: #fcfcfe;
+ }

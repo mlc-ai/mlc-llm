@@ -1,0 +1,13 @@
+{
+    "kvConfig": {
+        "numLayers": 64,
+        "shape": [32, 32, 128],
+        "dtype": "float32"
+    },
+    "wasmUrl": "dist/vicuna-7b-v1/vicuna-7b-v1_webgpu.wasm",
+    "cacheUrl": "https://huggingface.co/mlc-ai/web-lm/resolve/main/vicuna-7b-v1/",
+    "tokenizer": "dist/vicuna-7b-v1/tokenizer.model",
+    "maxGenLength": 1024,
+    "meanGenLength": 256,
+    "maxWindowLength": 2048
+}
