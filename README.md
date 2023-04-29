@@ -1,6 +1,6 @@
 # MLC LLM
 
-| [Project](https://mlc.ai/mlc-llm/) | [Twitter](https://twitter.com/bohanhou1998/status/1652151502012837890) |
+| [Project](https://mlc.ai/mlc-llm/) |
 
 
 MLC LLM is a **universal solution** that allows **any language models** to be **deployed natively** on a diverse set of hardware backends and native applications, plus a **productive framework** for everyone to further optimize model performance for their own use cases.
