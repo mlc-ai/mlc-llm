@@ -20,6 +20,10 @@ This section contains the instructions to run large-language models and chatbot 
 
 ### iPhone
 
+<p align="center">
+<img src="demo.gif" height="700">
+</p>
+
 Try out this [TestFlight page](https://testflight.apple.com/join/57zd7oxa) (limited to the first 9000 users) to install and use
 our example iOS chat app built for iPhone. Our app itself needs about 4GB of memory to run. Considering the iOS and other running applications, we will need a recent iPhone with 6GB (or more) of memory to run the app. We only tested the
 application on iPhone 14 Pro Max and iPhone 12 Pro. You can also check out our [GitHub repo]((https://github.com/mlc-ai/mlc-llm)) to
@@ -27,10 +31,6 @@ build the iOS app from source.
 
 Note: The text generation speed on the iOS app can be unstable from time to time. It might run slow
 in the beginning and recover to a normal speed then.
-
-<p align="center">
-<img src="demo.gif" height="700">
-</p>
 
 ### Windows Linux Mac
 
