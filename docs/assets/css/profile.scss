@@ -1,0 +1,94 @@
+.logo {
+    float: left;
+    margin-right: 20px;
+    padding-bottom: 15px;
+    width: 120px;
+}
+
+.about {
+    .post-title {
+        padding-top: 20px;
+    }
+    .post-description {
+        font-size: 20px;
+    }
+}
+
+.instructors {
+    padding: 0 0 0 1%;
+}
+
+%instructor-profile {
+    display: block;
+    float: left;
+    height: 210px;
+
+    @media screen and (min-width: 676px) {
+        height: 130px;
+    }
+
+    img {
+        border-radius: 50%;
+        float: left;
+        object-fit: cover;
+        height: 100px;
+        width: 100px;
+        margin-right: 10px;
+    }
+
+    ul.instructor-info {
+        display: block;
+        float: left;
+        list-style-type: none;
+        padding-left: 0;
+        width: 65%;
+        width: -webkit-calc(100% - 130px);
+        width: calc(100% - 130px);
+        min-width: 210px;
+
+        a {
+            color: $theme-color;
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+
+        span {
+            font-weight: 400;
+        }
+    }
+}
+.instructor-profile-two-col {
+    @extend %instructor-profile;
+    width: 50%;
+}
+.instructor-profile-three-col {
+    @extend %instructor-profile;
+    width: 33%;
+}
+
+.news {
+    border-top: 1px solid $grey-color-light;
+    margin-top: 30px;
+    padding-top: 20px;
+
+    h2 {
+        font-weight: bold;
+        margin-top: 0;
+        margin-bottom: 10px;
+    }
+    table {
+        border-collapse: collapse;
+        width: 100%;
+
+        .date { width: 19%; }
+        .announcement { width: 81%; }
+
+        tr { text-align: left; }
+        td {
+            padding: 6px 0;
+            vertical-align: top;
+            border: none;
+        }
+    }
+}

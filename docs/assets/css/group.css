@@ -1,0 +1,156 @@
+/* CMU color scheme. */
+.nav-pills .nav-link.active, .nav-pills .show > .nav-link {
+  color: #fff;
+  background-color: #c41230;
+}
+
+a {
+  color: #c41230;
+}
+
+.header > a {
+  color: #212529;
+}
+
+.header > a:hover {
+  text-decoration: none;
+}
+
+/* Space out content a bit */
+body {
+  padding-top: 20px;
+}
+
+.header {
+  border-bottom: 1px solid #EEE;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.footer {
+  /* padding-top: 19px; */
+  color: #999;
+  border-top: 1px solid #EEE;
+  text-align: center;
+  font-size: 0.8em;
+}
+.footer a:link, .footer a:visited {
+  color: #999;
+}
+
+#topbar {
+  padding-top: 10px;
+}
+
+.fa {
+  color: #999;
+}
+
+a > .fa {
+  display: inline;
+}
+
+/* /\* Customize container *\/ */
+/* @media (min-width: 768px) { */
+/*     .container { */
+/*         max-width: 730px; */
+/*     } */
+/* } */
+/* Jumbotron */
+.jumbotron {
+  text-align: justify;
+  padding-top: 1.5em;
+  padding-bottom: 0.5em;
+  font-size: 125%;
+}
+
+/* Group logo */
+#logo {
+  margin-top: -15px;
+  margin-bottom: -10px;
+}
+
+/* Front page news. */
+ul.news .date {
+  color: #999;
+  font-weight: bold;
+}
+ul.news > li {
+  margin-top: 1em;
+}
+
+@media (min-width: 576px) {
+  .project-people {
+    column-count: 2;
+  }
+  .card-columns {
+    column-count: 2;
+  }
+}
+@media (min-width: 768px) {
+  .role.grad {
+    column-count: 2;
+  }
+  .project-people {
+    column-count: 3;
+  }
+  .card-columns {
+    column-count: 3;
+  }
+}
+.title img {
+  max-width: 50%;
+}
+
+section {
+  margin-bottom: 2em;
+}
+
+.profile {
+  object-fit: cover;
+}
+
+.noprofile circle {
+  fill: #EEE;
+}
+.noprofile text {
+  font-weight: 700;
+  fill: white;
+}
+
+.card .profile {
+  height: 40px;
+  width: 40px;
+  margin: 3px;
+}
+.card .card-footer {
+  padding: 0.5em;
+}
+
+.person {
+  margin-bottom: 10px;
+}
+.person .profile {
+  height: 70px;
+  width: 70px;
+}
+.person .bio {
+  color: #999;
+}
+.person .person-name {
+  margin: 0;
+}
+
+.person-without-image {
+  margin: 0;
+}
+.person-without-image .bio {
+  margin-left: 1em;
+}
+
+svg {
+  vertical-align: middle;
+}
+
+/*# sourceMappingURL=group.css.map */
