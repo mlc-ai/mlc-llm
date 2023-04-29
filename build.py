@@ -116,6 +116,19 @@ def _parse_args():
             host="llvm",
         )
         parsed.target_kind = parsed.target.kind.default_keys[0]
+    elif parsed.target == "metal_x86_64":
+        from tvm.contrib import xcode
+        parsed.target = tvm.target.Target(
+            tvm.target.Target("apple/m1-gpu"),
+            host="llvm -mtriple=x86_64-apple-darwin"
+        )
+        parsed.target_kind = "metal_x86_64"
+        parsed.export_kwargs = {
+            "fcompile": xcode.create_dylib,
+            "sdk": "macosx",
+            "arch": "x86_64",
+        }
+        parsed.lib_format = "dylib"
     else:
         parsed.target = tvm.target.Target(parsed.target, host="llvm")
         parsed.target_kind = parsed.target.kind.default_keys[0]
