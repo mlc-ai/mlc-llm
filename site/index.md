@@ -6,7 +6,9 @@ notitle: true
 
 # MLC LLM
 
-MLC LLM is a universal solution that allows any language model to be deployed natively on a diverse set of hardware backends and native applications, plus a productive framework for everyone to further optimize model performance for their own use cases. Check out our [GitHub repository](https://github.com/mlc-ai/mlc-llm) to see how we did it. You can also read through instructions below for trying out demos.
+MLC LLM is a universal solution that allows any language model to be deployed natively on a diverse set of hardware backends and native applications, plus a productive framework for everyone to further optimize model performance for their own use cases.
+**Everything runs locally  with no server support and accelerated with local GPUs on your phone and laptop**.
+Check out our [GitHub repository](https://github.com/mlc-ai/mlc-llm) to see how we did it. You can also read through instructions below for trying out demos.
 
 <p align="center">
 <img src="demo.gif" height="700">
@@ -16,7 +18,21 @@ MLC LLM is a universal solution that allows any language model to be deployed na
 
 This section contains the instructions to run large-language models and chatbot natively on your environment.
 
-### Windows, Linux, Mac
+- [iPhone](#iphone)
+- [Windows Linux Mac](#windows-linux-mac)
+- [Web browser](#web-browser)
+
+### iPhone
+
+Try out this [TestFlight page](https://testflight.apple.com/join/57zd7oxa) (limited to the first 9000 users) to install and use
+our example iOS chat app built for iPhone. Our app itself needs about 4GB of memory to run. Considering the iOS and other running applications, we will need a recent iPhone with 6GB (or more) of memory to run the app. We only tested the
+application on iPhone 14 Pro Max and iPhone 12 Pro. You can also check out our [GitHub repo]((https://github.com/mlc-ai/mlc-llm)) to
+build the iOS app from source.
+
+Note: The text generation speed on the iOS app can be unstable from time to time. It might run slow
+in the beginning and recover to a normal speed then.
+
+### Windows Linux Mac
 
 We provide a CLI (command-line interface) app to chat with the bot in your terminal. Before installing
 the CLI app, we should install some dependencies first.
@@ -53,15 +69,6 @@ mlc_chat_cli
 <img src="linux.gif" width="80%">
 </p>
 
-### iOS
-
-Try out this [TestFlight page](https://testflight.apple.com/join/57zd7oxa) (limited to the first 9000 users) to install and use
-our example iOS chat app built for iPhone. Our app itself needs about 4GB of memory to run. Considering the iOS and other running applications, we will need a recent iPhone with 6GB (or more) of memory to run the app. We only tested the
-application on iPhone 14 Pro Max and iPhone 12 Pro. You can also check out our [GitHub repo]((https://github.com/mlc-ai/mlc-llm)) to
-build the iOS app from source.
-
-Note: The text generation speed on the iOS app can be unstable from time to time. It might run slow
-for a while and recover to a normal speed then.
 
 ### Web Browser
 

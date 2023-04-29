@@ -4,8 +4,10 @@ MLC LLM is a **universal solution** that allows **any language models** to be **
 
 Our mission is to **enable everyone to develop, optimize and deploy AI models natively on everyone's devices**.
 
+Everything runs locally  with no server support and accelerated with local GPUs on your phone and laptops.
 Supported platforms include:
-* Metal GPUs on iPhone and Intel/ARM MacBooks;
+* iPhone
+* Metal GPUs and Intel/ARM MacBooks;
 * AMD and NVIDIA GPUs via Vulkan on Windows and Linux;
 * NVIDIA GPUs via CUDA on Windows and Linux;
 * WebGPU on browsers (through companion project [WebLLM](https://github.com/mlc-ai/web-llm/tree/main)).
