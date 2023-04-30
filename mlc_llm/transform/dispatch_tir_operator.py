@@ -1121,7 +1121,7 @@ def matmul5_after(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, va
                     T.reads(C_pad[vi0, vi1, vi2, vi3])
                     T.writes(matmul[vi0, vi1, vi2, vi3])
                     matmul[vi0, vi1, vi2, vi3] = C_pad[vi0, vi1, vi2, vi3]
-                    
+
 @T.prim_func
 def matmul5_with_m_before(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_matmul: T.handle):
     T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
@@ -2725,7 +2725,7 @@ def fused_NT_matmul_divide_maximum_minimum_cast_before(lv1605: T.Buffer((T.int64
             T.reads(var_T_minimum_intermediate[v_i0, v_i1, v_i2, v_i3])
             T.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
             var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast("float32", var_T_minimum_intermediate[v_i0, v_i1, v_i2, v_i3])
-            
+
 def fused_NT_matmul_divide_maximum_minimum_cast_sch_func():
     sch = tvm.tir.Schedule(fused_NT_matmul_divide_maximum_minimum_cast_before)
     b_cast = sch.get_block("compute")
@@ -2780,12 +2780,16 @@ def fused_NT_matmul_divide_maximum_minimum_cast_sch_func():
     sch.compute_inline(block=b1)
     v82 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001], decision=1)
     sch.annotate(block_or_loop=b4, ann_key="meta_schedule.unroll_explicit", ann_val=v82)
-    l83, l84, l85, l86 = sch.get_loops(block=b2)
-    l87 = sch.fuse(l83, l84, l85, l86, preserve_unit_iters=True)
-    v88 = sch.sample_categorical(candidates=[32, 64, 128, 256], probs=[0.25, 0.25, 0.25, 0.25], decision=0)
-    l89, l90 = sch.split(loop=l87, factors=[None, v88], preserve_unit_iters=True)
-    sch.bind(loop=l89, thread_axis="blockIdx.x")
-    sch.bind(loop=l90, thread_axis="threadIdx.x")
+
+    # inline ewise
+    sch.reverse_compute_inline(b2)
+    # l83, l84, l85, l86 = sch.get_loops(block=b2)
+    # l87 = sch.fuse(l83, l84, l85, l86, preserve_unit_iters=True)
+    # v88 = sch.sample_categorical(candidates=[32, 64, 128, 256], probs=[0.25, 0.25, 0.25, 0.25], decision=0)
+    # l89, l90 = sch.split(loop=l87, factors=[None, v88], preserve_unit_iters=True)
+    # sch.bind(loop=l89, thread_axis="blockIdx.x")
+    # sch.bind(loop=l90, thread_axis="threadIdx.x")
+
     sch.enter_postproc()
     sch.unannotate(block_or_loop=b60, ann_key="meta_schedule.cooperative_fetch")
     _, l91, l92, l93, l94, l95 = sch.get_loops(block=b60)
@@ -2797,7 +2801,7 @@ def fused_NT_matmul_divide_maximum_minimum_cast_sch_func():
     sch.bind(loop=l104, thread_axis="threadIdx.x")
     b105 = sch.get_block(name="root", func_name="main")
     sch.unannotate(block_or_loop=b105, ann_key="meta_schedule.unroll_explicit")
-    _, b106, b107, b108, b109, _, b110 = sch.get_child_blocks(b105)
+    _, b106, b107, b108, b109, _ = sch.get_child_blocks(b105)
     _, l111, l112, l113, l114, l115, l116 = sch.get_loops(block=b106)
     sch.annotate(block_or_loop=l111, ann_key="pragma_auto_unroll_max_step", ann_val=16)
     sch.annotate(block_or_loop=l111, ann_key="pragma_unroll_explicit", ann_val=1)
@@ -2810,9 +2814,7 @@ def fused_NT_matmul_divide_maximum_minimum_cast_sch_func():
     _, l137, l138, l139, l140, l141, l142, l143 = sch.get_loops(block=b109)
     sch.annotate(block_or_loop=l137, ann_key="pragma_auto_unroll_max_step", ann_val=16)
     sch.annotate(block_or_loop=l137, ann_key="pragma_unroll_explicit", ann_val=1)
-    l144, l145 = sch.get_loops(block=b110)
-    sch.annotate(block_or_loop=l144, ann_key="pragma_auto_unroll_max_step", ann_val=16)
-    sch.annotate(block_or_loop=l144, ann_key="pragma_unroll_explicit", ann_val=1)
+
     b146 = sch.get_block(name="NT_matmul", func_name="main")
     l0, l147, l148, l149, l150, l151, l152, l153, l154, l155, l156, l157, l158, l159, l160 = sch.get_loops(block=b146)
     sch.bind(l0, "blockIdx.y")
@@ -2822,6 +2824,7 @@ def fused_NT_matmul_divide_maximum_minimum_cast_sch_func():
     sch.compute_inline(b1)
     b2 = sch.get_block("var_NT_matmul_intermediate_pad")
     sch.reverse_compute_inline(b2)
+
     return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
 
@@ -3495,12 +3498,15 @@ def fused_NT_matmul3_silu1_sch_func():
     sch.compute_inline(block=b1)
     v67 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001], decision=1)
     sch.annotate(block_or_loop=b3, ann_key="meta_schedule.unroll_explicit", ann_val=v67)
-    l68, l69, l70 = sch.get_loops(block=b2)
-    l71 = sch.fuse(l68, l69, l70, preserve_unit_iters=True)
-    l72, l73, l74 = sch.split(loop=l71, factors=[None, 256, 256], preserve_unit_iters=True)
-    sch.reorder(l73, l74, l72)
-    sch.bind(loop=l73, thread_axis="blockIdx.x")
-    sch.bind(loop=l74, thread_axis="threadIdx.x")
+
+    # reverse compute inline the silu part
+    sch.reverse_compute_inline(b2)
+    # l68, l69, l70 = sch.get_loops(block=b2)
+    # l71 = sch.fuse(l68, l69, l70, preserve_unit_iters=True)
+    # l72, l73, l74 = sch.split(loop=l71, factors=[None, 256, 256], preserve_unit_iters=True)
+    #sch.reorder(l73, l74, l72)
+    # sch.bind(loop=l73, thread_axis="blockIdx.x")
+    # sch.bind(loop=l74, thread_axis="threadIdx.x")
     sch.enter_postproc()
     sch.unannotate(block_or_loop=b48, ann_key="meta_schedule.cooperative_fetch")
     _, l75, l76, l77, l78, l79 = sch.get_loops(block=b48)
@@ -3514,7 +3520,7 @@ def fused_NT_matmul3_silu1_sch_func():
     sch.bind(loop=l89, thread_axis="threadIdx.x")
     b91 = sch.get_block(name="root", func_name="main")
     sch.unannotate(block_or_loop=b91, ann_key="meta_schedule.unroll_explicit")
-    _, b92, b93, b94, b95, _, b96 = sch.get_child_blocks(b91)
+    _, b92, b93, b94, b95, _ = sch.get_child_blocks(b91)
     _, l97, l98, l99, l100, l101, l102, l103 = sch.get_loops(block=b92)
     sch.annotate(block_or_loop=l97, ann_key="pragma_auto_unroll_max_step", ann_val=16)
     sch.annotate(block_or_loop=l97, ann_key="pragma_unroll_explicit", ann_val=1)
@@ -3527,9 +3533,9 @@ def fused_NT_matmul3_silu1_sch_func():
     _, l123, l124, l125, l126, l127, l128 = sch.get_loops(block=b95)
     sch.annotate(block_or_loop=l123, ann_key="pragma_auto_unroll_max_step", ann_val=16)
     sch.annotate(block_or_loop=l123, ann_key="pragma_unroll_explicit", ann_val=1)
-    l129, l130, l131 = sch.get_loops(block=b96)
-    sch.annotate(block_or_loop=l129, ann_key="pragma_auto_unroll_max_step", ann_val=16)
-    sch.annotate(block_or_loop=l129, ann_key="pragma_unroll_explicit", ann_val=1)
+    # l129, l130, l131 = sch.get_loops(block=b96)
+    # sch.annotate(block_or_loop=l129, ann_key="pragma_auto_unroll_max_step", ann_val=16)
+    # sch.annotate(block_or_loop=l129, ann_key="pragma_unroll_explicit", ann_val=1)
     b132 = sch.get_block(name="NT_matmul", func_name="main")
     l0, l133, l134, l135, l136, l137, l138, l139, l140, l141, l142, l143, l144 = sch.get_loops(block=b132)
     sch.bind(l0, "blockIdx.y")
@@ -3537,8 +3543,10 @@ def fused_NT_matmul3_silu1_sch_func():
 
     b1 = sch.get_block("lv43_pad")
     sch.compute_inline(b1)
+
     b2 = sch.get_block("var_NT_matmul_intermediate_pad")
     sch.reverse_compute_inline(b2)
+
     return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
 
@@ -4299,8 +4307,8 @@ def fused_decode3_matmul1_after(lv1123: T.Buffer((T.int64(512), T.int64(32000)),
                         T.reads(var_matmul_intermediate_pad_local[v0, v1, v2])
                         T.writes(var_matmul_intermediate[v0, v1, v2])
                         var_matmul_intermediate[v0, v1, v2] = var_matmul_intermediate_pad_local[v0, v1, v2]
-                 
-       
+
+
 @T.prim_func
 def fused_decode4_fused_matmul5_add3_before(lv3184: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), lv3185: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), lv452: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), lv2710: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32")):
     T.func_attr({"tir.noalias": T.bool(True)})
@@ -4404,7 +4412,7 @@ def fused_decode4_matmul5_before(lv3166: T.Buffer((T.int64(512), T.int64(4096)),
             with T.init():
                 var_matmul_intermediate[v_i0, v_i1, v_i2] = T.float32(0)
             var_matmul_intermediate[v_i0, v_i1, v_i2] = var_matmul_intermediate[v_i0, v_i1, v_i2] + lv2712[v_i0, v_i1, v_k] * var_decode_intermediate[v_k, v_i2]
-                
+
 
 @T.prim_func
 def fused_decode4_matmul5_after(lv1128: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), lv1129: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), lv2712: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), var_matmul_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32")):
@@ -4663,7 +4671,7 @@ def fused_decode6_fused_matmul9_add3_before(lv1623: T.Buffer((T.int64(1376), T.i
             T.reads(lv228[v_ax0, v_ax1, v_ax2], var_matmul_intermediate[v_ax0, v_ax1, v_ax2])
             T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
             p_output0_intermediate[v_ax0, v_ax1, v_ax2] = lv228[v_ax0, v_ax1, v_ax2] + var_matmul_intermediate[v_ax0, v_ax1, v_ax2]
-            
+
 
 @T.prim_func
 def fused_decode6_fused_matmul9_add3_after(lv1158: T.Buffer((T.int64(1376), T.int64(4096)), "uint32"), lv1159: T.Buffer((T.int64(344), T.int64(4096)), "uint32"), lv6: T.Buffer((T.int64(1), T.int64(1), T.int64(11008)), "float32"), lv4: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32")):
