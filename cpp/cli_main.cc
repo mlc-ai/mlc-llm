@@ -126,7 +126,7 @@ void PrintSpecialCommands() {
   std::cout << "You can use the following special commands:\n"
             << "  /help    print the special commands\n"
             << "  /exit    quit the cli\n"
-            << "  /stats   print out the latest stats\n"
+            << "  /stats   print out the latest stats (token/sec)\n"
             << "  /reset   reset the chat state\n"
             << std::endl
             << std::flush;
