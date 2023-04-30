@@ -28,6 +28,8 @@ class ChatState : ObservableObject {
     private var stopLock = NSLock();
     private var requestedReset = false;
     private var stopRequested = false;
+    private var gpuVRAMDetectionPass = false;
+
     
     init() {
         threadWorker.qualityOfService = QualityOfService.userInteractive;
@@ -36,6 +38,20 @@ class ChatState : ObservableObject {
     }
     
     func systemInit() {
+        let vram = os_proc_available_memory()
+        if (vram < (4000000000)) {
+            print(vram)
+            let errMsg = (
+                "Sorry, the system do not have 4GB memory as requested, " +
+                "so we cannot initialize chat module on this device."
+            )
+            self.messages.append(MessageData(role: MessageRole.bot, message: errMsg))
+            self.gpuVRAMDetectionPass = false
+            self.inProgress = true
+            return
+        }
+        self.gpuVRAMDetectionPass = true
+            
         self.inProgress = true;
         threadWorker.push {[self] in
             self.updateReply(role: MessageRole.bot, message: "[System] Initalize...")
@@ -100,12 +116,18 @@ class ChatState : ObservableObject {
     }
 
     func generate(prompt: String) {
+        if (!self.gpuVRAMDetectionPass) {
+            return
+        }
         self.inProgress = true
         self.stopRequested = false
         self.backendGenerate(prompt: prompt)
     }
     
     func requestStop() {
+        if (!self.gpuVRAMDetectionPass) {
+            return
+        }
         if (self.inProgress) {
             self.stopLock.lock()
             self.stopRequested = true;
@@ -114,6 +136,9 @@ class ChatState : ObservableObject {
     }
 
     func resetChat() {
+        if (!self.gpuVRAMDetectionPass) {
+            return
+        }
         if (self.inProgress) {
             self.requestStop()
         }

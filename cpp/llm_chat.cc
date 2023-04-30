@@ -540,6 +540,18 @@ class LLMChatModule : public ModuleNode {
     return tokens;
   }
 
+  // get statically allocated input token
+  NDArray GetInputTokenNDArray(const std::vector<int32_t>& token_ids) {
+    if (!input_token_ids_.defined()) {
+      input_token_ids_ = NDArray::Empty({1, max_window_size_}, DataType::Int(32), device_);
+    }
+    ICHECK_LE(token_ids.size(), input_token_ids_->shape[1]) << "Input tokens exceed window size";
+    NDArray view = input_token_ids_.CreateView(
+        ShapeTuple({1, static_cast<int64_t>(token_ids.size())}), input_token_ids_->dtype);
+    view.CopyFromBytes(token_ids.data(), token_ids.size() * sizeof(int32_t));
+    return view;
+  }
+
   /*!
    * \brief Generate the next token given a prompt.
    */
@@ -556,8 +568,8 @@ class LLMChatModule : public ModuleNode {
 
     auto prompt_tokens = this->GetPromptTokens();
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
-    auto input_data = NDArray::Empty({1, token_len}, DataType::Int(32), device_);
-    input_data.CopyFromBytes(prompt_tokens.data(), prompt_tokens.size() * sizeof(int32_t));
+
+    auto input_data = this->GetInputTokenNDArray(prompt_tokens);
 
     total_seq_len_ += token_len;
     cur_pos_ = token_len;
@@ -582,8 +594,7 @@ class LLMChatModule : public ModuleNode {
     output_ids_.push_back(next_token_);
     output_message_ = RemoveStopStr(tokenizer_->Decode(output_ids_));
 
-    auto input_data = NDArray::Empty({1, 1}, DataType::Int(32), device_);
-    input_data.CopyFromBytes(&next_token_, sizeof(int32_t));
+    auto input_data = GetInputTokenNDArray({next_token_});
 
     total_seq_len_ += 1;
     cur_pos_ += 1;
@@ -629,10 +640,10 @@ class LLMChatModule : public ModuleNode {
     return pos;
   }
 
-  std::string GetMessage() { 
+  std::string GetMessage() {
     // remove non-utf8 characters
     std::string cropped_message = output_message_.substr(0, FindEffectiveUTF8Pos(output_message_, 0));
-    return cropped_message; 
+    return cropped_message;
   }
 
   // do some quick evaluation of the tokenizer
@@ -910,6 +921,8 @@ class LLMChatModule : public ModuleNode {
   PackedFunc decoding_func_;
   // encoding without cache
   PackedFunc encoding_without_cache_func_;
+  // input token id
+  NDArray input_token_ids_{nullptr};
   // local params
   Array<NDArray> params_;
   // KV cache

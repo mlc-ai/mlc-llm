@@ -3,6 +3,7 @@
 //
 // Exposed interface of Object-C, enables swift binding.
 #import <Foundation/Foundation.h>
+#include <os/proc.h>
 
 @interface LLMChatInstance : NSObject
 - (void)initialize;
