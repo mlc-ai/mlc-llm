@@ -32,7 +32,7 @@ The goal of this project is to enable the development, optimization, and deploym
 
 MLC LLM offers a repeatable, systematic, and customizable workflow that empowers developers and AI system researchers to implement models and optimizations in a productivity-focused, Python-first approach. This methodology enables quick experimentation with new models, new ideas and new compiler passes, followed by native deployment to the desired targets. Furthermore, we are continuously expanding LLM acceleration by broadening TVM backends to make model compilation more transparent and efficient.
 
-## How does MLC enable Universal Native Deployment?
+## How does MLC Enable Universal Native Deployment?
 
 The cornerstone of our solution is machine learning compilation ([MLC](https://mlc.ai/)), which we leverage to efficiently deploy AI models. We build on the shoulders of open-source ecosystems, including tokenizers from HuggingFace and Google, as well as open-source LLMs like Llama, Vicuna, Dolly and more. Our primary workflow is based on [Apache TVM Unity](https://github.com/apache/tvm/tree/unity), an exciting ongoing development in the Apache TVM Community.
 
