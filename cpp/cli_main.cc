@@ -86,7 +86,6 @@ std::vector<std::string> GetLibSuffixes() {
 #endif
 }
 
-
 std::string GetArchSuffix() {
 #if defined(__x86_64__)
   return "_x86_64";
@@ -96,7 +95,6 @@ std::string GetArchSuffix() {
   return "";
 }
 
-
 std::vector<std::string> CountUTF8(const std::string& s) {
   // assume that the string is always valid utf8
   std::vector<std::string> ret;
@@ -104,14 +102,14 @@ std::vector<std::string> CountUTF8(const std::string& s) {
     if ((s[pos] & 0x80) == 0x00) {
       ret.push_back(s.substr(pos, 1));
       pos += 1;
-    } else if ((s[pos] & 0xE0) == 0xC0 && (s[pos + 1] & 0xC0) == 0x80) {
+    } else if (pos + 1 < s.size() && (s[pos] & 0xE0) == 0xC0 && (s[pos + 1] & 0xC0) == 0x80) {
       ret.push_back(s.substr(pos, 2));
       pos += 2;
-    } else if ((s[pos] & 0xF0) == 0xE0 && (s[pos + 1] & 0xC0) == 0x80 &&
+    } else if (pos + 1 < s.size() && (s[pos] & 0xF0) == 0xE0 && (s[pos + 1] & 0xC0) == 0x80 &&
                (s[pos + 2] & 0xC0) == 0x80) {
       ret.push_back(s.substr(pos, 3));
       pos += 3;
-    } else if ((s[pos] & 0xF8) == 0xF0 && (s[pos + 1] & 0xC0) == 0x80 &&
+    } else if (pos + 2 < s.size() && (s[pos] & 0xF8) == 0xF0 && (s[pos + 1] & 0xC0) == 0x80 &&
                (s[pos + 2] & 0xC0) == 0x80 && (s[pos + 3] & 0xC0) == 0x80) {
       ret.push_back(s.substr(pos, 4));
       pos += 4;
@@ -171,7 +169,7 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_g
     std::string inp;
     std::cout << role0 << ": " << std::flush;
     std::getline(std::cin, inp);
-    if(!std::cin.good()) break;
+    if (!std::cin.good()) break;
     if (inp.substr(0, 6) == "/reset") {
       // initialize chat context
       chat_mod.GetFunction("reset_chat")();
@@ -268,11 +266,9 @@ int main(int argc, char* argv[]) {
                                              artifact_path + "/models/" + model,
                                              artifact_path + "/" + model, artifact_path + "/lib"};
     // search for lib_x86_64 and lib
-    lib_path_opt = FindFile(
-        search_paths,
-        {lib_name + arch_suffix + "_" + candidate,
-         lib_name + "_" + candidate},
-        GetLibSuffixes());
+    lib_path_opt = FindFile(search_paths,
+                            {lib_name + arch_suffix + "_" + candidate, lib_name + "_" + candidate},
+                            GetLibSuffixes());
     if (lib_path_opt) {
       dtype = candidate;
       break;
