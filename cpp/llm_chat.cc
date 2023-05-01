@@ -719,7 +719,7 @@ class LLMChatModule : public ModuleNode {
     // setup members
     device_ = device;
 
-    // intialize tokenizer
+    // initialize tokenizer
     tokenizer_ = Tokenizer::FromFile(tokenizer_path);
 
     // load in nd-arracy cache
@@ -727,7 +727,7 @@ class LLMChatModule : public ModuleNode {
     ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
     (*fload_cache)(param_path, static_cast<int32_t>(device_.device_type), device.device_id);
 
-    // intialize vm, we use the packed function mechanism
+    // initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
     vm_ = executable->GetFunction("vm_load_executable")();
