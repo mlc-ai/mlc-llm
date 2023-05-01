@@ -1,6 +1,6 @@
 # MLC LLM
 
-| [Project](https://mlc.ai/mlc-llm/) | [Demo: iOS](https://mlc.ai/mlc-llm/#iphone) | [Demo: CLI](https://mlc.ai/mlc-llm/#windows-linux-mac) | [WebLLM](https://mlc.ai/web-llm/) |
+| [Project](https://mlc.ai/mlc-llm/) | [Demo: iOS](https://mlc.ai/mlc-llm/#iphone) | [Demo: CLI](https://mlc.ai/mlc-llm/#windows-linux-mac) | [WebLLM](https://mlc.ai/web-llm/) | [WebStableDiffusion](https://mlc.ai/web-stable-diffusion/) |
 
 MLC LLM is a **universal solution** that allows **any language models** to be **deployed natively** on a diverse set of hardware backends and native applications, plus a **productive framework** for everyone to further optimize model performance for their own use cases.
 
