@@ -603,7 +603,6 @@ class LLMChatModule : public ModuleNode {
     this->UpdateLogitsOnCPU(this->Forward(input_data, total_seq_len_));
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
 
-
     next_token_ = this->SampleFromLogitsOnCPU();
     auto tend = std::chrono::high_resolution_clock::now();
 
@@ -619,19 +618,18 @@ class LLMChatModule : public ModuleNode {
            total_seq_len_ >= max_window_size_;
   }
 
-
   size_t FindEffectiveUTF8Pos(const std::string& s, size_t start_pos) {
     size_t pos = start_pos;
     while (pos < s.size()) {
       if ((s[pos] & 0x80) == 0x00) {
         pos += 1;
-      } else if ((s[pos] & 0xE0) == 0xC0 && (s[pos + 1] & 0xC0) == 0x80) {
+      } else if (pos + 1 < s.size() && (s[pos] & 0xE0) == 0xC0 && (s[pos + 1] & 0xC0) == 0x80) {
         pos += 2;
-      } else if ((s[pos] & 0xF0) == 0xE0 && (s[pos + 1] & 0xC0) == 0x80 &&
-                (s[pos + 2] & 0xC0) == 0x80) {
+      } else if (pos + 2 < s.size() && (s[pos] & 0xF0) == 0xE0 && (s[pos + 1] & 0xC0) == 0x80 &&
+                 (s[pos + 2] & 0xC0) == 0x80) {
         pos += 3;
-      } else if ((s[pos] & 0xF8) == 0xF0 && (s[pos + 1] & 0xC0) == 0x80 &&
-                (s[pos + 2] & 0xC0) == 0x80 && (s[pos + 3] & 0xC0) == 0x80) {
+      } else if (pos + 3 < s.size() && (s[pos] & 0xF8) == 0xF0 && (s[pos + 1] & 0xC0) == 0x80 &&
+                 (s[pos + 2] & 0xC0) == 0x80 && (s[pos + 3] & 0xC0) == 0x80) {
         pos += 4;
       } else {
         break;
@@ -642,7 +640,8 @@ class LLMChatModule : public ModuleNode {
 
   std::string GetMessage() {
     // remove non-utf8 characters
-    std::string cropped_message = output_message_.substr(0, FindEffectiveUTF8Pos(output_message_, 0));
+    std::string cropped_message =
+        output_message_.substr(0, FindEffectiveUTF8Pos(output_message_, 0));
     return cropped_message;
   }
 
@@ -845,7 +844,8 @@ class LLMChatModule : public ModuleNode {
   std::string DeltaMessage(const std::string& cur, const std::string& old) {
     std::string ret;
     int pos = std::min(old.length(), cur.length()) - 1;
-    for (; pos >= 0 && cur[pos] != '\n'; --pos);
+    for (; pos >= 0 && cur[pos] != '\n'; --pos)
+      ;
     ret += '\r';
     ret += cur.substr(pos + 1);
     return ret;
