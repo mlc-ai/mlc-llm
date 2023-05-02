@@ -150,6 +150,8 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_g
     conv_template = "dolly";
   } else if (model.find("stablelm") == 0) {
     conv_template = "stablelm";
+  } else if (model.find("moss") == 0) {
+    conv_template = "moss";
   } else {
     LOG(FATAL) << "Do not recognize model name " << model;
   }

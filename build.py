@@ -10,7 +10,7 @@ from tvm import relax
 
 import mlc_llm
 from mlc_llm import utils
-from mlc_llm.relax_model import gpt_neox, llama
+from mlc_llm.relax_model import gpt_neox, llama, moss
 
 
 def _parse_args():
@@ -264,6 +264,8 @@ if __name__ == "__main__":
             mod, params = llama.get_model(ARGS)
         elif ARGS.model.startswith("dolly-") or ARGS.model.startswith("stablelm-"):
             mod, params = gpt_neox.get_model(ARGS.model, ARGS.model_path, ARGS.dtype)
+        elif ARGS.model.startswith("moss-"):
+            mod, params = moss.get_model(ARGS)
         else:
             raise ValueError(f"Model {ARGS.model} not supported")
         mod = mod_transform_before_build(mod, params, ARGS)

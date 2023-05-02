@@ -235,7 +235,7 @@ def main():
     ARGS = _parse_args()
     if ARGS.debug_dump:
         torch.manual_seed(12)
-    tokenizer = AutoTokenizer.from_pretrained(ARGS.model_path)
+    tokenizer = AutoTokenizer.from_pretrained(ARGS.model_path, trust_remote_code=True)
     tokenizer.pad_token_id = tokenizer.eos_token_id
     if ARGS.model.startswith("dolly-"):
         # 50277 means "### End"

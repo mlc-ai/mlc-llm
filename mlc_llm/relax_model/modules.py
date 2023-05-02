@@ -98,6 +98,7 @@ class RotaryEmbedding(nn.Module):
         position_embedding_base: int,
         max_sequence_length: int,
         rotary_pct: float,
+        swizzle_style: str = "neox",
         dtype: str = "float32",
     ):
         super().__init__()
@@ -109,10 +110,43 @@ class RotaryEmbedding(nn.Module):
         )
         t = np.arange(max_sequence_length, dtype=inv_freq.dtype)
         freq = np.einsum("i,j->ij", t, inv_freq)
-        emb = np.concatenate((freq, freq), axis=-1)
+        if swizzle_style == "neox":
+            emb = np.concatenate((freq, freq), axis=-1)
+        elif swizzle_style == "gptj":
+            emb = np.repeat(freq, repeats=2, axis=-1)
+        else:
+            raise KeyError("Unrecognized swizzle style {}".format(swizzle_style))
+        self.swizzle_style = swizzle_style
         self.rotary_ndim = rotary_ndim
         self.cos_cached = relax.const(tvm_array(np.cos(emb).astype(dtype)))
         self.sin_cached = relax.const(tvm_array(np.sin(emb).astype(dtype)))
+
+    def get_x_swizzle(self, x, i_batch_size, i_seq_len, i_num_heads, i_head_dim):
+        if self.swizzle_style == "neox":
+            n_feat_half = self.rotary_ndim
+            return tir.Select(
+                i_head_dim < n_feat_half,
+                -x[
+                    i_batch_size,
+                    i_seq_len,
+                    i_num_heads,
+                    i_head_dim + n_feat_half,
+                ],
+                x[
+                    i_batch_size,
+                    i_seq_len,
+                    i_num_heads,
+                    i_head_dim - n_feat_half,
+                ],
+            )
+        elif self.swizzle_style == "gptj":
+            return tir.Select(
+                i_head_dim % 2 == 0,
+                -x[i_batch_size, i_seq_len, i_num_heads, i_head_dim + 1],
+                x[i_batch_size, i_seq_len, i_num_heads, i_head_dim - 1],
+            )
+        else:
+            raise KeyError("Unrecognized swizzle style: {}.".format(self.swizzle_style))
 
     def forward(
         self,
@@ -127,7 +161,6 @@ class RotaryEmbedding(nn.Module):
                 i_num_heads,
                 i_head_dim,
             ):
-                n_feat_half = self.rotary_ndim // 2
                 return tir.Select(
                     i_head_dim < self.rotary_ndim,
                     cos[
@@ -139,20 +172,8 @@ class RotaryEmbedding(nn.Module):
                         offset + i_seq_len,
                         i_head_dim,
                     ]
-                    * tir.Select(
-                        i_head_dim < n_feat_half,
-                        -x[
-                            i_batch_size,
-                            i_seq_len,
-                            i_num_heads,
-                            i_head_dim + n_feat_half,
-                        ],
-                        x[
-                            i_batch_size,
-                            i_seq_len,
-                            i_num_heads,
-                            i_head_dim - n_feat_half,
-                        ],
+                    * self.get_x_swizzle(
+                        x, i_batch_size, i_seq_len, i_num_heads, i_head_dim
                     ),
                     x(i_batch_size, i_seq_len, i_num_heads, i_head_dim),
                 )
