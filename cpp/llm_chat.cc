@@ -671,23 +671,21 @@ class LLMChatModule : public ModuleNode {
   }
 
   size_t FindEffectiveUTF8Pos(const std::string& s, size_t start_pos) {
-    size_t pos = start_pos;
-    while (pos < s.size()) {
+    int pos = s.size() - 1;
+    for (; pos >= 0; pos--) {
       if ((s[pos] & 0x80) == 0x00) {
-        pos += 1;
-      } else if (pos + 1 < s.size() && (s[pos] & 0xE0) == 0xC0 && (s[pos + 1] & 0xC0) == 0x80) {
-        pos += 2;
-      } else if (pos + 2 < s.size() && (s[pos] & 0xF0) == 0xE0 && (s[pos + 1] & 0xC0) == 0x80 &&
-                 (s[pos + 2] & 0xC0) == 0x80) {
-        pos += 3;
-      } else if (pos + 3 < s.size() && (s[pos] & 0xF8) == 0xF0 && (s[pos + 1] & 0xC0) == 0x80 &&
-                 (s[pos + 2] & 0xC0) == 0x80 && (s[pos + 3] & 0xC0) == 0x80) {
-        pos += 4;
-      } else {
-        break;
+        return pos + 1;
+      } else if (pos - 1 >= 0 && (s[pos - 1] & 0xE0) == 0xC0 && (s[pos] & 0xC0) == 0x80) {
+        return pos + 1;
+      } else if (pos - 2 >= 0 && (s[pos - 2] & 0xF0) == 0xE0 && (s[pos - 1] & 0xC0) == 0x80 &&
+                 (s[pos] & 0xC0) == 0x80) {
+        return pos + 1;
+      } else if (pos - 3 >= 0 && (s[pos - 3] & 0xF8) == 0xF0 && (s[pos - 2] & 0xC0) == 0x80 &&
+                 (s[pos - 1] & 0xC0) == 0x80 && (s[pos] & 0xC0) == 0x80) {
+        return pos + 1;
       }
     }
-    return pos;
+    return pos + 1;
   }
 
   std::string GetMessage() {
