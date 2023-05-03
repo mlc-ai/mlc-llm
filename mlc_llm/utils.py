@@ -1,5 +1,7 @@
 # pylint: disable=missing-docstring,invalid-name
 import argparse
+import os
+from platform import system
 from typing import List, Tuple
 
 import tvm
@@ -20,6 +22,9 @@ def argparse_add_common(args: argparse.ArgumentParser) -> None:
             "dolly-v2-12b",
             "stablelm-tuned-alpha-3b",
             "stablelm-tuned-alpha-7b",
+            "RedPajama-INCITE-Base-3B-v1",
+            "RedPajama-INCITE-Chat-3B-v1",
+            "RedPajama-INCITE-Instruct-3B-v1",
             "moss-moon-003-sft",
         ],
     )
@@ -41,25 +46,22 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
             else:
                 raise ValueError("Cannot auto deduce device-name, please set it")
     if args.model.startswith("vicuna-") or args.model.startswith("llama-"):
-        from mlc_llm.relax_model import llama  # pylint: disable=import-outside-toplevel
-
         args.conv_template = "vicuna_v1.1"
-
-    elif args.model.startswith("dolly-") or args.model.startswith("stablelm-"):
-        from mlc_llm.relax_model import (  # pylint: disable=import-outside-toplevel
-            gpt_neox,
-        )
-
-        if args.model.startswith("dolly-"):
-            args.conv_template = "dolly"
-        elif args.model.startswith("stablelm-"):
-            args.conv_template = "stablelm"
+        args.model_category = "llama"
+    if args.model.startswith("dolly-"):
+        args.conv_template = "dolly"
+        args.model_category = "gpt_neox"
+    elif args.model.startswith("stablelm-"):
+        args.conv_template = "stablelm"
+        args.model_category = "gpt_neox"
+    elif args.model.startswith("RedPajama-"):
+        args.conv_template = "dolly"  # TODO
+        args.model_category = "gpt_neox"
     elif args.model.startswith("moss-"):
-        from mlc_llm.relax_model import moss  # pylint: disable=import-outside-toplevel
-
         args.conv_template = "moss"
+        args.model_category = "moss"
     else:
-        raise ValueError(f"Model {args.model} not supportqed")
+        raise ValueError(f"Model {args.model} not supported")
 
 
 def split_transform_deploy_mod(
@@ -142,3 +144,147 @@ def build_model_from_log(relax_mod, target, log_dir):
     with target, db, tvm.transform.PassContext(opt_level=3):
         relax_mod = relax.transform.MetaScheduleApplyDatabase()(relax_mod)
     return relax_mod
+
+
+def split_static_dynamic_tir(mod: tvm.IRModule):
+    def _is_static_shape_buffer(buffer: tvm.tir.Buffer):
+        for dim in buffer.shape:
+            if not isinstance(dim, tvm.tir.IntImm):
+                return False
+        return True
+
+    def _is_static_shape_func(func: tvm.tir.PrimFunc):
+        for buffer in func.buffer_map.values():
+            if not _is_static_shape_buffer(buffer):
+                return False
+        return True
+
+    mod_dynamic = {}
+    mod_static = {}
+    for k, v in mod.functions.items():
+        if isinstance(v, tvm.tir.PrimFunc):
+            if _is_static_shape_func(v):
+                mod_static[k] = v
+            else:
+                mod_dynamic[k] = v
+    print(f"{len(mod_static)} static functions: {list(mod_static.keys())}")
+    print(f"{len(mod_dynamic)} dynamic functions: {list(mod_dynamic.keys())}")
+    mod_static = tvm.IRModule(mod_static)
+    mod_dynamic = tvm.IRModule(mod_dynamic)
+    return mod_static, mod_dynamic
+
+
+def parse_target(args: argparse.Namespace) -> None:
+    if not hasattr(args, "target"):
+        return
+    if args.target == "auto":
+        if system() == "Darwin":
+            target = tvm.target.Target("apple/m1-gpu")
+        else:
+            has_gpu = tvm.cuda().exist
+            target = tvm.target.Target(
+                "cuda"  # TODO: cuda details are required, for example, max shared memory
+                if has_gpu
+                else "llvm"
+            )
+        print(f"Automatically configuring target: {target}")
+        args.target = tvm.target.Target(target, host="llvm")
+        args.target_kind = args.target.kind.default_keys[0]
+    elif args.target == "webgpu":
+        args.target = tvm.target.Target(
+            "webgpu", host="llvm -mtriple=wasm32-unknown-unknown-wasm"
+        )
+        args.target_kind = "webgpu"
+        args.lib_format = "wasm"
+    elif args.target.startswith("iphone"):
+        from tvm.contrib import cc, xcode  # pylint: disable=import-outside-toplevel
+
+        # override
+        @tvm.register_func("tvm_callback_metal_compile")
+        def compile_metal(src):
+            return xcode.compile_metal(src, sdk="iphoneos")
+
+        dylib = args.target == "iphone-dylib"
+
+        args.target = tvm.target.Target(
+            tvm.target.Target(
+                {
+                    "kind": "metal",
+                    "max_threads_per_block": 256,
+                    "max_shared_memory_per_block": 32768,
+                    "thread_warp_size": 1,
+                }
+            ),
+            host="llvm -mtriple=arm64-apple-darwin",
+        )
+        args.target_kind = "iphone"
+        args.export_kwargs = {
+            "fcompile": cc.create_staticlib,
+        }
+        args.lib_format = "a"
+
+        if dylib:
+            args.export_kwargs = {
+                "fcompile": xcode.create_dylib,
+                "sdk": "iphoneos",
+                "arch": "arm64",
+            }
+            args.lib_format = "dylib"
+        else:
+            args.system_lib = True
+
+    elif args.target == "vulkan":
+        args.target = tvm.target.Target(
+            tvm.target.Target(
+                {
+                    "kind": "vulkan",
+                    "max_threads_per_block": 256,
+                    "max_shared_memory_per_block": 32768,
+                    "thread_warp_size": 1,
+                    "supports_float16": 1,
+                    "supports_int16": 1,
+                    "supports_16bit_buffer": 1,
+                }
+            ),
+            host="llvm",
+        )
+        args.target_kind = args.target.kind.default_keys[0]
+    elif args.target == "metal_x86_64":
+        from tvm.contrib import xcode  # pylint: disable=import-outside-toplevel
+
+        args.target = tvm.target.Target(
+            tvm.target.Target(
+                {
+                    "kind": "metal",
+                    "max_threads_per_block": 256,
+                    "max_shared_memory_per_block": 32768,
+                    "thread_warp_size": 1,
+                }
+            ),
+            host="llvm -mtriple=x86_64-apple-darwin",
+        )
+        args.target_kind = "metal_x86_64"
+        args.export_kwargs = {
+            "fcompile": xcode.create_dylib,
+            "sdk": "macosx",
+            "arch": "x86_64",
+        }
+        args.lib_format = "dylib"
+    else:
+        args.target = tvm.target.Target(args.target, host="llvm")
+        args.target_kind = args.target.kind.default_keys[0]
+
+    # use mingw to cross compile windows
+    if hasattr(args, "llvm_mingw") and args.llvm_mingw != "":
+        from tvm.contrib.cc import (  # pylint: disable=import-outside-toplevel
+            cross_compiler,
+        )
+
+        args.export_kwargs = {
+            "fcompile": cross_compiler(
+                os.path.join(args.llvm_mingw, "bin", "x86_64-w64-mingw32-clang++"),
+                output_format="dll",
+            ),
+        }
+        args.target = args.target.with_host("llvm -mtriple=x86_64-w64-windows-gnu")
+        args.lib_format = "dll"
