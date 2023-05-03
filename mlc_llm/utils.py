@@ -114,8 +114,13 @@ def save_params(params: List[tvm.nd.NDArray], artifact_path: str) -> None:
     meta_data = {}
     param_dict = {}
     meta_data["ParamSize"] = len(params)
+    total_size = 0.0
     for i, nd in enumerate(params):
         param_dict[f"param_{i}"] = nd
+        np_nd = nd.numpy()
+        total_size += np_nd.size * np_nd.dtype.itemsize
+    total_size = total_size / 1024.0 / 1024.0 / 1024.0
+    print(f"Total param size: {total_size} GB")
     tvmjs.dump_ndarray_cache(
         param_dict, f"{artifact_path}/params", meta_data=meta_data, encode_format="raw"
     )
