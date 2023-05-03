@@ -3,13 +3,11 @@
 from typing import List
 
 import tvm
-from tvm import relax
-from tvm import te, tir, topi
+from tvm import relax, te, tir, topi
 from tvm.ir.module import IRModule
-from tvm.relax.expr_functor import mutator, PyExprMutator
 from tvm.relax.analysis import remove_all_unused
+from tvm.relax.expr_functor import PyExprMutator, mutator
 from tvm.relax.op.builtin import stop_lift_params
-
 from tvm.script import tir as T
 
 
@@ -152,7 +150,7 @@ def encoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit
         max_abs_value = te.compute(shape=scale_min_shape, fcompute=lambda i, j: te.max(tir.if_then_else(j * group_size + k < weight.shape[1], te.abs(weight[i, j * group_size + k]), tir.min_value(dtype)), axis=k), name="max_abs_value")
 
         def f_compute_scale(i, j):
-            max_value = tir.Max(max_abs_value[i, j], tir.const(1e-4, dtype))
+            max_value = tir.max(max_abs_value[i, j], tir.const(1e-4, dtype))
             return (max_value / tir.const(max_int_value, dtype)) if mode.startswith("int") else max_value
 
         scale = te.compute(shape=scale_min_shape, fcompute=f_compute_scale, name="scale")
@@ -295,7 +293,9 @@ class GroupQuantize:
         self.storage_nbit = storage_nbit
         self.dtype = dtype
 
-    def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(
+        self, mod: IRModule, ctx: tvm.transform.PassContext
+    ) -> IRModule:
         @mutator
         class QuantizeMutator(PyExprMutator):
             def __init__(
@@ -347,10 +347,16 @@ class GroupQuantize:
                 )
 
                 decode_args = []
-                decode_args.append(self.builder_.emit(relax.TupleGetItem(encoded_data, 0)))
-                decode_args.append(self.builder_.emit(relax.TupleGetItem(encoded_data, 1)))
+                decode_args.append(
+                    self.builder_.emit(relax.TupleGetItem(encoded_data, 0))
+                )
+                decode_args.append(
+                    self.builder_.emit(relax.TupleGetItem(encoded_data, 1))
+                )
                 if self.dtype == "float16" and not self.sym:
-                    decode_args.append(self.builder_.emit(relax.TupleGetItem(encoded_data, 2)))
+                    decode_args.append(
+                        self.builder_.emit(relax.TupleGetItem(encoded_data, 2))
+                    )
                 for i, arg in enumerate(decode_args):
                     decode_args[i] = self.builder_.emit(stop_lift_params(arg))
                 return decode_args
