@@ -7,7 +7,7 @@ set(TOKENIZERS_CPP_LINK_LIBS "")
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
   set(TOKENIZERS_CPP_CARGO_TARGET aarch64-apple-ios)
-  # add extra depdnency needed for rust tokenizer in iOS
+  # add extra dependency needed for rust tokenizer in iOS
   find_library(FOUNDATION_LIB Foundation)
   find_library(SECURITY_LIB Security)
   list(APPEND TOKENIZERS_CPP_LINK_LIBS ${FOUNDATION_LIB} ${SECURITY_LIB})
