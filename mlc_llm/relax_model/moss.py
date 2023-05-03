@@ -117,9 +117,11 @@ class MossMLP(nn.Module):
 
     def forward(self, hidden_states):
         if hidden_states.struct_info.dtype != self.dtype:
-            hidden_states = nn.emit(astype(hidden_states), self.dtype)
+            hidden_states = nn.emit(astype(hidden_states, self.dtype))
         hidden_states = self.fc_in(hidden_states)
         hidden_states = self.act(hidden_states)
+        if hidden_states.struct_info.dtype != self.dtype:
+            hidden_states = nn.emit(astype(hidden_states, self.dtype))
         hidden_states = self.fc_out(hidden_states)
         return nn.emit(hidden_states)
 
@@ -421,8 +423,9 @@ class MossForCausalLM(nn.Module):
             in_features=config.hidden_size,
             out_features=config.vocab_size,
             bias=True,
-            dtype="float32",
+            dtype=config.dtype,
         )
+        self.dtype = config.dtype
 
     def forward(
         self,
@@ -435,6 +438,8 @@ class MossForCausalLM(nn.Module):
             all_seq_len_shape=all_seq_len_shape,
             past_key_values=past_key_values,
         )
+        if hidden_states.struct_info.dtype != self.dtype:
+            hidden_states = nn.emit(astype(hidden_states, self.dtype))
 
         def _slice(x: te.Tensor):
             _, seq_len, hidden_dim = x.shape
@@ -449,8 +454,10 @@ class MossForCausalLM(nn.Module):
             hidden_states,
             primfunc_name_hint="slice",
         )
-        hidden_states = astype(hidden_states, "float32")
         logits = self.lm_head(hidden_states)
+        if logits.struct_info.dtype != "float32":
+            logits = nn.emit(astype(logits, "float32"))
+
         return logits, key_value_cache
 
 
@@ -566,7 +573,7 @@ def get_model(args):
     max_seq_len = args.max_seq_len
 
     if model_name in MODEL_CONFIG.keys():
-        config = MossConfig(**MODEL_CONFIG[model_name])
+        config = MossConfig(**MODEL_CONFIG[model_name], dtype=dtype)
         if max_seq_len != -1:
             config.max_sequence_length = max_seq_len
         num_heads = config.num_attention_heads
@@ -579,6 +586,10 @@ def get_model(args):
 
         for name, param in hf_model.named_parameters():
             param = param.detach().cpu().numpy()
+            if "ln_1" in name or "ln_f" in name:
+                param = param.astype("float32")
+            else:
+                param = param.astype(config.dtype)
             if name.endswith("qkv_proj.weight"):
                 name = name.replace("qkv_proj.weight", "{}_proj.weight")
                 assert param.ndim == 2
