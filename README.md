@@ -36,9 +36,9 @@ MLC LLM offers a repeatable, systematic, and customizable workflow that empowers
 
 The cornerstone of our solution is machine learning compilation ([MLC](https://mlc.ai/)), which we leverage to efficiently deploy AI models. We build on the shoulders of open-source ecosystems, including tokenizers from HuggingFace and Google, as well as open-source LLMs like Llama, Vicuna, Dolly, MOSS and more. Our primary workflow is based on [Apache TVM Unity](https://github.com/apache/tvm/tree/unity), an exciting ongoing development in the Apache TVM Community.
 
-- Dynamic shape: we bake a language model as a TVM IRModule with native dynamic shape support, avoiding the need for extra padding to the maximum length and reducing both computation amount and memory usage.
+- Dynamic shape: We bake a language model as a TVM IRModule with native dynamic shape support, avoiding the need for extra padding to the maximum length and reducing both computation amount and memory usage.
 - Composable ML compilation optimizations: we perform many model deployment optimizations, such as better compilation code transformation, fusion, memory planning, library offloading and manual code optimization can be easily incorporated as TVM's IRModule transformations exposed as Python APIs.
-- Quantization: we utilize low-bit quantizations to compress the model weights and leverage TVM's loop-level TensorIR to quickly customize code generations for different compression encoding schemes.
+- Quantization: We utilize low-bit quantizations to compress the model weights and leverage TVM's loop-level TensorIR to quickly customize code generations for different compression encoding schemes.
 - Runtime: The final generated libraries run on the native environment, with TVM runtime that comes with minimal dependencies, which supports various GPU driver APIs and native language bindings (C, JavaScript, etc).
 
 <img src="site/img/diag.svg" alt="Architecture Diagram" height=""/>
