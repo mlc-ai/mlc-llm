@@ -46,5 +46,5 @@ Note: You will need Apple Developer Account to build iOS App locally.
     ```
 
 
-5. use Xcode to open MLCChat.xcodeproj, click on Automatically manage signing, and then click Product - Run. 
+5. use Xcode to open MLCChat.xcodeproj, click on Automatically manage signing, and then click Product - Run.
 If you find the error "Failed to register bundle identifier", change the Bundle Identifier to any other name
