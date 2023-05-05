@@ -123,7 +123,7 @@ class RotaryEmbedding(nn.Module):
 
     def get_x_swizzle(self, x, i_batch_size, i_seq_len, i_num_heads, i_head_dim):
         if self.swizzle_style == "neox":
-            n_feat_half = self.rotary_ndim
+            n_feat_half = self.rotary_ndim // 2
             return tir.Select(
                 i_head_dim < n_feat_half,
                 -x[
