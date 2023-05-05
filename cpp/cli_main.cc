@@ -294,9 +294,23 @@ int main(int argc, char* argv[]) {
           artifact_path + "/" + model,
       },
       {"tokenizer"}, {".model", ".json"});
+  auto vocab_json_opt = FindFile(
+      {
+          model_path,
+          artifact_path + "/models/" + model,
+          artifact_path + "/" + model,
+      },
+      {"vocab"}, {".json"});
+  auto merges_txt_opt = FindFile(
+      {
+          model_path,
+          artifact_path + "/models/" + model,
+          artifact_path + "/" + model,
+      },
+      {"merges"}, {".txt"});
 
-  if (!tokenizer_path_opt) {
-    std::cerr << "Cannot find tokenizer{.model/.json} in " << model_path;
+  if (!tokenizer_path_opt && (!vocab_json_opt || !merges_txt_opt)) {
+    std::cerr << "Cannot find tokenizer file in " << model_path;
     return 1;
   }
 
@@ -325,7 +339,11 @@ int main(int argc, char* argv[]) {
     auto lib = Module::LoadFromFile(lib_path_opt.value().string());
     std::cout << "Initializing the chat module..." << std::endl;
     Module chat_mod =
-        mlc::llm::CreateChatModule(lib, tokenizer_path_opt.value().string(), params, device);
+        tokenizer_path_opt
+            ? mlc::llm::CreateChatModule(lib, tokenizer_path_opt.value().string(), params, device)
+            : mlc::llm::CreateChatModule(lib, vocab_json_opt.value().string(),
+                                         merges_txt_opt.value().string(), params, device);
+
     std::cout << "Finish loading" << std::endl;
     PrintSpecialCommands();
 

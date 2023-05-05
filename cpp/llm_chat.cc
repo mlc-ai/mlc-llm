@@ -375,6 +375,8 @@ class Tokenizer {
   virtual std::string Decode(const std::vector<int32_t>& ids) = 0;
 
   static std::unique_ptr<Tokenizer> FromFile(const std::string& path);
+  static std::unique_ptr<Tokenizer> FromBPE(const std::string& vocab_path,
+                                            const std::string& merges_path);
 };
 
 class SentencePieceTokenizer : public Tokenizer {
@@ -403,6 +405,10 @@ class HFTokenizer : public Tokenizer {
   HFTokenizer(const std::string& path)
       : tokenizer_(tokenizers::Tokenizer::FromJSON(LoadBytesFromFile(path))) {}
 
+  HFTokenizer(const std::string& vocab_path, const std::string& merges_path)
+      : tokenizer_(tokenizers::Tokenizer::FromBPE(LoadBytesFromFile(vocab_path),
+                                                  LoadBytesFromFile(merges_path))) {}
+
   std::vector<int32_t> Encode(const std::string& text) final {
     return tokenizer_.Encode(text, false);
   }
@@ -422,6 +428,11 @@ std::unique_ptr<Tokenizer> Tokenizer::FromFile(const std::string& path) {
   } else {
     return std::make_unique<HFTokenizer>(path);
   }
+}
+
+std::unique_ptr<Tokenizer> Tokenizer::FromBPE(const std::string& vocab_path,
+                                              const std::string& merges_path) {
+  return std::make_unique<HFTokenizer>(vocab_path, merges_path);
 }
 
 //------------------------------
@@ -763,13 +774,11 @@ class LLMChatModule : public ModuleNode {
    * \param param_path The root path to params
    * \param device The device to run the mdoel on
    */
-  void Init(Module executable, const std::string& tokenizer_path, const std::string& param_path,
+  void Init(Module executable, std::unique_ptr<Tokenizer> tokenizer, const std::string& param_path,
             tvm::Device device) {
     // setup members
     device_ = device;
-
-    // initialize tokenizer
-    tokenizer_ = Tokenizer::FromFile(tokenizer_path);
+    tokenizer_ = std::move(tokenizer);
 
     // load in nd-arracy cache
     const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
@@ -989,11 +998,25 @@ class LLMChatModule : public ModuleNode {
 };
 
 tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
-                                      const tvm::runtime::String& tokenizer_path,
+                                      std::unique_ptr<Tokenizer> tokenizer,
                                       const tvm::runtime::String& param_path, DLDevice device) {
   ObjectPtr<LLMChatModule> n = make_object<LLMChatModule>();
-  n->Init(executable, tokenizer_path, param_path, device);
+  n->Init(executable, std::move(tokenizer), param_path, device);
   return Module(n);
+}
+
+tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
+                                      const tvm::runtime::String& tokenizer_path,
+                                      const tvm::runtime::String& param_path, DLDevice device) {
+  return CreateChatModule(executable, Tokenizer::FromFile(tokenizer_path), param_path, device);
+}
+
+tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
+                                      const tvm::runtime::String& vocab_path,
+                                      const tvm::runtime::String& merges_path,
+                                      const tvm::runtime::String& param_path, DLDevice device) {
+  return CreateChatModule(executable, Tokenizer::FromBPE(vocab_path, merges_path), param_path,
+                          device);
 }
 
 // register as a system function that can be queried
@@ -1003,5 +1026,14 @@ TVM_REGISTER_GLOBAL("mlc.llm_chat_create")
       return CreateChatModule(executable, tokenizer_path, param_path,
                               DLDevice{static_cast<DLDeviceType>(device_type), device_id});
     });
+
+TVM_REGISTER_GLOBAL("mlc.llm_chat_create_bpe_tokenizer")
+    .set_body_typed([](tvm::runtime::Module executable, const tvm::runtime::String& vocab_json_path,
+                       const tvm::runtime::String& merges_txt_path,
+                       const tvm::runtime::String& param_path, int device_type, int device_id) {
+      return CreateChatModule(executable, vocab_json_path, merges_txt_path, param_path,
+                              DLDevice{static_cast<DLDeviceType>(device_type), device_id});
+    });
+
 }  // namespace llm
 }  // namespace mlc
