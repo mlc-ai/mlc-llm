@@ -6,7 +6,7 @@ Note: You will need Apple Developer Account to build iOS App locally.
     We have some local changes to TVM Unity, so please try out the mlc/relax repo for now. We will migrate change back to TVM Unity soon.
 
     ```
-    git clone https://github.com/mlc-ai/relax.git
+    git clone https://github.com/mlc-ai/relax.git --recursive
     cd relax
     mkdir build
     cp cmake/config.cmake build
@@ -34,7 +34,7 @@ Note: You will need Apple Developer Account to build iOS App locally.
 
 3. build model to library
     ```
-    git clone https://github.com/mlc-ai/mlc-llm.git
+    git clone https://github.com/mlc-ai/mlc-llm.git --recursive
     cd mlc-llm
     python3 build.py --model vicuna-v1-7b --dtype float16 --target iphone --quantization-mode int3 --quantization-sym --quantization-storage-nbit 16 --max-seq-len 768
     ```
@@ -47,4 +47,4 @@ Note: You will need Apple Developer Account to build iOS App locally.
 
 
 5. use Xcode to open MLCChat.xcodeproj, click on Automatically manage signing, and then click Product - Run. 
-If you find the error "Failed to register bundle identifier", change the Bundle Identifier to any other name
+If you find the error "Failed to register bundle identifier", change the Bundle Identifier to any other name.
