@@ -11,7 +11,7 @@ MLC LLM is a universal solution that allows any language model to be deployed na
 Check out our [GitHub repository](https://github.com/mlc-ai/mlc-llm) to see how we did it. You can also read through instructions below for trying out demos.
 
 <p align="center">
-<img src="demo.gif" height="700">
+<img src="gif/ios-demo.gif" height="700">
 </p>
 
 ## Try it out
@@ -19,6 +19,7 @@ Check out our [GitHub repository](https://github.com/mlc-ai/mlc-llm) to see how 
 This section contains the instructions to run large-language models and chatbot natively on your environment.
 
 - [iPhone](#iphone)
+- [Android](#android)
 - [Windows Linux Mac](#windows-linux-mac)
 - [Web browser](#web-browser)
 
@@ -26,11 +27,22 @@ This section contains the instructions to run large-language models and chatbot 
 
 Try out this [TestFlight page](https://testflight.apple.com/join/57zd7oxa) (limited to the first 9000 users) to install and use
 our example iOS chat app built for iPhone. Our app itself needs about 4GB of memory to run. Considering the iOS and other running applications, we will need a recent iPhone with 6GB (or more) of memory to run the app. We only tested the
-application on iPhone 14 Pro Max and iPhone 12 Pro. You can also check out our [GitHub repo]((https://github.com/mlc-ai/mlc-llm)) to
+application on iPhone 14 Pro Max and iPhone 12 Pro. You can also check out our [GitHub repo](https://github.com/mlc-ai/mlc-llm) to
 build the iOS app from source.
 
 Note: The text generation speed on the iOS app can be unstable from time to time. It might run slow
 in the beginning and recover to a normal speed then.
+
+### Android
+
+Download the APK file [here](https://github.com/mlc-ai/mlc-llm/releases) and install on your phone. You can then start a chat with LLM. When you first open the app, parameters need to be downloaded and the loading process could be slow. In future run, the parameters will be loaded from cache (which is fast) and you can use the app offline. Our current demo relies on OpenCL support on the phone and takes about 6GB of RAM, if you have a phone with the latest Snapdragon chip, you can try out out demo.
+
+We tested our demo on Samsung Galaxy S23. It does not yet work on Google Pixel due to limited OpenCL support. We will continue to bring support and welcome contributions from the open source community. You can also check out our [GitHub repo](https://github.com/mlc-ai/mlc-llm/tree/main/android) to build the Android app from source.
+
+
+<p align="center">
+<img src="gif/android-demo.gif" height="700">
+</p>
 
 ### Windows Linux Mac
 
@@ -66,7 +78,7 @@ mlc_chat_cli
 ```
 
 <p align="center">
-<img src="linux.gif" width="80%">
+<img src="gif/linux-demo.gif" width="80%">
 </p>
 
 

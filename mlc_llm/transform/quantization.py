@@ -285,8 +285,6 @@ class GroupQuantize:
             assert sym
         if mode == "int3":
             assert sym
-        if storage_nbit == 16:
-            assert mode == "int3"
         self.group_size = group_size
         self.sym = sym
         self.mode = mode

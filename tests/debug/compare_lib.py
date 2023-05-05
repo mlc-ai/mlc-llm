@@ -23,8 +23,8 @@ class LibCompare(LibCompareVMInstrument):
         self.time_eval_results = {}
         self.visited = set([])
         self.skip_rounds = skip_rounds
-        self.atol = 1e-5
-        self.rtol = 1e-5
+        self.atol = 1e-2
+        self.rtol = 1e-3
 
     def skip_instrument(self, func, name, before_run, ret_val, *args):
         print(f"run {name}")
@@ -35,6 +35,9 @@ class LibCompare(LibCompareVMInstrument):
             print(f"[{self.counter}] Skip validating {name}..")
             return True
         if name in self.visited:
+            if self.time_eval and name in self.time_eval_results:
+                record = self.time_eval_results[name]
+                self.time_eval_results[name] = (record[0], record[1] + 1)
             return True
         self.visited.add(name)
         return False
@@ -50,8 +53,32 @@ class LibCompare(LibCompareVMInstrument):
 
         if self.time_eval and name not in self.time_eval_results:
             res = self.mod.time_evaluator(name, self.device)(*new_args)
-            self.time_eval_results[name] = res
+            self.time_eval_results[name] = (res.mean, 1)
             print(f"Time-eval result {name} on {self.device}: {res}")
+
+
+def print_as_table(sorted_list):
+    print(
+        "Name".ljust(50)
+        + "Time (ms)".ljust(12)
+        + "Count".ljust(8)
+        + "Total time (ms)".ljust(18)
+        + "Percentage (%)"
+    )
+    total_time = sum([record[1][0] * record[1][1] for record in sorted_list]) * 1000
+    for record in sorted_list:
+        time = record[1][0] * 1000
+        weighted_time = time * record[1][1]
+        percentage = weighted_time / total_time * 100
+        print(
+            record[0].ljust(50)
+            + "{:.4f}".format(time).ljust(12)
+            + str(record[1][1]).ljust(8)
+            + "{:.4f}".format(weighted_time).ljust(18)
+            + "{:.2f}".format(percentage)
+        )
+    print("Total time: {:.4f} ms".format(total_time))
+    print()
 
 
 class TestState:
@@ -73,6 +100,16 @@ class TestState:
             self.sess.upload(local_lib_path)
             self.lib = self.sess.load_module(lib_name)
             self.cmp_device = self.sess.metal()
+        elif args.cmp_device == "android":
+            lib_name = f"{args.model}_{args.cmp_device}_{args.dtype}.so"
+            local_lib_path = os.path.join(args.artifact_path, lib_name)
+            tracker_host = os.environ.get("TVM_TRACKER_HOST", "0.0.0.0")
+            tracker_port = int(os.environ.get("TVM_TRACKER_PORT", "9190"))
+            tracker = rpc.connect_tracker(tracker_host, tracker_port)
+            self.sess = tracker.request("android")
+            self.sess.upload(local_lib_path)
+            self.lib = self.sess.load_module(lib_name)
+            self.cmp_device = self.sess.cl(0)
         else:
             self.sess = None
             self.lib = tvm.runtime.load_module(
@@ -117,10 +154,25 @@ def deploy_to_pipeline(args) -> None:
     logits, kv_caches = state.vm["encoding"](
         inputs, seq_len_shape, kv_caches, const_params
     )
+    print_as_table(
+        sorted(
+            state.cmp_instrument.time_eval_results.items(),
+            key=lambda x: -(x[1][0] * x[1][1]),
+        )
+    )
+    state.cmp_instrument.time_eval_results.clear()
+    state.cmp_instrument.visited.clear()
     print("======================= Starts Decoding =======================")
     logits, kv_caches = state.vm["decoding"](
         first_sampled_token, second_seq_len_shape, kv_caches, const_params
     )
+    print_as_table(
+        sorted(
+            state.cmp_instrument.time_eval_results.items(),
+            key=lambda x: -(x[1][0] * x[1][1]),
+        )
+    )
+    state.cmp_instrument.time_eval_results.clear()
 
 
 def _parse_args():

@@ -518,6 +518,8 @@ class LLMChatModule : public ModuleNode {
        << this->encode_total_tokens / this->encode_total_time << " tok/s"
        << ", decode: " << std::setprecision(1) << std::fixed
        << this->decode_total_tokens / this->decode_total_time << " tok/s";
+    // os << ", sample-cost: " << std::setprecision(1) << std::fixed
+    //    << 100 * (this->sample_total_time / this->decode_total_time) << "%";
     return os.str();
   }
 
@@ -527,6 +529,7 @@ class LLMChatModule : public ModuleNode {
     this->decode_total_tokens = 0;
     this->encode_total_time = 0;
     this->decode_total_time = 0;
+    this->sample_total_time = 0;
   }
 
   std::vector<int32_t> GetPromptTokens() {
@@ -628,15 +631,22 @@ class LLMChatModule : public ModuleNode {
     start_pos_ = token_len;
 
     auto tstart = std::chrono::high_resolution_clock::now();
-    this->UpdateLogitsOnCPU(this->Forward(input_data, total_seq_len_));
+    if (temperature_ < 1e-6f) {
+      this->UpdateLogitsOrProbOnCPU(this->Forward(input_data, total_seq_len_));
+    } else {
+      this->UpdateLogitsOrProbOnCPU(
+          this->Softmax(this->Forward(input_data, total_seq_len_), temperature_));
+    }
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     auto tend = std::chrono::high_resolution_clock::now();
 
     this->encode_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
     this->encode_total_tokens += token_len;
-
-    next_token_ = this->SampleFromLogitsOnCPU();
-
+    if (temperature_ < 1e-6f) {
+      next_token_ = this->SampleFromLogitsOnCPU();
+    } else {
+      next_token_ = this->SampleFromProbOnCPU();
+    }
     if (model_name_.find("vicuna") == 0) {
       add_bos_ = false;
     }
@@ -652,13 +662,23 @@ class LLMChatModule : public ModuleNode {
     cur_pos_ += 1;
 
     auto tstart = std::chrono::high_resolution_clock::now();
-    this->UpdateLogitsOnCPU(this->Forward(input_data, total_seq_len_));
+    if (temperature_ < 1e-6f) {
+      this->UpdateLogitsOrProbOnCPU(this->Forward(input_data, total_seq_len_));
+    } else {
+      this->UpdateLogitsOrProbOnCPU(
+          this->Softmax(this->Forward(input_data, total_seq_len_), temperature_));
+    }
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
-
-    next_token_ = this->SampleFromLogitsOnCPU();
+    auto tsample_start = std::chrono::high_resolution_clock::now();
+    if (temperature_ < 1e-6f) {
+      next_token_ = this->SampleFromLogitsOnCPU();
+    } else {
+      next_token_ = this->SampleFromProbOnCPU();
+    }
     auto tend = std::chrono::high_resolution_clock::now();
 
     this->decode_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
+    this->sample_total_time += static_cast<double>((tend - tsample_start).count()) / 1e9;
     this->decode_total_tokens += 1;
   }
 
@@ -736,7 +756,7 @@ class LLMChatModule : public ModuleNode {
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
 
     auto decoding_start = std::chrono::high_resolution_clock::now();
-    this->UpdateLogitsOnCPU(this->Forward(first_sample_token, token_len + 1));
+    this->UpdateLogitsOrProbOnCPU(this->Forward(first_sample_token, token_len + 1));
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     auto decoding_end = std::chrono::high_resolution_clock::now();
 
@@ -779,7 +799,10 @@ class LLMChatModule : public ModuleNode {
     // initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
-    vm_ = executable->GetFunction("vm_load_executable")();
+    auto fload_exec = executable->GetFunction("vm_load_executable");
+    ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
+    vm_ = fload_exec();
+
     vm_->GetFunction("vm_initialization")(static_cast<int>(device.device_type), device.device_id,
                                           static_cast<int>(relax_vm::AllocatorType::kPooled),
                                           static_cast<int>(kDLCPU), 0,
@@ -788,7 +811,17 @@ class LLMChatModule : public ModuleNode {
     encoding_func_ = vm_->GetFunction("encoding");
     decoding_func_ = vm_->GetFunction("decoding");
     encoding_without_cache_func_ = vm_->GetFunction("encoding_without_cache");
+    softmax_func_ = vm_->GetFunction("softmax_with_temperature");
     auto kv_cache_func = vm_->GetFunction("create_kv_cache");
+
+    auto fsample_topp_from_prob_ptr = tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
+    ICHECK(fsample_topp_from_prob_ptr)
+        << "Cannot find env function vm.builtin.sample_top_p_from_prob";
+    fsample_topp_from_prob_ = *fsample_topp_from_prob_ptr;
+    auto fsample_topp_from_logits_ptr = tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
+    ICHECK(fsample_topp_from_logits_ptr)
+        << "Cannot find env function vm.builtin.sample_top_p_from_logits";
+    fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
 
     // parameter loading
     const PackedFunc* fload_params =
@@ -863,13 +896,21 @@ class LLMChatModule : public ModuleNode {
     return Downcast<NDArray>(ret[0]);
   }
 
-  void UpdateLogitsOnCPU(NDArray logits) {
+  NDArray Softmax(NDArray input, float temperature) {
+    NDArray temperature_arr = NDArray::Empty({}, DataType::Float(32), device_);
+    temperature_arr.CopyFromBytes(&temperature, sizeof(float));
+    NDArray ret;
+    ret = softmax_func_(input, temperature_arr);
+    return ret;
+  }
+
+  void UpdateLogitsOrProbOnCPU(NDArray logits_or_prob) {
     if (!logits_on_cpu_.defined()) {
-      logits_on_cpu_ = logits.CopyTo(DLDevice{kDLCPU, 0});
+      logits_on_cpu_ = logits_or_prob.CopyTo(DLDevice{kDLCPU, 0});
     } else {
-      ICHECK_EQ(logits_on_cpu_->shape[0], logits->shape[0])
+      ICHECK_EQ(logits_on_cpu_->shape[0], logits_or_prob->shape[0])
           << "Expect size of logits remain unchanged";
-      logits_on_cpu_.CopyFrom(logits);
+      logits_on_cpu_.CopyFrom(logits_or_prob);
     }
   }
 
@@ -892,10 +933,14 @@ class LLMChatModule : public ModuleNode {
     ICHECK(logits_on_cpu_.defined()) << "logits_on_cpu_ is not defined";
     ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
     ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
-    const PackedFunc* fsample_topp =
-        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
-    ICHECK(fsample_topp) << "Cannot find env function vm.builtin.sample_top_p_from_logits";
-    return (*fsample_topp)(logits_on_cpu_, top_p_, temperature_, GetRandomNumber());
+    return fsample_topp_from_logits_(logits_on_cpu_, top_p_, temperature_, GetRandomNumber());
+  }
+
+  int32_t SampleFromProbOnCPU() {
+    ICHECK(logits_on_cpu_.defined()) << "logits_on_cpu_ is not defined";
+    ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
+    ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
+    return fsample_topp_from_prob_(logits_on_cpu_, top_p_, GetRandomNumber());
   }
 
   std::string DeltaMessage(const std::string& cur, const std::string& old) {
@@ -922,6 +967,7 @@ class LLMChatModule : public ModuleNode {
   //----------------------------
   bool reset_stats_per_encode_ = true;
   double decode_total_time = 0;
+  double sample_total_time = 0;
   double encode_total_time = 0;
   int64_t decode_total_tokens = 0;
   int64_t encode_total_tokens = 0;
@@ -978,6 +1024,12 @@ class LLMChatModule : public ModuleNode {
   PackedFunc decoding_func_;
   // encoding without cache
   PackedFunc encoding_without_cache_func_;
+  // softmax
+  PackedFunc softmax_func_;
+  // sample top p from logits
+  PackedFunc fsample_topp_from_logits_;
+  // sample top p from prob
+  PackedFunc fsample_topp_from_prob_;
   // input token id
   NDArray input_token_ids_{nullptr};
   // local params

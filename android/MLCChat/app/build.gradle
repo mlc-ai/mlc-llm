@@ -1,0 +1,71 @@
+apply plugin: 'com.android.application'
+
+task generateJniHeaders(type: Exec, description: 'Generate JNI Headers') {
+    def headerPath = "${project.projectDir}/src/main/jni"
+    def classPath = "${project.projectDir}/../../build/tvm_home/jvm/core/target/*"
+    def filePath = "${project.projectDir}/../../build/tvm_home/jvm/core/src/main/java/org/apache/tvm/LibInfo.java"
+    commandLine "javac", "-h", headerPath, "-classpath", classPath, filePath
+    doLast {
+        file("${headerPath}/org_apache_tvm_LibInfo.h").renameTo(file("${headerPath}/org_apache_tvm_native_c_api.h"))
+    }
+}
+
+task copyFiles(type: Copy, description: 'Copy Sources for ndk-build') {
+    dependsOn "generateJniHeaders"
+    def ndkFilesPath = "${project.projectDir}/../../build/tvm_home/jvm/native/src/main/native"
+    def srcPath = "${project.projectDir}/src/main/jni/"
+
+    from "${ndkFilesPath}/org_apache_tvm_native_c_api.cc", "${ndkFilesPath}/jni_helper_func.h"
+    into srcPath
+}
+
+task deleteLibs(type: Delete, description: "Delete Compiled Libraries") {
+    dependsOn "copyFiles"
+    def libsPath = "${project.projectDir}/src/main/libs"
+    delete libsPath
+}
+
+task buildJni(type: Exec, description: 'Build JNI libs') {
+    dependsOn "deleteLibs"
+    def buildPath = "${project.projectDir}/src/main/jni"
+    commandLine "ndk-build", "--directory", buildPath
+}
+
+tasks.withType(JavaCompile) {
+    compileTask -> compileTask.dependsOn buildJni
+}
+
+android {
+    compileSdkVersion 33
+    defaultConfig {
+        applicationId "ai.mlc.mlcchat"
+        minSdkVersion 26
+        targetSdkVersion 33
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    sourceSets {
+        main {
+            jni.srcDirs = []
+            jniLibs.srcDirs = ['src/main/libs']
+        }
+    }
+    namespace 'ai.mlc.mlcchat'
+    ndkVersion '25.2.9519653'
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'com.google.android.material:material:1.9.0'
+    implementation files("${project.projectDir}/../../build/tvm_home/jvm/core/target/tvm4j-core-0.0.1-SNAPSHOT.jar")
+}

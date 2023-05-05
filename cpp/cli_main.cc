@@ -32,6 +32,9 @@ std::string DetectDeviceName(std::string device_name) {
     if (DeviceAPI::Get(DLDevice{kDLVulkan, 0}, allow_missing)) {
       return "vulkan";
     }
+    if (DeviceAPI::Get(DLDevice{kDLOpenCL, 0}, allow_missing)) {
+      return "opencl";
+    }
     LOG(FATAL) << "Cannot auto detect device-name";
   }
   return device_name;

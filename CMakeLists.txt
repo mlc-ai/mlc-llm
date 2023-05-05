@@ -61,6 +61,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
           XCODE_ATTRIBUTE_${XCODE_PROPERTY} ${XCODE_VALUE})
   endmacro (set_xcode_property)
 endif()
+
 add_subdirectory(3rdparty/sentencepiece-js/sentencepiece sentencepiece EXCLUDE_FROM_ALL)
 add_subdirectory(3rdparty/tokenizers-cpp tokenizers EXCLUDE_FROM_ALL)
 
@@ -99,10 +100,23 @@ target_link_libraries(mlc_llm PRIVATE tokenizers)
 
 # Exmaple app that may depends on mlc_llm
 add_executable(mlc_chat_cli $<TARGET_OBJECTS:mlc_cli_objs>)
-target_link_libraries(mlc_chat_cli PUBLIC mlc_llm)
 target_include_directories(mlc_cli_objs PRIVATE ${MLC_LLM_INCLUDES})
 target_include_directories(mlc_cli_objs PRIVATE 3rdparty/argparse/include)
 target_compile_definitions(mlc_cli_objs PRIVATE ${MLC_LLM_COMPILE_DEFS})
+
+if (CMAKE_SYSTEM_NAME STREQUAL "Android")
+  target_link_libraries(mlc_llm PRIVATE log)
+  target_link_libraries(mlc_chat_cli PRIVATE log)
+endif()
+
+if (MLC_LLM_INSTALL_STATIC_LIB)
+  target_link_libraries(
+    mlc_chat_cli PRIVATE mlc_llm_static sentencepiece-static tokenizers)
+  target_link_libraries(
+    mlc_chat_cli PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,tvm_runtime>")
+else()
+  target_link_libraries(mlc_chat_cli PUBLIC mlc_llm)
+endif()
 
 # when this option is on,
 # we install all static lib deps into lib
@@ -125,6 +139,8 @@ if (MLC_LLM_INSTALL_STATIC_LIB)
   endif()
 else()
   install(TARGETS mlc_chat_cli tvm_runtime mlc_llm
+    mlc_llm_static
+    sentencepiece-static
     RUNTIME_DEPENDENCY_SET tokenizers
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib${LIB_SUFFIX}
