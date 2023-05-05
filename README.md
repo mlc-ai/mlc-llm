@@ -10,7 +10,7 @@ Everything runs locally  with no server support and accelerated with local GPUs 
 [Supported platforms](https://github.com/mlc-ai/mlc-llm/issues/15) include:
 * iPhone, iPad
 * Metal GPUs and Intel/ARM MacBooks;
-* AMD and NVIDIA GPUs via Vulkan on Windows and Linux;
+* AMD, Intel and NVIDIA GPUs via Vulkan on Windows and Linux;
 * NVIDIA GPUs via CUDA on Windows and Linux;
 * WebGPU on browsers (through companion project [WebLLM](https://github.com/mlc-ai/web-llm/tree/main)).
 
