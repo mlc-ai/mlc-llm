@@ -18,8 +18,10 @@ typedef void* TokenizerHandle;
 
 TokenizerHandle tokenizers_new_from_str(const char* json, size_t len);
 
-TokenizerHandle tokenizers_new_from_bpe(const char* vocab, size_t vocab_len, const char* merges,
-                                        size_t merges_len);
+TokenizerHandle byte_level_bpe_tokenizers_new_from_str(const char* vocab, size_t vocab_len,
+                                                       const char* merges, size_t merges_len,
+                                                       const char* added_tokens,
+                                                       size_t added_tokens_len);
 
 void tokenizers_encode(TokenizerHandle handle, const char* data, size_t len, int add_special_token);
 
@@ -82,9 +84,11 @@ class Tokenizer {
     return Tokenizer(tokenizers_new_from_str(json.data(), json.length()));
   }
 
-  static Tokenizer FromBPE(const std::string& vocab, const std::string& merges) {
-    return Tokenizer(
-        tokenizers_new_from_bpe(vocab.data(), vocab.length(), merges.data(), merges.length()));
+  static Tokenizer FromBPE(const std::string& vocab, const std::string& merges,
+                           const std::string& added_tokens) {
+    return Tokenizer(byte_level_bpe_tokenizers_new_from_str(
+        vocab.data(), vocab.length(), merges.data(), merges.length(), added_tokens.data(),
+        added_tokens.length()));
   }
 
  private:

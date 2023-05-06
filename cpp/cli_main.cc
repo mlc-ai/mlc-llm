@@ -287,31 +287,30 @@ int main(int argc, char* argv[]) {
   std::cout << "Use lib " << lib_path_opt.value().string() << std::endl;
   std::string model_path = lib_path_opt.value().parent_path().string();
   // get artifact path lib name
-  auto tokenizer_path_opt = FindFile(
+  std::optional<std::filesystem::path> tokenizer_path_opt = FindFile(
       {
           model_path,
           artifact_path + "/models/" + model,
           artifact_path + "/" + model,
       },
       {"tokenizer"}, {".model", ".json"});
-  auto vocab_json_opt = FindFile(
-      {
-          model_path,
-          artifact_path + "/models/" + model,
-          artifact_path + "/" + model,
-      },
-      {"vocab"}, {".json"});
-  auto merges_txt_opt = FindFile(
-      {
-          model_path,
-          artifact_path + "/models/" + model,
-          artifact_path + "/" + model,
-      },
-      {"merges"}, {".txt"});
-
-  if (!tokenizer_path_opt && (!vocab_json_opt || !merges_txt_opt)) {
-    std::cerr << "Cannot find tokenizer file in " << model_path;
-    return 1;
+  if (!tokenizer_path_opt) {
+    // Try GPT2 style tokenizer
+    tokenizer_path_opt = FindFile(
+        {
+            model_path,
+            artifact_path + "/models/" + model,
+            artifact_path + "/" + model,
+        },
+        {"vocab"}, {".json"});
+    if (!tokenizer_path_opt) {
+      std::cerr << "Cannot find tokenizer file in " << model_path;
+      return 1;
+    } else {
+      // GPT2 styles tokenizer needs multiple files, we need to
+      // get the directory that stores vocab.json.
+      tokenizer_path_opt = tokenizer_path_opt.value().parent_path();
+    }
   }
 
   if (params == "auto") {
@@ -339,10 +338,7 @@ int main(int argc, char* argv[]) {
     auto lib = Module::LoadFromFile(lib_path_opt.value().string());
     std::cout << "Initializing the chat module..." << std::endl;
     Module chat_mod =
-        tokenizer_path_opt
-            ? mlc::llm::CreateChatModule(lib, tokenizer_path_opt.value().string(), params, device)
-            : mlc::llm::CreateChatModule(lib, vocab_json_opt.value().string(),
-                                         merges_txt_opt.value().string(), params, device);
+        mlc::llm::CreateChatModule(lib, tokenizer_path_opt.value().string(), params, device);
 
     std::cout << "Finish loading" << std::endl;
     PrintSpecialCommands();

@@ -14,10 +14,12 @@
 
 #include <cctype>
 #include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <list>
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 
@@ -243,7 +245,7 @@ class Conversation {
       std::vector<std::string> seps{this->sep, ""};
       ret.push_back(this->system_);
       for (size_t i = 0; i < this->messages.size(); ++i) {
-        if (this->messages[0].size() == 2) {
+        if (this->messages[i].size() == 2) {
           ret.push_back(this->messages[i][0] + ": " + this->messages[i][1] + seps[i % 2] + "\n");
         } else if (this->messages[i].size() == 1) {
           ret.push_back(this->messages[i][0] + ":");
@@ -307,7 +309,7 @@ class Conversation {
     } else if (this->separator_style == SeparatorStyle::kMOSS) {
       std::vector<std::string> seps{this->sep, ""};
       for (size_t i = 0; i < this->messages.size(); ++i) {
-        if (this->messages[0].size() == 2) {
+        if (this->messages[i].size() == 2) {
           ret.push_back(this->messages[i][0] + ": " + this->messages[i][1] + seps[i % 2] + "\n");
         } else if (this->messages[i].size() == 1) {
           ret.push_back(this->messages[i][0] + ":");
@@ -375,8 +377,7 @@ class Tokenizer {
   virtual std::string Decode(const std::vector<int32_t>& ids) = 0;
 
   static std::unique_ptr<Tokenizer> FromFile(const std::string& path);
-  static std::unique_ptr<Tokenizer> FromBPE(const std::string& vocab_path,
-                                            const std::string& merges_path);
+  static std::unique_ptr<Tokenizer> FromByteLevelBPE(const std::string& path);
 };
 
 class SentencePieceTokenizer : public Tokenizer {
@@ -405,9 +406,11 @@ class HFTokenizer : public Tokenizer {
   HFTokenizer(const std::string& path)
       : tokenizer_(tokenizers::Tokenizer::FromJSON(LoadBytesFromFile(path))) {}
 
-  HFTokenizer(const std::string& vocab_path, const std::string& merges_path)
-      : tokenizer_(tokenizers::Tokenizer::FromBPE(LoadBytesFromFile(vocab_path),
-                                                  LoadBytesFromFile(merges_path))) {}
+  HFTokenizer(const std::filesystem::path& vocab_path, const std::filesystem::path& merges_path,
+              const std::optional<std::filesystem::path>& added_tokens_path)
+      : tokenizer_(tokenizers::Tokenizer::FromBPE(
+            LoadBytesFromFile(vocab_path.string()), LoadBytesFromFile(merges_path.string()),
+            added_tokens_path ? LoadBytesFromFile(added_tokens_path.value().string()) : "")) {}
 
   std::vector<int32_t> Encode(const std::string& text) final {
     return tokenizer_.Encode(text, false);
@@ -430,10 +433,23 @@ std::unique_ptr<Tokenizer> Tokenizer::FromFile(const std::string& path) {
   }
 }
 
-std::unique_ptr<Tokenizer> Tokenizer::FromBPE(const std::string& vocab_path,
-                                              const std::string& merges_path) {
-  return std::make_unique<HFTokenizer>(vocab_path, merges_path);
+std::unique_ptr<Tokenizer> Tokenizer::FromByteLevelBPE(const std::string& path) {
+  std::filesystem::path vocab_path(path + "/" + "vocab.json");
+  std::filesystem::path merges_path(path + "/" + "merges.txt");
+  std::optional<std::filesystem::path> added_tokens(path + "/" + "added_tokens.json");
+  if (!std::filesystem::exists(merges_path)) {
+    LOG(FATAL) << "Failed loading ByteLevelBPETokenizer: merges.txt does not exists in " << path;
+  }
+  if (!std::filesystem::exists(added_tokens.value())) {
+    added_tokens = std::nullopt;
+  }
+  // std::string vocab_path = std::filesystem::
+  return std::make_unique<HFTokenizer>(vocab_path, merges_path, added_tokens);
 }
+
+std::vector<int32_t> stop_words_stablelm{50278, 50279, 50277, 1, 0};
+std::vector<int32_t> stop_words_default{2};
+std::vector<int32_t> stop_words_moss{106068};
 
 //------------------------------
 // Chat module
@@ -475,9 +491,13 @@ class LLMChatModule : public ModuleNode {
         this->start_pos_ = 0;
         this->cur_pos_ = 0;
         this->add_bos_ = true;
-        this->stop_tokens_ = (args[1] == "stablelm")
-                                 ? std::vector<int32_t>({50278, 50279, 50277, 1, 0})
-                                 : std::vector<int32_t>({this->tokenizer_.get()->eos_token_id});
+        if (args[1] == "stablelm") {
+          this->stop_tokens_ = stop_words_stablelm;
+        } else if (args[1] == "moss") {
+          this->stop_tokens_ = stop_words_moss;
+        } else {
+          this->stop_tokens_ = stop_words_default;
+        }
         this->stop_str_ =
             this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
                 ? this->conversation_.sep
@@ -1008,15 +1028,14 @@ tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
 tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
                                       const tvm::runtime::String& tokenizer_path,
                                       const tvm::runtime::String& param_path, DLDevice device) {
-  return CreateChatModule(executable, Tokenizer::FromFile(tokenizer_path), param_path, device);
-}
-
-tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
-                                      const tvm::runtime::String& vocab_path,
-                                      const tvm::runtime::String& merges_path,
-                                      const tvm::runtime::String& param_path, DLDevice device) {
-  return CreateChatModule(executable, Tokenizer::FromBPE(vocab_path, merges_path), param_path,
-                          device);
+  if (std::filesystem::is_regular_file(std::string(tokenizer_path))) {
+    // tokenizer stored in single files.
+    return CreateChatModule(executable, Tokenizer::FromFile(tokenizer_path), param_path, device);
+  } else {
+    // tokenizer stored in multiple files.
+    return CreateChatModule(executable, Tokenizer::FromByteLevelBPE(tokenizer_path), param_path,
+                            device);
+  }
 }
 
 // register as a system function that can be queried
@@ -1024,14 +1043,6 @@ TVM_REGISTER_GLOBAL("mlc.llm_chat_create")
     .set_body_typed([](tvm::runtime::Module executable, const tvm::runtime::String& tokenizer_path,
                        const tvm::runtime::String& param_path, int device_type, int device_id) {
       return CreateChatModule(executable, tokenizer_path, param_path,
-                              DLDevice{static_cast<DLDeviceType>(device_type), device_id});
-    });
-
-TVM_REGISTER_GLOBAL("mlc.llm_chat_create_bpe_tokenizer")
-    .set_body_typed([](tvm::runtime::Module executable, const tvm::runtime::String& vocab_json_path,
-                       const tvm::runtime::String& merges_txt_path,
-                       const tvm::runtime::String& param_path, int device_type, int device_id) {
-      return CreateChatModule(executable, vocab_json_path, merges_txt_path, param_path,
                               DLDevice{static_cast<DLDeviceType>(device_type), device_id});
     });
 
