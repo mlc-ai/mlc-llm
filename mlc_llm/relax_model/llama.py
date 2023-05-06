@@ -659,19 +659,13 @@ def get_model(args):
 
         device = tvm.cpu()
         hf_model = AutoModelForCausalLM.from_pretrained(model_path)
-        # Get a list of parameters in advance to save memory
+        # Get a list of parameters in advance, then delete the model to save memory
         param_list = [param for _, param in hf_model.named_parameters()]
         del hf_model
 
         for i, param in enumerate(param_list):
             param_list[i] = tvm.nd.array(param.detach().cpu().numpy().astype(config.dtype), device)
 
-        # for _, param in hf_model.named_parameters():
-        #     param_list.append(
-        #         tvm.nd.array(param.detach().cpu().numpy().astype(config.dtype), device)
-        #     )
-        # param_list = (tvm.nd.array(param.detach().cpu().numpy().astype(config.dtype), device) for _, param in hf_model.named_parameters())
-        # del hf_model
         head_dim = config.hidden_size / config.num_attention_heads
         inv_freq = 1.0 / (
             config.position_embedding_base
