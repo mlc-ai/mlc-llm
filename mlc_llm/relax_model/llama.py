@@ -1,4 +1,3 @@
-import itertools
 import math
 from dataclasses import dataclass
 from typing import Optional, Tuple
