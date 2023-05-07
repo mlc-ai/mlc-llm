@@ -8,14 +8,12 @@ from tvm import relax, te
 from tvm.relax.op import (
     astype,
     broadcast_to,
-    full,
     matmul,
     maximum,
     minimum,
     permute_dims,
     reshape,
     squeeze,
-    triu,
 )
 from tvm.relax.op.nn import gelu, softmax
 from tvm.relax.testing import nn
@@ -34,20 +32,23 @@ from .modules import (
 
 @dataclass
 class GPTNeoXConfig:  # pylint: disable=too-many-instance-attributes
-    vocab_size: int
+    use_parallel_residual: bool
     hidden_size: int
     intermediate_size: int
     num_attention_heads: int
     num_hidden_layers: int
+    vocab_size: int
+    rotary_pct: float = 0.25
+    rotary_emb_base: int = 10000
+
     dtype: str = "float32"
     layer_norm_eps: float = 1e-05
     max_sequence_length: int = 2048
-    rotary_emb_base: int = 10000
-    rotary_pct: float = 0.25
 
 
 MODEL_CONFIG = {
     "dolly-v2-3b": {
+        "use_parallel_residual": True,
         "hidden_size": 2560,
         "intermediate_size": 10240,
         "num_attention_heads": 32,
@@ -55,6 +56,7 @@ MODEL_CONFIG = {
         "vocab_size": 50280,
     },
     "dolly-v2-7b": {
+        "use_parallel_residual": True,
         "hidden_size": 4096,
         "intermediate_size": 16384,
         "num_attention_heads": 32,
@@ -62,6 +64,7 @@ MODEL_CONFIG = {
         "vocab_size": 50280,
     },
     "dolly-v2-12b": {
+        "use_parallel_residual": True,
         "hidden_size": 5120,
         "intermediate_size": 20480,
         "num_attention_heads": 40,
@@ -69,6 +72,7 @@ MODEL_CONFIG = {
         "vocab_size": 50280,
     },
     "stablelm-tuned-alpha-3b": {
+        "use_parallel_residual": True,
         "hidden_size": 4096,
         "intermediate_size": 16384,
         "num_attention_heads": 32,
@@ -76,11 +80,39 @@ MODEL_CONFIG = {
         "vocab_size": 50688,
     },
     "stablelm-tuned-alpha-7b": {
+        "use_parallel_residual": True,
         "hidden_size": 6144,
         "intermediate_size": 24576,
         "num_attention_heads": 48,
         "num_hidden_layers": 16,
         "vocab_size": 50432,
+    },
+    "RedPajama-INCITE-Base-3B-v1": {
+        "use_parallel_residual": False,
+        "hidden_size": 2560,
+        "intermediate_size": 10240,
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "vocab_size": 50432,
+        "rotary_pct": 1.0,
+    },
+    "RedPajama-INCITE-Chat-3B-v1": {
+        "use_parallel_residual": False,
+        "hidden_size": 2560,
+        "intermediate_size": 10240,
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "vocab_size": 50432,
+        "rotary_pct": 1.0,
+    },
+    "RedPajama-INCITE-Instruct-3B-v1": {
+        "use_parallel_residual": False,
+        "hidden_size": 2560,
+        "intermediate_size": 10240,
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "vocab_size": 50432,
+        "rotary_pct": 1.0,
     },
 }
 
@@ -207,7 +239,15 @@ class GPTNeoXAttention(nn.Module):
             )
         )
         # Apply attention mask
-        attn_weights = nn.emit(maximum(attn_weights, relax.const(tvm.tir.min_value(attn_weights.struct_info.dtype).value, attn_weights.struct_info.dtype)))
+        attn_weights = nn.emit(
+            maximum(
+                attn_weights,
+                relax.const(
+                    tvm.tir.min_value(attn_weights.struct_info.dtype).value,
+                    attn_weights.struct_info.dtype,
+                ),
+            )
+        )
         attn_weights = nn.emit(minimum(attn_weights, attention_mask))
         # Calculate Softmax(QK)
         if attn_weights.struct_info.dtype != "float32":
@@ -255,6 +295,7 @@ class GPTNeoXLayer(nn.Module):
         intermediate_size: int,
         layer_norm_eps: float,
         num_heads: int,
+        use_parallel_residual: bool,
         rotary_embedding: RotaryEmbedding,
         dtype: str,
     ):
@@ -275,8 +316,11 @@ class GPTNeoXLayer(nn.Module):
             dtype=dtype,
         )
         self.mlp = GPTNeoXMLP(
-            hidden_size, intermediate_size=intermediate_size, dtype=dtype
+            hidden_size,
+            intermediate_size=intermediate_size,
+            dtype=dtype,
         )
+        self.use_parallel_residual = use_parallel_residual
         self.dtype = dtype
 
     def forward(
@@ -287,15 +331,21 @@ class GPTNeoXLayer(nn.Module):
         attention_mask: Optional[relax.Expr] = None,
     ):
         attn_input = self.input_layernorm(hidden_states)
-        mlp_input = self.post_attention_layernorm(hidden_states)
         attn_output, present_key_value = self.attention(
             attn_input,
             all_seq_len_shape,
             past_key_value,
             attention_mask,
         )
-        mlp_output = self.mlp(mlp_input)
-        hidden_states = nn.emit(mlp_output + attn_output + hidden_states)
+        if self.use_parallel_residual:
+            mlp_input = self.post_attention_layernorm(hidden_states)
+            mlp_output = self.mlp(mlp_input)
+            hidden_states = nn.emit(mlp_output + attn_output + hidden_states)
+        else:
+            attn_output = nn.emit(attn_output + hidden_states)
+            mlp_input = self.post_attention_layernorm(attn_output)
+            mlp_output = self.mlp(mlp_input)
+            hidden_states = nn.emit(mlp_output + attn_output)
         return hidden_states, present_key_value
 
 
@@ -304,6 +354,7 @@ def _prepare_decoder_attention_mask(input_shape, src_len, dtype):
     # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
     if isinstance(input_shape[-1], tvm.tir.Var) or input_shape[-1] > 1:
         bsz, tgt_len = input_shape
+
         def min_max_triu_te():
             return te.compute(
                 (tgt_len, tgt_len),
@@ -312,7 +363,7 @@ def _prepare_decoder_attention_mask(input_shape, src_len, dtype):
                 ),
                 name="make_diag_mask_te",
             )
-    
+
         mask = nn.emit_te(min_max_triu_te)
         diag_mask = nn.emit(broadcast_to(mask, (bsz, 1, tgt_len, tgt_len)))
         if src_len == tgt_len:
@@ -322,7 +373,9 @@ def _prepare_decoder_attention_mask(input_shape, src_len, dtype):
             return te.compute(
                 (bsz, 1, tgt_len, src_len),
                 lambda b, _, i, j: te.if_then_else(
-                    j < src_len - tgt_len, tvm.tir.max_value(dtype), x[b, _, i, j - (src_len - tgt_len)]
+                    j < src_len - tgt_len,
+                    tvm.tir.max_value(dtype),
+                    x[b, _, i, j - (src_len - tgt_len)],
                 ),
                 name="concat_te",
             )
@@ -332,7 +385,11 @@ def _prepare_decoder_attention_mask(input_shape, src_len, dtype):
         # Get src_len from input parameters
         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
         bsz, tgt_len = input_shape
-        mask = relax.op.full((bsz, 1, tgt_len, src_len), relax.const(tvm.tir.max_value(dtype).value, dtype), dtype)
+        mask = relax.op.full(
+            (bsz, 1, tgt_len, src_len),
+            relax.const(tvm.tir.max_value(dtype).value, dtype),
+            dtype,
+        )
     return nn.emit(mask)
 
 
@@ -362,6 +419,7 @@ class GPTNeoXModel(nn.Module):
                     layer_norm_eps=config.layer_norm_eps,
                     num_heads=config.num_attention_heads,
                     rotary_embedding=rotary_embedding,
+                    use_parallel_residual=config.use_parallel_residual,
                     dtype=config.dtype,
                 )
                 for _ in range(config.num_hidden_layers)
@@ -574,64 +632,62 @@ def get_model(
 ):
     from transformers import AutoModelForCausalLM  # type: ignore[import]
 
-    if model_name.startswith("dolly-") or model_name.startswith("stablelm-"):
-        config = GPTNeoXConfig(**MODEL_CONFIG[model_name], dtype=dtype)
-        num_heads = config.num_attention_heads
-        hidden_size = config.hidden_size
-        head_dim = hidden_size // num_heads
-        param_list: List[Tuple[str, NDArray]] = []
-        hf_model = AutoModelForCausalLM.from_pretrained(model_path)
-        for name, param in hf_model.named_parameters():
-            param = param.detach().cpu().numpy()
-            if param.dtype == "float32":
-                if "layernorm" in name or "layer_norm" in name or "embed_out" in name:
-                    param = param.astype("float32")
-                else:
-                    param = param.astype(dtype)
-            if name.endswith("query_key_value.weight"):
-                name = name.replace("query_key_value.weight", "{}_proj.weight")
-                assert param.ndim == 2
-                param = param.reshape(num_heads, 3, head_dim, hidden_size)
-                q = param[:, 0, :, :].reshape(hidden_size, hidden_size)
-                k = param[:, 1, :, :].reshape(hidden_size, hidden_size)
-                v = param[:, 2, :, :].reshape(hidden_size, hidden_size)
-                param_list.append((name.format("q"), q))
-                param_list.append((name.format("k"), k))
-                param_list.append((name.format("v"), v))
-            elif name.endswith("query_key_value.bias"):
-                name = name.replace("query_key_value.bias", "{}_proj.bias")
-                assert param.ndim == 1
-                param = param.reshape(num_heads, 3, head_dim)
-                q = param[:, 0, :].reshape(hidden_size)
-                k = param[:, 1, :].reshape(hidden_size)
-                v = param[:, 2, :].reshape(hidden_size)
-                param_list.append((name.format("q"), q))
-                param_list.append((name.format("k"), k))
-                param_list.append((name.format("v"), v))
+    config = GPTNeoXConfig(**MODEL_CONFIG[model_name], dtype=dtype)
+    num_heads = config.num_attention_heads
+    hidden_size = config.hidden_size
+    head_dim = hidden_size // num_heads
+    param_list: List[Tuple[str, NDArray]] = []
+    hf_model = AutoModelForCausalLM.from_pretrained(model_path)
+    for name, param in hf_model.named_parameters():
+        param = param.detach().cpu().numpy()
+        if param.dtype == "float32":
+            if "layernorm" in name or "layer_norm" in name or "embed_out" in name:
+                param = param.astype("float32")
             else:
-                param_list.append((name, param))
-        del hf_model
-        param_list = [
-            (
-                name,
-                tvm.nd.array(param, tvm.cpu()),
+                param = param.astype(dtype)
+        if name.endswith("query_key_value.weight"):
+            name = name.replace("query_key_value.weight", "{}_proj.weight")
+            assert param.ndim == 2
+            param = param.reshape(num_heads, 3, head_dim, hidden_size)
+            q = param[:, 0, :, :].reshape(hidden_size, hidden_size)
+            k = param[:, 1, :, :].reshape(hidden_size, hidden_size)
+            v = param[:, 2, :, :].reshape(hidden_size, hidden_size)
+            param_list.append((name.format("q"), q))
+            param_list.append((name.format("k"), k))
+            param_list.append((name.format("v"), v))
+        elif name.endswith("query_key_value.bias"):
+            name = name.replace("query_key_value.bias", "{}_proj.bias")
+            assert param.ndim == 1
+            param = param.reshape(num_heads, 3, head_dim)
+            q = param[:, 0, :].reshape(hidden_size)
+            k = param[:, 1, :].reshape(hidden_size)
+            v = param[:, 2, :].reshape(hidden_size)
+            param_list.append((name.format("q"), q))
+            param_list.append((name.format("k"), k))
+            param_list.append((name.format("v"), v))
+        else:
+            param_list.append((name, param))
+    del hf_model
+    param_list = [
+        (
+            name,
+            tvm.nd.array(param, tvm.cpu()),
+        )
+        for name, param in param_list
+    ]
+    bb = relax.BlockBuilder()
+    create_encoding_func(bb, config, [k for k, _ in param_list])
+    create_decoding_func(bb, config, [k for k, _ in param_list])
+    create_kv_cache_func(bb, config)
+    mod = bb.get()
+    for gv in mod.functions:
+        func = mod[gv]
+        if isinstance(func, relax.Function):
+            mod[gv] = func.with_attr(
+                "tir_var_upper_bound",
+                {
+                    "n": config.max_sequence_length,
+                    "m": config.max_sequence_length,
+                },
             )
-            for name, param in param_list
-        ]
-        bb = relax.BlockBuilder()
-        create_encoding_func(bb, config, [k for k, _ in param_list])
-        create_decoding_func(bb, config, [k for k, _ in param_list])
-        create_kv_cache_func(bb, config)
-        mod = bb.get()
-        for gv in mod.functions:
-            func = mod[gv]
-            if isinstance(func, relax.Function):
-                mod[gv] = func.with_attr(
-                    "tir_var_upper_bound",
-                    {
-                        "n": config.max_sequence_length,
-                        "m": config.max_sequence_length,
-                    },
-                )
-        return mod, [v for _, v in param_list]
-    raise ValueError(f"Unsupported model: {model_name}")
+    return mod, [v for _, v in param_list]
