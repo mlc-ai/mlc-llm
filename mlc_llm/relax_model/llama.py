@@ -307,7 +307,7 @@ class LlamaAttention(nn.Module):
             attention_mask.struct_info.shape.values,
             (bsz, tvm.tir.IntImm("int64", 1), q_len, kv_seq_len),
         )
-        
+
         attn_weights = nn.emit(maximum(attn_weights, relax.const(tvm.tir.min_value(attn_weights.struct_info.dtype).value, attn_weights.struct_info.dtype)))
         attn_weights = nn.emit(relax.op.minimum(attn_weights, attention_mask))
 
@@ -394,7 +394,7 @@ def _make_causal_mask(input_ids_shape, dtype, src_len):
     from tvm.relax.op import broadcast_to, full, triu
 
     bsz, tgt_len = input_ids_shape
-    
+
     def min_max_triu_te():
         return te.compute(
             (tgt_len, tgt_len),
@@ -403,7 +403,7 @@ def _make_causal_mask(input_ids_shape, dtype, src_len):
             ),
             name="make_diag_mask_te",
         )
-    
+
     mask = nn.emit_te(min_max_triu_te)
     diag_mask = nn.emit(broadcast_to(mask, (bsz, 1, tgt_len, tgt_len)))
     if src_len == tgt_len:
@@ -657,14 +657,15 @@ def get_model(args):
         create_kv_cache_func(bb, config)
         mod = bb.get()
 
-        param_list = []
         device = tvm.cpu()
         hf_model = AutoModelForCausalLM.from_pretrained(model_path)
-        for _, param in hf_model.named_parameters():
-            param_list.append(
-                tvm.nd.array(param.detach().cpu().numpy().astype(config.dtype), device)
-            )
+        # Get a list of parameters in advance, then delete the model to save memory
+        param_list = [param for _, param in hf_model.named_parameters()]
         del hf_model
+
+        for i, param in enumerate(param_list):
+            param_list[i] = tvm.nd.array(param.detach().cpu().numpy().astype(config.dtype), device)
+
         head_dim = config.hidden_size / config.num_attention_heads
         inv_freq = 1.0 / (
             config.position_embedding_base
