@@ -1,0 +1,16 @@
+version: "3.3"
+services:
+  mlc-llm:
+    build:
+      context: .
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./dist:/app/dist
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
