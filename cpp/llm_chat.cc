@@ -166,7 +166,7 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kMOSS,
           /*sep=*/"<eoh>",
-          /*sep2=*/"");
+          /*sep2=*/"<eom>");
     } else {
       LOG(FATAL) << "Unknown conversation template: " << template_name;
     }
@@ -242,7 +242,7 @@ class Conversation {
       }
       return ret;
     } else if (this->separator_style == SeparatorStyle::kMOSS) {
-      std::vector<std::string> seps{this->sep, ""};
+      std::vector<std::string> seps{this->sep, this->sep2};
       ret.push_back(this->system_);
       for (size_t i = 0; i < this->messages.size(); ++i) {
         if (this->messages[i].size() == 2) {
@@ -307,8 +307,8 @@ class Conversation {
       }
       return ret;
     } else if (this->separator_style == SeparatorStyle::kMOSS) {
-      std::vector<std::string> seps{this->sep, ""};
-      for (size_t i = 0; i < this->messages.size(); ++i) {
+      std::vector<std::string> seps{this->sep, this->sep2};
+      for (int i = this->messages.size() - 2; i < this->messages.size(); ++i) {
         if (this->messages[i].size() == 2) {
           ret.push_back(this->messages[i][0] + ": " + this->messages[i][1] + seps[i % 2] + "\n");
         } else if (this->messages[i].size() == 1) {
@@ -377,7 +377,7 @@ class Tokenizer {
   virtual std::string Decode(const std::vector<int32_t>& ids) = 0;
 
   static std::unique_ptr<Tokenizer> FromFile(const std::string& path);
-  static std::unique_ptr<Tokenizer> FromByteLevelBPE(const std::string& path);
+  static std::unique_ptr<Tokenizer> ByteLevelBPEFromFile(const std::string& path);
 };
 
 class SentencePieceTokenizer : public Tokenizer {
@@ -433,7 +433,7 @@ std::unique_ptr<Tokenizer> Tokenizer::FromFile(const std::string& path) {
   }
 }
 
-std::unique_ptr<Tokenizer> Tokenizer::FromByteLevelBPE(const std::string& path) {
+std::unique_ptr<Tokenizer> Tokenizer::ByteLevelBPEFromFile(const std::string& path) {
   std::filesystem::path vocab_path(path + "/" + "vocab.json");
   std::filesystem::path merges_path(path + "/" + "merges.txt");
   std::optional<std::filesystem::path> added_tokens(path + "/" + "added_tokens.json");
@@ -447,9 +447,9 @@ std::unique_ptr<Tokenizer> Tokenizer::FromByteLevelBPE(const std::string& path) 
   return std::make_unique<HFTokenizer>(vocab_path, merges_path, added_tokens);
 }
 
-std::vector<int32_t> stop_words_stablelm{50278, 50279, 50277, 1, 0};
-std::vector<int32_t> stop_words_default{2};
-std::vector<int32_t> stop_words_moss{106068};
+std::vector<int32_t> stop_tokens_stablelm{50278, 50279, 50277, 1, 0};
+std::vector<int32_t> stop_tokens_moss{106068};
+std::vector<int32_t> stop_tokens_default{2};
 
 //------------------------------
 // Chat module
@@ -492,11 +492,12 @@ class LLMChatModule : public ModuleNode {
         this->cur_pos_ = 0;
         this->add_bos_ = true;
         if (args[1] == "stablelm") {
-          this->stop_tokens_ = stop_words_stablelm;
+          this->stop_tokens_ = stop_tokens_stablelm;
         } else if (args[1] == "moss") {
-          this->stop_tokens_ = stop_words_moss;
+          this->stop_tokens_ = stop_tokens_moss;
+          this->add_prefix_space_ = true;
         } else {
-          this->stop_tokens_ = stop_words_default;
+          this->stop_tokens_ = stop_tokens_default;
         }
         this->stop_str_ =
             this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
@@ -579,7 +580,7 @@ class LLMChatModule : public ModuleNode {
 
     bool need_shift_window = false;
     for (int i = prompts.size() - 1; i > 0; i--) {
-      auto encoded = this->tokenizer_->Encode(prompts[i]);
+      auto encoded = this->tokenizer_->Encode((this->add_prefix_space_ ? " " : "") + prompts[i]);
       ctx_length += encoded.size();
       if (this->total_seq_len_ + ctx_length + this->mean_gen_len_ >= this->max_window_size_) {
         need_shift_window = true;
@@ -695,8 +696,9 @@ class LLMChatModule : public ModuleNode {
 
   bool Stopped() {
     if (std::any_of(stop_tokens_.begin(), stop_tokens_.end(),
-                    [this](int32_t token) { return token == next_token_; }))
+                    [this](int32_t token) { return token == next_token_; })) {
       return true;
+    }
     return cur_pos_ - start_pos_ == max_gen_len_ - 1 || encounter_stop_str_ ||
            total_seq_len_ >= max_window_size_;
   }
@@ -992,6 +994,10 @@ class LLMChatModule : public ModuleNode {
   //----------------------------
   // Tokenizer
   //----------------------------
+  // Specifies whether a prefix space should be added to non-leading sentences.
+  // If `add_prefix_space_` is set to `true`, a prefix space will be added to each non-leading
+  // sentence. Otherwise, no prefix space will be added.
+  bool add_prefix_space_{false};
   // internal tokenizer
   std::unique_ptr<Tokenizer> tokenizer_;
   //----------------------------
@@ -1033,7 +1039,7 @@ tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
     return CreateChatModule(executable, Tokenizer::FromFile(tokenizer_path), param_path, device);
   } else {
     // tokenizer stored in multiple files.
-    return CreateChatModule(executable, Tokenizer::FromByteLevelBPE(tokenizer_path), param_path,
+    return CreateChatModule(executable, Tokenizer::ByteLevelBPEFromFile(tokenizer_path), param_path,
                             device);
   }
 }

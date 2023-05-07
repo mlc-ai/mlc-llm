@@ -81,7 +81,7 @@ class Conversation:
                     ret += role
             return ret
         elif self.sep_style == SeparatorStyle.MOSS:
-            seps = [self.sep, ""]
+            seps = [self.sep, self.sep2]
             ret = self.system
             for i, (role, message) in enumerate(self.messages):
                 if message:
@@ -129,13 +129,14 @@ class Conversation:
             self.cur = len(self.messages) - 1
             return ret
         elif self.sep_style == SeparatorStyle.MOSS:
-            seps = [self.sep, ""]
+            seps = [self.sep, self.sep2]
             ret = ""
-            for i, (role, message) in enumerate(self.messages):
+            for i, (role, message) in enumerate(self.messages[self.cur + 1 :]):
                 if message:
                     ret += role + ": " + message + seps[i % 2] + "\n"
                 else:
                     ret += role + ":"
+            self.cur = len(self.messages) - 1
             return ret
         else:
             raise ValueError(f"Invalid style: {self.sep_style}")
@@ -285,6 +286,7 @@ Capabilities and tools that MOSS can possess.
     offset=0,
     sep_style=SeparatorStyle.MOSS,
     sep="<eoh>",
+    sep2="<eom>",
 )
 
 conv_templates = {

@@ -66,7 +66,8 @@ impl TokenizerWrapper {
             })
             .collect::<Vec<(String, String)>>();
         let byte_level = ByteLevel::new(
-            /*add_prefix_space=*/ false, /*trim_offsets=*/ true, /*use_regex=*/ true,
+            /*add_prefix_space=*/ false, /*trim_offsets=*/ false,
+            /*use_regex=*/ false,
         );
         let mut tokenizer = Tokenizer::new(BPE::new(vocab, merges));
         tokenizer

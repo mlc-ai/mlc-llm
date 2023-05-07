@@ -295,7 +295,7 @@ int main(int argc, char* argv[]) {
       },
       {"tokenizer"}, {".model", ".json"});
   if (!tokenizer_path_opt) {
-    // Try GPT2 style tokenizer
+    // Try ByteLevelBPETokenizer
     tokenizer_path_opt = FindFile(
         {
             model_path,
