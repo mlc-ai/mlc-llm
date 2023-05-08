@@ -48,7 +48,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
     if args.model.startswith("vicuna-") or args.model.startswith("llama-"):
         args.conv_template = "vicuna_v1.1"
         args.model_category = "llama"
-    if args.model.startswith("dolly-"):
+    elif args.model.startswith("dolly-"):
         args.conv_template = "dolly"
         args.model_category = "gpt_neox"
     elif args.model.startswith("stablelm-"):
