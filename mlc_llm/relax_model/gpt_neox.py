@@ -117,20 +117,6 @@ MODEL_CONFIG = {
 }
 
 
-def _min_value(dtype) -> relax.Expr:
-    v = tvm.tir.min_value(dtype).value
-    if dtype == "float16":
-        v = -55504.0
-    return relax.const(v, dtype)
-
-
-def _max_value(dtype) -> relax.Expr:
-    v = tvm.tir.max_value(dtype).value
-    if dtype == "float16":
-        v = 55504.0
-    return relax.const(v, dtype)
-
-
 class GPTNeoXAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
@@ -275,17 +261,25 @@ class GPTNeoXMLP(nn.Module):
         dtype: str,
     ):
         super().__init__()
-        self.dense_h_to_4h = Linear(hidden_size, intermediate_size, dtype)
-        self.dense_4h_to_h = Linear(intermediate_size, hidden_size, dtype)
+        self.dense_h_to_4h = Linear(
+            hidden_size, intermediate_size, dtype=dtype, out_dtype="float32"
+        )
+        self.dense_4h_to_h = Linear(
+            intermediate_size, hidden_size, dtype=dtype, out_dtype="float32"
+        )
         self.dtype = dtype
 
     def forward(self, hidden_states):
         if hidden_states.struct_info.dtype != self.dtype:
             hidden_states = nn.emit(astype(hidden_states, self.dtype))
         hidden_states = self.dense_h_to_4h(hidden_states)
-        hidden_states = gelu(hidden_states)
+        hidden_states = nn.emit(gelu(hidden_states))
+        if hidden_states.struct_info.dtype != self.dtype:
+            hidden_states = nn.emit(astype(hidden_states, self.dtype))
         hidden_states = self.dense_4h_to_h(hidden_states)
-        return nn.emit(hidden_states)
+        if hidden_states.struct_info.dtype != self.dtype:
+            hidden_states = nn.emit(astype(hidden_states, self.dtype))
+        return hidden_states
 
 
 class GPTNeoXLayer(nn.Module):
@@ -345,7 +339,7 @@ class GPTNeoXLayer(nn.Module):
             attn_output = nn.emit(attn_output + hidden_states)
             mlp_input = self.post_attention_layernorm(attn_output)
             mlp_output = self.mlp(mlp_input)
-            hidden_states = nn.emit(mlp_output + attn_output)
+            hidden_states = nn.emit(astype(mlp_output, self.dtype) + attn_output)
         return hidden_states, present_key_value
 
 
@@ -653,6 +647,8 @@ def get_model(
         param = param.detach().cpu().numpy()
         if param.dtype == "float32":
             if "layernorm" in name or "layer_norm" in name or "embed_out" in name:
+                param = param.astype("float32")
+            elif ".dense_h_to_4h.bias" in name or ".dense_4h_to_h.bias" in name:
                 param = param.astype("float32")
             else:
                 param = param.astype(dtype)

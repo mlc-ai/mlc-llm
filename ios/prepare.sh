@@ -3,8 +3,16 @@ set -euxo pipefail
 
 rustup target add aarch64-apple-ios
 
-mkdir -p build
-cd build
+MODEL="RedPajama-INCITE-Chat-3B-v1"
+TOKENIZER_SUFFIX="json"
+DTYPE="float16"
+
+MODEL_KERNEL_LIB="../dist/${MODEL}/${DTYPE}/${MODEL}_iphone_${DTYPE}.a"
+MODEL_PARAMS="../dist/${MODEL}/${DTYPE}/params"
+TOKENIZER="../dist/models/${MODEL}/tokenizer.${TOKENIZER_SUFFIX}"
+
+rm -rf build/ && mkdir -p build/ && cd build/
+ln -s ${TVM_HOME} ./tvm_home
 cmake ../..\
   -DCMAKE_BUILD_TYPE=Release\
   -DCMAKE_SYSTEM_NAME=iOS\
@@ -18,11 +26,11 @@ cmake ../..\
   -DCMAKE_CXX_FLAGS="-O3"\
   -DMLC_LLM_INSTALL_STATIC_LIB=ON\
   -DUSE_METAL=ON
-
 make mlc_llm_static
 cmake --build . --target install --config release -j
-
+cp ../${MODEL_KERNEL_LIB} ./lib/libmodel_iphone.a
 cd ..
-rm -rf build/tvm_home
-ln -s  ${TVM_HOME} build/tvm_home
-cp ../dist/vicuna-v1-7b/float16/vicuna-v1-7b_iphone_float16.a build/lib/libmodel_iphone.a
+
+rm -rf dist && mkdir -p dist
+cp -rf ${TOKENIZER} ./dist/tokenizer.${TOKENIZER_SUFFIX}
+cp -rf ${MODEL_PARAMS} ./dist/params

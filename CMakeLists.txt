@@ -78,6 +78,7 @@ set(
   $ENV{TVM_HOME}/include
   $ENV{TVM_HOME}/3rdparty/dlpack/include
   $ENV{TVM_HOME}/3rdparty/dmlc-core/include
+  $ENV{TVM_HOME}/3rdparty/rang/include
 )
 
 set(MLC_LLM_COMPILE_DEFS DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)

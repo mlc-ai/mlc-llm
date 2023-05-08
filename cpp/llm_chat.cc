@@ -34,7 +34,14 @@ using namespace tvm::runtime;
  */
 class Conversation {
  public:
-  enum class SeparatorStyle { kSingle = 0, kTwo = 1, kDolly = 2, kOasst_Pythia = 3, kMOSS = 4 };
+  enum class SeparatorStyle {
+    kSingle = 0,
+    kTwo = 1,
+    kDolly = 2,
+    kOasst_Pythia = 3,
+    kMOSS = 4,
+    kRedPajamaChat = 5,
+  };
 
   static Conversation Create(const std::string& template_name = "vicuna_v1.1") {
     if (template_name == "vicuna_v1.1") {
@@ -112,6 +119,16 @@ class Conversation {
           /*separator_style=*/Conversation::SeparatorStyle::kDolly,
           /*sep=*/"\n\n",
           /*sep2=*/"### End");
+    } else if (template_name == "redpajama-chat") {
+      return Conversation(
+          /*conv_template=*/"redpajama-chat",
+          /*system=*/"",
+          /*roles=*/{"<human>", "<bot>"},
+          /*messages=*/{},
+          /*offset=*/0,
+          /*separator_style=*/Conversation::SeparatorStyle::kRedPajamaChat,
+          /*sep=*/"",
+          /*sep2=*/"");
     } else if (template_name == "oasst") {
       return Conversation(
           /*conv_template=*/"oasst",
@@ -189,7 +206,7 @@ class Conversation {
     std::vector<std::string> ret;
     if (this->separator_style == SeparatorStyle::kSingle) {
       ret.push_back(this->system_);
-      for (const auto& message : this->messages) {
+      for (const std::vector<std::string>& message : this->messages) {
         if (message.size() == 2) {
           ret.push_back(this->sep + " " + message[0] + ": " + message[1]);
         } else if (message.size() == 1) {
@@ -231,7 +248,7 @@ class Conversation {
       return ret;
     } else if (this->separator_style == SeparatorStyle::kOasst_Pythia) {
       ret.push_back(this->system_);
-      for (const auto& message : this->messages) {
+      for (const std::vector<std::string>& message : this->messages) {
         if (message.size() == 2) {
           ret.push_back(message[0] + message[1] + this->sep);
         } else if (message.size() == 1) {
@@ -254,6 +271,19 @@ class Conversation {
         }
       }
       return ret;
+    } else if (this->separator_style == SeparatorStyle::kRedPajamaChat) {
+      std::vector<std::string> seps{this->sep, this->sep2};
+      ret.push_back(this->system_);
+      for (size_t i = 0; i < this->messages.size(); ++i) {
+        if (this->messages[i].size() == 2) {
+          ret.push_back(this->messages[i][0] + ": " + this->messages[i][1] + seps[i % 2] + "\n");
+        } else if (this->messages[i].size() == 1) {
+          ret.push_back(this->messages[i][0] + ":");
+        } else {
+          LOG(FATAL) << "Invalid message size: " << this->messages[i].size();
+        }
+      }
+      return ret;
     } else {
       LOG(FATAL) << "Unknown separator style: " << (int)this->separator_style;
     }
@@ -262,7 +292,7 @@ class Conversation {
   std::vector<std::string> GetPromptArrayUnprocessed() {
     std::vector<std::string> ret;
     if (this->messages.size() <= 2) {
-      LOG(FATAL) << "needs to call getLastPromptArray for the first message";
+      LOG(FATAL) << "needs to call GetPromptArray for the first message";
     }
     if (this->separator_style == SeparatorStyle::kTwo) {
       std::vector<std::string> seps{this->sep, this->sep2};
@@ -301,6 +331,18 @@ class Conversation {
           ret.push_back(this->messages[i][0] + this->messages[i][1] + this->sep);
         } else if (this->messages[i].size() == 1) {
           ret.push_back(this->messages[i][0]);
+        } else {
+          LOG(FATAL) << "Invalid message size: " << this->messages[i].size();
+        }
+      }
+      return ret;
+    } else if (this->separator_style == SeparatorStyle::kRedPajamaChat) {
+      std::vector<std::string> seps{this->sep, this->sep2};
+      for (size_t i = this->messages.size() - 2; i < this->messages.size(); ++i) {
+        if (this->messages[i].size() == 2) {
+          ret.push_back(this->messages[i][1] + seps[i % 2] + "\n");
+        } else if (this->messages[i].size() == 1) {
+          ret.push_back(this->messages[i][0] + ":");
         } else {
           LOG(FATAL) << "Invalid message size: " << this->messages[i].size();
         }
@@ -503,6 +545,9 @@ class LLMChatModule : public ModuleNode {
             this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
                 ? this->conversation_.sep
                 : this->conversation_.sep2;
+        if (this->conversation_.separator_style == Conversation::SeparatorStyle::kRedPajamaChat) {
+          this->stop_str_ = "<human>:";
+        }
       });
     } else if (name == "reset_chat") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
@@ -565,6 +610,9 @@ class LLMChatModule : public ModuleNode {
   }
 
   std::vector<int32_t> GetPromptTokens() {
+    if (this->conversation_.separator_style == Conversation::SeparatorStyle::kRedPajamaChat) {
+      this->add_bos_ = false;
+    }
     std::vector<std::string> prompts;
     if (this->conversation_.messages.size() <= 2) {
       prompts = this->conversation_.GetPromptArray();
@@ -576,14 +624,16 @@ class LLMChatModule : public ModuleNode {
     if (this->add_bos_) {
       tokens.insert(tokens.begin(), tokenizer_->bos_token_id);
     }
-    auto first_prompt_tokens = this->tokenizer_->Encode(prompts[0]);
+    std::vector<int32_t> first_prompt_tokens = this->tokenizer_->Encode(prompts[0]);
     tokens.insert(tokens.end(), first_prompt_tokens.begin(), first_prompt_tokens.end());
     int ctx_length = tokens.size();
     std::list<std::vector<int32_t>> context;
 
     bool need_shift_window = false;
     for (int i = prompts.size() - 1; i > 0; i--) {
-      auto encoded = this->tokenizer_->Encode((this->add_prefix_space_ ? " " : "") + prompts[i]);
+      std::vector<int32_t> encoded =
+          this->tokenizer_->Encode((this->add_prefix_space_ ? " " : "") + prompts[i]);
+      std::vector<int32_t> encoded = this->tokenizer_->Encode(prompts[i]);
       ctx_length += encoded.size();
       if (this->total_seq_len_ + ctx_length + this->mean_gen_len_ >= this->max_window_size_) {
         need_shift_window = true;
@@ -592,7 +642,7 @@ class LLMChatModule : public ModuleNode {
       context.push_front(encoded);
     }
     if (!need_shift_window) {
-      for (const auto& ctx : context) {
+      for (const std::vector<int>& ctx : context) {
         tokens.insert(tokens.end(), ctx.begin(), ctx.end());
       }
       return tokens;
@@ -605,12 +655,12 @@ class LLMChatModule : public ModuleNode {
     if (this->add_bos_) {
       tokens.insert(tokens.begin(), tokenizer_->bos_token_id);
     }
-    auto all_prompts = this->conversation_.GetPromptArray();
+    std::vector<std::string> all_prompts = this->conversation_.GetPromptArray();
     first_prompt_tokens = this->tokenizer_->Encode(all_prompts[0]);
     tokens.insert(tokens.end(), first_prompt_tokens.begin(), first_prompt_tokens.end());
     ctx_length = tokens.size();
     for (int i = all_prompts.size() - 1; i > 0; i--) {
-      auto encoded = this->tokenizer_->Encode(all_prompts[i]);
+      std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompts[i]);
       ctx_length += encoded.size();
       if (ctx_length >= this->shift_fill_factor_ * this->max_window_size_ &&
           i + 2 < all_prompts.size()) {
@@ -618,7 +668,7 @@ class LLMChatModule : public ModuleNode {
       }
       context.push_front(encoded);
     }
-    for (const auto& ctx : context) {
+    for (const std::vector<int>& ctx : context) {
       tokens.insert(tokens.end(), ctx.begin(), ctx.end());
     }
     if (tokens.size() + this->mean_gen_len_ >= this->max_window_size_) {
@@ -653,10 +703,10 @@ class LLMChatModule : public ModuleNode {
     conversation_.AppendMessage(conversation_.roles[0], inp);
     conversation_.AppendMessage(conversation_.roles[1]);
 
-    auto prompt_tokens = this->GetPromptTokens();
+    std::vector<int32_t> prompt_tokens = this->GetPromptTokens();
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
 
-    auto input_data = this->GetInputTokenNDArray(prompt_tokens);
+    tvm::runtime::NDArray input_data = this->GetInputTokenNDArray(prompt_tokens);
 
     total_seq_len_ += token_len;
     cur_pos_ = token_len;
@@ -688,7 +738,7 @@ class LLMChatModule : public ModuleNode {
     output_ids_.push_back(next_token_);
     output_message_ = RemoveStopStr(tokenizer_->Decode(output_ids_));
 
-    auto input_data = GetInputTokenNDArray({next_token_});
+    tvm::runtime::NDArray input_data = GetInputTokenNDArray({next_token_});
 
     total_seq_len_ += 1;
     cur_pos_ += 1;
@@ -772,9 +822,9 @@ class LLMChatModule : public ModuleNode {
     tokens.insert(tokens.begin(), tokenizer_->bos_token_id);
     int64_t token_len = static_cast<int64_t>(tokens.size());
 
-    auto input_data = NDArray::Empty({1, token_len}, DataType::Int(32), device_);
+    tvm::runtime::NDArray input_data = NDArray::Empty({1, token_len}, DataType::Int(32), device_);
     input_data.CopyFromBytes(tokens.data(), tokens.size() * sizeof(int32_t));
-    auto first_sample_token = NDArray::Empty({1, 1}, DataType::Int(32), device_);
+    tvm::runtime::NDArray first_sample_token = NDArray::Empty({1, 1}, DataType::Int(32), device_);
     std::vector<int32_t> first_sample_data = {6234};
     first_sample_token.CopyFromBytes(first_sample_data.data(), sizeof(int32_t));
 
@@ -843,13 +893,15 @@ class LLMChatModule : public ModuleNode {
     decoding_func_ = vm_->GetFunction("decoding");
     encoding_without_cache_func_ = vm_->GetFunction("encoding_without_cache");
     softmax_func_ = vm_->GetFunction("softmax_with_temperature");
-    auto kv_cache_func = vm_->GetFunction("create_kv_cache");
+    PackedFunc kv_cache_func = vm_->GetFunction("create_kv_cache");
 
-    auto fsample_topp_from_prob_ptr = tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
+    auto fsample_topp_from_prob_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
     ICHECK(fsample_topp_from_prob_ptr)
         << "Cannot find env function vm.builtin.sample_top_p_from_prob";
     fsample_topp_from_prob_ = *fsample_topp_from_prob_ptr;
-    auto fsample_topp_from_logits_ptr = tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
+    auto fsample_topp_from_logits_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
     ICHECK(fsample_topp_from_logits_ptr)
         << "Cannot find env function vm.builtin.sample_top_p_from_logits";
     fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
@@ -875,45 +927,6 @@ class LLMChatModule : public ModuleNode {
       ++count;
     }
     return count;
-  }
-
-  int64_t ComputeSkipEchoLen(const std::string& prompt) {
-    int64_t skip_echo_len = 0;
-    std::string model_name(model_name_);
-    std::transform(model_name.begin(), model_name.end(), model_name.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    if (model_name.find("chatglm") != std::string::npos) {
-      skip_echo_len = conversation_.messages[conversation_.messages.size() - 1][1].length() + 1;
-    } else if (model_name.find("dolly") != std::string::npos) {
-      std::vector<std::string> special_toks{"### Instruction:", "### Response:", "### End"};
-      skip_echo_len = prompt.length();
-      for (const auto& tok : special_toks) {
-        skip_echo_len -= CountSubstr(prompt, tok) * tok.length();
-      }
-    } else if (model_name.find("oasst") != std::string::npos &&
-               model_name.find("pythia") != std::string::npos) {
-      std::vector<std::string> special_toks{"<|prompter|>", "<|assistant|>", "<|endoftext|>"};
-      skip_echo_len = prompt.length();
-      for (const auto& tok : special_toks) {
-        skip_echo_len -= CountSubstr(prompt, tok) * tok.length();
-      }
-    } else if (model_name.find("stablelm") != std::string::npos) {
-      std::vector<std::string> special_toks{"<|SYSTEM|>", "<|USER|>", "<|ASSISTANT|>"};
-      skip_echo_len = prompt.length();
-      for (const auto& tok : special_toks) {
-        skip_echo_len -= CountSubstr(prompt, tok) * tok.length();
-      }
-    } else if (model_name.find("moss") != std::string::npos) {
-      std::vector<std::string> special_toks{"<|endoftext|>", "<eom>", "<eoh>",
-                                            "<eot>",         "<eoc>", "<eor>"};
-      skip_echo_len = prompt.length();
-      for (const auto& tok : special_toks) {
-        skip_echo_len -= CountSubstr(prompt, tok) * tok.length();
-      }
-    } else {
-      skip_echo_len = prompt.length() + 1 - CountSubstr(prompt, "</s>") * 3;
-    }
-    return skip_echo_len;
   }
 
   // run forward compute
@@ -985,6 +998,9 @@ class LLMChatModule : public ModuleNode {
   }
 
   std::string RemoveStopStr(std::string str) {
+    if (stop_str_.empty()) {
+      return str;
+    }
     size_t pos = str.rfind(stop_str_);
     if (pos != std::string::npos) {
       encounter_stop_str_ = true;

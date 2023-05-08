@@ -1,7 +1,6 @@
 # pylint: disable=missing-docstring,invalid-name
 import argparse
 import os
-import sys
 from typing import Callable, List, Optional
 
 from tvm import meta_schedule as ms
@@ -13,17 +12,17 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--path",
         type=str,
-        default="dist/dolly-v2-3b/float16/",
+        default="./log_db/RedPajama-INCITE-Chat-3B-v1/",
     )
     parser.add_argument(
         "--work_dir",
         type=str,
-        default="dist/dolly-v2-3b/float16/log_db/",
+        default="./dist/RedPajama-INCITE-Chat-3B-v1/float16/log_db/",
     )
     parser.add_argument("--target", type=str, default="auto")
     args = parser.parse_args()
-    sys.path.insert(0, args.path)
-    from merged import (  # type: ignore  # pylint: disable=import-outside-toplevel,import-error
+
+    from mlc_llm.dispatch.gpt_neox.redpajama_incite_chat_3b_v1_tune import (  # pylint: disable=import-outside-toplevel,import-error
         Module,
     )
 
@@ -34,6 +33,10 @@ def _parse_args() -> argparse.Namespace:
     os.makedirs(args.work_dir, exist_ok=True)
     print("target:", args.target)
     return args
+
+
+def wrap(sch_func):
+    return ms.space_generator.ScheduleFn(sch_func)
 
 
 def sch_fused_decode_gemv(
@@ -105,7 +108,7 @@ def sch_fused_decode_gemv(
         sch.decompose_reduction(gemv, k_o)
         sch.show(black_format=False)
 
-    return sch_func
+    return wrap(sch_func)
 
 
 def sch_decode(
@@ -144,7 +147,63 @@ def sch_decode(
         sch.storage_align(decode, buffer_index=0, axis=0, factor=32, offset=1)
         sch.mod.show(black_format=False)
 
-    return sch_func
+    return wrap(sch_func)
+
+
+def sch_fused_NT_matmul3_add6_gelu1_cast11(sch: tir.Schedule) -> None:
+    # fmt: off
+    b0 = sch.get_block(name="NT_matmul", func_name="main")
+    b1 = sch.get_block(name="T_add", func_name="main")
+    b2 = sch.get_block(name="T_multiply", func_name="main")
+    b3 = sch.get_block(name="compute", func_name="main")
+    b4 = sch.get_block(name="T_multiply_1", func_name="main")
+    b5 = sch.get_block(name="T_add_1", func_name="main")
+    b6 = sch.get_block(name="T_multiply_2", func_name="main")
+    b7 = sch.get_block(name="compute_1", func_name="main")
+    b8 = sch.get_block(name="root", func_name="main")
+    sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSSRRSRS")
+    l9, l10, l11, l12 = sch.get_loops(block=b0)
+    v13, v14, v15, v16, v17 = sch.sample_perfect_tile(loop=l9, n=5, max_innermost_factor=64)
+    l18, l19, l20, l21, l22 = sch.split(loop=l9, factors=[v13, v14, v15, v16, v17], preserve_unit_iters=True)
+    v23, v24, v25, v26, v27 = sch.sample_perfect_tile(loop=l10, n=5, max_innermost_factor=64)
+    l28, l29, l30, l31, l32 = sch.split(loop=l10, factors=[v23, v24, v25, v26, v27], preserve_unit_iters=True)
+    v33, v34, v35, v36, v37 = sch.sample_perfect_tile(loop=l11, n=5, max_innermost_factor=64)
+    l38, l39, l40, l41, l42 = sch.split(loop=l11, factors=[v33, v34, v35, v36, v37], preserve_unit_iters=True)
+    v43, v44, v45 = sch.sample_perfect_tile(loop=l12, n=3, max_innermost_factor=64)
+    l46, l47, l48 = sch.split(loop=l12, factors=[v43, v44, v45], preserve_unit_iters=True)
+    sch.reorder(l18, l28, l38, l19, l29, l39, l20, l30, l40, l46, l47, l21, l31, l41, l48, l22, l32, l42)
+    l49 = sch.fuse(l18, l28, l38, preserve_unit_iters=True)
+    sch.bind(loop=l49, thread_axis="blockIdx.x")
+    l50 = sch.fuse(l19, l29, l39, preserve_unit_iters=True)
+    sch.bind(loop=l50, thread_axis="vthread.x")
+    l51 = sch.fuse(l20, l30, l40, preserve_unit_iters=True)
+    sch.bind(loop=l51, thread_axis="threadIdx.x")
+    sch.annotate(block_or_loop=b0, ann_key="meta_schedule.thread_extent_low_inclusive", ann_val=32)
+    sch.annotate(block_or_loop=b0, ann_key="meta_schedule.thread_extent_high_inclusive", ann_val=1024)
+    b52 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")
+    sch.reverse_compute_at(block=b52, loop=l51, preserve_unit_loops=True, index=-1)
+    b53 = sch.cache_read(block=b0, read_buffer_index=0, storage_scope="shared", consumer_blocks=[b0])
+    sch.compute_at(block=b53, loop=l46, preserve_unit_loops=True, index=-1)
+    l54, l55, l56, l57, l58, l59, l60 = sch.get_loops(block=b53)
+    l61 = sch.fuse(l58, l59, l60, preserve_unit_iters=True)
+    v62 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
+    sch.annotate(block_or_loop=b53, ann_key="meta_schedule.cooperative_fetch", ann_val=v62)
+    b63 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared", consumer_blocks=[b0])
+    sch.compute_at(block=b63, loop=l46, preserve_unit_loops=True, index=-1)
+    l64, l65, l66, l67, l68, l69 = sch.get_loops(block=b63)
+    l70 = sch.fuse(l68, l69, preserve_unit_iters=True)
+    v71 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
+    sch.annotate(block_or_loop=b63, ann_key="meta_schedule.cooperative_fetch", ann_val=v71)
+    sch.reverse_compute_inline(block=b7)
+    sch.compute_inline(block=b5)
+    sch.compute_inline(block=b4)
+    sch.compute_inline(block=b3)
+    sch.compute_inline(block=b2)
+    sch.compute_inline(block=b1)
+    sch.reverse_compute_inline(block=b6)
+    v72 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.2, 0.2, 0.2, 0.2, 0.2])
+    sch.annotate(block_or_loop=b8, ann_key="meta_schedule.unroll_explicit", ann_val=v72)
+    # fmt: on
 
 
 def main():
@@ -166,7 +225,7 @@ def main():
     #     ),
     # )
     runner = "local"
-    ms.tir_integration.tune_tir_module(
+    ms.tir_integration.tune_tir(
         mod=args.mod,
         target=args.target,
         work_dir=args.work_dir,
@@ -176,29 +235,54 @@ def main():
         database=database,
         space="cuda",
         special_space={
-            "fused_decode1_fused_matmul2_add1_gelu": sch_fused_decode_gemv(
+            "fused_decode1_fused_matmul4_add2_gelu_cast4": sch_fused_decode_gemv(
                 name_epilogues=[
                     "T_add",
                     "T_multiply",
                     "compute",
-                    "compute_1",
-                    "compute_2",
                     "T_multiply_1",
                     "T_add_1",
                     "T_multiply_2",
-                ]
+                    "compute_1",
+                ],
             ),
-            "fused_decode2_fused_matmul3_add": sch_fused_decode_gemv(
-                name_epilogues=["T_add"]
+            "fused_decode2_fused_matmul5_add3_cast1_cast5_add1": sch_fused_decode_gemv(
+                name_epilogues=[
+                    "T_add",
+                    "compute",
+                    "compute_1",
+                    "T_add_1",
+                ],
             ),
-            "fused_decode3_matmul4": sch_fused_decode_gemv(),
-            "fused_decode_fused_matmul_add": sch_fused_decode_gemv(
-                name_epilogues=["T_add"]
+            "fused_decode2_fused_matmul5_add3_cast1_cast5_add1_cast": sch_fused_decode_gemv(
+                name_epilogues=[
+                    "T_add",
+                    "compute",
+                    "compute_1",
+                    "T_add_1",
+                    "compute_2",
+                ],
             ),
-            "decode": sch_decode(name_transpose=None),
+            "fused_decode3_matmul6": sch_fused_decode_gemv(
+                name_epilogues=[],
+            ),
+            "fused_decode_fused_matmul2_add": sch_fused_decode_gemv(
+                name_epilogues=[
+                    "T_add",
+                ],
+            ),
+            "fused_decode_fused_matmul2_add_add1": sch_fused_decode_gemv(
+                name_epilogues=[
+                    "T_add",
+                    "T_add_1",
+                ],
+            ),
             "decode4": sch_decode(),
             "decode5": sch_decode(),
             "decode6": sch_decode(),
+            "fused_NT_matmul3_add6_gelu1_cast11": wrap(
+                sch_fused_NT_matmul3_add6_gelu1_cast11
+            ),
         },
     )
     if os.path.exists(path_workload):
@@ -206,8 +290,10 @@ def main():
     if os.path.exists(path_tuning_record):
         os.remove(path_tuning_record)
     database.dump_pruned(
-        path_workload=path_workload,
-        path_tuning_record=path_tuning_record,
+        ms.database.JSONDatabase(
+            path_workload=path_workload,
+            path_tuning_record=path_tuning_record,
+        )
     )
 
 

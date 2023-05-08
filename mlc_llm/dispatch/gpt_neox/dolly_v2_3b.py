@@ -1017,7 +1017,7 @@ def _get_dict():
         func(sch)
         func_dict[MOD[name]] = sch.mod["main"]
     return {
-        (tvm.ir.structural_hash(k), k): v.with_attr("is_scheduled", True)
+        (tvm.ir.structural_hash(k), k): v.with_attr("tir.is_scheduled", True)
         for k, v in func_dict.items()
     }
 

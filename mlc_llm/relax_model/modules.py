@@ -3,7 +3,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 from tvm import relax, te, tir
-from tvm.relax.op import reshape, take
+from tvm.relax.op import matmul, permute_dims, reshape, take
 from tvm.relax.op.nn import layer_norm
 from tvm.relax.testing import nn
 from tvm.runtime.ndarray import array as tvm_array
@@ -29,19 +29,39 @@ class ModuleList(nn.Module):
 
 
 class Linear(nn.Module):
-    def __init__(self, in_features, out_features, dtype, bias=True):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        dtype,
+        bias=True,
+        out_dtype=None,
+    ):
         self.in_features = in_features
         self.out_features = out_features
         self.weight = nn.Parameter(
-            (out_features, in_features), dtype=dtype, name="linear_weight"
+            (out_features, in_features),
+            dtype=dtype,
+            name="linear_weight",
         )
         if bias:
-            self.bias = nn.Parameter((out_features,), dtype=dtype, name="linear_bias")
+            self.bias = nn.Parameter(
+                (out_features,),
+                dtype=dtype if out_dtype is None else out_dtype,
+                name="linear_bias",
+            )
         else:
             self.bias = None
+        self.dtype = dtype
+        self.out_dtype = out_dtype
 
     def forward(self, x: relax.Expr) -> relax.Var:
-        return nn.emit(relax.op.linear(x, self.weight, self.bias))
+        x = nn.emit(x)
+        weight = permute_dims(self.weight, axes=None)
+        x = nn.emit(matmul(x, weight, out_dtype=self.out_dtype))
+        if self.bias is not None:
+            x = nn.emit(x + self.bias)
+        return x
 
 
 class Embedding(nn.Module):

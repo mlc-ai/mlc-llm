@@ -90,7 +90,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         args.conv_template = "stablelm"
         args.model_category = "gpt_neox"
     elif args.model.startswith("RedPajama-"):
-        args.conv_template = "dolly"  # TODO
+        args.conv_template = "redpajama_chat"
         args.model_category = "gpt_neox"
     elif args.model.startswith("moss-"):
         args.conv_template = "moss"

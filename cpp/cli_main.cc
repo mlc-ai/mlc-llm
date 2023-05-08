@@ -162,6 +162,8 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_g
     conv_template = "stablelm";
   } else if (model.find("moss") == 0) {
     conv_template = "moss";
+  } else if (model.find("RedPajama-INCITE-") == 0 && model.find("-Chat-") != std::string::npos) {
+    conv_template = "redpajama-chat";
   } else {
     LOG(FATAL) << "Do not recognize model name " << model;
   }
