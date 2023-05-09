@@ -625,6 +625,17 @@ def create_kv_cache_func(
         bb.emit_func_output(gv)
 
 
+def create_softmax_func(bb: relax.BlockBuilder, config: GPTNeoXConfig) -> None:
+    with bb.function("softmax_with_temperature"):
+        logits = nn.Placeholder((1, 1, config.vocab_size), dtype="float32", name="logits")
+        temperature = nn.Placeholder((), dtype="float32", name="temperature")
+        with bb.dataflow():
+            div = bb.emit(relax.op.divide(logits, temperature))
+            softmax = bb.emit(relax.op.nn.softmax(div, axis=-1))
+            gv = bb.emit_output(softmax)
+        bb.emit_func_output(gv, [logits, temperature])
+
+
 def get_model(
     model_name: str,
     model_path: str,
@@ -679,6 +690,7 @@ def get_model(
     create_encoding_func(bb, config, [k for k, _ in param_list])
     create_decoding_func(bb, config, [k for k, _ in param_list])
     create_kv_cache_func(bb, config)
+    create_softmax_func(bb, config)
     mod = bb.get()
     for gv in mod.functions:
         func = mod[gv]
