@@ -35,7 +35,7 @@ in the beginning and recover to a normal speed then.
 
 ### Android
 
-Download the APK file [here](https://github.com/mlc-ai/mlc-llm/releases) and install on your phone. You can then start a chat with LLM. When you first open the app, parameters need to be downloaded and the loading process could be slow. In future run, the parameters will be loaded from cache (which is fast) and you can use the app offline. Our current demo relies on OpenCL support on the phone and takes about 6GB of RAM, if you have a phone with the latest Snapdragon chip, you can try out out demo.
+Download the APK file [here](https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk) and install on your phone. You can then start a chat with LLM. When you first open the app, parameters need to be downloaded and the loading process could be slow. In future run, the parameters will be loaded from cache (which is fast) and you can use the app offline. Our current demo relies on OpenCL support on the phone and takes about 6GB of RAM, if you have a phone with the latest Snapdragon chip, you can try out out demo.
 
 We tested our demo on Samsung Galaxy S23. It does not yet work on Google Pixel due to limited OpenCL support. We will continue to bring support and welcome contributions from the open source community. You can also check out our [GitHub repo](https://github.com/mlc-ai/mlc-llm/tree/main/android) to build the Android app from source.
 
