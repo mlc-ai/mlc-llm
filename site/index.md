@@ -39,6 +39,7 @@ Download the APK file [here](https://github.com/mlc-ai/binary-mlc-llm-libs/raw/m
 
 We tested our demo on Samsung Galaxy S23. It does not yet work on Google Pixel due to limited OpenCL support. We will continue to bring support and welcome contributions from the open source community. You can also check out our [GitHub repo](https://github.com/mlc-ai/mlc-llm/tree/main/android) to build the Android app from source.
 
+Check out our [blog post](https://mlc.ai/blog/2023/05/08/bringing-hardware-accelerated-language-models-to-android-devices) for the technical details throughout our process of making MLC-LLM possible for Android.
 
 <p align="center">
 <img src="gif/android-demo.gif" height="700">
