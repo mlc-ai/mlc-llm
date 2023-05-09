@@ -232,7 +232,20 @@ def parse_target(args: argparse.Namespace) -> None:
             args.lib_format = "dylib"
         else:
             args.system_lib = True
+    elif args.target.startswith("android"):
+        # android-opencl
+        from tvm.contrib import ndk, cc
 
+        args.target = tvm.target.Target(
+            "opencl",
+            host="llvm -mtriple=aarch64-linux-android",  # Only support arm64 for now
+        )
+        args.target_kind = "android"
+        args.export_kwargs = {
+            "fcompile": ndk.create_staticlib,
+        }
+        args.lib_format = "a"
+        args.system_lib = True
     elif args.target == "vulkan":
         args.target = tvm.target.Target(
             tvm.target.Target(

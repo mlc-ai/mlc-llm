@@ -4,6 +4,7 @@ set(TOKENIZERS_CPP_CARGO_TARGET "")
 
 # extra link libraries
 set(TOKENIZERS_CPP_LINK_LIBS "")
+set(CARGO_EXTRA_ENVS "")
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
   set(TOKENIZERS_CPP_CARGO_TARGET aarch64-apple-ios)
@@ -15,6 +16,13 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   if (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
     set(TOKENIZERS_CPP_CARGO_TARGET aarch64-apple-darwin)
   endif()
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Android")
+  set(TOKENIZERS_CPP_CARGO_TARGET aarch64-linux-android)
+  set(CARGO_EXTRA_ENVS
+    AR_aarch64_linux_android=${ANDROID_TOOLCHAIN_ROOT}/bin/llvm-ar
+    CC_aarch64_linux_android=${ANDROID_TOOLCHAIN_ROOT}/bin/aarch64-linux-android${ANDROID_NATIVE_API_LEVEL}-clang
+    CXX_aarch64_linux_android=${ANDROID_TOOLCHAIN_ROOT}/bin/aarch64-linux-android${ANDROID_NATIVE_API_LEVEL}-clang++
+  )
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Windows")
   set(TOKENIZERS_CPP_CARGO_TARGET x86_64-pc-windows-msvc)
 endif()
@@ -59,6 +67,7 @@ add_custom_command(
   COMMAND
   ${CMAKE_COMMAND} -E env
   CARGO_TARGET_DIR=${TOKENIZERS_CPP_CARGO_TARGET_DIR}
+  ${CARGO_EXTRA_ENVS}
   RUSTFLAGS="${TOKENIZERS_CPP_RUST_FLAGS}"
   cargo build ${TOKENIZERS_CPP_CARGO_FLAGS}
   WORKING_DIRECTORY ${TOKENIZERS_CPP_CARGO_SOURCE_PATH}

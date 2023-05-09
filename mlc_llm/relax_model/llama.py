@@ -637,6 +637,16 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
             gv = bb.emit_output(caches)
         bb.emit_func_output(gv)
 
+def create_softmax_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
+    with bb.function("softmax_with_temperature"):
+        logits = nn.Placeholder((1, 1, config.vocab_size), dtype="float32", name="logits")
+        temperature = nn.Placeholder((), dtype="float32", name="temperature")
+        with bb.dataflow():
+            div = bb.emit(relax.op.divide(logits, temperature))
+            softmax = bb.emit(relax.op.nn.softmax(div, axis=-1))
+            gv = bb.emit_output(softmax)
+        bb.emit_func_output(gv, [logits, temperature])
+
 
 def get_model(args):
     from transformers import AutoModelForCausalLM  # type: ignore[import]
@@ -655,6 +665,8 @@ def get_model(args):
         create_encoding_func(bb, config)
         create_decoding_func(bb, config)
         create_kv_cache_func(bb, config)
+        create_softmax_func(bb, config)
+        
         mod = bb.get()
 
         device = tvm.cpu()

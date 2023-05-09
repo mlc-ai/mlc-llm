@@ -1,0 +1,3 @@
+MLCChat/app/src/main/jni/*.h
+MLCChat/app/src/main/jni/*.cc
+MLCChat/app/src/main/obj

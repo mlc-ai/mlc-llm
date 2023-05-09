@@ -21,7 +21,7 @@ def _parse_args():
         "--quantization-mode", type=str, choices=["int4", "int3", "fp4"], default="int4"
     )
     args.add_argument(
-        "--quantization-storage-nbit", type=int, choices=[32, 16], default=32
+        "--quantization-storage-nbit", type=int, choices=[32, 16, 8], default=32
     )
     args.add_argument("--no-quantize", action="store_true", default=False)
     args.add_argument("--max-seq-len", type=int, default=-1)
@@ -91,6 +91,7 @@ def debug_dump_shader(ex, name, args):
         "webgpu": ".wgsl",
         "cuda": ".cu",
         "metal": ".mtl",
+        "opencl": ".cl",
     }
     suffix = suffix_map.get(target_kind, ".txt")
     dump_path = os.path.join(args.artifact_path, "debug", name + suffix)
@@ -106,7 +107,7 @@ def mod_transform_before_build(
     args: argparse.Namespace,
 ) -> tvm.IRModule:
     """First-stage: Legalize ops and trace"""
-    model_names = ["encoding", "decoding", "create_kv_cache"]
+    model_names = ["encoding", "decoding", "create_kv_cache", "softmax_with_temperature"]
 
     if not args.no_quantize:
         mod = mlc_llm.transform.GroupQuantize(
@@ -119,7 +120,7 @@ def mod_transform_before_build(
     mod = mlc_llm.transform.FuseTransposeMatmul()(mod)
 
     mod = relax.pipeline.get_pipeline()(mod)
-    mod = mlc_llm.transform.FuseDecodeMatmulEwise(args.dtype)(mod)
+    mod = mlc_llm.transform.FuseDecodeMatmulEwise(args.dtype, args.target_kind)(mod)
     mod = relax.transform.DeadCodeElimination(model_names)(mod)
     mod = relax.transform.LiftTransformParams()(mod)
     mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
@@ -143,7 +144,9 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
             db = ms.database.MemoryDatabase()
         with db, tvm.target.Target("apple/m1-gpu-restricted"):
             mod_deploy = relax.transform.MetaScheduleApplyDatabase()(mod_deploy)
-            mod_deploy = mlc_llm.transform.DispatchTIROperator(args.model_category)(
+            if args.target_kind == "android":
+                mod_deploy = mlc_llm.dispatch.DispatchTIROperatorAdreno()(mod_deploy)
+            mod_deploy = mlc_llm.dispatch.DispatchTIROperator(args.model_category)(
                 mod_deploy
             )
             mod_deploy = tvm.tir.transform.DefaultGPUSchedule()(mod_deploy)
