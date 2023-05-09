@@ -72,10 +72,7 @@ public class MainActivity extends AppCompatActivity {
                         appendMessage(new MessageData(MessageRole.BOT, bundle.getString(Config.MSG_KEY)));
                         break;
                     case Config.END:
-                        String stats = bundle.getString(Config.STATS_KEY);
-                        int pos = stats.indexOf("sample");
-                        stats = stats.substring(0, pos - 2);
-                        speedText.setText(stats);
+                        speedText.setText(bundle.getString(Config.STATS_KEY));
                         resumeSend();
                         break;
                     case Config.PARAMS_DONE:
