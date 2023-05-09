@@ -26,5 +26,6 @@ MLC_LLM_DLL tvm::runtime::Module CreateChatModule(
     tvm::runtime::Module executable,
     const tvm::runtime::String& tokenizer_path,
     const tvm::runtime::String& param_path, DLDevice device);
+
 }  // namespace llm
 }  // namespace mlc

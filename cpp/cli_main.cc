@@ -290,17 +290,30 @@ int main(int argc, char* argv[]) {
   std::cout << "Use lib " << lib_path_opt.value().string() << std::endl;
   std::string model_path = lib_path_opt.value().parent_path().string();
   // get artifact path lib name
-  auto tokenizer_path_opt = FindFile(
+  std::optional<std::filesystem::path> tokenizer_path_opt = FindFile(
       {
           model_path,
           artifact_path + "/models/" + model,
           artifact_path + "/" + model,
       },
       {"tokenizer"}, {".model", ".json"});
-
   if (!tokenizer_path_opt) {
-    std::cerr << "Cannot find tokenizer{.model/.json} in " << model_path;
-    return 1;
+    // Try ByteLevelBPETokenizer
+    tokenizer_path_opt = FindFile(
+        {
+            model_path,
+            artifact_path + "/models/" + model,
+            artifact_path + "/" + model,
+        },
+        {"vocab"}, {".json"});
+    if (!tokenizer_path_opt) {
+      std::cerr << "Cannot find tokenizer file in " << model_path;
+      return 1;
+    } else {
+      // GPT2 styles tokenizer needs multiple files, we need to
+      // get the directory that stores vocab.json.
+      tokenizer_path_opt = tokenizer_path_opt.value().parent_path();
+    }
   }
 
   if (params == "auto") {
@@ -329,6 +342,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Initializing the chat module..." << std::endl;
     Module chat_mod =
         mlc::llm::CreateChatModule(lib, tokenizer_path_opt.value().string(), params, device);
+
     std::cout << "Finish loading" << std::endl;
     PrintSpecialCommands();
 

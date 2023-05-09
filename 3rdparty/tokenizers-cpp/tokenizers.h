@@ -6,7 +6,6 @@
 #ifndef TOKENIZERS_H_
 #define TOKENIZERS_H_
 
-
 // The C API
 #ifdef __cplusplus
 extern "C" {
@@ -19,9 +18,15 @@ typedef void* TokenizerHandle;
 
 TokenizerHandle tokenizers_new_from_str(const char* json, size_t len);
 
+TokenizerHandle byte_level_bpe_tokenizers_new_from_str(const char* vocab, size_t vocab_len,
+                                                       const char* merges, size_t merges_len,
+                                                       const char* added_tokens,
+                                                       size_t added_tokens_len);
+
 void tokenizers_encode(TokenizerHandle handle, const char* data, size_t len, int add_special_token);
 
-void tokenizers_decode(TokenizerHandle handle, const uint32_t* data, size_t len, int skip_special_token);
+void tokenizers_decode(TokenizerHandle handle, const uint32_t* data, size_t len,
+                       int skip_special_token);
 
 void tokenizers_get_decode_str(TokenizerHandle handle, const char** data, size_t* len);
 
@@ -47,9 +52,7 @@ namespace tokenizers {
 class Tokenizer {
  public:
   Tokenizer(const Tokenizer&) = delete;
-  Tokenizer(Tokenizer&& other) {
-    std::swap(other.handle_, handle_);
-  }
+  Tokenizer(Tokenizer&& other) { std::swap(other.handle_, handle_); }
 
   ~Tokenizer() {
     if (handle_ != nullptr) {
@@ -68,10 +71,8 @@ class Tokenizer {
 
   // use i32 to be consistent with sentencepiece
   std::string Decode(const std::vector<int32_t>& ids, bool skip_special_token) {
-    tokenizers_decode(
-      handle_,
-      reinterpret_cast<const uint32_t*>(ids.data()), ids.size(),
-      static_cast<int>(skip_special_token));
+    tokenizers_decode(handle_, reinterpret_cast<const uint32_t*>(ids.data()), ids.size(),
+                      static_cast<int>(skip_special_token));
     const char* data;
     size_t len;
     tokenizers_get_decode_str(handle_, &data, &len);
@@ -81,6 +82,13 @@ class Tokenizer {
   // avoid from_file so we don't have file system
   static Tokenizer FromJSON(const std::string& json) {
     return Tokenizer(tokenizers_new_from_str(json.data(), json.length()));
+  }
+
+  static Tokenizer FromBPE(const std::string& vocab, const std::string& merges,
+                           const std::string& added_tokens) {
+    return Tokenizer(byte_level_bpe_tokenizers_new_from_str(
+        vocab.data(), vocab.length(), merges.data(), merges.length(), added_tokens.data(),
+        added_tokens.length()));
   }
 
  private:
