@@ -2,7 +2,6 @@
 import argparse
 import os
 import shutil
-import subprocess
 from dataclasses import dataclass
 from platform import system
 from typing import List, Tuple
@@ -28,11 +27,21 @@ class Quantization:
 # The value tuple denotes
 # (quantization_mode, quantization_sym, quantization_storage_nbit, model_dtype)
 quantization_dict = {
-    "q3f16_0": Quantization("q3f16_0", "int3", True, 16, "float16"),
-    "q4f16_0": Quantization("q4f16_0", "int4", True, 32, "float16"),
-    "q4f32_0": Quantization("q4f32_0", "int4", False, 32, "float32"),
-    "q0f32": Quantization("q0f32", "no", False, -1, "float32"),
-    "q0f16": Quantization("q0f16", "no", False, -1, "float16"),
+    "q3f16_0": Quantization(
+        name="q3f16_0", mode="int3", sym=True, storage_nbit=16, model_dtype="float16"
+    ),
+    "q4f16_0": Quantization(
+        name="q4f16_0", mode="int4", sym=True, storage_nbit=32, model_dtype="float16"
+    ),
+    "q4f32_0": Quantization(
+        name="q4f32_0", mode="int4", sym=False, storage_nbit=32, model_dtype="float32"
+    ),
+    "q0f32": Quantization(
+        name="q0f32", mode="no", sym=False, storage_nbit=-1, model_dtype="float32"
+    ),
+    "q0f16": Quantization(
+        name="q0f16", mode="no", sym=False, storage_nbit=-1, model_dtype="float16"
+    ),
 }
 
 
