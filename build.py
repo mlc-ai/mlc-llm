@@ -1,7 +1,6 @@
 import argparse
 import os
 import pickle
-from platform import system
 from typing import List
 
 import tvm
@@ -16,14 +15,6 @@ from mlc_llm.relax_model import gpt_neox, llama, moss
 def _parse_args():
     args = argparse.ArgumentParser()
     utils.argparse_add_common(args)
-    args.add_argument("--quantization-sym", action="store_true", default=False)
-    args.add_argument(
-        "--quantization-mode", type=str, choices=["int4", "int3", "fp4"], default="int4"
-    )
-    args.add_argument(
-        "--quantization-storage-nbit", type=int, choices=[32, 16, 8], default=32
-    )
-    args.add_argument("--no-quantize", action="store_true", default=False)
     args.add_argument("--max-seq-len", type=int, default=-1)
     args.add_argument("--target", type=str, default="auto")
     args.add_argument(
@@ -54,14 +45,14 @@ def _parse_args():
     assert parsed.max_seq_len == -1 or parsed.max_seq_len > 0
 
     parsed.model_path = os.path.join(parsed.artifact_path, "models", parsed.model)
-    parsed.artifact_path = os.path.join(
-        parsed.artifact_path, parsed.model, parsed.dtype
-    )
     parsed.export_kwargs = {}
     parsed.lib_format = "so"
     parsed.db_path = parsed.db_path or os.path.join("log_db", parsed.model)
     utils.parse_target(parsed)
     utils.argparse_postproc_common(parsed)
+    parsed.artifact_path = os.path.join(
+        parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
+    )
     return parsed
 
 
@@ -107,20 +98,27 @@ def mod_transform_before_build(
     args: argparse.Namespace,
 ) -> tvm.IRModule:
     """First-stage: Legalize ops and trace"""
-    model_names = ["encoding", "decoding", "create_kv_cache", "softmax_with_temperature"]
+    model_names = [
+        "encoding",
+        "decoding",
+        "create_kv_cache",
+        "softmax_with_temperature",
+    ]
 
-    if not args.no_quantize:
+    if args.quantization.mode != "no":
         mod = mlc_llm.transform.GroupQuantize(
-            group_size=40 if args.quantization_mode.endswith("3") else 32,
-            sym=args.quantization_sym,
-            mode=args.quantization_mode,
-            storage_nbit=args.quantization_storage_nbit,
-            dtype=args.dtype,
+            group_size=40 if args.quantization.mode.endswith("3") else 32,
+            sym=args.quantization.sym,
+            mode=args.quantization.mode,
+            storage_nbit=args.quantization.storage_nbit,
+            dtype=args.quantization.model_dtype,
         )(mod)
     mod = mlc_llm.transform.FuseTransposeMatmul()(mod)
 
     mod = relax.pipeline.get_pipeline()(mod)
-    mod = mlc_llm.transform.FuseDecodeMatmulEwise(args.dtype, args.target_kind)(mod)
+    mod = mlc_llm.transform.FuseDecodeMatmulEwise(
+        args.quantization.model_dtype, args.target_kind
+    )(mod)
     mod = relax.transform.DeadCodeElimination(model_names)(mod)
     mod = relax.transform.LiftTransformParams()(mod)
     mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
@@ -159,9 +157,11 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
 
     ex = relax.build(mod_deploy, args.target, system_lib=args.system_lib)
 
-    output_filename = f"{args.model}_{target_kind}_{args.dtype}.{args.lib_format}"
+    output_filename = (
+        f"{args.model}-{args.quantization.name}-{target_kind}.{args.lib_format}"
+    )
 
-    debug_dump_shader(ex, f"{args.model}_{target_kind}_{args.dtype}", args)
+    debug_dump_shader(ex, f"{args.model}_{args.quantization.name}_{target_kind}", args)
     lib_path = os.path.join(args.artifact_path, output_filename)
     ex.export_library(lib_path, **args.export_kwargs)
     print(f"Finish exporting to {lib_path}")
@@ -177,8 +177,8 @@ from tvm.script import tir as T
 # fmt: on
 """
     mod_static, mod_dynamic = utils.split_static_dynamic_tir(mod)
-    static_path = os.path.join(ARGS.artifact_path, "mod_tir_static.py")
-    dynamic_path = os.path.join(ARGS.artifact_path, "mod_tir_dynamic.py")
+    static_path = os.path.join(ARGS.artifact_path, "debug", "mod_tir_static.py")
+    dynamic_path = os.path.join(ARGS.artifact_path, "debug", "mod_tir_dynamic.py")
     print(f"Dump static shape TIR to {static_path}")
     with open(static_path, "w") as o_f:
         o_f.write(template.format(content=mod_static.script()))
@@ -192,14 +192,16 @@ if __name__ == "__main__":
     os.makedirs(ARGS.artifact_path, exist_ok=True)
     os.makedirs(os.path.join(ARGS.artifact_path, "debug"), exist_ok=True)
     cache_path = os.path.join(
-        ARGS.artifact_path, f"mod_cache_before_build_{ARGS.dtype}.pkl"
+        ARGS.artifact_path, f"mod_cache_before_build_{ARGS.target_kind}.pkl"
     )
     use_cache = ARGS.use_cache and os.path.isfile(cache_path)
     if not use_cache:
         if ARGS.model_category == "llama":
             mod, params = llama.get_model(ARGS)
         elif ARGS.model_category == "gpt_neox":
-            mod, params = gpt_neox.get_model(ARGS.model, ARGS.model_path, ARGS.dtype)
+            mod, params = gpt_neox.get_model(
+                ARGS.model, ARGS.model_path, ARGS.quantization.model_dtype
+            )
         elif ARGS.model_category == "moss":
             mod, params = moss.get_model(ARGS)
         else:
@@ -208,6 +210,7 @@ if __name__ == "__main__":
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)
         print(f"Save a cached module to {cache_path}.")
+        utils.copy_tokenizer(ARGS)
     else:
         print(
             f"Load cached module from {cache_path} and skip tracing. "

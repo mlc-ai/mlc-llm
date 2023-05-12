@@ -1,6 +1,9 @@
 # pylint: disable=missing-docstring,invalid-name
 import argparse
 import os
+import shutil
+import subprocess
+from dataclasses import dataclass
 from platform import system
 from typing import List, Tuple
 
@@ -8,6 +11,29 @@ import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
 from tvm import relax
+
+
+@dataclass
+class Quantization:
+    """Class denoting the quantization options"""
+
+    name: str
+    mode: str
+    sym: bool
+    storage_nbit: int
+    model_dtype: str
+
+
+# Preset compilation modes (configuring quantization and model dtype).
+# The value tuple denotes
+# (quantization_mode, quantization_sym, quantization_storage_nbit, model_dtype)
+quantization_dict = {
+    "q3f16_0": Quantization("q3f16_0", "int3", True, 16, "float16"),
+    "q4f16_0": Quantization("q4f16_0", "int4", True, 32, "float16"),
+    "q4f32_0": Quantization("q4f32_0", "int4", False, 32, "float32"),
+    "q0f32": Quantization("q0f32", "no", False, -1, "float32"),
+    "q0f16": Quantization("q0f16", "no", False, -1, "float16"),
+}
 
 
 def argparse_add_common(args: argparse.ArgumentParser) -> None:
@@ -29,10 +55,10 @@ def argparse_add_common(args: argparse.ArgumentParser) -> None:
         ],
     )
     args.add_argument(
-        "--dtype",
+        "--quantization",
         type=str,
-        choices=["float32", "float16"],
-        default="float32",
+        choices=[*quantization_dict.keys()],
+        default=[list(quantization_dict.keys())[0]],
     )
 
 
@@ -62,6 +88,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         args.model_category = "moss"
     else:
         raise ValueError(f"Model {args.model} not supported")
+    args.quantization = quantization_dict[args.quantization]
 
 
 def split_transform_deploy_mod(
@@ -172,6 +199,12 @@ def split_static_dynamic_tir(mod: tvm.IRModule):
     mod_static = tvm.IRModule(mod_static)
     mod_dynamic = tvm.IRModule(mod_dynamic)
     return mod_static, mod_dynamic
+
+
+def copy_tokenizer(args: argparse.Namespace) -> None:
+    for filename in os.listdir(args.model_path):
+        if filename.startswith("tokenizer") or filename == "vocab.json":
+            shutil.copy(os.path.join(args.model_path, filename), args.artifact_path)
 
 
 def parse_target(args: argparse.Namespace) -> None:

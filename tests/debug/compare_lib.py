@@ -87,12 +87,12 @@ class TestState:
         ex = tvm.runtime.load_module(
             os.path.join(
                 args.artifact_path,
-                f"{args.model}_{args.primary_device}_{args.dtype}.so",
+                f"{args.model}-{args.quantization.name}-{args.primary_device}.so",
             )
         )
         self.vm = relax.VirtualMachine(ex, self.primary_device)
         if args.cmp_device == "iphone":
-            lib_name = f"{args.model}_{args.cmp_device}_{args.dtype}.dylib"
+            lib_name = f"{args.model}-{args.quantization.name}-{args.cmp_device}.dylib"
             local_lib_path = os.path.join(args.artifact_path, lib_name)
             proxy_host = os.environ.get("TVM_RPC_PROXY_HOST", "127.0.0.1")
             proxy_port = int(os.environ.get("TVM_RPC_PROXY_PORT", "9090"))
@@ -101,7 +101,7 @@ class TestState:
             self.lib = self.sess.load_module(lib_name)
             self.cmp_device = self.sess.metal()
         elif args.cmp_device == "android":
-            lib_name = f"{args.model}_{args.cmp_device}_{args.dtype}.so"
+            lib_name = f"{args.model}-{args.quantization.name}-{args.cmp_device}.so"
             local_lib_path = os.path.join(args.artifact_path, lib_name)
             tracker_host = os.environ.get("TVM_TRACKER_HOST", "0.0.0.0")
             tracker_port = int(os.environ.get("TVM_TRACKER_PORT", "9190"))
@@ -115,7 +115,7 @@ class TestState:
             self.lib = tvm.runtime.load_module(
                 os.path.join(
                     args.artifact_path,
-                    f"{args.model}_{args.cmp_device}_{args.dtype}.so",
+                    f"{args.model}-{args.quantization.name}-{args.cmp_device}.so",
                 )
             )
             self.cmp_device = tvm.device(args.cmp_device)
@@ -177,21 +177,19 @@ def deploy_to_pipeline(args) -> None:
 
 def _parse_args():
     args = argparse.ArgumentParser()
+    utils.argparse_add_common(args)
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument("--primary-device", type=str, default="auto")
     args.add_argument("--cmp-device", type=str, required=True)
     args.add_argument("--prompt", type=str, default="The capital of Canada is")
-    args.add_argument("--model", type=str, default="vicuna-v1-7b")
-    args.add_argument(
-        "--dtype", type=str, choices=["float32", "float16"], default="float16"
-    )
     args.add_argument("--time-eval", default=False, action="store_true")
     args.add_argument("--skip-rounds", type=int, default=0)
     parsed = args.parse_args()
+    utils.argparse_postproc_common(parsed)
 
     parsed.model_path = os.path.join(parsed.artifact_path, "models", parsed.model)
     parsed.artifact_path = os.path.join(
-        parsed.artifact_path, parsed.model, parsed.dtype
+        parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
     )
 
     if parsed.primary_device == "auto":

@@ -16,8 +16,15 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "llm_chat.h"
+
+const std::vector<std::string> quantization_presets = {"q3f16_0",  //
+                                                       "q4f16_0",  //
+                                                       "q4f32_0",  //
+                                                       "q0f32",    //
+                                                       "q0f16"};
 
 std::string DetectDeviceName(std::string device_name) {
   using tvm::runtime::DeviceAPI;
@@ -236,7 +243,7 @@ int main(int argc, char* argv[]) {
   args.add_argument("--device_id").default_value(0);
   args.add_argument("--artifact-path").default_value("dist");
   args.add_argument("--model").default_value("vicuna-v1-7b");
-  args.add_argument("--dtype").default_value("auto");
+  args.add_argument("--quantization").default_value("auto");
   args.add_argument("--params").default_value("auto");
   args.add_argument("--evaluate").default_value(false).implicit_value(true);
 
@@ -253,59 +260,48 @@ int main(int argc, char* argv[]) {
   DLDevice device = GetDevice(device_name, device_id);
   std::string artifact_path = args.get<std::string>("--artifact-path");
   std::string model = args.get<std::string>("--model");
-  std::string dtype = args.get<std::string>("--dtype");
+  std::string quantization = args.get<std::string>("--quantization");
   std::string params = args.get<std::string>("--params");
 
-  std::string lib_name = model + "_" + device_name;
   std::string arch_suffix = GetArchSuffix();
 
   std::optional<std::filesystem::path> lib_path_opt;
-  std::vector<std::string> dtype_candidates;
 
-  if (dtype == "auto") {
-    dtype_candidates = {"float16", "float32"};
+  std::vector<std::string> quantization_candidates;
+  if (quantization == "auto") {
+    quantization_candidates = quantization_presets;
   } else {
-    dtype_candidates = {dtype};
+    quantization_candidates = {quantization};
   }
+
   std::optional<std::filesystem::path> lib_path;
-  for (auto candidate : dtype_candidates) {
-    std::vector<std::string> search_paths = {artifact_path + "/" + model + "/" + candidate,
-                                             artifact_path + "/models/" + model,
+  for (auto candidate : quantization_candidates) {
+    std::string lib_name = model + "-" + candidate + "-" + device_name;
+    std::vector<std::string> search_paths = {artifact_path + "/" + model + "-" + candidate,
                                              artifact_path + "/" + model, artifact_path + "/lib"};
     // search for lib_x86_64 and lib
-    lib_path_opt = FindFile(search_paths,
-                            {lib_name + arch_suffix + "_" + candidate, lib_name + "_" + candidate},
-                            GetLibSuffixes());
+    lib_path_opt = FindFile(search_paths, {lib_name, lib_name + arch_suffix}, GetLibSuffixes());
     if (lib_path_opt) {
-      dtype = candidate;
+      quantization = candidate;
       break;
     }
   }
   if (!lib_path_opt) {
     std::cerr << "Cannot find " << model << " lib in preferred path \"" << artifact_path << "/"
-              << model << "/" << dtype_candidates[0] << "/" << lib_name << "_"
-              << dtype_candidates[0] << GetLibSuffixes()[0] << "\" or other candidate paths";
+              << model << "-" << quantization_candidates[0] << "/" << model << "-"
+              << quantization_candidates[0] << "-" << device_name << GetLibSuffixes()[0]
+              << "\" or other candidate paths";
     return 1;
   }
   std::cout << "Use lib " << lib_path_opt.value().string() << std::endl;
   std::string model_path = lib_path_opt.value().parent_path().string();
+  LOG(INFO) << "model_path = " << model_path;
   // get artifact path lib name
-  std::optional<std::filesystem::path> tokenizer_path_opt = FindFile(
-      {
-          model_path,
-          artifact_path + "/models/" + model,
-          artifact_path + "/" + model,
-      },
-      {"tokenizer"}, {".model", ".json"});
+  std::optional<std::filesystem::path> tokenizer_path_opt =
+      FindFile({model_path, artifact_path + "/" + model}, {"tokenizer"}, {".model", ".json"});
   if (!tokenizer_path_opt) {
     // Try ByteLevelBPETokenizer
-    tokenizer_path_opt = FindFile(
-        {
-            model_path,
-            artifact_path + "/models/" + model,
-            artifact_path + "/" + model,
-        },
-        {"vocab"}, {".json"});
+    tokenizer_path_opt = FindFile({model_path, artifact_path + "/" + model}, {"vocab"}, {".json"});
     if (!tokenizer_path_opt) {
       std::cerr << "Cannot find tokenizer file in " << model_path;
       return 1;
@@ -317,17 +313,12 @@ int main(int argc, char* argv[]) {
   }
 
   if (params == "auto") {
-    auto params_json_opt = FindFile(
-        {
-            model_path + "/params",
-            artifact_path + "/" + model + "/" + dtype,
-            artifact_path + "/" + model,
-        },
-        {"ndarray-cache"}, {".json"});
+    auto params_json_opt =
+        FindFile({model_path + "/params", artifact_path + "/" + model + "/params"},
+                 {"ndarray-cache"}, {".json"});
     if (!params_json_opt) {
       std::cerr << "Cannot find ndarray-cache.json for params in preferred path \"" << model_path
-                << "/params\", \"" << artifact_path << "/" + model << "/" + dtype << "\", and \""
-                << artifact_path << "/" << model << "\".";
+                << "/params\" and \"" << artifact_path << "/" + model << "/params.";
       return 1;
     }
     std::string params_json = params_json_opt.value().string();
