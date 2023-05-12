@@ -81,7 +81,7 @@ public class Downloader {
                         InputStream inputStream = url.openStream();
                         DataInputStream dataInputStream =
                                 new DataInputStream(inputStream);
-                        byte[] buffer = new byte[1024];
+                        byte[] buffer = new byte[8192];
                         int length;
 
                         FileOutputStream fileOutputStream = new FileOutputStream(temp);
