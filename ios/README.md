@@ -36,7 +36,7 @@ Note: You will need Apple Developer Account to build iOS App locally.
     ```
     git clone https://github.com/mlc-ai/mlc-llm.git --recursive
     cd mlc-llm
-    python3 build.py --model vicuna-v1-7b --dtype float16 --target iphone --quantization-mode int3 --quantization-sym --quantization-storage-nbit 16 --max-seq-len 768
+    python3 build.py --model vicuna-v1-7b --quantization q3f16_0 --target iphone --max-seq-len 768
     ```
 4. Prepare lib and params
     ```

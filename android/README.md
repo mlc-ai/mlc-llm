@@ -48,7 +48,7 @@ We are excited to share that we have enabled the Android support for MLC-LLM. Ch
     ```shell
     git clone https://github.com/mlc-ai/mlc-llm.git --recursive
     cd mlc-llm
-    python3 build.py --model vicuna-v1-7b --dtype float16 --target android --quantization-mode int4 --quantization-sym --quantization-storage-nbit 32 --max-seq-len 768
+    python3 build.py --model vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768
     ```
 
 6. Build libraries for Android app.
