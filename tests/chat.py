@@ -7,7 +7,7 @@ from typing import Callable
 import numpy as np
 import torch
 import tvm
-from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore[import]
+from transformers import AutoTokenizer  # type: ignore[import]
 from tvm import relax
 
 from mlc_llm import utils
@@ -33,13 +33,11 @@ def _parse_args():
     args.add_argument("--debug-dump", action="store_true", default=False)
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument("--max-gen-len", type=int, default=2048)
-    args.add_argument("--run-torch-model", action="store_true", default=False)
     parsed = args.parse_args()
-    parsed.model_path = os.path.join(parsed.artifact_path, "models", parsed.model)
-    parsed.artifact_path = os.path.join(
-        parsed.artifact_path, parsed.model, parsed.dtype
-    )
     utils.argparse_postproc_common(parsed)
+    parsed.artifact_path = os.path.join(
+        parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
+    )
     return parsed
 
 
@@ -174,7 +172,10 @@ def get_tvm_model(args):
     device = tvm.device(args.device_name)
     const_params = utils.load_params(args.artifact_path, device)
     ex = tvm.runtime.load_module(
-        f"{args.artifact_path}/{args.model}_{args.device_name}_{args.dtype}.so"
+        os.path.join(
+            args.artifact_path,
+            f"{args.model}-{args.quantization.name}-{args.device_name}.so",
+        )
     )
     vm = relax.VirtualMachine(ex, device)
 
@@ -207,7 +208,9 @@ def get_tvm_model(args):
                         f"Cache {i}: shape = {cache.shape}, min = {cache.min()}, "
                         f"max = {cache.max()}, mean = {cache.mean()}, std = {cache.std()}"
                     )
-                    np.savez(f"/tmp/kvcache-{self.args.dtype}/{i}.npz", cache=cache)
+                    np.savez(
+                        f"/tmp/kvcache-{self.quantization.name}/{i}.npz", cache=cache
+                    )
 
             return torch.from_numpy(logits.numpy())
 
@@ -215,35 +218,18 @@ def get_tvm_model(args):
     return model.forward
 
 
-def get_pytorch_model(args):
-    model = AutoModelForCausalLM.from_pretrained(args.model_path, device_map="auto")
-
-    class Model:
-        def __init__(self):
-            self.past_key_values = None
-
-        def forward(self, inputs: torch.Tensor, *args, **kwargs) -> torch.Tensor:
-            output = model(inputs, use_cache=True, past_key_values=self.past_key_values)
-            self.past_key_values = output.past_key_values
-            return output.logits
-
-    wrapped_model = Model()
-    return wrapped_model.forward
-
-
 def main():
     ARGS = _parse_args()
     if ARGS.debug_dump:
         torch.manual_seed(12)
-    tokenizer = AutoTokenizer.from_pretrained(ARGS.model_path, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        ARGS.artifact_path, trust_remote_code=True
+    )
     tokenizer.pad_token_id = tokenizer.eos_token_id
     if ARGS.model.startswith("dolly-"):
         # 50277 means "### End"
         tokenizer.eos_token_id = 50277
-    if not ARGS.run_torch_model:
-        model = ModelWrapper(get_tvm_model(ARGS), tokenizer, ARGS)
-    else:
-        model = ModelWrapper(get_pytorch_model(ARGS), tokenizer, ARGS)
+    model = ModelWrapper(get_tvm_model(ARGS), tokenizer, ARGS)
     chat(model, ARGS)
 
 

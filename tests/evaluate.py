@@ -25,11 +25,10 @@ def _parse_args():
     args.add_argument("--prompt", type=str, default="The capital of Canada is")
     args.add_argument("--profile", action="store_true", default=False)
     parsed = args.parse_args()
-    parsed.model_path = os.path.join(parsed.artifact_path, "models", parsed.model)
-    parsed.artifact_path = os.path.join(
-        parsed.artifact_path, parsed.model, parsed.dtype
-    )
     utils.argparse_postproc_common(parsed)
+    parsed.artifact_path = os.path.join(
+        parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
+    )
     return parsed
 
 
@@ -85,12 +84,15 @@ def deploy_to_pipeline(args) -> None:
     const_params = utils.load_params(args.artifact_path, device)
     ex = tvm.runtime.load_module(
         os.path.join(
-            args.artifact_path, f"{args.model}_{args.device_name}_{args.dtype}.so"
+            args.artifact_path,
+            f"{args.model}-{args.quantization.name}-{args.device_name}.so",
         )
     )
     vm = relax.VirtualMachine(ex, device)
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.artifact_path, trust_remote_code=True
+    )
 
     print("Tokenizing...")
     inputs = tvm.nd.array(

@@ -653,7 +653,7 @@ def get_model(args):
 
     model_name = args.model
     model_path = args.model_path
-    dtype = args.dtype
+    dtype = args.quantization.model_dtype
     max_seq_len = args.max_seq_len
 
     if model_name.startswith("vicuna-") or model_name.startswith("llama-"):
