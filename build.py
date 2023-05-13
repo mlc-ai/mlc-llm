@@ -186,11 +186,21 @@ from tvm.script import tir as T
     with open(dynamic_path, "w") as o_f:
         o_f.write(template.format(content=mod_dynamic.script()))
 
+def download_weights(args: argparse.Namespace):
+    if os.path.exists(args.model_path):
+        print(f"Weights exist at {args.model_path}, skipping download.")
+        return
+    os.makedirs(args.model_path, exist_ok=True)
+    os.system("git lfs install")
+    os.system(f"git clone https://huggingface.co/{args.hf_url} {args.model_path}")
+    print(f"Downloaded weights to {args.model_path}")
+
 
 if __name__ == "__main__":
     ARGS = _parse_args()
     os.makedirs(ARGS.artifact_path, exist_ok=True)
     os.makedirs(os.path.join(ARGS.artifact_path, "debug"), exist_ok=True)
+    download_weights(ARGS)
     cache_path = os.path.join(
         ARGS.artifact_path, f"mod_cache_before_build_{ARGS.target_kind}.pkl"
     )

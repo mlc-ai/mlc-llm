@@ -58,9 +58,16 @@ def argparse_add_common(args: argparse.ArgumentParser) -> None:
         "--quantization",
         type=str,
         choices=[*quantization_dict.keys()],
-        default=[list(quantization_dict.keys())[0]],
+        default=list(quantization_dict.keys())[0],
     )
-
+    args.add_argument(
+        "--hf-url",
+        type=str,
+        default="lmsys/vicuna-7b-delta-v1.1",
+        choice=[
+            "lmsys/vicuna-7b-delta-v1.1"
+        ]
+    )
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
     if hasattr(args, "device_name"):
