@@ -2,6 +2,7 @@ import argparse
 import os
 import pickle
 from typing import List
+import json
 
 import tvm
 import tvm.testing
@@ -44,17 +45,32 @@ def _parse_args():
     parsed = args.parse_args()
     assert parsed.max_seq_len == -1 or parsed.max_seq_len > 0
 
-    parsed.model_path = os.path.join(parsed.artifact_path, "models", parsed.model)
     parsed.export_kwargs = {}
     parsed.lib_format = "so"
     parsed.db_path = parsed.db_path or os.path.join("log_db", parsed.model)
     utils.parse_target(parsed)
     utils.argparse_postproc_common(parsed)
+
+    if parsed.model_path and parsed.hf_path:
+        assert (parsed.model_path and not parsed.hf_path) or (parsed.hf_path and not parsed.model_path), "You cannot specify both a model path and a HF path. Please select one to specify."
+
+    if not (parsed.model_path and valid_model_path(parsed)):
+        parsed.model_path = os.path.join(parsed.artifact_path, "models", parsed.model)
+    print(f"Using model path {parsed.model_path}")
+
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
     )
+
     return parsed
 
+def valid_model_path(args):
+    assert os.path.exists(os.path.join(args.model_path, "config.json")), "Model path must contain valid config file."
+    with open(os.path.join(args.model_path, "config.json")) as f:
+        config = json.load(f)
+        assert "model_type" in config, "Invalid config format."
+        assert config["model_type"] == args.model_category, "Model at model path must match specified model type."
+    return True
 
 def debug_dump_script(mod, name, args):
     """Debug dump mode"""
@@ -192,15 +208,15 @@ def download_weights(args: argparse.Namespace):
         return
     os.makedirs(args.model_path, exist_ok=True)
     os.system("git lfs install")
-    os.system(f"git clone https://huggingface.co/{args.hf_url} {args.model_path}")
+    os.system(f"git clone https://huggingface.co/{args.hf_path} {args.model_path}")
     print(f"Downloaded weights to {args.model_path}")
-
 
 if __name__ == "__main__":
     ARGS = _parse_args()
     os.makedirs(ARGS.artifact_path, exist_ok=True)
     os.makedirs(os.path.join(ARGS.artifact_path, "debug"), exist_ok=True)
-    download_weights(ARGS)
+    if ARGS.hf_path:
+        download_weights(ARGS)
     cache_path = os.path.join(
         ARGS.artifact_path, f"mod_cache_before_build_{ARGS.target_kind}.pkl"
     )

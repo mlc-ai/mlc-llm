@@ -61,12 +61,21 @@ def argparse_add_common(args: argparse.ArgumentParser) -> None:
         default=list(quantization_dict.keys())[0],
     )
     args.add_argument(
-        "--hf-url",
+        "--model-path",
         type=str,
-        default="lmsys/vicuna-7b-delta-v1.1",
-        choice=[
-            "lmsys/vicuna-7b-delta-v1.1"
-        ]
+        default=None,
+        help="Custom model path that contains params, tokenizer, and config"
+    )
+    args.add_argument(
+        "--hf-path",
+        type=str,
+        default=None,
+        choices=[
+            "databricks/dolly-v2-3b",
+            "databricks/dolly-v2-7b",
+            "databricks/dolly-v2-12b"
+        ],
+        help="Hugging Face path from which to download params, tokenizer, and config from"
     )
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
