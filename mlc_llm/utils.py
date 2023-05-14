@@ -238,6 +238,7 @@ def parse_target(args: argparse.Namespace) -> None:
         )
         args.target_kind = "webgpu"
         args.lib_format = "wasm"
+        args.system_lib = True
     elif args.target.startswith("iphone"):
         from tvm.contrib import cc, xcode  # pylint: disable=import-outside-toplevel
 
