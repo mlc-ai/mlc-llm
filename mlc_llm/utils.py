@@ -47,23 +47,6 @@ quantization_dict = {
 supported_model_types = set(["llama", "gpt_neox", "moss"])
 
 def argparse_add_common(args: argparse.ArgumentParser) -> None:
-    # args.add_argument(
-    #     "--model",
-    #     type=str,
-    #     default="vicuna-v1-7b",
-    #     choices=[
-    #         "vicuna-v1-7b",
-    #         "dolly-v2-3b",
-    #         "dolly-v2-7b",
-    #         "dolly-v2-12b",
-    #         "stablelm-tuned-alpha-3b",
-    #         "stablelm-tuned-alpha-7b",
-    #         "RedPajama-INCITE-Base-3B-v1",
-    #         "RedPajama-INCITE-Chat-3B-v1",
-    #         "RedPajama-INCITE-Instruct-3B-v1",
-    #         "moss-moon-003-sft",
-    #     ],
-    # )
     args.add_argument(
         "--quantization",
         type=str,
