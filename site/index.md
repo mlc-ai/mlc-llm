@@ -87,6 +87,54 @@ mlc_chat_cli
 
 Please check out [WebLLM](https://mlc.ai/web-llm/), our companion project that deploys models natively to browsers. Everything here runs inside the browser with no server support and accelerated with WebGPU.
 
+## Building from Source
+
+There are two ways to build MLC LLM from source. The first is to use a Hugging Face URL to directly download the model parameters, and the second is to use a local directory that contains the parameters.
+
+### Hugging Face URL
+
+To download the weights from an existing Hugging Face repository for a supported model, you can follow the instructions below:
+
+```shell
+# Create a new conda environment and activate the environment.
+conda create -n mlc-chat
+conda activate mlc-chat
+
+# Install Git and Git-LFS, which is used for downloading the model weights
+# from Hugging Face.
+conda install git git-lfs
+
+# Clone the MLC LLM repo
+git clone https://github.com/mlc-ai/mlc-llm.git
+
+# Create the local build directory and compile the model
+# This will automatically download the parameters, tokenizer, and config from Hugging Face
+mkdir build
+python build.py --hf-path=databricks/dolly-v2-3b
+```
+
+After a successful build, the compiled model will be available at `dist/dolly-v2-3b-q3f16_0` (the exact path will vary depending on your model type and specified quantization). Follow the platform specific instructions to build and run MLC LLM for your intended platform. For example, to run the CLI app, use the following instructions:
+
+```shell
+cd build
+cmake ..
+make
+cd ..
+./build/mlc_chat_cli --model=dolly-v2-3b
+```
+
+### Local Directory
+
+If you have a local directory that has the model parameters, the tokenizer, and a `config.json` file for a supported model, you can instead run the following build command:
+
+```shell
+# Create the local build directory and compile the model
+mkdir build
+python build.py --model-path=/path/to/local/directory
+```
+
+Similarly, the compiled model will be available at `dist/dolly-v2-3b-q3f16_0`, where the exact path will vary depending on your model type and specified quantization.
+
 ## Links
 
 * Check out our [GitHub repo](https://github.com/mlc-ai/mlc-llm) to see how we build, optimize and deploy the bring large-language models to various devices and backends.
