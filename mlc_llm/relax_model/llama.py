@@ -648,7 +648,7 @@ def create_softmax_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
         bb.emit_func_output(gv, [logits, temperature])
 
 
-def get_model(args):
+def get_model(args, hf_config):
     from transformers import AutoModelForCausalLM  # type: ignore[import]
 
     model_name = args.model
@@ -657,7 +657,8 @@ def get_model(args):
     max_seq_len = args.max_seq_len
 
     if model_name.startswith("vicuna-") or model_name.startswith("llama-"):
-        config = LlamaConfig(**MODEL_CONFIG[model_name], dtype=dtype)
+        config = LlamaConfig(**hf_config, dtype=dtype)
+        print(config)
         if max_seq_len != -1:
             config.max_sequence_length = max_seq_len
 
