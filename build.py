@@ -1,6 +1,7 @@
 import argparse
 import os
 import pickle
+import json
 from typing import List
 import json
 
@@ -162,6 +163,22 @@ def mod_transform_before_build(
     return mod_deploy
 
 
+def dump_default_mlc_llm_config(args):
+    config = dict()
+    config["model_lib"] = f"{args.model}-{args.quantization.name}"
+    config["local_id"] = f"{args.model}-{args.quantization.name}"
+    config["conv_template"] = args.conv_template
+    config["temperature"] = 0.7
+    config["top_p"] = 0.95
+    config["stream_interval"] = 2
+    config["mean_gen_len"] = 128
+    config["shift_fill_factor"] = 0.3
+    dump_path = os.path.join(args.artifact_path, "mlc_llm_config.json")
+    with open(dump_path, "w") as outfile:
+        json.dump(config, outfile, indent=4)
+    print(f"Finish exporting mlc_llm_config to {dump_path}")
+
+
 def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     target_kind = args.target_kind
     debug_dump_script(mod_deploy, "mod_before_build.py", args)
@@ -249,10 +266,18 @@ if __name__ == "__main__":
             print(f"Save a cached module to {cache_path}.")
             utils.copy_tokenizer(ARGS)
         else:
-            print(
-                f"Load cached module from {cache_path} and skip tracing. "
-                "You can use --use-cache=0 to retrace"
-            )
-            mod = pickle.load(open(cache_path, "rb"))
-        dump_split_tir(mod)
-        build(mod, ARGS)
+            raise ValueError(f"Model {ARGS.model} not supported")
+        mod = mod_transform_before_build(mod, params, ARGS)
+        with open(cache_path, "wb") as outfile:
+            pickle.dump(mod, outfile)
+        print(f"Save a cached module to {cache_path}.")
+        utils.copy_tokenizer(ARGS)
+    else:
+        print(
+            f"Load cached module from {cache_path} and skip tracing. "
+            "You can use --use-cache=0 to retrace"
+        )
+        mod = pickle.load(open(cache_path, "rb"))
+    dump_split_tir(mod)
+    build(mod, ARGS)
+    dump_default_mlc_llm_config(ARGS)
