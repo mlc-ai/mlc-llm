@@ -266,18 +266,11 @@ if __name__ == "__main__":
             print(f"Save a cached module to {cache_path}.")
             utils.copy_tokenizer(ARGS)
         else:
-            raise ValueError(f"Model {ARGS.model} not supported")
-        mod = mod_transform_before_build(mod, params, ARGS)
-        with open(cache_path, "wb") as outfile:
-            pickle.dump(mod, outfile)
-        print(f"Save a cached module to {cache_path}.")
-        utils.copy_tokenizer(ARGS)
-    else:
-        print(
-            f"Load cached module from {cache_path} and skip tracing. "
-            "You can use --use-cache=0 to retrace"
-        )
-        mod = pickle.load(open(cache_path, "rb"))
-    dump_split_tir(mod)
-    build(mod, ARGS)
-    dump_default_mlc_llm_config(ARGS)
+            print(
+                f"Load cached module from {cache_path} and skip tracing. "
+                "You can use --use-cache=0 to retrace"
+            )
+            mod = pickle.load(open(cache_path, "rb"))
+        dump_split_tir(mod)
+        build(mod, ARGS)
+        dump_default_mlc_llm_config(ARGS)
