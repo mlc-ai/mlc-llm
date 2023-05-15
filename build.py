@@ -48,29 +48,44 @@ def _parse_args():
     parsed.export_kwargs = {}
     parsed.lib_format = "so"
     parsed.db_path = parsed.db_path or os.path.join("log_db", parsed.model)
-    utils.parse_target(parsed)
-    utils.argparse_postproc_common(parsed)
 
-    if parsed.model_path and parsed.hf_path:
-        assert (parsed.model_path and not parsed.hf_path) or (parsed.hf_path and not parsed.model_path), "You cannot specify both a model path and a HF path. Please select one to specify."
-
-    if not (parsed.model_path and valid_model_path(parsed)):
-        parsed.model_path = os.path.join(parsed.artifact_path, "models", parsed.model)
-    print(f"Using model path {parsed.model_path}")
+    parsed = _setup_model_path(parsed)
 
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
     )
 
+    utils.parse_target(parsed)
+    utils.argparse_postproc_common(parsed)
+
     return parsed
 
-def valid_model_path(args):
-    assert os.path.exists(os.path.join(args.model_path, "config.json")), "Model path must contain valid config file."
-    with open(os.path.join(args.model_path, "config.json")) as f:
-        config = json.load(f)
-        assert "model_type" in config, "Invalid config format."
-        assert config["model_type"] == args.model_category, "Model at model path must match specified model type."
-    return True
+def _setup_model_path(args):
+
+    if args.model_path and args.hf_path:
+        assert (args.model_path and not args.hf_path) or (args.hf_path and not args.model_path), "You cannot specify both a model path and a HF path. Please select one to specify."
+
+    if args.model_path:
+        assert os.path.exists(os.path.join(args.model_path, "config.json")), "Model path must contain valid config file."
+        with open(os.path.join(args.model_path, "config.json")) as f:
+            config = json.load(f)
+            assert ("model_type" in config) and ("_name_or_path" in config), "Invalid config format."
+            assert config["model_type"] in utils.supported_model_types, f"Model type {config['model_type']} not supported."
+        args.model = config["_name_or_path"].split("/")[-1]
+    elif args.hf_path:
+        args.model = args.hf_path.split("/")[-1]
+        args.model_path = os.path.join(args.artifact_path, "models", args.model)
+        if os.path.exists(args.model_path):
+            print(f"Weights exist at {args.model_path}, skipping download.")
+        os.makedirs(args.model_path, exist_ok=True)
+        os.system("git lfs install")
+        os.system(f"git clone https://huggingface.co/{args.hf_path} {args.model_path}")
+        print(f"Downloaded weights to {args.model_path}")
+    else:
+        raise ValueError(f"Please specify either the model_path or the hf_path.")
+    print(f"Using model path {args.model_path}")
+
+    return args
 
 def debug_dump_script(mod, name, args):
     """Debug dump mode"""
@@ -202,21 +217,11 @@ from tvm.script import tir as T
     with open(dynamic_path, "w") as o_f:
         o_f.write(template.format(content=mod_dynamic.script()))
 
-def download_weights(args: argparse.Namespace):
-    if os.path.exists(args.model_path):
-        print(f"Weights exist at {args.model_path}, skipping download.")
-        return
-    os.makedirs(args.model_path, exist_ok=True)
-    os.system("git lfs install")
-    os.system(f"git clone https://huggingface.co/{args.hf_path} {args.model_path}")
-    print(f"Downloaded weights to {args.model_path}")
 
 if __name__ == "__main__":
     ARGS = _parse_args()
     os.makedirs(ARGS.artifact_path, exist_ok=True)
     os.makedirs(os.path.join(ARGS.artifact_path, "debug"), exist_ok=True)
-    if ARGS.hf_path:
-        download_weights(ARGS)
     cache_path = os.path.join(
         ARGS.artifact_path, f"mod_cache_before_build_{ARGS.target_kind}.pkl"
     )
