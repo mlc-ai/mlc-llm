@@ -35,38 +35,41 @@ from .gpt_neox import _min_value, _max_value, create_kv_cache_func
 
 @dataclass
 class MossConfig:  # pylint: disable=too-many-instance-attributes
-    vocab_size: int
-    hidden_size: int
-    intermediate_size: int
-    num_attention_heads: int
-    num_hidden_layers: int
-    bos_token_id: int
-    eos_token_id: int
-    rotary_pct: float
-    tie_word_embeddings: bool
-    hidden_act: str
-    swizzle_style: "str"
-    dtype: str = "float32"
-    layer_norm_eps: float = 1e-5
-    max_sequence_length: int = 2048
-    rotary_emb_base: int = 10000
-
-
-MODEL_CONFIG = {
-    "moss-moon-003-sft": {
-        "hidden_size": 6144,
-        "intermediate_size": 24576,
-        "num_attention_heads": 24,
-        "num_hidden_layers": 34,
-        "vocab_size": 107008,
-        "hidden_act": "gelu_new",
-        "bos_token_id": 106028,
-        "eos_token_id": 106068,
-        "rotary_pct": 0.25,
-        "swizzle_style": "gptj",
-        "tie_word_embeddings": False,
-    },
-}
+    def __init__(
+        self,
+        vocab_size,
+        hidden_size,
+        intermediate_size,
+        num_attention_heads,
+        num_hidden_layers,
+        bos_token_id,
+        eos_token_id,
+        rotary_pct,
+        tie_word_embeddings,
+        hidden_act,
+        swizzle_style,
+        dtype="float32",
+        layer_norm_eps=1e-5,
+        max_sequence_length=2048,
+        rotary_emb_base=10000,
+        **kwargs
+    ):
+        self.vocab_size = vocab_size
+        self.hidden_size = hidden_size
+        self.intermediate_size = intermediate_size
+        self.num_attention_heads = num_attention_heads
+        self.num_hidden_layers = num_hidden_layers
+        self.bos_token_id = bos_token_id
+        self.eos_token_id = eos_token_id
+        self.rotary_pct = rotary_pct
+        self.tie_word_embeddings = tie_word_embeddings
+        self.hidden_act = hidden_act
+        self.swizzle_style = swizzle_style
+        self.dtype = dtype
+        self.layer_norm_eps = layer_norm_eps
+        self.max_sequence_length = max_sequence_length
+        self.rotary_emb_base = rotary_emb_base
+        self.kwargs = kwargs
 
 
 def gelu_new(x):
@@ -564,7 +567,7 @@ def create_decoding_func(
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
 
-def get_model(args):
+def get_model(args, hf_config):
     from transformers import AutoModelForCausalLM  # type: ignore[import]
 
     model_name = args.model
@@ -572,37 +575,36 @@ def get_model(args):
     dtype = args.quantization.dtype
     max_seq_len = args.max_seq_len
 
-    if model_name in MODEL_CONFIG.keys():
-        config = MossConfig(**MODEL_CONFIG[model_name], dtype=dtype)
-        if max_seq_len != -1:
-            config.max_sequence_length = max_seq_len
-        num_heads = config.num_attention_heads
-        hidden_size = config.hidden_size
-        head_dim = hidden_size // num_heads
-        param_list: List[Tuple[str, NDArray]] = []
-        hf_model = AutoModelForCausalLM.from_pretrained(
-            model_path, trust_remote_code=True
-        )
+    config = MossConfig(**hf_config, dtype=dtype)
+    if max_seq_len != -1:
+        config.max_sequence_length = max_seq_len
+    num_heads = config.num_attention_heads
+    hidden_size = config.hidden_size
+    head_dim = hidden_size // num_heads
+    param_list: List[Tuple[str, NDArray]] = []
+    hf_model = AutoModelForCausalLM.from_pretrained(
+        model_path, trust_remote_code=True
+    )
 
-        for name, param in hf_model.named_parameters():
-            param = param.detach().cpu().numpy()
-            if "ln_1" in name or "ln_f" in name:
-                param = param.astype("float32")
-            else:
-                param = param.astype(config.dtype)
-            if name.endswith("qkv_proj.weight"):
-                name = name.replace("qkv_proj.weight", "{}_proj.weight")
-                assert param.ndim == 2
-                mp_num = 4
-                param = param.reshape(mp_num, 3, -1, hidden_size)
-                q = param[:, 0, :, :].reshape(hidden_size, hidden_size)
-                k = param[:, 2, :, :].reshape(hidden_size, hidden_size)
-                v = param[:, 1, :, :].reshape(hidden_size, hidden_size)
-                param_list.append((name.format("q"), q))
-                param_list.append((name.format("k"), k))
-                param_list.append((name.format("v"), v))
-            else:
-                param_list.append((name, param))
+    for name, param in hf_model.named_parameters():
+        param = param.detach().cpu().numpy()
+        if "ln_1" in name or "ln_f" in name:
+            param = param.astype("float32")
+        else:
+            param = param.astype(config.dtype)
+        if name.endswith("qkv_proj.weight"):
+            name = name.replace("qkv_proj.weight", "{}_proj.weight")
+            assert param.ndim == 2
+            mp_num = 4
+            param = param.reshape(mp_num, 3, -1, hidden_size)
+            q = param[:, 0, :, :].reshape(hidden_size, hidden_size)
+            k = param[:, 2, :, :].reshape(hidden_size, hidden_size)
+            v = param[:, 1, :, :].reshape(hidden_size, hidden_size)
+            param_list.append((name.format("q"), q))
+            param_list.append((name.format("k"), k))
+            param_list.append((name.format("v"), v))
+        else:
+            param_list.append((name, param))
 
         del hf_model
         param_list = [
