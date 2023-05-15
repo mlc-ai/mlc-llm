@@ -79,10 +79,11 @@ def _setup_model_path(args):
         args.model_path = os.path.join(args.artifact_path, "models", args.model)
         if os.path.exists(args.model_path):
             print(f"Weights exist at {args.model_path}, skipping download.")
-        os.makedirs(args.model_path, exist_ok=True)
-        os.system("git lfs install")
-        os.system(f"git clone https://huggingface.co/{args.hf_path} {args.model_path}")
-        print(f"Downloaded weights to {args.model_path}")
+        else:
+            os.makedirs(args.model_path, exist_ok=True)
+            os.system("git lfs install")
+            os.system(f"git clone https://huggingface.co/{args.hf_path} {args.model_path}")
+            print(f"Downloaded weights to {args.model_path}")
     else:
         raise ValueError(f"Please specify either the model_path or the hf_path.")
     print(f"Using model path {args.model_path}")
