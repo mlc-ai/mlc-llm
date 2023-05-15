@@ -1,6 +1,7 @@
 import argparse
 import os
 import pickle
+import json
 from typing import List
 
 import tvm
@@ -130,6 +131,22 @@ def mod_transform_before_build(
     return mod_deploy
 
 
+def dump_default_mlc_llm_config(args, lib_name):
+    config = dict()
+    config["model_lib"] = lib_name
+    config["local_id"] = f"{args.model}-{args.quantization.name}"
+    config["conv_template"] = args.conv_template
+    config["temperature"] = 0.7
+    config["top_p"] = 0.95
+    config["stream_interval"] = 2,
+    config["mean_gen_len"] = 128
+    config["shift_fill_factor"] = 0.3
+    dump_path = os.path.join(args.artifact_path, "mlc_llm_config.json")
+    with open(dump_path, "w") as outfile:
+        json.dump(config, outfile, indent=4)
+    print(f"Finish exporting mlc_llm_config to {dump_path}")
+
+
 def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     target_kind = args.target_kind
     debug_dump_script(mod_deploy, "mod_before_build.py", args)
@@ -165,6 +182,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     lib_path = os.path.join(args.artifact_path, output_filename)
     ex.export_library(lib_path, **args.export_kwargs)
     print(f"Finish exporting to {lib_path}")
+    dump_default_mlc_llm_config(ARGS, output_filename)
 
 
 def dump_split_tir(mod: tvm.IRModule):
