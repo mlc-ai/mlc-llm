@@ -48,12 +48,6 @@ class LlamaConfig:
         self.kwargs = kwargs
 
 
-MODEL_CONFIG = {
-    "vicuna-v1-7b": {},
-    "llama-7b": {},
-}
-
-
 class Linear(nn.Module):
     def __init__(self, in_features, out_features, dtype: str, bias=True):
         self.in_features = in_features
@@ -658,7 +652,6 @@ def get_model(args, hf_config):
 
     if model_name.startswith("vicuna-") or model_name.startswith("llama-"):
         config = LlamaConfig(**hf_config, dtype=dtype)
-        print(config)
         if max_seq_len != -1:
             config.max_sequence_length = max_seq_len
 
