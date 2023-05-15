@@ -63,16 +63,10 @@ def _parse_args():
     return parsed
 
 def _setup_model_path(args):
-
     if args.model_path and args.hf_path:
         assert (args.model_path and not args.hf_path) or (args.hf_path and not args.model_path), "You cannot specify both a model path and a HF path. Please select one to specify."
-
     if args.model_path:
-        assert os.path.exists(os.path.join(args.model_path, "config.json")), "Model path must contain valid config file."
-        with open(os.path.join(args.model_path, "config.json")) as f:
-            config = json.load(f)
-            assert ("model_type" in config) and ("_name_or_path" in config), "Invalid config format."
-            assert config["model_type"] in utils.supported_model_types, f"Model type {config['model_type']} not supported."
+        validate_config(args)
         args.model = config["_name_or_path"].split("/")[-1]
     elif args.hf_path:
         args.model = args.hf_path.split("/")[-1]
@@ -84,11 +78,18 @@ def _setup_model_path(args):
             os.system("git lfs install")
             os.system(f"git clone https://huggingface.co/{args.hf_path} {args.model_path}")
             print(f"Downloaded weights to {args.model_path}")
+        validate_config(args)
     else:
         raise ValueError(f"Please specify either the model_path or the hf_path.")
     print(f"Using model path {args.model_path}")
-
     return args
+
+def validate_config(args):
+    assert os.path.exists(os.path.join(args.model_path, "config.json")), "Model path must contain valid config file."
+    with open(os.path.join(args.model_path, "config.json")) as f:
+        config = json.load(f)
+        assert ("model_type" in config) and ("_name_or_path" in config), "Invalid config format."
+        assert config["model_type"] in utils.supported_model_types, f"Model type {config['model_type']} not supported."
 
 def debug_dump_script(mod, name, args):
     """Debug dump mode"""
