@@ -18,13 +18,14 @@ from mlc_llm import utils
 
 def _parse_args():
     args = argparse.ArgumentParser()
-    utils.argparse_add_common(args)
+    args.add_argument("--local-id", type=str, required=True)
     args.add_argument("--device-name", type=str, default="auto")
     args.add_argument("--debug-dump", action="store_true", default=False)
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument("--prompt", type=str, default="The capital of Canada is")
     args.add_argument("--profile", action="store_true", default=False)
     parsed = args.parse_args()
+    parsed.model, parsed.quantization = parsed.local_id.rsplit("-", 1)
     utils.argparse_postproc_common(parsed)
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
@@ -91,7 +92,7 @@ def deploy_to_pipeline(args) -> None:
     vm = relax.VirtualMachine(ex, device)
 
     tokenizer = AutoTokenizer.from_pretrained(
-        args.artifact_path, trust_remote_code=True
+        os.path.join(args.artifact_path, "params"), trust_remote_code=True
     )
 
     print("Tokenizing...")

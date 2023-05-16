@@ -239,11 +239,12 @@ int main(int argc, char* argv[]) {
   using namespace tvm::runtime;
   argparse::ArgumentParser args("mlc_chat");
 
+  args.add_argument("--local-id").default_value("");
+  args.add_argument("--model").default_value("vicuna-v1-7b");
+  args.add_argument("--quantization").default_value("auto");
   args.add_argument("--device-name").default_value("auto");
   args.add_argument("--device_id").default_value(0).scan<'i', int>();
   args.add_argument("--artifact-path").default_value("dist");
-  args.add_argument("--model").default_value("vicuna-v1-7b");
-  args.add_argument("--quantization").default_value("auto");
   args.add_argument("--params").default_value("auto");
   args.add_argument("--evaluate").default_value(false).implicit_value(true);
 
@@ -251,59 +252,84 @@ int main(int argc, char* argv[]) {
     args.parse_args(argc, argv);
   } catch (const std::runtime_error& err) {
     std::cerr << err.what() << std::endl;
-    std::cerr << args;
+    std::cerr << args << std::endl;
     return 1;
   }
 
+  std::string local_id = args.get<std::string>("--local-id");
+  std::string model = args.get<std::string>("--model");
+  std::string quantization = args.get<std::string>("--quantization");
   std::string device_name = DetectDeviceName(args.get<std::string>("--device-name"));
   int device_id = args.get<int>("--device_id");
   DLDevice device = GetDevice(device_name, device_id);
   std::string artifact_path = args.get<std::string>("--artifact-path");
-  std::string model = args.get<std::string>("--model");
-  std::string quantization = args.get<std::string>("--quantization");
   std::string params = args.get<std::string>("--params");
 
   std::string arch_suffix = GetArchSuffix();
 
-  std::optional<std::filesystem::path> lib_path_opt;
+  std::vector<std::string> local_id_candidates;
+  std::optional<std::filesystem::path> config_path_opt;
 
-  std::vector<std::string> quantization_candidates;
-  if (quantization == "auto") {
-    quantization_candidates = quantization_presets;
+  // Configure local id candidates.
+  if (local_id != "") {
+    local_id_candidates = {local_id};
   } else {
-    quantization_candidates = {quantization};
+    std::vector<std::string> quantization_candidates;
+    if (quantization == "auto") {
+      quantization_candidates = quantization_presets;
+    } else {
+      quantization_candidates = {quantization};
+    }
+    for (std::string quantization_candidate : quantization_candidates) {
+      local_id_candidates.push_back(model + "-" + quantization_candidate);
+    }
   }
 
-  std::optional<std::filesystem::path> lib_path;
-  for (auto candidate : quantization_candidates) {
-    std::string lib_name = model + "-" + candidate + "-" + device_name;
-    std::vector<std::string> search_paths = {artifact_path + "/" + model + "-" + candidate,
-                                             artifact_path + "/" + model, artifact_path + "/lib"};
-    // search for lib_x86_64 and lib
-    lib_path_opt = FindFile(search_paths, {lib_name, lib_name + arch_suffix}, GetLibSuffixes());
-    if (lib_path_opt) {
-      quantization = candidate;
+  // Search for mlc-llm-config.json.
+  for (auto local_id_candidate : local_id_candidates) {
+    std::vector<std::string> config_search_paths = {
+        artifact_path + "/" + local_id_candidate + "/params",  //
+        artifact_path + "/prebuilt/" + local_id_candidate};
+    config_path_opt = FindFile(config_search_paths, {"mlc-llm-config"}, {".json"});
+    if (config_path_opt) {
+      local_id = local_id_candidate;
       break;
     }
   }
+  if (!config_path_opt) {
+    std::cerr << "Cannot find \"mlc-llm-config.json\" in path \"" << artifact_path << "/"
+              << local_id_candidates[0] << "/params/\", \"" << artifact_path
+              << "/prebuilt/" + local_id_candidates[0] << "\" or other candidate paths.";
+    return 1;
+  }
+  std::cout << "Use config " << config_path_opt.value().string() << std::endl;
+  std::filesystem::path model_path = config_path_opt.value().parent_path();
+
+  // Locate the library.
+  std::string lib_name = local_id + "-" + device_name;
+  std::string lib_dir_path;
+  if (model_path.string().compare(model_path.string().length() - 7, 7, "/params") == 0) {
+    lib_dir_path = model_path.parent_path().string();
+  } else {
+    lib_dir_path = model_path.parent_path().string() + "/lib";
+  }
+  std::optional<std::filesystem::path> lib_path_opt =
+      FindFile({lib_dir_path}, {lib_name, lib_name + arch_suffix}, GetLibSuffixes());
   if (!lib_path_opt) {
-    std::cerr << "Cannot find " << model << " lib in preferred path \"" << artifact_path << "/"
-              << model << "-" << quantization_candidates[0] << "/" << model << "-"
-              << quantization_candidates[0] << "-" << device_name << GetLibSuffixes()[0]
-              << "\" or other candidate paths";
+    std::cerr << "Cannot find library \"" << lib_name << GetLibSuffixes().back()
+              << "\" and other library candidate in " << lib_dir_path << std::endl;
     return 1;
   }
   std::cout << "Use lib " << lib_path_opt.value().string() << std::endl;
-  std::string model_path = lib_path_opt.value().parent_path().string();
-  LOG(INFO) << "model_path = " << model_path;
-  // get artifact path lib name
+
+  // Locate the tokenizer files.
   std::optional<std::filesystem::path> tokenizer_path_opt =
-      FindFile({model_path, artifact_path + "/" + model}, {"tokenizer"}, {".model", ".json"});
+      FindFile({model_path.string()}, {"tokenizer"}, {".model", ".json"});
   if (!tokenizer_path_opt) {
     // Try ByteLevelBPETokenizer
-    tokenizer_path_opt = FindFile({model_path, artifact_path + "/" + model}, {"vocab"}, {".json"});
+    tokenizer_path_opt = FindFile({model_path.string()}, {"vocab"}, {".json"});
     if (!tokenizer_path_opt) {
-      std::cerr << "Cannot find tokenizer file in " << model_path;
+      std::cerr << "Cannot find tokenizer file in " << model_path.string() << std::endl;
       return 1;
     } else {
       // GPT2 styles tokenizer needs multiple files, we need to
@@ -312,19 +338,16 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  // Locate the params.
   if (params == "auto") {
-    auto params_json_opt =
-        FindFile({model_path + "/params", artifact_path + "/" + model + "/params"},
-                 {"ndarray-cache"}, {".json"});
+    auto params_json_opt = FindFile({model_path}, {"ndarray-cache"}, {".json"});
     if (!params_json_opt) {
-      std::cerr << "Cannot find ndarray-cache.json for params in preferred path \"" << model_path
-                << "/params\" and \"" << artifact_path << "/" + model << "/params.";
+      std::cerr << "Cannot find ndarray-cache.json for params in " << model_path << std::endl;
       return 1;
     }
-    std::string params_json = params_json_opt.value().string();
-    params = params_json.substr(0, params_json.length() - 18);
+    params = params_json_opt.value().parent_path().string();
   } else if (!FindFile({params}, {"ndarray-cache"}, {".json"})) {
-    std::cerr << "Cannot find params/ndarray-cache.json in " << model_path;
+    std::cerr << "Cannot find ndarray-cache.json for params in " << params << std::endl;
     return 1;
   }
 
@@ -345,7 +368,7 @@ int main(int argc, char* argv[]) {
   } catch (const std::runtime_error& err) {
     // catch exception so error message
     // get reported here without silently quit.
-    std::cerr << err.what();
+    std::cerr << err.what() << std::endl;
     return 1;
   }
   return 0;
