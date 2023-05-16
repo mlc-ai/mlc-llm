@@ -67,7 +67,9 @@ def _setup_model_path(args):
         assert (args.model_path and not args.hf_path) or (args.hf_path and not args.model_path), "You cannot specify both a model path and a HF path. Please select one to specify."
     if args.model_path:
         validate_config(args)
-        args.model = config["_name_or_path"].split("/")[-1]
+        with open(os.path.join(args.model_path, "config.json")) as f:
+            config = json.load(f)
+            args.model = config["_name_or_path"].split("/")[-1]
     elif args.hf_path:
         args.model = args.hf_path.split("/")[-1]
         args.model_path = os.path.join(args.artifact_path, "models", args.model)
