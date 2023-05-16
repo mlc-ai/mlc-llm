@@ -17,7 +17,8 @@ We are excited to share that we have enabled the Android support for MLC-LLM. Ch
     mkdir build
     cp cmake/config.cmake build
     ```
-    in build/config.cmake, set `USE_OPENCL` and `USE_LLVM` as ON
+
+    In build/config.cmake, set `USE_OPENCL` and `USE_LLVM` as ON
     ```shell
     make -j
     export TVM_HOME=$(pwd)
@@ -31,48 +32,41 @@ We are excited to share that we have enabled the Android support for MLC-LLM. Ch
     cd ${TVM_HOME}/jvm; mvn install -pl core -DskipTests -Dcheckstyle.skip=true
     ```
 
-4. Get Model Weight.
+4. Follow the instructions [here](https://github.com/mlc-ai/mlc-llm#building-from-source) to either build the model using a Hugging Face URL, or a local directory. If opting for a local directory, you can follow the instructions [here](https://huggingface.co/docs/transformers/main/model_doc/llama) to get the original LLaMA weights in the HuggingFace format, and [here](https://github.com/lm-sys/FastChat#vicuna-weights) to get Vicuna weights.
 
-    Currently we support LLaMA and Vicuna.
-
-    1. Get the original LLaMA weights in the HuggingFace format by following the instructions [here](https://huggingface.co/docs/transformers/main/model_doc/llama).
-    2. Use instructions [here](https://github.com/lm-sys/FastChat#vicuna-weights) to get vicuna weights.
-    3. Create a soft link to the model path under dist/models.
-        ```shell
-        mkdir -p dist/models
-        ln -s your_model_path dist/models/model_name
-        # For example:
-        # ln -s path/to/vicuna-v1-7b dist/models/vicuna-v1-7b
-
-5. Build model to library.
     ```shell
     git clone https://github.com/mlc-ai/mlc-llm.git --recursive
     cd mlc-llm
-    python3 build.py --model vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768
+
+    # From Hugging Face URL
+    python3 build.py --hf-path databricks/dolly-v2-3b --quantization q4f16_0 --target android --max-seq-len 768
+
+    # From local directory
+    python3 build.py --model-path path/to/vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768
     ```
 
-6. Build libraries for Android app.
+5. Build libraries for Android app.
     ```shell
     cd android
     ./prepare_libs.sh
     ```
 
-7. Download [Android Studio](https://developer.android.com/studio), and use Android Studio to open folder `android/MLCChat` as the project.
+6. Download [Android Studio](https://developer.android.com/studio), and use Android Studio to open folder `android/MLCChat` as the project.
     1. Install Android SDK and NDK either inside Android Studio (recommended) or separately.
     2. Specify the Android SDK and NDK path in file `android/MLCChat/local.properties` (if it does not exist, create one):
-        ```
+        ```shell
         sdk.dir=/path/to/android/sdk
         ndk.dir=/path/to/android/ndk
         ```
         For example, a good `local.properties` can be:
-        ```
+        ```shell
         sdk.dir=/Users/me/Library/Android/sdk
         ndk.dir=/Users/me/Library/Android/sdk/ndk/25.2.9519653
         ```
 
-8. Connect your Android device to your machine. In the menu bar of Android Studio, click `Build - Make Project`.
+7. Connect your Android device to your machine. In the menu bar of Android Studio, click `Build - Make Project`.
 
-9. Once the build is finished, click `Run - Run 'app'`, and you will see the app launched on your phone.
+8. Once the build is finished, click `Run - Run 'app'`, and you will see the app launched on your phone.
 
 <p align="center">
   <img src="../site/img/android/android-studio.png">
@@ -91,7 +85,7 @@ By following the instructions above, the installed app will download weights fro
 * Step 11. Install [Android SDK Platform-Tools](https://developer.android.com/studio/releases/platform-tools) for ADB (Android Debug Bridge). The platform tools will be already available under your Android SDK path if you have installed SDK (e.g., at `/path/to/android-sdk/platform-tools/`). Add the platform-tool path to your PATH environment. Run `adb devices` to verify that ADB is installed correctly your phone is listed as a device.
 
 * Step 12. In command line, run
-    ```
+    ```shell
     adb install android/MLCChat/app/release/app-release.apk
     ```
     to install the APK to your phone. If it errors with message `adb: failed to install android/MLCChat/app/release/app-release.apk: Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package ai.mlc.mlcchat signatures do not match newer version; ignoring!]`, please uninstall the existing app and try `adb install` again.

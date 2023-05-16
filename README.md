@@ -50,6 +50,46 @@ As a starting point, MLC generates GPU shaders for CUDA, Vulkan and Metal. It is
 
 We heavily rely on open-source ecosystem, more specifically, [TVM Unity](https://discuss.tvm.apache.org/t/establish-tvm-unity-connection-a-technical-strategy/13344), an exciting latest development in the TVM project that enables python-first interactive MLC development experiences that allows us to easily compose new optimizations all in Python, and incrementally bring our app to the environment of interest. We also leveraged optimizations such as fused quantization kernels, first class dynamic shape support and diverse GPU backends.
 
+## Building from Source
+
+There are two ways to build MLC LLM from source. The first is to use a Hugging Face URL to directly download the model parameters, and the second is to use a local directory that contains the parameters.
+
+### Hugging Face URL
+
+To download the weights from an existing Hugging Face repository for a supported model, you can follow the instructions below:
+
+```shell
+# Create a new conda environment and activate the environment.
+conda create -n mlc-chat
+conda activate mlc-chat
+
+# Install Git and Git-LFS, which is used for downloading the model weights
+# from Hugging Face.
+conda install git git-lfs
+
+# Clone the MLC LLM repo
+git clone https://github.com/mlc-ai/mlc-llm.git
+
+# Create the local build directory and compile the model
+# This will automatically download the parameters, tokenizer, and config from Hugging Face
+mkdir build
+python build.py --hf-path=databricks/dolly-v2-3b
+```
+
+After a successful build, the compiled model will be available at `dist/dolly-v2-3b-q3f16_0` (the exact path will vary depending on your model type and specified quantization). Follow the platform specific instructions to build and run MLC LLM for [iOS](https://github.com/mlc-ai/mlc-llm/blob/main/ios/README.md), [Android](https://github.com/mlc-ai/mlc-llm/blob/main/android/README.md), and [CLI](https://github.com/mlc-ai/mlc-llm/tree/main/cpp/README.md).
+
+### Local Directory
+
+If you have a local directory that has the model parameters, the tokenizer, and a `config.json` file for a supported model, you can instead run the following build command:
+
+```shell
+# Create the local build directory and compile the model
+mkdir build
+python build.py --model-path=/path/to/local/directory
+```
+
+Similarly, the compiled model will be available at `dist/dolly-v2-3b-q3f16_0`, where the exact path will vary depending on your model type and specified quantization. Follow the platform specific instructions to build and run MLC LLM for [iOS](https://github.com/mlc-ai/mlc-llm/blob/main/ios/README.md), [Android](https://github.com/mlc-ai/mlc-llm/blob/main/android/README.md), and [CLI](https://github.com/mlc-ai/mlc-llm/tree/main/cpp/README.md).
+
 ## Links
 
 - You might also be interested in [WebLLM](https://github.com/mlc-ai/web-llm/tree/main), our companion derived project that focus on bringing LLM to browsers.

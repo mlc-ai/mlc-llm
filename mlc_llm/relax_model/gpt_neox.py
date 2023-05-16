@@ -32,89 +32,33 @@ from .modules import (
 
 @dataclass
 class GPTNeoXConfig:  # pylint: disable=too-many-instance-attributes
-    use_parallel_residual: bool
-    hidden_size: int
-    intermediate_size: int
-    num_attention_heads: int
-    num_hidden_layers: int
-    vocab_size: int
-    rotary_pct: float = 0.25
-    rotary_emb_base: int = 10000
-
-    dtype: str = "float32"
-    layer_norm_eps: float = 1e-05
-    max_sequence_length: int = 2048
-
-
-MODEL_CONFIG = {
-    "dolly-v2-3b": {
-        "use_parallel_residual": True,
-        "hidden_size": 2560,
-        "intermediate_size": 10240,
-        "num_attention_heads": 32,
-        "num_hidden_layers": 32,
-        "vocab_size": 50280,
-    },
-    "dolly-v2-7b": {
-        "use_parallel_residual": True,
-        "hidden_size": 4096,
-        "intermediate_size": 16384,
-        "num_attention_heads": 32,
-        "num_hidden_layers": 32,
-        "vocab_size": 50280,
-    },
-    "dolly-v2-12b": {
-        "use_parallel_residual": True,
-        "hidden_size": 5120,
-        "intermediate_size": 20480,
-        "num_attention_heads": 40,
-        "num_hidden_layers": 36,
-        "vocab_size": 50280,
-    },
-    "stablelm-tuned-alpha-3b": {
-        "use_parallel_residual": True,
-        "hidden_size": 4096,
-        "intermediate_size": 16384,
-        "num_attention_heads": 32,
-        "num_hidden_layers": 16,
-        "vocab_size": 50688,
-    },
-    "stablelm-tuned-alpha-7b": {
-        "use_parallel_residual": True,
-        "hidden_size": 6144,
-        "intermediate_size": 24576,
-        "num_attention_heads": 48,
-        "num_hidden_layers": 16,
-        "vocab_size": 50432,
-    },
-    "RedPajama-INCITE-Base-3B-v1": {
-        "use_parallel_residual": False,
-        "hidden_size": 2560,
-        "intermediate_size": 10240,
-        "num_attention_heads": 32,
-        "num_hidden_layers": 32,
-        "vocab_size": 50432,
-        "rotary_pct": 1.0,
-    },
-    "RedPajama-INCITE-Chat-3B-v1": {
-        "use_parallel_residual": False,
-        "hidden_size": 2560,
-        "intermediate_size": 10240,
-        "num_attention_heads": 32,
-        "num_hidden_layers": 32,
-        "vocab_size": 50432,
-        "rotary_pct": 1.0,
-    },
-    "RedPajama-INCITE-Instruct-3B-v1": {
-        "use_parallel_residual": False,
-        "hidden_size": 2560,
-        "intermediate_size": 10240,
-        "num_attention_heads": 32,
-        "num_hidden_layers": 32,
-        "vocab_size": 50432,
-        "rotary_pct": 1.0,
-    },
-}
+    def __init__(
+        self,
+        use_parallel_residual,
+        hidden_size,
+        intermediate_size,
+        num_attention_heads,
+        num_hidden_layers,
+        vocab_size,
+        rotary_pct,
+        rotary_emb_base,
+        dtype="float32",
+        layer_norm_eps=1e-05,
+        max_sequence_length=2048,
+        **kwargs
+    ):
+        self.use_parallel_residual = use_parallel_residual
+        self.hidden_size = hidden_size
+        self.intermediate_size = intermediate_size
+        self.num_attention_heads = num_attention_heads
+        self.num_hidden_layers = num_hidden_layers
+        self.vocab_size = vocab_size
+        self.rotary_pct = rotary_pct
+        self.rotary_emb_base = rotary_emb_base
+        self.dtype = dtype
+        self.layer_norm_eps = layer_norm_eps
+        self.max_sequence_length = max_sequence_length
+        self.kwargs = kwargs
 
 
 def _min_value(dtype) -> relax.Expr:
@@ -640,10 +584,11 @@ def get_model(
     model_name: str,
     model_path: str,
     dtype: str,
+    hf_config
 ):
     from transformers import AutoModelForCausalLM  # type: ignore[import]
 
-    config = GPTNeoXConfig(**MODEL_CONFIG[model_name], dtype=dtype)
+    config = GPTNeoXConfig(**hf_config, dtype=dtype)
     num_heads = config.num_attention_heads
     hidden_size = config.hidden_size
     head_dim = hidden_size // num_heads

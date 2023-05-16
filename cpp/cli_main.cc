@@ -154,7 +154,7 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_g
           int max_window_size = 768, int mean_gen_len = 128, double shift_fill_factor = 0.3) {
   // conv template detect
   std::string conv_template;
-  if (model.find("vicuna") == 0) {
+  if (model.find("vicuna") == 0 || model.find("llama") == 0) {
     conv_template = "vicuna_v1.1";
   } else if (model.find("dolly-") == 0) {
     conv_template = "dolly";
