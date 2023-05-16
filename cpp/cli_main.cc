@@ -240,7 +240,7 @@ int main(int argc, char* argv[]) {
   argparse::ArgumentParser args("mlc_chat");
 
   args.add_argument("--device-name").default_value("auto");
-  args.add_argument("--device_id").default_value(0);
+  args.add_argument("--device_id").default_value(0).scan<'i', int>();
   args.add_argument("--artifact-path").default_value("dist");
   args.add_argument("--model").default_value("vicuna-v1-7b");
   args.add_argument("--quantization").default_value("auto");
