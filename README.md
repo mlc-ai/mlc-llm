@@ -18,6 +18,7 @@ Everything runs locally  with no server support and accelerated with local GPUs 
 * WebGPU on browsers (through companion project [WebLLM](https://github.com/mlc-ai/web-llm/tree/main)).
 
 **[Click here to join our Discord server!][discord-url]**
+
 **[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/)**
 
 <p align="center">
