@@ -28,7 +28,7 @@ class LLMChatModuleWrapper {
     // lookup bundle path
     std::string bundle_path = NSBundle.mainBundle.bundlePath.UTF8String;
     // create the llm_chat_ instance
-    std::string tokenizer_path = bundle_path + "/dist/tokenizer.model";
+    std::string tokenizer_path = bundle_path + "/dist/params";
     std::string param_path = bundle_path + "/dist/params";
     llm_chat_ = (*fcreate)(lib, tokenizer_path, param_path, static_cast<int>(kDLMetal), 0);
     encode_func_ = llm_chat_->GetFunction("encode");

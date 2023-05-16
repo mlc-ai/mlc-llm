@@ -319,5 +319,4 @@ gallery/how_to/work_with_microtvm/micro_tvmc.py
 # GDB history file
 .gdb_history
 
-3rdparty
 dist

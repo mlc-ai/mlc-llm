@@ -25,4 +25,4 @@ cmake --build . --target install --config release -j
 cd ..
 rm -rf build/tvm_home
 ln -s  ${TVM_HOME} build/tvm_home
-cp ../dist/vicuna-v1-7b/float16/vicuna-v1-7b_iphone_float16.a build/lib/libmodel_iphone.a
+cp ../dist/vicuna-v1-7b-q3f16_0/vicuna-v1-7b-q3f16_0-iphone.a build/lib/libmodel_iphone.a
