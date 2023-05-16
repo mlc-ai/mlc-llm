@@ -46,25 +46,6 @@ quantization_dict = {
 
 supported_model_types = set(["llama", "gpt_neox", "moss"])
 
-def argparse_add_common(args: argparse.ArgumentParser) -> None:
-    args.add_argument(
-        "--quantization",
-        type=str,
-        choices=[*quantization_dict.keys()],
-        default=list(quantization_dict.keys())[0],
-    )
-    args.add_argument(
-        "--model-path",
-        type=str,
-        default=None,
-        help="Custom model path that contains params, tokenizer, and config"
-    )
-    args.add_argument(
-        "--hf-path",
-        type=str,
-        default=None,
-        help="Hugging Face path from which to download params, tokenizer, and config from"
-    )
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
     if hasattr(args, "device_name"):
@@ -208,7 +189,10 @@ def split_static_dynamic_tir(mod: tvm.IRModule):
 def copy_tokenizer(args: argparse.Namespace) -> None:
     for filename in os.listdir(args.model_path):
         if filename.startswith("tokenizer") or filename == "vocab.json":
-            shutil.copy(os.path.join(args.model_path, filename), args.artifact_path)
+            shutil.copy(
+                os.path.join(args.model_path, filename),
+                os.path.join(args.artifact_path, "params"),
+            )
 
 
 def parse_target(args: argparse.Namespace) -> None:
