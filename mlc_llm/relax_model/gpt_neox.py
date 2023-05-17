@@ -20,6 +20,7 @@ from tvm.relax.testing import nn
 from tvm.runtime import NDArray
 from tvm.script import relax as R
 
+from .commons import create_metadata_func
 from .modules import (
     Embedding,
     LayerNorm,
@@ -45,7 +46,7 @@ class GPTNeoXConfig:  # pylint: disable=too-many-instance-attributes
         dtype="float32",
         layer_norm_eps=1e-05,
         max_sequence_length=2048,
-        **kwargs
+        **kwargs,
     ):
         self.use_parallel_residual = use_parallel_residual
         self.hidden_size = hidden_size
@@ -571,7 +572,9 @@ def create_kv_cache_func(
 
 def create_softmax_func(bb: relax.BlockBuilder, config: GPTNeoXConfig) -> None:
     with bb.function("softmax_with_temperature"):
-        logits = nn.Placeholder((1, 1, config.vocab_size), dtype="float32", name="logits")
+        logits = nn.Placeholder(
+            (1, 1, config.vocab_size), dtype="float32", name="logits"
+        )
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
             div = bb.emit(relax.op.divide(logits, temperature))
@@ -580,13 +583,17 @@ def create_softmax_func(bb: relax.BlockBuilder, config: GPTNeoXConfig) -> None:
         bb.emit_func_output(gv, [logits, temperature])
 
 
-def get_model(
-    model_name: str,
-    model_path: str,
-    dtype: str,
-    hf_config
-):
+def get_model(model_name: str, model_path: str, dtype: str, hf_config):
     from transformers import AutoModelForCausalLM  # type: ignore[import]
+
+    if model_name.startswith("dolly"):
+        conv_template = "dolly"
+        stop_tokens = [2]
+    elif model_name.startswith("stablelm"):
+        conv_template = "stablelm"
+        stop_tokens = [50278, 50279, 50277, 1, 0]
+    else:
+        raise ValueError(f"Unsupported model {model_name}")
 
     config = GPTNeoXConfig(**hf_config, dtype=dtype)
     num_heads = config.num_attention_heads
@@ -636,6 +643,14 @@ def get_model(
     create_decoding_func(bb, config, [k for k, _ in param_list])
     create_kv_cache_func(bb, config)
     create_softmax_func(bb, config)
+    create_metadata_func(
+        bb,
+        model_name=model_name,
+        conv_template=conv_template,
+        max_window_size=config.max_sequence_length,
+        stop_tokens=stop_tokens,
+        add_prefix_space=False,
+    )
     mod = bb.get()
     for gv in mod.functions:
         func = mod[gv]
