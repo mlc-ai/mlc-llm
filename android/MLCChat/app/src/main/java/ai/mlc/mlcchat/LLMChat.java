@@ -50,12 +50,12 @@ public class LLMChat {
         assert stopped_func_ != null;
         assert runtime_stats_text_func_ != null;
 
+        String conv_template = "vicuna_v1.1";
         double temperature = 0.7;
         double top_p = 0.95;
-        int stream_interval = 1;
         int mean_gen_len = 128;
         double shift_fill_factor = 0.2;
-        llm_chat_.getFunction("init_chat").pushArg(temperature).pushArg(top_p).pushArg(stream_interval).pushArg(mean_gen_len).pushArg(shift_fill_factor).invoke();
+        llm_chat_.getFunction("init_chat_legacy").pushArg(conv_template).pushArg(temperature).pushArg(top_p).pushArg(mean_gen_len).pushArg(shift_fill_factor).invoke();
 
         systemlib_func.release();
         lib.release();

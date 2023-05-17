@@ -409,21 +409,69 @@ class LLMChatModule : public ModuleNode {
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { this->DecodeStep(); });
     } else if (name == "init_chat") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        // Process metadata
         std::string metadata_str = this->GetMetadata();
         picojson::value metadata_info;
         picojson::parse(metadata_info, metadata_str);
         auto metadata = metadata_info.get<picojson::object>();
         ICHECK(metadata["model_name"].is<std::string>());
-        ICHECK(metadata["conv_template"].is<std::string>());
         ICHECK(metadata["max_window_size"].is<int64_t>());
         ICHECK(metadata["add_prefix_space"].is<bool>());
         ICHECK(metadata["stop_tokens"].is<picojson::array>());
-
         this->model_name_ = metadata["model_name"].get<std::string>();
-        std::string conv_template = metadata["conv_template"].get<std::string>();
         this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
         this->add_prefix_space_ = metadata["add_prefix_space"].get<bool>();
+        auto stop_tokens = metadata["stop_tokens"].get<picojson::array>();
+        this->stop_tokens_.reserve(stop_tokens.size());
+        for (const picojson::value& stop_token : stop_tokens) {
+          ICHECK(stop_token.is<int64_t>());
+          this->stop_tokens_.push_back(static_cast<int32_t>(stop_token.get<int64_t>()));
+        }
 
+        // Process config json string
+        ICHECK_EQ(args.size(), 1);
+        ObjectRef config_obj = args[0];
+        std::string config_str = std::string(Downcast<String>(config_obj));
+        picojson::value config_info;
+        picojson::parse(config_info, config_str);
+        auto config = config_info.get<picojson::object>();
+        ICHECK(config["conv_template"].is<std::string>());
+        ICHECK(config["temperature"].is<double>());
+        ICHECK(config["top_p"].is<double>());
+        ICHECK(config["mean_gen_len"].is<int64_t>());
+        ICHECK(config["shift_fill_factor"].is<double>());
+        std::string conv_template = config["conv_template"].get<std::string>();
+        this->temperature_ = config["temperature"].get<double>();
+        this->top_p_ = config["top_p"].get<double>();
+        this->mean_gen_len_ = config["mean_gen_len"].get<int64_t>();
+        this->shift_fill_factor_ = config["shift_fill_factor"].get<double>();
+
+        this->conversation_ = Conversation::Create(conv_template);
+        this->ClearKVCache();
+        this->total_seq_len_ = 0;
+        this->start_pos_ = 0;
+        this->cur_pos_ = 0;
+        this->add_bos_ = true;
+        this->stop_str_ =
+            this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
+                ? this->conversation_.sep
+                : this->conversation_.sep2;
+      });
+    } else if (name == "init_chat_legacy") {
+      // TODO: remove the legacy initialization func after updating app and web sides.
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        // Process metadata
+        std::string metadata_str = this->GetMetadata();
+        picojson::value metadata_info;
+        picojson::parse(metadata_info, metadata_str);
+        auto metadata = metadata_info.get<picojson::object>();
+        ICHECK(metadata["model_name"].is<std::string>());
+        ICHECK(metadata["max_window_size"].is<int64_t>());
+        ICHECK(metadata["add_prefix_space"].is<bool>());
+        ICHECK(metadata["stop_tokens"].is<picojson::array>());
+        this->model_name_ = metadata["model_name"].get<std::string>();
+        this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
+        this->add_prefix_space_ = metadata["add_prefix_space"].get<bool>();
         auto stop_tokens = metadata["stop_tokens"].get<picojson::array>();
         this->stop_tokens_.reserve(stop_tokens.size());
         for (const picojson::value& stop_token : stop_tokens) {
@@ -432,12 +480,12 @@ class LLMChatModule : public ModuleNode {
         }
 
         ICHECK_EQ(args.size(), 5);
-        this->conversation_ = Conversation::Create(conv_template);
-        this->temperature_ = args[0];
-        this->top_p_ = args[1];
-        this->stream_interval_ = args[2];
+        this->conversation_ = Conversation::Create(args[0]);
+        this->temperature_ = args[1];
+        this->top_p_ = args[2];
         this->mean_gen_len_ = args[3];
         this->shift_fill_factor_ = args[4];
+
         this->ClearKVCache();
         this->total_seq_len_ = 0;
         this->start_pos_ = 0;
@@ -931,8 +979,6 @@ class LLMChatModule : public ModuleNode {
   double temperature_{0.8};
   // top_p
   double top_p_{0.95};
-  // stream interval
-  int64_t stream_interval_{1};
   // next_token
   int32_t next_token_{0};
   // output ids till now (refresh after encoding step)

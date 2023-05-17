@@ -587,10 +587,8 @@ def get_model(model_name: str, model_path: str, dtype: str, hf_config):
     from transformers import AutoModelForCausalLM  # type: ignore[import]
 
     if model_name.startswith("dolly"):
-        conv_template = "dolly"
         stop_tokens = [2]
     elif model_name.startswith("stablelm"):
-        conv_template = "stablelm"
         stop_tokens = [50278, 50279, 50277, 1, 0]
     else:
         raise ValueError(f"Unsupported model {model_name}")
@@ -646,7 +644,6 @@ def get_model(model_name: str, model_path: str, dtype: str, hf_config):
     create_metadata_func(
         bb,
         model_name=model_name,
-        conv_template=conv_template,
         max_window_size=config.max_sequence_length,
         stop_tokens=stop_tokens,
         add_prefix_space=False,
