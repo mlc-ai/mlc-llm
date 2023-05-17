@@ -145,13 +145,12 @@ void PrintSpecialCommands() {
  *
  * \param chat_mod The chat module.
  * \param model The model to use.
- * \param max_gen_len The maximum length of the generated sequence.
  * \param temperature The temperature to use for sampling.
  * \param top_p The top_p to use for sampling.
  */
-void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_gen_len = 2048,
-          double temperature = 0.7, double top_p = 0.95, int64_t stream_interval = 2,
-          int max_window_size = 768, int mean_gen_len = 128, double shift_fill_factor = 0.3) {
+void Chat(tvm::runtime::Module chat_mod, const std::string& model, double temperature = 0.7,
+          double top_p = 0.95, int64_t stream_interval = 2, int max_window_size = 768,
+          int mean_gen_len = 128, double shift_fill_factor = 0.3) {
   // conv template detect
   std::string conv_template;
   if (model.find("vicuna") == 0 || model.find("llama") == 0) {
@@ -167,9 +166,8 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_g
   }
 
   // initialize chat context
-  chat_mod.GetFunction("init_chat")(model, conv_template, max_gen_len, temperature, top_p,
-                                    stream_interval, max_window_size, mean_gen_len,
-                                    shift_fill_factor);
+  chat_mod.GetFunction("init_chat")(model, conv_template, temperature, top_p, stream_interval,
+                                    max_window_size, mean_gen_len, shift_fill_factor);
   auto f_stop = chat_mod.GetFunction("stopped");
   auto f_encode = chat_mod.GetFunction("encode");
   auto f_decode = chat_mod.GetFunction("decode");
