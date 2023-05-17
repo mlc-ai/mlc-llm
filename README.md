@@ -1,8 +1,6 @@
-[discord-url]: https://discord.gg/9Xpy2HGBuD
-
 # MLC LLM
 
-| [Project](https://mlc.ai/mlc-llm/) | [Blog](https://mlc.ai/blog/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [Demo: iOS](https://mlc.ai/mlc-llm/#iphone) | [Demo: Android](https://mlc.ai/mlc-llm/#android) | [Demo: CLI](https://mlc.ai/mlc-llm/#windows-linux-mac) | [WebLLM](https://mlc.ai/web-llm/) | [WebStableDiffusion](https://mlc.ai/web-stable-diffusion/) | [Discord](discord-url)
+| [Project](https://mlc.ai/mlc-llm/) | [Blog](https://mlc.ai/blog/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [Demo: iOS](https://mlc.ai/mlc-llm/#iphone) | [Demo: Android](https://mlc.ai/mlc-llm/#android) | [Demo: CLI](https://mlc.ai/mlc-llm/#windows-linux-mac) | [WebLLM](https://mlc.ai/web-llm/) | [WebStableDiffusion](https://mlc.ai/web-stable-diffusion/) | [Discord](https://discord.gg/9Xpy2HGBuD)
 
 MLC LLM is a **universal solution** that allows **any language models** to be **deployed natively** on a diverse set of hardware backends and native applications, plus a **productive framework** for everyone to further optimize model performance for their own use cases.
 
@@ -17,7 +15,7 @@ Everything runs locally  with no server support and accelerated with local GPUs 
 * NVIDIA GPUs via CUDA on Windows and Linux;
 * WebGPU on browsers (through companion project [WebLLM](https://github.com/mlc-ai/web-llm/tree/main)).
 
-**[Click here to join our Discord server!][discord-url]**
+**[Click here to join our Discord server!][https://discord.gg/9Xpy2HGBuD]**
 
 **[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/)**
 
