@@ -3,8 +3,11 @@
  * \file llm_chat.cc
  * \brief Implementation of llm chat.
  */
+#define PICOJSON_USE_INT64
+
 #include "llm_chat.h"
 
+#include <picojson.h>
 #include <tokenizers_cpp.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
@@ -381,10 +384,6 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& path) {
   }
 }
 
-std::vector<int32_t> stop_tokens_stablelm{50278, 50279, 50277, 1, 0};
-std::vector<int32_t> stop_tokens_moss{106068};
-std::vector<int32_t> stop_tokens_default{2};
-
 //------------------------------
 // Chat module
 //------------------------------
@@ -410,28 +409,40 @@ class LLMChatModule : public ModuleNode {
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { this->DecodeStep(); });
     } else if (name == "init_chat") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 8);
-        this->model_name_ = args[0].operator std::string();
-        this->conversation_ = Conversation::Create(args[1]);
-        this->temperature_ = args[2];
-        this->top_p_ = args[3];
-        this->stream_interval_ = args[4];
-        this->max_window_size_ = args[5];
-        this->mean_gen_len_ = args[6];
-        this->shift_fill_factor_ = args[7];
+        std::string metadata_str = this->GetMetadata();
+        picojson::value metadata_info;
+        picojson::parse(metadata_info, metadata_str);
+        auto metadata = metadata_info.get<picojson::object>();
+        ICHECK(metadata["model_name"].is<std::string>());
+        ICHECK(metadata["conv_template"].is<std::string>());
+        ICHECK(metadata["max_window_size"].is<int64_t>());
+        ICHECK(metadata["add_prefix_space"].is<bool>());
+        ICHECK(metadata["stop_tokens"].is<picojson::array>());
+
+        this->model_name_ = metadata["model_name"].get<std::string>();
+        std::string conv_template = metadata["conv_template"].get<std::string>();
+        this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
+        this->add_prefix_space_ = metadata["add_prefix_space"].get<bool>();
+
+        auto stop_tokens = metadata["stop_tokens"].get<picojson::array>();
+        this->stop_tokens_.reserve(stop_tokens.size());
+        for (const picojson::value& stop_token : stop_tokens) {
+          ICHECK(stop_token.is<int64_t>());
+          this->stop_tokens_.push_back(static_cast<int32_t>(stop_token.get<int64_t>()));
+        }
+
+        ICHECK_EQ(args.size(), 5);
+        this->conversation_ = Conversation::Create(conv_template);
+        this->temperature_ = args[0];
+        this->top_p_ = args[1];
+        this->stream_interval_ = args[2];
+        this->mean_gen_len_ = args[3];
+        this->shift_fill_factor_ = args[4];
         this->ClearKVCache();
         this->total_seq_len_ = 0;
         this->start_pos_ = 0;
         this->cur_pos_ = 0;
         this->add_bos_ = true;
-        if (args[1] == "stablelm") {
-          this->stop_tokens_ = stop_tokens_stablelm;
-        } else if (args[1] == "moss") {
-          this->stop_tokens_ = stop_tokens_moss;
-          this->add_prefix_space_ = true;
-        } else {
-          this->stop_tokens_ = stop_tokens_default;
-        }
         this->stop_str_ =
             this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
                 ? this->conversation_.sep
@@ -570,6 +581,11 @@ class LLMChatModule : public ModuleNode {
         ShapeTuple({1, static_cast<int64_t>(token_ids.size())}), input_token_ids_->dtype);
     view.CopyFromBytes(token_ids.data(), token_ids.size() * sizeof(int32_t));
     return view;
+  }
+
+  std::string GetMetadata() {
+    ObjectRef ret = this->get_metadata_func_();
+    return std::string(Downcast<String>(ret));
   }
 
   /*!
@@ -775,6 +791,7 @@ class LLMChatModule : public ModuleNode {
     decoding_func_ = vm_->GetFunction("decoding");
     encoding_without_cache_func_ = vm_->GetFunction("encoding_without_cache");
     softmax_func_ = vm_->GetFunction("softmax_with_temperature");
+    get_metadata_func_ = vm_->GetFunction("get_metadata");
     auto kv_cache_func = vm_->GetFunction("create_kv_cache");
 
     auto fsample_topp_from_prob_ptr =
@@ -809,45 +826,6 @@ class LLMChatModule : public ModuleNode {
       ++count;
     }
     return count;
-  }
-
-  int64_t ComputeSkipEchoLen(const std::string& prompt) {
-    int64_t skip_echo_len = 0;
-    std::string model_name(model_name_);
-    std::transform(model_name.begin(), model_name.end(), model_name.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    if (model_name.find("chatglm") != std::string::npos) {
-      skip_echo_len = conversation_.messages[conversation_.messages.size() - 1][1].length() + 1;
-    } else if (model_name.find("dolly") != std::string::npos) {
-      std::vector<std::string> special_toks{"### Instruction:", "### Response:", "### End"};
-      skip_echo_len = prompt.length();
-      for (const auto& tok : special_toks) {
-        skip_echo_len -= CountSubstr(prompt, tok) * tok.length();
-      }
-    } else if (model_name.find("oasst") != std::string::npos &&
-               model_name.find("pythia") != std::string::npos) {
-      std::vector<std::string> special_toks{"<|prompter|>", "<|assistant|>", "<|endoftext|>"};
-      skip_echo_len = prompt.length();
-      for (const auto& tok : special_toks) {
-        skip_echo_len -= CountSubstr(prompt, tok) * tok.length();
-      }
-    } else if (model_name.find("stablelm") != std::string::npos) {
-      std::vector<std::string> special_toks{"<|SYSTEM|>", "<|USER|>", "<|ASSISTANT|>"};
-      skip_echo_len = prompt.length();
-      for (const auto& tok : special_toks) {
-        skip_echo_len -= CountSubstr(prompt, tok) * tok.length();
-      }
-    } else if (model_name.find("moss") != std::string::npos) {
-      std::vector<std::string> special_toks{"<|endoftext|>", "<eom>", "<eoh>",
-                                            "<eot>",         "<eoc>", "<eor>"};
-      skip_echo_len = prompt.length();
-      for (const auto& tok : special_toks) {
-        skip_echo_len -= CountSubstr(prompt, tok) * tok.length();
-      }
-    } else {
-      skip_echo_len = prompt.length() + 1 - CountSubstr(prompt, "</s>") * 3;
-    }
-    return skip_echo_len;
   }
 
   // run forward compute
@@ -997,6 +975,8 @@ class LLMChatModule : public ModuleNode {
   PackedFunc encoding_without_cache_func_;
   // softmax
   PackedFunc softmax_func_;
+  // get model metadata
+  PackedFunc get_metadata_func_;
   // sample top p from logits
   PackedFunc fsample_topp_from_logits_;
   // sample top p from prob

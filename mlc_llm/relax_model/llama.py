@@ -8,6 +8,8 @@ from tvm import relax, te
 from tvm.relax.testing import nn
 from tvm.script import relax as R
 
+from .commons import create_metadata_func
+
 
 @dataclass
 class LlamaConfig:
@@ -677,6 +679,14 @@ def get_model(args, hf_config):
         create_decoding_func(bb, config)
         create_kv_cache_func(bb, config)
         create_softmax_func(bb, config)
+        create_metadata_func(
+            bb,
+            model_name=model_name,
+            conv_template="vicuna_v1.1" if model_name.startswith("vicuna") else "",
+            max_window_size=config.max_sequence_length,
+            stop_tokens=[2],
+            add_prefix_space=False,
+        )
 
         mod = bb.get()
 

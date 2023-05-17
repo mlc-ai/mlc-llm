@@ -194,6 +194,7 @@ def mod_transform_before_build(
         "decoding",
         "create_kv_cache",
         "softmax_with_temperature",
+        "get_metadata",
     ]
 
     if args.quantization.mode != "no":

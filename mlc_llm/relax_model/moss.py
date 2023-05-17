@@ -21,6 +21,7 @@ from tvm.relax.testing import nn
 from tvm.runtime import NDArray
 from tvm.script import relax as R
 
+from .commons import create_metadata_func
 from .modules import (
     Embedding,
     LayerNorm,
@@ -52,7 +53,7 @@ class MossConfig:  # pylint: disable=too-many-instance-attributes
         layer_norm_eps=1e-5,
         max_sequence_length=2048,
         rotary_emb_base=10000,
-        **kwargs
+        **kwargs,
     ):
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
@@ -582,9 +583,7 @@ def get_model(args, hf_config):
     hidden_size = config.hidden_size
     head_dim = hidden_size // num_heads
     param_list: List[Tuple[str, NDArray]] = []
-    hf_model = AutoModelForCausalLM.from_pretrained(
-        model_path, trust_remote_code=True
-    )
+    hf_model = AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=True)
 
     for name, param in hf_model.named_parameters():
         param = param.detach().cpu().numpy()
@@ -611,22 +610,28 @@ def get_model(args, hf_config):
             (name, tvm.nd.array(param, tvm.cpu())) for name, param in param_list
         ]
 
-        bb = relax.BlockBuilder()
-        create_encoding_func(bb, config, param_list)
-        create_decoding_func(bb, config, param_list)
-        create_kv_cache_func(bb, config)
-        mod = bb.get()
-        for gv in mod.functions:
-            func = mod[gv]
-            if isinstance(func, relax.Function):
-                mod[gv] = func.with_attr(
-                    "tir_var_upper_bound",
-                    {
-                        "n": config.max_sequence_length,
-                        "m": config.max_sequence_length,
-                    },
-                )
+    bb = relax.BlockBuilder()
+    create_encoding_func(bb, config, param_list)
+    create_decoding_func(bb, config, param_list)
+    create_kv_cache_func(bb, config)
+    create_metadata_func(
+        bb,
+        model_name=model_name,
+        conv_template="moss",
+        max_window_size=config.max_sequence_length,
+        stop_tokens=[106068],
+        add_prefix_space=True,
+    )
+    mod = bb.get()
+    for gv in mod.functions:
+        func = mod[gv]
+        if isinstance(func, relax.Function):
+            mod[gv] = func.with_attr(
+                "tir_var_upper_bound",
+                {
+                    "n": config.max_sequence_length,
+                    "m": config.max_sequence_length,
+                },
+            )
 
-        return mod, [v for _, v in param_list]
-
-    raise ValueError(f"Unsupported model: {model_name}")
+    return mod, [v for _, v in param_list]

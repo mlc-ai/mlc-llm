@@ -144,30 +144,15 @@ void PrintSpecialCommands() {
  * \brief Start a chat conversation.
  *
  * \param chat_mod The chat module.
- * \param model The model to use.
  * \param temperature The temperature to use for sampling.
  * \param top_p The top_p to use for sampling.
  */
-void Chat(tvm::runtime::Module chat_mod, const std::string& model, double temperature = 0.7,
-          double top_p = 0.95, int64_t stream_interval = 2, int max_window_size = 768,
-          int mean_gen_len = 128, double shift_fill_factor = 0.3) {
-  // conv template detect
-  std::string conv_template;
-  if (model.find("vicuna") == 0 || model.find("llama") == 0) {
-    conv_template = "vicuna_v1.1";
-  } else if (model.find("dolly-") == 0) {
-    conv_template = "dolly";
-  } else if (model.find("stablelm") == 0) {
-    conv_template = "stablelm";
-  } else if (model.find("moss") == 0) {
-    conv_template = "moss";
-  } else {
-    LOG(FATAL) << "Do not recognize model name " << model;
-  }
-
+void Chat(tvm::runtime::Module chat_mod, double temperature = 0.7, double top_p = 0.95,
+          int64_t stream_interval = 2, int max_window_size = 768, int mean_gen_len = 128,
+          double shift_fill_factor = 0.3) {
   // initialize chat context
-  chat_mod.GetFunction("init_chat")(model, conv_template, temperature, top_p, stream_interval,
-                                    max_window_size, mean_gen_len, shift_fill_factor);
+  chat_mod.GetFunction("init_chat")(temperature, top_p, stream_interval, mean_gen_len,
+                                    shift_fill_factor);
   auto f_stop = chat_mod.GetFunction("stopped");
   auto f_encode = chat_mod.GetFunction("encode");
   auto f_decode = chat_mod.GetFunction("decode");
@@ -344,7 +329,7 @@ int main(int argc, char* argv[]) {
     if (args.get<bool>("--evaluate")) {
       chat_mod.GetFunction("evaluate")();
     } else {
-      Chat(chat_mod, model);
+      Chat(chat_mod);
     }
   } catch (const std::runtime_error& err) {
     // catch exception so error message
