@@ -16,7 +16,24 @@ from mlc_llm.relax_model import gpt_neox, llama, moss
 
 def _parse_args():
     args = argparse.ArgumentParser()
-    utils.argparse_add_common(args)
+    args.add_argument(
+        "--model-path",
+        type=str,
+        default=None,
+        help="Custom model path that contains params, tokenizer, and config",
+    )
+    args.add_argument(
+        "--hf-path",
+        type=str,
+        default=None,
+        help="Hugging Face path from which to download params, tokenizer, and config from",
+    )
+    args.add_argument(
+        "--quantization",
+        type=str,
+        choices=[*utils.quantization_dict.keys()],
+        default=list(utils.quantization_dict.keys())[0],
+    )
     args.add_argument("--max-seq-len", type=int, default=-1)
     args.add_argument("--target", type=str, default="auto")
     args.add_argument(
@@ -62,9 +79,12 @@ def _parse_args():
 
     return parsed
 
+
 def _setup_model_path(args):
     if args.model_path and args.hf_path:
-        assert (args.model_path and not args.hf_path) or (args.hf_path and not args.model_path), "You cannot specify both a model path and a HF path. Please select one to specify."
+        assert (args.model_path and not args.hf_path) or (
+            args.hf_path and not args.model_path
+        ), "You cannot specify both a model path and a HF path. Please select one to specify."
     if args.model_path:
         validate_config(args)
         with open(os.path.join(args.model_path, "config.json")) as f:
@@ -78,7 +98,9 @@ def _setup_model_path(args):
         else:
             os.makedirs(args.model_path, exist_ok=True)
             os.system("git lfs install")
-            os.system(f"git clone https://huggingface.co/{args.hf_path} {args.model_path}")
+            os.system(
+                f"git clone https://huggingface.co/{args.hf_path} {args.model_path}"
+            )
             print(f"Downloaded weights to {args.model_path}")
         validate_config(args)
     else:
@@ -86,12 +108,20 @@ def _setup_model_path(args):
     print(f"Using model path {args.model_path}")
     return args
 
+
 def validate_config(args):
-    assert os.path.exists(os.path.join(args.model_path, "config.json")), "Model path must contain valid config file."
+    assert os.path.exists(
+        os.path.join(args.model_path, "config.json")
+    ), "Model path must contain valid config file."
     with open(os.path.join(args.model_path, "config.json")) as f:
         config = json.load(f)
-        assert ("model_type" in config) and ("_name_or_path" in config), "Invalid config format."
-        assert config["model_type"] in utils.supported_model_types, f"Model type {config['model_type']} not supported."
+        assert ("model_type" in config) and (
+            "_name_or_path" in config
+        ), "Invalid config format."
+        assert (
+            config["model_type"] in utils.supported_model_types
+        ), f"Model type {config['model_type']} not supported."
+
 
 def debug_dump_script(mod, name, args):
     """Debug dump mode"""
@@ -177,7 +207,7 @@ def dump_default_mlc_llm_config(args):
     config["stream_interval"] = 2
     config["mean_gen_len"] = 128
     config["shift_fill_factor"] = 0.3
-    dump_path = os.path.join(args.artifact_path, "mlc_llm_config.json")
+    dump_path = os.path.join(args.artifact_path, "params", "mlc-llm-config.json")
     with open(dump_path, "w") as outfile:
         json.dump(config, outfile, indent=4)
     print(f"Finish exporting mlc_llm_config to {dump_path}")
@@ -255,10 +285,7 @@ if __name__ == "__main__":
                 mod, params = llama.get_model(ARGS, config)
             elif ARGS.model_category == "gpt_neox":
                 mod, params = gpt_neox.get_model(
-                    ARGS.model,
-                    ARGS.model_path,
-                    ARGS.quantization.model_dtype,
-                    config
+                    ARGS.model, ARGS.model_path, ARGS.quantization.model_dtype, config
                 )
             elif ARGS.model_category == "moss":
                 mod, params = moss.get_model(ARGS, config)

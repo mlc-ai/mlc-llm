@@ -135,7 +135,9 @@ def deploy_to_pipeline(args) -> None:
     primary_device = tvm.device(args.primary_device)
     const_params = utils.load_params(args.artifact_path, primary_device)
     state = TestState(args)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        os.path.join(args.artifact_path, "params"), trust_remote_code=True
+    )
 
     print("Tokenizing...")
     inputs = tvm.nd.array(
@@ -177,7 +179,7 @@ def deploy_to_pipeline(args) -> None:
 
 def _parse_args():
     args = argparse.ArgumentParser()
-    utils.argparse_add_common(args)
+    args.add_argument("--local-id", type=str, required=True)
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument("--primary-device", type=str, default="auto")
     args.add_argument("--cmp-device", type=str, required=True)
@@ -185,9 +187,9 @@ def _parse_args():
     args.add_argument("--time-eval", default=False, action="store_true")
     args.add_argument("--skip-rounds", type=int, default=0)
     parsed = args.parse_args()
+    parsed.model, parsed.quantization = parsed.local_id.rsplit("-", 1)
     utils.argparse_postproc_common(parsed)
 
-    parsed.model_path = os.path.join(parsed.artifact_path, "models", parsed.model)
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
     )

@@ -28,12 +28,13 @@ class Colors:
 
 def _parse_args():
     args = argparse.ArgumentParser()
-    utils.argparse_add_common(args)
+    args.add_argument("--local-id", type=str, required=True)
     args.add_argument("--device-name", type=str, default="auto")
     args.add_argument("--debug-dump", action="store_true", default=False)
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument("--max-gen-len", type=int, default=2048)
     parsed = args.parse_args()
+    parsed.model, parsed.quantization = parsed.local_id.rsplit("-", 1)
     utils.argparse_postproc_common(parsed)
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
@@ -223,7 +224,7 @@ def main():
     if ARGS.debug_dump:
         torch.manual_seed(12)
     tokenizer = AutoTokenizer.from_pretrained(
-        ARGS.artifact_path, trust_remote_code=True
+        os.path.join(ARGS.artifact_path, "params"), trust_remote_code=True
     )
     tokenizer.pad_token_id = tokenizer.eos_token_id
     if ARGS.model.startswith("dolly-"):

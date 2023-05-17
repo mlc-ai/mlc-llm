@@ -1,3 +1,5 @@
+[discord-url]: https://discord.gg/9Xpy2HGBuD
+
 # MLC LLM
 
 | [Project](https://mlc.ai/mlc-llm/) | [Blog](https://mlc.ai/blog/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [Demo: iOS](https://mlc.ai/mlc-llm/#iphone) | [Demo: Android](https://mlc.ai/mlc-llm/#android) | [Demo: CLI](https://mlc.ai/mlc-llm/#windows-linux-mac) | [WebLLM](https://mlc.ai/web-llm/) | [WebStableDiffusion](https://mlc.ai/web-stable-diffusion/) | [Discord](https://discord.gg/9Xpy2HGBuD)
