@@ -358,8 +358,9 @@
 					"-lmlc_llm",
 					"-ltvm_runtime",
 					"-Wl,-noall_load",
-					"-lsentencepiece",
 					"-ltokenizers_cpp",
+					"-lsentencepiece",
+					"-ltokenizers_c",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = mlc.Chat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -413,8 +414,9 @@
 					"-lmlc_llm",
 					"-ltvm_runtime",
 					"-Wl,-noall_load",
-					"-lsentencepiece",
 					"-ltokenizers_cpp",
+					"-lsentencepiece",
+					"-ltokenizers_c",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = mlc.Chat;
 				PRODUCT_NAME = "$(TARGET_NAME)";

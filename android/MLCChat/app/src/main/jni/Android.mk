@@ -37,6 +37,13 @@ include $(PREBUILT_STATIC_LIBRARY)
 #####################################################
 
 include $(CLEAR_VARS)
+LOCAL_MODULE := local_tokenizers_c
+LOCAL_SRC_FILES := $(LIB_PATH)/libtokenizers_c.a
+include $(PREBUILT_STATIC_LIBRARY)
+
+#####################################################
+
+include $(CLEAR_VARS)
 LOCAL_MODULE := local_tokenizers_cpp
 LOCAL_SRC_FILES := $(LIB_PATH)/libtokenizers_cpp.a
 include $(PREBUILT_STATIC_LIBRARY)
@@ -68,7 +75,7 @@ LOCAL_C_INCLUDES := $(TVM_HOME)/include \
 # LOCAL_C_FLAGS := -static
 
 LOCAL_WHOLE_STATIC_LIBRARIES := local_mlc_llm local_tvm_runtime local_model_android
-LOCAL_STATIC_LIBRARIES := local_sentencepiece local_tokenizers_cpp 
+LOCAL_STATIC_LIBRARIES := local_sentencepiece local_tokenizers_c local_tokenizers_cpp
 LOCAL_CPP_FEATURES += exceptions
 LOCAL_ARM_MODE := arm
 

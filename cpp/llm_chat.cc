@@ -5,8 +5,7 @@
  */
 #include "llm_chat.h"
 
-#include <sentencepiece_processor.h>
-#include <tokenizers.h>
+#include <tokenizers_cpp.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
@@ -342,6 +341,8 @@ class Conversation {
 //----------------------------
 // Tokenizers
 //----------------------------
+using tokenizers::Tokenizer;
+
 std::string LoadBytesFromFile(const std::string& path) {
   std::ifstream fs(path, std::ios::in | std::ios::binary);
   ICHECK(!fs.fail()) << "Cannot open " << path;
@@ -354,97 +355,29 @@ std::string LoadBytesFromFile(const std::string& path) {
   return data;
 }
 
-inline bool EndsWith(std::string const& value, std::string const& end) {
-  if (end.size() <= value.size()) {
-    return std::equal(end.rbegin(), end.rend(), value.rbegin());
-  }
-  return false;
-}
-
-/*!
- * \brief a universal tokenizer that loads
- * either HF's tokenizer or sentence piece, depending on the type.
- */
-class Tokenizer {
- public:
-  // bos token
-  int32_t bos_token_id{1};
-  // eos token id
-  int32_t eos_token_id{2};
-
-  virtual ~Tokenizer() {}
-  virtual std::vector<int32_t> Encode(const std::string& text) = 0;
-  virtual std::string Decode(const std::vector<int32_t>& ids) = 0;
-
-  static std::unique_ptr<Tokenizer> FromFile(const std::string& path);
-  static std::unique_ptr<Tokenizer> ByteLevelBPEFromFile(const std::string& path);
-};
-
-class SentencePieceTokenizer : public Tokenizer {
- public:
-  SentencePieceTokenizer(const std::string& path) { sentence_piece_.Load(path); }
-
-  std::vector<int32_t> Encode(const std::string& text) final {
-    std::vector<int32_t> tokens;
-    sentence_piece_.Encode(text, &tokens).IgnoreError();
-    return tokens;
-  }
-
-  std::string Decode(const std::vector<int32_t>& ids) final {
-    std::string text;
-    sentence_piece_.Decode(ids, &text).IgnoreError();
-    return text;
-  }
-
- private:
-  // the tokenizer
-  sentencepiece::SentencePieceProcessor sentence_piece_;
-};
-
-class HFTokenizer : public Tokenizer {
- public:
-  HFTokenizer(const std::string& path)
-      : tokenizer_(tokenizers::Tokenizer::FromJSON(LoadBytesFromFile(path))) {}
-
-  HFTokenizer(const std::filesystem::path& vocab_path, const std::filesystem::path& merges_path,
-              const std::optional<std::filesystem::path>& added_tokens_path)
-      : tokenizer_(tokenizers::Tokenizer::FromBPE(
-            LoadBytesFromFile(vocab_path.string()), LoadBytesFromFile(merges_path.string()),
-            added_tokens_path ? LoadBytesFromFile(added_tokens_path.value().string()) : "")) {}
-
-  std::vector<int32_t> Encode(const std::string& text) final {
-    return tokenizer_.Encode(text, false);
-  }
-
-  std::string Decode(const std::vector<int32_t>& ids) final {
-    return tokenizer_.Decode(ids, false);
-  }
-
- private:
-  // the tokenizer
-  tokenizers::Tokenizer tokenizer_;
-};
-
-std::unique_ptr<Tokenizer> Tokenizer::FromFile(const std::string& path) {
-  if (EndsWith(path, ".model")) {
-    return std::make_unique<SentencePieceTokenizer>(path);
-  } else {
-    return std::make_unique<HFTokenizer>(path);
-  }
-}
-
-std::unique_ptr<Tokenizer> Tokenizer::ByteLevelBPEFromFile(const std::string& path) {
+std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& path) {
   std::filesystem::path vocab_path(path + "/" + "vocab.json");
   std::filesystem::path merges_path(path + "/" + "merges.txt");
-  std::optional<std::filesystem::path> added_tokens(path + "/" + "added_tokens.json");
-  if (!std::filesystem::exists(merges_path)) {
-    LOG(FATAL) << "Failed loading ByteLevelBPETokenizer: merges.txt does not exists in " << path;
+  std::filesystem::path added_tokens_path(path + "/" + "added_tokens.json");
+  std::filesystem::path sentencepiece_model(path + "/" + "tokenizer.model");
+  std::filesystem::path tokenizer_json_path(path + "/" + "tokenizer.json");
+
+  if (std::filesystem::exists(sentencepiece_model)) {
+    return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece_model));
+  } else if (std::filesystem::exists(merges_path)) {
+    CHECK(std::filesystem::exists(vocab_path)) << "Expect vocab.json to exist in the same folder as merges.txt";
+    std::string vocab = LoadBytesFromFile(vocab_path);
+    std::string merges = LoadBytesFromFile(merges_path);
+    std::string added_tokens = "";
+    if (std::filesystem::exists(added_tokens_path)) {
+      added_tokens = LoadBytesFromFile(added_tokens_path);
+    }
+    return Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens);
+  } else {
+    CHECK(std::filesystem::exists(tokenizer_json_path))
+      << "Cannot find any tokenizer file in path " << path;
+    return Tokenizer::FromBlobJSON(LoadBytesFromFile(tokenizer_json_path));
   }
-  if (!std::filesystem::exists(added_tokens.value())) {
-    added_tokens = std::nullopt;
-  }
-  // std::string vocab_path = std::filesystem::
-  return std::make_unique<HFTokenizer>(vocab_path, merges_path, added_tokens);
 }
 
 std::vector<int32_t> stop_tokens_stablelm{50278, 50279, 50277, 1, 0};
@@ -574,7 +507,7 @@ class LLMChatModule : public ModuleNode {
 
     std::vector<int32_t> tokens;
     if (this->add_bos_) {
-      tokens.insert(tokens.begin(), tokenizer_->bos_token_id);
+      tokens.insert(tokens.begin(), bos_token_id_);
     }
     auto first_prompt_tokens = this->tokenizer_->Encode(prompts[0]);
     tokens.insert(tokens.end(), first_prompt_tokens.begin(), first_prompt_tokens.end());
@@ -603,7 +536,7 @@ class LLMChatModule : public ModuleNode {
     context.clear();
     tokens.clear();
     if (this->add_bos_) {
-      tokens.insert(tokens.begin(), tokenizer_->bos_token_id);
+      tokens.insert(tokens.begin(), bos_token_id_);
     }
     auto all_prompts = this->conversation_.GetPromptArray();
     first_prompt_tokens = this->tokenizer_->Encode(all_prompts[0]);
@@ -769,7 +702,7 @@ class LLMChatModule : public ModuleNode {
     this->ClearKVCache();
     std::string test_prompt = "The capital of Canada is";
     std::vector<int32_t> tokens = tokenizer_->Encode(test_prompt);
-    tokens.insert(tokens.begin(), tokenizer_->bos_token_id);
+    tokens.insert(tokens.begin(), bos_token_id_);
     int64_t token_len = static_cast<int64_t>(tokens.size());
 
     auto input_data = NDArray::Empty({1, token_len}, DataType::Int(32), device_);
@@ -1046,6 +979,10 @@ class LLMChatModule : public ModuleNode {
   bool add_prefix_space_{false};
   // internal tokenizer
   std::unique_ptr<Tokenizer> tokenizer_;
+  // bos token
+  int32_t bos_token_id_{1};
+  // eos token id
+  int32_t eos_token_id_{2};
   //----------------------------
   // TVM related states
   //----------------------------
@@ -1086,14 +1023,9 @@ tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
 tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
                                       const tvm::runtime::String& tokenizer_path,
                                       const tvm::runtime::String& param_path, DLDevice device) {
-  if (std::filesystem::is_regular_file(std::string(tokenizer_path))) {
-    // tokenizer stored in single files.
-    return CreateChatModule(executable, Tokenizer::FromFile(tokenizer_path), param_path, device);
-  } else {
-    // tokenizer stored in multiple files.
-    return CreateChatModule(executable, Tokenizer::ByteLevelBPEFromFile(tokenizer_path), param_path,
-                            device);
-  }
+
+  // tokenizer stored in single files.
+  return CreateChatModule(executable, TokenizerFromPath(tokenizer_path), param_path, device);
 }
 
 // register as a system function that can be queried
