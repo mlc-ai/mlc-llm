@@ -38,11 +38,12 @@ We are excited to share that we have enabled the Android support for MLC-LLM. Ch
     git clone https://github.com/mlc-ai/mlc-llm.git --recursive
     cd mlc-llm
 
-    # From Hugging Face URL
-    python3 build.py --hf-path databricks/dolly-v2-3b --quantization q4f16_0 --target android --max-seq-len 768
-
     # From local directory
     python3 build.py --model-path path/to/vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768
+
+    # If the model path is `dist/models/vicuna-v1-7b`,
+    # we can simplify the build command to
+    # python build.py --model=vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768
     ```
 
 5. Build libraries for Android app.
