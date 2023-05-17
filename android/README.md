@@ -39,11 +39,11 @@ We are excited to share that we have enabled the Android support for MLC-LLM. Ch
     cd mlc-llm
 
     # From local directory
-    python3 build.py --model-path path/to/vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768
+    python3 build.py --model path/to/vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768
 
     # If the model path is `dist/models/vicuna-v1-7b`,
     # we can simplify the build command to
-    # python build.py --model=vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768
+    # python build.py --model vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768
     ```
 
 5. Build libraries for Android app.

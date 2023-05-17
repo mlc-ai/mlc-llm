@@ -25,12 +25,6 @@ def _parse_args():
         '"--artifact-path/models"',
     )
     args.add_argument(
-        "--model-path",
-        type=str,
-        default=None,
-        help="Custom model path that contains params, tokenizer, and config",
-    )
-    args.add_argument(
         "--hf-path",
         type=str,
         default=None,
@@ -89,20 +83,7 @@ def _parse_args():
 
 
 def _setup_model_path(args):
-    assert not (
-        args.model_path and args.hf_path
-    ), "You cannot specify both a model path and a HF path. Please select one to specify."
-
-    if args.model_path:
-        if args.model != "auto":
-            assert args.model == os.path.basename(args.model_path), (
-                'When both "--model" and "--model-path" is specified, the '
-                'value of "--model" is required to match the basename of "--model-path"'
-            )
-        else:
-            args.model = os.path.basename(args.model_path)
-        validate_config(args.model_path)
-    elif args.hf_path:
+    if args.hf_path:
         if args.model != "auto":
             assert args.model == os.path.basename(args.hf_path), (
                 'When both "--model" and "--hf-path" is specified, the '
@@ -122,13 +103,16 @@ def _setup_model_path(args):
             print(f"Downloaded weights to {args.model_path}")
         validate_config(args.model_path)
     elif args.model != "auto":
-        args.model_path = os.path.join(args.artifact_path, "models", args.model)
+        if os.path.isdir(args.model):
+            args.model_path = args.model
+            args.model = os.path.basename(args.model)
+        else:
+            args.model_path = os.path.join(args.artifact_path, "models", args.model)
         validate_config(args.model_path)
     else:
         lookup_path = os.path.join(args.artifact_path, "models")
         print(
-            'None of "--model", "--model-path" and "--hf-path" is specified. Searching '
-            f"in {lookup_path} for existing models."
+            f'"--model" is set to "auto". Searching in {lookup_path} for existing models.'
         )
         for dirname in os.listdir(lookup_path):
             if os.path.isdir(os.path.join(lookup_path, dirname)) and os.path.isfile(
@@ -247,7 +231,7 @@ def dump_default_mlc_llm_config(args):
     config["stream_interval"] = 2
     config["mean_gen_len"] = 128
     config["shift_fill_factor"] = 0.3
-    dump_path = os.path.join(args.artifact_path, "params", "mlc-llm-config.json")
+    dump_path = os.path.join(args.artifact_path, "params", "mlc-chat-config.json")
     with open(dump_path, "w") as outfile:
         json.dump(config, outfile, indent=4)
     print(f"Finish exporting mlc_llm_config to {dump_path}")

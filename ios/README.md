@@ -27,7 +27,7 @@ Note: You will need Apple Developer Account to build iOS App locally.
     cd mlc-llm
 
     # From local directory
-    python3 build.py --model-path path/to/vicuna-v1-7b --quantization q3f16_0 --target iphone --max-seq-len 768
+    python3 build.py --model path/to/vicuna-v1-7b --quantization q3f16_0 --target iphone --max-seq-len 768
 
     # If the model path is `dist/models/vicuna-v1-7b`,
     # we can simplify the build command to
