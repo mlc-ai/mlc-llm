@@ -17,6 +17,14 @@ from mlc_llm.relax_model import gpt_neox, llama, moss
 def _parse_args():
     args = argparse.ArgumentParser()
     args.add_argument(
+        "--model",
+        type=str,
+        default="auto",
+        help='The name of the model to build. If it is "auto", we will automatically set the '
+        'model name according to "--model-path", "hf-path" or the model folders under '
+        '"--artifact-path/models"',
+    )
+    args.add_argument(
         "--model-path",
         type=str,
         default=None,
@@ -81,17 +89,27 @@ def _parse_args():
 
 
 def _setup_model_path(args):
-    if args.model_path and args.hf_path:
-        assert (args.model_path and not args.hf_path) or (
-            args.hf_path and not args.model_path
-        ), "You cannot specify both a model path and a HF path. Please select one to specify."
+    assert not (
+        args.model_path and args.hf_path
+    ), "You cannot specify both a model path and a HF path. Please select one to specify."
+
     if args.model_path:
-        validate_config(args)
-        with open(os.path.join(args.model_path, "config.json")) as f:
-            config = json.load(f)
-            args.model = config["_name_or_path"].split("/")[-1]
+        if args.model != "auto":
+            assert args.model == os.path.basename(args.model_path), (
+                'When both "--model" and "--model-path" is specified, the '
+                'value of "--model" is required to match the basename of "--model-path"'
+            )
+        else:
+            args.model = os.path.basename(args.model_path)
+        validate_config(args.model_path)
     elif args.hf_path:
-        args.model = args.hf_path.split("/")[-1]
+        if args.model != "auto":
+            assert args.model == os.path.basename(args.hf_path), (
+                'When both "--model" and "--hf-path" is specified, the '
+                'value of "--model" is required to match the basename of "--hf-path"'
+            )
+        else:
+            args.model = os.path.basename(args.hf_path)
         args.model_path = os.path.join(args.artifact_path, "models", args.model)
         if os.path.exists(args.model_path):
             print(f"Weights exist at {args.model_path}, skipping download.")
@@ -102,18 +120,40 @@ def _setup_model_path(args):
                 f"git clone https://huggingface.co/{args.hf_path} {args.model_path}"
             )
             print(f"Downloaded weights to {args.model_path}")
-        validate_config(args)
+        validate_config(args.model_path)
+    elif args.model != "auto":
+        args.model_path = os.path.join(args.artifact_path, "models", args.model)
+        validate_config(args.model_path)
     else:
-        raise ValueError(f"Please specify either the model_path or the hf_path.")
+        lookup_path = os.path.join(args.artifact_path, "models")
+        print(
+            'None of "--model", "--model-path" and "--hf-path" is specified. Searching '
+            f"in {lookup_path} for existing models."
+        )
+        for dirname in os.listdir(lookup_path):
+            if os.path.isdir(os.path.join(lookup_path, dirname)) and os.path.isfile(
+                os.path.join(lookup_path, dirname, "config.json")
+            ):
+                try:
+                    validate_config(os.path.join(lookup_path, dirname))
+                except:
+                    pass
+                else:
+                    args.model_path = os.path.join(lookup_path, dirname)
+                    args.model = dirname
+                    break
+        if args.model == "auto":
+            raise ValueError(f"Please specify either the model_path or the hf_path.")
+
     print(f"Using model path {args.model_path}")
     return args
 
 
-def validate_config(args):
+def validate_config(model_path: str):
     assert os.path.exists(
-        os.path.join(args.model_path, "config.json")
+        os.path.join(model_path, "config.json")
     ), "Model path must contain valid config file."
-    with open(os.path.join(args.model_path, "config.json")) as f:
+    with open(os.path.join(model_path, "config.json")) as f:
         config = json.load(f)
         assert ("model_type" in config) and (
             "_name_or_path" in config

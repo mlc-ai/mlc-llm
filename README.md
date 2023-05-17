@@ -90,6 +90,10 @@ If you have a local directory that has the model parameters, the tokenizer, and 
 # Create the local build directory and compile the model
 mkdir build
 python build.py --model-path=/path/to/local/directory
+
+# If the model path is in the form of `dist/models/model_name`,
+# we can simplify the build command to
+# python build.py --model=model_name
 ```
 
 Similarly, the compiled model will be available at `dist/dolly-v2-3b-q3f16_0`, where the exact path will vary depending on your model type and specified quantization. Follow the platform specific instructions to build and run MLC LLM for [iOS](https://github.com/mlc-ai/mlc-llm/blob/main/ios/README.md), [Android](https://github.com/mlc-ai/mlc-llm/blob/main/android/README.md), and [CLI](https://github.com/mlc-ai/mlc-llm/tree/main/cpp/README.md).

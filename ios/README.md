@@ -26,11 +26,12 @@ Note: You will need Apple Developer Account to build iOS App locally.
     git clone https://github.com/mlc-ai/mlc-llm.git --recursive
     cd mlc-llm
 
-    # From Hugging Face URL
-    python3 build.py --hf-path databricks/dolly-v2-3b --quantization q3f16_0 --target iphone --max-seq-len 768
-
     # From local directory
     python3 build.py --model-path path/to/vicuna-v1-7b --quantization q3f16_0 --target iphone --max-seq-len 768
+
+    # If the model path is `dist/models/vicuna-v1-7b`,
+    # we can simplify the build command to
+    # python build.py --model vicuna-v1-7b --quantization q3f16_0 --target iphone --max-seq-len 768
     ```
 
 3. Prepare lib and params
