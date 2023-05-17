@@ -365,7 +365,8 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& path) {
   if (std::filesystem::exists(sentencepiece_model)) {
     return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece_model));
   } else if (std::filesystem::exists(merges_path)) {
-    CHECK(std::filesystem::exists(vocab_path)) << "Expect vocab.json to exist in the same folder as merges.txt";
+    CHECK(std::filesystem::exists(vocab_path))
+        << "Expect vocab.json to exist in the same folder as merges.txt";
     std::string vocab = LoadBytesFromFile(vocab_path);
     std::string merges = LoadBytesFromFile(merges_path);
     std::string added_tokens = "";
@@ -375,7 +376,7 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& path) {
     return Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens);
   } else {
     CHECK(std::filesystem::exists(tokenizer_json_path))
-      << "Cannot find any tokenizer file in path " << path;
+        << "Cannot find any tokenizer file in path " << path;
     return Tokenizer::FromBlobJSON(LoadBytesFromFile(tokenizer_json_path));
   }
 }
@@ -409,16 +410,15 @@ class LLMChatModule : public ModuleNode {
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { this->DecodeStep(); });
     } else if (name == "init_chat") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 9);
+        ICHECK_EQ(args.size(), 8);
         this->model_name_ = args[0].operator std::string();
         this->conversation_ = Conversation::Create(args[1]);
-        this->max_gen_len_ = args[2];
-        this->temperature_ = args[3];
-        this->top_p_ = args[4];
-        this->stream_interval_ = args[5];
-        this->max_window_size_ = args[6];
-        this->mean_gen_len_ = args[7];
-        this->shift_fill_factor_ = args[8];
+        this->temperature_ = args[2];
+        this->top_p_ = args[3];
+        this->stream_interval_ = args[4];
+        this->max_window_size_ = args[5];
+        this->mean_gen_len_ = args[6];
+        this->shift_fill_factor_ = args[7];
         this->ClearKVCache();
         this->total_seq_len_ = 0;
         this->start_pos_ = 0;
@@ -652,8 +652,7 @@ class LLMChatModule : public ModuleNode {
                     [this](int32_t token) { return token == next_token_; })) {
       return true;
     }
-    return cur_pos_ - start_pos_ == max_gen_len_ - 1 || encounter_stop_str_ ||
-           total_seq_len_ >= max_window_size_;
+    return encounter_stop_str_ || total_seq_len_ >= max_window_size_;
   }
 
   size_t FindEffectiveUTF8Pos(const std::string& s, size_t start_pos) {
@@ -778,11 +777,13 @@ class LLMChatModule : public ModuleNode {
     softmax_func_ = vm_->GetFunction("softmax_with_temperature");
     auto kv_cache_func = vm_->GetFunction("create_kv_cache");
 
-    auto fsample_topp_from_prob_ptr = tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
+    auto fsample_topp_from_prob_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
     ICHECK(fsample_topp_from_prob_ptr)
         << "Cannot find env function vm.builtin.sample_top_p_from_prob";
     fsample_topp_from_prob_ = *fsample_topp_from_prob_ptr;
-    auto fsample_topp_from_logits_ptr = tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
+    auto fsample_topp_from_logits_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
     ICHECK(fsample_topp_from_logits_ptr)
         << "Cannot find env function vm.builtin.sample_top_p_from_logits";
     fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
@@ -942,8 +943,6 @@ class LLMChatModule : public ModuleNode {
   std::string model_name_;
   // conversation
   Conversation conversation_;
-  // max_gen_len
-  int64_t max_gen_len_{2048};
   // total sequence len, start position, current position
   int64_t total_seq_len_{0}, start_pos_{0}, cur_pos_{0}, skip_echo_len_{0};
   // max window size, mean generation length
@@ -1023,7 +1022,6 @@ tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
 tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
                                       const tvm::runtime::String& tokenizer_path,
                                       const tvm::runtime::String& param_path, DLDevice device) {
-
   // tokenizer stored in single files.
   return CreateChatModule(executable, TokenizerFromPath(tokenizer_path), param_path, device);
 }

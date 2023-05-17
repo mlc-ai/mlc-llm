@@ -47,15 +47,14 @@ class LLMChatModuleWrapper {
 
     std::string model = "vircuna";
     std::string conv_template = "vicuna_v1.1";
-    int max_gen_len = 512 + 256;
     double temperature = 0.7;
     double top_p = 0.95;
     int stream_interval = 1;
     int max_window_size = 512 + 256;
     int mean_gen_len = 128;
     double shift_fill_factor = 0.2;
-    llm_chat_->GetFunction("init_chat")(model, conv_template, max_gen_len, temperature, top_p,
-                                        stream_interval, max_window_size, mean_gen_len, shift_fill_factor);
+    llm_chat_->GetFunction("init_chat")(model, conv_template, temperature, top_p, stream_interval,
+                                        max_window_size, mean_gen_len, shift_fill_factor);
   }
 
   void Evaluate() {
