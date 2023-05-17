@@ -3,8 +3,13 @@ set -euxo pipefail
 
 rustup target add aarch64-apple-ios
 
-mkdir -p build
-cd build
+MODEL="RedPajama-INCITE-Chat-3B-v1"
+QUANTIZATION="q4f16_0"
+
+MODEL_KERNEL_LIB="../dist/${MODEL}-${QUANTIZATION}/${MODEL}-${QUANTIZATION}-iphone.a"
+
+rm -rf build/ && mkdir -p build/ && cd build/
+ln -s ${TVM_HOME} ./tvm_home
 cmake ../..\
   -DCMAKE_BUILD_TYPE=Release\
   -DCMAKE_SYSTEM_NAME=iOS\
@@ -18,11 +23,7 @@ cmake ../..\
   -DCMAKE_CXX_FLAGS="-O3"\
   -DMLC_LLM_INSTALL_STATIC_LIB=ON\
   -DUSE_METAL=ON
-
 make mlc_llm_static
 cmake --build . --target install --config release -j
-
+cp ../${MODEL_KERNEL_LIB} ./lib/libmodel_iphone.a
 cd ..
-rm -rf build/tvm_home
-ln -s  ${TVM_HOME} build/tvm_home
-cp ../dist/vicuna-v1-7b-q3f16_0/vicuna-v1-7b-q3f16_0-iphone.a build/lib/libmodel_iphone.a

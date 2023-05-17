@@ -9,8 +9,8 @@ from tvm.relax.op import (
     broadcast_to,
     full,
     matmul,
-    minimum,
     maximum,
+    minimum,
     permute_dims,
     reshape,
     squeeze,
@@ -22,6 +22,7 @@ from tvm.runtime import NDArray
 from tvm.script import relax as R
 
 from .commons import create_metadata_func
+from .gpt_neox import create_kv_cache_func
 from .modules import (
     Embedding,
     LayerNorm,
@@ -31,7 +32,19 @@ from .modules import (
     named_parameters,
 )
 
-from .gpt_neox import _min_value, _max_value, create_kv_cache_func
+
+def _min_value(dtype) -> relax.Expr:
+    v = tvm.tir.min_value(dtype).value
+    if dtype == "float16":
+        v = -55504.0
+    return relax.const(v, dtype)
+
+
+def _max_value(dtype) -> relax.Expr:
+    v = tvm.tir.max_value(dtype).value
+    if dtype == "float16":
+        v = 55504.0
+    return relax.const(v, dtype)
 
 
 @dataclass

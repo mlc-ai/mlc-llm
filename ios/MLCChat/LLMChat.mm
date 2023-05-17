@@ -20,13 +20,12 @@ class LLMChatModuleWrapper {
  public:
   LLMChatModuleWrapper() {
     // load module
+    std::string bundle_path = NSBundle.mainBundle.bundlePath.UTF8String;
     tvm::runtime::Module lib = (*tvm::runtime::Registry::Get("runtime.SystemLib"))();
 
     const PackedFunc* fcreate = tvm::runtime::Registry::Get("mlc.llm_chat_create_legacy");
     ICHECK(fcreate) << "Cannot find mlc.llm_chat_create_legacy";
 
-    // lookup bundle path
-    std::string bundle_path = NSBundle.mainBundle.bundlePath.UTF8String;
     // create the llm_chat_ instance
     std::string tokenizer_path = bundle_path + "/dist/params";
     std::string param_path = bundle_path + "/dist/params";
@@ -34,10 +33,8 @@ class LLMChatModuleWrapper {
     encode_func_ = llm_chat_->GetFunction("encode");
     decode_func_ = llm_chat_->GetFunction("decode");
     get_message_ = llm_chat_->GetFunction("get_message");
-
     stopped_func_ = llm_chat_->GetFunction("stopped");
     reset_chat_func_ = llm_chat_->GetFunction("reset_chat");
-
     runtime_stats_text_func_ = llm_chat_->GetFunction("runtime_stats_text");
 
     ICHECK(encode_func_ != nullptr);
@@ -45,7 +42,7 @@ class LLMChatModuleWrapper {
     ICHECK(stopped_func_ != nullptr);
     ICHECK(runtime_stats_text_func_ != nullptr);
 
-    std::string conv_template = "vicuna_v1.1";
+    std::string conv_template = "redpajama_chat";
     double temperature = 0.7;
     double top_p = 0.95;
     int mean_gen_len = 128;

@@ -66,7 +66,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         args.conv_template = "stablelm"
         args.model_category = "gpt_neox"
     elif args.model.startswith("RedPajama-"):
-        args.conv_template = "dolly"  # TODO
+        args.conv_template = "redpajama_chat"
         args.model_category = "gpt_neox"
     elif args.model.startswith("moss-"):
         args.conv_template = "moss"
@@ -179,8 +179,6 @@ def split_static_dynamic_tir(mod: tvm.IRModule):
                 mod_static[k] = v
             else:
                 mod_dynamic[k] = v
-    print(f"{len(mod_static)} static functions: {list(mod_static.keys())}")
-    print(f"{len(mod_dynamic)} dynamic functions: {list(mod_dynamic.keys())}")
     mod_static = tvm.IRModule(mod_static)
     mod_dynamic = tvm.IRModule(mod_dynamic)
     return mod_static, mod_dynamic

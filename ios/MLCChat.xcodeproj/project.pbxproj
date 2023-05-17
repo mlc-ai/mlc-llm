@@ -384,7 +384,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"MLCChat/Preview Content\"";
-				DEVELOPMENT_TEAM = 3FR42MXLK9;
+				DEVELOPMENT_TEAM = 3D7CQ3D634;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				"HEADER_SEARCH_PATHS[arch=*]" = (
@@ -418,7 +418,7 @@
 					"-lsentencepiece",
 					"-ltokenizers_c",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = mlc.Chat;
+				PRODUCT_BUNDLE_IDENTIFIER = "mlc.Chat-junru";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "MLCChat/MLCChat-Bridging-Header.h";
