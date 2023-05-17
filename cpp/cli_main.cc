@@ -285,19 +285,19 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  // Search for mlc-llm-config.json.
+  // Search for mlc-chat-config.json.
   for (auto local_id_candidate : local_id_candidates) {
     std::vector<std::string> config_search_paths = {
         artifact_path + "/" + local_id_candidate + "/params",  //
         artifact_path + "/prebuilt/" + local_id_candidate};
-    config_path_opt = FindFile(config_search_paths, {"mlc-llm-config"}, {".json"});
+    config_path_opt = FindFile(config_search_paths, {"mlc-chat-config"}, {".json"});
     if (config_path_opt) {
       local_id = local_id_candidate;
       break;
     }
   }
   if (!config_path_opt) {
-    std::cerr << "Cannot find \"mlc-llm-config.json\" in path \"" << artifact_path << "/"
+    std::cerr << "Cannot find \"mlc-chat-config.json\" in path \"" << artifact_path << "/"
               << local_id_candidates[0] << "/params/\", \"" << artifact_path
               << "/prebuilt/" + local_id_candidates[0] << "\" or other candidate paths.";
     return 1;
@@ -322,22 +322,6 @@ int main(int argc, char* argv[]) {
   }
   std::cout << "Use lib " << lib_path_opt.value().string() << std::endl;
 
-  // Locate the tokenizer files.
-  std::optional<std::filesystem::path> tokenizer_path_opt =
-      FindFile({model_path.string()}, {"tokenizer"}, {".model", ".json"});
-  if (!tokenizer_path_opt) {
-    // Try ByteLevelBPETokenizer
-    tokenizer_path_opt = FindFile({model_path.string()}, {"vocab"}, {".json"});
-    if (!tokenizer_path_opt) {
-      std::cerr << "Cannot find tokenizer file in " << model_path.string() << std::endl;
-      return 1;
-    } else {
-      // GPT2 styles tokenizer needs multiple files, we need to
-      // get the directory that stores vocab.json.
-      tokenizer_path_opt = tokenizer_path_opt.value().parent_path();
-    }
-  }
-
   // Locate the params.
   if (params == "auto") {
     auto params_json_opt = FindFile({model_path}, {"ndarray-cache"}, {".json"});
@@ -354,8 +338,7 @@ int main(int argc, char* argv[]) {
   try {
     auto lib = Module::LoadFromFile(lib_path_opt.value().string());
     std::cout << "Initializing the chat module..." << std::endl;
-    Module chat_mod =
-        mlc::llm::CreateChatModule(lib, tokenizer_path_opt.value().string(), params, device);
+    Module chat_mod = mlc::llm::CreateChatModule(lib, model_path.string(), params, device);
 
     std::cout << "Finish loading" << std::endl;
     PrintSpecialCommands();

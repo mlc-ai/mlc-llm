@@ -10,7 +10,7 @@
     python3 build.py --hf-path databricks/dolly-v2-3b --quantization q3f16_0 --max-seq-len 768
 
     # From local directory
-    python3 build.py --model-path path/to/vicuna-v1-7b --quantization q3f16_0 --max-seq-len 768
+    python3 build.py --model path/to/vicuna-v1-7b --quantization q3f16_0 --max-seq-len 768
 
     # If the model path is in the form of `dist/models/model_name`,
     # we can simplify the build command to

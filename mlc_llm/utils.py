@@ -188,7 +188,13 @@ def split_static_dynamic_tir(mod: tvm.IRModule):
 
 def copy_tokenizer(args: argparse.Namespace) -> None:
     for filename in os.listdir(args.model_path):
-        if filename.startswith("tokenizer") or filename == "vocab.json":
+        if filename in [
+            "tokenizer.model",
+            "tokenizer.json",
+            "vocab.json",
+            "merges.txt",
+            "added_tokens.json",
+        ]:
             shutil.copy(
                 os.path.join(args.model_path, filename),
                 os.path.join(args.artifact_path, "params"),

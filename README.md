@@ -76,7 +76,6 @@ git clone https://github.com/mlc-ai/mlc-llm.git
 
 # Create the local build directory and compile the model
 # This will automatically download the parameters, tokenizer, and config from Hugging Face
-mkdir build
 python build.py --hf-path=databricks/dolly-v2-3b
 ```
 
@@ -88,8 +87,7 @@ If you have a local directory that has the model parameters, the tokenizer, and 
 
 ```shell
 # Create the local build directory and compile the model
-mkdir build
-python build.py --model-path=/path/to/local/directory
+python build.py --model=/path/to/local/directory
 
 # If the model path is in the form of `dist/models/model_name`,
 # we can simplify the build command to
