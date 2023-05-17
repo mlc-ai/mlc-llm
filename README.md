@@ -2,7 +2,7 @@
 
 # MLC LLM
 
-| [Project](https://mlc.ai/mlc-llm/) | [Blog](https://mlc.ai/blog/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [Demo: iOS](https://mlc.ai/mlc-llm/#iphone) | [Demo: Android](https://mlc.ai/mlc-llm/#android) | [Demo: CLI](https://mlc.ai/mlc-llm/#windows-linux-mac) | [WebLLM](https://mlc.ai/web-llm/) | [WebStableDiffusion](https://mlc.ai/web-stable-diffusion/) | [Discord](discord-url)
+| [Project](https://mlc.ai/mlc-llm/) | [Blog](https://mlc.ai/blog/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [Demo: iOS](https://mlc.ai/mlc-llm/#iphone) | [Demo: Android](https://mlc.ai/mlc-llm/#android) | [Demo: CLI](https://mlc.ai/mlc-llm/#windows-linux-mac) | [WebLLM](https://mlc.ai/web-llm/) | [WebStableDiffusion](https://mlc.ai/web-stable-diffusion/) | [Discord][discord-url]
 
 MLC LLM is a **universal solution** that allows **any language models** to be **deployed natively** on a diverse set of hardware backends and native applications, plus a **productive framework** for everyone to further optimize model performance for their own use cases.
 
