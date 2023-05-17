@@ -36,26 +36,20 @@ class ModelState : ObservableObject, Identifiable{
     private var maxDownloadingTasks: Int = 3
     private var baseRemoteUrl: URL!
     
-    // dist url for debug
-    private var distDirUrl: URL!
     
-    
-    init(modelConfig: ModelConfig) {
+    init(modelConfig: ModelConfig, modelDirUrl: URL) {
         print(modelConfig)
         self.modelConfig = modelConfig
-        
-        
-        distDirUrl = Bundle.main.bundleURL.appending(path: "dist").appending(path: modelConfig.local_id)
-        
-        // create local model dir
-        let urls: [URL] = fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
-        modelDirUrl = urls[0].appending(path: modelConfig.local_id)
-        do {
-            try fileManager.createDirectory(at: modelDirUrl, withIntermediateDirectories: true)
-        } catch {
-            print(error.localizedDescription)
+        self.modelDirUrl = modelDirUrl
+        if !fileManager.fileExists(atPath: modelDirUrl.path()) {
+            do {
+                try fileManager.createDirectory(at: modelDirUrl, withIntermediateDirectories: true)
+            } catch {
+                print(error.localizedDescription)
+            }
         }
         
+       
         // remote base url
         baseRemoteUrl = URL(string: modelConfig.model_url)
         
@@ -68,9 +62,6 @@ class ModelState : ObservableObject, Identifiable{
             print(error.localizedDescription)
         }
         let paramsConfigUrl = modelDirUrl.appending(path: modelConfig.ndarray_file)
-        
-        // check dist
-        checkDist(distUrl: distDirUrl.appending(path: modelConfig.local_id), localUrl: paramsConfigUrl)
         
         if fileManager.fileExists(atPath: paramsConfigUrl.path()) {
             // ndarray-cache.json already downloaded
@@ -116,10 +107,7 @@ class ModelState : ObservableObject, Identifiable{
         for tokenizerFile in modelConfig.tokenizer_files {
             let remoteUrl = baseRemoteUrl.appending(path: tokenizerFile)
             let localUrl = modelDirUrl.appending(path: tokenizerFile)
-            
-            // check dist
-            checkDist(distUrl: distDirUrl.appending(path: tokenizerFile), localUrl: localUrl)
-            
+         
             if fileManager.fileExists(atPath: localUrl.path()) {
                 progress += 1
             } else {
@@ -132,9 +120,6 @@ class ModelState : ObservableObject, Identifiable{
         for paramsRecord in paramsConfig.records {
             let remoteUrl = baseParamsRemoteUrl.appending(path: paramsRecord.dataPath)
             let localUrl = paramsDirUrl.appending(path: paramsRecord.dataPath)
-            
-            // check dist
-            checkDist(distUrl: distDirUrl.appending(path: modelConfig.ndarray_file).deletingLastPathComponent().appending(path: paramsRecord.dataPath), localUrl: localUrl)
             
             if fileManager.fileExists(atPath: localUrl.path()) {
                 progress += 1
@@ -229,17 +214,6 @@ class ModelState : ObservableObject, Identifiable{
             if !downloadingTasks.contains(downloadTask) {
                 startDownload(downloadTask: downloadTask)
                 break
-            }
-        }
-    }
-    
-    func checkDist(distUrl: URL, localUrl: URL) {
-        if fileManager.fileExists(atPath: distUrl.path()) {
-            do {
-                try fileManager.moveItem(at: distUrl, to: localUrl)
-                return
-            } catch {
-                print(error.localizedDescription)
             }
         }
     }
