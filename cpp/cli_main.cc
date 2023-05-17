@@ -14,6 +14,7 @@
 #include <bitset>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -147,12 +148,9 @@ void PrintSpecialCommands() {
  * \param temperature The temperature to use for sampling.
  * \param top_p The top_p to use for sampling.
  */
-void Chat(tvm::runtime::Module chat_mod, double temperature = 0.7, double top_p = 0.95,
-          int64_t stream_interval = 2, int max_window_size = 768, int mean_gen_len = 128,
-          double shift_fill_factor = 0.3) {
+void Chat(tvm::runtime::Module chat_mod, std::string config_str, int stream_interval = 2) {
   // initialize chat context
-  chat_mod.GetFunction("init_chat")(temperature, top_p, stream_interval, mean_gen_len,
-                                    shift_fill_factor);
+  chat_mod.GetFunction("init_chat")(tvm::String(config_str));
   auto f_stop = chat_mod.GetFunction("stopped");
   auto f_encode = chat_mod.GetFunction("encode");
   auto f_decode = chat_mod.GetFunction("decode");
@@ -286,6 +284,11 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   std::cout << "Use config " << config_path_opt.value().string() << std::endl;
+  std::ifstream config_istream(config_path_opt.value().c_str());
+  std::ostringstream config_ostream;
+  assert(config_istream);
+  config_ostream << config_istream.rdbuf();
+  std::string config_str = config_ostream.str();
   std::filesystem::path model_path = config_path_opt.value().parent_path();
 
   // Locate the library.
@@ -329,7 +332,7 @@ int main(int argc, char* argv[]) {
     if (args.get<bool>("--evaluate")) {
       chat_mod.GetFunction("evaluate")();
     } else {
-      Chat(chat_mod);
+      Chat(chat_mod, config_str);
     }
   } catch (const std::runtime_error& err) {
     // catch exception so error message

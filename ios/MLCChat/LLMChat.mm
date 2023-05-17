@@ -45,13 +45,13 @@ class LLMChatModuleWrapper {
     ICHECK(stopped_func_ != nullptr);
     ICHECK(runtime_stats_text_func_ != nullptr);
 
+    std::string conv_template = "vicuna_v1.1";
     double temperature = 0.7;
     double top_p = 0.95;
-    int stream_interval = 1;
     int mean_gen_len = 128;
     double shift_fill_factor = 0.2;
-    llm_chat_->GetFunction("init_chat")(temperature, top_p, stream_interval, mean_gen_len,
-                                        shift_fill_factor);
+    llm_chat_->GetFunction("init_chat_legacy")(conv_template, temperature, top_p, mean_gen_len,
+                                               shift_fill_factor);
   }
 
   void Evaluate() {
