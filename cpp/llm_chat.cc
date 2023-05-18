@@ -941,15 +941,16 @@ class LLMChat {
     int vocab_size = logits_on_cpu_->shape[logits_on_cpu_->ndim - 1];
     float* logits_raw_data = static_cast<float*>(logits_on_cpu_->data);
     float m = std::numeric_limits<float>::min();
+    float inv_temp = 1.0f / this->temperature_;
     double d = 0.0f;
     for (int i = 0; i < vocab_size; ++i) {
-      float x = logits_raw_data[i] / this->temperature_;
+      float x = logits_raw_data[i] * inv_temp;
       float m_prev = m;
       m = std::max(m, x);
       d = d * std::exp(m_prev - m) + std::exp(x - m);
     }
     for (int i = 0; i < vocab_size; ++i) {
-      float x = logits_raw_data[i] / this->temperature_;
+      float x = logits_raw_data[i] * inv_temp;
       logits_raw_data[i] = std::exp(x - m) / d;
     }
   }
