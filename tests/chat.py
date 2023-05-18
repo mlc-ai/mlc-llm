@@ -141,10 +141,13 @@ def chat(model_wrapper, args):
         stop_tokens = (
             [50278, 50279, 50277, 1, 0] if args.conv_template == "stablelm" else None
         )
+        stop_str = conv.sep if conv.sep_style == SeparatorStyle.SINGLE else conv.sep2
+        if conv.sep_style == SeparatorStyle.REDPAJAMA_CHAT:
+            stop_str = "<human>:"
         for outputs in model_wrapper.generate(
             prompt,
             args.max_gen_len,
-            stop_str=conv.sep if conv.sep_style == SeparatorStyle.SINGLE else conv.sep2,
+            stop_str=stop_str,
             keep_first_token=keep_first_token,
             stop_tokens=stop_tokens,
         ):

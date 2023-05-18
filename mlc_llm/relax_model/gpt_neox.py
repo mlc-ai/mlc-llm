@@ -1,4 +1,5 @@
 # pylint: disable=missing-docstring,too-few-public-methods,too-many-instance-attributes,invalid-name,too-many-locals,too-many-arguments
+import argparse
 import math
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
@@ -33,47 +34,73 @@ from .modules import (
 
 @dataclass
 class GPTNeoXConfig:  # pylint: disable=too-many-instance-attributes
-    def __init__(
-        self,
-        use_parallel_residual,
-        hidden_size,
-        intermediate_size,
-        num_attention_heads,
-        num_hidden_layers,
-        vocab_size,
-        rotary_pct,
-        rotary_emb_base,
-        dtype="float32",
-        layer_norm_eps=1e-05,
-        max_sequence_length=2048,
-        **kwargs,
-    ):
-        self.use_parallel_residual = use_parallel_residual
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.num_attention_heads = num_attention_heads
-        self.num_hidden_layers = num_hidden_layers
-        self.vocab_size = vocab_size
-        self.rotary_pct = rotary_pct
-        self.rotary_emb_base = rotary_emb_base
-        self.dtype = dtype
-        self.layer_norm_eps = layer_norm_eps
-        self.max_sequence_length = max_sequence_length
-        self.kwargs = kwargs
+    use_parallel_residual: bool
+    hidden_size: int
+    intermediate_size: int
+    num_attention_heads: int
+    num_hidden_layers: int
+    vocab_size: int
+    dtype: str
+    rotary_pct: float = 0.25
+    rotary_emb_base: int = 10000
+    ffn_out_dtype: Optional[str] = None
+
+    layer_norm_eps: float = 1e-05
+    max_sequence_length: int = 2048
 
 
-def _min_value(dtype) -> relax.Expr:
-    v = tvm.tir.min_value(dtype).value
-    if dtype == "float16":
-        v = -55504.0
-    return relax.const(v, dtype)
-
-
-def _max_value(dtype) -> relax.Expr:
-    v = tvm.tir.max_value(dtype).value
-    if dtype == "float16":
-        v = 55504.0
-    return relax.const(v, dtype)
+MODEL_CONFIG = {
+    "dolly-v2-3b": {
+        "use_parallel_residual": True,
+        "hidden_size": 2560,
+        "intermediate_size": 10240,
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "vocab_size": 50280,
+    },
+    "dolly-v2-7b": {
+        "use_parallel_residual": True,
+        "hidden_size": 4096,
+        "intermediate_size": 16384,
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "vocab_size": 50280,
+    },
+    "dolly-v2-12b": {
+        "use_parallel_residual": True,
+        "hidden_size": 5120,
+        "intermediate_size": 20480,
+        "num_attention_heads": 40,
+        "num_hidden_layers": 36,
+        "vocab_size": 50280,
+    },
+    "stablelm-tuned-alpha-3b": {
+        "use_parallel_residual": True,
+        "hidden_size": 4096,
+        "intermediate_size": 16384,
+        "num_attention_heads": 32,
+        "num_hidden_layers": 16,
+        "vocab_size": 50688,
+    },
+    "stablelm-tuned-alpha-7b": {
+        "use_parallel_residual": True,
+        "hidden_size": 6144,
+        "intermediate_size": 24576,
+        "num_attention_heads": 48,
+        "num_hidden_layers": 16,
+        "vocab_size": 50432,
+    },
+    "RedPajama-INCITE-Chat-3B-v1": {
+        "use_parallel_residual": False,
+        "hidden_size": 2560,
+        "intermediate_size": 10240,
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "vocab_size": 50432,
+        "rotary_pct": 1.0,
+        "ffn_out_dtype": "float32",
+    },
+}
 
 
 class GPTNeoXAttention(nn.Module):
@@ -218,19 +245,36 @@ class GPTNeoXMLP(nn.Module):
         hidden_size: int,
         intermediate_size: int,
         dtype: str,
+        out_dtype: Optional[str],
     ):
         super().__init__()
-        self.dense_h_to_4h = Linear(hidden_size, intermediate_size, dtype)
-        self.dense_4h_to_h = Linear(intermediate_size, hidden_size, dtype)
+        if out_dtype is None:
+            out_dtype = dtype
+        self.dense_h_to_4h = Linear(
+            hidden_size,
+            intermediate_size,
+            dtype=dtype,
+            out_dtype=out_dtype,
+        )
+        self.dense_4h_to_h = Linear(
+            intermediate_size,
+            hidden_size,
+            dtype=dtype,
+            out_dtype=out_dtype,
+        )
         self.dtype = dtype
 
     def forward(self, hidden_states):
         if hidden_states.struct_info.dtype != self.dtype:
             hidden_states = nn.emit(astype(hidden_states, self.dtype))
         hidden_states = self.dense_h_to_4h(hidden_states)
-        hidden_states = gelu(hidden_states)
+        hidden_states = nn.emit(gelu(hidden_states))
+        if hidden_states.struct_info.dtype != self.dtype:
+            hidden_states = nn.emit(astype(hidden_states, self.dtype))
         hidden_states = self.dense_4h_to_h(hidden_states)
-        return nn.emit(hidden_states)
+        if hidden_states.struct_info.dtype != self.dtype:
+            hidden_states = nn.emit(astype(hidden_states, self.dtype))
+        return hidden_states
 
 
 class GPTNeoXLayer(nn.Module):
@@ -243,6 +287,7 @@ class GPTNeoXLayer(nn.Module):
         use_parallel_residual: bool,
         rotary_embedding: RotaryEmbedding,
         dtype: str,
+        ffn_out_dtype: Optional[str],
     ):
         self.input_layernorm = LayerNorm(
             hidden_size,
@@ -264,6 +309,7 @@ class GPTNeoXLayer(nn.Module):
             hidden_size,
             intermediate_size=intermediate_size,
             dtype=dtype,
+            out_dtype=ffn_out_dtype,
         )
         self.use_parallel_residual = use_parallel_residual
         self.dtype = dtype
@@ -290,7 +336,7 @@ class GPTNeoXLayer(nn.Module):
             attn_output = nn.emit(attn_output + hidden_states)
             mlp_input = self.post_attention_layernorm(attn_output)
             mlp_output = self.mlp(mlp_input)
-            hidden_states = nn.emit(mlp_output + attn_output)
+            hidden_states = nn.emit(astype(mlp_output, self.dtype) + attn_output)
         return hidden_states, present_key_value
 
 
@@ -366,6 +412,7 @@ class GPTNeoXModel(nn.Module):
                     rotary_embedding=rotary_embedding,
                     use_parallel_residual=config.use_parallel_residual,
                     dtype=config.dtype,
+                    ffn_out_dtype=config.ffn_out_dtype,
                 )
                 for _ in range(config.num_hidden_layers)
             ]
@@ -583,27 +630,39 @@ def create_softmax_func(bb: relax.BlockBuilder, config: GPTNeoXConfig) -> None:
         bb.emit_func_output(gv, [logits, temperature])
 
 
-def get_model(model_name: str, model_path: str, dtype: str, hf_config):
+def get_model(
+    args: argparse.Namespace,
+    hf_config,
+):
     from transformers import AutoModelForCausalLM  # type: ignore[import]
 
-    if model_name.startswith("dolly"):
-        stop_tokens = [2]
-    elif model_name.startswith("stablelm"):
-        stop_tokens = [50278, 50279, 50277, 1, 0]
-    else:
-        raise ValueError(f"Unsupported model {model_name}")
+    model = args.model
+    dtype = args.quantization.model_dtype
 
-    config = GPTNeoXConfig(**hf_config, dtype=dtype)
+    if model.startswith("dolly-"):
+        stop_tokens = [2]
+    elif model.startswith("stablelm-"):
+        stop_tokens = [50278, 50279, 50277, 1, 0]
+    elif model.lower().startswith("redpajama-"):
+        stop_tokens = [0]
+    else:
+        raise ValueError(f"Unsupported model {model}")
+
+    config = GPTNeoXConfig(**MODEL_CONFIG[model], dtype=dtype)
+    ffn_out_dtype = config.ffn_out_dtype or dtype
+
     num_heads = config.num_attention_heads
     hidden_size = config.hidden_size
     head_dim = hidden_size // num_heads
     param_list: List[Tuple[str, NDArray]] = []
-    hf_model = AutoModelForCausalLM.from_pretrained(model_path)
+    hf_model = AutoModelForCausalLM.from_pretrained(args.model_path)
     for name, param in hf_model.named_parameters():
         param = param.detach().cpu().numpy()
         if param.dtype == "float32":
             if "layernorm" in name or "layer_norm" in name or "embed_out" in name:
                 param = param.astype("float32")
+            elif ".dense_h_to_4h.bias" in name or ".dense_4h_to_h.bias" in name:
+                param = param.astype(ffn_out_dtype)
             else:
                 param = param.astype(dtype)
         if name.endswith("query_key_value.weight"):
@@ -643,7 +702,7 @@ def get_model(model_name: str, model_path: str, dtype: str, hf_config):
     create_softmax_func(bb, config)
     create_metadata_func(
         bb,
-        model_name=model_name,
+        model_name=model,
         max_window_size=config.max_sequence_length,
         stop_tokens=stop_tokens,
         add_prefix_space=False,

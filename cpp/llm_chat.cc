@@ -36,7 +36,14 @@ using namespace tvm::runtime;
  */
 class Conversation {
  public:
-  enum class SeparatorStyle { kSingle = 0, kTwo = 1, kDolly = 2, kOasst_Pythia = 3, kMOSS = 4 };
+  enum class SeparatorStyle {
+    kSingle = 0,
+    kTwo = 1,
+    kDolly = 2,
+    kOasst_Pythia = 3,
+    kMOSS = 4,
+    kRedPajamaChat = 5,
+  };
 
   static Conversation Create(const std::string& template_name = "vicuna_v1.1") {
     if (template_name == "vicuna_v1.1") {
@@ -50,7 +57,8 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kTwo,
           /*sep=*/" ",
-          /*sep2=*/"</s>");
+          /*sep2=*/"</s>",
+          /*stop_tokens=*/{2});
     } else if (template_name == "conv_one_shot") {
       return Conversation(
           /*conv_template=*/"conv_one_shot",
@@ -91,7 +99,8 @@ class Conversation {
           /*offset=*/2,
           /*separator_style=*/Conversation::SeparatorStyle::kSingle,
           /*sep=*/"###",
-          /*sep2=*/"");
+          /*sep2=*/"",
+          /*stop_tokens=*/{2});
     } else if (template_name == "koala_v1") {
       return Conversation(
           /*conv_template=*/"koala_v1",
@@ -101,7 +110,8 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kTwo,
           /*sep=*/" ",
-          /*sep2=*/"</s>");
+          /*sep2=*/"</s>",
+          /*stop_tokens=*/{2});
     } else if (template_name == "dolly") {
       return Conversation(
           /*conv_template=*/"dolly",
@@ -113,7 +123,19 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kDolly,
           /*sep=*/"\n\n",
-          /*sep2=*/"### End");
+          /*sep2=*/"### End",
+          /*stop_tokens=*/{2});
+    } else if (template_name == "redpajama_chat") {
+      return Conversation(
+          /*conv_template=*/"redpajama_chat",
+          /*system=*/"",
+          /*roles=*/{"<human>", "<bot>"},
+          /*messages=*/{},
+          /*offset=*/0,
+          /*separator_style=*/Conversation::SeparatorStyle::kRedPajamaChat,
+          /*sep=*/"",
+          /*sep2=*/"",
+          /*stop_tokens=*/{0});
     } else if (template_name == "oasst") {
       return Conversation(
           /*conv_template=*/"oasst",
@@ -123,7 +145,8 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kOasst_Pythia,
           /*sep=*/"<|endoftext|>",
-          /*sep2=*/"");
+          /*sep2=*/"",
+          /*stop_tokens=*/{2});
     } else if (template_name == "stablelm") {
       return Conversation(
           /*conv_template=*/"stablelm",
@@ -141,7 +164,8 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kOasst_Pythia,
           /*sep=*/"",
-          /*sep2=*/"");
+          /*sep2=*/"",
+          /*stop_tokens=*/{50278, 50279, 50277, 1, 0});
     } else if (template_name == "moss") {
       return Conversation(
           /*conv_template=*/"moss",
@@ -168,7 +192,8 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kMOSS,
           /*sep=*/"<eoh>",
-          /*sep2=*/"<eom>");
+          /*sep2=*/"<eom>",
+          /*stop_tokens=*/{106068});
     } else {
       LOG(FATAL) << "Unknown conversation template: " << template_name;
     }
@@ -178,20 +203,22 @@ class Conversation {
 
   Conversation(std::string conv_template, std::string system, std::vector<std::string> roles,
                std::vector<std::vector<std::string>> messages, int32_t offset,
-               SeparatorStyle separator_style, std::string sep, std::string sep2)
+               SeparatorStyle separator_style, std::string sep, std::string sep2,
+               std::vector<int32_t> stop_tokens)
       : conv_template(conv_template),
         system_(system),
         roles(roles),
         messages(messages),
         separator_style(separator_style),
         sep(sep),
-        sep2(sep2) {}
+        sep2(sep2),
+        stop_tokens(stop_tokens) {}
 
   std::vector<std::string> GetPromptArray() {
     std::vector<std::string> ret;
     if (this->separator_style == SeparatorStyle::kSingle) {
       ret.push_back(this->system_);
-      for (const auto& message : this->messages) {
+      for (const std::vector<std::string>& message : this->messages) {
         if (message.size() == 2) {
           ret.push_back(this->sep + " " + message[0] + ": " + message[1]);
         } else if (message.size() == 1) {
@@ -233,7 +260,7 @@ class Conversation {
       return ret;
     } else if (this->separator_style == SeparatorStyle::kOasst_Pythia) {
       ret.push_back(this->system_);
-      for (const auto& message : this->messages) {
+      for (const std::vector<std::string>& message : this->messages) {
         if (message.size() == 2) {
           ret.push_back(message[0] + message[1] + this->sep);
         } else if (message.size() == 1) {
@@ -256,6 +283,19 @@ class Conversation {
         }
       }
       return ret;
+    } else if (this->separator_style == SeparatorStyle::kRedPajamaChat) {
+      std::vector<std::string> seps{this->sep, this->sep2};
+      ret.push_back(this->system_);
+      for (size_t i = 0; i < this->messages.size(); ++i) {
+        if (this->messages[i].size() == 2) {
+          ret.push_back(this->messages[i][0] + ": " + this->messages[i][1] + seps[i % 2] + "\n");
+        } else if (this->messages[i].size() == 1) {
+          ret.push_back(this->messages[i][0] + ":");
+        } else {
+          LOG(FATAL) << "Invalid message size: " << this->messages[i].size();
+        }
+      }
+      return ret;
     } else {
       LOG(FATAL) << "Unknown separator style: " << (int)this->separator_style;
     }
@@ -264,7 +304,7 @@ class Conversation {
   std::vector<std::string> GetPromptArrayUnprocessed() {
     std::vector<std::string> ret;
     if (this->messages.size() <= 2) {
-      LOG(FATAL) << "needs to call getLastPromptArray for the first message";
+      LOG(FATAL) << "needs to call GetPromptArray for the first message";
     }
     if (this->separator_style == SeparatorStyle::kTwo) {
       std::vector<std::string> seps{this->sep, this->sep2};
@@ -308,6 +348,18 @@ class Conversation {
         }
       }
       return ret;
+    } else if (this->separator_style == SeparatorStyle::kRedPajamaChat) {
+      std::vector<std::string> seps{this->sep, this->sep2};
+      for (size_t i = this->messages.size() - 2; i < this->messages.size(); ++i) {
+        if (this->messages[i].size() == 2) {
+          ret.push_back(this->messages[i][1] + seps[i % 2] + "\n");
+        } else if (this->messages[i].size() == 1) {
+          ret.push_back(this->messages[i][0] + ":");
+        } else {
+          LOG(FATAL) << "Invalid message size: " << this->messages[i].size();
+        }
+      }
+      return ret;
     } else if (this->separator_style == SeparatorStyle::kMOSS) {
       std::vector<std::string> seps{this->sep, this->sep2};
       for (int i = this->messages.size() - 2; i < this->messages.size(); ++i) {
@@ -336,6 +388,7 @@ class Conversation {
   std::string sep{"###"}, sep2{""};
   std::vector<std::string> roles;
   std::vector<std::vector<std::string>> messages;
+  std::vector<int32_t> stop_tokens;
 
  private:
   std::string system_;
@@ -358,30 +411,40 @@ std::string LoadBytesFromFile(const std::string& path) {
   return data;
 }
 
-std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& path) {
-  std::filesystem::path vocab_path(path + "/" + "vocab.json");
-  std::filesystem::path merges_path(path + "/" + "merges.txt");
-  std::filesystem::path added_tokens_path(path + "/" + "added_tokens.json");
-  std::filesystem::path sentencepiece_model(path + "/" + "tokenizer.model");
-  std::filesystem::path tokenizer_json_path(path + "/" + "tokenizer.json");
-
-  if (std::filesystem::exists(sentencepiece_model)) {
-    return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece_model));
-  } else if (std::filesystem::exists(merges_path)) {
-    CHECK(std::filesystem::exists(vocab_path))
-        << "Expect vocab.json to exist in the same folder as merges.txt";
-    std::string vocab = LoadBytesFromFile(vocab_path);
-    std::string merges = LoadBytesFromFile(merges_path);
-    std::string added_tokens = "";
-    if (std::filesystem::exists(added_tokens_path)) {
-      added_tokens = LoadBytesFromFile(added_tokens_path);
+std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
+  std::filesystem::path path(_path);
+  std::filesystem::path sentencepiece;
+  std::filesystem::path huggingface;
+  CHECK(std::filesystem::exists(path)) << "Cannot find tokenizer via path: " << _path;
+  if (std::filesystem::is_directory(path)) {
+    sentencepiece = path / "tokenizer.model";
+    huggingface = path / "tokenizer.json";
+    // Check ByteLevelBPE
+    {
+      std::filesystem::path merges_path = path / "merges.txt";
+      std::filesystem::path vocab_path = path / "vocab.json";
+      std::filesystem::path added_tokens_path = path / "added_tokens.json";
+      if (std::filesystem::exists(merges_path) && std::filesystem::exists(vocab_path)) {
+        std::string vocab = LoadBytesFromFile(vocab_path);
+        std::string merges = LoadBytesFromFile(merges_path);
+        std::string added_tokens = "";
+        if (std::filesystem::exists(added_tokens_path)) {
+          added_tokens = LoadBytesFromFile(added_tokens_path);
+        }
+        return Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens);
+      }
     }
-    return Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens);
   } else {
-    CHECK(std::filesystem::exists(tokenizer_json_path))
-        << "Cannot find any tokenizer file in path " << path;
-    return Tokenizer::FromBlobJSON(LoadBytesFromFile(tokenizer_json_path));
+    sentencepiece = path.parent_path() / "tokenizer.model";
+    huggingface = path.parent_path() / "tokenizer.json";
   }
+  if (std::filesystem::exists(sentencepiece)) {
+    return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece));
+  }
+  if (std::filesystem::exists(huggingface)) {
+    return Tokenizer::FromBlobJSON(LoadBytesFromFile(huggingface));
+  }
+  LOG(FATAL) << "Cannot find any tokenizer under: " << _path;
 }
 
 //------------------------------
@@ -501,6 +564,9 @@ class LLMChat {
     this->stop_str_ = this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
                           ? this->conversation_.sep
                           : this->conversation_.sep2;
+    if (this->conversation_.separator_style == Conversation::SeparatorStyle::kRedPajamaChat) {
+      this->stop_str_ = "<human>:";
+    }
     this->ResetChat();
   }
 
@@ -534,6 +600,9 @@ class LLMChat {
     this->stop_str_ = this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
                           ? this->conversation_.sep
                           : this->conversation_.sep2;
+    if (this->conversation_.separator_style == Conversation::SeparatorStyle::kRedPajamaChat) {
+      this->stop_str_ = "<human>:";
+    }
     this->ResetChat();
   }
 
@@ -556,6 +625,9 @@ class LLMChat {
   }
 
   std::vector<int32_t> GetPromptTokens() {
+    if (this->conversation_.separator_style == Conversation::SeparatorStyle::kRedPajamaChat) {
+      this->add_bos_ = false;
+    }
     std::vector<std::string> prompts;
     if (this->conversation_.messages.size() <= 2) {
       prompts = this->conversation_.GetPromptArray();
@@ -567,14 +639,15 @@ class LLMChat {
     if (this->add_bos_) {
       tokens.insert(tokens.begin(), bos_token_id_);
     }
-    auto first_prompt_tokens = this->tokenizer_->Encode(prompts[0]);
+    std::vector<int32_t> first_prompt_tokens = this->tokenizer_->Encode(prompts[0]);
     tokens.insert(tokens.end(), first_prompt_tokens.begin(), first_prompt_tokens.end());
     int ctx_length = tokens.size();
     std::list<std::vector<int32_t>> context;
 
     bool need_shift_window = false;
     for (int i = prompts.size() - 1; i > 0; i--) {
-      auto encoded = this->tokenizer_->Encode((this->add_prefix_space_ ? " " : "") + prompts[i]);
+      std::vector<int32_t> encoded =
+          this->tokenizer_->Encode((this->add_prefix_space_ ? " " : "") + prompts[i]);
       ctx_length += encoded.size();
       if (this->total_seq_len_ + ctx_length + this->mean_gen_len_ >= this->max_window_size_) {
         need_shift_window = true;
@@ -583,7 +656,7 @@ class LLMChat {
       context.push_front(encoded);
     }
     if (!need_shift_window) {
-      for (const auto& ctx : context) {
+      for (const std::vector<int>& ctx : context) {
         tokens.insert(tokens.end(), ctx.begin(), ctx.end());
       }
       return tokens;
@@ -596,12 +669,12 @@ class LLMChat {
     if (this->add_bos_) {
       tokens.insert(tokens.begin(), bos_token_id_);
     }
-    auto all_prompts = this->conversation_.GetPromptArray();
+    std::vector<std::string> all_prompts = this->conversation_.GetPromptArray();
     first_prompt_tokens = this->tokenizer_->Encode(all_prompts[0]);
     tokens.insert(tokens.end(), first_prompt_tokens.begin(), first_prompt_tokens.end());
     ctx_length = tokens.size();
     for (int i = all_prompts.size() - 1; i > 0; i--) {
-      auto encoded = this->tokenizer_->Encode(all_prompts[i]);
+      std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompts[i]);
       ctx_length += encoded.size();
       if (ctx_length >= this->shift_fill_factor_ * this->max_window_size_ &&
           i + 2 < all_prompts.size()) {
@@ -609,7 +682,7 @@ class LLMChat {
       }
       context.push_front(encoded);
     }
-    for (const auto& ctx : context) {
+    for (const std::vector<int>& ctx : context) {
       tokens.insert(tokens.end(), ctx.begin(), ctx.end());
     }
     if (tokens.size() + this->mean_gen_len_ >= this->max_window_size_) {
@@ -626,7 +699,9 @@ class LLMChat {
     ICHECK_LE(token_ids.size(), input_token_ids_->shape[1]) << "Input tokens exceed window size";
     NDArray view = input_token_ids_.CreateView(
         ShapeTuple({1, static_cast<int64_t>(token_ids.size())}), input_token_ids_->dtype);
-    view.CopyFromBytes(token_ids.data(), token_ids.size() * sizeof(int32_t));
+    if (token_ids.size() > 0) {
+      view.CopyFromBytes(token_ids.data(), token_ids.size() * sizeof(int32_t));
+    }
     return view;
   }
 
@@ -649,10 +724,10 @@ class LLMChat {
     conversation_.AppendMessage(conversation_.roles[0], inp);
     conversation_.AppendMessage(conversation_.roles[1]);
 
-    auto prompt_tokens = this->GetPromptTokens();
+    std::vector<int32_t> prompt_tokens = this->GetPromptTokens();
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
 
-    auto input_data = this->GetInputTokenNDArray(prompt_tokens);
+    tvm::runtime::NDArray input_data = this->GetInputTokenNDArray(prompt_tokens);
 
     total_seq_len_ += token_len;
     cur_pos_ = token_len;
@@ -684,7 +759,7 @@ class LLMChat {
     output_ids_.push_back(next_token_);
     output_message_ = RemoveStopStr(tokenizer_->Decode(output_ids_));
 
-    auto input_data = GetInputTokenNDArray({next_token_});
+    tvm::runtime::NDArray input_data = GetInputTokenNDArray({next_token_});
 
     total_seq_len_ += 1;
     cur_pos_ += 1;
@@ -711,7 +786,7 @@ class LLMChat {
   }
 
   bool Stopped() {
-    if (std::any_of(stop_tokens_.begin(), stop_tokens_.end(),
+    if (std::any_of(this->conversation_.stop_tokens.begin(), this->conversation_.stop_tokens.end(),
                     [this](int32_t token) { return token == next_token_; })) {
       return true;
     }
@@ -767,9 +842,9 @@ class LLMChat {
     tokens.insert(tokens.begin(), bos_token_id_);
     int64_t token_len = static_cast<int64_t>(tokens.size());
 
-    auto input_data = NDArray::Empty({1, token_len}, DataType::Int(32), device_);
+    tvm::runtime::NDArray input_data = NDArray::Empty({1, token_len}, DataType::Int(32), device_);
     input_data.CopyFromBytes(tokens.data(), tokens.size() * sizeof(int32_t));
-    auto first_sample_token = NDArray::Empty({1, 1}, DataType::Int(32), device_);
+    tvm::runtime::NDArray first_sample_token = NDArray::Empty({1, 1}, DataType::Int(32), device_);
     std::vector<int32_t> first_sample_data = {6234};
     first_sample_token.CopyFromBytes(first_sample_data.data(), sizeof(int32_t));
 
@@ -873,6 +948,9 @@ class LLMChat {
   }
 
   std::string RemoveStopStr(std::string str) {
+    if (stop_str_.empty()) {
+      return str;
+    }
     size_t pos = str.rfind(stop_str_);
     if (pos != std::string::npos) {
       encounter_stop_str_ = true;

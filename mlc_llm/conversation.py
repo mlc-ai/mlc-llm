@@ -9,6 +9,7 @@ Now we support
 - THUDM/chatglm-6b
 - Alpaca/LLaMa
 - fnlp/moss-moon-003-sft
+- togethercomputer/RedPajama-INCITE-Chat-3B-v1
 """
 
 import dataclasses
@@ -24,6 +25,7 @@ class SeparatorStyle(Enum):
     DOLLY = auto()
     OASST_PYTHIA = auto()
     MOSS = auto()
+    REDPAJAMA_CHAT = auto()
 
 
 @dataclasses.dataclass
@@ -52,7 +54,7 @@ class Conversation:
                 else:
                     ret += self.sep + " " + role + ":"
             return ret
-        elif self.sep_style == SeparatorStyle.TWO:
+        if self.sep_style == SeparatorStyle.TWO:
             seps = [self.sep, self.sep2]
             ret = self.system + seps[0]
             for i, (role, message) in enumerate(self.messages):
@@ -61,7 +63,7 @@ class Conversation:
                 else:
                     ret += role + ":"
             return ret
-        elif self.sep_style == SeparatorStyle.DOLLY:
+        if self.sep_style == SeparatorStyle.DOLLY:
             seps = [self.sep, self.sep2]
             ret = self.system
             for i, (role, message) in enumerate(self.messages):
@@ -72,7 +74,7 @@ class Conversation:
                 else:
                     ret += role + ":\n"
             return ret
-        elif self.sep_style == SeparatorStyle.OASST_PYTHIA:
+        if self.sep_style == SeparatorStyle.OASST_PYTHIA:
             ret = self.system
             for role, message in self.messages:
                 if message:
@@ -80,7 +82,7 @@ class Conversation:
                 else:
                     ret += role
             return ret
-        elif self.sep_style == SeparatorStyle.MOSS:
+        if self.sep_style == SeparatorStyle.MOSS:
             seps = [self.sep, self.sep2]
             ret = self.system
             for i, (role, message) in enumerate(self.messages):
@@ -89,8 +91,16 @@ class Conversation:
                 else:
                     ret += role + ":"
             return ret
-        else:
-            raise ValueError(f"Invalid style: {self.sep_style}")
+        if self.sep_style == SeparatorStyle.REDPAJAMA_CHAT:
+            seps = [self.sep, self.sep2]
+            ret = self.system
+            for i, (role, message) in enumerate(self.messages):
+                if message:
+                    ret += role + ": " + message + seps[i % 2] + "\n"
+                else:
+                    ret += role + ":"
+            return ret
+        raise ValueError(f"Invalid style: {self.sep_style}")
 
     def get_prompt_unprocessed(self):
         if self.cur == 0:
@@ -107,7 +117,7 @@ class Conversation:
                     ret += role + ":"
             self.cur = len(self.messages) - 1
             return ret
-        elif self.sep_style == SeparatorStyle.DOLLY:
+        if self.sep_style == SeparatorStyle.DOLLY:
             seps = [self.sep, self.sep2]
             ret = seps[1]
             for i, (role, message) in enumerate(self.messages[self.cur + 1 :]):
@@ -119,7 +129,7 @@ class Conversation:
                     ret += role + ":\n"
             self.cur = len(self.messages) - 1
             return ret
-        elif self.sep_style == SeparatorStyle.OASST_PYTHIA:
+        if self.sep_style == SeparatorStyle.OASST_PYTHIA:
             ret = self.sep
             for role, message in self.messages[self.cur + 1 :]:
                 if message:
@@ -128,7 +138,7 @@ class Conversation:
                     ret += role
             self.cur = len(self.messages) - 1
             return ret
-        elif self.sep_style == SeparatorStyle.MOSS:
+        if self.sep_style == SeparatorStyle.MOSS:
             seps = [self.sep, self.sep2]
             ret = ""
             for i, (role, message) in enumerate(self.messages[self.cur + 1 :]):
@@ -138,8 +148,17 @@ class Conversation:
                     ret += role + ":"
             self.cur = len(self.messages) - 1
             return ret
-        else:
-            raise ValueError(f"Invalid style: {self.sep_style}")
+        if self.sep_style == SeparatorStyle.REDPAJAMA_CHAT:
+            seps = [self.sep, self.sep2]
+            ret = ""
+            for i, (role, message) in enumerate(self.messages[self.cur + 1 :]):
+                if message:
+                    ret += message + seps[i % 2] + "\n"
+                else:
+                    ret += role + ":"
+            self.cur = len(self.messages) - 1
+            return ret
+        raise ValueError(f"Invalid style: {self.sep_style}")
 
     def append_message(self, role, message):
         self.messages.append([role, message])
@@ -289,6 +308,16 @@ Capabilities and tools that MOSS can possess.
     sep2="<eom>",
 )
 
+conv_redpajama_chat = Conversation(
+    system="",
+    roles=("<human>", "<bot>"),
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.REDPAJAMA_CHAT,
+    sep="",
+    sep2="",
+)
+
 conv_templates = {
     "conv_one_shot": conv_one_shot,
     "vicuna_v1.1": conv_vicuna_v1_1,
@@ -297,6 +326,7 @@ conv_templates = {
     "oasst": conv_oasst,
     "stablelm": conv_stablelm,
     "moss": conv_moss,
+    "redpajama_chat": conv_redpajama_chat,
 }
 
 
@@ -304,16 +334,18 @@ def get_default_conv_template(model_name):
     model_name = model_name.lower()
     if "vicuna" in model_name or "output" in model_name:
         return conv_vicuna_v1_1
-    elif "koala" in model_name:
+    if "koala" in model_name:
         return conv_koala_v1
-    elif "dolly" in model_name:
+    if "dolly" in model_name:
         return conv_dolly
-    elif "oasst" in model_name and "pythia" in model_name:
+    if "oasst" in model_name and "pythia" in model_name:
         return conv_oasst
-    elif "stablelm" in model_name:
+    if "stablelm" in model_name:
         return conv_stablelm
-    elif "moss" in model_name:
+    if "moss" in model_name:
         return conv_moss
+    if "redpajama_chat" in model_name:
+        return conv_redpajama_chat
     return conv_one_shot
 
 
@@ -345,6 +377,11 @@ def compute_skip_echo_len(model_name, conv, prompt):
             "<eoc>",
             "<eor>",
         ]
+        skip_echo_len = len(prompt)
+        for tok in special_toks:
+            skip_echo_len -= prompt.count(tok) * len(tok)
+    elif "RedPajama-INCITE" in model_name:
+        special_toks = ["<human>:", "<bot>:"]
         skip_echo_len = len(prompt)
         for tok in special_toks:
             skip_echo_len -= prompt.count(tok) * len(tok)
