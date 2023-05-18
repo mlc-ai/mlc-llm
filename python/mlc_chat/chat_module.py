@@ -1,6 +1,8 @@
 """Python runtime for MLC chat."""
 
 
+import os
+
 import tvm
 
 
@@ -11,10 +13,13 @@ def load_llm_chat(mlc_lib_path):
 
 
 class LLMChatModule:
-    def __init__(self, mlc_lib_path, target="cuda", device_id=0):
+    def __init__(self, mlc_lib_path, model_path, target="cuda", device_id=0):
         load_llm_chat(mlc_lib_path)
         fcreate = tvm.get_global_func("mlc.llm_chat_create")
         assert fcreate is not None
+        model_lib_name = model_path.split("/")[-1] + "-" + target + ".so"
+        lib = tvm.runtime.load_module(os.path.join(model_path, model_lib_name))
+        assert lib is not None
         if target == "cuda":
             device_type = tvm.cuda(device_id).device_type
         elif target == "metal":
@@ -26,6 +31,7 @@ class LLMChatModule:
 
         chat_mod = fcreate(device_type, device_id)
         self.reload = chat_mod["reload"]
+        self.reload(lib, os.path.join(model_path, "params"))
         self.encode_func = chat_mod["encode"]
         self.decode_func = chat_mod["decode"]
         self.stopped_func = chat_mod["stopped"]
