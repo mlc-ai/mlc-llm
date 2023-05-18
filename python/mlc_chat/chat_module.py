@@ -1,11 +1,13 @@
 """Python runtime for MLC chat."""
 
 import os
+
 import tvm
 
 
 def load_llm_chat():
     import ctypes
+
     return ctypes.CDLL("/root/mlc-llm/build/libmlc_llm_module.so")
 
 
@@ -21,7 +23,7 @@ class LLMChatModule:
         lib = tvm.runtime.load_module(os.path.join(model_path, model_lib_path))
         assert lib is not None
 
-        tokenizer_path = os.path.join(model_path, "params")
+        tokenizer_path = model_path
         params_path = os.path.join(model_path, "params")
 
         if target == "cuda":
@@ -41,20 +43,31 @@ class LLMChatModule:
         self.stopped_func = self.chat_mod["stopped"]
         self.get_message_func = self.chat_mod["get_message"]
         self.reset_chat_func = self.chat_mod["reset_chat"]
-        self.runtime_stats_text_func = self.chat_mod["reset_runtime_stats"]
+        self.runtime_stats_text_func = self.chat_mod["runtime_stats_text"]
         self.evaluate_func = self.chat_mod["evaluate"]
 
-    def init_chat(self):
-        model = "vicuna"
-        conv_template = "vicuna_v1.1"
-        max_gen_len = 512 + 256
-        temperature = 0.7
-        top_p = 0.95
-        stream_interval = 1
-        max_window_size = 512 + 256
-        mean_gen_len = 128
-        shift_fill_factor = 0.2
-        self.init_chat_func(model, conv_template, max_gen_len, temperature, top_p, stream_interval, max_window_size, mean_gen_len, shift_fill_factor)
+    # pylint: disable=attribute-defined-outside-init
+    def init_chat(self, model="vicuna", conv_template="vicuna_v1.1"):
+        self.model = model
+        self.conv_template = conv_template
+        self.max_gen_len = 512 + 256
+        self.temperature = 0.7
+        self.top_p = 0.95
+        self.stream_interval = 1
+        self.max_window_size = 512 + 256
+        self.mean_gen_len = 128
+        self.shift_fill_factor = 0.2
+        self.init_chat_func(
+            self.model,
+            self.conv_template,
+            self.max_gen_len,
+            self.temperature,
+            self.top_p,
+            self.stream_interval,
+            self.max_window_size,
+            self.mean_gen_len,
+            self.shift_fill_factor,
+        )
 
     def encode(self, prompt):
         self.encode_func(prompt)
@@ -78,5 +91,5 @@ class LLMChatModule:
         self.evaluate_func()
 
 
-def from_llm_dylib(path):
-    """returns LLMChatModule object"""
+def from_llm_dylib(path, target="cuda"):
+    return LLMChatModule(path, target)
