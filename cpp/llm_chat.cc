@@ -771,10 +771,19 @@ class LLMChat {
     cur_pos_ += 1;
 
     auto tstart = std::chrono::high_resolution_clock::now();
-    this->UpdateLogitsOrProbOnCPU(this->Forward(input_data, total_seq_len_));
-    this->ApplyRepetitionPenalty();
-    if (temperature_ >= 1e-6f) {
-      this->UpdateLogitsOrProbOnCPU(this->SoftmaxCPU(this->logits_on_cpu_, temperature_));
+    if (repetition_penalty_ == 1.0f) {
+      if (temperature_ < 1e-6f) {
+        this->UpdateLogitsOrProbOnCPU(this->Forward(input_data, total_seq_len_));
+      } else {
+        this->UpdateLogitsOrProbOnCPU(
+            this->Softmax(this->Forward(input_data, total_seq_len_), temperature_));
+      }
+    } else {
+      this->UpdateLogitsOrProbOnCPU(this->Forward(input_data, total_seq_len_));
+      this->ApplyRepetitionPenaltyOnCPU();
+      if (temperature_ >= 1e-6f) {
+        this->ApplySoftmaxWithTemperatureOnCPU();
+      }
     }
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     auto tsample_start = std::chrono::high_resolution_clock::now();
@@ -921,7 +930,7 @@ class LLMChat {
     return ret;
   }
 
-  void ApplyRepetitionPenalty() {
+  void ApplyRepetitionPenaltyOnCPU() {
     CHECK(logits_on_cpu_.defined()) << "Logits on CPU not defined!";
     CHECK(logits_on_cpu_.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
     float* logits_raw_data = static_cast<float*>(logits_on_cpu_->data);
@@ -931,6 +940,25 @@ class LLMChat {
       } else {  // logits > 0
         logits_raw_data[token_id] /= this->repetition_penalty_;
       }
+    }
+  }
+
+  void ApplySoftmaxWithTemperatureOnCPU() {
+    CHECK(logits_on_cpu_.defined()) << "Logits on CPU not defined!";
+    CHECK(logits_on_cpu_.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
+    int vocab_size = logits_on_cpu_->shape[logits_on_cpu_->ndim - 1];
+    float* logits_raw_data = static_cast<float*>(logits_on_cpu_->data);
+    float m = std::numeric_limits<float>::min();
+    double d = 0.0f;
+    for (int i = 0; i < vocab_size; ++i) {
+      float x = logits_raw_data[i] / this->temperature_;
+      float m_prev = m;
+      m = std::max(m, x);
+      d = d * std::exp(m_prev - m) + std::exp(x - m);
+    }
+    for (int i = 0; i < vocab_size; ++i) {
+      float x = logits_raw_data[i] / this->temperature_;
+      logits_raw_data[i] = std::exp(x - m) / d;
     }
   }
 
