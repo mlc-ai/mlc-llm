@@ -47,7 +47,6 @@ class LibCompare(LibCompareVMInstrument):
     ):
         if name.startswith("shape_func"):
             return
-        print(name)
         if name not in self.time_eval_results:
             super().compare(name, ref_args, new_args, ret_indices)
             res = self.mod.time_evaluator(name, dev=self.device)(*new_args).mean
@@ -96,81 +95,22 @@ def deploy_to_pipeline(args) -> None:
         os.path.join(args.artifact_path, "params"), trust_remote_code=True
     )
 
-    tokens = [
-        29,
-        13961,
-        32056,
-        19566,
-        247,
-        8141,
-        14848,
-        2926,
-        187,
-        29,
-        12042,
-        32056,
-        7243,
-        2220,
-        247,
-        673,
-        13,
-        275,
-        247,
-        13649,
-        2080,
-        13,
-        2080,
-        1977,
-        13,
-        627,
-        369,
-        247,
-        2872,
-        637,
-        4907,
-        18247,
-        16194,
-        49679,
-        15,
-        754,
-        369,
-        247,
-        36621,
-        11572,
-        285,
-        247,
-        36621,
-        # 660,
-        # 2536,
-        # 754,
-    ]
-
     print("Tokenizing...")
     inputs = tvm.nd.array(
-        # tokenizer(args.prompt, return_tensors="pt").input_ids.to(torch.int32).numpy(),
-        np.array([tokens], "int32"),
+        tokenizer(args.prompt, return_tensors="pt").input_ids.to(torch.int32).numpy(),
         device,
     )
-    first_sampled_token = tvm.nd.array(np.array([[660]]).astype("int32"), device)
+    first_sampled_token = tvm.nd.array(np.array([[6234]]).astype("int32"), device)
     seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1]])
     second_seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1] + 1])
     kv_caches = vm["create_kv_cache"]()
     # skip warm up
 
     logits, kv_caches = vm["encoding"](inputs, seq_len_shape, kv_caches, const_params)
-
-    cmp_instrument = LibCompare(ex, device)
-    vm.set_instrument(cmp_instrument)
     logits, kv_caches = vm["decoding"](
         first_sampled_token, second_seq_len_shape, kv_caches, const_params
     )
     device.sync()
-    logits = logits.numpy().flatten()
-    next_token = logits.argmax()
-    print(next_token)
-    print(tokenizer.decode(tokens + [660, next_token]))
-
-    exit(0)
 
     kv_caches = vm["create_kv_cache"]()
     print("Running inference...")
