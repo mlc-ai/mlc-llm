@@ -1,8 +1,6 @@
 import tvm
-from tvm import IRModule
-from tvm import relax, tir
-from tvm.relax.dpl.pattern import is_op, wildcard
-from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern
+from tvm import IRModule, relax, tir
+from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcard
 
 
 def check_x_1dim(ctx: relax.transform.PatternCheckContext) -> bool:
@@ -46,21 +44,25 @@ def pattern_check(target_kind: str):
     return f_pattern_check
 
 
-def decode_matmul_pattern(match_ewise: bool, n_aux_tensor: int, target_kind: str):
+def decode_matmul_pattern(match_ewise: int, n_aux_tensor: int, target_kind: str):
     assert n_aux_tensor == 1 or n_aux_tensor == 2
 
     w_scaled = wildcard()
     aux_tensors = [wildcard(), wildcard()]
     x = wildcard()
     y = wildcard()
+    y2 = wildcard()
     w = is_op("relax.call_tir")(
         GlobalVarPattern(),
         TuplePattern([w_scaled, *aux_tensors[0:n_aux_tensor]]),
         add_constraint=False,
     )
     matmul_args = [x, w]
-    if match_ewise:
+    if match_ewise == 1:
         matmul_args.append(y)
+    elif match_ewise == 2:
+        matmul_args.append(y)
+        matmul_args.append(y2)
     matmul = is_op("relax.call_tir")(
         GlobalVarPattern(), TuplePattern(matmul_args), add_constraint=False
     )
@@ -89,7 +91,7 @@ class FuseDecodeMatmulEwise:
                 [
                     (
                         "decode_matmul",
-                        *decode_matmul_pattern(False, n_aux_tensor, self.target_kind),
+                        *decode_matmul_pattern(0, n_aux_tensor, self.target_kind),
                     )
                 ]
             )(mod)
@@ -97,7 +99,15 @@ class FuseDecodeMatmulEwise:
                 [
                     (
                         "decode_matmul_ewise",
-                        *decode_matmul_pattern(True, n_aux_tensor, self.target_kind),
+                        *decode_matmul_pattern(1, n_aux_tensor, self.target_kind),
+                    )
+                ]
+            )(mod)
+            mod = relax.transform.FuseOpsByPattern(
+                [
+                    (
+                        "decode_matmul_ewise",
+                        *decode_matmul_pattern(2, n_aux_tensor, self.target_kind),
                     )
                 ]
             )(mod)

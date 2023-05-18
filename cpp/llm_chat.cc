@@ -3,8 +3,11 @@
  * \file llm_chat.cc
  * \brief Implementation of llm chat.
  */
+#define PICOJSON_USE_INT64
+
 #include "llm_chat.h"
 
+#include <picojson.h>
 #include <tokenizers_cpp.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
@@ -34,7 +37,14 @@ using namespace tvm::runtime;
  */
 class Conversation {
  public:
-  enum class SeparatorStyle { kSingle = 0, kTwo = 1, kDolly = 2, kOasst_Pythia = 3, kMOSS = 4 };
+  enum class SeparatorStyle {
+    kSingle = 0,
+    kTwo = 1,
+    kDolly = 2,
+    kOasst_Pythia = 3,
+    kMOSS = 4,
+    kRedPajamaChat = 5,
+  };
 
   static Conversation Create(const std::string& template_name = "vicuna_v1.1") {
     if (template_name == "vicuna_v1.1") {
@@ -48,7 +58,8 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kTwo,
           /*sep=*/" ",
-          /*sep2=*/"</s>");
+          /*sep2=*/"</s>",
+          /*stop_tokens=*/{2});
     } else if (template_name == "conv_one_shot") {
       return Conversation(
           /*conv_template=*/"conv_one_shot",
@@ -89,7 +100,8 @@ class Conversation {
           /*offset=*/2,
           /*separator_style=*/Conversation::SeparatorStyle::kSingle,
           /*sep=*/"###",
-          /*sep2=*/"");
+          /*sep2=*/"",
+          /*stop_tokens=*/{2});
     } else if (template_name == "koala_v1") {
       return Conversation(
           /*conv_template=*/"koala_v1",
@@ -99,7 +111,8 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kTwo,
           /*sep=*/" ",
-          /*sep2=*/"</s>");
+          /*sep2=*/"</s>",
+          /*stop_tokens=*/{2});
     } else if (template_name == "dolly") {
       return Conversation(
           /*conv_template=*/"dolly",
@@ -111,7 +124,19 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kDolly,
           /*sep=*/"\n\n",
-          /*sep2=*/"### End");
+          /*sep2=*/"### End",
+          /*stop_tokens=*/{2});
+    } else if (template_name == "redpajama_chat") {
+      return Conversation(
+          /*conv_template=*/"redpajama_chat",
+          /*system=*/"",
+          /*roles=*/{"<human>", "<bot>"},
+          /*messages=*/{},
+          /*offset=*/0,
+          /*separator_style=*/Conversation::SeparatorStyle::kRedPajamaChat,
+          /*sep=*/"",
+          /*sep2=*/"",
+          /*stop_tokens=*/{0});
     } else if (template_name == "oasst") {
       return Conversation(
           /*conv_template=*/"oasst",
@@ -121,7 +146,8 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kOasst_Pythia,
           /*sep=*/"<|endoftext|>",
-          /*sep2=*/"");
+          /*sep2=*/"",
+          /*stop_tokens=*/{2});
     } else if (template_name == "stablelm") {
       return Conversation(
           /*conv_template=*/"stablelm",
@@ -139,7 +165,8 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kOasst_Pythia,
           /*sep=*/"",
-          /*sep2=*/"");
+          /*sep2=*/"",
+          /*stop_tokens=*/{50278, 50279, 50277, 1, 0});
     } else if (template_name == "moss") {
       return Conversation(
           /*conv_template=*/"moss",
@@ -166,7 +193,8 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kMOSS,
           /*sep=*/"<eoh>",
-          /*sep2=*/"<eom>");
+          /*sep2=*/"<eom>",
+          /*stop_tokens=*/{106068});
     } else {
       LOG(FATAL) << "Unknown conversation template: " << template_name;
     }
@@ -176,20 +204,22 @@ class Conversation {
 
   Conversation(std::string conv_template, std::string system, std::vector<std::string> roles,
                std::vector<std::vector<std::string>> messages, int32_t offset,
-               SeparatorStyle separator_style, std::string sep, std::string sep2)
+               SeparatorStyle separator_style, std::string sep, std::string sep2,
+               std::vector<int32_t> stop_tokens)
       : conv_template(conv_template),
         system_(system),
         roles(roles),
         messages(messages),
         separator_style(separator_style),
         sep(sep),
-        sep2(sep2) {}
+        sep2(sep2),
+        stop_tokens(stop_tokens) {}
 
   std::vector<std::string> GetPromptArray() {
     std::vector<std::string> ret;
     if (this->separator_style == SeparatorStyle::kSingle) {
       ret.push_back(this->system_);
-      for (const auto& message : this->messages) {
+      for (const std::vector<std::string>& message : this->messages) {
         if (message.size() == 2) {
           ret.push_back(this->sep + " " + message[0] + ": " + message[1]);
         } else if (message.size() == 1) {
@@ -231,7 +261,7 @@ class Conversation {
       return ret;
     } else if (this->separator_style == SeparatorStyle::kOasst_Pythia) {
       ret.push_back(this->system_);
-      for (const auto& message : this->messages) {
+      for (const std::vector<std::string>& message : this->messages) {
         if (message.size() == 2) {
           ret.push_back(message[0] + message[1] + this->sep);
         } else if (message.size() == 1) {
@@ -254,6 +284,19 @@ class Conversation {
         }
       }
       return ret;
+    } else if (this->separator_style == SeparatorStyle::kRedPajamaChat) {
+      std::vector<std::string> seps{this->sep, this->sep2};
+      ret.push_back(this->system_);
+      for (size_t i = 0; i < this->messages.size(); ++i) {
+        if (this->messages[i].size() == 2) {
+          ret.push_back(this->messages[i][0] + ": " + this->messages[i][1] + seps[i % 2] + "\n");
+        } else if (this->messages[i].size() == 1) {
+          ret.push_back(this->messages[i][0] + ":");
+        } else {
+          LOG(FATAL) << "Invalid message size: " << this->messages[i].size();
+        }
+      }
+      return ret;
     } else {
       LOG(FATAL) << "Unknown separator style: " << (int)this->separator_style;
     }
@@ -262,7 +305,7 @@ class Conversation {
   std::vector<std::string> GetPromptArrayUnprocessed() {
     std::vector<std::string> ret;
     if (this->messages.size() <= 2) {
-      LOG(FATAL) << "needs to call getLastPromptArray for the first message";
+      LOG(FATAL) << "needs to call GetPromptArray for the first message";
     }
     if (this->separator_style == SeparatorStyle::kTwo) {
       std::vector<std::string> seps{this->sep, this->sep2};
@@ -306,6 +349,18 @@ class Conversation {
         }
       }
       return ret;
+    } else if (this->separator_style == SeparatorStyle::kRedPajamaChat) {
+      std::vector<std::string> seps{this->sep, this->sep2};
+      for (size_t i = this->messages.size() - 2; i < this->messages.size(); ++i) {
+        if (this->messages[i].size() == 2) {
+          ret.push_back(this->messages[i][1] + seps[i % 2] + "\n");
+        } else if (this->messages[i].size() == 1) {
+          ret.push_back(this->messages[i][0] + ":");
+        } else {
+          LOG(FATAL) << "Invalid message size: " << this->messages[i].size();
+        }
+      }
+      return ret;
     } else if (this->separator_style == SeparatorStyle::kMOSS) {
       std::vector<std::string> seps{this->sep, this->sep2};
       for (int i = this->messages.size() - 2; i < this->messages.size(); ++i) {
@@ -334,6 +389,7 @@ class Conversation {
   std::string sep{"###"}, sep2{""};
   std::vector<std::string> roles;
   std::vector<std::vector<std::string>> messages;
+  std::vector<int32_t> stop_tokens;
 
  private:
   std::string system_;
@@ -356,126 +412,55 @@ std::string LoadBytesFromFile(const std::string& path) {
   return data;
 }
 
-std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& path) {
-  std::filesystem::path vocab_path(path + "/" + "vocab.json");
-  std::filesystem::path merges_path(path + "/" + "merges.txt");
-  std::filesystem::path added_tokens_path(path + "/" + "added_tokens.json");
-  std::filesystem::path sentencepiece_model(path + "/" + "tokenizer.model");
-  std::filesystem::path tokenizer_json_path(path + "/" + "tokenizer.json");
-
-  if (std::filesystem::exists(sentencepiece_model)) {
-    return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece_model));
-  } else if (std::filesystem::exists(merges_path)) {
-    CHECK(std::filesystem::exists(vocab_path))
-        << "Expect vocab.json to exist in the same folder as merges.txt";
-    std::string vocab = LoadBytesFromFile(vocab_path);
-    std::string merges = LoadBytesFromFile(merges_path);
-    std::string added_tokens = "";
-    if (std::filesystem::exists(added_tokens_path)) {
-      added_tokens = LoadBytesFromFile(added_tokens_path);
+std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
+  std::filesystem::path path(_path);
+  std::filesystem::path sentencepiece;
+  std::filesystem::path huggingface;
+  CHECK(std::filesystem::exists(path)) << "Cannot find tokenizer via path: " << _path;
+  if (std::filesystem::is_directory(path)) {
+    sentencepiece = path / "tokenizer.model";
+    huggingface = path / "tokenizer.json";
+    // Check ByteLevelBPE
+    {
+      std::filesystem::path merges_path = path / "merges.txt";
+      std::filesystem::path vocab_path = path / "vocab.json";
+      std::filesystem::path added_tokens_path = path / "added_tokens.json";
+      if (std::filesystem::exists(merges_path) && std::filesystem::exists(vocab_path)) {
+        std::string vocab = LoadBytesFromFile(vocab_path);
+        std::string merges = LoadBytesFromFile(merges_path);
+        std::string added_tokens = "";
+        if (std::filesystem::exists(added_tokens_path)) {
+          added_tokens = LoadBytesFromFile(added_tokens_path);
+        }
+        return Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens);
+      }
     }
-    return Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens);
   } else {
-    CHECK(std::filesystem::exists(tokenizer_json_path))
-        << "Cannot find any tokenizer file in path " << path;
-    return Tokenizer::FromBlobJSON(LoadBytesFromFile(tokenizer_json_path));
+    sentencepiece = path.parent_path() / "tokenizer.model";
+    huggingface = path.parent_path() / "tokenizer.json";
   }
+  if (std::filesystem::exists(sentencepiece)) {
+    return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece));
+  }
+  if (std::filesystem::exists(huggingface)) {
+    return Tokenizer::FromBlobJSON(LoadBytesFromFile(huggingface));
+  }
+  LOG(FATAL) << "Cannot find any tokenizer under: " << _path;
 }
-
-std::vector<int32_t> stop_tokens_stablelm{50278, 50279, 50277, 1, 0};
-std::vector<int32_t> stop_tokens_moss{106068};
-std::vector<int32_t> stop_tokens_default{2};
 
 //------------------------------
 // Chat module
 //------------------------------
+class LLMChatModule;
+
 /*!
  * \brief Implements the chat conversation wrapper
  */
-class LLMChatModule : public ModuleNode {
- public:
-  // overrides
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    if (name == "evaluate") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { this->Evaluate(); });
-    } else if (name == "try_tokenizer") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { this->TryTokenizer(); });
-    } else if (name == "encode") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 1);
-        this->EncodeStep(args[0]);
-      });
-    } else if (name == "decode") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { this->DecodeStep(); });
-    } else if (name == "init_chat") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 8);
-        this->model_name_ = args[0].operator std::string();
-        this->conversation_ = Conversation::Create(args[1]);
-        this->temperature_ = args[2];
-        this->top_p_ = args[3];
-        this->stream_interval_ = args[4];
-        this->max_window_size_ = args[5];
-        this->mean_gen_len_ = args[6];
-        this->shift_fill_factor_ = args[7];
-        this->repetition_penalty_ = args[8];
-        CHECK_GT(this->repetition_penalty_, 0) << "Repetition penalty must be postitive.";
-        this->ClearKVCache();
-        this->total_seq_len_ = 0;
-        this->start_pos_ = 0;
-        this->cur_pos_ = 0;
-        this->add_bos_ = true;
-        if (args[1] == "stablelm") {
-          this->stop_tokens_ = stop_tokens_stablelm;
-        } else if (args[1] == "moss") {
-          this->stop_tokens_ = stop_tokens_moss;
-          this->add_prefix_space_ = true;
-        } else {
-          this->stop_tokens_ = stop_tokens_default;
-        }
-        this->stop_str_ =
-            this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
-                ? this->conversation_.sep
-                : this->conversation_.sep2;
-      });
-    } else if (name == "reset_chat") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 0);
-        this->conversation_.messages.clear();
-        this->ClearKVCache();
-        this->total_seq_len_ = 0;
-        this->start_pos_ = 0;
-        this->cur_pos_ = 0;
-        this->add_bos_ = true;
-      });
-    } else if (name == "get_role0") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->conversation_.roles[0];
-      });
-    } else if (name == "get_role1") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->conversation_.roles[1];
-      });
-    } else if (name == "stopped") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = this->Stopped(); });
-    } else if (name == "get_message") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = this->GetMessage(); });
-    } else if (name == "runtime_stats_text") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = this->RuntimeStatsText(); });
-    } else if (name == "reset_runtime_stats") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { this->ResetRuntimeStats(); });
-    } else {
-      return PackedFunc(nullptr);
-    }
-  }
+class LLMChat {
+  friend class LLMChatModule;
 
-  const char* type_key() const final { return "mlc.llm_chat"; }
+ public:
+  explicit LLMChat(DLDevice device) : device_(device) {}
 
   /*!
    * \return Text describing runtime stats.
@@ -491,6 +476,149 @@ class LLMChatModule : public ModuleNode {
     return os.str();
   }
 
+  void Reload(tvm::runtime::Module executable, String model_path) {
+    // Step 1. Set tokenizer.
+    this->tokenizer_ = TokenizerFromPath(model_path);
+
+    // Step 2. Initialize vm, we use the packed function mechanism
+    // so there is no explicit abi dependency on these extra
+    // classes other than basic tvm runtime.
+    auto fload_exec = executable->GetFunction("vm_load_executable");
+    ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
+    vm_ = fload_exec();
+    vm_->GetFunction("vm_initialization")(static_cast<int>(device_.device_type), device_.device_id,
+                                          static_cast<int>(relax_vm::AllocatorType::kPooled),
+                                          static_cast<int>(kDLCPU), 0,
+                                          static_cast<int>(relax_vm::AllocatorType::kPooled));
+
+    encoding_func_ = vm_->GetFunction("encoding");
+    decoding_func_ = vm_->GetFunction("decoding");
+    encoding_without_cache_func_ = vm_->GetFunction("encoding_without_cache");
+    softmax_func_ = vm_->GetFunction("softmax_with_temperature");
+    get_metadata_func_ = vm_->GetFunction("get_metadata");
+
+    auto fsample_topp_from_prob_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
+    ICHECK(fsample_topp_from_prob_ptr)
+        << "Cannot find env function vm.builtin.sample_top_p_from_prob";
+    fsample_topp_from_prob_ = *fsample_topp_from_prob_ptr;
+    auto fsample_topp_from_logits_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
+    ICHECK(fsample_topp_from_logits_ptr)
+        << "Cannot find env function vm.builtin.sample_top_p_from_logits";
+    fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
+
+    // Step 3. Load params in nd-array cache.
+    const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
+    ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
+    (*fload_cache)(model_path, static_cast<int32_t>(device_.device_type), device_.device_id);
+
+    const PackedFunc* fload_params =
+        tvm::runtime::Registry::Get("vm.builtin.param_array_from_cache");
+    ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
+    params_ = (*fload_params)("param", -1);
+
+    // Step 4. KV cache creation.
+    kv_cache_ = vm_->GetFunction("create_kv_cache")();
+
+    // Step 5. Process config json string.
+    std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
+    std::ostringstream config_ostream;
+    ICHECK(config_istream);
+    config_ostream << config_istream.rdbuf();
+    std::string config_str = config_ostream.str();
+    picojson::value config_info;
+    picojson::parse(config_info, config_str);
+    auto config = config_info.get<picojson::object>();
+    ICHECK(config["conv_template"].is<std::string>());
+    ICHECK(config["temperature"].is<double>());
+    ICHECK(config["repetition_penalty"].is<double>());
+    ICHECK(config["top_p"].is<double>());
+    ICHECK(config["mean_gen_len"].is<int64_t>());
+    ICHECK(config["shift_fill_factor"].is<double>());
+    std::string conv_template = config["conv_template"].get<std::string>();
+    this->temperature_ = config["temperature"].get<double>();
+    this->repetition_penalty_ = config["repetition_penalty"].get<double>();
+    CHECK(this->repetition_penalty_ > 0) << "Repetition penalty must be a positive number!";
+    this->top_p_ = config["top_p"].get<double>();
+    this->mean_gen_len_ = config["mean_gen_len"].get<int64_t>();
+    this->shift_fill_factor_ = config["shift_fill_factor"].get<double>();
+
+    // Step 6. Process metadata
+    String metadata_str = this->get_metadata_func_();
+    picojson::value metadata_info;
+    picojson::parse(metadata_info, std::string(metadata_str));
+    auto metadata = metadata_info.get<picojson::object>();
+    ICHECK(metadata["model_name"].is<std::string>());
+    ICHECK(metadata["max_window_size"].is<int64_t>());
+    ICHECK(metadata["add_prefix_space"].is<bool>());
+    ICHECK(metadata["stop_tokens"].is<picojson::array>());
+    this->model_name_ = metadata["model_name"].get<std::string>();
+    this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
+    this->add_prefix_space_ = metadata["add_prefix_space"].get<bool>();
+    auto stop_tokens = metadata["stop_tokens"].get<picojson::array>();
+    this->stop_tokens_.reserve(stop_tokens.size());
+    for (const picojson::value& stop_token : stop_tokens) {
+      ICHECK(stop_token.is<int64_t>());
+      this->stop_tokens_.push_back(static_cast<int32_t>(stop_token.get<int64_t>()));
+    }
+
+    // Step 7. Initialize conversation.
+    this->conversation_ = Conversation::Create(conv_template);
+    this->stop_str_ = this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
+                          ? this->conversation_.sep
+                          : this->conversation_.sep2;
+    if (this->conversation_.separator_style == Conversation::SeparatorStyle::kRedPajamaChat) {
+      this->stop_str_ = "<human>:";
+    }
+    this->ResetChat();
+  }
+
+  // TODO: remove the legacy initialization func after updating app and web sides.
+  void InitChatLegacy(String conv_template, double temperature, double top_p, int64_t mean_gen_len,
+                      double shift_fill_factor) {
+    // Process metadata
+    std::string metadata_str = this->GetMetadata();
+    picojson::value metadata_info;
+    picojson::parse(metadata_info, metadata_str);
+    auto metadata = metadata_info.get<picojson::object>();
+    ICHECK(metadata["model_name"].is<std::string>());
+    ICHECK(metadata["max_window_size"].is<int64_t>());
+    ICHECK(metadata["add_prefix_space"].is<bool>());
+    ICHECK(metadata["stop_tokens"].is<picojson::array>());
+    this->model_name_ = metadata["model_name"].get<std::string>();
+    this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
+    this->add_prefix_space_ = metadata["add_prefix_space"].get<bool>();
+    auto stop_tokens = metadata["stop_tokens"].get<picojson::array>();
+    this->stop_tokens_.reserve(stop_tokens.size());
+    for (const picojson::value& stop_token : stop_tokens) {
+      ICHECK(stop_token.is<int64_t>());
+      this->stop_tokens_.push_back(static_cast<int32_t>(stop_token.get<int64_t>()));
+    }
+
+    this->conversation_ = Conversation::Create(conv_template);
+    this->temperature_ = temperature;
+    this->top_p_ = top_p;
+    this->mean_gen_len_ = mean_gen_len;
+    this->shift_fill_factor_ = shift_fill_factor;
+    this->stop_str_ = this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
+                          ? this->conversation_.sep
+                          : this->conversation_.sep2;
+    if (this->conversation_.separator_style == Conversation::SeparatorStyle::kRedPajamaChat) {
+      this->stop_str_ = "<human>:";
+    }
+    this->ResetChat();
+  }
+
+  void ResetChat() {
+    this->conversation_.messages.clear();
+    this->ClearKVCache();
+    this->total_seq_len_ = 0;
+    this->start_pos_ = 0;
+    this->cur_pos_ = 0;
+    this->add_bos_ = true;
+  }
+
   /*! \brief reset the runtime stats. */
   void ResetRuntimeStats() {
     this->encode_total_tokens = 0;
@@ -501,6 +629,9 @@ class LLMChatModule : public ModuleNode {
   }
 
   std::vector<int32_t> GetPromptTokens() {
+    if (this->conversation_.separator_style == Conversation::SeparatorStyle::kRedPajamaChat) {
+      this->add_bos_ = false;
+    }
     std::vector<std::string> prompts;
     if (this->conversation_.messages.size() <= 2) {
       prompts = this->conversation_.GetPromptArray();
@@ -512,14 +643,15 @@ class LLMChatModule : public ModuleNode {
     if (this->add_bos_) {
       tokens.insert(tokens.begin(), bos_token_id_);
     }
-    auto first_prompt_tokens = this->tokenizer_->Encode(prompts[0]);
+    std::vector<int32_t> first_prompt_tokens = this->tokenizer_->Encode(prompts[0]);
     tokens.insert(tokens.end(), first_prompt_tokens.begin(), first_prompt_tokens.end());
     int ctx_length = tokens.size();
     std::list<std::vector<int32_t>> context;
 
     bool need_shift_window = false;
     for (int i = prompts.size() - 1; i > 0; i--) {
-      auto encoded = this->tokenizer_->Encode((this->add_prefix_space_ ? " " : "") + prompts[i]);
+      std::vector<int32_t> encoded =
+          this->tokenizer_->Encode((this->add_prefix_space_ ? " " : "") + prompts[i]);
       ctx_length += encoded.size();
       if (this->total_seq_len_ + ctx_length + this->mean_gen_len_ >= this->max_window_size_) {
         need_shift_window = true;
@@ -528,7 +660,7 @@ class LLMChatModule : public ModuleNode {
       context.push_front(encoded);
     }
     if (!need_shift_window) {
-      for (const auto& ctx : context) {
+      for (const std::vector<int>& ctx : context) {
         tokens.insert(tokens.end(), ctx.begin(), ctx.end());
       }
       return tokens;
@@ -541,12 +673,12 @@ class LLMChatModule : public ModuleNode {
     if (this->add_bos_) {
       tokens.insert(tokens.begin(), bos_token_id_);
     }
-    auto all_prompts = this->conversation_.GetPromptArray();
+    std::vector<std::string> all_prompts = this->conversation_.GetPromptArray();
     first_prompt_tokens = this->tokenizer_->Encode(all_prompts[0]);
     tokens.insert(tokens.end(), first_prompt_tokens.begin(), first_prompt_tokens.end());
     ctx_length = tokens.size();
     for (int i = all_prompts.size() - 1; i > 0; i--) {
-      auto encoded = this->tokenizer_->Encode(all_prompts[i]);
+      std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompts[i]);
       ctx_length += encoded.size();
       if (ctx_length >= this->shift_fill_factor_ * this->max_window_size_ &&
           i + 2 < all_prompts.size()) {
@@ -554,7 +686,7 @@ class LLMChatModule : public ModuleNode {
       }
       context.push_front(encoded);
     }
-    for (const auto& ctx : context) {
+    for (const std::vector<int>& ctx : context) {
       tokens.insert(tokens.end(), ctx.begin(), ctx.end());
     }
     if (tokens.size() + this->mean_gen_len_ >= this->max_window_size_) {
@@ -571,8 +703,15 @@ class LLMChatModule : public ModuleNode {
     ICHECK_LE(token_ids.size(), input_token_ids_->shape[1]) << "Input tokens exceed window size";
     NDArray view = input_token_ids_.CreateView(
         ShapeTuple({1, static_cast<int64_t>(token_ids.size())}), input_token_ids_->dtype);
-    view.CopyFromBytes(token_ids.data(), token_ids.size() * sizeof(int32_t));
+    if (token_ids.size() > 0) {
+      view.CopyFromBytes(token_ids.data(), token_ids.size() * sizeof(int32_t));
+    }
     return view;
+  }
+
+  std::string GetMetadata() {
+    ObjectRef ret = this->get_metadata_func_();
+    return std::string(Downcast<String>(ret));
   }
 
   /*!
@@ -590,10 +729,10 @@ class LLMChatModule : public ModuleNode {
     conversation_.AppendMessage(conversation_.roles[0], inp);
     conversation_.AppendMessage(conversation_.roles[1]);
 
-    auto prompt_tokens = this->GetPromptTokens();
+    std::vector<int32_t> prompt_tokens = this->GetPromptTokens();
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
 
-    auto input_data = this->GetInputTokenNDArray(prompt_tokens);
+    tvm::runtime::NDArray input_data = this->GetInputTokenNDArray(prompt_tokens);
 
     total_seq_len_ += token_len;
     cur_pos_ = token_len;
@@ -626,7 +765,7 @@ class LLMChatModule : public ModuleNode {
     appeared_token_ids_.insert(next_token_);
     output_message_ = RemoveStopStr(tokenizer_->Decode(output_ids_));
 
-    auto input_data = GetInputTokenNDArray({next_token_});
+    tvm::runtime::NDArray input_data = GetInputTokenNDArray({next_token_});
 
     total_seq_len_ += 1;
     cur_pos_ += 1;
@@ -652,7 +791,7 @@ class LLMChatModule : public ModuleNode {
   }
 
   bool Stopped() {
-    if (std::any_of(stop_tokens_.begin(), stop_tokens_.end(),
+    if (std::any_of(this->conversation_.stop_tokens.begin(), this->conversation_.stop_tokens.end(),
                     [this](int32_t token) { return token == next_token_; })) {
       return true;
     }
@@ -708,9 +847,9 @@ class LLMChatModule : public ModuleNode {
     tokens.insert(tokens.begin(), bos_token_id_);
     int64_t token_len = static_cast<int64_t>(tokens.size());
 
-    auto input_data = NDArray::Empty({1, token_len}, DataType::Int(32), device_);
+    tvm::runtime::NDArray input_data = NDArray::Empty({1, token_len}, DataType::Int(32), device_);
     input_data.CopyFromBytes(tokens.data(), tokens.size() * sizeof(int32_t));
-    auto first_sample_token = NDArray::Empty({1, 1}, DataType::Int(32), device_);
+    tvm::runtime::NDArray first_sample_token = NDArray::Empty({1, 1}, DataType::Int(32), device_);
     std::vector<int32_t> first_sample_data = {6234};
     first_sample_token.CopyFromBytes(first_sample_data.data(), sizeof(int32_t));
 
@@ -744,66 +883,6 @@ class LLMChatModule : public ModuleNode {
               << "decoding-time=" << decoding_ms << "ms.";
   }
 
-  /*!
-   * \brief Load necessary component from related places.
-   *
-   * \param executable The executable information.
-   * \param tokenizer_path The root path to params
-   * \param param_path The root path to params
-   * \param device The device to run the mdoel on
-   */
-  void Init(Module executable, std::unique_ptr<Tokenizer> tokenizer, const std::string& param_path,
-            tvm::Device device) {
-    // setup members
-    device_ = device;
-    tokenizer_ = std::move(tokenizer);
-
-    // load in nd-arracy cache
-    const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
-    ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
-    (*fload_cache)(param_path, static_cast<int32_t>(device_.device_type), device.device_id);
-
-    // initialize vm, we use the packed function mechanism
-    // so there is no explicit abi dependency on these extra
-    // classes other than basic tvm runtime.
-    auto fload_exec = executable->GetFunction("vm_load_executable");
-    ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
-    vm_ = fload_exec();
-
-    vm_->GetFunction("vm_initialization")(static_cast<int>(device.device_type), device.device_id,
-                                          static_cast<int>(relax_vm::AllocatorType::kPooled),
-                                          static_cast<int>(kDLCPU), 0,
-                                          static_cast<int>(relax_vm::AllocatorType::kPooled));
-
-    encoding_func_ = vm_->GetFunction("encoding");
-    decoding_func_ = vm_->GetFunction("decoding");
-    encoding_without_cache_func_ = vm_->GetFunction("encoding_without_cache");
-    softmax_func_ = vm_->GetFunction("softmax_with_temperature");
-    auto kv_cache_func = vm_->GetFunction("create_kv_cache");
-
-    auto fsample_topp_from_prob_ptr =
-        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
-    ICHECK(fsample_topp_from_prob_ptr)
-        << "Cannot find env function vm.builtin.sample_top_p_from_prob";
-    fsample_topp_from_prob_ = *fsample_topp_from_prob_ptr;
-    auto fsample_topp_from_logits_ptr =
-        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
-    ICHECK(fsample_topp_from_logits_ptr)
-        << "Cannot find env function vm.builtin.sample_top_p_from_logits";
-    fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
-
-    // parameter loading
-    const PackedFunc* fload_params =
-        tvm::runtime::Registry::Get("vm.builtin.param_array_from_cache");
-    ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
-    params_ = (*fload_params)("param", -1);
-
-    // KV cache creation
-    kv_cache_ = vm_->GetFunction("create_kv_cache")();
-    // Other system function
-    // Get bos
-  }
-
  private:
   int CountSubstr(const std::string& str, const std::string& sub) {
     if (sub.length() == 0) return 0;
@@ -813,45 +892,6 @@ class LLMChatModule : public ModuleNode {
       ++count;
     }
     return count;
-  }
-
-  int64_t ComputeSkipEchoLen(const std::string& prompt) {
-    int64_t skip_echo_len = 0;
-    std::string model_name(model_name_);
-    std::transform(model_name.begin(), model_name.end(), model_name.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    if (model_name.find("chatglm") != std::string::npos) {
-      skip_echo_len = conversation_.messages[conversation_.messages.size() - 1][1].length() + 1;
-    } else if (model_name.find("dolly") != std::string::npos) {
-      std::vector<std::string> special_toks{"### Instruction:", "### Response:", "### End"};
-      skip_echo_len = prompt.length();
-      for (const auto& tok : special_toks) {
-        skip_echo_len -= CountSubstr(prompt, tok) * tok.length();
-      }
-    } else if (model_name.find("oasst") != std::string::npos &&
-               model_name.find("pythia") != std::string::npos) {
-      std::vector<std::string> special_toks{"<|prompter|>", "<|assistant|>", "<|endoftext|>"};
-      skip_echo_len = prompt.length();
-      for (const auto& tok : special_toks) {
-        skip_echo_len -= CountSubstr(prompt, tok) * tok.length();
-      }
-    } else if (model_name.find("stablelm") != std::string::npos) {
-      std::vector<std::string> special_toks{"<|SYSTEM|>", "<|USER|>", "<|ASSISTANT|>"};
-      skip_echo_len = prompt.length();
-      for (const auto& tok : special_toks) {
-        skip_echo_len -= CountSubstr(prompt, tok) * tok.length();
-      }
-    } else if (model_name.find("moss") != std::string::npos) {
-      std::vector<std::string> special_toks{"<|endoftext|>", "<eom>", "<eoh>",
-                                            "<eot>",         "<eoc>", "<eor>"};
-      skip_echo_len = prompt.length();
-      for (const auto& tok : special_toks) {
-        skip_echo_len -= CountSubstr(prompt, tok) * tok.length();
-      }
-    } else {
-      skip_echo_len = prompt.length() + 1 - CountSubstr(prompt, "</s>") * 3;
-    }
-    return skip_echo_len;
   }
 
   // run forward compute
@@ -933,17 +973,10 @@ class LLMChatModule : public ModuleNode {
     return fsample_topp_from_prob_(logits_on_cpu_, top_p_, GetRandomNumber());
   }
 
-  std::string DeltaMessage(const std::string& cur, const std::string& old) {
-    std::string ret;
-    int pos = std::min(old.length(), cur.length()) - 1;
-    for (; pos >= 0 && cur[pos] != '\n'; --pos)
-      ;
-    ret += '\r';
-    ret += cur.substr(pos + 1);
-    return ret;
-  }
-
   std::string RemoveStopStr(std::string str) {
+    if (stop_str_.empty()) {
+      return str;
+    }
     size_t pos = str.rfind(stop_str_);
     if (pos != std::string::npos) {
       encounter_stop_str_ = true;
@@ -980,8 +1013,6 @@ class LLMChatModule : public ModuleNode {
   double repetition_penalty_{1.0};
   // top_p
   double top_p_{0.95};
-  // stream interval
-  int64_t stream_interval_{1};
   // next_token
   int32_t next_token_{0};
   // output ids till now (refresh after encoding step)
@@ -1026,6 +1057,8 @@ class LLMChatModule : public ModuleNode {
   PackedFunc encoding_without_cache_func_;
   // softmax
   PackedFunc softmax_func_;
+  // get model metadata
+  PackedFunc get_metadata_func_;
   // sample top p from logits
   PackedFunc fsample_topp_from_logits_;
   // sample top p from prob
@@ -1040,27 +1073,172 @@ class LLMChatModule : public ModuleNode {
   NDArray logits_on_cpu_{nullptr};
 };
 
-tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
-                                      std::unique_ptr<Tokenizer> tokenizer,
-                                      const tvm::runtime::String& param_path, DLDevice device) {
+class LLMChatModule : public ModuleNode {
+ public:
+  // overrides
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    if (name == "reload") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 2);
+        chat_ = nullptr;
+        chat_ = std::make_unique<LLMChat>(LLMChat(device_));
+        (*fclear_ndarray_cache_)();
+        chat_->Reload(args[0], args[1]);
+      });
+    }
+
+    ICHECK(chat_ != nullptr);
+    if (name == "evaluate") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_->Evaluate(); });
+    } else if (name == "try_tokenizer") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_->TryTokenizer(); });
+    } else if (name == "encode") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 1);
+        chat_->EncodeStep(args[0]);
+      });
+    } else if (name == "decode") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_->DecodeStep(); });
+    } else if (name == "init_chat_legacy") {
+      // TODO: remove the legacy initialization func after updating app and web sides.
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 5);
+        chat_->InitChatLegacy(args[0], args[1], args[2], args[3], args[4]);
+      });
+    } else if (name == "reset_chat") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 0);
+        chat_->ResetChat();
+      });
+    } else if (name == "get_role0") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        *rv = chat_->conversation_.roles[0];
+      });
+    } else if (name == "get_role1") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        *rv = chat_->conversation_.roles[1];
+      });
+    } else if (name == "stopped") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = chat_->Stopped(); });
+    } else if (name == "get_message") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = chat_->GetMessage(); });
+    } else if (name == "runtime_stats_text") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = chat_->RuntimeStatsText(); });
+    } else if (name == "reset_runtime_stats") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_->ResetRuntimeStats(); });
+    } else {
+      return PackedFunc(nullptr);
+    }
+  }
+
+  void Init(DLDevice device) { device_ = device; }
+
+  // TODO: legacy function to be removed
+  void InitLegacy(tvm::runtime::Module executable, std::unique_ptr<Tokenizer> tokenizer,
+                  const tvm::runtime::String& param_path, DLDevice device) {
+    chat_ = std::make_unique<LLMChat>(LLMChat(device_));
+    // setup members
+    device_ = device;
+    chat_->device_ = device;
+    chat_->tokenizer_ = std::move(tokenizer);
+
+    // load in nd-arracy cache
+    const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
+    ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
+    (*fload_cache)(param_path, static_cast<int32_t>(device_.device_type), device.device_id);
+
+    // initialize vm, we use the packed function mechanism
+    // so there is no explicit abi dependency on these extra
+    // classes other than basic tvm runtime.
+    auto fload_exec = executable->GetFunction("vm_load_executable");
+    ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
+    chat_->vm_ = fload_exec();
+
+    chat_->vm_->GetFunction("vm_initialization")(
+        static_cast<int>(device.device_type), device.device_id,
+        static_cast<int>(relax_vm::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
+        static_cast<int>(relax_vm::AllocatorType::kPooled));
+
+    chat_->encoding_func_ = chat_->vm_->GetFunction("encoding");
+    chat_->decoding_func_ = chat_->vm_->GetFunction("decoding");
+    chat_->encoding_without_cache_func_ = chat_->vm_->GetFunction("encoding_without_cache");
+    chat_->softmax_func_ = chat_->vm_->GetFunction("softmax_with_temperature");
+    chat_->get_metadata_func_ = chat_->vm_->GetFunction("get_metadata");
+    auto kv_cache_func = chat_->vm_->GetFunction("create_kv_cache");
+
+    auto fsample_topp_from_prob_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
+    ICHECK(fsample_topp_from_prob_ptr)
+        << "Cannot find env function vm.builtin.sample_top_p_from_prob";
+    chat_->fsample_topp_from_prob_ = *fsample_topp_from_prob_ptr;
+    auto fsample_topp_from_logits_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
+    ICHECK(fsample_topp_from_logits_ptr)
+        << "Cannot find env function vm.builtin.sample_top_p_from_logits";
+    chat_->fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
+
+    // parameter loading
+    const PackedFunc* fload_params =
+        tvm::runtime::Registry::Get("vm.builtin.param_array_from_cache");
+    ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
+    chat_->params_ = (*fload_params)("param", -1);
+
+    // KV cache creation
+    chat_->kv_cache_ = chat_->vm_->GetFunction("create_kv_cache")();
+  }
+
+  const char* type_key() const final { return "mlc.llm_chat"; }
+
+ private:
+  const PackedFunc* fclear_ndarray_cache_ =
+      tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.clear");
+  std::unique_ptr<LLMChat> chat_ = nullptr;
+  DLDevice device_;
+};
+
+tvm::runtime::Module CreateChatModule(DLDevice device) {
   ObjectPtr<LLMChatModule> n = make_object<LLMChatModule>();
-  n->Init(executable, std::move(tokenizer), param_path, device);
+  n->Init(device);
   return Module(n);
 }
 
-tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
-                                      const tvm::runtime::String& tokenizer_path,
-                                      const tvm::runtime::String& param_path, DLDevice device) {
-  // tokenizer stored in single files.
-  return CreateChatModule(executable, TokenizerFromPath(tokenizer_path), param_path, device);
+// register as a system function that can be queried
+TVM_REGISTER_GLOBAL("mlc.llm_chat_create").set_body_typed([](int device_type, int device_id) {
+  return CreateChatModule(DLDevice{static_cast<DLDeviceType>(device_type), device_id});
+});
+
+// TODO: legacy function to be removed
+tvm::runtime::Module CreateChatModuleLegacy(tvm::runtime::Module executable,
+                                            std::unique_ptr<Tokenizer> tokenizer,
+                                            const tvm::runtime::String& param_path,
+                                            DLDevice device) {
+  ObjectPtr<LLMChatModule> n = make_object<LLMChatModule>();
+  n->InitLegacy(executable, std::move(tokenizer), param_path, device);
+  return Module(n);
 }
 
+// TODO: legacy function to be removed
+tvm::runtime::Module CreateChatModuleLegacy(tvm::runtime::Module executable,
+                                            const tvm::runtime::String& tokenizer_path,
+                                            const tvm::runtime::String& param_path,
+                                            DLDevice device) {
+  // tokenizer stored in single files.
+  return CreateChatModuleLegacy(executable, TokenizerFromPath(tokenizer_path), param_path, device);
+}
+
+// TODO: legacy function to be removed
 // register as a system function that can be queried
-TVM_REGISTER_GLOBAL("mlc.llm_chat_create")
+TVM_REGISTER_GLOBAL("mlc.llm_chat_create_legacy")
     .set_body_typed([](tvm::runtime::Module executable, const tvm::runtime::String& tokenizer_path,
                        const tvm::runtime::String& param_path, int device_type, int device_id) {
-      return CreateChatModule(executable, tokenizer_path, param_path,
-                              DLDevice{static_cast<DLDeviceType>(device_type), device_id});
+      return CreateChatModuleLegacy(executable, tokenizer_path, param_path,
+                                    DLDevice{static_cast<DLDeviceType>(device_type), device_id});
     });
 
 }  // namespace llm

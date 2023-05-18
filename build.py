@@ -1,12 +1,13 @@
+# pylint: disable=missing-docstring
 import argparse
+import json
 import os
 import pickle
-import json
-from typing import List
-import json
+from typing import Any, Dict, List
 
 import tvm
 import tvm.testing
+from tvm import meta_schedule as ms
 from tvm import relax
 
 import mlc_llm
@@ -53,7 +54,6 @@ def _parse_args():
     )
     args.add_argument("--debug-dump", action="store_true", default=False)
     args.add_argument("--debug-load-script", action="store_true", default=False)
-
     args.add_argument(
         "--llvm-mingw",
         type=str,
@@ -71,7 +71,12 @@ def _parse_args():
     parsed = _setup_model_path(parsed)
 
     parsed.db_path = parsed.db_path or os.path.join("log_db", parsed.model)
-
+    if os.path.exists(parsed.db_path):
+        ms.database.create(work_dir=parsed.db_path)
+    else:
+        print(
+            f"WARNING: --db-path does not point to a valid database: {parsed.db_path}"
+        )
     utils.parse_target(parsed)
     utils.argparse_postproc_common(parsed)
 
@@ -82,7 +87,7 @@ def _parse_args():
     return parsed
 
 
-def _setup_model_path(args):
+def _setup_model_path(args):  # pylint: disable=too-many-branches
     if args.hf_path:
         if args.model != "auto":
             assert args.model == os.path.basename(args.hf_path), (
@@ -120,16 +125,16 @@ def _setup_model_path(args):
             ):
                 try:
                     validate_config(os.path.join(lookup_path, dirname))
-                except:
+                except:  # pylint: disable=bare-except
                     pass
                 else:
                     args.model_path = os.path.join(lookup_path, dirname)
                     args.model = dirname
                     break
         if args.model == "auto":
-            raise ValueError(f"Please specify either the model_path or the hf_path.")
+            raise ValueError("Please specify either the model_path or the hf_path.")
 
-    print(f"Using model path {args.model_path}")
+    print(f'Using path "{args.model_path}" for model "{args.model}"')
     return args
 
 
@@ -137,11 +142,9 @@ def validate_config(model_path: str):
     assert os.path.exists(
         os.path.join(model_path, "config.json")
     ), "Model path must contain valid config file."
-    with open(os.path.join(model_path, "config.json")) as f:
-        config = json.load(f)
-        assert ("model_type" in config) and (
-            "_name_or_path" in config
-        ), "Invalid config format."
+    with open(os.path.join(model_path, "config.json"), encoding="utf-8") as i_f:
+        config = json.load(i_f)
+        assert "model_type" in config, "Invalid config format."
         assert (
             config["model_type"] in utils.supported_model_types
         ), f"Model type {config['model_type']} not supported."
@@ -152,7 +155,7 @@ def debug_dump_script(mod, name, args):
     if not args.debug_dump:
         return
     dump_path = os.path.join(args.artifact_path, "debug", name)
-    with open(dump_path, "w") as outfile:
+    with open(dump_path, "w", encoding="utf-8") as outfile:
         outfile.write(mod.script(show_meta=True))
     print(f"Dump mod to {dump_path}")
 
@@ -160,7 +163,10 @@ def debug_dump_script(mod, name, args):
 def debug_load_script(name, args):
     input_path = os.path.join(args.artifact_path, "debug", name)
     lib = {"__file__": input_path}
-    exec(compile(open(input_path, "rb").read(), input_path, "exec"), lib, lib)
+    with open(input_path, "rb") as i_f:
+        exec(  # pylint: disable=exec-used
+            compile(i_f.read(), input_path, "exec"), lib, lib
+        )
     return lib["Module"]
 
 
@@ -178,7 +184,7 @@ def debug_dump_shader(ex, name, args):
     suffix = suffix_map.get(target_kind, ".txt")
     dump_path = os.path.join(args.artifact_path, "debug", name + suffix)
     source = ex.mod.imported_modules[0].imported_modules[0].get_source()
-    with open(dump_path, "w") as outfile:
+    with open(dump_path, "w", encoding="utf-8") as outfile:
         outfile.write(source)
     print(f"Dump shader to {dump_path}")
 
@@ -194,20 +200,20 @@ def mod_transform_before_build(
         "decoding",
         "create_kv_cache",
         "softmax_with_temperature",
+        "get_metadata",
     ]
 
     if args.quantization.mode != "no":
-        mod = mlc_llm.transform.GroupQuantize(
+        mod = mlc_llm.transform.GroupQuantize(  # pylint: disable=not-callable
             group_size=40 if args.quantization.mode.endswith("3") else 32,
             sym=args.quantization.sym,
             mode=args.quantization.mode,
             storage_nbit=args.quantization.storage_nbit,
             dtype=args.quantization.model_dtype,
         )(mod)
-    mod = mlc_llm.transform.FuseTransposeMatmul()(mod)
-
-    mod = relax.pipeline.get_pipeline()(mod)
-    mod = mlc_llm.transform.FuseDecodeMatmulEwise(
+    mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
+    mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
+    mod = mlc_llm.transform.FuseDecodeMatmulEwise(  # pylint: disable=not-callable
         args.quantization.model_dtype, args.target_kind
     )(mod)
     mod = relax.transform.DeadCodeElimination(model_names)(mod)
@@ -221,38 +227,45 @@ def mod_transform_before_build(
     return mod_deploy
 
 
-def dump_default_mlc_llm_config(args):
-    config = dict()
+def dump_default_mlc_chat_config(args):
+    params_path = os.path.join(args.artifact_path, "params")
+    config: Dict[str, Any] = {}
     config["model_lib"] = f"{args.model}-{args.quantization.name}"
     config["local_id"] = f"{args.model}-{args.quantization.name}"
     config["conv_template"] = args.conv_template
     config["temperature"] = 0.7
+    config["repetition_penalty"] = 1.0
     config["top_p"] = 0.95
-    config["stream_interval"] = 2
     config["mean_gen_len"] = 128
     config["shift_fill_factor"] = 0.3
-    dump_path = os.path.join(args.artifact_path, "params", "mlc-chat-config.json")
-    with open(dump_path, "w") as outfile:
+    config["tokenizer_files"] = utils.get_tokenizer_files(params_path)
+
+    dump_path = os.path.join(params_path, "mlc-chat-config.json")
+    with open(dump_path, "w", encoding="utf-8") as outfile:
         json.dump(config, outfile, indent=4)
-    print(f"Finish exporting mlc_llm_config to {dump_path}")
+    print(f"Finish exporting chat config to {dump_path}")
 
 
 def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     target_kind = args.target_kind
     debug_dump_script(mod_deploy, "mod_before_build.py", args)
     if target_kind != "cpu":
-        from tvm import meta_schedule as ms
-
         if os.path.exists(args.db_path):
-            db = ms.database.create(work_dir=args.db_path)
+            db = ms.database.create(  # pylint: disable=invalid-name
+                work_dir=args.db_path
+            )
         else:
-            db = ms.database.MemoryDatabase()
+            db = ms.database.MemoryDatabase()  # pylint: disable=invalid-name
         with db, tvm.target.Target("apple/m1-gpu-restricted"):
             mod_deploy = relax.transform.MetaScheduleApplyDatabase()(mod_deploy)
             if args.target_kind == "android":
-                mod_deploy = mlc_llm.dispatch.DispatchTIROperatorAdreno()(mod_deploy)
-            mod_deploy = mlc_llm.dispatch.DispatchTIROperator(args.model_category)(
-                mod_deploy
+                mod_deploy = mlc_llm.dispatch.DispatchTIROperatorAdreno()(  # pylint: disable=not-callable
+                    mod_deploy
+                )
+            mod_deploy = (
+                mlc_llm.dispatch.DispatchTIROperator(  # pylint: disable=not-callable
+                    args.model_category
+                )(mod_deploy)
             )
             mod_deploy = tvm.tir.transform.DefaultGPUSchedule()(mod_deploy)
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
@@ -287,30 +300,27 @@ from tvm.script import tir as T
     static_path = os.path.join(ARGS.artifact_path, "debug", "mod_tir_static.py")
     dynamic_path = os.path.join(ARGS.artifact_path, "debug", "mod_tir_dynamic.py")
     print(f"Dump static shape TIR to {static_path}")
-    with open(static_path, "w") as o_f:
+    with open(static_path, "w", encoding="utf-8") as o_f:
         o_f.write(template.format(content=mod_static.script()))
     print(f"Dump dynamic shape TIR to {dynamic_path}")
-    with open(dynamic_path, "w") as o_f:
+    with open(dynamic_path, "w", encoding="utf-8") as o_f:
         o_f.write(template.format(content=mod_dynamic.script()))
 
 
-if __name__ == "__main__":
-    ARGS = _parse_args()
+def main():
     os.makedirs(ARGS.artifact_path, exist_ok=True)
     os.makedirs(os.path.join(ARGS.artifact_path, "debug"), exist_ok=True)
     cache_path = os.path.join(
         ARGS.artifact_path, f"mod_cache_before_build_{ARGS.target_kind}.pkl"
     )
     use_cache = ARGS.use_cache and os.path.isfile(cache_path)
-    with open(os.path.join(ARGS.model_path, "config.json")) as f:
-        config = json.load(f)
+    with open(os.path.join(ARGS.model_path, "config.json"), encoding="utf-8") as i_f:
+        config = json.load(i_f)
         if not use_cache:
             if ARGS.model_category == "llama":
                 mod, params = llama.get_model(ARGS, config)
             elif ARGS.model_category == "gpt_neox":
-                mod, params = gpt_neox.get_model(
-                    ARGS.model, ARGS.model_path, ARGS.quantization.model_dtype, config
-                )
+                mod, params = gpt_neox.get_model(ARGS, config)
             elif ARGS.model_category == "moss":
                 mod, params = moss.get_model(ARGS, config)
             else:
@@ -325,7 +335,13 @@ if __name__ == "__main__":
                 f"Load cached module from {cache_path} and skip tracing. "
                 "You can use --use-cache=0 to retrace"
             )
-            mod = pickle.load(open(cache_path, "rb"))
+            with open(cache_path, "rb") as pkl:
+                mod = pickle.load(pkl)
         dump_split_tir(mod)
         build(mod, ARGS)
-        dump_default_mlc_llm_config(ARGS)
+        dump_default_mlc_chat_config(ARGS)
+
+
+if __name__ == "__main__":
+    ARGS = _parse_args()
+    main()

@@ -22,10 +22,12 @@ namespace mlc {
 namespace llm {
 
 // explicit export via TVM_DLL
-MLC_LLM_DLL tvm::runtime::Module CreateChatModule(
-    tvm::runtime::Module executable,
-    const tvm::runtime::String& tokenizer_path,
-    const tvm::runtime::String& param_path, DLDevice device);
+MLC_LLM_DLL tvm::runtime::Module CreateChatModule(DLDevice device);
+
+MLC_LLM_DLL tvm::runtime::Module CreateChatModuleLegacy(tvm::runtime::Module executable,
+                                                        const tvm::runtime::String& tokenizer_path,
+                                                        const tvm::runtime::String& param_path,
+                                                        DLDevice device);
 
 }  // namespace llm
 }  // namespace mlc
