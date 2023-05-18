@@ -45,6 +45,12 @@ def _parse_args():
         default=None,
         help="Path to log database. Default: ./log_db/{model}",
     )
+    args.add_argument(
+        "--reuse-lib",
+        type=str,
+        default=None,
+        help="Whether to reuse a previously generated lib.",
+    )
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument(
         "--use-cache",
@@ -230,7 +236,14 @@ def mod_transform_before_build(
 def dump_default_mlc_chat_config(args):
     params_path = os.path.join(args.artifact_path, "params")
     config: Dict[str, Any] = {}
-    config["model_lib"] = f"{args.model}-{args.quantization.name}"
+
+    if args.reuse_lib:
+        config["model_lib"] = f"{args.reuse_lib}"
+        if not args.reuse_lib.endswith(args.quantization.name):
+            raise RuntimeError(f"Trying to reuse lib without suffix {args.quantization.name}")
+    else:
+        config["model_lib"] = f"{args.model}-{args.quantization.name}"
+
     config["local_id"] = f"{args.model}-{args.quantization.name}"
     config["conv_template"] = args.conv_template
     config["temperature"] = 0.7
@@ -341,7 +354,10 @@ def main():
             with open(cache_path, "rb") as pkl:
                 mod = pickle.load(pkl)
         dump_split_tir(mod)
-        build(mod, ARGS)
+        if not ARGS.reuse_lib:
+            build(mod, ARGS)
+        else:
+            print("Reuse existing preuilt lib {ARGS.reuse_lib}...")
         dump_default_mlc_chat_config(ARGS)
 
 
