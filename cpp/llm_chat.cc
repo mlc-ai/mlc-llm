@@ -883,7 +883,7 @@ class LLMChatModule : public ModuleNode {
 
   void ApplyRepetitionPenalty() {
     CHECK(logits_on_cpu_.defined()) << "Logits on CPU not defined!";
-    CHECK(logits_on_cpu_.dtype() == DataType::Float(32)) << "Logits data type is not float32!";
+    CHECK(logits_on_cpu_.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
     float* logits_raw_data = static_cast<float*>(logits_on_cpu_->data);
     for (const int32_t& token_id : this->appeared_token_ids_) {
       if (logits_raw_data[token_id] <= 0) {
