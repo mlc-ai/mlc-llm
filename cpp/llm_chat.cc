@@ -922,14 +922,6 @@ class LLMChat {
     return ret;
   }
 
-  NDArray SoftmaxCPU(NDArray input, float temperature) {
-    NDArray temperature_arr = NDArray::Empty({}, DataType::Float(32), DLDevice{kDLCPU, 0});
-    temperature_arr.CopyFromBytes(&temperature, sizeof(float));
-    NDArray ret;
-    ret = softmax_func_(input, temperature_arr);
-    return ret;
-  }
-
   void ApplyRepetitionPenaltyOnCPU() {
     CHECK(logits_on_cpu_.defined()) << "Logits on CPU not defined!";
     CHECK(logits_on_cpu_.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
