@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1453A4C82A1353D8001B909F /* ModelConfig in Resources */ = {isa = PBXBuildFile; fileRef = 1453A4C72A1353D7001B909F /* ModelConfig */; };
 		1453A4C92A1353F1001B909F /* ModelConfig in CopyFiles */ = {isa = PBXBuildFile; fileRef = 1453A4C72A1353D7001B909F /* ModelConfig */; };
 		1453A4CF2A1354B9001B909F /* StartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1453A4CA2A1354B9001B909F /* StartView.swift */; };
 		1453A4D02A1354B9001B909F /* ModelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1453A4CB2A1354B9001B909F /* ModelView.swift */; };
@@ -198,7 +197,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1453A4C82A1353D8001B909F /* ModelConfig in Resources */,
 				C0D643BA29F99A80004DDAA4 /* Preview Assets.xcassets in Resources */,
 				C0D643B729F99A80004DDAA4 /* Assets.xcassets in Resources */,
 			);
@@ -407,10 +405,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = MLCChat/MLCChat.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"MLCChat/Preview Content\"";
-				DEVELOPMENT_TEAM = 3D7CQ3D634;
+				DEVELOPMENT_TEAM = 3FR42MXLK9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				"HEADER_SEARCH_PATHS[arch=*]" = (
@@ -446,6 +445,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = mlc.Chat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "MLCChat/MLCChat-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;

@@ -234,7 +234,7 @@ def parse_target(args: argparse.Namespace) -> None:
         args.lib_format = "wasm"
         args.system_lib = True
     elif args.target.startswith("iphone"):
-        from tvm.contrib import cc, xcode  # pylint: disable=import-outside-toplevel
+        from tvm.contrib import tar, xcode  # pylint: disable=import-outside-toplevel
 
         # override
         @tvm.register_func("tvm_callback_metal_compile")
@@ -256,9 +256,8 @@ def parse_target(args: argparse.Namespace) -> None:
         )
         args.target_kind = "iphone"
         args.export_kwargs = {
-            "fcompile": cc.create_staticlib,
+            "fcompile": tar.tar
         }
-        args.lib_format = "a"
 
         if dylib:
             args.export_kwargs = {
@@ -268,7 +267,11 @@ def parse_target(args: argparse.Namespace) -> None:
             }
             args.lib_format = "dylib"
         else:
+            args.lib_format = "tar"
             args.system_lib = True
+            system_lib_prefix = f"{args.model}-{args.quantization}_"
+            args.system_lib_prefix = system_lib_prefix.replace("-", "_")
+
     elif args.target.startswith("android"):
         # android-opencl
         from tvm.contrib import ndk, cc

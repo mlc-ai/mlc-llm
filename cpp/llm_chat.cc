@@ -467,7 +467,7 @@ class LLMChat {
    */
   std::string RuntimeStatsText() {
     std::ostringstream os;
-    os << "encode: " << std::setprecision(1) << std::fixed
+    os << "prefill: " << std::setprecision(1) << std::fixed
        << this->encode_total_tokens / this->encode_total_time << " tok/s"
        << ", decode: " << std::setprecision(1) << std::fixed
        << this->decode_total_tokens / this->decode_total_time << " tok/s";
@@ -517,6 +517,13 @@ class LLMChat {
         tvm::runtime::Registry::Get("vm.builtin.param_array_from_cache");
     ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
     params_ = (*fload_params)("param", -1);
+
+    // after we get params, it is safe to simply clear the cached version
+    // as these params are referenced by params_
+    const PackedFunc* fclear_ndarray_cache =
+        tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.clear");
+    ICHECK(fclear_ndarray_cache) << "Cannot find env function vm.builtin.ndarray_cache.clear";
+    (*fclear_ndarray_cache)();
 
     // Step 4. KV cache creation.
     kv_cache_ = vm_->GetFunction("create_kv_cache")();
@@ -1103,62 +1110,67 @@ class LLMChatModule : public ModuleNode {
         ICHECK_EQ(args.size(), 2);
         chat_ = nullptr;
         chat_ = std::make_unique<LLMChat>(LLMChat(device_));
-        (*fclear_ndarray_cache_)();
         chat_->Reload(args[0], args[1]);
       });
-    }
-
-    ICHECK(chat_ != nullptr);
-    if (name == "evaluate") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_->Evaluate(); });
+    } else if (name == "unload") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_ = nullptr; });
+    } else if (name == "evaluate") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->Evaluate(); });
     } else if (name == "try_tokenizer") {
       return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_->TryTokenizer(); });
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->TryTokenizer(); });
     } else if (name == "encode") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 1);
-        chat_->EncodeStep(args[0]);
+        GetChat()->EncodeStep(args[0]);
       });
     } else if (name == "decode") {
       return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_->DecodeStep(); });
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->DecodeStep(); });
     } else if (name == "init_chat_legacy") {
       // TODO: remove the legacy initialization func after updating app and web sides.
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 5);
-        chat_->InitChatLegacy(args[0], args[1], args[2], args[3], args[4]);
+        GetChat()->InitChatLegacy(args[0], args[1], args[2], args[3], args[4]);
       });
     } else if (name == "reset_chat") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 0);
-        chat_->ResetChat();
+        GetChat()->ResetChat();
       });
     } else if (name == "get_role0") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        *rv = chat_->conversation_.roles[0];
+        *rv = GetChat()->conversation_.roles[0];
       });
     } else if (name == "get_role1") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        *rv = chat_->conversation_.roles[1];
+        *rv = GetChat()->conversation_.roles[1];
       });
     } else if (name == "stopped") {
       return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = chat_->Stopped(); });
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = GetChat()->Stopped(); });
     } else if (name == "get_message") {
       return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = chat_->GetMessage(); });
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = GetChat()->GetMessage(); });
     } else if (name == "runtime_stats_text") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = chat_->RuntimeStatsText(); });
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        *rv = GetChat()->RuntimeStatsText();
+      });
     } else if (name == "reset_runtime_stats") {
       return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_->ResetRuntimeStats(); });
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->ResetRuntimeStats(); });
     } else {
       return PackedFunc(nullptr);
     }
   }
 
   void Init(DLDevice device) { device_ = device; }
+
+  LLMChat* GetChat() {
+    ICHECK(chat_ != nullptr) << "Chat is not initialized via reload";
+    return chat_.get();
+  }
 
   // TODO: legacy function to be removed
   void InitLegacy(tvm::runtime::Module executable, std::unique_ptr<Tokenizer> tokenizer,
@@ -1217,8 +1229,6 @@ class LLMChatModule : public ModuleNode {
   const char* type_key() const final { return "mlc.llm_chat"; }
 
  private:
-  const PackedFunc* fclear_ndarray_cache_ =
-      tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.clear");
   std::unique_ptr<LLMChat> chat_ = nullptr;
   DLDevice device_;
 };
