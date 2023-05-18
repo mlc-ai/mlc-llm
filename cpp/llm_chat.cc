@@ -387,151 +387,16 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& path) {
 //------------------------------
 // Chat module
 //------------------------------
+class LLMChatModule;
+
 /*!
  * \brief Implements the chat conversation wrapper
  */
-class LLMChatModule : public ModuleNode {
+class LLMChat {
+  friend class LLMChatModule;
+
  public:
-  // overrides
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    if (name == "evaluate") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { this->Evaluate(); });
-    } else if (name == "try_tokenizer") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { this->TryTokenizer(); });
-    } else if (name == "encode") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 1);
-        this->EncodeStep(args[0]);
-      });
-    } else if (name == "decode") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { this->DecodeStep(); });
-    } else if (name == "init_chat") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        // Process metadata
-        std::string metadata_str = this->GetMetadata();
-        picojson::value metadata_info;
-        picojson::parse(metadata_info, metadata_str);
-        auto metadata = metadata_info.get<picojson::object>();
-        ICHECK(metadata["model_name"].is<std::string>());
-        ICHECK(metadata["max_window_size"].is<int64_t>());
-        ICHECK(metadata["add_prefix_space"].is<bool>());
-        ICHECK(metadata["stop_tokens"].is<picojson::array>());
-        this->model_name_ = metadata["model_name"].get<std::string>();
-        this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
-        this->add_prefix_space_ = metadata["add_prefix_space"].get<bool>();
-        auto stop_tokens = metadata["stop_tokens"].get<picojson::array>();
-        this->stop_tokens_.reserve(stop_tokens.size());
-        for (const picojson::value& stop_token : stop_tokens) {
-          ICHECK(stop_token.is<int64_t>());
-          this->stop_tokens_.push_back(static_cast<int32_t>(stop_token.get<int64_t>()));
-        }
-
-        // Process config json string
-        ICHECK_EQ(args.size(), 1);
-        ObjectRef config_obj = args[0];
-        std::string config_str = std::string(Downcast<String>(config_obj));
-        picojson::value config_info;
-        picojson::parse(config_info, config_str);
-        auto config = config_info.get<picojson::object>();
-        ICHECK(config["conv_template"].is<std::string>());
-        ICHECK(config["temperature"].is<double>());
-        ICHECK(config["top_p"].is<double>());
-        ICHECK(config["mean_gen_len"].is<int64_t>());
-        ICHECK(config["shift_fill_factor"].is<double>());
-        std::string conv_template = config["conv_template"].get<std::string>();
-        this->temperature_ = config["temperature"].get<double>();
-        this->top_p_ = config["top_p"].get<double>();
-        this->mean_gen_len_ = config["mean_gen_len"].get<int64_t>();
-        this->shift_fill_factor_ = config["shift_fill_factor"].get<double>();
-
-        this->conversation_ = Conversation::Create(conv_template);
-        this->ClearKVCache();
-        this->total_seq_len_ = 0;
-        this->start_pos_ = 0;
-        this->cur_pos_ = 0;
-        this->add_bos_ = true;
-        this->stop_str_ =
-            this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
-                ? this->conversation_.sep
-                : this->conversation_.sep2;
-      });
-    } else if (name == "init_chat_legacy") {
-      // TODO: remove the legacy initialization func after updating app and web sides.
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        // Process metadata
-        std::string metadata_str = this->GetMetadata();
-        picojson::value metadata_info;
-        picojson::parse(metadata_info, metadata_str);
-        auto metadata = metadata_info.get<picojson::object>();
-        ICHECK(metadata["model_name"].is<std::string>());
-        ICHECK(metadata["max_window_size"].is<int64_t>());
-        ICHECK(metadata["add_prefix_space"].is<bool>());
-        ICHECK(metadata["stop_tokens"].is<picojson::array>());
-        this->model_name_ = metadata["model_name"].get<std::string>();
-        this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
-        this->add_prefix_space_ = metadata["add_prefix_space"].get<bool>();
-        auto stop_tokens = metadata["stop_tokens"].get<picojson::array>();
-        this->stop_tokens_.reserve(stop_tokens.size());
-        for (const picojson::value& stop_token : stop_tokens) {
-          ICHECK(stop_token.is<int64_t>());
-          this->stop_tokens_.push_back(static_cast<int32_t>(stop_token.get<int64_t>()));
-        }
-
-        ICHECK_EQ(args.size(), 5);
-        this->conversation_ = Conversation::Create(args[0]);
-        this->temperature_ = args[1];
-        this->top_p_ = args[2];
-        this->mean_gen_len_ = args[3];
-        this->shift_fill_factor_ = args[4];
-
-        this->ClearKVCache();
-        this->total_seq_len_ = 0;
-        this->start_pos_ = 0;
-        this->cur_pos_ = 0;
-        this->add_bos_ = true;
-        this->stop_str_ =
-            this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
-                ? this->conversation_.sep
-                : this->conversation_.sep2;
-      });
-    } else if (name == "reset_chat") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 0);
-        this->conversation_.messages.clear();
-        this->ClearKVCache();
-        this->total_seq_len_ = 0;
-        this->start_pos_ = 0;
-        this->cur_pos_ = 0;
-        this->add_bos_ = true;
-      });
-    } else if (name == "get_role0") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->conversation_.roles[0];
-      });
-    } else if (name == "get_role1") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->conversation_.roles[1];
-      });
-    } else if (name == "stopped") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = this->Stopped(); });
-    } else if (name == "get_message") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = this->GetMessage(); });
-    } else if (name == "runtime_stats_text") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = this->RuntimeStatsText(); });
-    } else if (name == "reset_runtime_stats") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { this->ResetRuntimeStats(); });
-    } else {
-      return PackedFunc(nullptr);
-    }
-  }
-
-  const char* type_key() const final { return "mlc.llm_chat"; }
+  explicit LLMChat(DLDevice device) : device_(device) {}
 
   /*!
    * \return Text describing runtime stats.
@@ -545,6 +410,140 @@ class LLMChatModule : public ModuleNode {
     // os << ", sample-cost: " << std::setprecision(1) << std::fixed
     //    << 100 * (this->sample_total_time / this->decode_total_time) << "%";
     return os.str();
+  }
+
+  void Reload(tvm::runtime::Module executable, String model_path) {
+    // Step 1. Set tokenizer.
+    this->tokenizer_ = TokenizerFromPath(model_path);
+
+    // Step 2. Initialize vm, we use the packed function mechanism
+    // so there is no explicit abi dependency on these extra
+    // classes other than basic tvm runtime.
+    auto fload_exec = executable->GetFunction("vm_load_executable");
+    ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
+    vm_ = fload_exec();
+    vm_->GetFunction("vm_initialization")(static_cast<int>(device_.device_type), device_.device_id,
+                                          static_cast<int>(relax_vm::AllocatorType::kPooled),
+                                          static_cast<int>(kDLCPU), 0,
+                                          static_cast<int>(relax_vm::AllocatorType::kPooled));
+
+    encoding_func_ = vm_->GetFunction("encoding");
+    decoding_func_ = vm_->GetFunction("decoding");
+    encoding_without_cache_func_ = vm_->GetFunction("encoding_without_cache");
+    softmax_func_ = vm_->GetFunction("softmax_with_temperature");
+    get_metadata_func_ = vm_->GetFunction("get_metadata");
+
+    auto fsample_topp_from_prob_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
+    ICHECK(fsample_topp_from_prob_ptr)
+        << "Cannot find env function vm.builtin.sample_top_p_from_prob";
+    fsample_topp_from_prob_ = *fsample_topp_from_prob_ptr;
+    auto fsample_topp_from_logits_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
+    ICHECK(fsample_topp_from_logits_ptr)
+        << "Cannot find env function vm.builtin.sample_top_p_from_logits";
+    fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
+
+    // Step 3. Load params in nd-array cache.
+    const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
+    ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
+    (*fload_cache)(model_path, static_cast<int32_t>(device_.device_type), device_.device_id);
+
+    const PackedFunc* fload_params =
+        tvm::runtime::Registry::Get("vm.builtin.param_array_from_cache");
+    ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
+    params_ = (*fload_params)("param", -1);
+
+    // Step 4. KV cache creation.
+    kv_cache_ = vm_->GetFunction("create_kv_cache")();
+
+    // Step 5. Process config json string.
+    std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
+    std::ostringstream config_ostream;
+    ICHECK(config_istream);
+    config_ostream << config_istream.rdbuf();
+    std::string config_str = config_ostream.str();
+    picojson::value config_info;
+    picojson::parse(config_info, config_str);
+    auto config = config_info.get<picojson::object>();
+    ICHECK(config["conv_template"].is<std::string>());
+    ICHECK(config["temperature"].is<double>());
+    ICHECK(config["top_p"].is<double>());
+    ICHECK(config["mean_gen_len"].is<int64_t>());
+    ICHECK(config["shift_fill_factor"].is<double>());
+    std::string conv_template = config["conv_template"].get<std::string>();
+    this->temperature_ = config["temperature"].get<double>();
+    this->top_p_ = config["top_p"].get<double>();
+    this->mean_gen_len_ = config["mean_gen_len"].get<int64_t>();
+    this->shift_fill_factor_ = config["shift_fill_factor"].get<double>();
+
+    // Step 6. Process metadata
+    String metadata_str = this->get_metadata_func_();
+    picojson::value metadata_info;
+    picojson::parse(metadata_info, std::string(metadata_str));
+    auto metadata = metadata_info.get<picojson::object>();
+    ICHECK(metadata["model_name"].is<std::string>());
+    ICHECK(metadata["max_window_size"].is<int64_t>());
+    ICHECK(metadata["add_prefix_space"].is<bool>());
+    ICHECK(metadata["stop_tokens"].is<picojson::array>());
+    this->model_name_ = metadata["model_name"].get<std::string>();
+    this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
+    this->add_prefix_space_ = metadata["add_prefix_space"].get<bool>();
+    auto stop_tokens = metadata["stop_tokens"].get<picojson::array>();
+    this->stop_tokens_.reserve(stop_tokens.size());
+    for (const picojson::value& stop_token : stop_tokens) {
+      ICHECK(stop_token.is<int64_t>());
+      this->stop_tokens_.push_back(static_cast<int32_t>(stop_token.get<int64_t>()));
+    }
+
+    // Step 7. Initialize conversation.
+    this->conversation_ = Conversation::Create(conv_template);
+    this->stop_str_ = this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
+                          ? this->conversation_.sep
+                          : this->conversation_.sep2;
+    this->ResetChat();
+  }
+
+  // TODO: remove the legacy initialization func after updating app and web sides.
+  void InitChatLegacy(String conv_template, double temperature, double top_p, int64_t mean_gen_len,
+                      double shift_fill_factor) {
+    // Process metadata
+    std::string metadata_str = this->GetMetadata();
+    picojson::value metadata_info;
+    picojson::parse(metadata_info, metadata_str);
+    auto metadata = metadata_info.get<picojson::object>();
+    ICHECK(metadata["model_name"].is<std::string>());
+    ICHECK(metadata["max_window_size"].is<int64_t>());
+    ICHECK(metadata["add_prefix_space"].is<bool>());
+    ICHECK(metadata["stop_tokens"].is<picojson::array>());
+    this->model_name_ = metadata["model_name"].get<std::string>();
+    this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
+    this->add_prefix_space_ = metadata["add_prefix_space"].get<bool>();
+    auto stop_tokens = metadata["stop_tokens"].get<picojson::array>();
+    this->stop_tokens_.reserve(stop_tokens.size());
+    for (const picojson::value& stop_token : stop_tokens) {
+      ICHECK(stop_token.is<int64_t>());
+      this->stop_tokens_.push_back(static_cast<int32_t>(stop_token.get<int64_t>()));
+    }
+
+    this->conversation_ = Conversation::Create(conv_template);
+    this->temperature_ = temperature;
+    this->top_p_ = top_p;
+    this->mean_gen_len_ = mean_gen_len;
+    this->shift_fill_factor_ = shift_fill_factor;
+    this->stop_str_ = this->conversation_.separator_style == Conversation::SeparatorStyle::kSingle
+                          ? this->conversation_.sep
+                          : this->conversation_.sep2;
+    this->ResetChat();
+  }
+
+  void ResetChat() {
+    this->conversation_.messages.clear();
+    this->ClearKVCache();
+    this->total_seq_len_ = 0;
+    this->start_pos_ = 0;
+    this->cur_pos_ = 0;
+    this->add_bos_ = true;
   }
 
   /*! \brief reset the runtime stats. */
@@ -804,67 +803,6 @@ class LLMChatModule : public ModuleNode {
               << "decoding-time=" << decoding_ms << "ms.";
   }
 
-  /*!
-   * \brief Load necessary component from related places.
-   *
-   * \param executable The executable information.
-   * \param tokenizer_path The root path to params
-   * \param param_path The root path to params
-   * \param device The device to run the mdoel on
-   */
-  void Init(Module executable, std::unique_ptr<Tokenizer> tokenizer, const std::string& param_path,
-            tvm::Device device) {
-    // setup members
-    device_ = device;
-    tokenizer_ = std::move(tokenizer);
-
-    // load in nd-arracy cache
-    const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
-    ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
-    (*fload_cache)(param_path, static_cast<int32_t>(device_.device_type), device.device_id);
-
-    // initialize vm, we use the packed function mechanism
-    // so there is no explicit abi dependency on these extra
-    // classes other than basic tvm runtime.
-    auto fload_exec = executable->GetFunction("vm_load_executable");
-    ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
-    vm_ = fload_exec();
-
-    vm_->GetFunction("vm_initialization")(static_cast<int>(device.device_type), device.device_id,
-                                          static_cast<int>(relax_vm::AllocatorType::kPooled),
-                                          static_cast<int>(kDLCPU), 0,
-                                          static_cast<int>(relax_vm::AllocatorType::kPooled));
-
-    encoding_func_ = vm_->GetFunction("encoding");
-    decoding_func_ = vm_->GetFunction("decoding");
-    encoding_without_cache_func_ = vm_->GetFunction("encoding_without_cache");
-    softmax_func_ = vm_->GetFunction("softmax_with_temperature");
-    get_metadata_func_ = vm_->GetFunction("get_metadata");
-    auto kv_cache_func = vm_->GetFunction("create_kv_cache");
-
-    auto fsample_topp_from_prob_ptr =
-        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
-    ICHECK(fsample_topp_from_prob_ptr)
-        << "Cannot find env function vm.builtin.sample_top_p_from_prob";
-    fsample_topp_from_prob_ = *fsample_topp_from_prob_ptr;
-    auto fsample_topp_from_logits_ptr =
-        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
-    ICHECK(fsample_topp_from_logits_ptr)
-        << "Cannot find env function vm.builtin.sample_top_p_from_logits";
-    fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
-
-    // parameter loading
-    const PackedFunc* fload_params =
-        tvm::runtime::Registry::Get("vm.builtin.param_array_from_cache");
-    ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
-    params_ = (*fload_params)("param", -1);
-
-    // KV cache creation
-    kv_cache_ = vm_->GetFunction("create_kv_cache")();
-    // Other system function
-    // Get bos
-  }
-
  private:
   int CountSubstr(const std::string& str, const std::string& sub) {
     if (sub.length() == 0) return 0;
@@ -932,16 +870,6 @@ class LLMChatModule : public ModuleNode {
     ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
     ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
     return fsample_topp_from_prob_(logits_on_cpu_, top_p_, GetRandomNumber());
-  }
-
-  std::string DeltaMessage(const std::string& cur, const std::string& old) {
-    std::string ret;
-    int pos = std::min(old.length(), cur.length()) - 1;
-    for (; pos >= 0 && cur[pos] != '\n'; --pos)
-      ;
-    ret += '\r';
-    ret += cur.substr(pos + 1);
-    return ret;
   }
 
   std::string RemoveStopStr(std::string str) {
@@ -1037,27 +965,172 @@ class LLMChatModule : public ModuleNode {
   NDArray logits_on_cpu_{nullptr};
 };
 
-tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
-                                      std::unique_ptr<Tokenizer> tokenizer,
-                                      const tvm::runtime::String& param_path, DLDevice device) {
+class LLMChatModule : public ModuleNode {
+ public:
+  // overrides
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    if (name == "reload") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 2);
+        chat_ = nullptr;
+        chat_ = std::make_unique<LLMChat>(LLMChat(device_));
+        (*fclear_ndarray_cache_)();
+        chat_->Reload(args[0], args[1]);
+      });
+    }
+
+    ICHECK(chat_ != nullptr);
+    if (name == "evaluate") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_->Evaluate(); });
+    } else if (name == "try_tokenizer") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_->TryTokenizer(); });
+    } else if (name == "encode") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 1);
+        chat_->EncodeStep(args[0]);
+      });
+    } else if (name == "decode") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_->DecodeStep(); });
+    } else if (name == "init_chat_legacy") {
+      // TODO: remove the legacy initialization func after updating app and web sides.
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 5);
+        chat_->InitChatLegacy(args[0], args[1], args[2], args[3], args[4]);
+      });
+    } else if (name == "reset_chat") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 0);
+        chat_->ResetChat();
+      });
+    } else if (name == "get_role0") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        *rv = chat_->conversation_.roles[0];
+      });
+    } else if (name == "get_role1") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        *rv = chat_->conversation_.roles[1];
+      });
+    } else if (name == "stopped") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = chat_->Stopped(); });
+    } else if (name == "get_message") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = chat_->GetMessage(); });
+    } else if (name == "runtime_stats_text") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = chat_->RuntimeStatsText(); });
+    } else if (name == "reset_runtime_stats") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_->ResetRuntimeStats(); });
+    } else {
+      return PackedFunc(nullptr);
+    }
+  }
+
+  void Init(DLDevice device) { device_ = device; }
+
+  // TODO: legacy function to be removed
+  void InitLegacy(tvm::runtime::Module executable, std::unique_ptr<Tokenizer> tokenizer,
+                  const tvm::runtime::String& param_path, DLDevice device) {
+    chat_ = std::make_unique<LLMChat>(LLMChat(device_));
+    // setup members
+    device_ = device;
+    chat_->device_ = device;
+    chat_->tokenizer_ = std::move(tokenizer);
+
+    // load in nd-arracy cache
+    const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
+    ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
+    (*fload_cache)(param_path, static_cast<int32_t>(device_.device_type), device.device_id);
+
+    // initialize vm, we use the packed function mechanism
+    // so there is no explicit abi dependency on these extra
+    // classes other than basic tvm runtime.
+    auto fload_exec = executable->GetFunction("vm_load_executable");
+    ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
+    chat_->vm_ = fload_exec();
+
+    chat_->vm_->GetFunction("vm_initialization")(
+        static_cast<int>(device.device_type), device.device_id,
+        static_cast<int>(relax_vm::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
+        static_cast<int>(relax_vm::AllocatorType::kPooled));
+
+    chat_->encoding_func_ = chat_->vm_->GetFunction("encoding");
+    chat_->decoding_func_ = chat_->vm_->GetFunction("decoding");
+    chat_->encoding_without_cache_func_ = chat_->vm_->GetFunction("encoding_without_cache");
+    chat_->softmax_func_ = chat_->vm_->GetFunction("softmax_with_temperature");
+    chat_->get_metadata_func_ = chat_->vm_->GetFunction("get_metadata");
+    auto kv_cache_func = chat_->vm_->GetFunction("create_kv_cache");
+
+    auto fsample_topp_from_prob_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
+    ICHECK(fsample_topp_from_prob_ptr)
+        << "Cannot find env function vm.builtin.sample_top_p_from_prob";
+    chat_->fsample_topp_from_prob_ = *fsample_topp_from_prob_ptr;
+    auto fsample_topp_from_logits_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
+    ICHECK(fsample_topp_from_logits_ptr)
+        << "Cannot find env function vm.builtin.sample_top_p_from_logits";
+    chat_->fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
+
+    // parameter loading
+    const PackedFunc* fload_params =
+        tvm::runtime::Registry::Get("vm.builtin.param_array_from_cache");
+    ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
+    chat_->params_ = (*fload_params)("param", -1);
+
+    // KV cache creation
+    chat_->kv_cache_ = chat_->vm_->GetFunction("create_kv_cache")();
+  }
+
+  const char* type_key() const final { return "mlc.llm_chat"; }
+
+ private:
+  const PackedFunc* fclear_ndarray_cache_ =
+      tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.clear");
+  std::unique_ptr<LLMChat> chat_ = nullptr;
+  DLDevice device_;
+};
+
+tvm::runtime::Module CreateChatModule(DLDevice device) {
   ObjectPtr<LLMChatModule> n = make_object<LLMChatModule>();
-  n->Init(executable, std::move(tokenizer), param_path, device);
+  n->Init(device);
   return Module(n);
 }
 
-tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
-                                      const tvm::runtime::String& tokenizer_path,
-                                      const tvm::runtime::String& param_path, DLDevice device) {
-  // tokenizer stored in single files.
-  return CreateChatModule(executable, TokenizerFromPath(tokenizer_path), param_path, device);
+// register as a system function that can be queried
+TVM_REGISTER_GLOBAL("mlc.llm_chat_create").set_body_typed([](int device_type, int device_id) {
+  return CreateChatModule(DLDevice{static_cast<DLDeviceType>(device_type), device_id});
+});
+
+// TODO: legacy function to be removed
+tvm::runtime::Module CreateChatModuleLegacy(tvm::runtime::Module executable,
+                                            std::unique_ptr<Tokenizer> tokenizer,
+                                            const tvm::runtime::String& param_path,
+                                            DLDevice device) {
+  ObjectPtr<LLMChatModule> n = make_object<LLMChatModule>();
+  n->InitLegacy(executable, std::move(tokenizer), param_path, device);
+  return Module(n);
 }
 
+// TODO: legacy function to be removed
+tvm::runtime::Module CreateChatModuleLegacy(tvm::runtime::Module executable,
+                                            const tvm::runtime::String& tokenizer_path,
+                                            const tvm::runtime::String& param_path,
+                                            DLDevice device) {
+  // tokenizer stored in single files.
+  return CreateChatModuleLegacy(executable, TokenizerFromPath(tokenizer_path), param_path, device);
+}
+
+// TODO: legacy function to be removed
 // register as a system function that can be queried
-TVM_REGISTER_GLOBAL("mlc.llm_chat_create")
+TVM_REGISTER_GLOBAL("mlc.llm_chat_create_legacy")
     .set_body_typed([](tvm::runtime::Module executable, const tvm::runtime::String& tokenizer_path,
                        const tvm::runtime::String& param_path, int device_type, int device_id) {
-      return CreateChatModule(executable, tokenizer_path, param_path,
-                              DLDevice{static_cast<DLDeviceType>(device_type), device_id});
+      return CreateChatModuleLegacy(executable, tokenizer_path, param_path,
+                                    DLDevice{static_cast<DLDeviceType>(device_type), device_id});
     });
 
 }  // namespace llm

@@ -26,7 +26,7 @@ public class LLMChat {
         assert systemlib_func != null;
         Module lib = systemlib_func.invoke().asModule();
         assert lib != null;
-        Function fcreate = Function.getFunction("mlc.llm_chat_create");
+        Function fcreate = Function.getFunction("mlc.llm_chat_create_legacy");
         assert fcreate != null;
         String dist_path = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath();
         String tokenizer_path = dist_path + "/vicuna-v1-7b/tokenizer.model";

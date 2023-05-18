@@ -22,8 +22,8 @@ class LLMChatModuleWrapper {
     // load module
     tvm::runtime::Module lib = (*tvm::runtime::Registry::Get("runtime.SystemLib"))();
 
-    const PackedFunc* fcreate = tvm::runtime::Registry::Get("mlc.llm_chat_create");
-    ICHECK(fcreate) << "Cannot find mlc.llm_chat_create";
+    const PackedFunc* fcreate = tvm::runtime::Registry::Get("mlc.llm_chat_create_legacy");
+    ICHECK(fcreate) << "Cannot find mlc.llm_chat_create_legacy";
 
     // lookup bundle path
     std::string bundle_path = NSBundle.mainBundle.bundlePath.UTF8String;
