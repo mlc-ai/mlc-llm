@@ -1,10 +1,34 @@
 """Gradio interface for LLM Chat."""
 
+
+import argparse
+
 from mlc_llm.conversation import conv_templates
-from python.mlc_chat.chat_module import from_llm_dylib
+from python.mlc_chat.chat_module import LLMChatModule
+
+
+def _parse_args():
+    args = argparse.ArgumentParser()
+    args.add_argument("--artifact-path", type=str, default="dist")
+    args.add_argument(
+        "--model",
+        type=str,
+        default="auto",
+        help='The name of the model to build. If it is "auto", we will automatically set the '
+        'model name according to "--model-path", "hf-path" or the model folders under '
+        '"--artifact-path/models"',
+    )
+    args.add_argument(
+        "--quantization",
+        type=str,
+        choices=[*utils.quantization_dict.keys()],
+        default=list(utils.quantization_dict.keys())[0],
+    )
+    parsed = args.parse_args()
+
 
 if __name__ == "__main__":
-    chat_mod = from_llm_dylib("/root/dist/llama-7b-hf-q0f16")
+    chat_mod = LLMChatModule("/root/dist/llama-7b-hf-q0f16")
     chat_mod.init_chat(model="llama-7b-hf")
 
     conv = conv_templates[chat_mod.conv_template].copy()
