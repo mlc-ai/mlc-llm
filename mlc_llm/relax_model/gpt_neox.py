@@ -593,7 +593,7 @@ def create_kv_cache_func(
 ) -> None:
     init_shape = relax.ShapeExpr(
         (
-            1,
+            config.max_sequence_length,
             config.num_attention_heads,
             config.hidden_size // config.num_attention_heads,
         )
