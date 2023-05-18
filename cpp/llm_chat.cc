@@ -21,6 +21,7 @@
 #include <optional>
 #include <random>
 #include <string>
+#include <unordered_set>
 
 namespace mlc {
 namespace llm {
@@ -419,6 +420,8 @@ class LLMChatModule : public ModuleNode {
         this->max_window_size_ = args[5];
         this->mean_gen_len_ = args[6];
         this->shift_fill_factor_ = args[7];
+        this->repetition_penalty_ = args[8];
+        CHECK_GT(this->repetition_penalty_, 0) << "Repetition penalty must be postitive.";
         this->ClearKVCache();
         this->total_seq_len_ = 0;
         this->start_pos_ = 0;
@@ -580,6 +583,7 @@ class LLMChatModule : public ModuleNode {
       this->ResetRuntimeStats();
     }
     output_ids_.clear();
+    appeared_token_ids_.clear();
     output_message_.clear();
     encounter_stop_str_ = false;
 
@@ -619,6 +623,7 @@ class LLMChatModule : public ModuleNode {
 
   void DecodeStep() {
     output_ids_.push_back(next_token_);
+    appeared_token_ids_.insert(next_token_);
     output_message_ = RemoveStopStr(tokenizer_->Decode(output_ids_));
 
     auto input_data = GetInputTokenNDArray({next_token_});
@@ -627,11 +632,10 @@ class LLMChatModule : public ModuleNode {
     cur_pos_ += 1;
 
     auto tstart = std::chrono::high_resolution_clock::now();
-    if (temperature_ < 1e-6f) {
-      this->UpdateLogitsOrProbOnCPU(this->Forward(input_data, total_seq_len_));
-    } else {
-      this->UpdateLogitsOrProbOnCPU(
-          this->Softmax(this->Forward(input_data, total_seq_len_), temperature_));
+    this->UpdateLogitsOrProbOnCPU(this->Forward(input_data, total_seq_len_));
+    this->ApplyRepetitionPenalty();
+    if (temperature_ >= 1e-6f) {
+      this->UpdateLogitsOrProbOnCPU(this->SoftmaxCPU(this->logits_on_cpu_, temperature_));
     }
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     auto tsample_start = std::chrono::high_resolution_clock::now();
@@ -869,6 +873,27 @@ class LLMChatModule : public ModuleNode {
     return ret;
   }
 
+  NDArray SoftmaxCPU(NDArray input, float temperature) {
+    NDArray temperature_arr = NDArray::Empty({}, DataType::Float(32), DLDevice{kDLCPU, 0});
+    temperature_arr.CopyFromBytes(&temperature, sizeof(float));
+    NDArray ret;
+    ret = softmax_func_(input, temperature_arr);
+    return ret;
+  }
+
+  void ApplyRepetitionPenalty() {
+    CHECK(logits_on_cpu_.defined()) << "Logits on CPU not defined!";
+    CHECK(logits_on_cpu_.dtype() == DataType::Float(32)) << "Logits data type is not float32!";
+    float* logits_raw_data = static_cast<float*>(logits_on_cpu_->data);
+    for (const int32_t& token_id : this->appeared_token_ids_) {
+      if (logits_raw_data[token_id] <= 0) {
+        logits_raw_data[token_id] *= this->repetition_penalty_;
+      } else {  // logits > 0
+        logits_raw_data[token_id] /= this->repetition_penalty_;
+      }
+    }
+  }
+
   void UpdateLogitsOrProbOnCPU(NDArray logits_or_prob) {
     if (!logits_on_cpu_.defined()) {
       logits_on_cpu_ = logits_or_prob.CopyTo(DLDevice{kDLCPU, 0});
@@ -951,6 +976,8 @@ class LLMChatModule : public ModuleNode {
   double shift_fill_factor_{0.3};
   // temperature
   double temperature_{0.8};
+  // repetition penalty
+  double repetition_penalty_{1.0};
   // top_p
   double top_p_{0.95};
   // stream interval
@@ -959,6 +986,8 @@ class LLMChatModule : public ModuleNode {
   int32_t next_token_{0};
   // output ids till now (refresh after encoding step)
   std::vector<int32_t> output_ids_;
+  // appeared token ids till now (refresh after encoding step)
+  std::unordered_set<int32_t> appeared_token_ids_;
   // output message till now (refresh after encoding step)
   std::string output_message_;
   // whether to add bos as the first token

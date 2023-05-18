@@ -147,10 +147,11 @@ void PrintSpecialCommands() {
  * \param model The model to use.
  * \param temperature The temperature to use for sampling.
  * \param top_p The top_p to use for sampling.
+ * \param repetition_penalty The repetition penalty to use, 1.0 means no penalty.
  */
 void Chat(tvm::runtime::Module chat_mod, const std::string& model, double temperature = 0.7,
           double top_p = 0.95, int64_t stream_interval = 2, int max_window_size = 768,
-          int mean_gen_len = 128, double shift_fill_factor = 0.3) {
+          int mean_gen_len = 128, double shift_fill_factor = 0.3, double repetition_penalty = 1.0) {
   // conv template detect
   std::string conv_template;
   if (model.find("vicuna") == 0 || model.find("llama") == 0) {
@@ -167,7 +168,8 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, double temper
 
   // initialize chat context
   chat_mod.GetFunction("init_chat")(model, conv_template, temperature, top_p, stream_interval,
-                                    max_window_size, mean_gen_len, shift_fill_factor);
+                                    max_window_size, mean_gen_len, shift_fill_factor,
+                                    repetition_penalty);
   auto f_stop = chat_mod.GetFunction("stopped");
   auto f_encode = chat_mod.GetFunction("encode");
   auto f_decode = chat_mod.GetFunction("decode");
