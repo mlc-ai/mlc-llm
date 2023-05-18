@@ -234,6 +234,7 @@ def dump_default_mlc_chat_config(args):
     config["local_id"] = f"{args.model}-{args.quantization.name}"
     config["conv_template"] = args.conv_template
     config["temperature"] = 0.7
+    config["repetition_penalty"] = 1.0
     config["top_p"] = 0.95
     config["mean_gen_len"] = 128
     config["shift_fill_factor"] = 0.3
