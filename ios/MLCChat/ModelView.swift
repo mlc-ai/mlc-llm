@@ -8,42 +8,46 @@
 import SwiftUI
 
 struct ModelView: View {
-    @EnvironmentObject var modelState: ModelState
+    @EnvironmentObject var state: ModelState
     
     var body: some View {
         VStack {
             HStack {
-                Text(modelState.modelConfig.local_id)
-                Spacer()
-                if (modelState.modelInitState == .Stopped) {
-                    Button() {
-                        modelState.start()
-                    } label: {
-                        Image(systemName: "icloud.and.arrow.down")
+                if (state.modelInitState == .Finished) {
+                    NavigationLink(
+                        destination:
+                            ChatView()
+                            .environmentObject(state.chatState)
+                            .onAppear {
+                                state.reloadChatStateWithThisModel()
+                            }
+                    ) {
+                        Text(state.modelConfig.local_id)
                     }
-                    .buttonStyle(.borderless)
-                }
-                
-                if (modelState.modelInitState == .Downloading) {
-                    Button() {
-                        modelState.stop()
-                    } label: {
-                        Image(systemName: "stop.circle")
+                } else {
+                    Text(state.modelConfig.local_id)
+                    .opacity(0.5)
+                    Spacer()
+                    if (state.modelInitState == .Paused) {
+                        Button() {
+                            state.handleStart()
+                        } label: {
+                            Image(systemName: "icloud.and.arrow.down")
+                        }
+                        .buttonStyle(.borderless)
                     }
-                    .buttonStyle(.borderless)
-                }
-                if (modelState.modelInitState == .Finished) {
-                    
-                    Button (role: .destructive) {
-                        
-                    } label: {
-                        Image(systemName: "trash")
+                    if (state.modelInitState == .Downloading) {
+                        Button() {
+                            state.handlePause()
+                        } label: {
+                            Image(systemName: "stop.circle")
+                        }
+                        .buttonStyle(.borderless)
                     }
-                    .buttonStyle(.borderless)
                 }
             }
-            if (!(modelState.modelInitState == .Finished || (modelState.modelInitState == .Stopped && modelState.progress == 0))) {
-                ProgressView(value: Double( modelState.progress) / Double(modelState.total))
+            if (!(state.modelInitState == .Finished || (state.modelInitState == .Paused && state.progress == 0))) {
+                ProgressView(value: Double( state.progress) / Double(state.total))
                     .progressViewStyle(.linear)
                 
             }

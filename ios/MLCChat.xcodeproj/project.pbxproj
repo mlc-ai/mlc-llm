@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1453A4C92A1353F1001B909F /* ModelConfig in CopyFiles */ = {isa = PBXBuildFile; fileRef = 1453A4C72A1353D7001B909F /* ModelConfig */; };
 		1453A4CF2A1354B9001B909F /* StartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1453A4CA2A1354B9001B909F /* StartView.swift */; };
 		1453A4D02A1354B9001B909F /* ModelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1453A4CB2A1354B9001B909F /* ModelView.swift */; };
 		1453A4D12A1354B9001B909F /* StartState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1453A4CC2A1354B9001B909F /* StartState.swift */; };
@@ -16,6 +15,7 @@
 		C06A74E429F99E5500BC4BE6 /* LLMChat.mm in Sources */ = {isa = PBXBuildFile; fileRef = C06A74E329F99E5500BC4BE6 /* LLMChat.mm */; };
 		C06A74F229F9A78800BC4BE6 /* dist in CopyFiles */ = {isa = PBXBuildFile; fileRef = C06A74E029F99C9F00BC4BE6 /* dist */; };
 		C06A74F429F9BE7A00BC4BE6 /* ThreadWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C06A74F329F9BE7A00BC4BE6 /* ThreadWorker.swift */; };
+		C09834192A16F4E000A05B51 /* app-config.json in CopyFiles */ = {isa = PBXBuildFile; fileRef = C09834182A16F4CB00A05B51 /* app-config.json */; };
 		C0D643B329F99A7F004DDAA4 /* MLCChatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D643B229F99A7F004DDAA4 /* MLCChatApp.swift */; };
 		C0D643B729F99A80004DDAA4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0D643B629F99A80004DDAA4 /* Assets.xcassets */; };
 		C0D643BA29F99A80004DDAA4 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0D643B929F99A80004DDAA4 /* Preview Assets.xcassets */; };
@@ -31,7 +31,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 7;
 			files = (
-				1453A4C92A1353F1001B909F /* ModelConfig in CopyFiles */,
+				C09834192A16F4E000A05B51 /* app-config.json in CopyFiles */,
 				C06A74F229F9A78800BC4BE6 /* dist in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -49,17 +49,17 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		1453A4C72A1353D7001B909F /* ModelConfig */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ModelConfig; path = MLCChat/ModelConfig; sourceTree = "<group>"; };
-		1453A4CA2A1354B9001B909F /* StartView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = StartView.swift; path = MLCChat/StartView.swift; sourceTree = "<group>"; };
-		1453A4CB2A1354B9001B909F /* ModelView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ModelView.swift; path = MLCChat/ModelView.swift; sourceTree = "<group>"; };
-		1453A4CC2A1354B9001B909F /* StartState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = StartState.swift; path = MLCChat/StartState.swift; sourceTree = "<group>"; };
-		1453A4CD2A1354B9001B909F /* ModelConfig.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ModelConfig.swift; path = MLCChat/ModelConfig.swift; sourceTree = "<group>"; };
-		1453A4CE2A1354B9001B909F /* ModelState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ModelState.swift; path = MLCChat/ModelState.swift; sourceTree = "<group>"; };
+		1453A4CA2A1354B9001B909F /* StartView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StartView.swift; sourceTree = "<group>"; };
+		1453A4CB2A1354B9001B909F /* ModelView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ModelView.swift; sourceTree = "<group>"; };
+		1453A4CC2A1354B9001B909F /* StartState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StartState.swift; sourceTree = "<group>"; };
+		1453A4CD2A1354B9001B909F /* ModelConfig.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ModelConfig.swift; sourceTree = "<group>"; };
+		1453A4CE2A1354B9001B909F /* ModelState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ModelState.swift; sourceTree = "<group>"; };
 		C06A74E029F99C9F00BC4BE6 /* dist */ = {isa = PBXFileReference; lastKnownFileType = folder; path = dist; sourceTree = "<group>"; };
 		C06A74E229F99E5500BC4BE6 /* MLCChat-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MLCChat-Bridging-Header.h"; sourceTree = "<group>"; };
 		C06A74E329F99E5500BC4BE6 /* LLMChat.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = LLMChat.mm; sourceTree = "<group>"; };
 		C06A74E629F9A1DF00BC4BE6 /* MLCChat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MLCChat.entitlements; sourceTree = "<group>"; };
 		C06A74F329F9BE7A00BC4BE6 /* ThreadWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadWorker.swift; sourceTree = "<group>"; };
+		C09834182A16F4CB00A05B51 /* app-config.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "app-config.json"; sourceTree = "<group>"; };
 		C0D643AF29F99A7F004DDAA4 /* MLCChat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MLCChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C0D643B229F99A7F004DDAA4 /* MLCChatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLCChatApp.swift; sourceTree = "<group>"; };
 		C0D643B629F99A80004DDAA4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -83,12 +83,6 @@
 		C0D643A629F99A7F004DDAA4 = {
 			isa = PBXGroup;
 			children = (
-				1453A4CD2A1354B9001B909F /* ModelConfig.swift */,
-				1453A4CE2A1354B9001B909F /* ModelState.swift */,
-				1453A4CB2A1354B9001B909F /* ModelView.swift */,
-				1453A4CC2A1354B9001B909F /* StartState.swift */,
-				1453A4CA2A1354B9001B909F /* StartView.swift */,
-				1453A4C72A1353D7001B909F /* ModelConfig */,
 				C06A74E029F99C9F00BC4BE6 /* dist */,
 				C0D643B129F99A7F004DDAA4 /* MLCChat */,
 				C0D643B029F99A7F004DDAA4 /* Products */,
@@ -107,6 +101,12 @@
 		C0D643B129F99A7F004DDAA4 /* MLCChat */ = {
 			isa = PBXGroup;
 			children = (
+				C09834182A16F4CB00A05B51 /* app-config.json */,
+				1453A4CD2A1354B9001B909F /* ModelConfig.swift */,
+				1453A4CE2A1354B9001B909F /* ModelState.swift */,
+				1453A4CB2A1354B9001B909F /* ModelView.swift */,
+				1453A4CC2A1354B9001B909F /* StartState.swift */,
+				1453A4CA2A1354B9001B909F /* StartView.swift */,
 				C06A74E629F9A1DF00BC4BE6 /* MLCChat.entitlements */,
 				C0D643C729F99B34004DDAA4 /* MessageView.swift */,
 				C06A74E329F99E5500BC4BE6 /* LLMChat.mm */,

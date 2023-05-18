@@ -16,15 +16,7 @@ struct StartView: View {
                 Section(header: Text("Models")){
                     ForEach(state.models) { modelState in
                         ModelView().environmentObject(modelState)
-                        
                     }
-                }
-                Section(header: Text("Action")) {
-                    
-                    NavigationLink(destination: Text("Chat")) {
-                        Text("Chat").foregroundColor(.accentColor)
-                    }
-                    
                 }
             }.navigationTitle("MLC Chat")
         }

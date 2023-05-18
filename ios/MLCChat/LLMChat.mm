@@ -27,7 +27,6 @@ class LLMChatModuleWrapper {
 
     reload_func_ = llm_chat_->GetFunction("reload");
     unload_func_ = llm_chat_->GetFunction("unload");
-
     encode_func_ = llm_chat_->GetFunction("encode");
     decode_func_ = llm_chat_->GetFunction("decode");
     get_message_ = llm_chat_->GetFunction("get_message");
@@ -65,7 +64,10 @@ class LLMChatModuleWrapper {
     return get_message_();
   }
 
-  void Encode(std::string prompt) { encode_func_(prompt); }
+  void Encode(std::string prompt) {
+      ICHECK(encode_func_ != nullptr);
+      encode_func_(prompt);
+  }
 
   bool Stopped() { return stopped_func_(); }
 

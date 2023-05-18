@@ -29,16 +29,13 @@ class ChatState : ObservableObject {
     private var stopLock = NSLock();
     private var requestedReset = false;
     private var stopRequested = false;
-    private var gpuVRAMDetectionPass = false;
-
+    private var reloadReady = false;
+    private var modelLib = "";
+    private var modelPath = "";
 
     init() {
         threadWorker.qualityOfService = QualityOfService.userInteractive;
         threadWorker.start()
-        // TODO(change to state dependent)
-        let modelLib = "RedPajama-INCITE-Chat-3B-v1-q4f16_0";
-        let modelPath = Bundle.main.bundlePath + "/dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0";
-        self.mainReload(modelName: "RedPajama-3B", modelLib: modelLib, modelPath: modelPath)
     }
 
     // reset all chat state
@@ -50,14 +47,27 @@ class ChatState : ObservableObject {
         self.requestedReset = false;
     }
 
-    func mainReload(modelName: String, modelLib: String, modelPath: String, estimatedMemReq : Int64 = 4000000000) {
-        if (self.inProgress) {
+    func mainReload(modelName: String, modelLib: String, modelPath: String, estimatedMemReq : Int64) {
+        if (self.reloadReady &&
+            self.modelLib == modelLib &&
+            self.modelPath == modelPath &&
+            self.modelName == modelName) {
             return;
         }
-        self.mainResetChat()
-        self.gpuVRAMDetectionPass = false;
+        // request stop regardless of the state
+        // to previous action can finish soon
+        if (self.inProgress) {
+            self.stopLock.lock()
+            self.stopRequested = true;
+            self.stopLock.unlock()
+        }
+        self.mainResetChat();
+        // we are not reload ready
+        self.reloadReady = false;
         self.inProgress = true;
         self.modelName = modelName;
+        self.modelLib = modelLib;
+        self.modelPath = modelPath;
 
         threadWorker.push {[self] in
             self.updateReply(role: MessageRole.bot, message: "[System] Initalize...")
@@ -71,13 +81,15 @@ class ChatState : ObservableObject {
                     "Sorry, the system do not have" + reqMem + " memory as requested, " +
                     "so we cannot initialize this model on this device."
                 )
-                self.messages.append(MessageData(role: MessageRole.bot, message: errMsg))
-                self.gpuVRAMDetectionPass = false
-                self.inProgress = true
+                DispatchQueue.main.sync {
+                    self.messages.append(MessageData(role: MessageRole.bot, message: errMsg))
+                    self.reloadReady = false
+                    self.inProgress = true
+                }
                 return
             }
-            self.gpuVRAMDetectionPass = true
             backend.reload(modelLib, modelPath: modelPath)
+            self.reloadReady = true
             self.updateReply(role: MessageRole.bot, message: "[System] Ready to chat")
             self.commitReply()
             self.markFinish()
@@ -124,6 +136,13 @@ class ChatState : ObservableObject {
                 let needStop = self.stopRequested;
                 self.stopLock.unlock()
                 if (needStop) {
+                    let forceStop = !self.reloadReady;
+                    // if we are not reload ready
+                    // this means we are forced stoped during reload
+                    // do not do anything to refresh UX
+                    if (forceStop) {
+                        return
+                    }
                     break;
                 }
             }
@@ -133,12 +152,13 @@ class ChatState : ObservableObject {
             DispatchQueue.main.sync { [runtimeText] in
                 self.infoText = runtimeText;
             }
+
             self.markFinish()
         };
     }
 
     func generate(prompt: String) {
-        if (!self.gpuVRAMDetectionPass) {
+        if (!self.reloadReady) {
             return
         }
         self.inProgress = true
@@ -147,7 +167,7 @@ class ChatState : ObservableObject {
     }
 
     func requestStop() {
-        if (!self.gpuVRAMDetectionPass) {
+        if (!self.reloadReady) {
             return
         }
         if (self.inProgress) {
@@ -158,7 +178,7 @@ class ChatState : ObservableObject {
     }
 
     func resetChat() {
-        if (!self.gpuVRAMDetectionPass) {
+        if (!self.reloadReady) {
             return
         }
         if (self.inProgress) {
