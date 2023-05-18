@@ -222,7 +222,8 @@ def mod_transform_before_build(
     return mod_deploy
 
 
-def dump_default_mlc_llm_config(args):
+def dump_default_mlc_chat_config(args):
+    params_path = os.path.join(args.artifact_path, "params")
     config = dict()
     config["model_lib"] = f"{args.model}-{args.quantization.name}"
     config["local_id"] = f"{args.model}-{args.quantization.name}"
@@ -231,7 +232,9 @@ def dump_default_mlc_llm_config(args):
     config["top_p"] = 0.95
     config["mean_gen_len"] = 128
     config["shift_fill_factor"] = 0.3
-    dump_path = os.path.join(args.artifact_path, "params", "mlc-chat-config.json")
+    config["tokenizer_files"] = utils.get_tokenizer_files(params_path)
+
+    dump_path = os.path.join(params_path, "mlc-chat-config.json")
     with open(dump_path, "w") as outfile:
         json.dump(config, outfile, indent=4)
     print(f"Finish exporting chat config to {dump_path}")
@@ -328,4 +331,4 @@ if __name__ == "__main__":
             mod = pickle.load(open(cache_path, "rb"))
         dump_split_tir(mod)
         build(mod, ARGS)
-        dump_default_mlc_llm_config(ARGS)
+        dump_default_mlc_chat_config(ARGS)
