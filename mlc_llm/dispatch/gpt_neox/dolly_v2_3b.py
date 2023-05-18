@@ -837,7 +837,7 @@ def layer_norm1(sch: tir.Schedule):
     sch.annotate(block_or_loop=b2, ann_key="meta_schedule.unroll_explicit", ann_val=v9)
     l10, l11, l12 = sch.get_loops(block=b1)
     l13 = sch.fuse(l10, l11, l12, preserve_unit_iters=True)
-    l14, l15, l16 = sch.split(loop=l13, factors=[None, 256, 1024], preserve_unit_iters=True)
+    l14, l15, l16 = sch.split(loop=l13, factors=[None, 256, 256], preserve_unit_iters=True)
     sch.reorder(l15, l16, l14)
     sch.bind(loop=l15, thread_axis="blockIdx.x")
     sch.bind(loop=l16, thread_axis="threadIdx.x")
