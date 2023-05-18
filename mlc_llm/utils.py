@@ -201,6 +201,17 @@ def copy_tokenizer(args: argparse.Namespace) -> None:
             )
 
 
+def get_tokenizer_files(path) -> List[str]:
+    tokenizer_set = {
+        "tokenizer.model",
+        "tokenizer.json",
+        "vocab.json",
+        "merges.txt",
+        "added_tokens.json",
+    }
+    return [x for x in os.listdir(path) if x in tokenizer_set]
+
+
 def parse_target(args: argparse.Namespace) -> None:
     if not hasattr(args, "target"):
         return
