@@ -1,12 +1,17 @@
 #!/bin/bash
 set -euxo pipefail
 
-rustup target add aarch64-apple-ios
+# NOTE: this is optional, prepackage weight into app
+rm -r dist
+mkdir -p dist
 
-MODEL="RedPajama-INCITE-Chat-3B-v1"
-QUANTIZATION="q4f16_0"
+declare -a builtin_list=(
+    "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
+    # "vicuna-v1-7b-q3f16_0"
+)
 
-MODEL_PARAMS="../dist/${MODEL}-${QUANTIZATION}/params/"
+for model in "${builtin_list[@]}"
+do
+   cp -r ../dist/$model/params dist/$model
+done
 
-rm -rf dist && mkdir -p dist
-cp -rf ${MODEL_PARAMS} ./dist/params

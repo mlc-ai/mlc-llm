@@ -8,6 +8,8 @@
 @interface LLMChatInstance : NSObject
 - (void)initialize;
 - (void)evaluate;
+- (void)unload;
+- (void)reload:(NSString*)model_lib modelPath:(NSString*)modelPath;
 - (void)encode:(NSString*)prompt;
 - (void)decode;
 - (void)reset;

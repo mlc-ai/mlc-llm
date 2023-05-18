@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1453A4C92A1353F1001B909F /* ModelConfig in CopyFiles */ = {isa = PBXBuildFile; fileRef = 1453A4C72A1353D7001B909F /* ModelConfig */; };
+		1453A4CF2A1354B9001B909F /* StartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1453A4CA2A1354B9001B909F /* StartView.swift */; };
+		1453A4D02A1354B9001B909F /* ModelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1453A4CB2A1354B9001B909F /* ModelView.swift */; };
+		1453A4D12A1354B9001B909F /* StartState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1453A4CC2A1354B9001B909F /* StartState.swift */; };
+		1453A4D22A1354B9001B909F /* ModelConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1453A4CD2A1354B9001B909F /* ModelConfig.swift */; };
+		1453A4D32A1354B9001B909F /* ModelState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1453A4CE2A1354B9001B909F /* ModelState.swift */; };
 		C06A74E429F99E5500BC4BE6 /* LLMChat.mm in Sources */ = {isa = PBXBuildFile; fileRef = C06A74E329F99E5500BC4BE6 /* LLMChat.mm */; };
 		C06A74F229F9A78800BC4BE6 /* dist in CopyFiles */ = {isa = PBXBuildFile; fileRef = C06A74E029F99C9F00BC4BE6 /* dist */; };
 		C06A74F429F9BE7A00BC4BE6 /* ThreadWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C06A74F329F9BE7A00BC4BE6 /* ThreadWorker.swift */; };
@@ -25,6 +31,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 7;
 			files = (
+				1453A4C92A1353F1001B909F /* ModelConfig in CopyFiles */,
 				C06A74F229F9A78800BC4BE6 /* dist in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -42,6 +49,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		1453A4C72A1353D7001B909F /* ModelConfig */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ModelConfig; path = MLCChat/ModelConfig; sourceTree = "<group>"; };
+		1453A4CA2A1354B9001B909F /* StartView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = StartView.swift; path = MLCChat/StartView.swift; sourceTree = "<group>"; };
+		1453A4CB2A1354B9001B909F /* ModelView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ModelView.swift; path = MLCChat/ModelView.swift; sourceTree = "<group>"; };
+		1453A4CC2A1354B9001B909F /* StartState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = StartState.swift; path = MLCChat/StartState.swift; sourceTree = "<group>"; };
+		1453A4CD2A1354B9001B909F /* ModelConfig.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ModelConfig.swift; path = MLCChat/ModelConfig.swift; sourceTree = "<group>"; };
+		1453A4CE2A1354B9001B909F /* ModelState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ModelState.swift; path = MLCChat/ModelState.swift; sourceTree = "<group>"; };
 		C06A74E029F99C9F00BC4BE6 /* dist */ = {isa = PBXFileReference; lastKnownFileType = folder; path = dist; sourceTree = "<group>"; };
 		C06A74E229F99E5500BC4BE6 /* MLCChat-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MLCChat-Bridging-Header.h"; sourceTree = "<group>"; };
 		C06A74E329F99E5500BC4BE6 /* LLMChat.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = LLMChat.mm; sourceTree = "<group>"; };
@@ -70,6 +83,12 @@
 		C0D643A629F99A7F004DDAA4 = {
 			isa = PBXGroup;
 			children = (
+				1453A4CD2A1354B9001B909F /* ModelConfig.swift */,
+				1453A4CE2A1354B9001B909F /* ModelState.swift */,
+				1453A4CB2A1354B9001B909F /* ModelView.swift */,
+				1453A4CC2A1354B9001B909F /* StartState.swift */,
+				1453A4CA2A1354B9001B909F /* StartView.swift */,
+				1453A4C72A1353D7001B909F /* ModelConfig */,
 				C06A74E029F99C9F00BC4BE6 /* dist */,
 				C0D643B129F99A7F004DDAA4 /* MLCChat */,
 				C0D643B029F99A7F004DDAA4 /* Products */,
@@ -192,10 +211,15 @@
 			files = (
 				C06A74E429F99E5500BC4BE6 /* LLMChat.mm in Sources */,
 				C06A74F429F9BE7A00BC4BE6 /* ThreadWorker.swift in Sources */,
+				1453A4D12A1354B9001B909F /* StartState.swift in Sources */,
 				C0D643B329F99A7F004DDAA4 /* MLCChatApp.swift in Sources */,
 				C0D643C429F99B07004DDAA4 /* ChatView.swift in Sources */,
 				C0D643C329F99B07004DDAA4 /* ChatState.swift in Sources */,
+				1453A4D32A1354B9001B909F /* ModelState.swift in Sources */,
 				C0D643C829F99B34004DDAA4 /* MessageView.swift in Sources */,
+				1453A4D22A1354B9001B909F /* ModelConfig.swift in Sources */,
+				1453A4D02A1354B9001B909F /* ModelView.swift in Sources */,
+				1453A4CF2A1354B9001B909F /* StartView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -381,10 +405,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = MLCChat/MLCChat.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"MLCChat/Preview Content\"";
-				DEVELOPMENT_TEAM = 3D7CQ3D634;
+				DEVELOPMENT_TEAM = 3FR42MXLK9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				"HEADER_SEARCH_PATHS[arch=*]" = (
@@ -420,6 +445,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = mlc.Chat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "MLCChat/MLCChat-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;

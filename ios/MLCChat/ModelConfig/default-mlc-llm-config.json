@@ -1,0 +1,7 @@
+{
+  "model_url": "https://huggingface.co/mlc-ai/demo-vicuna-v1-7b-int4/resolve/main",
+  "model_lib": "vicuna-v1-7b-q4f16_0",
+  "local_id": "myllama-v1-7b-q4f16_0",
+  "tokenizer_files": ["tokenizer.model"],
+  "ndarray_file": "float16/ndarray-cache.json"
+}

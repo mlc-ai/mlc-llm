@@ -67,7 +67,7 @@ def _parse_args():
 
     parsed.export_kwargs = {}
     parsed.lib_format = "so"
-
+    parsed.system_lib_prefix = None
     parsed = _setup_model_path(parsed)
 
     parsed.db_path = parsed.db_path or os.path.join("log_db", parsed.model)
@@ -248,6 +248,9 @@ def dump_default_mlc_chat_config(args):
 
 def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     target_kind = args.target_kind
+    if args.system_lib_prefix:
+        mod_deploy = mod_deploy.with_attrs({"system_lib_prefix": args.system_lib_prefix})
+
     debug_dump_script(mod_deploy, "mod_before_build.py", args)
     if target_kind != "cpu":
         if os.path.exists(args.db_path):

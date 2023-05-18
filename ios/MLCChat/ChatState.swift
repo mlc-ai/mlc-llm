@@ -17,8 +17,9 @@ struct MessageData: Hashable, Identifiable {
 }
 
 class ChatState : ObservableObject {
-    @Published var messages = [MessageData]()
-    @Published var infoText = ""
+    @Published var messages = [MessageData]();
+    @Published var infoText = "";
+    @Published var modelName = "";
     @Published var inProgress = false;
     @Published var unfinishedRespondRole = MessageRole.bot;
     @Published var unfinishedRespondMessage = "";
@@ -30,32 +31,53 @@ class ChatState : ObservableObject {
     private var stopRequested = false;
     private var gpuVRAMDetectionPass = false;
 
-    
+
     init() {
         threadWorker.qualityOfService = QualityOfService.userInteractive;
         threadWorker.start()
-        self.systemInit()
+        // TODO(change to state dependent)
+        let modelLib = "RedPajama-INCITE-Chat-3B-v1-q4f16_0";
+        let modelPath = Bundle.main.bundlePath + "/dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0";
+        self.mainReload(modelName: "RedPajama-3B", modelLib: modelLib, modelPath: modelPath)
     }
-    
-    func systemInit() {
-        let vram = os_proc_available_memory()
-        if (vram < (4000000000)) {
-            print(vram)
-            let errMsg = (
-                "Sorry, the system do not have 4GB memory as requested, " +
-                "so we cannot initialize chat module on this device."
-            )
-            self.messages.append(MessageData(role: MessageRole.bot, message: errMsg))
-            self.gpuVRAMDetectionPass = false
-            self.inProgress = true
-            return
+
+    // reset all chat state
+    func mainResetChat() {
+        self.messages = [MessageData]()
+        self.infoText = ""
+        self.unfinishedRespondMessage = ""
+        self.inProgress = false;
+        self.requestedReset = false;
+    }
+
+    func mainReload(modelName: String, modelLib: String, modelPath: String, estimatedMemReq : Int64 = 4000000000) {
+        if (self.inProgress) {
+            return;
         }
-        self.gpuVRAMDetectionPass = true
-            
+        self.mainResetChat()
+        self.gpuVRAMDetectionPass = false;
         self.inProgress = true;
+        self.modelName = modelName;
+
         threadWorker.push {[self] in
             self.updateReply(role: MessageRole.bot, message: "[System] Initalize...")
-            backend.initialize()
+            backend.unload();
+            let vram = os_proc_available_memory()
+            if (vram < estimatedMemReq) {
+                let reqMem = String (
+                    format: "%.1fGB", Double(estimatedMemReq) / Double(1 << 20)
+                )
+                let errMsg = (
+                    "Sorry, the system do not have" + reqMem + " memory as requested, " +
+                    "so we cannot initialize this model on this device."
+                )
+                self.messages.append(MessageData(role: MessageRole.bot, message: errMsg))
+                self.gpuVRAMDetectionPass = false
+                self.inProgress = true
+                return
+            }
+            self.gpuVRAMDetectionPass = true
+            backend.reload(modelLib, modelPath: modelPath)
             self.updateReply(role: MessageRole.bot, message: "[System] Ready to chat")
             self.commitReply()
             self.markFinish()
@@ -80,18 +102,18 @@ class ChatState : ObservableObject {
                 }
                 self.commitReply()
                 self.reportSpeed(encodingSpeed: 1000, decodingSpeed: 1000)
-                
+
                 self.markFinish()
             }
         }
     }
-    
+
     func backendGenerate(prompt: String) {
         assert(self.inProgress);
         // generation needs to run on thread worker
         threadWorker.push {[self] in
             self.appendMessage(role: MessageRole.user, message: prompt)
-            
+
             backend.encode(prompt);
             while (!backend.stopped()) {
                 assert(self.inProgress);
@@ -105,7 +127,7 @@ class ChatState : ObservableObject {
                     break;
                 }
             }
-            
+
             self.commitReply()
             let runtimeText: String = self.backend.runtimeStatsText()
             DispatchQueue.main.sync { [runtimeText] in
@@ -123,7 +145,7 @@ class ChatState : ObservableObject {
         self.stopRequested = false
         self.backendGenerate(prompt: prompt)
     }
-    
+
     func requestStop() {
         if (!self.gpuVRAMDetectionPass) {
             return
@@ -150,11 +172,7 @@ class ChatState : ObservableObject {
         threadWorker.push {
             self.backend.reset()
             DispatchQueue.main.sync {
-                self.messages = [MessageData]()
-                self.infoText = ""
-                self.unfinishedRespondMessage = ""
-                self.inProgress = false;
-                self.requestedReset = false;
+                self.mainResetChat();
             }
         }
     }
@@ -162,11 +180,11 @@ class ChatState : ObservableObject {
     func reportSpeed(encodingSpeed: Float, decodingSpeed: Float) {
         DispatchQueue.main.sync { [self, encodingSpeed, decodingSpeed] in
             self.infoText = String(
-                format: "encode: %.1f tok/s, decode: %.1f tok/s", encodingSpeed, decodingSpeed
+                format: "prefill: %.1f tok/s, decode: %.1f tok/s", encodingSpeed, decodingSpeed
             )
         }
     }
-    
+
     func markFinish() {
         DispatchQueue.main.sync { [self] in
             self.inProgress = false

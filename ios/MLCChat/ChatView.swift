@@ -57,7 +57,7 @@ struct ChatView: View {
                     }.bold().opacity(state.inProgress ? 0.5 : 1)
                 }.frame(minHeight: CGFloat(70)).padding()
             }
-            .navigationBarTitle("MLC Chat", displayMode: .inline)
+            .navigationBarTitle("MLC Chat: " + state.modelName, displayMode: .inline)
             .toolbar{
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Reset") {
