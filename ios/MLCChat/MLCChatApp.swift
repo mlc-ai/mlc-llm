@@ -7,23 +7,6 @@
 
 import SwiftUI
 
-//@main
-//struct MLCChatApp: App {
-//    @StateObject private var state = ChatState()
-//
-//    init() {
-//        UITableView.appearance().separatorStyle = .none
-//        UITableView.appearance().tableFooterView = UIView()
-//    }
-//
-//    var body: some Scene {
-//        WindowGroup {
-//            ChatView()
-//                .environmentObject(state)
-//        }
-//    }
-//}
-
 @main
 struct MLCChatApp: App {
     @StateObject private var state = StartState()

@@ -5,8 +5,14 @@
     ],
     "model_list": [
         {
-            "model_url": "https://huggingface.co/tqchen/test-vicuna-v1-7b-q3f16_0/resolve/main",
+            "model_url": "https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0/resolve/main/",
             "local_id": "vicuna-v1-7b-q3f16_0"
+        }
+    ],
+    "add_model_samples": [
+        {
+            "model_url": "https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/resolve/main/",
+            "local_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
         }
     ]
 }
