@@ -7,6 +7,7 @@ import tvm
 from tvm import relax, te
 from tvm.relax.testing import nn
 from tvm.script import relax as R
+from quantization.auto_gptq import AutoGPTQForCausalLM
 
 
 @dataclass
@@ -49,14 +50,15 @@ class LlamaConfig:
 
 
 class Linear(nn.Module):
-    def __init__(self, in_features, out_features, dtype: str, bias=True):
+    def __init__(self, in_features, out_features, dtype: str, bias=True, name='linear'):
         self.in_features = in_features
         self.out_features = out_features
         self.weight = nn.Parameter(
-            (out_features, in_features), dtype=dtype, name="linear_weight"
+            (out_features, in_features), dtype=dtype, name=f"{name}_weight"
         )
         if bias:
-            self.bias = nn.Parameter((out_features,), dtype=dtype, name="linear_bias")
+            self.bias = nn.Parameter(
+                (out_features,), dtype=dtype, name=f"{name}_bias")
         else:
             self.bias = None
 
@@ -88,7 +90,8 @@ class Embedding(nn.Module):
 
 class LlamaRMSNorm(nn.Module):
     def __init__(self, hidden_size, dtype, eps=1e-6):
-        self.weight = nn.Parameter((hidden_size,), dtype=dtype, name="rms_norm_weight")
+        self.weight = nn.Parameter(
+            (hidden_size,), dtype=dtype, name="rms_norm_weight")
         self.variance_epsilon = tvm.tir.const(eps, dtype)
 
     def forward(self, hidden_states):
@@ -138,9 +141,12 @@ class LlamaRMSNorm(nn.Module):
 
 class LlamaMLP(nn.Module):
     def __init__(self, hidden_size: int, intermediate_size: int, dtype: str):
-        self.gate_proj = Linear(hidden_size, intermediate_size, dtype=dtype, bias=False)
-        self.down_proj = Linear(intermediate_size, hidden_size, dtype=dtype, bias=False)
-        self.up_proj = Linear(hidden_size, intermediate_size, dtype=dtype, bias=False)
+        self.gate_proj = Linear(
+            hidden_size, intermediate_size, dtype=dtype, bias=False, name="gate_proj")
+        self.up_proj = Linear(hidden_size, intermediate_size,
+                              dtype=dtype, bias=False, name="up_proj")
+        self.down_proj = Linear(
+            intermediate_size, hidden_size, dtype=dtype, bias=False, name="down_proj")
 
     def forward(self, x):
         return self.down_proj(relax.op.nn.silu(self.gate_proj(x)) * self.up_proj(x))
@@ -185,16 +191,16 @@ class LlamaAttention(nn.Module):
                 f" and `num_heads`: {self.num_heads})."
             )
         self.q_proj = Linear(
-            self.hidden_size, self.num_heads * self.head_dim, dtype=dtype, bias=False
+            self.hidden_size, self.num_heads * self.head_dim, dtype=dtype, bias=False, name="q_proj"
         )
         self.k_proj = Linear(
-            self.hidden_size, self.num_heads * self.head_dim, dtype=dtype, bias=False
+            self.hidden_size, self.num_heads * self.head_dim, dtype=dtype, bias=False, name="k_proj"
         )
         self.v_proj = Linear(
-            self.hidden_size, self.num_heads * self.head_dim, dtype=dtype, bias=False
+            self.hidden_size, self.num_heads * self.head_dim, dtype=dtype, bias=False, name="v_proj"
         )
         self.o_proj = Linear(
-            self.num_heads * self.head_dim, self.hidden_size, dtype=dtype, bias=False
+            self.num_heads * self.head_dim, self.hidden_size, dtype=dtype, bias=False, name="o_proj"
         )
 
     def forward(
@@ -245,12 +251,14 @@ class LlamaAttention(nn.Module):
         kv_states_shape = R.shape(
             [kv_states_shape[0], kv_seq_len, kv_states_shape[2], kv_states_shape[3]]
         )
-        kv_cache_shape = R.shape([kv_seq_len, kv_states_shape[2], kv_states_shape[3]])
+        kv_cache_shape = R.shape(
+            [kv_seq_len, kv_states_shape[2], kv_states_shape[3]])
 
         squeezed_key = nn.emit(squeeze(key_states, axis=0))
         squeezed_value = nn.emit(squeeze(value_states, axis=0))
         k_cache, v_cache = past_key_value
-        f_kv_cache_append = relax.extern("vm.builtin.attention_kv_cache_append")
+        f_kv_cache_append = relax.extern(
+            "vm.builtin.attention_kv_cache_append")
         k_cache = nn.emit(
             relax.Call(
                 f_kv_cache_append,
@@ -302,9 +310,9 @@ class LlamaAttention(nn.Module):
             (bsz, tvm.tir.IntImm("int64", 1), q_len, kv_seq_len),
         )
 
-        attn_weights = nn.emit(maximum(attn_weights, relax.const(tvm.tir.min_value(attn_weights.struct_info.dtype).value, attn_weights.struct_info.dtype)))
+        attn_weights = nn.emit(maximum(attn_weights, relax.const(tvm.tir.min_value(
+            attn_weights.struct_info.dtype).value, attn_weights.struct_info.dtype)))
         attn_weights = nn.emit(relax.op.minimum(attn_weights, attention_mask))
-
 
         # upcast attention to fp32
         if attn_weights.struct_info.dtype != "float32":
@@ -407,7 +415,9 @@ def _make_causal_mask(input_ids_shape, dtype, src_len):
         return te.compute(
             (bsz, 1, tgt_len, src_len),
             lambda b, _, i, j: te.if_then_else(
-                j < src_len - tgt_len, tvm.tir.max_value(dtype), x[b, _, i, j - (src_len - tgt_len)]
+                j < src_len -
+                tgt_len, tvm.tir.max_value(
+                    dtype), x[b, _, i, j - (src_len - tgt_len)]
             ),
             name="concat_te",
         )
@@ -435,12 +445,14 @@ class LlamaModel(nn.Module):
         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
         combined_attention_mask = None
         if isinstance(input_shape[-1], tvm.tir.Var) or input_shape[-1] > 1:
-            combined_attention_mask = _make_causal_mask(input_shape, dtype, src_len)
+            combined_attention_mask = _make_causal_mask(
+                input_shape, dtype, src_len)
         else:
             # Get src_len from input parameters
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
             bsz, tgt_len = input_shape
-            combined_attention_mask = nn.emit(relax.op.full((bsz, 1, tgt_len, src_len), relax.const(tvm.tir.max_value(dtype).value, dtype), dtype))
+            combined_attention_mask = nn.emit(relax.op.full(
+                (bsz, 1, tgt_len, src_len), relax.const(tvm.tir.max_value(dtype).value, dtype), dtype))
         return combined_attention_mask
 
     def forward(
@@ -469,7 +481,8 @@ class LlamaModel(nn.Module):
 
         for idx, decoder_layer in enumerate(self.layers):
             assert past_key_values is not None
-            past_key_value = (past_key_values[idx * 2], past_key_values[idx * 2 + 1])
+            past_key_value = (
+                past_key_values[idx * 2], past_key_values[idx * 2 + 1])
 
             hidden_states, key_value_cache = decoder_layer(
                 hidden_states,
@@ -491,7 +504,7 @@ class LlamaForCausalLM(nn.Module):
     def __init__(self, config: LlamaConfig):
         self.model = LlamaModel(config)
         self.lm_head = Linear(
-            config.hidden_size, config.vocab_size, dtype=config.dtype, bias=False
+            config.hidden_size, config.vocab_size, dtype=config.dtype, bias=False, name='lm_head'
         )
 
         ############ Rotary embedding constants ############
@@ -545,14 +558,16 @@ def create_encoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     all_seq_len = tvm.tir.Var("m", "int64")
     with bb.function("encoding"):
         model = LlamaForCausalLM(config)
-        input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
+        input_ids = nn.Placeholder(
+            (bsz, seq_len), dtype="int32", name="input_ids")
         all_seq_len_shape = relax.Var(
             "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
         )
         past_key_values = relax.Var(
             "kv_cache",
             relax.TupleStructInfo(
-                [relax.ObjectStructInfo() for _ in range(config.num_hidden_layers * 2)]
+                [relax.ObjectStructInfo()
+                 for _ in range(config.num_hidden_layers * 2)]
             ),
         )
         with bb.dataflow():
@@ -585,7 +600,8 @@ def create_decoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
         past_key_values = relax.Var(
             "kv_cache",
             relax.TupleStructInfo(
-                [relax.ObjectStructInfo() for _ in range(config.num_hidden_layers * 2)]
+                [relax.ObjectStructInfo()
+                 for _ in range(config.num_hidden_layers * 2)]
             ),
         )
         with bb.dataflow():
@@ -617,7 +633,8 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
         with bb.dataflow():
             zeros = bb.emit(relax.op.zeros(init_shape, config.dtype))
             caches = []
-            f_kv_cache_create = relax.extern("vm.builtin.attention_kv_cache_create")
+            f_kv_cache_create = relax.extern(
+                "vm.builtin.attention_kv_cache_create")
             for _ in range(config.num_hidden_layers * 2):
                 caches.append(
                     bb.emit(
@@ -631,9 +648,11 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
             gv = bb.emit_output(caches)
         bb.emit_func_output(gv)
 
+
 def create_softmax_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     with bb.function("softmax_with_temperature"):
-        logits = nn.Placeholder((1, 1, config.vocab_size), dtype="float32", name="logits")
+        logits = nn.Placeholder((1, 1, config.vocab_size),
+                                dtype="float32", name="logits")
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
             div = bb.emit(relax.op.divide(logits, temperature))
@@ -644,7 +663,6 @@ def create_softmax_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
 
 def get_model(args, hf_config):
     from transformers import AutoModelForCausalLM  # type: ignore[import]
-
     model_name = args.model
     model_path = args.model_path
     dtype = args.quantization.model_dtype
@@ -660,29 +678,99 @@ def get_model(args, hf_config):
         create_decoding_func(bb, config)
         create_kv_cache_func(bb, config)
         create_softmax_func(bb, config)
-        
+
         mod = bb.get()
 
         device = tvm.cpu()
-        hf_model = AutoModelForCausalLM.from_pretrained(model_path)
-        # Get a list of parameters in advance, then delete the model to save memory
-        param_list = [param for _, param in hf_model.named_parameters()]
-        del hf_model
+        if args.quantized_model:
+            model = AutoGPTQForCausalLM.from_quantized(
+                model_path, export_mlc=True)
 
-        for i, param in enumerate(param_list):
-            param_list[i] = tvm.nd.array(param.detach().cpu().numpy().astype(config.dtype), device)
+            unquantized_params = [param for name, param in model.state_dict().items(
+            ) if "scales" not in name and "zeros" not in name and "qweight" not in name and "inv_freq" not in name]
+            for i, param in enumerate(unquantized_params):
+                unquantized_params[i] = tvm.nd.array(
+                    param.detach().cpu().numpy(), device)
 
-        head_dim = config.hidden_size / config.num_attention_heads
-        inv_freq = 1.0 / (
-            config.position_embedding_base
-            ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
-        )
+            head_dim = config.hidden_size / config.num_attention_heads
+            inv_freq = 1.0 / (
+                config.position_embedding_base
+                ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
+            )
 
-        t = np.arange(config.max_sequence_length, dtype=inv_freq.dtype)
-        freqs = np.einsum("i,j->ij", t, inv_freq)
-        emb = np.concatenate((freqs, freqs), axis=-1)
-        param_list.append(tvm.nd.array(np.cos(emb).astype(config.dtype), device))
-        param_list.append(tvm.nd.array(np.sin(emb).astype(config.dtype), device))
+            t = np.arange(config.max_sequence_length, dtype=inv_freq.dtype)
+            freqs = np.einsum("i,j->ij", t, inv_freq)
+            emb = np.concatenate((freqs, freqs), axis=-1)
+            unquantized_params.append(tvm.nd.array(
+                np.cos(emb).astype(config.dtype), device))
+            unquantized_params.append(tvm.nd.array(
+                np.sin(emb).astype(config.dtype), device))
+
+            # prepare quantized params
+            # swarp 'up_proj' and 'down_proj' in quantized_dict because the order is different in quantized-relay model.
+            quantized_dict = {name: param for name, param in model.state_dict(
+            ).items() if "scales" in name or "zeros" in name or "qweight" in name}
+            new_dict = {}
+            temp_up_proj = {}
+            temp_down_proj = {}
+
+            for k, v in quantized_dict.items():
+                # Check if the key is within the scope we want to adjust
+                if '.mlp.up_proj' in k or '.mlp.down_proj' in k:
+                    # Swap 'up_proj' and 'down_proj'
+                    if '.mlp.up_proj' in k:
+                        # Use a temporary value to avoid confusion in replacement
+                        new_key = k.replace('up_proj', 'temp')
+                        temp_up_proj[new_key] = v
+                    else:  # '.mlp.down_proj' in k
+                        new_key = k.replace('down_proj', 'up_proj')
+                        temp_down_proj[new_key] = v
+                else:
+                    new_dict[k] = v
+
+            # Swap the values of 'up_proj' and 'down_proj'
+            for k, v in temp_up_proj.items():
+                # Replace 'temp' back to 'down_proj'
+                new_key = k.replace('temp', 'down_proj')
+                new_dict[new_key] = v
+
+            for k, v in temp_down_proj.items():
+                new_dict[k] = v
+
+            quantized_dict = new_dict
+
+            quantized_params = [param for name, param in quantized_dict.items(
+            ) if "scales" in name or "zeros" in name or "qweight" in name]
+            for i, param in enumerate(quantized_params):
+                _np_data = param.detach().cpu().numpy()
+                if _np_data.dtype == np.int32:
+                    _np_data = _np_data.astype(np.uint32)
+                quantized_params[i] = tvm.nd.array(_np_data, device)
+
+            param_list = unquantized_params + quantized_params
+        else:
+            hf_model = AutoModelForCausalLM.from_pretrained(model_path)
+            # Get a list of parameters in advance, then delete the model to save memory
+            param_list = [param for _, param in hf_model.named_parameters()]
+            del hf_model
+
+            for i, param in enumerate(param_list):
+                param_list[i] = tvm.nd.array(
+                    param.detach().cpu().numpy().astype(config.dtype), device)
+
+            head_dim = config.hidden_size / config.num_attention_heads
+            inv_freq = 1.0 / (
+                config.position_embedding_base
+                ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
+            )
+
+            t = np.arange(config.max_sequence_length, dtype=inv_freq.dtype)
+            freqs = np.einsum("i,j->ij", t, inv_freq)
+            emb = np.concatenate((freqs, freqs), axis=-1)
+            param_list.append(tvm.nd.array(
+                np.cos(emb).astype(config.dtype), device))
+            param_list.append(tvm.nd.array(
+                np.sin(emb).astype(config.dtype), device))
 
         for gv in mod.functions:
             func = mod[gv]
