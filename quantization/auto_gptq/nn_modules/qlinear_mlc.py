@@ -2,12 +2,9 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-from .tvm_untils import cache
 
-is_mlc_llm=False
-# Assumes layer is perfectly divisible into 1024 * 1024 blocks
+
 class QuantLinear(nn.Module): 
-
     def __init__(
         self,
         bits,
@@ -24,7 +21,7 @@ class QuantLinear(nn.Module):
         self.bits = bits
         self.groupsize = groupsize if groupsize != -1 else infeatures
         self.register_buffer(
-            'qweight', torch.zeros((outfeatures, infeatures // 8 * 3), dtype=torch.int8 if not is_mlc_llm else torch.int32)
+            'qweight', torch.zeros((outfeatures, infeatures // 8 * 3), dtype=torch.int32)
         )
         self.register_buffer('scales', torch.zeros((math.ceil(infeatures / self.groupsize), outfeatures), dtype=torch.float16))
         self.register_buffer('zeros', torch.zeros((math.ceil(infeatures / self.groupsize), outfeatures), dtype=torch.float16))
@@ -39,7 +36,6 @@ class QuantLinear(nn.Module):
                 'g_idx',
                 torch.tensor([i // self.groupsize for i in range(infeatures)], dtype=torch.int32)
             )
-        self.tvm_handler = cache.get_handler(n=outfeatures, k=infeatures, bits=bits, group_size=groupsize)
     
     def pack(self, linear, scales, zeros, g_idx=None):
         W = linear.weight.data.clone()
@@ -98,64 +94,12 @@ class QuantLinear(nn.Module):
                 row += 1
             else:
                 raise NotImplementedError("Only 2,3,4,8 bits are supported.")
-        if is_mlc_llm:
-            self.qweight = torch.from_numpy(qweight.astype(dtype=np.int32)) 
-            zeros = -zeros
-            self.zeros = -self.zeros
-            return
-        qweight = np.ascontiguousarray(qweight.T)
-        qweight = qweight.view(dtype=np.int8)
-        self.qweight = torch.from_numpy(qweight) 
 
+        self.qweight = torch.from_numpy(qweight.astype(dtype=np.int32)) 
+        zeros = -zeros
+        self.zeros = -self.zeros
 
     def forward(self, x):
-        print('QuantLinear forward, xshape is ', x.shape)
-        # print(x)
-        dtype = x.dtype
-        x = x.half()
-        M = 1
-        for i in range(len(x.shape) - 1):
-            M *= x.shape[i]
-        x = x.reshape((M, -1))
-        outshape = x.shape[:-1] + (self.outfeatures,)
-        pad = 0
-        if x.shape[-1] == x.numel():
-            y = torch.zeros(outshape, dtype=x.dtype, device=x.device)
-            self.tvm_handler(x, self.qweight, y, self.scales, self.zeros)
-            y = y.reshape(outshape)
-            y = y + self.bias if self.bias is not None else y 
-            return y 
-        elif 1 < M <= 16:
-            if M % 16 != 0:
-                pad = 16 - x.shape[0] % 16
-        elif 16 < M <= 32:
-            if x.shape[0] % 32 != 0:
-                pad = 32 - x.shape[0] % 32
-        elif 32 < M <= 64:
-            if x.shape[0] % 64 != 0:
-                pad = 64 - x.shape[0] % 64
-        elif 64 < M <= 128:
-            if x.shape[0] % 128 != 0:
-                pad = 128 - x.shape[0] % 128
-        else:
-            if x.shape[0] % 256 != 0:
-                pad = 256 - x.shape[0] % 256
-        x = torch.nn.functional.pad(x, (0, 0, 0, pad))
-        y_pad = torch.zeros((outshape[0] + pad, outshape[-1]), dtype=x.dtype, device=x.device)
-        # print(x.shape, outshape, pad, y_pad.shape)
-        # print('x ', x)
-        # print('y_pad ', y_pad)
-        # print('qweight ', self.qweight)
-        # print('scales ', self.scales)
-        # print('zeros ', self.zeros)
-        self.tvm_handler(x, self.qweight, y_pad, self.scales, self.zeros)
-        # recover y_pad to y
-        y = torch.zeros(outshape, dtype=dtype, device=x.device)
-        y[:M] = y_pad[:M]
-        y = y + self.bias if self.bias is not None else y 
-        y.to(dtype)
-        print(y)
-        # print(y.shape)
-        return y
+       raise NotImplementedError("Currently not supported MLC QuantLinear Forward, please use mlc-llm stack.")
 
         

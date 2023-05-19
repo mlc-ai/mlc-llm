@@ -13,7 +13,7 @@ try:
 
     _quant_cuda_available = True
 except ImportError:
-    logger.warning('CUDA extension not installed.')
+    # logger.warning('CUDA extension not installed.')
     _quant_cuda_available = False
 
 
@@ -175,8 +175,6 @@ class QuantLinear(nn.Module):
         self.qzeros = torch.from_numpy(qzeros)
 
     def forward(self, x: torch.Tensor):
-        print('QuantLinear forward, xshape is ', x.shape)
-
         out_shape = x.shape[:-1] + (self.outfeatures,)
         x = x.reshape(-1, x.shape[-1])
         if self.quant_cuda_available and (
@@ -243,7 +241,6 @@ class QuantLinear(nn.Module):
             out = torch.matmul(x.half(), weights)
         out = out.reshape(out_shape)
         out = out + self.bias if self.bias is not None else out
-        print(out)
         return out
 
 

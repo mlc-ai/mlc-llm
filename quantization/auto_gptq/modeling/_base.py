@@ -140,8 +140,7 @@ class BaseGPTQForCausalLM(nn.Module, PushToHubMixin):
         self,
         examples: List[Dict[str, Union[List[int], torch.LongTensor]]],
         batch_size: int = 1,
-        use_triton: bool = False,
-        use_tvm: bool = False,
+        export_mlc: bool = False,
         autotune_warmup_after_quantized: bool = False,
         cache_examples_on_gpu: bool = True
     ):
@@ -343,8 +342,7 @@ class BaseGPTQForCausalLM(nn.Module, PushToHubMixin):
             quantizers=quantizers,
             bits=self.quantize_config.bits,
             group_size=self.quantize_config.group_size,
-            use_triton=use_triton,
-            use_tvm=use_tvm,
+            export_mlc=export_mlc,
             autotune_warmup=autotune_warmup_after_quantized,
             force_layer_back_to_cpu=force_layer_back_to_cpu
         )
@@ -480,21 +478,13 @@ class BaseGPTQForCausalLM(nn.Module, PushToHubMixin):
         save_dir: str,
         device: str = "cpu",
         use_safetensors: bool = False,
-        use_triton: bool = False,
-        use_tvm: bool = False,
+        export_mlc: bool = False,
         max_memory: Optional[dict] = None,
         device_map: Optional[str] = None,
         quantize_config: Optional[BaseQuantizeConfig] = None,
         model_basename: Optional[str] = None,
         trust_remote_code: bool = False
     ):
-        """load quantized model from local disk"""
-        if use_triton:
-            from ..nn_modules.qlinear_triton import autotune_warmup_linear
-
-            logger.warning("use_triton will force moving the whole model to GPU, make sure you have enough VRAM.")
-            device = "cuda:0"
-
         config = AutoConfig.from_pretrained(save_dir, trust_remote_code=trust_remote_code)
         if config.model_type not in SUPPORTED_MODELS:
             raise TypeError(f"{config.model_type} isn't supported yet.")
@@ -535,7 +525,7 @@ class BaseGPTQForCausalLM(nn.Module, PushToHubMixin):
                 del layers[name]
 
         with accelerate.init_empty_weights():
-            make_quant(model, layers, quantize_config.bits, quantize_config.group_size, use_triton=use_triton, use_tvm=use_tvm)
+            make_quant(model, layers, quantize_config.bits, quantize_config.group_size, export_mlc=export_mlc)
         model.tie_weights()
 
         if max_memory and not device_map:
@@ -559,9 +549,6 @@ class BaseGPTQForCausalLM(nn.Module, PushToHubMixin):
             model.seqlen = 4096
 
         model.eval()
-
-        if use_triton:
-            autotune_warmup_linear(model, seqlen=model.seqlen)
 
         return cls(model, True, quantize_config)
 

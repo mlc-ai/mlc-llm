@@ -56,11 +56,9 @@ def get_module_by_name(model, module_name: str):
             return module
 
 
-def make_quant(module, names, bits, groupsize, name='', use_triton=False, use_tvm=True):
-    if use_triton:
-        from ..nn_modules.qlinear_triton import QuantLinear
-    elif use_tvm:
-        from ..nn_modules.qlinear_tvm import QuantLinear
+def make_quant(module, names, bits, groupsize, name='', export_mlc=True):
+    if export_mlc:
+        from ..nn_modules.qlinear_mlc import QuantLinear
     else:
         from ..nn_modules.qlinear import QuantLinear
 
@@ -84,38 +82,7 @@ def make_quant(module, names, bits, groupsize, name='', use_triton=False, use_tv
             new_layer.device = ori_layer_device
             setattr(module, _name, new_layer.to(ori_layer_device))
     for name1, child in module.named_children():
-        make_quant(child, names, bits, groupsize, name + '.' + name1 if name != '' else name1, use_triton=use_triton, use_tvm=use_tvm)
-
-# def make_quant(module, names, bits, groupsize, use_triton=False, use_tvm=True):
-#     if use_triton:
-#         from ..nn_modules.qlinear_triton import QuantLinear
-#     elif use_tvm:
-#         from ..nn_modules.qlinear_tvm import QuantLinear
-#     else:
-#         from ..nn_modules.qlinear import QuantLinear
-
-#     if isinstance(module, QuantLinear):
-#         return
-#     for name, child in module.named_children():
-#         print(name)
-#         if name in names:
-#             delattr(module, child)
-#             if type(child) == nn.Linear:
-#                 in_features = child.in_features
-#                 out_features = child.out_features
-#             elif type(child) == nn.Conv2d:
-#                 in_features = child.in_channels
-#                 out_features = child.out_channels
-#             elif type(child) == transformers.pytorch_utils.Conv1D:            
-#                 in_features = child.weight.shape[0]
-#                 out_features = child.weight.shape[1]
-#             in_features = child.in_features
-#             out_features = child.out_features
-#             new_layer = QuantLinear(bits, groupsize, in_features, out_features, child.bias is not None)
-#             setattr(module, name, new_layer)
-#         else:
-#             make_quant(child, names, bits, groupsize)
-#     return module
+        make_quant(child, names, bits, groupsize, name + '.' + name1 if name != '' else name1, export_mlc=export_mlc)
 
 
 def pack_model(
@@ -123,15 +90,12 @@ def pack_model(
     quantizers,
     bits,
     group_size,
-    use_triton=False,
-    use_tvm=False,
+    export_mlc=False,
     autotune_warmup: bool = False,
     force_layer_back_to_cpu: bool = False
 ):
-    if use_triton:
-        from ..nn_modules.qlinear_triton import QuantLinear, autotune_warmup_linear
-    elif use_tvm:
-        from ..nn_modules.qlinear_tvm import QuantLinear
+    if export_mlc:
+        from ..nn_modules.qlinear_mlc import QuantLinear
     else:
         from ..nn_modules.qlinear import QuantLinear
 
@@ -141,7 +105,7 @@ def pack_model(
     logger.info('Packing model...')
     layers = find_layers(model)
     layers = {n: layers[n] for n in quantizers}
-    make_quant(model, quantizers, bits, group_size, use_triton=use_triton, use_tvm=use_tvm)
+    make_quant(model, quantizers, bits, group_size, export_mlc=export_mlc)
     qlayers = find_layers(model, [QuantLinear])
     for name in qlayers:
         logger.info(name)
@@ -153,13 +117,7 @@ def pack_model(
         qlayers[name].pack(layers[name], scale, zero, g_idx)
         qlayers[name].to(layer_device)
     logger.info('Model packed.')
-
-    if use_triton and autotune_warmup:
-        logger.warning(
-            "using autotune_warmup will move model to GPU, make sure you have enough VRAM to load the whole model."
-        )
-        autotune_warmup_linear(model.to(CUDA_0), seqlen=model.seqlen)
-
+    
 
 def check_and_get_model_type(model_dir):
     config = AutoConfig.from_pretrained(model_dir, trust_remote_code=True)
