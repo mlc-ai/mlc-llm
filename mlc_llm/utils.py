@@ -56,23 +56,24 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
                 args.device_name = "metal"
             else:
                 raise ValueError("Cannot auto deduce device-name, please set it")
-    if args.model.startswith("vicuna-") or args.model.startswith("llama-"):
-        args.conv_template = "vicuna_v1.1"
-        args.model_category = "llama"
-    elif args.model.startswith("dolly-"):
-        args.conv_template = "dolly"
-        args.model_category = "gpt_neox"
-    elif args.model.startswith("stablelm-"):
-        args.conv_template = "stablelm"
-        args.model_category = "gpt_neox"
-    elif args.model.startswith("RedPajama-"):
-        args.conv_template = "redpajama_chat"
-        args.model_category = "gpt_neox"
-    elif args.model.startswith("moss-"):
-        args.conv_template = "moss"
-        args.model_category = "moss"
+    supported_model_prefix = {
+        "vicuna-": ("vicuna_v1.1", "llama"),
+        "dolly-": ("dolly", "gpt_neox"),
+        "stablelm-": ("stablelm", "gpt_neox"),
+        "redpajama-": ("redpajama_chat", "gpt_neox"),
+        "moss-": ("moss", "moss"),
+    }
+    model = args.model.lower()
+    for prefix, (conv_template, model_category) in supported_model_prefix.items():
+        if model.startswith(prefix):
+            args.conv_template = conv_template
+            args.model_category = model_category
+            break
     else:
-        raise ValueError(f"Model {args.model} not supported")
+        raise ValueError(
+            f'Cannot recognize model "{args.model}". '
+            f'Supported ones: {", ".join(supported_model_prefix.keys())}'
+        )
     args.quantization = quantization_dict[args.quantization]
 
 
@@ -255,9 +256,7 @@ def parse_target(args: argparse.Namespace) -> None:
             host="llvm -mtriple=arm64-apple-darwin",
         )
         args.target_kind = "iphone"
-        args.export_kwargs = {
-            "fcompile": tar.tar
-        }
+        args.export_kwargs = {"fcompile": tar.tar}
 
         if dylib:
             args.export_kwargs = {
@@ -274,7 +273,7 @@ def parse_target(args: argparse.Namespace) -> None:
 
     elif args.target.startswith("android"):
         # android-opencl
-        from tvm.contrib import ndk, cc
+        from tvm.contrib import cc, ndk
 
         args.target = tvm.target.Target(
             "opencl",
