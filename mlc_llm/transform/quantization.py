@@ -408,6 +408,7 @@ class GroupQuantize:
         mode: str = "int4",
         storage_nbit: int = 32,
         dtype: str = "float32",
+        decoder_only: bool = False,
     ) -> None:
         if mode.startswith("fp"):
             assert sym
@@ -419,6 +420,7 @@ class GroupQuantize:
         self.mode = mode
         self.storage_nbit = storage_nbit
         self.dtype = dtype
+        self.decoder_only = decoder_only
 
     def transform_module(
         self, mod: IRModule, ctx: tvm.transform.PassContext
@@ -433,6 +435,7 @@ class GroupQuantize:
                 mode: str,
                 storage_nbit: int,
                 dtype: str,
+                decoder_only: bool,
             ):
                 super().__init__(mod)
                 self.mod = mod
@@ -443,6 +446,7 @@ class GroupQuantize:
                 self.mode = mode
                 self.storage_nbit = storage_nbit
                 self.dtype = dtype
+                self.decoder_only = decoder_only
 
             def transform(self) -> IRModule:
                 for global_var, func in self.mod.functions.items():
@@ -500,7 +504,7 @@ class GroupQuantize:
                         return call
                     transpose_output = x.struct_info.shape[-2] != 1
                     # if the matmul is lm_head
-                    if "lm_head" in call_arg.args[0].name_hint:
+                    if "lm_head" in call_arg.args[0].name_hint and self.decoder_only:
                         print("skip lm_head for quantization")
                         return call
 
@@ -560,11 +564,11 @@ class GroupQuantize:
 
                 if call.op == tvm.ir.Op.get("relax.matmul"):
                     return self.quantize_matmul(call)
-                # elif call.op == tvm.ir.Op.get("relax.take"):
-                #     return self.quantize_take(call)
+                elif call.op == tvm.ir.Op.get("relax.take") and not self.decoder_only:
+                    return self.quantize_take(call)
                 else:
                     return call
 
         return QuantizeMutator(
-            mod, self.group_size, self.sym, self.mode, self.storage_nbit, self.dtype
+            mod, self.group_size, self.sym, self.mode, self.storage_nbit, self.dtype, self.decoder_only
         ).transform()
