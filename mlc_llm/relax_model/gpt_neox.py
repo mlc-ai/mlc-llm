@@ -32,21 +32,36 @@ from .modules import (
 )
 
 
-@dataclass
 class GPTNeoXConfig:  # pylint: disable=too-many-instance-attributes
-    use_parallel_residual: bool
-    hidden_size: int
-    intermediate_size: int
-    num_attention_heads: int
-    num_hidden_layers: int
-    vocab_size: int
-    dtype: str
-    rotary_pct: float = 0.25
-    rotary_emb_base: int = 10000
-    ffn_out_dtype: Optional[str] = None
-
-    layer_norm_eps: float = 1e-05
-    max_sequence_length: int = 2048
+    def __init__(
+        self,
+        use_parallel_residual,
+        hidden_size,
+        intermediate_size,
+        num_attention_heads,
+        num_hidden_layers,
+        vocab_size,
+        rotary_pct,
+        rotary_emb_base,
+        layer_norm_eps,
+        max_sequence_length,
+        dtype,
+        ffn_out_dtype,
+        **kwargs,
+    ):
+        self.use_parallel_residual = use_parallel_residual
+        self.hidden_size = hidden_size
+        self.intermediate_size = intermediate_size
+        self.num_attention_heads = num_attention_heads
+        self.num_hidden_layers = num_hidden_layers
+        self.vocab_size = vocab_size
+        self.rotary_pct = rotary_pct
+        self.rotary_emb_base = rotary_emb_base
+        self.layer_norm_eps = layer_norm_eps
+        self.max_sequence_length = max_sequence_length
+        self.dtype = dtype
+        self.ffn_out_dtype = ffn_out_dtype
+        self.kwargs = kwargs
 
 
 MODEL_CONFIG = {
@@ -638,18 +653,25 @@ def get_model(
 
     model = args.model
     dtype = args.quantization.model_dtype
+    ffn_out_dtype = "float32"
 
     if model.startswith("dolly-"):
         stop_tokens = [2]
+        ffn_out_dtype = "float16"
     elif model.startswith("stablelm-"):
         stop_tokens = [50278, 50279, 50277, 1, 0]
+        ffn_out_dtype = "float16"
     elif model.lower().startswith("redpajama-"):
         stop_tokens = [0]
     else:
         raise ValueError(f"Unsupported model {model}")
 
-    config = GPTNeoXConfig(**MODEL_CONFIG[model], dtype=dtype)
-    ffn_out_dtype = config.ffn_out_dtype or dtype
+    config = GPTNeoXConfig(
+        **hf_config,
+        max_sequence_length=args.max_seq_len if args.max_seq_len != -1 else 2048,
+        dtype=dtype,
+        ffn_out_dtype=ffn_out_dtype,
+    )
 
     num_heads = config.num_attention_heads
     hidden_size = config.hidden_size
