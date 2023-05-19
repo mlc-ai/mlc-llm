@@ -192,6 +192,7 @@ def copy_tokenizer(args: argparse.Namespace) -> None:
         if filename in [
             "tokenizer.model",
             "tokenizer.json",
+            "tokenizer_config.json",
             "vocab.json",
             "merges.txt",
             "added_tokens.json",
