@@ -284,6 +284,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
                 )(mod_deploy)
             )
             mod_deploy = tvm.tir.transform.DefaultGPUSchedule()(mod_deploy)
+            mod_deploy = mlc_llm.transform.LiftTIRGlobalBufferAlloc()(mod_deploy)
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 
     if args.debug_load_script:
