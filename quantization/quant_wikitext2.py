@@ -41,8 +41,8 @@ quantized_model_dir = f"quantization/models/llama-7b-{bits}bit"
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model_dir, use_fast=True)
 
 quantize_config = BaseQuantizeConfig(
-    bits=bits,  # quantize model to 3-bit
-    # group_size=-1,
+    bits=bits,
+    group_size=-1,
     sym=False,
     desc_act=True,    
 )
@@ -50,8 +50,9 @@ quantize_config = BaseQuantizeConfig(
 # load un-quantized model, the model will always be force loaded into cpu
 model = AutoGPTQForCausalLM.from_pretrained(pretrained_model_dir, quantize_config)
 
-# 
+# load dataset
 traindataset,testenc = get_wikitext2(128, 0, 2048, pretrained_model_dir)
+
 # quantize model, the examples should be list of dict whose keys can only be "input_ids" and "attention_mask" 
 # with value under torch.LongTensor type.
 model.quantize(traindataset, export_mlc=True)
