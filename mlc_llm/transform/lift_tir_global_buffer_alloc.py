@@ -19,11 +19,17 @@ def remove_global_buf_alloc(
     tensor_sinfo = []
     alloc_buffers = []
 
+    insertion_point = len(params)
+    while params[insertion_point - 1].dtype != "handle":
+        insertion_point -= 1
+        assert insertion_point >= 1
+
     prev_root_block = func.body.block
     for buf_alloc in func.body.block.alloc_buffers:
         if buf_alloc.scope() == "global":
             param = tir.Var("var_" + buf_alloc.name, "handle")
-            params.append(param)
+            params.insert(insertion_point, param)
+            insertion_point += 1
             buffer_map[param] = buf_alloc
             tensor_sinfo.append(
                 relax.TensorStructInfo(buf_alloc.shape, buf_alloc.dtype)
