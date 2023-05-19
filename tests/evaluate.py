@@ -20,6 +20,7 @@ def _parse_args():
     args = argparse.ArgumentParser()
     utils.argparse_add_common(args)
     args.add_argument("--device-name", type=str, default="auto")
+    args.add_argument("--model", type=str)
     args.add_argument("--debug-dump", action="store_true", default=False)
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument("--prompt", type=str, default="The capital of Canada is")
@@ -90,15 +91,24 @@ def deploy_to_pipeline(args) -> None:
     )
     vm = relax.VirtualMachine(ex, device)
 
+    # -- simple token evaluate --
+    kv_caches = vm["create_kv_cache"]()
+    input_ids = torch.ones((1, 1), dtype=torch.long)
+    input_ids = tvm.nd.array(input_ids.to(torch.int32).numpy(), device)
+    logits, kv_caches = vm["decoding"](
+        input_ids, tvm.runtime.ShapeTuple([input_ids.shape[1]]), kv_caches, const_params
+    )
+    print(f"simple token evaluate output {logits.shape}: ", logits)
+    # 
     tokenizer = AutoTokenizer.from_pretrained(
         args.artifact_path, trust_remote_code=True
     )
-
     print("Tokenizing...")
     inputs = tvm.nd.array(
         tokenizer(args.prompt, return_tensors="pt").input_ids.to(torch.int32).numpy(),
         device,
     )
+    print(inputs)
     first_sampled_token = tvm.nd.array(np.array([[6234]]).astype("int32"), device)
     seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1]])
     second_seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1] + 1])
@@ -106,9 +116,11 @@ def deploy_to_pipeline(args) -> None:
     # skip warm up
 
     logits, kv_caches = vm["encoding"](inputs, seq_len_shape, kv_caches, const_params)
+    print(f"encoding output {logits.shape}: ", logits)
     logits, kv_caches = vm["decoding"](
         first_sampled_token, second_seq_len_shape, kv_caches, const_params
     )
+    print("decoding output: ", logits)
     device.sync()
 
     kv_caches = vm["create_kv_cache"]()
@@ -127,6 +139,11 @@ def deploy_to_pipeline(args) -> None:
     if args.debug_dump:
         print(f"output kv_cache[0]:\n{first_k_cache.numpy().transpose(1, 0, 2)}")
         print(f"output logits:\n{logits.numpy()}")
+        # convert logits to strings
+        output_ids = np.argmax(logits.numpy(), axis=-1)
+        decoded_output = tokenizer.decode(output_ids.squeeze().tolist())
+        print(f"output tokens:{decoded_output.strip()}")
+        
     print(
         f"Time elapsed: encoding {(encoding_end - start)} seconds, decoding {end - encoding_end} secs"
     )
