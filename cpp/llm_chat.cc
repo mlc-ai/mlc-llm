@@ -427,11 +427,11 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
       std::filesystem::path vocab_path = path / "vocab.json";
       std::filesystem::path added_tokens_path = path / "added_tokens.json";
       if (std::filesystem::exists(merges_path) && std::filesystem::exists(vocab_path)) {
-        std::string vocab = LoadBytesFromFile(vocab_path);
-        std::string merges = LoadBytesFromFile(merges_path);
+        std::string vocab = LoadBytesFromFile(vocab_path.string());
+        std::string merges = LoadBytesFromFile(merges_path.string());
         std::string added_tokens = "";
         if (std::filesystem::exists(added_tokens_path)) {
-          added_tokens = LoadBytesFromFile(added_tokens_path);
+          added_tokens = LoadBytesFromFile(added_tokens_path.string());
         }
         return Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens);
       }
@@ -441,10 +441,10 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
     huggingface = path.parent_path() / "tokenizer.json";
   }
   if (std::filesystem::exists(sentencepiece)) {
-    return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece));
+    return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece.string()));
   }
   if (std::filesystem::exists(huggingface)) {
-    return Tokenizer::FromBlobJSON(LoadBytesFromFile(huggingface));
+    return Tokenizer::FromBlobJSON(LoadBytesFromFile(huggingface.string()));
   }
   LOG(FATAL) << "Cannot find any tokenizer under: " << _path;
 }
