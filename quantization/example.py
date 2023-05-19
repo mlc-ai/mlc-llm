@@ -6,7 +6,7 @@ from transformers import AutoTokenizer, TextGenerationPipeline
 from auto_gptq import AutoGPTQForCausalLM, BaseQuantizeConfig
 import torch
 
-enable_quant = False
+enable_quant = True
 export_mlc = False
 
 bits = 4
@@ -16,6 +16,8 @@ bits = 4
 pretrained_model_dir = "dist/models/llama-7b-hf"
 quantized_model_dir = f"quantization/models/llama-7b-{bits}bit"
 
+if export_mlc:
+    quantized_model_dir+= "-mlc"
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model_dir, use_fast=True)
 examples = [
     tokenizer(

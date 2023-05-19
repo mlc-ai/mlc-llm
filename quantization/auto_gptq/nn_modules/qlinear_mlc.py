@@ -41,7 +41,6 @@ class QuantLinear(nn.Module):
         W = linear.weight.data.clone()
 
         self.g_idx = g_idx.clone() if g_idx is not None else self.g_idx
-        print("scales shape", scales.shape, zeros.shape, self.g_idx.shape)
         scales = scales.t().contiguous()
         zeros = zeros.t().contiguous()
         scale_zeros = zeros * scales
