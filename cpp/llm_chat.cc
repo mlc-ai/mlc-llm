@@ -477,6 +477,12 @@ class LLMChat {
   }
 
   void Reload(tvm::runtime::Module executable, String model_path) {
+    // Step 0. Clear the previously allocated memory.
+    const PackedFunc* fclear_memory_manager =
+        tvm::runtime::Registry::Get("vm.builtin.memory_manager.clear");
+    ICHECK(fclear_memory_manager) << "Cannot find env function vm.builtin.memory_manager.clear";
+    (*fclear_memory_manager)();
+
     // Step 1. Set tokenizer.
     this->tokenizer_ = TokenizerFromPath(model_path);
 
