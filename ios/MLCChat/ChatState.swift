@@ -47,7 +47,7 @@ class ChatState : ObservableObject {
         self.requestedReset = false;
     }
 
-    func mainReload(modelName: String, modelLib: String, modelPath: String, estimatedMemReq : Int64) {
+    func mainReload(modelName: String, modelLib: String, modelPath: String, estimatedVRAMReq : Int64) {
         if (self.reloadReady &&
             self.modelLib == modelLib &&
             self.modelPath == modelPath &&
@@ -73,12 +73,12 @@ class ChatState : ObservableObject {
             self.updateReply(role: MessageRole.bot, message: "[System] Initalize...")
             backend.unload();
             let vram = os_proc_available_memory()
-            if (vram < estimatedMemReq) {
+            if (vram < estimatedVRAMReq) {
                 let reqMem = String (
-                    format: "%.1fGB", Double(estimatedMemReq) / Double(1 << 20)
+                    format: "%.1fGB", Double(estimatedVRAMReq) / Double(1 << 20)
                 )
                 let errMsg = (
-                    "Sorry, the system do not have" + reqMem + " memory as requested, " +
+                    "Sorry, the system cannot provide " + reqMem + " VRAM as requested to the app, " +
                     "so we cannot initialize this model on this device."
                 )
                 DispatchQueue.main.sync {

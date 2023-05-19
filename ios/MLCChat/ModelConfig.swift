@@ -10,7 +10,7 @@ struct ModelConfig: Codable, Hashable {
     let local_id: String
     let tokenizer_files: [String]
     let display_name: String!
-    let estimated_memory_req: Int64!
+    let estimated_vram_req: Int64!
 }
 
 struct ParamsRecord: Codable, Hashable {
@@ -29,4 +29,11 @@ struct ModelRecord: Codable, Hashable {
 struct AppConfig: Codable, Hashable {
     let model_libs: [String]
     var model_list: [ModelRecord]
+    let add_model_samples: [ModelRecord]
+}
+
+struct ExampleModelUrl: Hashable, Identifiable {
+    let id = UUID()
+    let model_url: String
+    let local_id: String
 }

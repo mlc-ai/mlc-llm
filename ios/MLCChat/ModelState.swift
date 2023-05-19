@@ -2,12 +2,10 @@
 //  ModelState.swift
 //  MLCChat
 //
-//  Created by Yaxing Cai on 5/15/23.
-//
 
 import Foundation
 
-enum ModelInitState{
+enum ModelInitState {
     case Initializing
     case Indexing
     case Paused
@@ -24,7 +22,7 @@ struct DownloadTask: Hashable {
 }
 
 
-class ModelState : ObservableObject, Identifiable{
+class ModelState : ObservableObject, Identifiable {
     @Published var modelConfig: ModelConfig!
     @Published var modelInitState: ModelInitState = .Initializing
     @Published var progress: Int = 0
@@ -46,13 +44,13 @@ class ModelState : ObservableObject, Identifiable{
     
     func reloadChatStateWithThisModel() {
         // TODO(tvm-team) consider log optional model name
-        let estimatedMemReq = modelConfig.estimated_memory_req ?? 4000000000;
+        let estimatedVRAMReq = modelConfig.estimated_vram_req ?? 4000000000;
         let modelName = modelConfig.display_name ?? modelConfig.local_id.components(separatedBy: "-")[0];
         self.chatState.mainReload(
             modelName: modelName,
             modelLib: modelConfig.model_lib,
             modelPath: modelDirUrl.path(),
-            estimatedMemReq: estimatedMemReq)
+            estimatedVRAMReq: estimatedVRAMReq)
     }
     
     func switchToInitializing(modelConfig: ModelConfig, modelUrl: URL?, modelDirUrl: URL) {
@@ -91,6 +89,7 @@ class ModelState : ObservableObject, Identifiable{
                 urlOrNil, responseOrNil, errorOrNil in
                 guard let fileUrl = urlOrNil else { return }
                 do {
+                    try? self.fileManager.removeItem(at: paramsConfigUrl)
                     try self.fileManager.moveItem(at: fileUrl, to: paramsConfigUrl)
                     DispatchQueue.main.async {
                         self.loadParamsConfig()
@@ -176,6 +175,7 @@ class ModelState : ObservableObject, Identifiable{
             
             do {
                 try self.fileManager.createDirectory(at: downloadTask.localUrl.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? self.fileManager.removeItem(at: downloadTask.localUrl)
                 try self.fileManager.moveItem(at: fileUrl, to: downloadTask.localUrl)
             } catch {
                 print(error.localizedDescription)
