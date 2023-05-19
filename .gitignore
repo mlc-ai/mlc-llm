@@ -323,3 +323,5 @@ gallery/how_to/work_with_microtvm/micro_tvmc.py
 dist
 
 quantization/models/
+
+!quantization/build.py
