@@ -3,7 +3,7 @@ import os
 from tvm.contrib import cc
 
 def main():
-    app_config = json.load(open("app-config.json", "r"))
+    app_config = json.load(open("MLCChat/app-config.json", "r"))
     target = "iphone"
     artifact_path = os.path.abspath(os.path.join("..", "dist"))
 

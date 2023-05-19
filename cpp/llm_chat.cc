@@ -477,12 +477,6 @@ class LLMChat {
   }
 
   void Reload(tvm::runtime::Module executable, String model_path) {
-    // Step 0. Clear the previously allocated memory.
-    const PackedFunc* fclear_memory_manager =
-        tvm::runtime::Registry::Get("vm.builtin.memory_manager.clear");
-    ICHECK(fclear_memory_manager) << "Cannot find env function vm.builtin.memory_manager.clear";
-    (*fclear_memory_manager)();
-
     // Step 1. Set tokenizer.
     this->tokenizer_ = TokenizerFromPath(model_path);
 
@@ -744,7 +738,6 @@ class LLMChat {
 
     std::vector<int32_t> prompt_tokens = this->GetPromptTokens();
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
-
     tvm::runtime::NDArray input_data = this->GetInputTokenNDArray(prompt_tokens);
 
     total_seq_len_ += token_len;
@@ -820,7 +813,7 @@ class LLMChat {
     return encounter_stop_str_ || total_seq_len_ >= max_window_size_;
   }
 
-  size_t FindEffectiveUTF8Pos(const std::string& s, size_t start_pos) {
+  size_t FindEffectiveUTF8Pos(const std::string& s) {
     int pos = s.size() - 1;
     for (; pos >= 0; pos--) {
       if ((s[pos] & 0x80) == 0x00) {
@@ -840,8 +833,16 @@ class LLMChat {
 
   std::string GetMessage() {
     // remove non-utf8 characters
-    std::string cropped_message =
-        output_message_.substr(0, FindEffectiveUTF8Pos(output_message_, 0));
+    size_t effective_end = FindEffectiveUTF8Pos(output_message_);
+    while (effective_end > 0 && output_message_[effective_end - 1] == '\n') {
+      --effective_end;
+    }
+    size_t effective_begin = 0;
+    while (effective_begin < effective_end && output_message_[effective_begin] == ' ') {
+      ++effective_begin;
+    }
+    std::string cropped_message = output_message_.substr(
+      effective_begin, effective_end - effective_begin);
     return cropped_message;
   }
 
@@ -1109,17 +1110,30 @@ class LLMChat {
 
 class LLMChatModule : public ModuleNode {
  public:
+  // clear global memory manager
+  static void ClearGlobalMemoryManager() {
+    // Step 0. Clear the previously allocated memory.
+    const PackedFunc* fclear_memory_manager =
+        tvm::runtime::Registry::Get("vm.builtin.memory_manager.clear");
+    ICHECK(fclear_memory_manager) << "Cannot find env function vm.builtin.memory_manager.clear";
+    (*fclear_memory_manager)();
+  }
+
   // overrides
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "reload") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 2);
         chat_ = nullptr;
+        ClearGlobalMemoryManager();
         chat_ = std::make_unique<LLMChat>(LLMChat(device_));
         chat_->Reload(args[0], args[1]);
       });
     } else if (name == "unload") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { chat_ = nullptr; });
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        chat_ = nullptr;
+        ClearGlobalMemoryManager();
+      });
     } else if (name == "evaluate") {
       return PackedFunc(
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->Evaluate(); });

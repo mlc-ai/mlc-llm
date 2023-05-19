@@ -26,7 +26,7 @@ import SwiftUI
 
 @main
 struct MLCChatApp: App {
-    // @StateObject private var state = StartState()
+    @StateObject private var state = StartState()
 
     init() {
         UITableView.appearance().separatorStyle = .none
@@ -35,8 +35,7 @@ struct MLCChatApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ChatView()
-                .environmentObject(ChatState())
+            StartView().environmentObject(state)
         }
     }
 }

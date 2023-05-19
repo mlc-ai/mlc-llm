@@ -1,6 +1,0 @@
-{
-    "model_libs": [
-        "vicuna-v1-7b-q3f16_0",
-        "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
-    ]
-}
