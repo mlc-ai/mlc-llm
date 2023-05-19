@@ -1,6 +1,5 @@
 import tvm
-from tvm import IRModule
-from tvm import relax, te, tir
+from tvm import IRModule, relax, te, tir
 from tvm.relax.dpl.pattern import is_op, wildcard
 
 
@@ -31,7 +30,10 @@ class TransposeMatmulCodeGenerator(relax.PyExprMutator):
         return o, annotations, _check
 
     def visit_call_(self, call: relax.Call) -> relax.Expr:
+        out_dtype = None
+
         def te_transposed_matmul(a: te.Tensor, b: te.Tensor) -> te.Tensor:
+            nonlocal out_dtype
             a_shape = list(a.shape)
             b_shape = list(b.shape)
             a_prepended = False
@@ -44,7 +46,11 @@ class TransposeMatmulCodeGenerator(relax.PyExprMutator):
                 b_shape.append(1)
 
             is_a_larger = len(a_shape) > len(b_shape)
-            offset = len(a_shape) - len(b_shape) if is_a_larger else len(b_shape) - len(a_shape)
+            offset = (
+                len(a_shape) - len(b_shape)
+                if is_a_larger
+                else len(b_shape) - len(a_shape)
+            )
 
             a_relax = relax.Var("a", relax.TensorStructInfo(a.shape))
             bT_shape = list(b.shape)
@@ -66,7 +72,9 @@ class TransposeMatmulCodeGenerator(relax.PyExprMutator):
                             a_indices.append(idx_spatial[i])
                         else:
                             b_indices.append(idx_spatial[i])
-                    for i in range(offset, len(output_shape) - (2 - a_prepended - b_appended)):
+                    for i in range(
+                        offset, len(output_shape) - (2 - a_prepended - b_appended)
+                    ):
                         a_dim = a_shape[i if is_a_larger else i - offset]
                         b_dim = b_shape[i if not is_a_larger else i - offset]
                         dim_equal = a_dim == b_dim
@@ -86,11 +94,10 @@ class TransposeMatmulCodeGenerator(relax.PyExprMutator):
                         b_indices.append(idx_spatial[-1])
                     b_indices.append(idx_reduce)
 
-                    dtype = a.dtype
+                    dtype = out_dtype
                     if dtype != "":
                         return a(*a_indices).astype(dtype) * b(*b_indices).astype(dtype)
-                    else:
-                        return a(*a_indices) * b(*b_indices)
+                    return a(*a_indices) * b(*b_indices)
 
                 return te.sum(multiply_compute(k), axis=k)
 
@@ -106,6 +113,7 @@ class TransposeMatmulCodeGenerator(relax.PyExprMutator):
                 "Composite" in function.attrs
                 and function.attrs["Composite"] == "transpose_matmul_fuse"
             ):
+                out_dtype = function.ret_struct_info.dtype
                 return self.builder_.call_te(
                     te_transposed_matmul,
                     call.args[1],
@@ -118,7 +126,9 @@ class TransposeMatmulCodeGenerator(relax.PyExprMutator):
 
 @tvm.transform.module_pass(opt_level=0, name="FuseTransposeMatmul")
 class FuseTransposeMatmul:
-    def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(
+        self, mod: IRModule, ctx: tvm.transform.PassContext
+    ) -> IRModule:
         mod = relax.transform.FuseOpsByPattern(
             [("transpose_matmul_fuse", *TransposeMatmulCodeGenerator.pattern())]
         )(mod)

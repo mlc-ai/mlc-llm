@@ -1,6 +1,8 @@
+[discord-url]: https://discord.gg/9Xpy2HGBuD
+
 # MLC LLM
 
-| [Project](https://mlc.ai/mlc-llm/) | [Blog](https://mlc.ai/blog/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [Demo: iOS](https://mlc.ai/mlc-llm/#iphone) | [Demo: Android](https://mlc.ai/mlc-llm/#android) | [Demo: CLI](https://mlc.ai/mlc-llm/#windows-linux-mac) | [WebLLM](https://mlc.ai/web-llm/) | [WebStableDiffusion](https://mlc.ai/web-stable-diffusion/) |
+| [Project](https://mlc.ai/mlc-llm/) | [Blog](https://mlc.ai/blog/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [Demo: iOS](https://mlc.ai/mlc-llm/#iphone) | [Demo: Android](https://mlc.ai/mlc-llm/#android) | [Demo: CLI](https://mlc.ai/mlc-llm/#windows-linux-mac) | [WebLLM](https://mlc.ai/web-llm/) | [WebStableDiffusion](https://mlc.ai/web-stable-diffusion/) | [Discord][discord-url]
 
 MLC LLM is a **universal solution** that allows **any language models** to be **deployed natively** on a diverse set of hardware backends and native applications, plus a **productive framework** for everyone to further optimize model performance for their own use cases.
 
@@ -14,6 +16,8 @@ Everything runs locally  with no server support and accelerated with local GPUs 
 * AMD, Intel and NVIDIA GPUs via Vulkan on Windows and Linux;
 * NVIDIA GPUs via CUDA on Windows and Linux;
 * WebGPU on browsers (through companion project [WebLLM](https://github.com/mlc-ai/web-llm/tree/main)).
+
+**[Click here to join our Discord server!][discord-url]**
 
 **[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/)**
 
@@ -72,7 +76,6 @@ git clone https://github.com/mlc-ai/mlc-llm.git
 
 # Create the local build directory and compile the model
 # This will automatically download the parameters, tokenizer, and config from Hugging Face
-mkdir build
 python build.py --hf-path=databricks/dolly-v2-3b
 ```
 
@@ -84,8 +87,11 @@ If you have a local directory that has the model parameters, the tokenizer, and 
 
 ```shell
 # Create the local build directory and compile the model
-mkdir build
-python build.py --model-path=/path/to/local/directory
+python build.py --model=/path/to/local/directory
+
+# If the model path is in the form of `dist/models/model_name`,
+# we can simplify the build command to
+# python build.py --model=model_name
 ```
 
 Similarly, the compiled model will be available at `dist/dolly-v2-3b-q3f16_0`, where the exact path will vary depending on your model type and specified quantization. Follow the platform specific instructions to build and run MLC LLM for [iOS](https://github.com/mlc-ai/mlc-llm/blob/main/ios/README.md), [Android](https://github.com/mlc-ai/mlc-llm/blob/main/android/README.md), and [CLI](https://github.com/mlc-ai/mlc-llm/tree/main/cpp/README.md).

@@ -1,8 +1,17 @@
 #!/bin/bash
 set -euxo pipefail
 
-rm -rf dist
+# NOTE: this is optional, prepackage weight into app
+rm -r dist
 mkdir -p dist
-cp -rf ../dist/models/vicuna-v1-7b/tokenizer.model dist/tokenizer.model
-#cp -rf ../dist/models/stablelm-3b-v0/tokenizer.json dist/tokenizer.json
-cp -rf ../dist/vicuna-v1-7b/float16/params dist/params
+
+declare -a builtin_list=(
+    "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
+    # "vicuna-v1-7b-q3f16_0"
+)
+
+for model in "${builtin_list[@]}"
+do
+   cp -r ../dist/$model/params dist/$model
+done
+

@@ -3,8 +3,8 @@ set -euxo pipefail
 
 rustup target add aarch64-apple-ios
 
-mkdir -p build
-cd build
+mkdir -p build/ && cd build/
+
 cmake ../..\
   -DCMAKE_BUILD_TYPE=Release\
   -DCMAKE_SYSTEM_NAME=iOS\
@@ -18,11 +18,11 @@ cmake ../..\
   -DCMAKE_CXX_FLAGS="-O3"\
   -DMLC_LLM_INSTALL_STATIC_LIB=ON\
   -DUSE_METAL=ON
-
 make mlc_llm_static
 cmake --build . --target install --config release -j
-
 cd ..
+
 rm -rf build/tvm_home
 ln -s  ${TVM_HOME} build/tvm_home
-cp ../dist/vicuna-v1-7b/float16/vicuna-v1-7b_iphone_float16.a build/lib/libmodel_iphone.a
+
+python prepare_model_lib.py

@@ -49,25 +49,6 @@ quantization_dict = {
 
 supported_model_types = set(["llama", "gpt_neox", "moss"])
 
-def argparse_add_common(args: argparse.ArgumentParser) -> None:
-    args.add_argument(
-        "--quantization",
-        type=str,
-        choices=[*quantization_dict.keys()],
-        default=list(quantization_dict.keys())[0],
-    )
-    args.add_argument(
-        "--model-path",
-        type=str,
-        default=None,
-        help="Custom model path that contains params, tokenizer, and config"
-    )
-    args.add_argument(
-        "--hf-path",
-        type=str,
-        default=None,
-        help="Hugging Face path from which to download params, tokenizer, and config from"
-    )
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
     if hasattr(args, "device_name"):
@@ -88,7 +69,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         args.conv_template = "stablelm"
         args.model_category = "gpt_neox"
     elif args.model.startswith("RedPajama-"):
-        args.conv_template = "dolly"  # TODO
+        args.conv_template = "redpajama_chat"
         args.model_category = "gpt_neox"
     elif args.model.startswith("moss-"):
         args.conv_template = "moss"
@@ -201,8 +182,6 @@ def split_static_dynamic_tir(mod: tvm.IRModule):
                 mod_static[k] = v
             else:
                 mod_dynamic[k] = v
-    print(f"{len(mod_static)} static functions: {list(mod_static.keys())}")
-    print(f"{len(mod_dynamic)} dynamic functions: {list(mod_dynamic.keys())}")
     mod_static = tvm.IRModule(mod_static)
     mod_dynamic = tvm.IRModule(mod_dynamic)
     return mod_static, mod_dynamic
@@ -210,8 +189,28 @@ def split_static_dynamic_tir(mod: tvm.IRModule):
 
 def copy_tokenizer(args: argparse.Namespace) -> None:
     for filename in os.listdir(args.model_path):
-        if filename.startswith("tokenizer") or filename == "vocab.json":
-            shutil.copy(os.path.join(args.model_path, filename), args.artifact_path)
+        if filename in [
+            "tokenizer.model",
+            "tokenizer.json",
+            "vocab.json",
+            "merges.txt",
+            "added_tokens.json",
+        ]:
+            shutil.copy(
+                os.path.join(args.model_path, filename),
+                os.path.join(args.artifact_path, "params"),
+            )
+
+
+def get_tokenizer_files(path) -> List[str]:
+    tokenizer_set = {
+        "tokenizer.model",
+        "tokenizer.json",
+        "vocab.json",
+        "merges.txt",
+        "added_tokens.json",
+    }
+    return [x for x in os.listdir(path) if x in tokenizer_set]
 
 
 def parse_target(args: argparse.Namespace) -> None:
@@ -238,7 +237,7 @@ def parse_target(args: argparse.Namespace) -> None:
         args.lib_format = "wasm"
         args.system_lib = True
     elif args.target.startswith("iphone"):
-        from tvm.contrib import cc, xcode  # pylint: disable=import-outside-toplevel
+        from tvm.contrib import tar, xcode  # pylint: disable=import-outside-toplevel
 
         # override
         @tvm.register_func("tvm_callback_metal_compile")
@@ -260,9 +259,8 @@ def parse_target(args: argparse.Namespace) -> None:
         )
         args.target_kind = "iphone"
         args.export_kwargs = {
-            "fcompile": cc.create_staticlib,
+            "fcompile": tar.tar
         }
-        args.lib_format = "a"
 
         if dylib:
             args.export_kwargs = {
@@ -272,7 +270,11 @@ def parse_target(args: argparse.Namespace) -> None:
             }
             args.lib_format = "dylib"
         else:
+            args.lib_format = "tar"
             args.system_lib = True
+            system_lib_prefix = f"{args.model}-{args.quantization}_"
+            args.system_lib_prefix = system_lib_prefix.replace("-", "_")
+
     elif args.target.startswith("android"):
         # android-opencl
         from tvm.contrib import ndk, cc

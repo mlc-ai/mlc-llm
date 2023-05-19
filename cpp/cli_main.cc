@@ -14,6 +14,7 @@
 #include <bitset>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -132,10 +133,12 @@ std::vector<std::string> CountUTF8(const std::string& s) {
 
 void PrintSpecialCommands() {
   std::cout << "You can use the following special commands:\n"
-            << "  /help    print the special commands\n"
-            << "  /exit    quit the cli\n"
-            << "  /stats   print out the latest stats (token/sec)\n"
-            << "  /reset   restart a fresh chat\n"
+            << "  /help               print the special commands\n"
+            << "  /exit               quit the cli\n"
+            << "  /stats              print out the latest stats (token/sec)\n"
+            << "  /reset              restart a fresh chat\n"
+            << "  /reload [model_id]  reload model \"model_id\" from disk, or reload the current "
+               "model if model_id is not specified\n"
             << std::endl
             << std::flush;
 }
@@ -144,38 +147,23 @@ void PrintSpecialCommands() {
  * \brief Start a chat conversation.
  *
  * \param chat_mod The chat module.
- * \param model The model to use.
- * \param max_gen_len The maximum length of the generated sequence.
- * \param temperature The temperature to use for sampling.
- * \param top_p The top_p to use for sampling.
+ * \param executable The model library to initialize the chat module.
+ * \param model_path The model path with contains the model config, tokenizer and parameters.
  */
-void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_gen_len = 2048,
-          double temperature = 0.7, double top_p = 0.95, int64_t stream_interval = 2,
-          int max_window_size = 768, int mean_gen_len = 128, double shift_fill_factor = 0.3) {
-  // conv template detect
-  std::string conv_template;
-  if (model.find("vicuna") == 0 || model.find("llama") == 0) {
-    conv_template = "vicuna_v1.1";
-  } else if (model.find("dolly-") == 0) {
-    conv_template = "dolly";
-  } else if (model.find("stablelm") == 0) {
-    conv_template = "stablelm";
-  } else if (model.find("moss") == 0) {
-    conv_template = "moss";
-  } else {
-    LOG(FATAL) << "Do not recognize model name " << model;
-  }
-
+void Chat(tvm::runtime::Module chat_mod, tvm::runtime::Module executable, std::string model_path,
+          std::function<std::pair<std::string, std::string>(std::vector<std::string>)>
+              f_search_model_path,
+          int stream_interval = 2) {
   // initialize chat context
-  chat_mod.GetFunction("init_chat")(model, conv_template, max_gen_len, temperature, top_p,
-                                    stream_interval, max_window_size, mean_gen_len,
-                                    shift_fill_factor);
+  chat_mod.GetFunction("reload")(executable, tvm::String(model_path));
   auto f_stop = chat_mod.GetFunction("stopped");
   auto f_encode = chat_mod.GetFunction("encode");
   auto f_decode = chat_mod.GetFunction("decode");
   auto f_stats = chat_mod.GetFunction("runtime_stats_text");
-  std::string role0 = chat_mod.GetFunction("get_role0")();
-  std::string role1 = chat_mod.GetFunction("get_role1")();
+  auto f_get_role0 = chat_mod.GetFunction("get_role0");
+  auto f_get_role1 = chat_mod.GetFunction("get_role1");
+  std::string role0 = f_get_role0();
+  std::string role1 = f_get_role1();
 
   while (true) {
     std::string inp;
@@ -186,6 +174,26 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_g
       // initialize chat context
       chat_mod.GetFunction("reset_chat")();
       std::cout << "RESET CHAT SUCCESS" << std::endl << std::flush;
+      continue;
+    } else if (inp.substr(0, 7) == "/reload") {
+      std::istringstream is(inp);
+      std::string reload_prompt;
+      std::string local_id;
+      is >> reload_prompt >> local_id;
+      if (local_id == "") {
+        chat_mod.GetFunction("reload")(executable, tvm::String(model_path));
+        std::cout << "RELOAD THE SAME MODEL SUCCESS" << std::endl << std::flush;
+      } else {
+        std::string lib_path;
+        std::tie(lib_path, model_path) = f_search_model_path({local_id});
+        executable = tvm::runtime::Module::LoadFromFile(lib_path);
+        chat_mod.GetFunction("reload")(executable, tvm::String(model_path));
+        std::string role0_str = f_get_role0();
+        std::string role1_str = f_get_role1();
+        role0 = role0_str;
+        role1 = role1_str;
+        std::cout << "LOAD MODEL " << local_id << " SUCCESS" << std::endl << std::flush;
+      }
       continue;
     } else if (inp.substr(0, 5) == "/exit") {
       break;
@@ -239,113 +247,121 @@ int main(int argc, char* argv[]) {
   using namespace tvm::runtime;
   argparse::ArgumentParser args("mlc_chat");
 
-  args.add_argument("--device-name").default_value("auto");
-  args.add_argument("--device_id").default_value(0);
-  args.add_argument("--artifact-path").default_value("dist");
+  args.add_argument("--local-id").default_value("");
   args.add_argument("--model").default_value("vicuna-v1-7b");
   args.add_argument("--quantization").default_value("auto");
-  args.add_argument("--params").default_value("auto");
+  args.add_argument("--device-name").default_value("auto");
+  args.add_argument("--device_id").default_value(0).scan<'i', int>();
+  args.add_argument("--artifact-path").default_value("dist");
   args.add_argument("--evaluate").default_value(false).implicit_value(true);
 
   try {
     args.parse_args(argc, argv);
   } catch (const std::runtime_error& err) {
     std::cerr << err.what() << std::endl;
-    std::cerr << args;
+    std::cerr << args << std::endl;
     return 1;
   }
 
+  std::string local_id = args.get<std::string>("--local-id");
+  std::string model = args.get<std::string>("--model");
+  std::string quantization = args.get<std::string>("--quantization");
   std::string device_name = DetectDeviceName(args.get<std::string>("--device-name"));
   int device_id = args.get<int>("--device_id");
   DLDevice device = GetDevice(device_name, device_id);
   std::string artifact_path = args.get<std::string>("--artifact-path");
-  std::string model = args.get<std::string>("--model");
-  std::string quantization = args.get<std::string>("--quantization");
-  std::string params = args.get<std::string>("--params");
-
   std::string arch_suffix = GetArchSuffix();
 
-  std::optional<std::filesystem::path> lib_path_opt;
-
-  std::vector<std::string> quantization_candidates;
-  if (quantization == "auto") {
-    quantization_candidates = quantization_presets;
+  // Configure local id candidates.
+  std::vector<std::string> local_id_candidates;
+  if (local_id != "") {
+    local_id_candidates = {local_id};
   } else {
-    quantization_candidates = {quantization};
-  }
-
-  std::optional<std::filesystem::path> lib_path;
-  for (auto candidate : quantization_candidates) {
-    std::string lib_name = model + "-" + candidate + "-" + device_name;
-    std::vector<std::string> search_paths = {artifact_path + "/" + model + "-" + candidate,
-                                             artifact_path + "/" + model, artifact_path + "/lib"};
-    // search for lib_x86_64 and lib
-    lib_path_opt = FindFile(search_paths, {lib_name, lib_name + arch_suffix}, GetLibSuffixes());
-    if (lib_path_opt) {
-      quantization = candidate;
-      break;
-    }
-  }
-  if (!lib_path_opt) {
-    std::cerr << "Cannot find " << model << " lib in preferred path \"" << artifact_path << "/"
-              << model << "-" << quantization_candidates[0] << "/" << model << "-"
-              << quantization_candidates[0] << "-" << device_name << GetLibSuffixes()[0]
-              << "\" or other candidate paths";
-    return 1;
-  }
-  std::cout << "Use lib " << lib_path_opt.value().string() << std::endl;
-  std::string model_path = lib_path_opt.value().parent_path().string();
-  LOG(INFO) << "model_path = " << model_path;
-  // get artifact path lib name
-  std::optional<std::filesystem::path> tokenizer_path_opt =
-      FindFile({model_path, artifact_path + "/" + model}, {"tokenizer"}, {".model", ".json"});
-  if (!tokenizer_path_opt) {
-    // Try ByteLevelBPETokenizer
-    tokenizer_path_opt = FindFile({model_path, artifact_path + "/" + model}, {"vocab"}, {".json"});
-    if (!tokenizer_path_opt) {
-      std::cerr << "Cannot find tokenizer file in " << model_path;
-      return 1;
+    std::vector<std::string> quantization_candidates;
+    if (quantization == "auto") {
+      quantization_candidates = quantization_presets;
     } else {
-      // GPT2 styles tokenizer needs multiple files, we need to
-      // get the directory that stores vocab.json.
-      tokenizer_path_opt = tokenizer_path_opt.value().parent_path();
+      quantization_candidates = {quantization};
+    }
+    for (std::string quantization_candidate : quantization_candidates) {
+      local_id_candidates.push_back(model + "-" + quantization_candidate);
     }
   }
 
-  if (params == "auto") {
-    auto params_json_opt =
-        FindFile({model_path + "/params", artifact_path + "/" + model + "/params"},
-                 {"ndarray-cache"}, {".json"});
-    if (!params_json_opt) {
-      std::cerr << "Cannot find ndarray-cache.json for params in preferred path \"" << model_path
-                << "/params\" and \"" << artifact_path << "/" + model << "/params.";
-      return 1;
+  auto f_search_model_path =
+      [artifact_path, device_name, arch_suffix](
+          std::vector<std::string> local_id_candidates) -> std::pair<std::string, std::string> {
+    std::optional<std::filesystem::path> config_path_opt;
+    std::string local_id;
+
+    // Search for mlc-chat-config.json.
+    for (auto local_id_candidate : local_id_candidates) {
+      std::vector<std::string> config_search_paths = {
+          artifact_path + "/" + local_id_candidate + "/params",  //
+          artifact_path + "/prebuilt/" + local_id_candidate};
+      config_path_opt = FindFile(config_search_paths, {"mlc-chat-config"}, {".json"});
+      if (config_path_opt) {
+        local_id = local_id_candidate;
+        break;
+      }
     }
-    std::string params_json = params_json_opt.value().string();
-    params = params_json.substr(0, params_json.length() - 18);
-  } else if (!FindFile({params}, {"ndarray-cache"}, {".json"})) {
-    std::cerr << "Cannot find params/ndarray-cache.json in " << model_path;
-    return 1;
-  }
+    if (!config_path_opt) {
+      std::cerr << "Cannot find \"mlc-chat-config.json\" in path \"" << artifact_path << "/"
+                << local_id_candidates[0] << "/params/\", \"" << artifact_path
+                << "/prebuilt/" + local_id_candidates[0] << "\" or other candidate paths.";
+      exit(1);
+    }
+    std::cout << "Use config " << config_path_opt.value().string() << std::endl;
+    std::filesystem::path model_path = config_path_opt.value().parent_path();
+
+    // Locate the library.
+    std::string lib_name = local_id + "-" + device_name;
+    std::string lib_dir_path;
+    if (model_path.string().compare(model_path.string().length() - 7, 7, "/params") == 0) {
+      lib_dir_path = model_path.parent_path().string();
+    } else {
+      lib_dir_path = model_path.parent_path().string() + "/lib";
+    }
+    std::optional<std::filesystem::path> lib_path_opt =
+        FindFile({lib_dir_path}, {lib_name, lib_name + arch_suffix}, GetLibSuffixes());
+    if (!lib_path_opt) {
+      std::cerr << "Cannot find library \"" << lib_name << GetLibSuffixes().back()
+                << "\" and other library candidate in " << lib_dir_path << std::endl;
+      exit(1);
+    }
+    std::cout << "Use lib " << lib_path_opt.value().string() << std::endl;
+
+    // Locate the params.
+    auto params_json_opt = FindFile({model_path}, {"ndarray-cache"}, {".json"});
+    if (!params_json_opt) {
+      std::cerr << "Cannot find ndarray-cache.json for params in " << model_path << std::endl;
+      exit(1);
+    }
+    std::string params = params_json_opt.value().parent_path().string();
+
+    return {lib_path_opt.value().string(), model_path.string()};
+  };
+
+  auto [lib_path, model_path] = f_search_model_path(local_id_candidates);
 
   try {
-    auto lib = Module::LoadFromFile(lib_path_opt.value().string());
+    auto lib = Module::LoadFromFile(lib_path);
     std::cout << "Initializing the chat module..." << std::endl;
-    Module chat_mod =
-        mlc::llm::CreateChatModule(lib, tokenizer_path_opt.value().string(), params, device);
+    Module chat_mod = mlc::llm::CreateChatModule(device);
 
     std::cout << "Finish loading" << std::endl;
     PrintSpecialCommands();
 
     if (args.get<bool>("--evaluate")) {
+      chat_mod.GetFunction("reload")(lib, tvm::String(model_path));
       chat_mod.GetFunction("evaluate")();
     } else {
-      Chat(chat_mod, model);
+      Chat(chat_mod, lib, model_path, f_search_model_path);
     }
   } catch (const std::runtime_error& err) {
     // catch exception so error message
     // get reported here without silently quit.
-    std::cerr << err.what();
+    std::cerr << err.what() << std::endl;
     return 1;
   }
   return 0;

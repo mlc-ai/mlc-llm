@@ -1,12 +1,13 @@
+# pylint: disable=missing-docstring
 import argparse
+import json
 import os
 import pickle
-import json
-from typing import List
-import json
+from typing import Any, Dict, List
 
 import tvm
 import tvm.testing
+from tvm import meta_schedule as ms
 from tvm import relax
 
 import mlc_llm
@@ -16,7 +17,26 @@ from mlc_llm.relax_model import gpt_neox, llama, moss
 
 def _parse_args():
     args = argparse.ArgumentParser()
-    utils.argparse_add_common(args)
+    args.add_argument(
+        "--model",
+        type=str,
+        default="auto",
+        help='The name of the model to build. If it is "auto", we will automatically set the '
+        'model name according to "--model-path", "hf-path" or the model folders under '
+        '"--artifact-path/models"',
+    )
+    args.add_argument(
+        "--hf-path",
+        type=str,
+        default=None,
+        help="Hugging Face path from which to download params, tokenizer, and config from",
+    )
+    args.add_argument(
+        "--quantization",
+        type=str,
+        choices=[*utils.quantization_dict.keys()],
+        default=list(utils.quantization_dict.keys())[0],
+    )
     args.add_argument("--max-seq-len", type=int, default=-1)
     args.add_argument("--target", type=str, default="auto")
     args.add_argument(
@@ -24,6 +44,12 @@ def _parse_args():
         type=str,
         default=None,
         help="Path to log database. Default: ./log_db/{model}",
+    )
+    args.add_argument(
+        "--reuse-lib",
+        type=str,
+        default=None,
+        help="Whether to reuse a previously generated lib.",
     )
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument(
@@ -34,7 +60,6 @@ def _parse_args():
     )
     args.add_argument("--debug-dump", action="store_true", default=False)
     args.add_argument("--debug-load-script", action="store_true", default=False)
-
     args.add_argument(
         "--llvm-mingw",
         type=str,
@@ -48,11 +73,16 @@ def _parse_args():
 
     parsed.export_kwargs = {}
     parsed.lib_format = "so"
-
+    parsed.system_lib_prefix = None
     parsed = _setup_model_path(parsed)
 
     parsed.db_path = parsed.db_path or os.path.join("log_db", parsed.model)
-
+    if os.path.exists(parsed.db_path):
+        ms.database.create(work_dir=parsed.db_path)
+    else:
+        print(
+            f"WARNING: --db-path does not point to a valid database: {parsed.db_path}"
+        )
     utils.parse_target(parsed)
     utils.argparse_postproc_common(parsed)
 
@@ -62,43 +92,76 @@ def _parse_args():
 
     return parsed
 
-def _setup_model_path(args):
-    if args.model_path and args.hf_path:
-        assert (args.model_path and not args.hf_path) or (args.hf_path and not args.model_path), "You cannot specify both a model path and a HF path. Please select one to specify."
-    if args.model_path:
-        validate_config(args)
-        with open(os.path.join(args.model_path, "config.json")) as f:
-            config = json.load(f)
-            args.model = config["_name_or_path"].split("/")[-1]
-    elif args.hf_path:
-        args.model = args.hf_path.split("/")[-1]
+
+def _setup_model_path(args):  # pylint: disable=too-many-branches
+    if args.hf_path:
+        if args.model != "auto":
+            assert args.model == os.path.basename(args.hf_path), (
+                'When both "--model" and "--hf-path" is specified, the '
+                'value of "--model" is required to match the basename of "--hf-path"'
+            )
+        else:
+            args.model = os.path.basename(args.hf_path)
         args.model_path = os.path.join(args.artifact_path, "models", args.model)
         if os.path.exists(args.model_path):
             print(f"Weights exist at {args.model_path}, skipping download.")
         else:
             os.makedirs(args.model_path, exist_ok=True)
             os.system("git lfs install")
-            os.system(f"git clone https://huggingface.co/{args.hf_path} {args.model_path}")
+            os.system(
+                f"git clone https://huggingface.co/{args.hf_path} {args.model_path}"
+            )
             print(f"Downloaded weights to {args.model_path}")
-        validate_config(args)
+        validate_config(args.model_path)
+    elif args.model != "auto":
+        if os.path.isdir(args.model):
+            args.model_path = args.model
+            args.model = os.path.basename(args.model)
+        else:
+            args.model_path = os.path.join(args.artifact_path, "models", args.model)
+        validate_config(args.model_path)
     else:
-        raise ValueError(f"Please specify either the model_path or the hf_path.")
-    print(f"Using model path {args.model_path}")
+        lookup_path = os.path.join(args.artifact_path, "models")
+        print(
+            f'"--model" is set to "auto". Searching in {lookup_path} for existing models.'
+        )
+        for dirname in os.listdir(lookup_path):
+            if os.path.isdir(os.path.join(lookup_path, dirname)) and os.path.isfile(
+                os.path.join(lookup_path, dirname, "config.json")
+            ):
+                try:
+                    validate_config(os.path.join(lookup_path, dirname))
+                except:  # pylint: disable=bare-except
+                    pass
+                else:
+                    args.model_path = os.path.join(lookup_path, dirname)
+                    args.model = dirname
+                    break
+        if args.model == "auto":
+            raise ValueError("Please specify either the model_path or the hf_path.")
+
+    print(f'Using path "{args.model_path}" for model "{args.model}"')
     return args
 
-def validate_config(args):
-    assert os.path.exists(os.path.join(args.model_path, "config.json")), "Model path must contain valid config file."
-    with open(os.path.join(args.model_path, "config.json")) as f:
-        config = json.load(f)
-        assert ("model_type" in config) and ("_name_or_path" in config), "Invalid config format."
-        assert config["model_type"] in utils.supported_model_types, f"Model type {config['model_type']} not supported."
+
+def validate_config(model_path: str):
+    assert os.path.exists(
+        os.path.join(model_path, "config.json")
+    ), "Model path must contain valid config file."
+    with open(os.path.join(model_path, "config.json"), encoding="utf-8") as i_f:
+        config = json.load(i_f)
+        assert "model_type" in config, "Invalid config format."
+        assert (
+            config["model_type"] in utils.supported_model_types
+        ), f"Model type {config['model_type']} not supported."
+
 
 def debug_dump_script(mod, name, args):
     """Debug dump mode"""
     if not args.debug_dump:
         return
     dump_path = os.path.join(args.artifact_path, "debug", name)
-    with open(dump_path, "w") as outfile:
+    with open(dump_path, "w", encoding="utf-8") as outfile:
         outfile.write(mod.script(show_meta=True))
     print(f"Dump mod to {dump_path}")
 
@@ -106,7 +169,10 @@ def debug_dump_script(mod, name, args):
 def debug_load_script(name, args):
     input_path = os.path.join(args.artifact_path, "debug", name)
     lib = {"__file__": input_path}
-    exec(compile(open(input_path, "rb").read(), input_path, "exec"), lib, lib)
+    with open(input_path, "rb") as i_f:
+        exec(  # pylint: disable=exec-used
+            compile(i_f.read(), input_path, "exec"), lib, lib
+        )
     return lib["Module"]
 
 
@@ -124,7 +190,7 @@ def debug_dump_shader(ex, name, args):
     suffix = suffix_map.get(target_kind, ".txt")
     dump_path = os.path.join(args.artifact_path, "debug", name + suffix)
     source = ex.mod.imported_modules[0].imported_modules[0].get_source()
-    with open(dump_path, "w") as outfile:
+    with open(dump_path, "w", encoding="utf-8") as outfile:
         outfile.write(source)
     print(f"Dump shader to {dump_path}")
 
@@ -140,20 +206,20 @@ def mod_transform_before_build(
         "decoding",
         "create_kv_cache",
         "softmax_with_temperature",
+        "get_metadata",
     ]
 
     if args.quantization.mode != "no":
-        mod = mlc_llm.transform.GroupQuantize(
+        mod = mlc_llm.transform.GroupQuantize(  # pylint: disable=not-callable
             group_size=40 if args.quantization.mode.endswith("3") else 32,
             sym=args.quantization.sym,
             mode=args.quantization.mode,
             storage_nbit=args.quantization.storage_nbit,
             dtype=args.quantization.model_dtype,
         )(mod)
-    mod = mlc_llm.transform.FuseTransposeMatmul()(mod)
-
-    mod = relax.pipeline.get_pipeline()(mod)
-    mod = mlc_llm.transform.FuseDecodeMatmulEwise(
+    mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
+    mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
+    mod = mlc_llm.transform.FuseDecodeMatmulEwise(  # pylint: disable=not-callable
         args.quantization.model_dtype, args.target_kind
     )(mod)
     mod = relax.transform.DeadCodeElimination(model_names)(mod)
@@ -167,40 +233,58 @@ def mod_transform_before_build(
     return mod_deploy
 
 
-def dump_default_mlc_llm_config(args):
-    config = dict()
-    config["model_lib"] = f"{args.model}-{args.quantization.name}"
+def dump_default_mlc_chat_config(args):
+    params_path = os.path.join(args.artifact_path, "params")
+    config: Dict[str, Any] = {}
+
+    if args.reuse_lib:
+        config["model_lib"] = f"{args.reuse_lib}"
+        if not args.reuse_lib.endswith(args.quantization.name):
+            raise RuntimeError(f"Trying to reuse lib without suffix {args.quantization.name}")
+    else:
+        config["model_lib"] = f"{args.model}-{args.quantization.name}"
+
     config["local_id"] = f"{args.model}-{args.quantization.name}"
     config["conv_template"] = args.conv_template
     config["temperature"] = 0.7
+    config["repetition_penalty"] = 1.0
     config["top_p"] = 0.95
-    config["stream_interval"] = 2
     config["mean_gen_len"] = 128
     config["shift_fill_factor"] = 0.3
-    dump_path = os.path.join(args.artifact_path, "mlc_llm_config.json")
-    with open(dump_path, "w") as outfile:
+    config["tokenizer_files"] = utils.get_tokenizer_files(params_path)
+
+    dump_path = os.path.join(params_path, "mlc-chat-config.json")
+    with open(dump_path, "w", encoding="utf-8") as outfile:
         json.dump(config, outfile, indent=4)
-    print(f"Finish exporting mlc_llm_config to {dump_path}")
+    print(f"Finish exporting chat config to {dump_path}")
 
 
 def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     target_kind = args.target_kind
+    if args.system_lib_prefix:
+        mod_deploy = mod_deploy.with_attrs({"system_lib_prefix": args.system_lib_prefix})
+
     debug_dump_script(mod_deploy, "mod_before_build.py", args)
     if target_kind != "cpu":
-        from tvm import meta_schedule as ms
-
         if os.path.exists(args.db_path):
-            db = ms.database.create(work_dir=args.db_path)
+            db = ms.database.create(  # pylint: disable=invalid-name
+                work_dir=args.db_path
+            )
         else:
-            db = ms.database.MemoryDatabase()
+            db = ms.database.MemoryDatabase()  # pylint: disable=invalid-name
         with db, tvm.target.Target("apple/m1-gpu-restricted"):
             mod_deploy = relax.transform.MetaScheduleApplyDatabase()(mod_deploy)
             if args.target_kind == "android":
-                mod_deploy = mlc_llm.dispatch.DispatchTIROperatorAdreno()(mod_deploy)
-            mod_deploy = mlc_llm.dispatch.DispatchTIROperator(args.model_category)(
-                mod_deploy
+                mod_deploy = mlc_llm.dispatch.DispatchTIROperatorAdreno()(  # pylint: disable=not-callable
+                    mod_deploy
+                )
+            mod_deploy = (
+                mlc_llm.dispatch.DispatchTIROperator(  # pylint: disable=not-callable
+                    args.model_category
+                )(mod_deploy)
             )
             mod_deploy = tvm.tir.transform.DefaultGPUSchedule()(mod_deploy)
+            mod_deploy = mlc_llm.transform.LiftTIRGlobalBufferAlloc()(mod_deploy)
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 
     if args.debug_load_script:
@@ -233,33 +317,27 @@ from tvm.script import tir as T
     static_path = os.path.join(ARGS.artifact_path, "debug", "mod_tir_static.py")
     dynamic_path = os.path.join(ARGS.artifact_path, "debug", "mod_tir_dynamic.py")
     print(f"Dump static shape TIR to {static_path}")
-    with open(static_path, "w") as o_f:
+    with open(static_path, "w", encoding="utf-8") as o_f:
         o_f.write(template.format(content=mod_static.script()))
     print(f"Dump dynamic shape TIR to {dynamic_path}")
-    with open(dynamic_path, "w") as o_f:
+    with open(dynamic_path, "w", encoding="utf-8") as o_f:
         o_f.write(template.format(content=mod_dynamic.script()))
 
 
-if __name__ == "__main__":
-    ARGS = _parse_args()
+def main():
     os.makedirs(ARGS.artifact_path, exist_ok=True)
     os.makedirs(os.path.join(ARGS.artifact_path, "debug"), exist_ok=True)
     cache_path = os.path.join(
         ARGS.artifact_path, f"mod_cache_before_build_{ARGS.target_kind}.pkl"
     )
     use_cache = ARGS.use_cache and os.path.isfile(cache_path)
-    with open(os.path.join(ARGS.model_path, "config.json")) as f:
-        config = json.load(f)
+    with open(os.path.join(ARGS.model_path, "config.json"), encoding="utf-8") as i_f:
+        config = json.load(i_f)
         if not use_cache:
             if ARGS.model_category == "llama":
                 mod, params = llama.get_model(ARGS, config)
             elif ARGS.model_category == "gpt_neox":
-                mod, params = gpt_neox.get_model(
-                    ARGS.model,
-                    ARGS.model_path,
-                    ARGS.quantization.model_dtype,
-                    config
-                )
+                mod, params = gpt_neox.get_model(ARGS, config)
             elif ARGS.model_category == "moss":
                 mod, params = moss.get_model(ARGS, config)
             else:
@@ -274,7 +352,16 @@ if __name__ == "__main__":
                 f"Load cached module from {cache_path} and skip tracing. "
                 "You can use --use-cache=0 to retrace"
             )
-            mod = pickle.load(open(cache_path, "rb"))
+            with open(cache_path, "rb") as pkl:
+                mod = pickle.load(pkl)
         dump_split_tir(mod)
-        build(mod, ARGS)
-        dump_default_mlc_llm_config(ARGS)
+        if not ARGS.reuse_lib:
+            build(mod, ARGS)
+        else:
+            print("Reuse existing preuilt lib {ARGS.reuse_lib}...")
+        dump_default_mlc_chat_config(ARGS)
+
+
+if __name__ == "__main__":
+    ARGS = _parse_args()
+    main()

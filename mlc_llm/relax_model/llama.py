@@ -9,6 +9,8 @@ from tvm.relax.testing import nn
 from tvm.script import relax as R
 from quantization.auto_gptq import AutoGPTQForCausalLM
 
+from .commons import create_metadata_func
+
 
 @dataclass
 class LlamaConfig:
@@ -310,8 +312,15 @@ class LlamaAttention(nn.Module):
             (bsz, tvm.tir.IntImm("int64", 1), q_len, kv_seq_len),
         )
 
-        attn_weights = nn.emit(maximum(attn_weights, relax.const(tvm.tir.min_value(
-            attn_weights.struct_info.dtype).value, attn_weights.struct_info.dtype)))
+        attn_weights = nn.emit(
+            maximum(
+                attn_weights,
+                relax.const(
+                    tvm.tir.min_value(attn_weights.struct_info.dtype).value,
+                    attn_weights.struct_info.dtype,
+                ),
+            )
+        )
         attn_weights = nn.emit(relax.op.minimum(attn_weights, attention_mask))
 
         # upcast attention to fp32
@@ -415,9 +424,9 @@ def _make_causal_mask(input_ids_shape, dtype, src_len):
         return te.compute(
             (bsz, 1, tgt_len, src_len),
             lambda b, _, i, j: te.if_then_else(
-                j < src_len -
-                tgt_len, tvm.tir.max_value(
-                    dtype), x[b, _, i, j - (src_len - tgt_len)]
+                j < src_len - tgt_len,
+                tvm.tir.max_value(dtype),
+                x[b, _, i, j - (src_len - tgt_len)],
             ),
             name="concat_te",
         )
@@ -451,8 +460,13 @@ class LlamaModel(nn.Module):
             # Get src_len from input parameters
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
             bsz, tgt_len = input_shape
-            combined_attention_mask = nn.emit(relax.op.full(
-                (bsz, 1, tgt_len, src_len), relax.const(tvm.tir.max_value(dtype).value, dtype), dtype))
+            combined_attention_mask = nn.emit(
+                relax.op.full(
+                    (bsz, 1, tgt_len, src_len),
+                    relax.const(tvm.tir.max_value(dtype).value, dtype),
+                    dtype,
+                )
+            )
         return combined_attention_mask
 
     def forward(
@@ -510,15 +524,14 @@ class LlamaForCausalLM(nn.Module):
         ############ Rotary embedding constants ############
         assert config.hidden_size % config.num_attention_heads == 0
         head_dim = config.hidden_size // config.num_attention_heads
+
+        # Hardcode the cached sin/cos for 2048.
+        # This will be eliminated further with online rotary embedding calculation.
         self.cos_cached = nn.Parameter(
-            (config.max_sequence_length, head_dim),
-            dtype=config.dtype,
-            name="cos_cached",
+            (2048, head_dim), dtype=config.dtype, name="cos_cached"
         )
         self.sin_cached = nn.Parameter(
-            (config.max_sequence_length, head_dim),
-            dtype=config.dtype,
-            name="sin_cached",
+            (2048, head_dim), dtype=config.dtype, name="sin_cached"
         )
         ############ End ############
 
@@ -651,8 +664,9 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
 
 def create_softmax_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     with bb.function("softmax_with_temperature"):
-        logits = nn.Placeholder((1, 1, config.vocab_size),
-                                dtype="float32", name="logits")
+        logits = nn.Placeholder(
+            (1, 1, config.vocab_size), dtype="float32", name="logits"
+        )
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
             div = bb.emit(relax.op.divide(logits, temperature))
@@ -678,6 +692,13 @@ def get_model(args, hf_config):
         create_decoding_func(bb, config)
         create_kv_cache_func(bb, config)
         create_softmax_func(bb, config)
+        create_metadata_func(
+            bb,
+            model_name=model_name,
+            max_window_size=config.max_sequence_length,
+            stop_tokens=[2],
+            add_prefix_space=False,
+        )
 
         mod = bb.get()
 
@@ -698,13 +719,13 @@ def get_model(args, hf_config):
                 ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
             )
 
-            t = np.arange(config.max_sequence_length, dtype=inv_freq.dtype)
+            # Hardcode the cached sin/cos for 2048.
+            # This will be eliminated further with online rotary embedding calculation.
+            t = np.arange(2048, dtype=inv_freq.dtype)
             freqs = np.einsum("i,j->ij", t, inv_freq)
             emb = np.concatenate((freqs, freqs), axis=-1)
-            unquantized_params.append(tvm.nd.array(
-                np.cos(emb).astype(config.dtype), device))
-            unquantized_params.append(tvm.nd.array(
-                np.sin(emb).astype(config.dtype), device))
+            unquantized_params.append(tvm.nd.array(np.cos(emb).astype(config.dtype), device))
+            unquantized_params.append(tvm.nd.array(np.sin(emb).astype(config.dtype), device))
 
             # prepare quantized params
             # swarp 'up_proj' and 'down_proj' in quantized_dict because the order is different in quantized-relay model.
@@ -763,14 +784,13 @@ def get_model(args, hf_config):
                 config.position_embedding_base
                 ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
             )
-
-            t = np.arange(config.max_sequence_length, dtype=inv_freq.dtype)
+            # Hardcode the cached sin/cos for 2048.
+            # This will be eliminated further with online rotary embedding calculation.
+            t = np.arange(2048, dtype=inv_freq.dtype)
             freqs = np.einsum("i,j->ij", t, inv_freq)
             emb = np.concatenate((freqs, freqs), axis=-1)
-            param_list.append(tvm.nd.array(
-                np.cos(emb).astype(config.dtype), device))
-            param_list.append(tvm.nd.array(
-                np.sin(emb).astype(config.dtype), device))
+            param_list.append(tvm.nd.array(np.cos(emb).astype(config.dtype), device))
+            param_list.append(tvm.nd.array(np.sin(emb).astype(config.dtype), device))
 
         for gv in mod.functions:
             func = mod[gv]
