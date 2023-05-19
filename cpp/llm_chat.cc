@@ -4,6 +4,7 @@
  * \brief Implementation of llm chat.
  */
 #define PICOJSON_USE_INT64
+#define __STDC_FORMAT_MACROS
 
 #include "llm_chat.h"
 
