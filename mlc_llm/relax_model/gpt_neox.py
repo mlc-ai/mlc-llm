@@ -64,60 +64,6 @@ class GPTNeoXConfig:  # pylint: disable=too-many-instance-attributes
         self.kwargs = kwargs
 
 
-MODEL_CONFIG = {
-    "dolly-v2-3b": {
-        "use_parallel_residual": True,
-        "hidden_size": 2560,
-        "intermediate_size": 10240,
-        "num_attention_heads": 32,
-        "num_hidden_layers": 32,
-        "vocab_size": 50280,
-    },
-    "dolly-v2-7b": {
-        "use_parallel_residual": True,
-        "hidden_size": 4096,
-        "intermediate_size": 16384,
-        "num_attention_heads": 32,
-        "num_hidden_layers": 32,
-        "vocab_size": 50280,
-    },
-    "dolly-v2-12b": {
-        "use_parallel_residual": True,
-        "hidden_size": 5120,
-        "intermediate_size": 20480,
-        "num_attention_heads": 40,
-        "num_hidden_layers": 36,
-        "vocab_size": 50280,
-    },
-    "stablelm-tuned-alpha-3b": {
-        "use_parallel_residual": True,
-        "hidden_size": 4096,
-        "intermediate_size": 16384,
-        "num_attention_heads": 32,
-        "num_hidden_layers": 16,
-        "vocab_size": 50688,
-    },
-    "stablelm-tuned-alpha-7b": {
-        "use_parallel_residual": True,
-        "hidden_size": 6144,
-        "intermediate_size": 24576,
-        "num_attention_heads": 48,
-        "num_hidden_layers": 16,
-        "vocab_size": 50432,
-    },
-    "RedPajama-INCITE-Chat-3B-v1": {
-        "use_parallel_residual": False,
-        "hidden_size": 2560,
-        "intermediate_size": 10240,
-        "num_attention_heads": 32,
-        "num_hidden_layers": 32,
-        "vocab_size": 50432,
-        "rotary_pct": 1.0,
-        "ffn_out_dtype": "float32",
-    },
-}
-
-
 class GPTNeoXAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
