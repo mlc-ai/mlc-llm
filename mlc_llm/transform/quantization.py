@@ -506,8 +506,6 @@ class GroupQuantize:
                     if "lm_head" in call_arg.args[0].name_hint and self.decoder_only:
                         print("skip lm_head for quantization")
                         return call
-
-                    print("quantize_matmul name is", call_arg.args[0].name_hint, "shape is", call_arg.args[0].struct_info.shape)
     
                     decode_args = self.emit_encoding(call_arg.args[0], transpose=True)
                     quantized_permute_dims = self.builder_.call_te(
@@ -545,7 +543,7 @@ class GroupQuantize:
                     or call.args[0] not in self._params
                 ):
                     return call
-                print("quantize_take name is", call.args[0].name_hint, "shape is", call.args[0].struct_info.shape)
+
                 decode_args = self.emit_encoding(call.args[0], transpose=False)
                 decode_args += (call.args[1],)
                 return self.builder_.call_te(

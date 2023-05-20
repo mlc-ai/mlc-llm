@@ -66,7 +66,6 @@ def make_quant(module, names, bits, groupsize, name='', export_mlc=True):
         return
     for _name, child in module.named_children():
         name1 = name + '.' + _name if name != '' else _name
-        # print(_name, name1)
         if name1 in names:
             ori_layer_device = get_device(getattr(module, _name))
             if type(child) == nn.Linear:
