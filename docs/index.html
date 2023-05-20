@@ -79,7 +79,7 @@
 Check out our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repository</a> to see how we did it. You can also read through instructions below for trying out demos.</p>
 
 <p align="center">
-<img src="demo.gif" height="700" />
+<img src="gif/ios-demo.gif" height="700" />
 </p>
 
 <h2 id="try-it-out">Try it out</h2>
@@ -88,6 +88,7 @@ Check out our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repository</a> 
 
 <ul>
   <li><a href="#iphone">iPhone</a></li>
+  <li><a href="#android">Android</a></li>
   <li><a href="#windows-linux-mac">Windows Linux Mac</a></li>
   <li><a href="#web-browser">Web browser</a></li>
 </ul>
@@ -96,11 +97,23 @@ Check out our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repository</a> 
 
 <p>Try out this <a href="https://testflight.apple.com/join/57zd7oxa">TestFlight page</a> (limited to the first 9000 users) to install and use
 our example iOS chat app built for iPhone. Our app itself needs about 4GB of memory to run. Considering the iOS and other running applications, we will need a recent iPhone with 6GB (or more) of memory to run the app. We only tested the
-application on iPhone 14 Pro Max and iPhone 12 Pro. You can also check out our <a href="(https://github.com/mlc-ai/mlc-llm)">GitHub repo</a> to
+application on iPhone 14 Pro Max and iPhone 12 Pro. You can also check out our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repo</a> to
 build the iOS app from source.</p>
 
 <p>Note: The text generation speed on the iOS app can be unstable from time to time. It might run slow
 in the beginning and recover to a normal speed then.</p>
+
+<h3 id="android">Android</h3>
+
+<p>Download the APK file <a href="https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk">here</a> and install on your phone. You can then start a chat with LLM. When you first open the app, parameters need to be downloaded and the loading process could be slow. In future run, the parameters will be loaded from cache (which is fast) and you can use the app offline. Our current demo relies on OpenCL support on the phone and takes about 6GB of RAM, if you have a phone with the latest Snapdragon chip, you can try out out demo.</p>
+
+<p>We tested our demo on Samsung Galaxy S23. It does not yet work on Google Pixel due to limited OpenCL support. We will continue to bring support and welcome contributions from the open source community. You can also check out our <a href="https://github.com/mlc-ai/mlc-llm/tree/main/android">GitHub repo</a> to build the Android app from source.</p>
+
+<p>Check out our <a href="https://mlc.ai/blog/2023/05/08/bringing-hardware-accelerated-language-models-to-android-devices">blog post</a> for the technical details throughout our process of making MLC-LLM possible for Android.</p>
+
+<p align="center">
+<img src="gif/android-demo.gif" height="700" />
+</p>
 
 <h3 id="windows-linux-mac">Windows Linux Mac</h3>
 
@@ -127,17 +140,17 @@ conda <span class="nb">install</span> <span class="nt">-c</span> mlc-ai <span cl
 
 <span class="c"># Create a directory, download the model weights from HuggingFace, and download the binary libraries</span>
 <span class="c"># from GitHub.</span>
-<span class="nb">mkdir</span> <span class="nt">-p</span> dist
+<span class="nb">mkdir</span> <span class="nt">-p</span> dist/prebuilt
 git lfs <span class="nb">install
-</span>git clone https://huggingface.co/mlc-ai/demo-vicuna-v1-7b-int3 dist/vicuna-v1-7b
-git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/lib
+</span>git clone https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0 dist/prebuilt/vicuna-v1-7b-q3f16_0
+git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 
 <span class="c"># Enter this line and enjoy chatting with the bot running natively on your machine!</span>
 mlc_chat_cli
 </code></pre></div></div>
 
 <p align="center">
-<img src="linux.gif" width="80%" />
+<img src="gif/linux-demo.gif" width="80%" />
 </p>
 
 <h3 id="web-browser">Web Browser</h3>
