@@ -171,7 +171,7 @@ struct LLMChatModule {
  public:
   explicit LLMChatModule(const DLDevice& device) {
     this->chat_mod_ = mlc::llm::CreateChatModule(device);
-    this->encode_ = this->chat_mod_->GetFunction("encode");
+    this->prefill_ = this->chat_mod_->GetFunction("prefill");
     this->decode_ = this->chat_mod_->GetFunction("decode");
     this->stopped_ = this->chat_mod_->GetFunction("stopped");
     this->get_message_ = this->chat_mod_->GetFunction("get_message");
@@ -180,7 +180,7 @@ struct LLMChatModule {
     this->get_role1_ = this->chat_mod_->GetFunction("get_role1");
     this->runtime_stats_text_ = this->chat_mod_->GetFunction("runtime_stats_text");
     this->reset_chat_ = this->chat_mod_->GetFunction("reset_chat");
-    ICHECK(encode_ != nullptr);
+    ICHECK(prefill_ != nullptr);
     ICHECK(decode_ != nullptr);
     ICHECK(stopped_ != nullptr);
     ICHECK(get_message_ != nullptr);
@@ -206,7 +206,7 @@ struct LLMChatModule {
   void Reset() { reset_chat_(); }
 
   void Converse(const std::string& input, int stream_interval, std::ostream& os) {
-    this->Encode(input);
+    this->Prefill(input);
 
     std::string cur_msg = "";
     std::vector<std::string> cur_utf8_chars = CountUTF8(cur_msg);
@@ -241,7 +241,7 @@ struct LLMChatModule {
 
  protected:
   // Low-level APIs
-  void Encode(const std::string& input) { encode_(input); }
+  void Prefill(const std::string& input) { prefill_(input); }
 
   void Decode() { decode_(); }
 
@@ -251,7 +251,7 @@ struct LLMChatModule {
 
   // TVM Modules and functions with TVM's calling convention
   tvm::runtime::Module chat_mod_;
-  tvm::runtime::PackedFunc encode_;
+  tvm::runtime::PackedFunc prefill_;
   tvm::runtime::PackedFunc decode_;
   tvm::runtime::PackedFunc stopped_;
   tvm::runtime::PackedFunc get_message_;
@@ -264,10 +264,14 @@ struct LLMChatModule {
 
 std::optional<std::filesystem::path> TryInferMLCChatConfig(const std::string& artifact_path,
                                                            const std::string& local_id) {
-  return FindFile({artifact_path + "/prebuilt/" + local_id,      //
-                   artifact_path + "/" + local_id + "/params"},  //
-                  {"mlc-chat-config"},                           //
-                  {".json"});
+  return FindFile(
+      {
+          //
+          artifact_path + "/" + local_id + "/params",  //
+          artifact_path + "/prebuilt/" + local_id,     //
+      },                                               //
+      {"mlc-chat-config"},                             //
+      {".json"});
 }
 
 std::string ReadStringFromJSONFile(const std::filesystem::path& config_path,
@@ -317,10 +321,9 @@ ModelPaths ModelPaths::Find(const std::string& artifact_path, const std::string&
   std::filesystem::path lib_path;
   if (auto path = FindFile(
           {
-              artifact_path + "/prebuilt/lib/",             // prebuild lib
-              artifact_path + "/prebuilt/" + lib_local_id,  // For prebuilts
-              artifact_path + "/" + lib_local_id,           // Usually this is the candidate
-              artifact_path + "/" + lib_local_id + "/lib/",
+              artifact_path + "/" + lib_local_id,          // Usually this is the candidate
+              artifact_path + "/prebuilt/lib/",            // prebuild lib
+              artifact_path + "/prebuilt/" + lib_local_id  // For prebuilts
           },
           {
               lib_name,

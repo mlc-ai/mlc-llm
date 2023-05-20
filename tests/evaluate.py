@@ -106,8 +106,8 @@ def deploy_to_pipeline(args) -> None:
     kv_caches = vm["create_kv_cache"]()
     # skip warm up
 
-    logits, kv_caches = vm["encoding"](inputs, seq_len_shape, kv_caches, const_params)
-    logits, kv_caches = vm["decoding"](
+    logits, kv_caches = vm["prefill"](inputs, seq_len_shape, kv_caches, const_params)
+    logits, kv_caches = vm["decode"](
         first_sampled_token, second_seq_len_shape, kv_caches, const_params
     )
     device.sync()
@@ -115,10 +115,10 @@ def deploy_to_pipeline(args) -> None:
     kv_caches = vm["create_kv_cache"]()
     print("Running inference...")
     start = time.time()
-    logits, kv_caches = vm["encoding"](inputs, seq_len_shape, kv_caches, const_params)
+    logits, kv_caches = vm["prefill"](inputs, seq_len_shape, kv_caches, const_params)
     device.sync()
     encoding_end = time.time()
-    logits, kv_caches = vm["decoding"](
+    logits, kv_caches = vm["decode"](
         first_sampled_token, second_seq_len_shape, kv_caches, const_params
     )
     device.sync()
@@ -139,7 +139,7 @@ def deploy_to_pipeline(args) -> None:
         print("Profiling...")
         kv_caches = vm["create_kv_cache"]()
 
-        logits, kv_caches = vm["encoding"](
+        logits, kv_caches = vm["prefill"](
             inputs, seq_len_shape, kv_caches, const_params
         )
         print("======================= Encoding Profiling =======================")
@@ -151,7 +151,7 @@ def deploy_to_pipeline(args) -> None:
         )
         cmp_instrument.time_eval_results.clear()
 
-        logits, kv_caches = vm["decoding"](
+        logits, kv_caches = vm["decode"](
             first_sampled_token, second_seq_len_shape, kv_caches, const_params
         )
         print("======================= Decoding Profiling =======================")

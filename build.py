@@ -202,8 +202,8 @@ def mod_transform_before_build(
 ) -> tvm.IRModule:
     """First-stage: Legalize ops and trace"""
     model_names = [
-        "encoding",
-        "decoding",
+        "prefill",
+        "decode",
         "create_kv_cache",
         "softmax_with_temperature",
         "get_metadata",

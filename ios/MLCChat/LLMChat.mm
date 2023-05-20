@@ -27,7 +27,7 @@ class LLMChatModuleWrapper {
 
     reload_func_ = llm_chat_->GetFunction("reload");
     unload_func_ = llm_chat_->GetFunction("unload");
-    encode_func_ = llm_chat_->GetFunction("encode");
+    prefill_func_ = llm_chat_->GetFunction("prefill");
     decode_func_ = llm_chat_->GetFunction("decode");
     get_message_ = llm_chat_->GetFunction("get_message");
     stopped_func_ = llm_chat_->GetFunction("stopped");
@@ -36,7 +36,7 @@ class LLMChatModuleWrapper {
 
     ICHECK(reload_func_ != nullptr);
     ICHECK(unload_func_ != nullptr);
-    ICHECK(encode_func_ != nullptr);
+    ICHECK(prefill_func_ != nullptr);
     ICHECK(decode_func_ != nullptr);
     ICHECK(get_message_ != nullptr);
     ICHECK(stopped_func_ != nullptr);
@@ -64,9 +64,9 @@ class LLMChatModuleWrapper {
     return get_message_();
   }
 
-  void Encode(std::string prompt) {
-      ICHECK(encode_func_ != nullptr);
-      encode_func_(prompt);
+  void Prefill(std::string prompt) {
+    ICHECK(prefill_func_ != nullptr);
+    prefill_func_(prompt);
   }
 
   bool Stopped() { return stopped_func_(); }
@@ -86,7 +86,7 @@ class LLMChatModuleWrapper {
   Module llm_chat_;
   PackedFunc unload_func_;
   PackedFunc reload_func_;
-  PackedFunc encode_func_;
+  PackedFunc prefill_func_;
   PackedFunc decode_func_;
   PackedFunc get_message_;
   PackedFunc stopped_func_;
@@ -112,8 +112,8 @@ class LLMChatModuleWrapper {
   LLMChatModuleWrapper::Global()->Evaluate();
 }
 
-- (void)encode:(NSString*)prompt {
-  LLMChatModuleWrapper::Global()->Encode(prompt.UTF8String);
+- (void)prefill:(NSString*)prompt {
+  LLMChatModuleWrapper::Global()->Prefill(prompt.UTF8String);
 }
 
 - (void)decode {

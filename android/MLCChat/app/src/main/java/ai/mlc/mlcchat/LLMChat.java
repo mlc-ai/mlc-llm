@@ -8,7 +8,7 @@ import org.apache.tvm.Function;
 import org.apache.tvm.Module;
 
 public class LLMChat {
-    private Function encode_func_;
+    private Function prefill_func_;
     private Function decode_func_;
     private Function get_message_;
     private Function stopped_func_;
@@ -36,7 +36,7 @@ public class LLMChat {
         System.err.println("[INFO] Before LLM Chat create");
         llm_chat_ = fcreate.pushArg(lib).pushArg(tokenizer_path).pushArg(param_path).pushArg(Device.opencl().deviceType).pushArg(0).invoke().asModule();
         System.err.println("[INFO] LLM Chat created!");
-        encode_func_ = llm_chat_.getFunction("encode");
+        prefill_func_ = llm_chat_.getFunction("prefill");
         decode_func_ = llm_chat_.getFunction("decode");
         get_message_ = llm_chat_.getFunction("get_message");
 
@@ -45,7 +45,7 @@ public class LLMChat {
 
         runtime_stats_text_func_ = llm_chat_.getFunction("runtime_stats_text");
 
-        assert encode_func_ != null;
+        assert prefill_func_ != null;
         assert decode_func_ != null;
         assert stopped_func_ != null;
         assert runtime_stats_text_func_ != null;
@@ -71,8 +71,8 @@ public class LLMChat {
         return get_message_.invoke().asString();
     }
 
-    public void Encode(String prompt) {
-        encode_func_.pushArg(prompt).invoke();
+    public void Prefill(String prompt) {
+        prefill_func_.pushArg(prompt).invoke();
     }
 
     public boolean Stopped() {
