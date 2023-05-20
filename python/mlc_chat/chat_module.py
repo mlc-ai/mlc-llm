@@ -1,15 +1,18 @@
 """Python runtime for MLC chat."""
 
-
 import os
-
+import ctypes
 import tvm
 
 
 def load_llm_chat(mlc_lib_path):
-    import ctypes
-
     return ctypes.CDLL(mlc_lib_path)
+
+def supported_models():
+    return set(["vicuna-v1-7b"])
+
+def quantization_keys():
+    return ["q3f16_0", "q4f16_0", "q4f32_0", "q0f32", "q0f16"]
 
 
 class LLMChatModule:
