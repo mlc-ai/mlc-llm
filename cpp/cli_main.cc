@@ -264,9 +264,9 @@ struct LLMChatModule {
 
 std::optional<std::filesystem::path> TryInferMLCChatConfig(const std::string& artifact_path,
                                                            const std::string& local_id) {
-  return FindFile({artifact_path + "/" + local_id + "/params",  //
-                   artifact_path + "/prebuilt/" + local_id},    //
-                  {"mlc-chat-config"},                          //
+  return FindFile({artifact_path + "/prebuilt/" + local_id,      //
+                   artifact_path + "/" + local_id + "/params"},  //
+                  {"mlc-chat-config"},                           //
                   {".json"});
 }
 
@@ -317,10 +317,10 @@ ModelPaths ModelPaths::Find(const std::string& artifact_path, const std::string&
   std::filesystem::path lib_path;
   if (auto path = FindFile(
           {
-              artifact_path + "/" + lib_local_id,  // Usually this is the candidate
-              artifact_path + "/" + lib_local_id + "/lib/",
+              artifact_path + "/prebuilt/lib/",             // prebuild lib
               artifact_path + "/prebuilt/" + lib_local_id,  // For prebuilts
-              artifact_path + "/prebuilt/" + lib_local_id + "/lib/",
+              artifact_path + "/" + lib_local_id,           // Usually this is the candidate
+              artifact_path + "/" + lib_local_id + "/lib/",
           },
           {
               lib_name,
@@ -329,9 +329,8 @@ ModelPaths ModelPaths::Find(const std::string& artifact_path, const std::string&
           GetLibSuffixes())) {
     lib_path = path.value();
   } else {
-    std::cerr << "Cannot find library \"" << lib_name << GetLibSuffixes().back()
-              << "\" and other library candidate in " << artifact_path << "/" << local_id
-              << std::endl;
+    std::cerr << "Cannot find library \"" << lib_name << GetLibSuffixes().back() << "\" in "
+              << artifact_path << "/prebuilt/lib or other search paths" << std::endl;
     exit(1);
   }
   std::cout << "Use model library: " << lib_path << std::endl;
