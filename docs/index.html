@@ -140,7 +140,7 @@ conda <span class="nb">install</span> <span class="nt">-c</span> mlc-ai <span cl
 
 <span class="c"># Create a directory, download the model weights from HuggingFace, and download the binary libraries</span>
 <span class="c"># from GitHub.</span>
-<span class="nb">mkdir</span> <span class="nt">-p</span> dist/prebuilt
+<span class="nb">mkdir</span> <span class="nt">-p</span> dist
 git lfs <span class="nb">install
 </span>git clone https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0 dist/prebuilt/vicuna-v1-7b-q3f16_0
 git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
