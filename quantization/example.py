@@ -10,9 +10,6 @@ enable_quant = True
 export_mlc = False
 
 bits = 4
-# pretrained_model_dir = "dist/models/llama-7b-hf-l1"
-# quantized_model_dir = f"quantization/models/llama-7b-l1-{bits}bit"
-
 pretrained_model_dir = "dist/models/llama-7b-hf"
 quantized_model_dir = f"quantization/models/llama-7b-{bits}bit"
 
