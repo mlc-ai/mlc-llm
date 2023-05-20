@@ -414,7 +414,6 @@ class GroupQuantize:
             assert sym
         if mode == "int3":
             assert sym
-        assert group_size == -1, "currently only do support group_size kernels"
         self.group_size = group_size
         self.sym = sym
         self.mode = mode
