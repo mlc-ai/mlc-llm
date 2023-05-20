@@ -69,10 +69,10 @@ conda install -c mlc-ai -c conda-forge mlc-chat-nightly
 
 # Create a directory, download the model weights from HuggingFace, and download the binary libraries
 # from GitHub.
-mkdir -p dist
+mkdir -p dist/prebuilt
 git lfs install
-git clone https://huggingface.co/mlc-ai/demo-vicuna-v1-7b-int3 dist/vicuna-v1-7b
-git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/lib
+git clone https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0 dist/prebuilt/vicuna-v1-7b-q3f16_0
+git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 
 # Enter this line and enjoy chatting with the bot running natively on your machine!
 mlc_chat_cli
