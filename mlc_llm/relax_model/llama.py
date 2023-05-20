@@ -559,7 +559,7 @@ def create_encoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     bsz = 1
     seq_len = tvm.tir.Var("n", "int64")
     all_seq_len = tvm.tir.Var("m", "int64")
-    with bb.function("encoding"):
+    with bb.function("prefill"):
         model = LlamaForCausalLM(config)
         input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
         all_seq_len_shape = relax.Var(
@@ -584,7 +584,7 @@ def create_encoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
         bb.emit_func_output(gv, params)
 
     mod = bb.get()
-    gv = mod.get_global_var("encoding")
+    gv = mod.get_global_var("prefill")
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
 
@@ -592,7 +592,7 @@ def create_decoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     bsz = 1
     all_seq_len = tvm.tir.Var("n", "int64")
 
-    with bb.function("decoding"):
+    with bb.function("decode"):
         model = LlamaForCausalLM(config)
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
         all_seq_len_shape = relax.Var(
@@ -617,7 +617,7 @@ def create_decoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
         bb.emit_func_output(gv, params)
 
     mod = bb.get()
-    gv = mod.get_global_var("decoding")
+    gv = mod.get_global_var("decode")
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
 

@@ -126,7 +126,7 @@ class ChatState : ObservableObject {
         threadWorker.push {[self] in
             self.appendMessage(role: MessageRole.user, message: prompt)
 
-            backend.encode(prompt);
+            backend.prefill(prompt);
             while (!backend.stopped()) {
                 assert(self.inProgress);
                 backend.decode();

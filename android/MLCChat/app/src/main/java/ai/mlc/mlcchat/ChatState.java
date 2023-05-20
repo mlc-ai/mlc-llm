@@ -91,12 +91,12 @@ public class ChatState {
                 e.printStackTrace();
             }
         }
-        Utils.sendEnd("encode: 100.0 tok/s, decode: 100.0 tok/s", handler);
+        Utils.sendEnd("prefill: 100.0 tok/s, decode: 100.0 tok/s", handler);
     }
 
     void Generate(String prompt, Handler handler) {
         // System.err.println("Start generating");
-        backend.Encode(prompt);
+        backend.Prefill(prompt);
         // System.err.println("Encoding " + prompt);
         while (!backend.Stopped()) {
             backend.Decode();

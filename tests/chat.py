@@ -194,11 +194,11 @@ def get_tvm_model(args):
             self.tot_seq_len += inputs.shape[1]
             seq_len_shape = tvm.runtime.ShapeTuple([self.tot_seq_len])
             if inputs.shape[1] > 1:
-                logits, kv_cache = vm["encoding"](
+                logits, kv_cache = vm["prefill"](
                     inputs, seq_len_shape, self.kv_cache, const_params
                 )
             else:
-                logits, kv_cache = vm["decoding"](
+                logits, kv_cache = vm["decode"](
                     inputs, seq_len_shape, self.kv_cache, const_params
                 )
             self.kv_cache = kv_cache

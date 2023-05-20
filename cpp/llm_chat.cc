@@ -469,7 +469,7 @@ class LLMChat {
   std::string RuntimeStatsText() {
     std::ostringstream os;
     os << "prefill: " << std::setprecision(1) << std::fixed
-       << this->encode_total_tokens / this->encode_total_time << " tok/s"
+       << this->prefill_total_tokens / this->prefill_total_time << " tok/s"
        << ", decode: " << std::setprecision(1) << std::fixed
        << this->decode_total_tokens / this->decode_total_time << " tok/s";
     // os << ", sample-cost: " << std::setprecision(1) << std::fixed
@@ -492,8 +492,8 @@ class LLMChat {
                                           static_cast<int>(kDLCPU), 0,
                                           static_cast<int>(relax_vm::AllocatorType::kPooled));
 
-    encoding_func_ = vm_->GetFunction("encoding");
-    decoding_func_ = vm_->GetFunction("decoding");
+    encoding_func_ = vm_->GetFunction("prefill");
+    decoding_func_ = vm_->GetFunction("decode");
     encoding_without_cache_func_ = vm_->GetFunction("encoding_without_cache");
     softmax_func_ = vm_->GetFunction("softmax_with_temperature");
     get_metadata_func_ = vm_->GetFunction("get_metadata");
@@ -629,9 +629,9 @@ class LLMChat {
 
   /*! \brief reset the runtime stats. */
   void ResetRuntimeStats() {
-    this->encode_total_tokens = 0;
+    this->prefill_total_tokens = 0;
     this->decode_total_tokens = 0;
-    this->encode_total_time = 0;
+    this->prefill_total_time = 0;
     this->decode_total_time = 0;
     this->sample_total_time = 0;
   }
@@ -725,8 +725,8 @@ class LLMChat {
   /*!
    * \brief Generate the next token given a prompt.
    */
-  void EncodeStep(std::string inp) {
-    if (reset_stats_per_encode_) {
+  void PrefillStep(std::string inp) {
+    if (reset_stats_per_prefill_) {
       this->ResetRuntimeStats();
     }
     output_ids_.clear();
@@ -755,8 +755,8 @@ class LLMChat {
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     auto tend = std::chrono::high_resolution_clock::now();
 
-    this->encode_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
-    this->encode_total_tokens += token_len;
+    this->prefill_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
+    this->prefill_total_tokens += token_len;
     if (temperature_ < 1e-6f) {
       next_token_ = this->SampleFromLogitsOnCPU();
     } else {
@@ -1024,12 +1024,12 @@ class LLMChat {
   //----------------------------
   // Statistics
   //----------------------------
-  bool reset_stats_per_encode_ = true;
+  bool reset_stats_per_prefill_ = true;
   double decode_total_time = 0;
   double sample_total_time = 0;
-  double encode_total_time = 0;
+  double prefill_total_time = 0;
   int64_t decode_total_tokens = 0;
-  int64_t encode_total_tokens = 0;
+  int64_t prefill_total_tokens = 0;
   //----------------------------
   // Conversation
   //----------------------------
@@ -1141,10 +1141,10 @@ class LLMChatModule : public ModuleNode {
     } else if (name == "try_tokenizer") {
       return PackedFunc(
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->TryTokenizer(); });
-    } else if (name == "encode") {
+    } else if (name == "prefill") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 1);
-        GetChat()->EncodeStep(args[0]);
+        GetChat()->PrefillStep(args[0]);
       });
     } else if (name == "decode") {
       return PackedFunc(
@@ -1219,8 +1219,8 @@ class LLMChatModule : public ModuleNode {
         static_cast<int>(relax_vm::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
         static_cast<int>(relax_vm::AllocatorType::kPooled));
 
-    chat_->encoding_func_ = chat_->vm_->GetFunction("encoding");
-    chat_->decoding_func_ = chat_->vm_->GetFunction("decoding");
+    chat_->encoding_func_ = chat_->vm_->GetFunction("prefill");
+    chat_->decoding_func_ = chat_->vm_->GetFunction("decode");
     chat_->encoding_without_cache_func_ = chat_->vm_->GetFunction("encoding_without_cache");
     chat_->softmax_func_ = chat_->vm_->GetFunction("softmax_with_temperature");
     chat_->get_metadata_func_ = chat_->vm_->GetFunction("get_metadata");

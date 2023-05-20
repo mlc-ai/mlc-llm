@@ -10,7 +10,7 @@
 - (void)evaluate;
 - (void)unload;
 - (void)reload:(NSString*)model_lib modelPath:(NSString*)modelPath;
-- (void)encode:(NSString*)prompt;
+- (void)prefill:(NSString*)prompt;
 - (void)decode;
 - (void)reset;
 - (NSString*)getMessage;

@@ -153,7 +153,7 @@ def deploy_to_pipeline(args) -> None:
 
     print("Running inference...")
     print("======================= Starts Encoding =======================")
-    logits, kv_caches = state.vm["encoding"](
+    logits, kv_caches = state.vm["prefill"](
         inputs, seq_len_shape, kv_caches, const_params
     )
     print_as_table(
@@ -165,7 +165,7 @@ def deploy_to_pipeline(args) -> None:
     state.cmp_instrument.time_eval_results.clear()
     state.cmp_instrument.visited.clear()
     print("======================= Starts Decoding =======================")
-    logits, kv_caches = state.vm["decoding"](
+    logits, kv_caches = state.vm["decode"](
         first_sampled_token, second_seq_len_shape, kv_caches, const_params
     )
     print_as_table(

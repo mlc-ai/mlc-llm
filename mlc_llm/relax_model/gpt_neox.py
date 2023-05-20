@@ -469,7 +469,7 @@ def create_encoding_func(
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.Var("n", "int64")
     all_seq_len = tvm.tir.Var("m", "int64")
-    with bb.function("encoding"):
+    with bb.function("prefill"):
         model = GPTNeoXForCausalLM(config)
         input_ids = nn.Placeholder(
             (batch_size, seq_len), dtype="int32", name="input_ids"
@@ -500,7 +500,7 @@ def create_encoding_func(
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
         bb.emit_func_output(gv, params)
     mod = bb.get()
-    gv = mod.get_global_var("encoding")
+    gv = mod.get_global_var("prefill")
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
 
@@ -512,7 +512,7 @@ def create_decoding_func(
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.IntImm("int64", 1)
     all_seq_len = tvm.tir.Var("n", "int64")
-    with bb.function("decoding"):
+    with bb.function("decode"):
         model = GPTNeoXForCausalLM(config)
         input_ids = nn.Placeholder(
             (batch_size, seq_len), dtype="int32", name="input_ids"
@@ -544,7 +544,7 @@ def create_decoding_func(
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
         bb.emit_func_output(gv, params)
     mod = bb.get()
-    gv = mod.get_global_var("decoding")
+    gv = mod.get_global_var("decode")
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
 
