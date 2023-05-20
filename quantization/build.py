@@ -20,8 +20,33 @@ from quantization.auto_gptq import AutoGPTQForCausalLM, BaseQuantizeConfig
 
 def _parse_args():
     args = argparse.ArgumentParser()
-    utils.argparse_add_common(args)
     args.add_argument("--quantized-model", action="store_true", default=False)
+    args.add_argument(
+        "--model",
+        type=str,
+        default="auto",
+        help='The name of the model to build. If it is "auto", we will automatically set the '
+        'model name according to "--model-path", "hf-path" or the model folders under '
+        '"--artifact-path/models"',
+    )
+    args.add_argument(
+        "--hf-path",
+        type=str,
+        default=None,
+        help="Hugging Face path from which to download params, tokenizer, and config from",
+    )
+    args.add_argument(
+        "--model-path",
+        type=str,
+        default=None,
+        help="Hugging Face path from which to download params, tokenizer, and config from",
+    )
+    args.add_argument(
+        "--quantization",
+        type=str,
+        choices=[*utils.quantization_dict.keys()],
+        default=list(utils.quantization_dict.keys())[0],
+    )
     args.add_argument("--max-seq-len", type=int, default=-1)
     args.add_argument("--target", type=str, default="auto")
     args.add_argument(
@@ -29,6 +54,12 @@ def _parse_args():
         type=str,
         default=None,
         help="Path to log database. Default: ./log_db/{model}",
+    )
+    args.add_argument(
+        "--reuse-lib",
+        type=str,
+        default=None,
+        help="Whether to reuse a previously generated lib.",
     )
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument(
@@ -39,7 +70,6 @@ def _parse_args():
     )
     args.add_argument("--debug-dump", action="store_true", default=False)
     args.add_argument("--debug-load-script", action="store_true", default=False)
-
     args.add_argument(
         "--llvm-mingw",
         type=str,
@@ -47,7 +77,6 @@ def _parse_args():
         help="/path/to/llvm-mingw-root, use llvm-mingw to cross compile to windows",
     )
     args.add_argument("--system-lib", action="store_true", default=False)
-
     parsed = args.parse_args()
     assert parsed.max_seq_len == -1 or parsed.max_seq_len > 0
 
