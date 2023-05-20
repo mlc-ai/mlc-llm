@@ -24,7 +24,7 @@ class ChatState : ObservableObject {
     @Published var unfinishedRespondRole = MessageRole.bot;
     @Published var unfinishedRespondMessage = "";
     private var threadWorker = ThreadWorker();
-    private var backend = LLMChatInstance();
+    private var backend = ChatModule();
 
     private var stopLock = NSLock();
     private var requestedReset = false;
@@ -190,7 +190,7 @@ class ChatState : ObservableObject {
         self.requestedReset = true;
 
         threadWorker.push {
-            self.backend.reset()
+            self.backend.resetChat();
             DispatchQueue.main.sync {
                 self.mainResetChat();
             }

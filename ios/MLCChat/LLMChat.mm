@@ -15,10 +15,21 @@
 
 using namespace tvm::runtime;
 
-// use a global singleton to implement llm chat
-class LLMChatModuleWrapper {
- public:
-  LLMChatModuleWrapper() {
+@implementation ChatModule {
+  // Internal c++ classes
+  Module llm_chat_;
+  PackedFunc unload_func_;
+  PackedFunc reload_func_;
+  PackedFunc prefill_func_;
+  PackedFunc decode_func_;
+  PackedFunc get_message_;
+  PackedFunc stopped_func_;
+  PackedFunc reset_chat_func_;
+  PackedFunc runtime_stats_text_func_;
+}
+
+- (instancetype)init {
+  if (self = [super init]) {
     // load module
     const PackedFunc* fcreate = tvm::runtime::Registry::Get("mlc.llm_chat_create");
     ICHECK(fcreate) << "Cannot find mlc.llm_chat_create";
@@ -43,97 +54,53 @@ class LLMChatModuleWrapper {
     ICHECK(reset_chat_func_ != nullptr);
     ICHECK(runtime_stats_text_func_ != nullptr);
   }
-
-  void Unload() { unload_func_(); }
-
-  void Reload(const std::string& model_lib, const std::string& model_path) {
-    std::string lib_prefix = model_lib;
-    std::replace(lib_prefix.begin(), lib_prefix.end(), '-', '_');
-    lib_prefix += '_';
-    tvm::runtime::Module lib = (*tvm::runtime::Registry::Get("runtime.SystemLib"))(lib_prefix);
-    reload_func_(lib, model_path);
-  }
-
-  void Evaluate() {
-    LOG(INFO) << "Total-mem-budget=" << os_proc_available_memory() / (1 << 20) << "MB";
-    llm_chat_->GetFunction("evaluate")();
-    LOG(INFO) << "Left-mem-budget=" << os_proc_available_memory() / (1 << 20) << "MB";
-  }
-
-  std::string GetMessage() {
-    return get_message_();
-  }
-
-  void Prefill(std::string prompt) {
-    ICHECK(prefill_func_ != nullptr);
-    prefill_func_(prompt);
-  }
-
-  bool Stopped() { return stopped_func_(); }
-
-  void Decode() { decode_func_(); }
-
-  std::string RuntimeStatsText() { return runtime_stats_text_func_(); }
-
-  void ResetChat() { reset_chat_func_(); }
-
-  static LLMChatModuleWrapper* Global() {
-    static LLMChatModuleWrapper* inst = new LLMChatModuleWrapper();
-    return inst;
-  }
-
- private:
-  Module llm_chat_;
-  PackedFunc unload_func_;
-  PackedFunc reload_func_;
-  PackedFunc prefill_func_;
-  PackedFunc decode_func_;
-  PackedFunc get_message_;
-  PackedFunc stopped_func_;
-  PackedFunc reset_chat_func_;
-  PackedFunc runtime_stats_text_func_;
-};
-
-@implementation LLMChatInstance
-
-- (void)initialize {
-  LLMChatModuleWrapper::Global();
+  return self;
 }
 
 - (void)unload {
-  LLMChatModuleWrapper::Global()->Unload();
+  unload_func_();
 }
 
-- (void)reload:(NSString*)model_lib modelPath:(NSString*)modelPath {
-  LLMChatModuleWrapper::Global()->Reload(model_lib.UTF8String, modelPath.UTF8String);
+- (void)reload:(NSString*)modelLib modelPath:(NSString*)modelPath {
+  std::string lib_prefix = modelLib.UTF8String;
+  std::string model_path = modelPath.UTF8String;
+  std::replace(lib_prefix.begin(), lib_prefix.end(), '-', '_');
+  lib_prefix += '_';
+  tvm::runtime::Module lib = (*tvm::runtime::Registry::Get("runtime.SystemLib"))(lib_prefix);
+  reload_func_(lib, model_path);
 }
 
-- (void)evaluate {
-  LLMChatModuleWrapper::Global()->Evaluate();
+- (void)resetChat {
+  reset_chat_func_();
 }
 
-- (void)prefill:(NSString*)prompt {
-  LLMChatModuleWrapper::Global()->Prefill(prompt.UTF8String);
+- (void)prefill:(NSString*)input {
+  std::string prompt = input.UTF8String;
+  prefill_func_(prompt);
 }
 
 - (void)decode {
-  LLMChatModuleWrapper::Global()->Decode();
+  decode_func_();
 }
 
 - (NSString*)getMessage {
-  std::string ret = LLMChatModuleWrapper::Global()->GetMessage();
+  std::string ret = get_message_();
   return [NSString stringWithUTF8String:ret.c_str()];
 }
 
 - (bool)stopped {
-  return LLMChatModuleWrapper::Global()->Stopped();
+  return stopped_func_().operator bool();
 }
 
-- (void)reset {
-  return LLMChatModuleWrapper::Global()->ResetChat();
-}
 - (NSString*)runtimeStatsText {
-  std::string ret = LLMChatModuleWrapper::Global()->RuntimeStatsText();
+  std::string ret = runtime_stats_text_func_();
   return [NSString stringWithUTF8String:ret.c_str()];
 }
+
+- (void)evaluate {
+  LOG(INFO) << "Total-mem-budget=" << os_proc_available_memory() / (1 << 20) << "MB";
+  llm_chat_->GetFunction("evaluate")();
+  LOG(INFO) << "Left-mem-budget=" << os_proc_available_memory() / (1 << 20) << "MB";
+}
+
 @end
