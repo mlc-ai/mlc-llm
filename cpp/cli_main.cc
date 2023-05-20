@@ -269,6 +269,7 @@ std::optional<std::filesystem::path> TryInferMLCChatConfig(const std::string& ar
           //
           artifact_path + "/" + local_id + "/params",  //
           artifact_path + "/prebuilt/" + local_id,     //
+          artifact_path + "/prebuilt/mlc-chat-" + local_id,     //
       },                                               //
       {"mlc-chat-config"},                             //
       {".json"});
