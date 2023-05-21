@@ -71,7 +71,8 @@ pip install mlc_ai_nightly -f https://mlc.ai/wheels # Install TVM
 
 # Install Git and Git-LFS if you haven't already.
 # They are used for downloading the model weights from HuggingFace.
-conda install git git-lfs && git lfs install
+conda install git git-lfs
+git lfs install
 
 # Clone the MLC LLM repo
 git clone https://github.com/mlc-ai/mlc-llm.git
