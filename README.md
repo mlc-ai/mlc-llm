@@ -12,7 +12,7 @@ Everything runs locally  with no server support and accelerated with local GPUs 
 [Supported platforms](https://github.com/mlc-ai/mlc-llm/issues/15) include:
 * iPhone, iPad;
 * Android phones;
-* Apple Silicon and x86 macbooks;
+* Apple Silicon and x86 MacBooks;
 * AMD, Intel and NVIDIA GPUs via Vulkan on Windows and Linux;
 * NVIDIA GPUs via CUDA on Windows and Linux;
 * WebGPU on browsers (through companion project [WebLLM](https://github.com/mlc-ai/web-llm/tree/main)).
@@ -64,8 +64,8 @@ To download the weights from an existing Hugging Face repository for a supported
 
 ```shell
 # Create a new conda environment and install dependencies
-conda create -n mlc-chat python
-conda activate mlc-chat
+conda create -n mlc-llm-env python
+conda activate mlc-llm-env
 pip install torch transformers # Install PyTorch and HuggingFace transformers
 pip install mlc_ai_nightly -f https://mlc.ai/wheels # Install TVM
 
