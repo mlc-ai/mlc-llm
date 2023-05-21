@@ -64,8 +64,10 @@ conda activate mlc-chat
 conda install git git-lfs
 git lfs install
 
-# Install the chat CLI app from Conda.
-conda install -c mlc-ai -c conda-forge mlc-chat-nightly
+# Install Git and Git-LFS if you haven't already.
+# They are used for downloading the model weights from HuggingFace.
+conda install git git-lfs
+git lfs install
 
 # Create a directory, download the model weights from HuggingFace, and download the binary libraries
 # from GitHub. Select one of the following `LOCAL_ID` for a prebuilt LLM.
