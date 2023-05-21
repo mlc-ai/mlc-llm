@@ -140,8 +140,8 @@ void PrintSpecialCommands() {
             << "  /exit               quit the cli\n"
             << "  /stats              print out the latest stats (token/sec)\n"
             << "  /reset              restart a fresh chat\n"
-            << "  /reload [model_id]  reload model \"model_id\" from disk, or reload the current "
-               "model if model_id is not specified\n"
+            << "  /reload [local_id]  reload model \"local_id\" from disk, or reload the current "
+               "model if `local_id` is not specified\n"
             << std::endl
             << std::flush;
 }
@@ -214,6 +214,7 @@ class ChatModule {
     this->get_role1_ = this->chat_mod_->GetFunction("get_role1");
     this->runtime_stats_text_ = this->chat_mod_->GetFunction("runtime_stats_text");
     this->reset_chat_ = this->chat_mod_->GetFunction("reset_chat");
+    this->executable_ = nullptr;
     ICHECK(prefill_ != nullptr);
     ICHECK(decode_ != nullptr);
     ICHECK(stopped_ != nullptr);
@@ -230,8 +231,13 @@ class ChatModule {
    */
   void Reload(const ModelPaths& model) {
     std::string model_path = model.config.parent_path().string();
-    tvm::runtime::Module executable = tvm::runtime::Module::LoadFromFile(model.lib.string());
-    reload_(executable, tvm::String(model_path));
+    this->executable_ = tvm::runtime::Module::LoadFromFile(model.lib.string());
+    reload_(this->executable_, tvm::String(model_path));
+  }
+
+  void ReloadSameModel(const ModelPaths& model) {
+    std::string model_path = model.config.parent_path().string();
+    reload_(this->executable_, tvm::String(model_path));
   }
 
   /*!
@@ -282,6 +288,7 @@ class ChatModule {
   tvm::runtime::PackedFunc get_role1_;
   tvm::runtime::PackedFunc runtime_stats_text_;
   tvm::runtime::PackedFunc reset_chat_;
+  tvm::runtime::Module executable_;
 };
 
 std::optional<std::filesystem::path> TryInferMLCChatConfig(const std::string& artifact_path,
@@ -446,12 +453,15 @@ void Chat(ChatModule* chat, const std::string& artifact_path, const std::string&
         is >> reload_prompt >> new_local_id;
       }
       if (new_local_id.empty()) {
-        new_local_id = local_id;
+        model = ModelPaths::Find(artifact_path, device_name, local_id);
+        std::cout << "Loading the same model..." << std::endl;
+        chat->ReloadSameModel(model);
+      } else {
+        model = ModelPaths::Find(artifact_path, device_name, new_local_id);
+        std::cout << "Loading model..." << std::endl;
+        chat->Reload(model);
+        local_id = new_local_id;
       }
-      model = ModelPaths::Find(artifact_path, device_name, new_local_id);
-      std::cout << "Loading model..." << std::endl;
-      chat->Reload(model);
-      local_id = new_local_id;
       std::cout << "LOAD MODEL " << local_id << " SUCCESS" << std::endl << std::flush;
     } else if (input.substr(0, 5) == "/help") {
       PrintSpecialCommands();
