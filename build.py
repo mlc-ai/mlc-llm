@@ -41,8 +41,8 @@ def _parse_args():
     args.add_argument(
         "--db-path",
         type=str,
-        default=None,
-        help="Path to log database. Default: ./log_db/{model}",
+        default="log_db",
+        help="Path to log database for all models. Default: ./log_db/",
     )
     args.add_argument(
         "--reuse-lib",
@@ -75,13 +75,37 @@ def _parse_args():
     parsed.system_lib_prefix = None
     parsed = _setup_model_path(parsed)
 
-    parsed.db_path = parsed.db_path or os.path.join("log_db", parsed.model)
     if os.path.exists(parsed.db_path):
-        ms.database.create(work_dir=parsed.db_path)
+        filenames = os.listdir(parsed.db_path)
+        if (
+            len(filenames) == 2
+            and "database_workload.json" in filenames
+            and "database_tuning_record.json" in filenames
+        ):
+            ms.database.create(work_dir=parsed.db_path)
+            parsed.db_path = [parsed.db_path]
+        else:
+            db_paths = []
+            for filename in filenames:
+                db_path = os.path.join(parsed.db_path, filename)
+                if os.path.isdir(db_path):
+                    try:
+                        ms.database.create(work_dir=db_path)
+                    except Exception:
+                        continue
+                    else:
+                        db_paths.append(db_path)
+            parsed.db_path = db_paths
     else:
+        parsed.db_path = []
+
+    if len(parsed.db_path) == 0:
         print(
             f"WARNING: --db-path does not point to a valid database: {parsed.db_path}"
         )
+    else:
+        print(f"Database paths: {parsed.db_path}")
+
     utils.parse_target(parsed)
     utils.argparse_postproc_common(parsed)
 
@@ -269,12 +293,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
 
     debug_dump_script(mod_deploy, "mod_before_build.py", args)
     if target_kind != "cpu":
-        if os.path.exists(args.db_path):
-            db = ms.database.create(  # pylint: disable=invalid-name
-                work_dir=args.db_path
-            )
-        else:
-            db = ms.database.MemoryDatabase()  # pylint: disable=invalid-name
+        db = utils.get_database(args.db_path)  # pylint: disable=invalid-name
         with db, tvm.target.Target("apple/m1-gpu-restricted"):
             mod_deploy = relax.transform.MetaScheduleApplyDatabase()(mod_deploy)
             if args.target_kind == "android":

@@ -210,6 +210,16 @@ def get_tokenizer_files(path) -> List[str]:
     return [x for x in os.listdir(path) if x in tokenizer_set]
 
 
+def get_database(db_paths: str) -> ms.Database:
+    db = ms.database.MemoryDatabase()  # pylint: disable=invalid-name
+    for db_path in db_paths:
+        model_db = ms.database.create(kind="json", work_dir=db_path)
+        for record in model_db.get_all_tuning_records():
+            db.commit_workload(record.workload.mod)
+            db.commit_tuning_record(record)
+    return db
+
+
 def parse_target(args: argparse.Namespace) -> None:
     if not hasattr(args, "target"):
         return
