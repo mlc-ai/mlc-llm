@@ -2,6 +2,7 @@ import tvm
 from tvm import IRModule
 from tvm.script import tir as T
 
+
 @T.prim_func
 def fused_decode4_matmul3(lv1587: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), lv1588: T.Buffer((T.int64(128), T.int64(4096)), "float16"), lv1583: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), var_matmul_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
     T.func_attr({"tir.noalias": T.bool(True)})
@@ -21,6 +22,7 @@ def fused_decode4_matmul3(lv1587: T.Buffer((T.int64(512), T.int64(4096)), "uint3
             with T.init():
                 var_matmul_intermediate[v_i0, v_i1, v_i2] = T.float16(0)
             var_matmul_intermediate[v_i0, v_i1, v_i2] = var_matmul_intermediate[v_i0, v_i1, v_i2] + lv1583[v_i0, v_i1, v_k] * var_decode_intermediate[v_k, v_i2]
+
 
 def sch_fused_decode4_matmul3(func):
     sch = tvm.tir.Schedule(func)
@@ -90,6 +92,7 @@ def fused_decode6_fused_matmul7_add1(lv1623: T.Buffer((T.int64(1376), T.int64(40
             T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
             p_output0_intermediate[v_ax0, v_ax1, v_ax2] = lv198[v_ax0, v_ax1, v_ax2] + var_matmul_intermediate[v_ax0, v_ax1, v_ax2]
 
+
 def sch_fused_decode6_fused_matmul7_add1(func):
     sch = tvm.tir.Schedule(func)
     b0 = sch.get_block(name="decode", func_name="main")
@@ -124,6 +127,7 @@ def sch_fused_decode6_fused_matmul7_add1(func):
     sch.bind(loop=l35, thread_axis="threadIdx.x")
     return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
+
 @T.prim_func
 def fused_decode5_fused_matmul6_multiply1(lv1617: T.Buffer((T.int64(512), T.int64(11008)), "uint32"), lv1618: T.Buffer((T.int64(128), T.int64(11008)), "float16"), lv1622: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), lv4: T.Buffer((T.int64(1), T.int64(1), T.int64(11008)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(11008)), "float16")):
     T.func_attr({"tir.noalias": T.bool(True)})
@@ -150,6 +154,7 @@ def fused_decode5_fused_matmul6_multiply1(lv1617: T.Buffer((T.int64(512), T.int6
             T.reads(lv4[v_ax0, v_ax1, v_ax2], var_matmul_intermediate[v_ax0, v_ax1, v_ax2])
             T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
             p_output0_intermediate[v_ax0, v_ax1, v_ax2] = lv4[v_ax0, v_ax1, v_ax2] * var_matmul_intermediate[v_ax0, v_ax1, v_ax2]
+
 
 def sch_fused_decode5_fused_matmul6_multiply1(func):
     sch = tvm.tir.Schedule(func)
@@ -193,6 +198,7 @@ def sch_fused_decode5_fused_matmul6_multiply1(func):
     sch.bind(loop=l48, thread_axis="threadIdx.x")
     return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
+
 @T.prim_func
 def fused_decode5_fused_matmul6_silu1(lv1611: T.Buffer((T.int64(512), T.int64(11008)), "uint32"), lv1612: T.Buffer((T.int64(128), T.int64(11008)), "float16"), lv1622: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(11008)), "float16")):
     T.func_attr({"tir.noalias": T.bool(True)})
@@ -226,6 +232,7 @@ def fused_decode5_fused_matmul6_silu1(lv1611: T.Buffer((T.int64(512), T.int64(11
             T.reads(var_matmul_intermediate[v_ax0, v_ax1, v_ax2], compute[v_ax0, v_ax1, v_ax2])
             T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
             p_output0_intermediate[v_ax0, v_ax1, v_ax2] = var_matmul_intermediate[v_ax0, v_ax1, v_ax2] * compute[v_ax0, v_ax1, v_ax2]
+
 
 def sch_fused_decode5_fused_matmul6_silu1(func):
     sch = tvm.tir.Schedule(func)
@@ -299,6 +306,7 @@ def fused_decode4_fused_matmul4_add1(lv1605: T.Buffer((T.int64(512), T.int64(409
             T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
             p_output0_intermediate[v_ax0, v_ax1, v_ax2] = lv1581[v_ax0, v_ax1, v_ax2] + var_matmul_intermediate[v_ax0, v_ax1, v_ax2]
 
+
 def sch_fused_decode4_fused_matmul4_add1(func):
     sch = tvm.tir.Schedule(func)
     b0 = sch.get_block(name="decode", func_name="main")
@@ -341,6 +349,7 @@ def sch_fused_decode4_fused_matmul4_add1(func):
     sch.bind(loop=l48, thread_axis="threadIdx.x")
     return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
+
 @T.prim_func
 def fused_decode3_fused_matmul1_cast2(lv1576: T.Buffer((T.int64(512), T.int64(32000)), "uint32"), lv1577: T.Buffer((T.int64(128), T.int64(32000)), "float16"), lv1575: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32")):
     T.func_attr({"tir.noalias": T.bool(True)})
@@ -367,6 +376,7 @@ def fused_decode3_fused_matmul1_cast2(lv1576: T.Buffer((T.int64(512), T.int64(32
             T.reads(var_matmul_intermediate[v_i0, v_i1, v_i2])
             T.writes(p_output0_intermediate[v_i0, v_i1, v_i2])
             p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast("float32", var_matmul_intermediate[v_i0, v_i1, v_i2])
+
 
 def sch_fused_decode3_fused_matmul1_cast2(func):
     sch = tvm.tir.Schedule(func)
@@ -448,6 +458,7 @@ def fused_decode2_fused_NT_matmul3_add(lv50: T.Buffer((T.int64(1376), T.int64(40
             T.reads(lv3[v_ax0, v_ax1, v_ax2], var_NT_matmul_intermediate[v_ax0, v_ax1, v_ax2])
             T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
             p_output0_intermediate[v_ax0, v_ax1, v_ax2] = lv3[v_ax0, v_ax1, v_ax2] + var_NT_matmul_intermediate[v_ax0, v_ax1, v_ax2]
+
 
 @T.prim_func
 def fused_decode2_fused_NT_matmul3_add_after(lv50: T.Buffer((T.int64(1376), T.int64(4096)), "uint32"), lv51: T.Buffer((T.int64(344), T.int64(4096)), "float16"), p_lv5: T.handle, p_lv3: T.handle, p_output0: T.handle):
@@ -816,7 +827,7 @@ def fused_decode1_fused_NT_matmul2_multiply(lv43: T.Buffer((T.int64(512), T.int6
                 
 @T.prim_func
 def fused_decode1_fused_NT_matmul2_multiply_after(lv43: T.Buffer((512, 11008), "uint32"), lv44: T.Buffer((128, 11008), "float16"), p_lv45: T.handle, p_lv132: T.handle, p_output0: T.handle):
-    T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int32()
     lv45 = T.match_buffer(p_lv45, (1, n, 4096), "float16")
     lv132 = T.match_buffer(p_lv132, (1, n, 11008), "float16")
@@ -939,7 +950,7 @@ def fused_decode_fused_NT_matmul_add(lv29: T.Buffer((T.int64(512), T.int64(4096)
         
 @T.prim_func
 def fused_decode_fused_NT_matmul_add_after(lv29: T.Buffer((512, 4096), "uint32"), lv30: T.Buffer((128, 4096), "float16"), p_lv41: T.handle, p_lv2: T.handle, p_output0: T.handle):
-    T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int32()
     lv41 = T.match_buffer(p_lv41, (1, n, 4096), "float16")
     lv2 = T.match_buffer(p_lv2, (1, n, 4096), "float16")
@@ -1021,8 +1032,504 @@ def fused_decode_fused_NT_matmul_add_after(lv29: T.Buffer((512, 4096), "uint32")
                                     p_output0_intermediate[v0, v1, v2] = lv2[v0, v1, v2] + var_NT_matmul_intermediate_pad_local[v0, v1, v2]        
 
 
+@T.prim_func
+def fused_decode4_fused_matmul6_add4(lv1363: T.Buffer((T.int64(320), T.int64(2560)), "uint32"), lv1364: T.Buffer((T.int64(80), T.int64(2560)), "float16"), lv2067: T.Buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16"), linear_bias192: T.Buffer((T.int64(2560),), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16")):
+    T.func_attr({"tir.noalias": T.bool(True)})
+    # with T.block("root"):
+    var_decode_intermediate = T.alloc_buffer((T.int64(2560), T.int64(2560)), "float16")
+    var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16")
+    for i, j in T.grid(T.int64(2560), T.int64(2560)):
+        with T.block("decode"):
+            v_i, v_j = T.axis.remap("SS", [i, j])
+            T.reads(lv1363[v_i // T.int64(8), v_j], lv1364[v_i // T.int64(32), v_j])
+            T.writes(var_decode_intermediate[v_i, v_j])
+            var_decode_intermediate[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv1363[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv1364[v_i // T.int64(32), v_j]
+    for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), T.int64(2560), T.int64(2560)):
+        with T.block("matmul"):
+            v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+            T.reads(lv2067[v_i0, v_i1, v_k], var_decode_intermediate[v_k, v_i2])
+            T.writes(var_matmul_intermediate[v_i0, v_i1, v_i2])
+            with T.init():
+                var_matmul_intermediate[v_i0, v_i1, v_i2] = T.float16(0)
+            var_matmul_intermediate[v_i0, v_i1, v_i2] = var_matmul_intermediate[v_i0, v_i1, v_i2] + lv2067[v_i0, v_i1, v_k] * var_decode_intermediate[v_k, v_i2]
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(2560)):
+        with T.block("T_add"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(var_matmul_intermediate[v_ax0, v_ax1, v_ax2], linear_bias192[v_ax2])
+            T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
+            p_output0_intermediate[v_ax0, v_ax1, v_ax2] = var_matmul_intermediate[v_ax0, v_ax1, v_ax2] + linear_bias192[v_ax2]
+
+
+def sch_fused_decode4_fused_matmul6_add4(func):
+    sch = tvm.tir.Schedule(func)
+    b0 = sch.get_block(name="decode", func_name="main")
+    b1 = sch.get_block(name="matmul", func_name="main")
+    l2, l3, l4, l5 = sch.get_loops(block=b1)
+    l6 = sch.fuse(l2, l3, l4, preserve_unit_iters=True)
+    v7, v8, v9 = sch.sample_perfect_tile(loop=l6, n=3, max_innermost_factor=4, decision=[10, 256, 1])
+    l10, l11, l12 = sch.split(loop=l6, factors=[v7, v8, v9], preserve_unit_iters=True)
+    v13, v14, v15 = sch.sample_perfect_tile(loop=l5, n=3, max_innermost_factor=8, decision=[160, 8, 2])
+    l16, l17, l18 = sch.split(loop=l5, factors=[v13, v14, v15], preserve_unit_iters=True)
+    sch.reorder(l10, l11, l16, l17, l18, l12)
+    sch.bind(loop=l10, thread_axis="blockIdx.x")
+    sch.bind(loop=l11, thread_axis="threadIdx.x")
+    sch.compute_inline(block=b0)
+    b19 = sch.cache_write(block=b1, write_buffer_index=0, storage_scope="local")
+    sch.reverse_compute_at(block=b19, loop=l11, preserve_unit_loops=True, index=-1)
+    b20 = sch.cache_read(block=b1, read_buffer_index=0, storage_scope="shared")
+    sch.compute_at(block=b20, loop=l11, preserve_unit_loops=True, index=-1)
+    v21 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25], decision=3)
+    sch.annotate(block_or_loop=b20, ann_key="meta_schedule.cooperative_fetch", ann_val=v21)
+    l22, l23, l24, l25, l26 = sch.get_loops(block=b19)
+    sch.vectorize(loop=l26)
+    sch.vectorize(loop=l12)
+    b27 = sch.decompose_reduction(block=b1, loop=l16)
+    b28 = sch.get_block(name="T_add", func_name="main")
+    sch.reverse_compute_inline(block=b28)
+    sch.enter_postproc()
+    sch.unannotate(block_or_loop=b20, ann_key="meta_schedule.cooperative_fetch")
+    l29, l30, l31, l32, l33 = sch.get_loops(block=b20)
+    l34, l35, l36 = sch.split(loop=l33, factors=[None, 256, 8], preserve_unit_iters=True)
+    sch.vectorize(loop=l36)
+    sch.bind(loop=l35, thread_axis="threadIdx.x")
+    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+
+
+@T.prim_func
+def fused_decode6_fused_matmul9_add7_cast8_cast12_add5(lv1393: T.Buffer((T.int64(1280), T.int64(2560)), "uint32"), lv1394: T.Buffer((T.int64(320), T.int64(2560)), "float16"), lv2121: T.Buffer((T.int64(1), T.int64(1), T.int64(10240)), "float16"), linear_bias197: T.Buffer((T.int64(2560),), "float32"), lv329: T.Buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16")):
+    T.func_attr({"tir.noalias": T.bool(True)})
+    # with T.block("root"):
+    var_decode_intermediate = T.alloc_buffer((T.int64(10240), T.int64(2560)), "float16")
+    var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(2560)))
+    var_T_add_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(2560)))
+    var_compute_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16")
+    var_compute_intermediate_1 = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16")
+    for i, j in T.grid(T.int64(10240), T.int64(2560)):
+        with T.block("decode"):
+            v_i, v_j = T.axis.remap("SS", [i, j])
+            T.reads(lv1393[v_i // T.int64(8), v_j], lv1394[v_i // T.int64(32), v_j])
+            T.writes(var_decode_intermediate[v_i, v_j])
+            var_decode_intermediate[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv1393[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv1394[v_i // T.int64(32), v_j]
+    for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), T.int64(2560), T.int64(10240)):
+        with T.block("matmul"):
+            v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+            T.reads(lv2121[v_i0, v_i1, v_k], var_decode_intermediate[v_k, v_i2])
+            T.writes(var_matmul_intermediate[v_i0, v_i1, v_i2])
+            with T.init():
+                var_matmul_intermediate[v_i0, v_i1, v_i2] = T.float32(0)
+            var_matmul_intermediate[v_i0, v_i1, v_i2] = var_matmul_intermediate[v_i0, v_i1, v_i2] + T.Cast("float32", lv2121[v_i0, v_i1, v_k]) * T.Cast("float32", var_decode_intermediate[v_k, v_i2])
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(2560)):
+        with T.block("T_add"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(var_matmul_intermediate[v_ax0, v_ax1, v_ax2], linear_bias197[v_ax2])
+            T.writes(var_T_add_intermediate[v_ax0, v_ax1, v_ax2])
+            var_T_add_intermediate[v_ax0, v_ax1, v_ax2] = var_matmul_intermediate[v_ax0, v_ax1, v_ax2] + linear_bias197[v_ax2]
+    for i0, i1, i2 in T.grid(T.int64(1), T.int64(1), T.int64(2560)):
+        with T.block("compute"):
+            v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+            T.reads(var_T_add_intermediate[v_i0, v_i1, v_i2])
+            T.writes(var_compute_intermediate[v_i0, v_i1, v_i2])
+            var_compute_intermediate[v_i0, v_i1, v_i2] = T.Cast("float16", var_T_add_intermediate[v_i0, v_i1, v_i2])
+    for i0, i1, i2 in T.grid(T.int64(1), T.int64(1), T.int64(2560)):
+        with T.block("compute_1"):
+            v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+            T.reads(var_compute_intermediate[v_i0, v_i1, v_i2])
+            T.writes(var_compute_intermediate_1[v_i0, v_i1, v_i2])
+            var_compute_intermediate_1[v_i0, v_i1, v_i2] = var_compute_intermediate[v_i0, v_i1, v_i2]
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(2560)):
+        with T.block("T_add_1"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(var_compute_intermediate_1[v_ax0, v_ax1, v_ax2], lv329[v_ax0, v_ax1, v_ax2])
+            T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
+            p_output0_intermediate[v_ax0, v_ax1, v_ax2] = var_compute_intermediate_1[v_ax0, v_ax1, v_ax2] + lv329[v_ax0, v_ax1, v_ax2]
+
+
+def sch_fused_decode6_fused_matmul9_add7_cast8_cast12_add5(func):
+    sch = tvm.tir.Schedule(func)
+    b0 = sch.get_block(name="decode", func_name="main")
+    b1 = sch.get_block(name="matmul", func_name="main")
+    l2, l3, l4, l5 = sch.get_loops(block=b1)
+    l6 = sch.fuse(l2, l3, l4, preserve_unit_iters=True)
+    v7, v8, v9 = sch.sample_perfect_tile(loop=l6, n=3, max_innermost_factor=4, decision=[10, 256, 1])
+    l10, l11, l12 = sch.split(loop=l6, factors=[v7, v8, v9], preserve_unit_iters=True)
+    v13, v14, v15 = sch.sample_perfect_tile(loop=l5, n=3, max_innermost_factor=8, decision=[640, 2, 8])
+    l16, l17, l18 = sch.split(loop=l5, factors=[v13, v14, v15], preserve_unit_iters=True)
+    sch.reorder(l10, l11, l16, l17, l18, l12)
+    sch.bind(loop=l10, thread_axis="blockIdx.x")
+    sch.bind(loop=l11, thread_axis="threadIdx.x")
+    sch.compute_inline(block=b0)
+    b19 = sch.cache_write(block=b1, write_buffer_index=0, storage_scope="local")
+    sch.reverse_compute_at(block=b19, loop=l11, preserve_unit_loops=True, index=-1)
+    b20 = sch.cache_read(block=b1, read_buffer_index=0, storage_scope="shared")
+    sch.compute_at(block=b20, loop=l11, preserve_unit_loops=True, index=-1)
+    v21 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25], decision=3)
+    sch.annotate(block_or_loop=b20, ann_key="meta_schedule.cooperative_fetch", ann_val=v21)
+    l22, l23, l24, l25, l26 = sch.get_loops(block=b19)
+    sch.vectorize(loop=l26)
+    sch.vectorize(loop=l12)
+    b27 = sch.decompose_reduction(block=b1, loop=l16)
+    b28 = sch.get_block(name="T_add", func_name="main")
+    bb1 = sch.get_block(name="compute", func_name="main")
+    bb2 = sch.get_block(name="compute_1", func_name="main")
+    bb3 = sch.get_block(name="T_add_1", func_name="main")
+    sch.compute_inline(block=b28)
+    sch.compute_inline(block=bb1)
+    sch.compute_inline(block=bb2)
+    sch.reverse_compute_inline(block=bb3)
+    sch.enter_postproc()
+    sch.unannotate(block_or_loop=b20, ann_key="meta_schedule.cooperative_fetch")
+    l29, l30, l31, l32, l33 = sch.get_loops(block=b20)
+    l34, l35, l36 = sch.split(loop=l33, factors=[None, 256, 8], preserve_unit_iters=True)
+    sch.vectorize(loop=l36)
+    sch.bind(loop=l35, thread_axis="threadIdx.x")
+    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+
+
+@T.prim_func
+def fused_decode5_fused_matmul8_add6_gelu1_cast11(lv1387: T.Buffer((T.int64(320), T.int64(10240)), "uint32"), lv1388: T.Buffer((T.int64(80), T.int64(10240)), "float16"), lv2115: T.Buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16"), linear_bias196: T.Buffer((T.int64(10240),), "float32"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(10240)), "float16")):
+    T.func_attr({"tir.noalias": T.bool(True)})
+    # with T.block("root"):
+    var_decode_intermediate = T.alloc_buffer((T.int64(2560), T.int64(10240)), "float16")
+    var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(10240)))
+    var_T_add_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(10240)))
+    T_multiply = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(10240)))
+    compute = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(10240)))
+    T_multiply_1 = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(10240)))
+    T_add = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(10240)))
+    var_T_multiply_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(10240)))
+    for i, j in T.grid(T.int64(2560), T.int64(10240)):
+        with T.block("decode"):
+            v_i, v_j = T.axis.remap("SS", [i, j])
+            T.reads(lv1387[v_i // T.int64(8), v_j], lv1388[v_i // T.int64(32), v_j])
+            T.writes(var_decode_intermediate[v_i, v_j])
+            var_decode_intermediate[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv1387[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv1388[v_i // T.int64(32), v_j]
+    for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), T.int64(10240), T.int64(2560)):
+        with T.block("matmul"):
+            v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+            T.reads(lv2115[v_i0, v_i1, v_k], var_decode_intermediate[v_k, v_i2])
+            T.writes(var_matmul_intermediate[v_i0, v_i1, v_i2])
+            with T.init():
+                var_matmul_intermediate[v_i0, v_i1, v_i2] = T.float32(0)
+            var_matmul_intermediate[v_i0, v_i1, v_i2] = var_matmul_intermediate[v_i0, v_i1, v_i2] + T.Cast("float32", lv2115[v_i0, v_i1, v_k]) * T.Cast("float32", var_decode_intermediate[v_k, v_i2])
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(10240)):
+        with T.block("T_add"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(var_matmul_intermediate[v_ax0, v_ax1, v_ax2], linear_bias196[v_ax2])
+            T.writes(var_T_add_intermediate[v_ax0, v_ax1, v_ax2])
+            var_T_add_intermediate[v_ax0, v_ax1, v_ax2] = var_matmul_intermediate[v_ax0, v_ax1, v_ax2] + linear_bias196[v_ax2]
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(10240)):
+        with T.block("T_multiply"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(var_T_add_intermediate[v_ax0, v_ax1, v_ax2])
+            T.writes(T_multiply[v_ax0, v_ax1, v_ax2])
+            T_multiply[v_ax0, v_ax1, v_ax2] = var_T_add_intermediate[v_ax0, v_ax1, v_ax2] * T.float32(0.70710678118654757)
+    for i0, i1, i2 in T.grid(T.int64(1), T.int64(1), T.int64(10240)):
+        with T.block("compute"):
+            v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+            T.reads(T_multiply[v_i0, v_i1, v_i2])
+            T.writes(compute[v_i0, v_i1, v_i2])
+            compute[v_i0, v_i1, v_i2] = T.erf(T_multiply[v_i0, v_i1, v_i2])
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(10240)):
+        with T.block("T_multiply_1"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(compute[v_ax0, v_ax1, v_ax2])
+            T.writes(T_multiply_1[v_ax0, v_ax1, v_ax2])
+            T_multiply_1[v_ax0, v_ax1, v_ax2] = compute[v_ax0, v_ax1, v_ax2] * T.float32(0.5)
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(10240)):
+        with T.block("T_add_1"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(T_multiply_1[v_ax0, v_ax1, v_ax2])
+            T.writes(T_add[v_ax0, v_ax1, v_ax2])
+            T_add[v_ax0, v_ax1, v_ax2] = T.float32(0.5) + T_multiply_1[v_ax0, v_ax1, v_ax2]
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(10240)):
+        with T.block("T_multiply_2"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(var_T_add_intermediate[v_ax0, v_ax1, v_ax2], T_add[v_ax0, v_ax1, v_ax2])
+            T.writes(var_T_multiply_intermediate[v_ax0, v_ax1, v_ax2])
+            var_T_multiply_intermediate[v_ax0, v_ax1, v_ax2] = var_T_add_intermediate[v_ax0, v_ax1, v_ax2] * T_add[v_ax0, v_ax1, v_ax2]
+    for i0, i1, i2 in T.grid(T.int64(1), T.int64(1), T.int64(10240)):
+        with T.block("compute_1"):
+            v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+            T.reads(var_T_multiply_intermediate[v_i0, v_i1, v_i2])
+            T.writes(p_output0_intermediate[v_i0, v_i1, v_i2])
+            p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast("float16", var_T_multiply_intermediate[v_i0, v_i1, v_i2])
+
+
+def sch_fused_decode5_fused_matmul8_add6_gelu1_cast11(func):
+    sch = tvm.tir.Schedule(func)
+    b0 = sch.get_block(name="decode", func_name="main")
+    b1 = sch.get_block(name="matmul", func_name="main")
+    l2, l3, l4, l5 = sch.get_loops(block=b1)
+    l6 = sch.fuse(l2, l3, l4, preserve_unit_iters=True)
+    v7, v8, v9 = sch.sample_perfect_tile(loop=l6, n=3, max_innermost_factor=4, decision=[10, 256, 4])
+    l10, l11, l12 = sch.split(loop=l6, factors=[v7, v8, v9], preserve_unit_iters=True)
+    v13, v14, v15 = sch.sample_perfect_tile(loop=l5, n=3, max_innermost_factor=8, decision=[80, 4, 8])
+    l16, l17, l18 = sch.split(loop=l5, factors=[v13, v14, v15], preserve_unit_iters=True)
+    sch.reorder(l10, l11, l16, l17, l18, l12)
+    sch.bind(loop=l10, thread_axis="blockIdx.x")
+    sch.bind(loop=l11, thread_axis="threadIdx.x")
+    sch.compute_inline(block=b0)
+    b19 = sch.cache_write(block=b1, write_buffer_index=0, storage_scope="local")
+    sch.reverse_compute_at(block=b19, loop=l11, preserve_unit_loops=True, index=-1)
+    b20 = sch.cache_read(block=b1, read_buffer_index=0, storage_scope="shared")
+    sch.compute_at(block=b20, loop=l11, preserve_unit_loops=True, index=-1)
+    v21 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25], decision=3)
+    sch.annotate(block_or_loop=b20, ann_key="meta_schedule.cooperative_fetch", ann_val=v21)
+    l22, l23, l24, l25, l26 = sch.get_loops(block=b19)
+    sch.vectorize(loop=l26)
+    sch.vectorize(loop=l12)
+    b27 = sch.decompose_reduction(block=b1, loop=l16)
+    b28 = sch.get_block(name="T_add", func_name="main")
+    bb1 = sch.get_block(name="T_multiply", func_name="main")
+    bb2 = sch.get_block(name="compute", func_name="main")
+    bb3 = sch.get_block(name="T_multiply_1", func_name="main")
+    bb4 = sch.get_block(name="T_add_1", func_name="main")
+    bb5 = sch.get_block(name="T_multiply_2", func_name="main")
+    bb6 = sch.get_block(name="compute_1", func_name="main")
+    sch.compute_inline(block=b28)
+    sch.compute_inline(block=bb1)
+    sch.compute_inline(block=bb2)
+    sch.compute_inline(block=bb3)
+    sch.compute_inline(block=bb4)
+    sch.compute_inline(block=bb5)
+    sch.reverse_compute_inline(block=bb6)
+    sch.enter_postproc()
+    sch.unannotate(block_or_loop=b20, ann_key="meta_schedule.cooperative_fetch")
+    l29, l30, l31, l32, l33 = sch.get_loops(block=b20)
+    l34, l35, l36 = sch.split(loop=l33, factors=[None, 256, 8], preserve_unit_iters=True)
+    sch.vectorize(loop=l36)
+    sch.bind(loop=l35, thread_axis="threadIdx.x")
+    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+
+
+@T.prim_func
+def fused_decode4_fused_matmul6_add4_add5(lv1381: T.Buffer((T.int64(320), T.int64(2560)), "uint32"), lv1382: T.Buffer((T.int64(80), T.int64(2560)), "float16"), lv328: T.Buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16"), linear_bias195: T.Buffer((T.int64(2560),), "float16"), lv2062: T.Buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16")):
+    T.func_attr({"tir.noalias": T.bool(True)})
+    # with T.block("root"):
+    var_decode_intermediate = T.alloc_buffer((T.int64(2560), T.int64(2560)), "float16")
+    var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16")
+    var_T_add_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16")
+    for i, j in T.grid(T.int64(2560), T.int64(2560)):
+        with T.block("decode"):
+            v_i, v_j = T.axis.remap("SS", [i, j])
+            T.reads(lv1381[v_i // T.int64(8), v_j], lv1382[v_i // T.int64(32), v_j])
+            T.writes(var_decode_intermediate[v_i, v_j])
+            var_decode_intermediate[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv1381[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv1382[v_i // T.int64(32), v_j]
+    for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), T.int64(2560), T.int64(2560)):
+        with T.block("matmul"):
+            v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+            T.reads(lv328[v_i0, v_i1, v_k], var_decode_intermediate[v_k, v_i2])
+            T.writes(var_matmul_intermediate[v_i0, v_i1, v_i2])
+            with T.init():
+                var_matmul_intermediate[v_i0, v_i1, v_i2] = T.float16(0)
+            var_matmul_intermediate[v_i0, v_i1, v_i2] = var_matmul_intermediate[v_i0, v_i1, v_i2] + lv328[v_i0, v_i1, v_k] * var_decode_intermediate[v_k, v_i2]
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(2560)):
+        with T.block("T_add"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(var_matmul_intermediate[v_ax0, v_ax1, v_ax2], linear_bias195[v_ax2])
+            T.writes(var_T_add_intermediate[v_ax0, v_ax1, v_ax2])
+            var_T_add_intermediate[v_ax0, v_ax1, v_ax2] = var_matmul_intermediate[v_ax0, v_ax1, v_ax2] + linear_bias195[v_ax2]
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(2560)):
+        with T.block("T_add_1"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(var_T_add_intermediate[v_ax0, v_ax1, v_ax2], lv2062[v_ax0, v_ax1, v_ax2])
+            T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
+            p_output0_intermediate[v_ax0, v_ax1, v_ax2] = var_T_add_intermediate[v_ax0, v_ax1, v_ax2] + lv2062[v_ax0, v_ax1, v_ax2]
+
+
+def sch_fused_decode4_fused_matmul6_add4_add5(func):
+    sch = tvm.tir.Schedule(func)
+    b0 = sch.get_block(name="decode", func_name="main")
+    b1 = sch.get_block(name="matmul", func_name="main")
+    l2, l3, l4, l5 = sch.get_loops(block=b1)
+    l6 = sch.fuse(l2, l3, l4, preserve_unit_iters=True)
+    v7, v8, v9 = sch.sample_perfect_tile(loop=l6, n=3, max_innermost_factor=4, decision=[10, 256, 1])
+    l10, l11, l12 = sch.split(loop=l6, factors=[v7, v8, v9], preserve_unit_iters=True)
+    v13, v14, v15 = sch.sample_perfect_tile(loop=l5, n=3, max_innermost_factor=8, decision=[160, 8, 2])
+    l16, l17, l18 = sch.split(loop=l5, factors=[v13, v14, v15], preserve_unit_iters=True)
+    sch.reorder(l10, l11, l16, l17, l18, l12)
+    sch.bind(loop=l10, thread_axis="blockIdx.x")
+    sch.bind(loop=l11, thread_axis="threadIdx.x")
+    sch.compute_inline(block=b0)
+    b19 = sch.cache_write(block=b1, write_buffer_index=0, storage_scope="local")
+    sch.reverse_compute_at(block=b19, loop=l11, preserve_unit_loops=True, index=-1)
+    b20 = sch.cache_read(block=b1, read_buffer_index=0, storage_scope="shared")
+    sch.compute_at(block=b20, loop=l11, preserve_unit_loops=True, index=-1)
+    v21 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25], decision=3)
+    sch.annotate(block_or_loop=b20, ann_key="meta_schedule.cooperative_fetch", ann_val=v21)
+    l22, l23, l24, l25, l26 = sch.get_loops(block=b19)
+    sch.vectorize(loop=l26)
+    sch.vectorize(loop=l12)
+    b27 = sch.decompose_reduction(block=b1, loop=l16)
+    b28 = sch.get_block(name="T_add", func_name="main")
+    bb4 = sch.get_block(name="T_add_1", func_name="main")
+    sch.compute_inline(block=b28)
+    sch.reverse_compute_inline(block=bb4)
+    sch.enter_postproc()
+    sch.unannotate(block_or_loop=b20, ann_key="meta_schedule.cooperative_fetch")
+    l29, l30, l31, l32, l33 = sch.get_loops(block=b20)
+    l34, l35, l36 = sch.split(loop=l33, factors=[None, 256, 8], preserve_unit_iters=True)
+    sch.vectorize(loop=l36)
+    sch.bind(loop=l35, thread_axis="threadIdx.x")
+    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+
+
+@T.prim_func
+def fused_decode3_matmul3(lv2515: T.Buffer((T.int64(320), T.int64(50432)), "uint32"), lv2516: T.Buffer((T.int64(80), T.int64(50432)), "float32"), lv705: T.Buffer((T.int64(1), T.int64(1), T.int64(2560)), "float32"), var_matmul_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(50432)), "float32")):
+    T.func_attr({"tir.noalias": T.bool(True)})
+    # with T.block("root"):
+    var_decode_intermediate = T.alloc_buffer((T.int64(2560), T.int64(50432)))
+    for i, j in T.grid(T.int64(2560), T.int64(50432)):
+        with T.block("decode"):
+            v_i, v_j = T.axis.remap("SS", [i, j])
+            T.reads(lv2515[v_i // T.int64(8), v_j], lv2516[v_i // T.int64(32), v_j])
+            T.writes(var_decode_intermediate[v_i, v_j])
+            var_decode_intermediate[v_i, v_j] = T.Cast("float32", T.Cast("float16", T.bitwise_and(T.shift_right(lv2515[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv2516[v_i // T.int64(32), v_j]
+    for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), T.int64(50432), T.int64(2560)):
+        with T.block("matmul"):
+            v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+            T.reads(lv705[v_i0, v_i1, v_k], var_decode_intermediate[v_k, v_i2])
+            T.writes(var_matmul_intermediate[v_i0, v_i1, v_i2])
+            with T.init():
+                var_matmul_intermediate[v_i0, v_i1, v_i2] = T.float32(0)
+            var_matmul_intermediate[v_i0, v_i1, v_i2] = var_matmul_intermediate[v_i0, v_i1, v_i2] + lv705[v_i0, v_i1, v_k] * var_decode_intermediate[v_k, v_i2]
+
+
+def sch_fused_decode3_matmul3(func):
+    sch = tvm.tir.Schedule(func)
+    b0 = sch.get_block(name="decode", func_name="main")
+    b1 = sch.get_block(name="matmul", func_name="main")
+    l2, l3, l4, l5 = sch.get_loops(block=b1)
+    l6 = sch.fuse(l2, l3, l4, preserve_unit_iters=True)
+    v7, v8, v9 = sch.sample_perfect_tile(loop=l6, n=3, max_innermost_factor=4, decision=[197, 128, 2])
+    l10, l11, l12 = sch.split(loop=l6, factors=[v7, v8, v9], preserve_unit_iters=True)
+    v13, v14, v15 = sch.sample_perfect_tile(loop=l5, n=3, max_innermost_factor=8, decision=[80, 4, 8])
+    l16, l17, l18 = sch.split(loop=l5, factors=[v13, v14, v15], preserve_unit_iters=True)
+    sch.reorder(l10, l11, l16, l17, l18, l12)
+    sch.bind(loop=l10, thread_axis="blockIdx.x")
+    sch.bind(loop=l11, thread_axis="threadIdx.x")
+    sch.compute_inline(block=b0)
+    b19 = sch.cache_write(block=b1, write_buffer_index=0, storage_scope="local")
+    sch.reverse_compute_at(block=b19, loop=l11, preserve_unit_loops=True, index=-1)
+    b20 = sch.cache_read(block=b1, read_buffer_index=0, storage_scope="shared")
+    sch.compute_at(block=b20, loop=l11, preserve_unit_loops=True, index=-1)
+    v21 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25], decision=3)
+    sch.annotate(block_or_loop=b20, ann_key="meta_schedule.cooperative_fetch", ann_val=v21)
+    l22, l23, l24, l25, l26 = sch.get_loops(block=b19)
+    sch.vectorize(loop=l26)
+    sch.vectorize(loop=l12)
+    b27 = sch.decompose_reduction(block=b1, loop=l16)
+    sch.enter_postproc()
+    sch.unannotate(block_or_loop=b20, ann_key="meta_schedule.cooperative_fetch")
+    l29, l30, l31, l32, l33 = sch.get_loops(block=b20)
+    l34, l35, l36 = sch.split(loop=l33, factors=[None, 128, 8], preserve_unit_iters=True)
+    sch.vectorize(loop=l36)
+    sch.bind(loop=l35, thread_axis="threadIdx.x")
+    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+
+
+@T.prim_func
+def fused_decode6_fused_matmul9_add7_cast8_cast12_add5_cast7(lv2509: T.Buffer((T.int64(1280), T.int64(2560)), "uint32"), lv2510: T.Buffer((T.int64(320), T.int64(2560)), "float16"), lv4105: T.Buffer((T.int64(1), T.int64(1), T.int64(10240)), "float16"), linear_bias383: T.Buffer((T.int64(2560),), "float32"), lv701: T.Buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(2560)), "float32")):
+    T.func_attr({"tir.noalias": T.bool(True)})
+    # with T.block("root"):
+    var_decode_intermediate = T.alloc_buffer((T.int64(10240), T.int64(2560)), "float16")
+    var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(2560)))
+    var_T_add_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(2560)))
+    var_compute_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16")
+    var_compute_intermediate_1 = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16")
+    var_T_add_intermediate_1 = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(2560)), "float16")
+    for i, j in T.grid(T.int64(10240), T.int64(2560)):
+        with T.block("decode"):
+            v_i, v_j = T.axis.remap("SS", [i, j])
+            T.reads(lv2509[v_i // T.int64(8), v_j], lv2510[v_i // T.int64(32), v_j])
+            T.writes(var_decode_intermediate[v_i, v_j])
+            var_decode_intermediate[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv2509[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv2510[v_i // T.int64(32), v_j]
+    for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), T.int64(2560), T.int64(10240)):
+        with T.block("matmul"):
+            v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+            T.reads(lv4105[v_i0, v_i1, v_k], var_decode_intermediate[v_k, v_i2])
+            T.writes(var_matmul_intermediate[v_i0, v_i1, v_i2])
+            with T.init():
+                var_matmul_intermediate[v_i0, v_i1, v_i2] = T.float32(0)
+            var_matmul_intermediate[v_i0, v_i1, v_i2] = var_matmul_intermediate[v_i0, v_i1, v_i2] + T.Cast("float32", lv4105[v_i0, v_i1, v_k]) * T.Cast("float32", var_decode_intermediate[v_k, v_i2])
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(2560)):
+        with T.block("T_add"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(var_matmul_intermediate[v_ax0, v_ax1, v_ax2], linear_bias383[v_ax2])
+            T.writes(var_T_add_intermediate[v_ax0, v_ax1, v_ax2])
+            var_T_add_intermediate[v_ax0, v_ax1, v_ax2] = var_matmul_intermediate[v_ax0, v_ax1, v_ax2] + linear_bias383[v_ax2]
+    for i0, i1, i2 in T.grid(T.int64(1), T.int64(1), T.int64(2560)):
+        with T.block("compute"):
+            v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+            T.reads(var_T_add_intermediate[v_i0, v_i1, v_i2])
+            T.writes(var_compute_intermediate[v_i0, v_i1, v_i2])
+            var_compute_intermediate[v_i0, v_i1, v_i2] = T.Cast("float16", var_T_add_intermediate[v_i0, v_i1, v_i2])
+    for i0, i1, i2 in T.grid(T.int64(1), T.int64(1), T.int64(2560)):
+        with T.block("compute_1"):
+            v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+            T.reads(var_compute_intermediate[v_i0, v_i1, v_i2])
+            T.writes(var_compute_intermediate_1[v_i0, v_i1, v_i2])
+            var_compute_intermediate_1[v_i0, v_i1, v_i2] = var_compute_intermediate[v_i0, v_i1, v_i2]
+    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(2560)):
+        with T.block("T_add_1"):
+            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+            T.reads(var_compute_intermediate_1[v_ax0, v_ax1, v_ax2], lv701[v_ax0, v_ax1, v_ax2])
+            T.writes(var_T_add_intermediate_1[v_ax0, v_ax1, v_ax2])
+            var_T_add_intermediate_1[v_ax0, v_ax1, v_ax2] = var_compute_intermediate_1[v_ax0, v_ax1, v_ax2] + lv701[v_ax0, v_ax1, v_ax2]
+    for i0, i1, i2 in T.grid(T.int64(1), T.int64(1), T.int64(2560)):
+        with T.block("compute_2"):
+            v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+            T.reads(var_T_add_intermediate_1[v_i0, v_i1, v_i2])
+            T.writes(p_output0_intermediate[v_i0, v_i1, v_i2])
+            p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast("float32", var_T_add_intermediate_1[v_i0, v_i1, v_i2])
+
+
+def sch_fused_decode6_fused_matmul9_add7_cast8_cast12_add5_cast7(func):
+    sch = tvm.tir.Schedule(func)
+    b0 = sch.get_block(name="decode", func_name="main")
+    b1 = sch.get_block(name="matmul", func_name="main")
+    l2, l3, l4, l5 = sch.get_loops(block=b1)
+    l6 = sch.fuse(l2, l3, l4, preserve_unit_iters=True)
+    v7, v8, v9 = sch.sample_perfect_tile(loop=l6, n=3, max_innermost_factor=4, decision=[5, 256, 2])
+    l10, l11, l12 = sch.split(loop=l6, factors=[v7, v8, v9], preserve_unit_iters=True)
+    v13, v14, v15 = sch.sample_perfect_tile(loop=l5, n=3, max_innermost_factor=8, decision=[320, 4, 8])
+    l16, l17, l18 = sch.split(loop=l5, factors=[v13, v14, v15], preserve_unit_iters=True)
+    sch.reorder(l10, l11, l16, l17, l18, l12)
+    sch.bind(loop=l10, thread_axis="blockIdx.x")
+    sch.bind(loop=l11, thread_axis="threadIdx.x")
+    sch.compute_inline(block=b0)
+    b19 = sch.cache_write(block=b1, write_buffer_index=0, storage_scope="local")
+    sch.reverse_compute_at(block=b19, loop=l11, preserve_unit_loops=True, index=-1)
+    b20 = sch.cache_read(block=b1, read_buffer_index=0, storage_scope="shared")
+    sch.compute_at(block=b20, loop=l11, preserve_unit_loops=True, index=-1)
+    v21 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25], decision=3)
+    sch.annotate(block_or_loop=b20, ann_key="meta_schedule.cooperative_fetch", ann_val=v21)
+    l22, l23, l24, l25, l26 = sch.get_loops(block=b19)
+    sch.vectorize(loop=l26)
+    sch.vectorize(loop=l12)
+    b27 = sch.decompose_reduction(block=b1, loop=l16)
+    b28 = sch.get_block(name="T_add", func_name="main")
+    bb1 = sch.get_block(name="compute", func_name="main")
+    bb2 = sch.get_block(name="compute_1", func_name="main")
+    bb3 = sch.get_block(name="T_add_1", func_name="main")
+    bb4 = sch.get_block(name="compute_2", func_name="main")
+    sch.compute_inline(block=b28)
+    sch.compute_inline(block=bb1)
+    sch.compute_inline(block=bb2)
+    sch.compute_inline(block=bb3)
+    sch.reverse_compute_inline(block=bb4)
+    sch.enter_postproc()
+    sch.unannotate(block_or_loop=b20, ann_key="meta_schedule.cooperative_fetch")
+    l29, l30, l31, l32, l33 = sch.get_loops(block=b20)
+    l34, l35, l36 = sch.split(loop=l33, factors=[None, 256, 8], preserve_unit_iters=True)
+    sch.vectorize(loop=l36)
+    sch.bind(loop=l35, thread_axis="threadIdx.x")
+    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+
+
 def get_dict_key(func):
     return tvm.ir.structural_hash(func), func
+
 
 tir_dispatch_dict = {
     get_dict_key(fused_decode4_matmul3): sch_fused_decode4_matmul3(fused_decode4_matmul3),
@@ -1036,7 +1543,14 @@ tir_dispatch_dict = {
     get_dict_key(fused_decode1_fused_NT_matmul2_silu): fused_decode1_fused_NT_matmul2_silu_after,
     get_dict_key(fused_decode1_fused_NT_matmul2_multiply): fused_decode1_fused_NT_matmul2_multiply_after,
     get_dict_key(fused_decode_fused_NT_matmul_add): fused_decode_fused_NT_matmul_add_after,
+    get_dict_key(fused_decode4_fused_matmul6_add4): sch_fused_decode4_fused_matmul6_add4(fused_decode4_fused_matmul6_add4),
+    get_dict_key(fused_decode6_fused_matmul9_add7_cast8_cast12_add5): sch_fused_decode6_fused_matmul9_add7_cast8_cast12_add5(fused_decode6_fused_matmul9_add7_cast8_cast12_add5),
+    get_dict_key(fused_decode5_fused_matmul8_add6_gelu1_cast11): sch_fused_decode5_fused_matmul8_add6_gelu1_cast11(fused_decode5_fused_matmul8_add6_gelu1_cast11),
+    get_dict_key(fused_decode4_fused_matmul6_add4_add5): sch_fused_decode4_fused_matmul6_add4_add5(fused_decode4_fused_matmul6_add4_add5),
+    get_dict_key(fused_decode3_matmul3): sch_fused_decode3_matmul3(fused_decode3_matmul3),
+    get_dict_key(fused_decode6_fused_matmul9_add7_cast8_cast12_add5_cast7): sch_fused_decode6_fused_matmul9_add7_cast8_cast12_add5_cast7(fused_decode6_fused_matmul9_add7_cast8_cast12_add5_cast7),
 }
+
 
 def lookup_func(func):
     for (hash_value, func_before), f_after in tir_dispatch_dict.items():
