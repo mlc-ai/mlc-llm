@@ -329,8 +329,7 @@ ModelPaths ModelPaths::Find(const std::string& artifact_path, const std::string&
   std::cout << "Use MLC config: " << config_path << std::endl;
   // Step 2. Find parameters
   std::filesystem::path params_json;
-  if (auto path = FindFile(
-          {config_path.parent_path().string()}, {"ndarray-cache"}, {".json"})) {
+  if (auto path = FindFile({config_path.parent_path().string()}, {"ndarray-cache"}, {".json"})) {
     params_json = path.value();
   } else {
     std::cerr << "Cannot find \"ndarray-cache.json\" for params: " << config_path.parent_path()
@@ -349,8 +348,8 @@ ModelPaths ModelPaths::Find(const std::string& artifact_path, const std::string&
               artifact_path + "/prebuilt/" + lib_local_id  // For prebuilts
           },
           {
-              lib_name,
               lib_name + GetArchSuffix(),
+              lib_name,
           },
           GetLibSuffixes())) {
     lib_path = path.value();
