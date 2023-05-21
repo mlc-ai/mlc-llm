@@ -7,7 +7,6 @@ from platform import system
 from typing import List, Tuple
 
 import tvm
-import tvm.testing
 from tvm import meta_schedule as ms
 from tvm import relax
 

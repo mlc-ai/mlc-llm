@@ -25,13 +25,12 @@ This section contains the instructions to run large-language models and chatbot 
 
 ### iPhone
 
-Try out this [TestFlight page](https://testflight.apple.com/join/57zd7oxa) (limited to the first 9000 users) to install and use
-our example iOS chat app built for iPhone. Our app itself needs about 4GB of memory to run. Considering the iOS and other running applications, we will need a recent iPhone with 6GB (or more) of memory to run the app. We only tested the
-application on iPhone 14 Pro Max and iPhone 12 Pro. You can also check out our [GitHub repo](https://github.com/mlc-ai/mlc-llm) to
-build the iOS app from source.
+Try out this [TestFlight page](https://testflight.apple.com/join/57zd7oxa) (limited to the first 9000 users) to install and use our example iOS chat app built for iPhone.
+Vicuna-7B takes 4GB of RAM and RedPajama-3B takes 2.2GB to run. Considering the iOS and other running applications, we will need a recent iPhone with 6GB for Vicuna-7B or 4GB for RedPajama-3B to run the app. The application is only tested on iPhone 14 Pro Max, iPhone 14 Pro and iPhone 12 Pro.
 
-Note: The text generation speed on the iOS app can be unstable from time to time. It might run slow
-in the beginning and recover to a normal speed then.
+To build the iOS app from source, You can also check out our [GitHub repo](https://github.com/mlc-ai/mlc-llm).
+
+Note: The text generation speed on the iOS app can be unstable from time to time. It might run slow in the beginning and recover to a normal speed then.
 
 ### Android
 
@@ -60,24 +59,31 @@ After installing all the dependencies, just follow the instructions below the in
 conda create -n mlc-chat
 conda activate mlc-chat
 
-# Install Git and Git-LFS, which is used for downloading the model weights
-# from Hugging Face.
+# Install Git and Git-LFS if you haven't already.
+# They are used for downloading the model weights from HuggingFace.
 conda install git git-lfs
+git lfs install
 
 # Install the chat CLI app from Conda.
-conda install -c mlc-ai -c conda-forge mlc-chat-nightly
+conda install -c mlc-ai -c conda-forge mlc-chat-nightly --force-reinstall
 
 # Create a directory, download the model weights from HuggingFace, and download the binary libraries
-# from GitHub.
-mkdir -p dist/prebuilt
-cd dist/prebuilt
-git lfs install
-git clone https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0
-git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git lib
-cd ../..
+# from GitHub. Select one of the following `LOCAL_ID` for a prebuilt LLM.
 
-# Enter this line and enjoy chatting with the bot running natively on your machine!
+mkdir -p dist/prebuilt
+git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git lib
+
+# Download prebuilt weights of Vicuna-7B
+cd dist/prebuilt
+git clone https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0
+cd ../..
 mlc_chat_cli --local-id vicuna-v1-7b-q3f16_0
+
+# Download prebuilt weights of RedPajama-3B
+cd dist/prebuilt
+git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
+cd ../..
+mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
 ```
 
 <p align="center">

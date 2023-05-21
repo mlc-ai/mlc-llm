@@ -2,7 +2,7 @@
 
 # MLC LLM
 
-| [Project](https://mlc.ai/mlc-llm/) | [Blog](https://mlc.ai/blog/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [Demo: iOS](https://mlc.ai/mlc-llm/#iphone) | [Demo: Android](https://mlc.ai/mlc-llm/#android) | [Demo: CLI](https://mlc.ai/mlc-llm/#windows-linux-mac) | [WebLLM](https://mlc.ai/web-llm/) | [WebStableDiffusion](https://mlc.ai/web-stable-diffusion/) | [Discord][discord-url]
+| [Project Page](https://mlc.ai/mlc-llm/) | [Blog](https://mlc.ai/blog/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [WebLLM](https://mlc.ai/web-llm/) | [WebStableDiffusion](https://mlc.ai/web-stable-diffusion/) | [Discord][discord-url]
 
 MLC LLM is a **universal solution** that allows **any language models** to be **deployed natively** on a diverse set of hardware backends and native applications, plus a **productive framework** for everyone to further optimize model performance for their own use cases.
 
@@ -12,7 +12,7 @@ Everything runs locally  with no server support and accelerated with local GPUs 
 [Supported platforms](https://github.com/mlc-ai/mlc-llm/issues/15) include:
 * iPhone, iPad;
 * Android phones;
-* Metal GPUs and Intel/ARM MacBooks;
+* Apple Silicon and x86 MacBooks;
 * AMD, Intel and NVIDIA GPUs via Vulkan on Windows and Linux;
 * NVIDIA GPUs via CUDA on Windows and Linux;
 * WebGPU on browsers (through companion project [WebLLM](https://github.com/mlc-ai/web-llm/tree/main)).
@@ -63,19 +63,23 @@ There are two ways to build MLC LLM from source. The first is to use a Hugging F
 To download the weights from an existing Hugging Face repository for a supported model, you can follow the instructions below:
 
 ```shell
-# Create a new conda environment and activate the environment.
-conda create -n mlc-chat
-conda activate mlc-chat
+# Create a new conda environment and install dependencies
+conda create -n mlc-llm-env python
+conda activate mlc-llm-env
+pip install torch transformers # Install PyTorch and HuggingFace transformers
+pip install -I mlc_ai_nightly -f https://mlc.ai/wheels # Install TVM
 
-# Install Git and Git-LFS, which is used for downloading the model weights
-# from Hugging Face.
+# Install Git and Git-LFS if you haven't already.
+# They are used for downloading the model weights from HuggingFace.
 conda install git git-lfs
+git lfs install
 
 # Clone the MLC LLM repo
 git clone https://github.com/mlc-ai/mlc-llm.git
+cd mlc-llm
 
 # Create the local build directory and compile the model
-# This will automatically download the parameters, tokenizer, and config from Hugging Face
+# This will automatically download the parameters, tokenizer, and config from HuggingFace
 python build.py --hf-path=databricks/dolly-v2-3b
 ```
 
