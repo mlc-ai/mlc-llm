@@ -69,15 +69,21 @@ conda install -c mlc-ai -c conda-forge mlc-chat-nightly
 
 # Create a directory, download the model weights from HuggingFace, and download the binary libraries
 # from GitHub. Select one of the following `LOCAL_ID` for a prebuilt LLM.
-LOCAL_ID=vicuna-v1-7b-q3f16_0                 # Prebuilt Vicuna-7B
-LOCAL_ID=RedPajama-INCITE-Chat-3B-v1-q4f16_0  # Prebuilt RedPajama-3B 
 
 mkdir -p dist/prebuilt
-git clone https://huggingface.co/mlc-ai/"mlc-chat-${LOCAL_ID}" dist/prebuilt/mlc-chat-${LOCAL_ID}
-git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git  dist/prebuilt/lib
+git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git lib
 
-# Enter this line and enjoy chatting with the bot running natively on your machine!
-mlc_chat_cli --local-id ${LOCAL_ID}
+# Download prebuilt weights of Vicuna-7B
+cd dist/prebuilt
+git clone https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0
+cd ../..
+mlc_chat_cli --local-id vicuna-v1-7b-q3f16_0
+
+# Download prebuilt weights of RedPajama-3B
+cd dist/prebuilt
+git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
+cd ../..
+mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
 ```
 
 <p align="center">
