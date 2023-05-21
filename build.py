@@ -6,7 +6,6 @@ import pickle
 from typing import Any, Dict, List
 
 import tvm
-import tvm.testing
 from tvm import meta_schedule as ms
 from tvm import relax
 
@@ -240,7 +239,9 @@ def dump_default_mlc_chat_config(args):
     if args.reuse_lib:
         config["model_lib"] = f"{args.reuse_lib}"
         if not args.reuse_lib.endswith(args.quantization.name):
-            raise RuntimeError(f"Trying to reuse lib without suffix {args.quantization.name}")
+            raise RuntimeError(
+                f"Trying to reuse lib without suffix {args.quantization.name}"
+            )
     else:
         config["model_lib"] = f"{args.model}-{args.quantization.name}"
 
@@ -262,7 +263,9 @@ def dump_default_mlc_chat_config(args):
 def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     target_kind = args.target_kind
     if args.system_lib_prefix:
-        mod_deploy = mod_deploy.with_attrs({"system_lib_prefix": args.system_lib_prefix})
+        mod_deploy = mod_deploy.with_attrs(
+            {"system_lib_prefix": args.system_lib_prefix}
+        )
 
     debug_dump_script(mod_deploy, "mod_before_build.py", args)
     if target_kind != "cpu":
