@@ -67,7 +67,7 @@ To download the weights from an existing Hugging Face repository for a supported
 conda create -n mlc-llm-env python
 conda activate mlc-llm-env
 pip install torch transformers # Install PyTorch and HuggingFace transformers
-pip install mlc_ai_nightly -f https://mlc.ai/wheels # Install TVM
+pip install -I mlc_ai_nightly -f https://mlc.ai/wheels # Install TVM
 
 # Install Git and Git-LFS if you haven't already.
 # They are used for downloading the model weights from HuggingFace.
