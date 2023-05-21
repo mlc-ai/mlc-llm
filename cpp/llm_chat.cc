@@ -1109,6 +1109,13 @@ class LLMChat {
   NDArray logits_on_cpu_{nullptr};
 };
 
+/*!
+ * \brief A chat module implementation that exposes
+ *  the functions as tvm::runtime::Module.
+ *
+ * We do it so that the module is accessible to any
+ * language that tvm runtime can access.
+ */
 class LLMChatModule : public ModuleNode {
  public:
   // clear global memory manager
