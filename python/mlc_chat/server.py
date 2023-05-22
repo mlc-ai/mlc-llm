@@ -1,8 +1,13 @@
 from chat_module import LLMChatModule, supported_models
 from pydantic import BaseModel
+
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
+
 import tvm
 import os
+import time
+import json
 
 app = FastAPI()
 global chat_mod
@@ -73,6 +78,12 @@ async def initialize_model(request: ModelRequest):
 
 class ChatRequest(BaseModel):
     prompt: str
+    stream: bool = False
+
+def fake_data_streamer():
+    for i in range(10):
+        yield b'some fake data\n'
+        time.sleep(1.0)
 
 """
 Creates model response for the given chat conversation.
@@ -81,10 +92,39 @@ Creates model response for the given chat conversation.
 def request_completion(request: ChatRequest):
     global chat_mod
     if not chat_mod:
-        raise HTTPException(status_code=404, detail=f"A model has not been initialized. Please initialize a model using models/init")
+        raise HTTPException(status_code=404, detail=f"A model has not been initialized. Please initialize a model using models/init first.")
     chat_mod.prefill(input=request.prompt)
-    msg = None
-    while not chat_mod.stopped():
-        chat_mod.decode()
-        msg = chat_mod.get_message()
-    return {"message": msg}
+    if request.stream:
+        # return StreamingResponse(fake_data_streamer(), media_type='text/event-stream')
+        def iter_response():
+            while not chat_mod.stopped():
+                chat_mod.decode()
+                msg = chat_mod.get_message()
+                yield json.dumps({"message": msg})
+        return StreamingResponse(iter_response(), media_type='application/json')
+    else:
+        msg = None
+        while not chat_mod.stopped():
+            chat_mod.decode()
+            msg = chat_mod.get_message()
+        return {"message": msg}
+
+"""
+Reset the chat for the currently initialized model.
+"""
+@app.post("/chat/reset")
+def reset():
+    global chat_mod
+    if not chat_mod:
+        raise HTTPException(status_code=404, detail=f"A model has not been initialized. Please initialize a model using models/init first.")
+    chat_mod.reset_chat()
+
+"""
+Get the runtime stats.
+"""
+@app.get("/stats")
+def read_stats():
+    global chat_mod
+    if not chat_mod:
+        raise HTTPException(status_code=404, detail=f"A model has not been initialized. Please initialize a model using models/init first.")
+    return chat_mod.runtime_stats_text()
