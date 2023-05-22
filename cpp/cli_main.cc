@@ -215,7 +215,7 @@ class ChatModule {
     this->runtime_stats_text_ = this->chat_mod_->GetFunction("runtime_stats_text");
     this->reset_chat_ = this->chat_mod_->GetFunction("reset_chat");
     this->lib_path_ = "";
-    this->executable_ = nullptr;
+    this->executable_ = tvm::runtime::Module(nullptr);
     ICHECK(prefill_ != nullptr);
     ICHECK(decode_ != nullptr);
     ICHECK(stopped_ != nullptr);
