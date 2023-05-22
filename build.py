@@ -11,7 +11,7 @@ from tvm import relax
 
 import mlc_llm
 from mlc_llm import utils
-from mlc_llm.relax_model import gpt_neox, llama, moss
+from mlc_llm.relax_model import gpt_neox, llama, minigpt, moss
 
 
 def _parse_args():
@@ -224,13 +224,16 @@ def mod_transform_before_build(
     args: argparse.Namespace,
 ) -> tvm.IRModule:
     """First-stage: Legalize ops and trace"""
-    model_names = [
-        "prefill",
-        "decode",
-        "create_kv_cache",
-        "softmax_with_temperature",
-        "get_metadata",
-    ]
+    if args.model.startswith("minigpt4-"):
+        model_names = ["encoding"]
+    else:
+        model_names = [
+            "prefill",
+            "decode",
+            "create_kv_cache",
+            "softmax_with_temperature",
+            "get_metadata",
+        ]
 
     if args.quantization.mode != "no":
         mod = mlc_llm.transform.GroupQuantize(  # pylint: disable=not-callable
@@ -300,11 +303,12 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
                 mod_deploy = mlc_llm.dispatch.DispatchTIROperatorAdreno()(  # pylint: disable=not-callable
                     mod_deploy
                 )
-            mod_deploy = (
-                mlc_llm.dispatch.DispatchTIROperator(  # pylint: disable=not-callable
+            if not args.model.startswith("minigpt4-"):
+                mod_deploy = mlc_llm.dispatch.DispatchTIROperator(  # pylint: disable=not-callable
                     args.model_category
-                )(mod_deploy)
-            )
+                )(
+                    mod_deploy
+                )
             mod_deploy = tvm.tir.transform.DefaultGPUSchedule()(mod_deploy)
             mod_deploy = mlc_llm.transform.LiftTIRGlobalBufferAlloc()(mod_deploy)
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
@@ -362,6 +366,8 @@ def main():
                 mod, params = gpt_neox.get_model(ARGS, config)
             elif ARGS.model_category == "moss":
                 mod, params = moss.get_model(ARGS, config)
+            elif ARGS.model_category == "minigpt":
+                mod, params = minigpt.get_model(ARGS)
             else:
                 raise ValueError(f"Model {ARGS.model} not supported")
             mod = mod_transform_before_build(mod, params, ARGS)
