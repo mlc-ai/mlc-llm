@@ -136,7 +136,7 @@ conda activate mlc-chat
 conda <span class="nb">install </span>git git-lfs
 
 <span class="c"># Install the chat CLI app from Conda.</span>
-conda <span class="nb">install</span> <span class="nt">-c</span> mlc-ai <span class="nt">-c</span> conda-forge mlc-chat-nightly
+conda <span class="nb">install</span> <span class="nt">-c</span> mlc-ai <span class="nt">-c</span> conda-forge mlc-chat-nightly <span class="nt">--force-reinstall</span>
 
 <span class="c"># Create a directory, download the model weights from HuggingFace, and download the binary libraries</span>
 <span class="c"># from GitHub.</span>
@@ -149,6 +149,13 @@ git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git lib
 
 <span class="c"># Enter this line and enjoy chatting with the bot running natively on your machine!</span>
 mlc_chat_cli <span class="nt">--local-id</span> vicuna-v1-7b-q3f16_0
+
+<span class="c"># RedPajama model</span>
+<span class="nb">cd </span>dist/prebuilt
+git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
+<span class="nb">cd</span> ../..
+
+mlc_chat_cli <span class="nt">--local-id</span> RedPajama-INCITE-Chat-3B-v1-q4f16_0
 </code></pre></div></div>
 
 <p align="center">
