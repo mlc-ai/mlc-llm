@@ -6,7 +6,6 @@ from fastapi.responses import StreamingResponse
 
 import tvm
 import os
-import time
 import json
 
 app = FastAPI()
@@ -79,11 +78,6 @@ async def initialize_model(request: ModelRequest):
 class ChatRequest(BaseModel):
     prompt: str
     stream: bool = False
-
-def fake_data_streamer():
-    for i in range(10):
-        yield b'some fake data\n'
-        time.sleep(1.0)
 
 """
 Creates model response for the given chat conversation.
