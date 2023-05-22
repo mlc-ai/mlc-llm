@@ -117,6 +117,42 @@ class GradioChatModule(LLMChatModule):
         stats_output = self.runtime_stats_text()
         return stats_output
 
+    def upload_image(self, image):
+        import torch
+        from PIL import Image
+        from torchvision import transforms
+        from torchvision.transforms.functional import InterpolationMode
+
+        if image is None:
+            text_input = gr.update(
+                placeholder="Upload an image to get started", interactive=False
+            )
+            return text_input, None
+        if isinstance(image, Image.Image):
+            image_size = 224
+            mean = (0.48145466, 0.4578275, 0.40821073)
+            std = (0.26862954, 0.26130258, 0.27577711)
+            transform_fn = transforms.Compose(
+                [
+                    transforms.Resize(
+                        (image_size, image_size),
+                        interpolation=InterpolationMode.BICUBIC,
+                    ),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean, std),
+                ]
+            )
+            processed_img = transform_fn(image).unsqueeze(0)
+            if self.quantization == "q0f16":
+                processed_img = processed_img.to(torch.float16)
+            processed_img = tvm.nd.array(processed_img, self.device)
+        else:
+            print("image type not supported")
+            return None, None
+        text_input = gr.update(interactive=True, placeholder="Type and press Enter")
+        img_list = []
+        return text_input, img_list
+
 
 def launch_gradio(chat_mod):
     title = """<h1 align="center">MLC Chat Demo</h1>"""
@@ -155,7 +191,7 @@ def launch_gradio(chat_mod):
 
             with gr.Column():
                 chat_state = gr.State()
-                # img_list = gr.State()
+                img_list = gr.State()
                 chatbot = gr.Chatbot(label="MLC Chat")
                 text_input = gr.Textbox(
                     show_label=False,
@@ -179,6 +215,7 @@ def launch_gradio(chat_mod):
         )
         reset_button.click(chat_mod.reset_model, [chat_state], [chatbot, chat_state])
         stats_button.click(chat_mod.get_stats, [stats_output], [stats_output])
+        upload_button.click(chat_mod.upload_image, [image], [text_input, img_list])
         text_input.submit(
             chat_mod.ask, [text_input, chatbot], [text_input, chatbot]
         ).then(chat_mod.answer, [chatbot, stream_interval], [chatbot])

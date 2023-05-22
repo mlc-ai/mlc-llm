@@ -23,13 +23,14 @@ class LLMChatModule:
         fcreate = tvm.get_global_func("mlc.llm_chat_create")
         assert fcreate is not None
         if target == "cuda":
-            device_type = tvm.cuda(device_id).device_type
+            self.device = tvm.cuda(device_id)
         elif target == "metal":
-            device_type = tvm.metal(device_id).device_type
+            self.device = tvm.metal(device_id)
         elif target == "vulkan":
-            device_type = tvm.vulkan(device_id).device_type
+            self.device = tvm.vulkan(device_id)
         else:
             raise ValueError("device type not supported yet")
+        device_type = self.device.device_type
         chat_mod = fcreate(device_type, device_id)
 
         self.reload_func = chat_mod["reload"]
