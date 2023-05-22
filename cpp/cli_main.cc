@@ -68,18 +68,16 @@ DLDevice GetDevice(const std::string& device_name, int device_id) {
  * \param names The names of to look for.
  * \param suffixes The suffix to look for.
  */
-std::optional<std::filesystem::path> FindFile(const std::vector<std::string>& search_paths,
-                                              const std::vector<std::string>& names,
-                                              const std::vector<std::string>& suffixes) {
-  for (const std::string& prefix : search_paths) {
+std::optional<std::filesystem::path> FindFile(
+    const std::vector<std::filesystem::path>& search_paths,  //
+    const std::vector<std::string>& names,                   //
+    const std::vector<std::string>& suffixes) {
+  for (const std::filesystem::path& prefix : search_paths) {
     for (const std::string& name : names) {
       for (const std::string& suffix : suffixes) {
-        std::filesystem::path path(prefix + "/" + name + suffix);
-        if (std::filesystem::exists(path)) {
-          path = std::filesystem::canonical(path);
-          if (std::filesystem::is_regular_file(path)) {
-            return path;
-          }
+        std::filesystem::path path = std::filesystem::canonical(prefix / (name + suffix));
+        if (std::filesystem::exists(path) && std::filesystem::is_regular_file(path)) {
+          return path;
         }
       }
     }
@@ -140,7 +138,7 @@ void PrintSpecialCommands() {
             << "  /exit               quit the cli\n"
             << "  /stats              print out the latest stats (token/sec)\n"
             << "  /reset              restart a fresh chat\n"
-            << "  /reload [local_id]  reload model \"local_id\" from disk, or reload the current "
+            << "  /reload [local_id]  reload model `local_id` from disk, or reload the current "
                "model if `local_id` is not specified\n"
             << std::endl
             << std::flush;
@@ -163,7 +161,7 @@ struct ModelPaths {
    */
   std::filesystem::path lib;
 
-  static ModelPaths Find(const std::string& artifact_path, const std::string& device_name,
+  static ModelPaths Find(const std::filesystem::path& artifact_path, const std::string& device_name,
                          const std::string& local_id);
 };
 
@@ -293,17 +291,15 @@ class ChatModule {
   tvm::runtime::Module executable_;
 };
 
-std::optional<std::filesystem::path> TryInferMLCChatConfig(const std::string& artifact_path,
-                                                           const std::string& local_id) {
+std::optional<std::filesystem::path> TryInferMLCChatConfig(
+    const std::filesystem::path& artifact_path, const std::string& local_id) {
   return FindFile(
       {
-          //
-          artifact_path + "/" + local_id + "/params",        //
-          artifact_path + "/prebuilt/" + local_id,           //
-          artifact_path + "/prebuilt/mlc-chat-" + local_id,  //
-      },                                                     //
-      {"mlc-chat-config"},                                   //
-      {".json"});
+          artifact_path / local_id / "params",
+          artifact_path / "prebuilt" / local_id,
+          artifact_path / "prebuilt" / ("mlc-chat-" + local_id),
+      },
+      {"mlc-chat-config"}, {".json"});
 }
 
 std::string ReadStringFromJSONFile(const std::filesystem::path& config_path,
@@ -324,8 +320,8 @@ std::string ReadStringFromJSONFile(const std::filesystem::path& config_path,
   return config[key].get<std::string>();
 }
 
-ModelPaths ModelPaths::Find(const std::string& artifact_path, const std::string& device_name,
-                            const std::string& local_id) {
+ModelPaths ModelPaths::Find(const std::filesystem::path& artifact_path,
+                            const std::string& device_name, const std::string& local_id) {
   // Step 1. Find config path
   std::filesystem::path config_path;
   if (auto path = TryInferMLCChatConfig(artifact_path, local_id)) {
@@ -352,9 +348,9 @@ ModelPaths ModelPaths::Find(const std::string& artifact_path, const std::string&
   std::filesystem::path lib_path;
   if (auto path = FindFile(
           {
-              artifact_path + "/" + lib_local_id,          // Usually this is the candidate
-              artifact_path + "/prebuilt/lib/",            // prebuild lib
-              artifact_path + "/prebuilt/" + lib_local_id  // For prebuilts
+              artifact_path / lib_local_id,              // Usually this is the candidate
+              artifact_path / "prebuilt" / "lib",        // prebuild lib
+              artifact_path / "prebuilt" / lib_local_id  // For prebuilts
           },
           {
               lib_name + GetArchSuffix(),
@@ -428,8 +424,8 @@ void Converse(ChatModule* chat, const std::string& input, int stream_interval,
  * \param executable The model library to initialize the chat module.
  * \param model_path The model path with contains the model config, tokenizer and parameters.
  */
-void Chat(ChatModule* chat, const std::string& artifact_path, const std::string& device_name,
-          std::string local_id, int stream_interval = 2) {
+void Chat(ChatModule* chat, const std::filesystem::path& artifact_path,
+          const std::string& device_name, std::string local_id, int stream_interval = 2) {
   ModelPaths model = ModelPaths::Find(artifact_path, device_name, local_id);
   std::cout << "Loading model..." << std::endl;
   PrintSpecialCommands();
@@ -470,7 +466,7 @@ void Chat(ChatModule* chat, const std::string& artifact_path, const std::string&
   }
 }
 
-std::string GuessLocalId(const std::string& artifact_path, const std::string& model,
+std::string GuessLocalId(const std::filesystem::path& artifact_path, const std::string& model,
                          const std::string& quantization) {
   std::vector<std::string> local_id_candidates;
   std::vector<std::string> quantization_candidates =
