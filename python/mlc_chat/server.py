@@ -1,6 +1,7 @@
 from chat_module import LLMChatModule, supported_models
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
+import tvm
 import os
 
 app = FastAPI()
@@ -59,18 +60,16 @@ async def initialize_model(request: ModelRequest):
         request.artifact_path, 
         request.model + "-" + request.quantization
     )
-    print(f"{mlc_lib_path=}")
-    print(f"{model_path=}")
     global chat_mod
     chat_mod = LLMChatModule(
-        mlc_lib_path, 
-        model_path, 
+        mlc_lib_path,
         request.device_name, 
         request.device_id
     )
-    print(chat_mod)
-    return request
-    
+    model_dir = request.model + "-" + request.quantization
+    model_lib = model_dir + "-" + request.device_name + ".so"
+    lib = tvm.runtime.load_module(os.path.join(model_path, model_lib))
+    chat_mod.reload(lib=lib, model_path=os.path.join(model_path, "params"))
 
 class ChatRequest(BaseModel):
     prompt: str
@@ -83,7 +82,7 @@ def request_completion(request: ChatRequest):
     global chat_mod
     if not chat_mod:
         raise HTTPException(status_code=404, detail=f"A model has not been initialized. Please initialize a model using models/init")
-    chat_mod.encode(request.prompt)
+    chat_mod.prefill(input=request.prompt)
     msg = None
     while not chat_mod.stopped():
         chat_mod.decode()
