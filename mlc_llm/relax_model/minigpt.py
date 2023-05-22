@@ -446,7 +446,7 @@ class MiniGPTLLaMAProj(nn.Module):
 
 def create_encoding_func(bb: relax.BlockBuilder, config: MiniGPTConfig) -> None:
     bs, img_chan = 1, 3
-    with bb.function("encoding"):
+    with bb.function("prefill"):
         visual_encoder = MiniGPTVisualEncoder(config)
         q_former = MiniGPTQFormer(config)
         llama_proj = MiniGPTLLaMAProj(config)
@@ -469,7 +469,7 @@ def create_encoding_func(bb: relax.BlockBuilder, config: MiniGPTConfig) -> None:
         bb.emit_func_output(gv, params)
 
     mod = bb.get()
-    gv = mod.get_global_var("encoding")
+    gv = mod.get_global_var("prefill")
     bb.update_func(gv, mod[gv].with_attr("num_input", 1))
 
 

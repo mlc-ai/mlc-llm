@@ -225,7 +225,7 @@ def mod_transform_before_build(
 ) -> tvm.IRModule:
     """First-stage: Legalize ops and trace"""
     if args.model.startswith("minigpt4-"):
-        model_names = ["encoding"]
+        model_names = ["prefill"]
     else:
         model_names = [
             "prefill",

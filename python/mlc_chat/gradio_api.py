@@ -7,6 +7,7 @@ import os
 import gradio as gr
 import tvm
 from chat_module import LLMChatModule
+from tvm import relax
 
 quantization_keys = ["q3f16_0", "q4f16_0", "q4f32_0", "q0f32", "q0f16"]
 
@@ -36,8 +37,31 @@ class GradioChatModule(LLMChatModule):
         self.artifact_path = ARGS.artifact_path
         self.quantization = ARGS.quantization
         self.device_name = ARGS.device_name
+        self.vision_model = None
 
     def reload_model(self, model_name, text_input, chat_state):
+        image = gr.update(interactive=False)
+        upload_button = gr.update(interactive=False)
+        text_input = gr.update(interactive=True, placeholder="Type and press Enter")
+
+        if model_name.startswith("minigpt"):
+            model_name = "vicuna-v1-7b"
+            device = tvm.device(self.device_name)
+            ex = tvm.runtime.load_module(
+                os.path.join(
+                    self.artifact_path,
+                    f"{model_name}-{self.quantization}",
+                    f"{model_name}-{self.quantization}-{self.device_name}.so",
+                )
+            )
+            vm = relax.VirtualMachine(ex, device)
+            self.vision_model = vm["prefill"]
+            image = gr.update(interactive=True)
+            upload_button = gr.update(interactive=True)
+            text_input = gr.update(
+                placeholder="Upload an image to get started", interactive=False
+            )
+
         model_dir = model_name + "-" + self.quantization
         model_lib = model_dir + "-" + self.device_name + ".so"
         lib = tvm.runtime.load_module(
@@ -47,11 +71,14 @@ class GradioChatModule(LLMChatModule):
         chat_mod.reload_func(lib, os.path.join(self.artifact_path, model_dir, "params"))
         if chat_state is not None:
             chat_state.messages = []
-        print(f"reload model: {model_name}")
+
         return (
-            gr.update(interactive=True, placeholder="Type and press Enter"),
+            text_input,
             gr.update(interactive=True),
+            gr.update(placeholder="Click to get runtime statistics."),
             gr.update(interactive=True),
+            image,
+            upload_button,
             None,
             chat_state,
         )
@@ -106,10 +133,6 @@ def launch_gradio(chat_mod):
 
         with gr.Row():
             with gr.Column(scale=0.5):
-                # image = gr.Image(type="pil")
-                # upload_button = gr.Button(
-                #    value="Upload & Start Chat", interactive=False, variant="primary"
-                # )
                 reset_button = gr.Button("Reset chat", interactive=False)
                 stream_interval = gr.Slider(
                     minimum=1.0,
@@ -125,6 +148,10 @@ def launch_gradio(chat_mod):
                     placeholder="Click to get runtime statistics.",
                     interactive=False,
                 ).style(container=False)
+                image = gr.Image(type="pil", interactive=False)
+                upload_button = gr.Button(
+                    value="Upload & Start Chat", interactive=False, variant="primary"
+                )
 
             with gr.Column():
                 chat_state = gr.State()
@@ -139,7 +166,16 @@ def launch_gradio(chat_mod):
         model_choice.change(
             chat_mod.reload_model,
             [model_choice, text_input, chat_state],
-            [text_input, reset_button, stats_button, chatbot, chat_state],
+            [
+                text_input,
+                reset_button,
+                stats_output,
+                stats_button,
+                image,
+                upload_button,
+                chatbot,
+                chat_state,
+            ],
         )
         reset_button.click(chat_mod.reset_model, [chat_state], [chatbot, chat_state])
         stats_button.click(chat_mod.get_stats, [stats_output], [stats_output])
