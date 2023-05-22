@@ -214,6 +214,7 @@ class ChatModule {
     this->get_role1_ = this->chat_mod_->GetFunction("get_role1");
     this->runtime_stats_text_ = this->chat_mod_->GetFunction("runtime_stats_text");
     this->reset_chat_ = this->chat_mod_->GetFunction("reset_chat");
+    this->lib_path_ = "";
     this->executable_ = nullptr;
     ICHECK(prefill_ != nullptr);
     ICHECK(decode_ != nullptr);
@@ -230,14 +231,13 @@ class ChatModule {
    * \param model The model path spec.
    */
   void Reload(const ModelPaths& model) {
-    std::string model_path = model.config.parent_path().string();
-    this->executable_ = tvm::runtime::Module::LoadFromFile(model.lib.string());
-    reload_(this->executable_, tvm::String(model_path));
-  }
-
-  void ReloadSameModel(const ModelPaths& model) {
-    std::string model_path = model.config.parent_path().string();
-    reload_(this->executable_, tvm::String(model_path));
+    std::string new_lib_path = model.lib.string();
+    std::string new_model_path = model.config.parent_path().string();
+    if (this->lib_path_ != new_lib_path) {
+      this->lib_path_ = new_lib_path;
+      this->executable_ = tvm::runtime::Module::LoadFromFile(this->lib_path_);
+    }
+    reload_(this->executable_, tvm::runtime::String(new_model_path));
   }
 
   /*!
@@ -288,6 +288,8 @@ class ChatModule {
   tvm::runtime::PackedFunc get_role1_;
   tvm::runtime::PackedFunc runtime_stats_text_;
   tvm::runtime::PackedFunc reset_chat_;
+
+  std::string lib_path_;
   tvm::runtime::Module executable_;
 };
 
@@ -390,7 +392,7 @@ void Converse(ChatModule* chat, const std::string& input, int stream_interval,
       std::string new_msg = chat->GetMessage();
       // NOTE: display the new message.
       // The main complication here is that new_msg can be different
-      // from prevous message, so we need to find the diff,
+      // from previous message, so we need to find the diff,
       // delete previous messages that are different, then print it out.
       // This logic is only needed for simple stdout.
       //
@@ -453,15 +455,12 @@ void Chat(ChatModule* chat, const std::string& artifact_path, const std::string&
         is >> reload_prompt >> new_local_id;
       }
       if (new_local_id.empty()) {
-        model = ModelPaths::Find(artifact_path, device_name, local_id);
-        std::cout << "Loading the same model..." << std::endl;
-        chat->ReloadSameModel(model);
-      } else {
-        model = ModelPaths::Find(artifact_path, device_name, new_local_id);
-        std::cout << "Loading model..." << std::endl;
-        chat->Reload(model);
-        local_id = new_local_id;
+        new_local_id = local_id;
       }
+      model = ModelPaths::Find(artifact_path, device_name, new_local_id);
+      std::cout << "Loading model..." << std::endl;
+      chat->Reload(model);
+      local_id = new_local_id;
       std::cout << "LOAD MODEL " << local_id << " SUCCESS" << std::endl << std::flush;
     } else if (input.substr(0, 5) == "/help") {
       PrintSpecialCommands();
