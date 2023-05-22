@@ -3386,9 +3386,9 @@ def fused_NT_matmul2_divide1_maximum1_minimum1_after(p_lv22: T.handle, p_lv23: T
     T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     m = T.int64()
-    lv22 = T.match_buffer(p_lv22, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
-    lv23 = T.match_buffer(p_lv23, (T.int64(1), T.int64(32), m, T.int64(128)), "float16")
-    lv5 = T.match_buffer(p_lv5, (T.int64(1), T.int64(1), n, m), "float16")
+    lv22 = T.match_buffer(p_lv22, (T.int64(1), T.int64(32), n, T.int64(128)), "float32")
+    lv23 = T.match_buffer(p_lv23, (T.int64(1), T.int64(32), m, T.int64(128)), "float32")
+    lv5 = T.match_buffer(p_lv5, (T.int64(1), T.int64(1), n, m), "float32")
     var_T_maximum_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), n, m))
     # with T.block("root"):
     for i2_0_i3_0_fused in T.thread_binding((n + T.int64(31)) // T.int64(32) * ((m + T.int64(31)) // T.int64(32)), thread="blockIdx.y"):
@@ -3398,9 +3398,9 @@ def fused_NT_matmul2_divide1_maximum1_minimum1_after(p_lv22: T.handle, p_lv23: T
             v_i3_o = T.axis.spatial((m + T.int64(31)) // T.int64(32), i2_0_i3_0_fused % ((m + T.int64(31)) // T.int64(32)))
             T.reads(lv22[T.int64(0), T.int64(0):T.int64(32), v_i2_o * T.int64(32):v_i2_o * T.int64(32) + T.int64(32), T.int64(0):T.int64(128)], lv23[T.int64(0), T.int64(0):T.int64(32), v_i3_o * T.int64(32):v_i3_o * T.int64(32) + T.int64(32), T.int64(0):T.int64(128)], lv5[v_i0, T.int64(0), v_i2_o * T.int64(32):v_i2_o * T.int64(32) + T.int64(32), v_i3_o * T.int64(32):v_i3_o * T.int64(32) + T.int64(32)])
             T.writes(var_T_maximum_intermediate[v_i0, T.int64(0):T.int64(32), v_i2_o * T.int64(32):v_i2_o * T.int64(32) + T.int64(32), v_i3_o * T.int64(32):v_i3_o * T.int64(32) + T.int64(32)])
-            C_pad_local = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(32)), "float16", scope="local")
-            A_pad_shared = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(128)), "float16", scope="shared")
-            B_pad_shared = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(128)), "float16", scope="shared")
+            C_pad_local = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(32)), "float32", scope="local")
+            A_pad_shared = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(128)), "float32", scope="shared")
+            B_pad_shared = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(128)), "float32", scope="shared")
             for i0_0_i1_0_i2_1_0_i3_1_0_fused in T.thread_binding(T.int64(128), thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step": 512, "pragma_unroll_explicit": 1}):
                 for i0_1_i1_1_i2_1_1_i3_1_1_fused in T.thread_binding(T.int64(4), thread="vthread.x"):
                     for i0_2_i1_2_i2_1_2_i3_1_2_fused in T.thread_binding(T.int64(64), thread="threadIdx.x"):
