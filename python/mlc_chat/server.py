@@ -17,16 +17,16 @@ session = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    
+
     ARGS = _parse_args()
 
     chat_mod = LLMChatModule(
         ARGS.mlc_lib_path,
-        ARGS.device_name, 
+        ARGS.device_name,
         ARGS.device_id
     )
     model_path = os.path.join(
-        ARGS.artifact_path, 
+        ARGS.artifact_path,
         ARGS.model + "-" + ARGS.quantization
     )
     model_dir = ARGS.model + "-" + ARGS.quantization
