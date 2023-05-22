@@ -108,17 +108,48 @@ def split_transform_deploy_mod(
 
 
 def transform_params(
-    mod_transform: tvm.IRModule, model_params: List[tvm.nd.NDArray]
+    mod_transform: tvm.IRModule,
+    model_params: List[tvm.nd.NDArray],
 ) -> List[tvm.nd.NDArray]:
+    # Remove the dataflow block inside the param transform function,
+    # so that the LazyTransformParams pass can be applied.
+    mod_transform = relax.transform.ToNonDataflow()(mod_transform)
+    mod_transform = relax.transform.LazyTransformParams()(mod_transform)
+
     transform_func_name = None
     for gv, func in mod_transform.functions.items():
         if isinstance(func, relax.Function):
             transform_func_name = gv.name_hint
     assert transform_func_name is not None
 
-    ex = relax.build(mod_transform, target="llvm")
-    vm = relax.vm.VirtualMachine(ex, tvm.cpu())
-    res = vm[transform_func_name](model_params)
+    if tvm.cuda().exist:
+        target = "cuda"
+    elif tvm.metal().exist:
+        target = "metal"
+    else:
+        target = "llvm"
+    target = tvm.target.Target(target)
+    device = tvm.device(target.kind.default_keys[0])
+
+    @tvm.register_func("get_item", override=True)
+    def get_item(i):
+        gpu_input = tvm.nd.array(model_params[i], device=device)
+        return gpu_input
+
+    res = []
+
+    @tvm.register_func("set_item", override=True)
+    def set_item(i, value):
+        if len(res) <= i:
+            res.extend([None for _ in range(i - len(res) + 1)])
+        res[i] = tvm.nd.array(value, device=tvm.cpu())
+        return tvm.nd.empty((1,), device=device)
+
+    with tvm.target.Target(target):
+        mod_transform = tvm.tir.transform.DefaultGPUSchedule()(mod_transform)
+    ex = relax.build(mod_transform, target=target)
+    vm = relax.vm.VirtualMachine(ex, device)
+    vm[transform_func_name]()
     return res
 
 
