@@ -140,8 +140,8 @@ void PrintSpecialCommands() {
             << "  /exit               quit the cli\n"
             << "  /stats              print out the latest stats (token/sec)\n"
             << "  /reset              restart a fresh chat\n"
-            << "  /reload [model_id]  reload model \"model_id\" from disk, or reload the current "
-               "model if model_id is not specified\n"
+            << "  /reload [local_id]  reload model \"local_id\" from disk, or reload the current "
+               "model if `local_id` is not specified\n"
             << std::endl
             << std::flush;
 }
@@ -214,6 +214,8 @@ class ChatModule {
     this->get_role1_ = this->chat_mod_->GetFunction("get_role1");
     this->runtime_stats_text_ = this->chat_mod_->GetFunction("runtime_stats_text");
     this->reset_chat_ = this->chat_mod_->GetFunction("reset_chat");
+    this->lib_path_ = "";
+    this->executable_ = nullptr;
     ICHECK(prefill_ != nullptr);
     ICHECK(decode_ != nullptr);
     ICHECK(stopped_ != nullptr);
@@ -229,9 +231,13 @@ class ChatModule {
    * \param model The model path spec.
    */
   void Reload(const ModelPaths& model) {
-    std::string model_path = model.config.parent_path().string();
-    tvm::runtime::Module executable = tvm::runtime::Module::LoadFromFile(model.lib.string());
-    reload_(executable, tvm::String(model_path));
+    std::string new_lib_path = model.lib.string();
+    std::string new_model_path = model.config.parent_path().string();
+    if (this->lib_path_ != new_lib_path) {
+      this->lib_path_ = new_lib_path;
+      this->executable_ = tvm::runtime::Module::LoadFromFile(this->lib_path_);
+    }
+    reload_(this->executable_, tvm::runtime::String(new_model_path));
   }
 
   /*!
@@ -282,6 +288,9 @@ class ChatModule {
   tvm::runtime::PackedFunc get_role1_;
   tvm::runtime::PackedFunc runtime_stats_text_;
   tvm::runtime::PackedFunc reset_chat_;
+
+  std::string lib_path_;
+  tvm::runtime::Module executable_;
 };
 
 std::optional<std::filesystem::path> TryInferMLCChatConfig(const std::string& artifact_path,
@@ -329,8 +338,7 @@ ModelPaths ModelPaths::Find(const std::string& artifact_path, const std::string&
   std::cout << "Use MLC config: " << config_path << std::endl;
   // Step 2. Find parameters
   std::filesystem::path params_json;
-  if (auto path = FindFile(
-          {config_path.parent_path().string()}, {"ndarray-cache"}, {".json"})) {
+  if (auto path = FindFile({config_path.parent_path().string()}, {"ndarray-cache"}, {".json"})) {
     params_json = path.value();
   } else {
     std::cerr << "Cannot find \"ndarray-cache.json\" for params: " << config_path.parent_path()
@@ -349,8 +357,8 @@ ModelPaths ModelPaths::Find(const std::string& artifact_path, const std::string&
               artifact_path + "/prebuilt/" + lib_local_id  // For prebuilts
           },
           {
-              lib_name,
               lib_name + GetArchSuffix(),
+              lib_name,
           },
           GetLibSuffixes())) {
     lib_path = path.value();
@@ -384,7 +392,7 @@ void Converse(ChatModule* chat, const std::string& input, int stream_interval,
       std::string new_msg = chat->GetMessage();
       // NOTE: display the new message.
       // The main complication here is that new_msg can be different
-      // from prevous message, so we need to find the diff,
+      // from previous message, so we need to find the diff,
       // delete previous messages that are different, then print it out.
       // This logic is only needed for simple stdout.
       //
