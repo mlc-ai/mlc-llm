@@ -10,7 +10,10 @@ def load_llm_chat(mlc_lib_path):
 
 
 def supported_models():
-    return set(["vicuna-v1-7b"])
+    return set([
+        "vicuna-v1-7b",
+        "RedPajama-INCITE-Chat-3B-v1"
+    ])
 
 
 def quantization_keys():

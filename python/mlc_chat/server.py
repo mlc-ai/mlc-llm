@@ -59,7 +59,12 @@ app = FastAPI(lifespan=lifespan)
 
 def _parse_args():
     args = argparse.ArgumentParser()
-    args.add_argument("--model", type=str, default="vicuna-v1-7b")
+    args.add_argument(
+        "--model",
+        type=str,
+        choices=supported_models(),
+        default="vicuna-v1-7b"
+    )
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument(
         "--quantization",
