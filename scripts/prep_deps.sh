@@ -1,9 +1,22 @@
 #!/bin/bash
 # This file prepares all the necessary dependencies for the web build.
-set -euxo pipefail
+set -uxo pipefail
 
 # need rust for tokenizers
-cargo --version
+cargo version
+CARGO_RESULT=$?
+if [ $CARGO_RESULT -eq 0 ]; then
+  echo "Cargo installed"
+else
+  printf "Cargo is required to compile tokenizers in MLC-LLM, do you want to install cargo (y/n)?"
+  read answer
+  if [ "$answer" != "${answer#[Yy]}" ] ;then 
+    curl https://sh.rustup.rs -sSf | sh
+  else
+    echo "Exit installation."
+    exit 1
+  fi
+fi
 
 TVM_HOME_SET="${TVM_HOME:-}"
 
