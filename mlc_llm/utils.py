@@ -145,8 +145,10 @@ def transform_params(
         res[i] = tvm.nd.array(value, device=tvm.cpu())
         return tvm.nd.empty((1,), device=device)
 
-    with tvm.target.Target(target):
-        mod_transform = tvm.tir.transform.DefaultGPUSchedule()(mod_transform)
+    if target.kind.name != "llvm":
+        with tvm.target.Target(target):
+            mod_transform = tvm.tir.transform.DefaultGPUSchedule()(mod_transform)
+
     ex = relax.build(mod_transform, target=target)
     vm = relax.vm.VirtualMachine(ex, device)
     vm[transform_func_name]()
