@@ -10,7 +10,7 @@ if __name__ == "__main__":
         Backend(
             "Metal",
             "USE_METAL",
-            "Use Metal (required for Mac to use Metal GPU) ? (y/n): ",
+            "Use Metal (Apple M1/M2 GPU) ? (y/n): ",
         ),
     ]
 
