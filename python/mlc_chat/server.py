@@ -31,8 +31,23 @@ async def lifespan(app: FastAPI):
     )
     model_dir = ARGS.model + "-" + ARGS.quantization
     model_lib = model_dir + "-" + ARGS.device_name + ".so"
-    lib = tvm.runtime.load_module(os.path.join(model_path, model_lib))
-    chat_mod.reload(lib=lib, model_path=os.path.join(model_path, "params"))
+    lib_dir = os.path.join(model_path, model_lib)
+    prebuilt_lib_dir = os.path.join(ARGS.artifact_path, "prebuilt", "lib", model_lib)
+    if os.path.exists(lib_dir):
+        lib = tvm.runtime.load_module(lib_dir)
+    elif os.path.exists(prebuilt_lib_dir):
+        lib = tvm.runtime.load_module(prebuilt_lib_dir)
+    else:
+        raise ValueError(f"Unable to find {model_lib} at {lib_dir} or {prebuilt_lib_dir}.")
+
+    local_model_path = os.path.join(model_path, "params")
+    prebuilt_model_path =  os.path.join(ARGS.artifact_path, "prebuilt", f"mlc-chat-{model_dir}")
+    if os.path.exists(local_model_path):
+        chat_mod.reload(lib=lib, model_path=local_model_path)
+    elif os.path.exists(prebuilt_model_path):
+        chat_mod.reload(lib=lib, model_path=prebuilt_model_path)
+    else:
+        raise ValueError(f"Unable to find model params at {local_model_path} or {prebuilt_model_path}.")
     session["chat_mod"] = chat_mod
 
     yield
