@@ -75,7 +75,7 @@ std::optional<std::filesystem::path> FindFile(
   for (const std::filesystem::path& prefix : search_paths) {
     for (const std::string& name : names) {
       for (const std::string& suffix : suffixes) {
-        std::filesystem::path path = std::filesystem::canonical(prefix / (name + suffix));
+        std::filesystem::path path = prefix / (name + suffix);
         if (std::filesystem::exists(path) && std::filesystem::is_regular_file(path)) {
           return path;
         }
