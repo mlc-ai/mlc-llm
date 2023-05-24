@@ -742,6 +742,9 @@ class LLMChat {
    * \brief Generate the next token given a prompt.
    */
   void PrefillStep(std::string inp) {
+    if (conversation_.conv_template == "LM") {
+      this->ResetChat();
+    }
     if (reset_stats_per_prefill_) {
       this->ResetRuntimeStats();
     }
