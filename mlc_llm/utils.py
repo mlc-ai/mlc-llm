@@ -53,6 +53,10 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
                 args.device_name = "cuda"
             elif tvm.metal().exist:
                 args.device_name = "metal"
+            elif tvm.vulkan().exist:
+                args.device_name = "vulkan"
+            elif tvm.opencl().exist:
+                args.device_name = "opencl"
             else:
                 raise ValueError("Cannot auto deduce device-name, please set it")
     supported_model_prefix = {
@@ -259,6 +263,31 @@ def parse_target(args: argparse.Namespace) -> None:
     if args.target == "auto":
         if system() == "Darwin":
             target = tvm.target.Target("apple/m1-gpu")
+        elif tvm.cuda().exist:
+            dev = tvm.cuda()
+            target = tvm.target.Target(
+                {
+                    "kind": "cuda",
+                    "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+                    "max_threads_per_block": dev.max_threads_per_block,
+                    "thread_warp_size": dev.warp_size,
+                    "registers_per_block": 65536,
+                    "arch": "sm_" + tvm.cuda().compute_version.replace(".", ""),
+                }
+            ),
+        elif tvm.vulkan().exist:
+            dev = tvm.vulkan()
+            target = tvm.target.Target(
+                {
+                    "kind": "vulkan",
+                    "max_threads_per_block": dev.max_threads_per_block,
+                    "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+                    "thread_warp_size": dev.warp_size,
+                    "supports_float16": 1,
+                    "supports_int16": 1,
+                    "supports_16bit_buffer": 1,
+                }
+            ),
         else:
             has_gpu = tvm.cuda().exist
             target = tvm.target.Target(
