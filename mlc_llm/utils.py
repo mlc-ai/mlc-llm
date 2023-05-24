@@ -3,7 +3,6 @@ import argparse
 import os
 import shutil
 from dataclasses import dataclass
-from platform import system
 from typing import List, Tuple
 
 import tvm
@@ -126,13 +125,8 @@ def transform_params(
             transform_func_name = gv.name_hint
     assert transform_func_name is not None
 
-    if tvm.cuda().exist:
-        target = "cuda"
-    elif tvm.metal().exist:
-        target = "metal"
-    else:
-        target = "llvm"
-    target = tvm.target.Target(target)
+    target = detect_local_target()
+    print(f"Automatically using target for weight quantization: {target}")
     device = tvm.device(target.kind.default_keys[0])
 
     @tvm.register_func("get_item", override=True)
@@ -257,44 +251,47 @@ def get_database(db_paths: str) -> ms.Database:
     return db
 
 
+def detect_local_target():
+    dev = tvm.metal()
+    if dev.exist:
+        return tvm.target.Target("apple/m1-gpu")
+
+    dev = tvm.cuda()
+    if dev.exist:
+        return tvm.target.Target(
+            {
+                "kind": "cuda",
+                "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+                "max_threads_per_block": dev.max_threads_per_block,
+                "thread_warp_size": dev.warp_size,
+                "registers_per_block": 65536,
+                "arch": "sm_" + tvm.cuda().compute_version.replace(".", ""),
+            }
+        )
+
+    dev = tvm.vulkan()
+    if dev.exist:
+        return tvm.target.Target(
+            {
+                "kind": "vulkan",
+                "max_threads_per_block": dev.max_threads_per_block,
+                "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+                "thread_warp_size": dev.warp_size,
+                "supports_float16": 1,
+                "supports_int16": 1,
+                "supports_16bit_buffer": 1,
+            }
+        )
+
+    print("Failed to detect local GPU, falling back to CPU as a target")
+    return tvm.target.Target("llvm")
+
+
 def parse_target(args: argparse.Namespace) -> None:
     if not hasattr(args, "target"):
         return
     if args.target == "auto":
-        if system() == "Darwin":
-            target = tvm.target.Target("apple/m1-gpu")
-        elif tvm.cuda().exist:
-            dev = tvm.cuda()
-            target = tvm.target.Target(
-                {
-                    "kind": "cuda",
-                    "max_shared_memory_per_block": dev.max_shared_memory_per_block,
-                    "max_threads_per_block": dev.max_threads_per_block,
-                    "thread_warp_size": dev.warp_size,
-                    "registers_per_block": 65536,
-                    "arch": "sm_" + tvm.cuda().compute_version.replace(".", ""),
-                }
-            ),
-        elif tvm.vulkan().exist:
-            dev = tvm.vulkan()
-            target = tvm.target.Target(
-                {
-                    "kind": "vulkan",
-                    "max_threads_per_block": dev.max_threads_per_block,
-                    "max_shared_memory_per_block": dev.max_shared_memory_per_block,
-                    "thread_warp_size": dev.warp_size,
-                    "supports_float16": 1,
-                    "supports_int16": 1,
-                    "supports_16bit_buffer": 1,
-                }
-            ),
-        else:
-            has_gpu = tvm.cuda().exist
-            target = tvm.target.Target(
-                "cuda"  # TODO: cuda details are required, for example, max shared memory
-                if has_gpu
-                else "llvm"
-            )
+        target = detect_local_target()
         print(f"Automatically configuring target: {target}")
         args.target = tvm.target.Target(target, host="llvm")
         args.target_kind = args.target.kind.default_keys[0]
