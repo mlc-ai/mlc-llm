@@ -95,7 +95,6 @@ class QuantLinear(nn.Module):
                 raise NotImplementedError("Only 2,3,4,8 bits are supported.")
 
         self.qweight = torch.from_numpy(qweight.astype(dtype=np.int32)) 
-        zeros = -zeros
         self.zeros = -self.zeros
 
     def forward(self, x):
