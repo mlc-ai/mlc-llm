@@ -1,0 +1,1 @@
+The codes in this directory are mainly referenced from @PanQiWei 's [AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ), which itself is based on [gptq](https://github.com/IST-DASLab/gptq) and [GPTQ-for-LLaMa](https://github.com/qwopqwop200/GPTQ-for-LLaMa/tree/cuda)
