@@ -10,9 +10,9 @@ There is currently a dependency to build from source in order to use the REST AP
     cd mlc-llm
     python python/mlc_chat/server.py
     ```
-3. Go to [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to look at the list of supported endpoints, or run the sample frontend script to see how to send queries.
+3. Go to [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to look at the list of supported endpoints, or run the sample client script to see how to send queries.
     ```
-    python python/mlc_chat/sample_frontend.py
+    python python/mlc_chat/sample_client.py
     ```
 
 ## Gradio App

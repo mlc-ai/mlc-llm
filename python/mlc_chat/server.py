@@ -117,7 +117,6 @@ Creates model response for the given chat conversation.
 def request_completion(request: ChatRequest):
     session["chat_mod"].prefill(input=request.prompt)
     if request.stream:
-        # return StreamingResponse(fake_data_streamer(), media_type='text/event-stream')
         def iter_response():
             while not session["chat_mod"].stopped():
                 session["chat_mod"].decode()
