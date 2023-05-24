@@ -674,7 +674,6 @@ class LLMChat {
 
     bool need_shift_window = false;
     for (int i = prompts.size() - 1; i > 0; i--) {
-      LOG(INFO) << "prompt: " << prompts[i];
       std::vector<int32_t> encoded =
           this->tokenizer_->Encode((this->add_prefix_space_ ? " " : "") + prompts[i]);
       ctx_length += encoded.size();
