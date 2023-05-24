@@ -3,7 +3,6 @@ import argparse
 import os
 import shutil
 from dataclasses import dataclass
-from platform import system
 from typing import List, Tuple
 
 import tvm
@@ -126,13 +125,8 @@ def transform_params(
             transform_func_name = gv.name_hint
     assert transform_func_name is not None
 
-    if tvm.cuda().exist:
-        target = "cuda"
-    elif tvm.metal().exist:
-        target = "metal"
-    else:
-        target = "llvm"
-    target = tvm.target.Target(target)
+    target = detect_local_target()
+    print(f"Automatically using target for weight quantization: {target}")
     device = tvm.device(target.kind.default_keys[0])
 
     @tvm.register_func("get_item", override=True)
@@ -257,129 +251,112 @@ def get_database(db_paths: str) -> ms.Database:
     return db
 
 
+def _detect_local_metal():
+    dev = tvm.metal()
+    if not dev.exist:
+        return None
+    return tvm.target.Target(
+        {
+            "kind": "metal",
+            "max_shared_memory_per_block": 32768,
+            "max_threads_per_block": dev.max_threads_per_block,
+            "thread_warp_size": 32,
+        },
+        host=tvm.target.Target(  # TODO: assuming ARM mac for now
+            {
+                "kind": "llvm",
+                "mtriple": "arm64-apple-macos",
+                "mcpu": "apple-latest",
+            }
+        ),
+    )
+
+
+def _detect_local_cuda():
+    dev = tvm.cuda()
+    if not dev.exist:
+        return None
+    return tvm.target.Target(
+        {
+            "kind": "cuda",
+            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+            "max_threads_per_block": dev.max_threads_per_block,
+            "thread_warp_size": dev.warp_size,
+            "registers_per_block": 65536,
+            "arch": "sm_" + tvm.cuda().compute_version.replace(".", ""),
+        }
+    )
+
+
+def _detect_local_vulkan():
+    dev = tvm.vulkan()
+    if not dev.exist:
+        return None
+    return tvm.target.Target(
+        {
+            "kind": "vulkan",
+            "max_threads_per_block": dev.max_threads_per_block,
+            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+            "thread_warp_size": dev.warp_size,
+            "supports_float16": 1,
+            "supports_int16": 1,
+            "supports_16bit_buffer": 1,
+        }
+    )
+
+
+def detect_local_target():
+    dev = tvm.metal()
+    if dev.exist:
+        return tvm.target.Target("apple/m1-gpu")
+
+    for method in [
+        _detect_local_metal,
+        _detect_local_cuda,
+        _detect_local_vulkan,
+    ]:
+        target = method()
+        if target is not None:
+            return target
+
+    print("Failed to detect local GPU, falling back to CPU as a target")
+    return tvm.target.Target("llvm")
+
+
 def parse_target(args: argparse.Namespace) -> None:
     if not hasattr(args, "target"):
         return
     if args.target == "auto":
-        if system() == "Darwin":
-            target = tvm.target.Target("apple/m1-gpu")
-        elif tvm.cuda().exist:
-            dev = tvm.cuda()
+        target = detect_local_target()
+        if target.host is None:
             target = tvm.target.Target(
-                {
-                    "kind": "cuda",
-                    "max_shared_memory_per_block": dev.max_shared_memory_per_block,
-                    "max_threads_per_block": dev.max_threads_per_block,
-                    "thread_warp_size": dev.warp_size,
-                    "registers_per_block": 65536,
-                    "arch": "sm_" + tvm.cuda().compute_version.replace(".", ""),
-                }
-            ),
-        elif tvm.vulkan().exist:
-            dev = tvm.vulkan()
-            target = tvm.target.Target(
-                {
-                    "kind": "vulkan",
-                    "max_threads_per_block": dev.max_threads_per_block,
-                    "max_shared_memory_per_block": dev.max_shared_memory_per_block,
-                    "thread_warp_size": dev.warp_size,
-                    "supports_float16": 1,
-                    "supports_int16": 1,
-                    "supports_16bit_buffer": 1,
-                }
-            ),
-        else:
-            has_gpu = tvm.cuda().exist
-            target = tvm.target.Target(
-                "cuda"  # TODO: cuda details are required, for example, max shared memory
-                if has_gpu
-                else "llvm"
+                target,
+                host="llvm",  # TODO: detect host CPU
             )
-        print(f"Automatically configuring target: {target}")
-        args.target = tvm.target.Target(target, host="llvm")
+        args.target = target
         args.target_kind = args.target.kind.default_keys[0]
-    elif args.target == "webgpu":
-        args.target = tvm.target.Target(
-            "webgpu", host="llvm -mtriple=wasm32-unknown-unknown-wasm"
-        )
-        args.target_kind = "webgpu"
-        args.lib_format = "wasm"
-        args.system_lib = True
-    elif args.target.startswith("iphone"):
-        from tvm.contrib import tar, xcode  # pylint: disable=import-outside-toplevel
-
-        # override
-        @tvm.register_func("tvm_callback_metal_compile")
-        def compile_metal(src):
-            return xcode.compile_metal(src, sdk="iphoneos")
-
-        dylib = args.target == "iphone-dylib"
-
-        args.target = tvm.target.Target(
-            tvm.target.Target(
-                {
-                    "kind": "metal",
-                    "max_threads_per_block": 256,
-                    "max_shared_memory_per_block": 32768,
-                    "thread_warp_size": 1,
-                }
-            ),
-            host="llvm -mtriple=arm64-apple-darwin",
-        )
-        args.target_kind = "iphone"
-        args.export_kwargs = {"fcompile": tar.tar}
-
-        if dylib:
-            args.export_kwargs = {
-                "fcompile": xcode.create_dylib,
-                "sdk": "iphoneos",
-                "arch": "arm64",
-            }
-            args.lib_format = "dylib"
-        else:
-            args.lib_format = "tar"
-            args.system_lib = True
-            system_lib_prefix = f"{args.model}-{args.quantization}_"
-            args.system_lib_prefix = system_lib_prefix.replace("-", "_")
-
-    elif args.target.startswith("android"):
-        # android-opencl
-        from tvm.contrib import cc, ndk
-
-        dylib = args.target == "android-dylib"
-
-        args.target = tvm.target.Target(
-            "opencl",
-            host="llvm -mtriple=aarch64-linux-android",  # Only support arm64 for now
-        )
-        args.target_kind = "android"
-        if dylib:
-            args.export_kwargs = {
-                "fcompile": ndk.create_shared,
-            }
-            args.lib_format = "so"
-        else:
-            args.export_kwargs = {
-                "fcompile": ndk.create_staticlib,
-            }
-            args.lib_format = "a"
-            args.system_lib = True
-
-    elif args.target == "vulkan":
-        args.target = tvm.target.Target(
-            tvm.target.Target(
-                {
-                    "kind": "vulkan",
-                    "max_threads_per_block": 256,
-                    "max_shared_memory_per_block": 32768,
-                    "thread_warp_size": 1,
-                    "supports_float16": 1,
-                    "supports_int16": 1,
-                    "supports_16bit_buffer": 1,
-                }
-            ),
-            host="llvm",
-        )
+    elif args.target == "metal":
+        target = _detect_local_metal()
+        if target is None:
+            print("Cannot detect local Apple Metal GPU target! Falling back...")
+            target = tvm.target.Target(
+                tvm.target.Target(
+                    {
+                        "kind": "metal",
+                        "max_threads_per_block": 256,
+                        "max_shared_memory_per_block": 32768,
+                        "thread_warp_size": 1,
+                    }
+                ),
+                host=tvm.target.Target(  # TODO: assuming ARM mac for now
+                    {
+                        "kind": "llvm",
+                        "mtriple": "arm64-apple-macos",
+                        "mcpu": "apple-latest",
+                    }
+                ),
+            )
+        args.target = target
         args.target_kind = args.target.kind.default_keys[0]
     elif args.target == "metal_x86_64":
         from tvm.contrib import xcode  # pylint: disable=import-outside-toplevel
@@ -402,6 +379,91 @@ def parse_target(args: argparse.Namespace) -> None:
             "arch": "x86_64",
         }
         args.lib_format = "dylib"
+    elif args.target in ["iphone", "iphone-dylib", "iphone-tar"]:
+        from tvm.contrib import tar, xcode  # pylint: disable=import-outside-toplevel
+
+        if args.target == "iphone-dylib":
+            args.export_kwargs = {
+                "fcompile": xcode.create_dylib,
+                "sdk": "iphoneos",
+                "arch": "arm64",
+            }
+            args.lib_format = "dylib"
+        else:
+            args.export_kwargs = {"fcompile": tar.tar}
+            args.lib_format = "tar"
+            args.system_lib = True
+            args.system_lib_prefix = f"{args.model}_{args.quantization}_".replace(
+                "-", "_"
+            )
+
+        @tvm.register_func("tvm_callback_metal_compile")
+        def compile_metal(src, target):
+            if target.libs:
+                return xcode.compile_metal(src, sdk=target.libs[0])
+            return xcode.compile_metal(src)
+
+        target = tvm.target.Target(
+            tvm.target.Target(
+                {
+                    "kind": "metal",
+                    "max_threads_per_block": 256,
+                    "max_shared_memory_per_block": 32768,
+                    "thread_warp_size": 1,
+                    "libs": ["iphoneos"],
+                }
+            ),
+            host="llvm -mtriple=arm64-apple-darwin",
+        )
+        args.target = target
+        args.target_kind = "iphone"
+    elif args.target == "vulkan":
+        target = _detect_local_vulkan()
+        if target is None:
+            print("Cannot detect local Vulkan GPU target! Falling back...")
+            target = tvm.target.Target(
+                tvm.target.Target(
+                    {
+                        "kind": "vulkan",
+                        "max_threads_per_block": 256,
+                        "max_shared_memory_per_block": 32768,
+                        "thread_warp_size": 1,
+                        "supports_float16": 1,
+                        "supports_int16": 1,
+                        "supports_16bit_buffer": 1,
+                    }
+                ),
+                host="llvm",
+            )
+        args.target = target
+        args.target_kind = args.target.kind.default_keys[0]
+    elif args.target == "webgpu":
+        args.target = tvm.target.Target(
+            "webgpu",
+            host="llvm -mtriple=wasm32-unknown-unknown-wasm",
+        )
+        args.target_kind = "webgpu"
+        args.lib_format = "wasm"
+        args.system_lib = True
+    elif args.target in ["android", "android-dylib"]:  # android-opencl
+        from tvm.contrib import cc, ndk
+
+        if args.target == "android-dylib":
+            args.export_kwargs = {
+                "fcompile": ndk.create_shared,
+            }
+            args.lib_format = "so"
+        else:
+            args.export_kwargs = {
+                "fcompile": ndk.create_staticlib,
+            }
+            args.lib_format = "a"
+            args.system_lib = True
+        args.target = tvm.target.Target(
+            "opencl",
+            host="llvm -mtriple=aarch64-linux-android",  # TODO: Only support arm64 for now
+        )
+        args.target_kind = "android"
     else:
         args.target = tvm.target.Target(args.target, host="llvm")
         args.target_kind = args.target.kind.default_keys[0]
@@ -420,3 +482,5 @@ def parse_target(args: argparse.Namespace) -> None:
         }
         args.target = args.target.with_host("llvm -mtriple=x86_64-w64-windows-gnu")
         args.lib_format = "dll"
+
+    print(f"Target configured: {args.target}")

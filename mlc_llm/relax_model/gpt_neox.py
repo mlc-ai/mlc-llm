@@ -1,7 +1,6 @@
 # pylint: disable=missing-docstring,too-few-public-methods,too-many-instance-attributes,invalid-name,too-many-locals,too-many-arguments
 import argparse
 import math
-from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 
 import tvm
@@ -21,6 +20,7 @@ from tvm.relax.testing import nn
 from tvm.runtime import NDArray
 from tvm.script import relax as R
 
+from .. import transformers
 from .commons import create_metadata_func
 from .modules import (
     Embedding,
@@ -595,8 +595,6 @@ def get_model(
     args: argparse.Namespace,
     hf_config,
 ):
-    from transformers import AutoModelForCausalLM  # type: ignore[import]
-
     model = args.model
     dtype = args.quantization.model_dtype
     ffn_out_dtype = "float32"
@@ -623,9 +621,10 @@ def get_model(
     hidden_size = config.hidden_size
     head_dim = hidden_size // num_heads
     param_list: List[Tuple[str, NDArray]] = []
-    hf_model = AutoModelForCausalLM.from_pretrained(args.model_path)
-    for name, param in hf_model.named_parameters():
-        param = param.detach().cpu().numpy()
+    for name, param in transformers.get_model(
+        args.model_path,
+        args.raw_params_path,
+    ):
         if param.dtype == "float32":
             if "layernorm" in name or "layer_norm" in name or "embed_out" in name:
                 param = param.astype("float32")
@@ -655,7 +654,6 @@ def get_model(
             param_list.append((name.format("v"), v))
         else:
             param_list.append((name, param))
-    del hf_model
     param_list = [
         (
             name,

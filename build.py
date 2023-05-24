@@ -352,6 +352,7 @@ def main():
     cache_path = os.path.join(
         ARGS.artifact_path, f"mod_cache_before_build_{ARGS.target_kind}.pkl"
     )
+    ARGS.raw_params_path = os.path.join(ARGS.artifact_path, "raw_params")
     use_cache = ARGS.use_cache and os.path.isfile(cache_path)
     with open(os.path.join(ARGS.model_path, "config.json"), encoding="utf-8") as i_f:
         config = json.load(i_f)
@@ -380,7 +381,7 @@ def main():
         if not ARGS.reuse_lib:
             build(mod, ARGS)
         else:
-            print("Reuse existing preuilt lib {ARGS.reuse_lib}...")
+            print("Reuse existing prebuilt lib {ARGS.reuse_lib}...")
         dump_default_mlc_chat_config(ARGS)
 
 
