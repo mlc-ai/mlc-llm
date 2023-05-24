@@ -399,7 +399,9 @@ def parse_target(args: argparse.Namespace) -> None:
 
         @tvm.register_func("tvm_callback_metal_compile")
         def compile_metal(src, target):
-            return xcode.compile_metal(src, sdk="iphoneos")
+            if target.libs:
+                return xcode.compile_metal(src, sdk=target.libs[0])
+            return xcode.compile_metal(src)
 
         target = tvm.target.Target(
             tvm.target.Target(
@@ -408,6 +410,7 @@ def parse_target(args: argparse.Namespace) -> None:
                     "max_threads_per_block": 256,
                     "max_shared_memory_per_block": 32768,
                     "thread_warp_size": 1,
+                    "libs": ["iphoneos"],
                 }
             ),
             host="llvm -mtriple=arm64-apple-darwin",

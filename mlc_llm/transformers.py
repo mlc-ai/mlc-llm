@@ -48,6 +48,7 @@ def get_model(model: str, dump_path: str):
     from typing import List, Tuple
 
     import numpy as np
+    from tqdm import tqdm
 
     with multiprocessing.Pool(processes=1) as pool:
         result = pool.map(
@@ -61,7 +62,7 @@ def get_model(model: str, dump_path: str):
     with open(config_path, "r", encoding="utf-8") as i_f:
         config = json.load(i_f)
     param_dict: List[Tuple[str, np.ndarray]] = []
-    for i, name in enumerate(config):
+    for i, name in tqdm(enumerate(config), total=len(config)):
         param_path = os.path.join(dump_path, f"param_{i}.npy")
         param_dict.append((name, np.load(param_path)))
     print("Loading done")
