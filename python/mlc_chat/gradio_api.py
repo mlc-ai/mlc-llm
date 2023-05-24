@@ -6,8 +6,9 @@ import os
 
 import gradio as gr
 import tvm
-from chat_module import LLMChatModule
 from tvm import relax
+
+from python.mlc_chat.chat_module import LLMChatModule
 
 quantization_keys = ["q3f16_0", "q4f16_0", "q4f32_0", "q0f32", "q0f16"]
 
@@ -39,7 +40,7 @@ class GradioChatModule(LLMChatModule):
         self.device_name = ARGS.device_name
         self.vision_model = None
 
-    def reload_model(self, model_name, text_input, chat_state):
+    def reload_model(self, model_name, text_input, chat_state, img_list):
         image = gr.update(interactive=False)
         upload_button = gr.update(interactive=False)
         text_input = gr.update(interactive=True, placeholder="Type and press Enter")
@@ -71,6 +72,9 @@ class GradioChatModule(LLMChatModule):
         chat_mod.reload_func(lib, os.path.join(self.artifact_path, model_dir, "params"))
         if chat_state is not None:
             chat_state.messages = []
+        if img_list is not None:
+            img_list = []
+        self.reset_runtime_stats_func()
 
         return (
             text_input,
@@ -81,6 +85,7 @@ class GradioChatModule(LLMChatModule):
             upload_button,
             None,
             chat_state,
+            img_list,
         )
 
     def reset_model(self, chat_state):
@@ -201,7 +206,7 @@ def launch_gradio(chat_mod):
 
         model_choice.change(
             chat_mod.reload_model,
-            [model_choice, text_input, chat_state],
+            [model_choice, text_input, chat_state, img_list],
             [
                 text_input,
                 reset_button,
@@ -211,7 +216,9 @@ def launch_gradio(chat_mod):
                 upload_button,
                 chatbot,
                 chat_state,
+                img_list,
             ],
+            queue=False,
         )
         reset_button.click(chat_mod.reset_model, [chat_state], [chatbot, chat_state])
         stats_button.click(chat_mod.get_stats, [stats_output], [stats_output])

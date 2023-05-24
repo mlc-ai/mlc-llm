@@ -10,10 +10,7 @@ def load_llm_chat(mlc_lib_path):
 
 
 def supported_models():
-    return set([
-        "vicuna-v1-7b",
-        "RedPajama-INCITE-Chat-3B-v1"
-    ])
+    return set(["vicuna-v1-7b", "RedPajama-INCITE-Chat-3B-v1"])
 
 
 def quantization_keys():
@@ -43,6 +40,7 @@ class LLMChatModule:
         self.get_message_func = chat_mod["get_message"]
         self.reset_chat_func = chat_mod["reset_chat"]
         self.runtime_stats_text_func = chat_mod["runtime_stats_text"]
+        self.reset_runtime_stats_func = chat_mod["reset_runtime_stats"]
         self.evaluate_func = chat_mod["evaluate"]
         self.get_role0 = chat_mod["get_role0"]
         self.get_role1 = chat_mod["get_role1"]
@@ -67,6 +65,9 @@ class LLMChatModule:
 
     def runtime_stats_text(self):
         return self.runtime_stats_text_func()
+
+    def reset_runtime_stats(self):
+        self.reset_runtime_stats_func()
 
     def evaluate(self):
         self.evaluate_func()
