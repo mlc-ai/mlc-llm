@@ -28,7 +28,9 @@ task deleteLibs(type: Delete, description: "Delete Compiled Libraries") {
 task buildJni(type: Exec, description: 'Build JNI libs') {
     dependsOn "deleteLibs"
     def buildPath = "${project.projectDir}/src/main/jni"
-    commandLine "ndk-build", "--directory", buildPath
+    Properties properties = new Properties()
+    properties.load(project.rootProject.file('local.properties').newDataInputStream())
+    commandLine "${properties.getProperty('ndk.dir')}/ndk-build", "--directory", buildPath
 }
 
 tasks.withType(JavaCompile) {
