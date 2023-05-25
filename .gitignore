@@ -148,6 +148,11 @@ perf
 ## IOS
 DerivedData/
 
+## Android
+android/MLCChat/app/src/main/cpp/*
+!android/MLCChat/app/src/main/cpp/CMakeLists.txt
+!android/MLCChat/app/src/main/cpp/tvm_runtime.h
+
 ## Java
 *.class
 jvm/*/target/

@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
 task generateJniHeaders(type: Exec, description: 'Generate JNI Headers') {
-    def headerPath = "${project.projectDir}/src/main/jni"
+    def headerPath = "${project.projectDir}/src/main/cpp"
     def classPath = "${project.projectDir}/../../build/tvm_home/jvm/core/target/*"
     def filePath = "${project.projectDir}/../../build/tvm_home/jvm/core/src/main/java/org/apache/tvm/LibInfo.java"
     commandLine "javac", "-h", headerPath, "-classpath", classPath, filePath
@@ -13,7 +13,7 @@ task generateJniHeaders(type: Exec, description: 'Generate JNI Headers') {
 task copyFiles(type: Copy, description: 'Copy Sources for ndk-build') {
     dependsOn "generateJniHeaders"
     def ndkFilesPath = "${project.projectDir}/../../build/tvm_home/jvm/native/src/main/native"
-    def srcPath = "${project.projectDir}/src/main/jni/"
+    def srcPath = "${project.projectDir}/src/main/cpp/"
 
     from "${ndkFilesPath}/org_apache_tvm_native_c_api.cc", "${ndkFilesPath}/jni_helper_func.h"
     into srcPath
@@ -25,16 +25,8 @@ task deleteLibs(type: Delete, description: "Delete Compiled Libraries") {
     delete libsPath
 }
 
-task buildJni(type: Exec, description: 'Build JNI libs') {
-    dependsOn "deleteLibs"
-    def buildPath = "${project.projectDir}/src/main/jni"
-    Properties properties = new Properties()
-    properties.load(project.rootProject.file('local.properties').newDataInputStream())
-    commandLine "${properties.getProperty('ndk.dir')}/ndk-build", "--directory", buildPath
-}
-
 tasks.withType(JavaCompile) {
-    compileTask -> compileTask.dependsOn buildJni
+    compileTask -> compileTask.dependsOn deleteLibs
 }
 
 android {
@@ -46,8 +38,11 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
-        ndk {
-            abiFilters 'arm64-v8a'
+        externalNativeBuild {
+            cmake {
+                cppFlags "-DTVM_LOG_STACK_TRACE=0 -DTVM4J_ANDROID=1 -std=c++17 -Oz -frtti -llog"
+                abiFilters 'arm64-v8a'
+            }
         }
     }
     buildTypes {
@@ -64,6 +59,13 @@ android {
     }
     namespace 'ai.mlc.mlcchat'
     ndkVersion '25.2.9519653'
+
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.10.2"
+        }
+    }
 }
 
 dependencies {
