@@ -102,6 +102,16 @@ else()
   target_link_libraries(mlc_chat_cli PUBLIC mlc_llm)
 endif()
 
+if (UNIX OR APPLE)
+  add_library(mlc_llm_module MODULE $<TARGET_OBJECTS:mlc_llm_objs>)
+  target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp)
+  if (APPLE)
+    set_property(TARGET mlc_llm_module APPEND PROPERTY LINK_OPTIONS -undefined dynamic_lookup)
+  else()
+    set_property(TARGET mlc_llm_module APPEND PROPERTY LINK_OPTIONS)
+  endif()
+endif()
+
 # when this option is on,
 # we install all static lib deps into lib
 if (MLC_LLM_INSTALL_STATIC_LIB)
