@@ -25,7 +25,7 @@ We are excited to share that we have enabled the Android support for MLC-LLM. Ch
     export PYTHONPATH=$PYTHONPATH:$TVM_HOME/python
     export TVM_NDK_CC=/path/to/android/ndk/clang
     For example
-    /Users/me/Library/Android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
+    export TVM_NDK_CC=/Users/me/Library/Android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
     ```
 
 2. Install [Apache Maven](https://maven.apache.org/download.cgi) for our Java dependency management. Run command `mnv --version` to verify that Maven is correctly installed.
