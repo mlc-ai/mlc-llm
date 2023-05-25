@@ -669,7 +669,11 @@ def get_model(args, hf_config):
     dtype = args.quantization.model_dtype
     max_seq_len = args.max_seq_len
 
-    if model_name.startswith("vicuna-") or model_name.startswith("llama-"):
+    if (
+        model_name.startswith("vicuna-")
+        or model_name.startswith("llama-")
+        or model_name.startswith("open-llama-")
+    ):
         config = LlamaConfig(**hf_config, dtype=dtype)
         if max_seq_len != -1:
             config.max_sequence_length = max_seq_len

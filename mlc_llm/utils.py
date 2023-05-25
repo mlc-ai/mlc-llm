@@ -64,6 +64,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "stablelm-": ("stablelm", "gpt_neox"),
         "redpajama-": ("redpajama_chat", "gpt_neox"),
         "moss-": ("moss", "moss"),
+        "open-llama-": ("LM", "llama"),
     }
     model = args.model.lower()
     for prefix, (conv_template, model_category) in supported_model_prefix.items():

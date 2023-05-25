@@ -45,6 +45,7 @@ class Conversation {
     kOasst_Pythia = 3,
     kMOSS = 4,
     kRedPajamaChat = 5,
+    kLM = 6,
   };
 
   static Conversation Create(const std::string& template_name = "vicuna_v1.1") {
@@ -196,6 +197,17 @@ class Conversation {
           /*sep=*/"<eoh>",
           /*sep2=*/"<eom>",
           /*stop_tokens=*/{106068});
+    } else if (template_name == "LM") {
+      return Conversation(
+          /*conv_template=*/"LM",
+          /*system=*/"",
+          /*roles=*/{"Prompt", "LM"},
+          /*messages=*/{},
+          /*offset=*/0,
+          /*separator_style=*/Conversation::SeparatorStyle::kLM,
+          /*sep=*/"",
+          /*sep2=*/"",
+          /*stop_tokens=*/{2});
     } else {
       LOG(FATAL) << "Unknown conversation template: " << template_name;
     }
@@ -298,6 +310,8 @@ class Conversation {
         }
       }
       return ret;
+    } else if (this->separator_style == SeparatorStyle::kLM) {
+      return {this->messages[this->messages.size() - 2][1]};
     } else {
       LOG(FATAL) << "Unknown separator style: " << (int)this->separator_style;
     }
@@ -374,6 +388,8 @@ class Conversation {
         }
       }
       return ret;
+    } else if (this->separator_style == SeparatorStyle::kLM) {
+      return {this->messages[this->messages.size() - 2][1]};
     } else {
       LOG(FATAL) << "Unknown separator style: " << (int)this->separator_style;
     }
@@ -726,6 +742,9 @@ class LLMChat {
    * \brief Generate the next token given a prompt.
    */
   void PrefillStep(std::string inp) {
+    if (conversation_.conv_template == "LM") {
+      this->ResetChat();
+    }
     if (reset_stats_per_prefill_) {
       this->ResetRuntimeStats();
     }
@@ -842,8 +861,8 @@ class LLMChat {
     while (effective_begin < effective_end && output_message_[effective_begin] == ' ') {
       ++effective_begin;
     }
-    std::string cropped_message = output_message_.substr(
-      effective_begin, effective_end - effective_begin);
+    std::string cropped_message =
+        output_message_.substr(effective_begin, effective_end - effective_begin);
     return cropped_message;
   }
 
