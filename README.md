@@ -39,7 +39,7 @@ MLC LLM offers a repeatable, systematic, and customizable workflow that empowers
 
 ## How does MLC Enable Universal Native Deployment?
 
-The cornerstone of our solution is machine learning compilation ([MLC](https://mlc.ai/)), which we leverage to efficiently deploy AI models. We build on the shoulders of open-source ecosystems, including tokenizers from HuggingFace and Google, as well as open-source LLMs like Llama, Vicuna, Dolly, MOSS and more. Our primary workflow is based on [Apache TVM Unity](https://github.com/apache/tvm/tree/unity), an exciting ongoing development in the Apache TVM Community.
+The cornerstone of our solution is machine learning compilation ([MLC](https://mlc.ai/)), which we leverage to efficiently deploy AI models. We build on the shoulders of open-source ecosystems, including tokenizers from Hugging Face and Google, as well as open-source LLMs like Llama, Vicuna, Dolly, MOSS and more. Our primary workflow is based on [Apache TVM Unity](https://github.com/apache/tvm/tree/unity), an exciting ongoing development in the Apache TVM Community.
 
 - Dynamic shape: We bake a language model as a TVM IRModule with native dynamic shape support, avoiding the need for extra padding to the maximum length and reducing both computation amount and memory usage.
 - Composable ML compilation optimizations: we perform many model deployment optimizations, such as better compilation code transformation, fusion, memory planning, library offloading and manual code optimization can be easily incorporated as TVM's IRModule transformations exposed as Python APIs.
@@ -66,11 +66,11 @@ To download the weights from an existing Hugging Face repository for a supported
 # Create a new conda environment and install dependencies
 conda create -n mlc-llm-env python
 conda activate mlc-llm-env
-pip install torch transformers # Install PyTorch and HuggingFace transformers
+pip install torch transformers # Install PyTorch and Hugging Face transformers
 pip install -I mlc_ai_nightly -f https://mlc.ai/wheels # Install TVM
 
 # Install Git and Git-LFS if you haven't already.
-# They are used for downloading the model weights from HuggingFace.
+# They are used for downloading the model weights from Hugging Face.
 conda install git git-lfs
 git lfs install
 
@@ -79,7 +79,7 @@ git clone https://github.com/mlc-ai/mlc-llm.git
 cd mlc-llm
 
 # Create the local build directory and compile the model
-# This will automatically download the parameters, tokenizer, and config from HuggingFace
+# This will automatically download the parameters, tokenizer, and config from Hugging Face
 python build.py --hf-path=databricks/dolly-v2-3b
 ```
 
