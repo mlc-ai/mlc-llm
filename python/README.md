@@ -1,8 +1,8 @@
-# Build Instructions
+# Instructions
 
 ## REST API
 
-There is currently a dependency to build from source in order to use the REST API. 
+There is currently a dependency to build from source in order to use the [REST API](https://www.ibm.com/topics/rest-apis#:~:text=the%20next%20step-,What%20is%20a%20REST%20API%3F,representational%20state%20transfer%20architectural%20style.).
 
 1. Follow the instructions [here](https://github.com/mlc-ai/mlc-llm/tree/main/cpp) to build the CLI from source.
 2. Launch the server at [http://127.0.0.1:8000/](http://127.0.0.1:8000/).
@@ -14,7 +14,3 @@ There is currently a dependency to build from source in order to use the REST AP
     ```
     python python/mlc_chat/sample_client.py
     ```
-
-## Gradio App
-
-To be completed.
