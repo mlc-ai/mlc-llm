@@ -6,29 +6,20 @@ import os
 
 import gradio as gr
 import tvm
-from tvm import relax
 
 from python.mlc_chat.chat_module import LLMChatModule
 
+model_keys = ["vicuna-v1-7b"]
 quantization_keys = ["q3f16_0", "q4f16_0", "q4f32_0", "q0f32", "q0f16"]
 
 
 def _parse_args():
     args = argparse.ArgumentParser()
     args.add_argument("--artifact-path", type=str, default="dist")
-    args.add_argument(
-        "--quantization",
-        type=str,
-        choices=quantization_keys,
-        default=quantization_keys[0],
-    )
     args.add_argument("--device-name", type=str, default="cuda")
     args.add_argument("--device-id", type=int, default=0)
-    args.add_argument(
-        "--mlc-path", type=str, default="", help="path to the mlc-llm repo"
-    )
     parsed = args.parse_args()
-    parsed.mlc_lib_path = os.path.join(parsed.mlc_path, "build/libmlc_llm_module.so")
+    parsed.mlc_lib_path = os.path.join(os.getcwd(), "build/libmlc_llm_module.so")
     return parsed
 
 
@@ -36,11 +27,23 @@ class GradioChatModule(LLMChatModule):
     def __init__(self, ARGS):
         super().__init__(ARGS.mlc_lib_path, ARGS.device_name, ARGS.device_id)
         self.artifact_path = ARGS.artifact_path
-        self.quantization = ARGS.quantization
         self.device_name = ARGS.device_name
 
-    def reload_model(self, model_name, text_input, chat_state, img_list):
-        model_dir = model_name + "-" + self.quantization
+    def reload_model(
+        self, model_name, quantization_name, text_input, chat_state, img_list
+    ):
+        if model_name is None or quantization_name is None:
+            return (
+                text_input,
+                gr.update(interactive=False),
+                gr.update(interactive=False),
+                gr.update(interactive=False),
+                None,
+                chat_state,
+                img_list,
+            )
+
+        model_dir = model_name + "-" + quantization_name
         model_lib = model_dir + "-" + self.device_name + ".so"
         lib = tvm.runtime.load_module(
             os.path.join(self.artifact_path, model_dir, model_lib)
@@ -108,11 +111,19 @@ def launch_gradio(chat_mod):
     with gr.Blocks() as demo:
         gr.Markdown(title)
         gr.Markdown(description)
-        model_choice = gr.Radio(
-            ["vicuna-v1-7b"],
-            label="Model Name",
-            info="Pick a model to get started!",
-        )
+        with gr.Row():
+            with gr.Column(scale=0.5):
+                model_choice = gr.Radio(
+                    model_keys,
+                    label="Model Name",
+                    info="Pick a model to get started!",
+                )
+            with gr.Column():
+                quantization_choice = gr.Radio(
+                    quantization_keys,
+                    label="Quantization Type",
+                    info="Pick a quantization type!",
+                )
 
         with gr.Row():
             with gr.Column(scale=0.5):
@@ -138,13 +149,27 @@ def launch_gradio(chat_mod):
                 chatbot = gr.Chatbot(label="MLC Chat")
                 text_input = gr.Textbox(
                     show_label=False,
-                    placeholder="Select a model to get started",
+                    placeholder="Select both model type and quantization type to get started",
                     interactive=False,
                 ).style(container=False)
 
         model_choice.change(
             chat_mod.reload_model,
-            [model_choice, text_input, chat_state, img_list],
+            [model_choice, quantization_choice, text_input, chat_state, img_list],
+            [
+                text_input,
+                reset_button,
+                stats_output,
+                stats_button,
+                chatbot,
+                chat_state,
+                img_list,
+            ],
+            queue=False,
+        )
+        quantization_choice.change(
+            chat_mod.reload_model,
+            [model_choice, quantization_choice, text_input, chat_state, img_list],
             [
                 text_input,
                 reset_button,
