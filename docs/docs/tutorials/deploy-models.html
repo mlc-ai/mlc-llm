@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How to Deploy Models &mdash; MLC-LLM  documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script src="../_static/tabs.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="How to Introduce a Model Architecture" href="bring-your-own-models.html" />
+    <link rel="prev" title="How to Compile Models" href="compile-models.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            MLC-LLM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Navigation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../navigation.html">Navigation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../install/index.html">Install and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/software-dependencies.html">Software Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="compile-models.html">How to Compile Models</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">How to Deploy Models</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#prepare-model-weight-and-library">Prepare model weight and library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#deploy-model-on-your-laptop-desktop">Deploy model on your laptop/desktop</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#prepare-the-cli">Prepare the CLI</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#option-1-install-from-conda">Option 1: Install from Conda</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#option-2-build-from-source">Option 2: Build from source</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#validate-installation">Validate Installation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#run-the-model-through-cli">Run the model through CLI</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#troubleshooting-faq">Troubleshooting FAQ</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#deploy-model-on-your-web-browser">Deploy model on your web browser</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id2">Troubleshooting FAQ</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#deploy-model-on-your-iphone-ipad">Deploy model on your iPhone/iPad</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id3">Troubleshooting FAQ</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#deploy-model-on-your-android-phone">Deploy model on your Android phone</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id4">Troubleshooting FAQ</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="bring-your-own-models.html">How to Introduce a Model Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="customize.html">How to customize Model Compilation and Optimization</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contribute to MLC-LLM</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contribute/community.html">MLC-LLM Community Guidelines</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Model Zoo</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../model-zoo.html">Model Zoo</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Misc</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../misc/faq.html">Frequently Asked Questions (FAQ)</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">MLC-LLM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">How to Deploy Models</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/tutorials/deploy-models.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="how-to-deploy-models">
+<span id="id1"></span><h1>How to Deploy Models<a class="headerlink" href="#how-to-deploy-models" title="Permalink to this heading"></a></h1>
+<p>In this tutorial, we will guide you on how to <strong>deploy</strong> models built by MLC LLM to different backends and devices. We support four options of device categories for deployment: laptop/desktop, web browser, iPhone/iPad, and Android phones.
+.. Before starting this tutorial, you are expected to have completed model build in <a class="reference internal" href="compile-models.html#how-to-compile-models"><span class="std std-ref">How to Compile Models</span></a>, and this page will not cover the model build part. After finishing this page, you will be able to run large language models on the device you want.</p>
+<p>This page contains the following sections. We first introduce how to prepare the (pre)built model libraries and weights, and one section for each backend device will then follow. Every section contains a Frequently Asked Questions (FAQ) subsection for troubleshooting.</p>
+<nav class="contents local" id="table-of-contents">
+<p class="topic-title">Table of Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#prepare-model-weight-and-library" id="id5">Prepare model weight and library</a></p></li>
+<li><p><a class="reference internal" href="#deploy-model-on-your-laptop-desktop" id="id6">Deploy model on your laptop/desktop</a></p></li>
+<li><p><a class="reference internal" href="#deploy-model-on-your-web-browser" id="id7">Deploy model on your web browser</a></p></li>
+<li><p><a class="reference internal" href="#deploy-model-on-your-iphone-ipad" id="id8">Deploy model on your iPhone/iPad</a></p></li>
+<li><p><a class="reference internal" href="#deploy-model-on-your-android-phone" id="id9">Deploy model on your Android phone</a></p></li>
+</ul>
+</nav>
+<section id="prepare-model-weight-and-library">
+<span id="prepare-weight-library"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Prepare model weight and library</a><a class="headerlink" href="#prepare-model-weight-and-library" title="Permalink to this heading"></a></h2>
+<p>In order to load the model correctly in deployment, we need to put the model libraries and weights to the right location before deployment.
+You can select from the panel below for the preparation steps you will need.</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Desktop/laptop</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Web browser</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">iPhone/iPad/Android phones</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">Use prebuilt model</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">Use model you built</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><p>MLC LLM provides a list of prebuilt models (check our <span class="xref std std-doc">model-zoo</span> for the list).
+If you want to use them, run the commands below under the root directory of MLC LLM to download the libraries and weights to the target location.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Make sure you have installed git-lfs.</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt
+<span class="nb">cd</span><span class="w"> </span>dist/prebuilt
+git<span class="w"> </span>lfs<span class="w"> </span>install
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>lib
+
+<span class="c1"># Choose one or both commands from below according to the model(s) you want to deploy.</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0
+<span class="c1"># and/or</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-1-1-1" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-1" name="1-1" role="tabpanel" tabindex="0"><p>You are all good. There is no further action to prepare the model libraries and weights.</p>
+</div></div>
+</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">Use prebuilt model</button><button aria-controls="panel-2-2-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-1" name="2-1" role="tab" tabindex="-1">Use model you built</button></div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><p>TBA.</p>
+</div><div aria-labelledby="tab-2-2-1" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-1" name="2-1" role="tabpanel" tabindex="0"><p>TBA.</p>
+</div></div>
+</div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-3-3-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-3-3-0" name="3-0" role="tab" tabindex="0">Use prebuilt model</button><button aria-controls="panel-3-3-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-1" name="3-1" role="tab" tabindex="-1">Use model you built</button></div><div aria-labelledby="tab-3-3-0" class="sphinx-tabs-panel" id="panel-3-3-0" name="3-0" role="tabpanel" tabindex="0"><p>You are all good. There is no further action to prepare the model libraries and weights.</p>
+</div><div aria-labelledby="tab-3-3-1" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-1" name="3-1" role="tabpanel" tabindex="0"><p>TBA.</p>
+</div></div>
+</div></div>
+</section>
+<section id="deploy-model-on-your-laptop-desktop">
+<span id="deploy-on-laptop-desktop"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Deploy model on your laptop/desktop</a><a class="headerlink" href="#deploy-model-on-your-laptop-desktop" title="Permalink to this heading"></a></h2>
+<p>This section goes through the process of deploying prebuilt model or the model you built on your laptop or desktop.
+MLC LLM provides a Command-Line Interface (CLI) application to deploy and help interact with the model.
+After <a class="reference internal" href="#cli-prepare-cli"><span class="std std-ref">preparing the CLI</span></a>, you can <a class="reference internal" href="#cli-run-model"><span class="std std-ref">deploy and interact</span></a> with the model on your machine through CLI.</p>
+<section id="prepare-the-cli">
+<span id="cli-prepare-cli"></span><h3>Prepare the CLI<a class="headerlink" href="#prepare-the-cli" title="Permalink to this heading"></a></h3>
+<p>We have released the <a class="reference external" href="https://anaconda.org/mlc-ai/mlc-chat-nightly">prebuilt CLI Conda package</a>, which you can directly <a class="reference internal" href="#cli-install-from-conda"><span class="std std-ref">install via Conda commands</span></a>. You can also <a class="reference internal" href="#cli-build-from-source"><span class="std std-ref">build CLI from source</span></a>.</p>
+<section id="option-1-install-from-conda">
+<span id="cli-install-from-conda"></span><h4>Option 1: Install from Conda<a class="headerlink" href="#option-1-install-from-conda" title="Permalink to this heading"></a></h4>
+<p>The easiest way to install the CLI from Conda, we can follow the instructions below to create a Conda environment and then install.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The prebuilt CLI <strong>does not</strong> support CUDA. Please <a class="reference internal" href="#cli-build-from-source"><span class="std std-ref">build CLI from source</span></a> if you want to deploy models to CUDA backend.</p>
+</div>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a new conda environment and activate the environment.</span>
+conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat
+conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat
+<span class="c1"># Install the chat CLI app from Conda.</span>
+conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-nightly<span class="w"> </span>--force-reinstall
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>After installation, you can run <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span> <span class="pre">--help</span></code> to verify that the CLI is installed correctly.</p>
+</div>
+</section>
+<section id="option-2-build-from-source">
+<span id="cli-build-from-source"></span><h4>Option 2: Build from source<a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading"></a></h4>
+<p>If you are a MLC-LLM developer and you add some functionalities to the CLI, you can build the CLI from source by running the following command:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>build
+python3<span class="w"> </span>cmake/gen_cmake_config.py
+cp<span class="w"> </span>cmake/config.cmake<span class="w"> </span>build
+<span class="nb">cd</span><span class="w"> </span>build
+cmake<span class="w"> </span>..
+make<span class="w"> </span>-j<span class="k">$(</span>nproc<span class="k">)</span>
+sudo<span class="w"> </span>make<span class="w"> </span>install
+ldconfig<span class="w">  </span><span class="c1"># Refresh shared library cache</span>
+<span class="nb">cd</span><span class="w"> </span>-
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">make</span></code> commands above is expected to end with <code class="docutils literal notranslate"><span class="pre">[100%]</span> <span class="pre">Built</span> <span class="pre">target</span> <span class="pre">mlc_chat_cli</span></code> on Linux and macOS.</p>
+<p>In the case that user do not have sudo privilege, user can customize the install prefix by adding <code class="docutils literal notranslate"><span class="pre">-DCMAKE_INSTALL_PREFIX=/path/to/install</span></code> to the <code class="docutils literal notranslate"><span class="pre">cmake</span></code> command. For example, if you want to install MLC-LLM CLI to <code class="docutils literal notranslate"><span class="pre">~/.local</span></code>, you can run the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">LOCAL_PATH</span><span class="o">=</span>~/.local
+cmake<span class="w"> </span>..<span class="w"> </span>-DCMAKE_INSTALL_PREFIX<span class="o">=</span><span class="nv">$LOCAL_PATH</span>
+</pre></div>
+</div>
+<p>Please also remember to add <code class="docutils literal notranslate"><span class="pre">$LOCAL_PATH/bin</span></code> to your <code class="docutils literal notranslate"><span class="pre">$PATH</span></code> environment variable and <code class="docutils literal notranslate"><span class="pre">$LOCAL_PATH/lib</span></code> to your <code class="docutils literal notranslate"><span class="pre">$LD_LIBRARY_PATH</span></code> environment variable:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$LOCAL_PATH</span>/bin:<span class="nv">$PATH</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span><span class="nv">$LOCAL_PATH</span>/lib:<span class="nv">$LD_LIBRARY_PATH</span>
+ldconfig<span class="w"> </span><span class="c1"># Re</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="validate-installation">
+<span id="cli-validate-installation"></span><h4>Validate Installation<a class="headerlink" href="#validate-installation" title="Permalink to this heading"></a></h4>
+<p>You can validate the CLI build by executing the command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_chat_cli<span class="w"> </span>--help
+</pre></div>
+</div>
+<p>You are expected to see the help documentation of <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>,
+which means the installation is successful.</p>
+</section>
+</section>
+<section id="run-the-model-through-cli">
+<span id="cli-run-model"></span><h3>Run the model through CLI<a class="headerlink" href="#run-the-model-through-cli" title="Permalink to this heading"></a></h3>
+<p>To run the model, we need to know the model’s “id” which can be recognized by the CLI.
+Model id is in the format <code class="docutils literal notranslate"><span class="pre">MODEL_NAME-QUANTIZATION_MODE</span></code> (for example, <code class="docutils literal notranslate"><span class="pre">vicuna-v1-7b-q3f16_0</span></code>, <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_0</span></code>, etc.).
+You can find the model id by checking the directory names under <code class="docutils literal notranslate"><span class="pre">dist</span></code> (if you built model on your own) or <code class="docutils literal notranslate"><span class="pre">dist/prebuilt</span></code> if you use prebuilt models:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check id for models manually built.</span>
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist
+RedPajama-INCITE-Chat-3B-v1-q4f16_0<span class="w">     </span>models<span class="w">                </span>vicuna-v1-7b-q3f16_0
+RedPajama-INCITE-Chat-3B-v1-q4f32_0<span class="w">     </span>prebuilt<span class="w">              </span>vicuna-v1-7b-q4f32_0
+
+<span class="c1"># Check id for prebuilt models.</span>
+<span class="c1"># Note: Model ids start with the model name after `mlc-chat-`.</span>
+~<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/prebuilt
+mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0<span class="w">    </span>mlc-chat-vicuna-v1-7b-q3f16_0
+</pre></div>
+</div>
+<p>After confirming the model id, we can run the model in CLI by</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># If CLI is installed from Conda:</span>
+mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>MODEL_ID
+<span class="c1"># example:</span>
+mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0
+
+<span class="c1"># If CLI is built from source:</span>
+./build/mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>MODEL_ID
+<span class="c1"># example:</span>
+./build/mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>vicuna-v1-7b-q3f16_0
+</pre></div>
+</div>
+</section>
+<section id="troubleshooting-faq">
+<h3>Troubleshooting FAQ<a class="headerlink" href="#troubleshooting-faq" title="Permalink to this heading"></a></h3>
+<p>TBA.</p>
+</section>
+</section>
+<section id="deploy-model-on-your-web-browser">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Deploy model on your web browser</a><a class="headerlink" href="#deploy-model-on-your-web-browser" title="Permalink to this heading"></a></h2>
+<p>TBA.</p>
+<section id="id2">
+<h3>Troubleshooting FAQ<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
+<p>TBA.</p>
+</section>
+</section>
+<section id="deploy-model-on-your-iphone-ipad">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Deploy model on your iPhone/iPad</a><a class="headerlink" href="#deploy-model-on-your-iphone-ipad" title="Permalink to this heading"></a></h2>
+<p>This section introduces how to deploy model you built or prebuilt by us on your iPhone/iPad devices.
+The iOS/iPadOS application supports chatting with prebuilt Vicuna or RedPajama models, and also supports using the model you manually built.</p>
+<p>MLC LLM has released an iOS/iPadOS application which you can directly download and use.
+You can also build the application on your own.</p>
+<section id="id3">
+<h3>Troubleshooting FAQ<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h3>
+</section>
+</section>
+<section id="deploy-model-on-your-android-phone">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Deploy model on your Android phone</a><a class="headerlink" href="#deploy-model-on-your-android-phone" title="Permalink to this heading"></a></h2>
+<section id="id4">
+<h3>Troubleshooting FAQ<a class="headerlink" href="#id4" title="Permalink to this heading"></a></h3>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="compile-models.html" class="btn btn-neutral float-left" title="How to Compile Models" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="bring-your-own-models.html" class="btn btn-neutral float-right" title="How to Introduce a Model Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, MLC-LLM community.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

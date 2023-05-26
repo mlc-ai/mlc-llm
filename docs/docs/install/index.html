@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Install and Setup &mdash; MLC-LLM  documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Software Dependencies" href="software-dependencies.html" />
+    <link rel="prev" title="Navigation" href="../navigation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            MLC-LLM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Navigation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../navigation.html">Navigation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Install and Setup</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#install-tvm-unity">Install TVM Unity</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#option-1-prebuilt-package">Option 1. Prebuilt Package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#option-2-build-from-source">Option 2. Build from Source</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#validate-installation">Validate Installation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#install-mlc-llm-cli">Install MLC-LLM CLI</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="software-dependencies.html">Software Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compile-models.html">How to Compile Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/deploy-models.html">How to Deploy Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/bring-your-own-models.html">How to Introduce a Model Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/customize.html">How to customize Model Compilation and Optimization</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contribute to MLC-LLM</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contribute/community.html">MLC-LLM Community Guidelines</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Model Zoo</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../model-zoo.html">Model Zoo</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Misc</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../misc/faq.html">Frequently Asked Questions (FAQ)</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">MLC-LLM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Install and Setup</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/install/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="install-and-setup">
+<span id="installation-and-setup"></span><h1><a class="toc-backref" href="#id6" role="doc-backlink">Install and Setup</a><a class="headerlink" href="#install-and-setup" title="Permalink to this heading"></a></h1>
+<nav class="contents" id="table-of-contents">
+<p class="topic-title">Table of Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#install-and-setup" id="id6">Install and Setup</a></p>
+<ul>
+<li><p><a class="reference internal" href="#install-tvm-unity" id="id7">Install TVM Unity</a></p>
+<ul>
+<li><p><a class="reference internal" href="#option-1-prebuilt-package" id="id8">Option 1. Prebuilt Package</a></p></li>
+<li><p><a class="reference internal" href="#option-2-build-from-source" id="id9">Option 2. Build from Source</a></p></li>
+<li><p><a class="reference internal" href="#validate-installation" id="id10">Validate Installation</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#install-mlc-llm-cli" id="id11">Install MLC-LLM CLI</a></p></li>
+</ul>
+</li>
+</ul>
+</nav>
+<section id="install-tvm-unity">
+<span id="tvm-unity-install"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Install TVM Unity</a><a class="headerlink" href="#install-tvm-unity" title="Permalink to this heading"></a></h2>
+<p><a class="reference external" href="https://discuss.tvm.apache.org/t/establish-tvm-unity-connection-a-technical-strategy/13344">TVM Unity</a>, the latest development in Apache TVM, is required to build MLC LLM. To install TVM Unity, there are two options available:</p>
+<ul class="simple">
+<li><p>installing a prebuilt developer package, or</p></li>
+<li><p>building TVM Unity from source.</p></li>
+</ul>
+<section id="option-1-prebuilt-package">
+<span id="tvm-unity-install-prebuilt-package"></span><h3><a class="toc-backref" href="#id8" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading"></a></h3>
+<p>To help our community to use Apache TVM Unity, a nightly prebuilt developer package is providedd with everything packaged.
+Please visit the installation page for installation instructions: <a class="reference external" href="https://mlc.ai/package/">https://mlc.ai/package/</a>.</p>
+<p><strong>Set up $TVM_HOME after installation.</strong> This environment variable is not used by TVM itself but by downstream applications like <a class="reference external" href="https://mlc.ai/mlc-llm">MLC LLM</a>, and thus it would be more convenient to set it up earlier:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Locate TVM python package</span>
+&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.__file__)&quot;</span>
+/some-path/lib/python3.11/site-packages/tvm/__init__.py
+<span class="c1"># Set up the environment variable</span>
+&gt;&gt;&gt;<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">TVM_HOME</span><span class="o">=</span>/some-path/lib/python3.11/site-packages/tvm/
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If installed properly, <code class="docutils literal notranslate"><span class="pre">libtvm.{so|dylib|dll}</span></code> should exist right under <code class="docutils literal notranslate"><span class="pre">$TVM_HOME</span></code>.</p>
+</div>
+</section>
+<section id="option-2-build-from-source">
+<span id="tvm-unity-build-from-source"></span><h3><a class="toc-backref" href="#id9" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading"></a></h3>
+<p><strong>Step 1. Set up build dependency.</strong> To build from source, you need to ensure that the following build dependencies are met:</p>
+<ul class="simple">
+<li><p>CMake &gt;= 3.18</p></li>
+<li><p>LLVM &gt;= 15</p></li>
+<li><p>Git</p></li>
+<li><p>(Optional) CUDA &gt;= 11.8 (targeting NVIDIA GPUs)</p></li>
+<li><p>(Optional) Metal (targeting Apple GPUs such as M1 and M2)</p></li>
+<li><p>(Optional) Vulkan (targeting NVIDIA, AMD, Intel and moble GPUs)</p></li>
+<li><p>(Optional) OpenCL (targeting NVIDIA, AMD, Intel and moble GPUs)</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<ul class="simple">
+<li><p>To target NVIDIA GPUs, either CUDA or Vulkan is required (CUDA is recommended);</p></li>
+<li><p>For AMD and Intel GPUs, Vulkan is necessary;</p></li>
+<li><p>When targeting Apple (macOS, iOS, iPadOS), Metal is a mandatory dependency;</p></li>
+<li><p>Some Android devices only support OpenCL, but most of them support Vulkan.</p></li>
+</ul>
+</div>
+<p>To easiest way to manage dependency is via conda, which maintains a set of toolchains including LLVM across platforms. To create the environment of those build dependencies, one may simply use:</p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">Set up build dependencies in conda</span><a class="headerlink" href="#id1" title="Permalink to this code"></a></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># make sure to start with a fresh environment</span>
+conda<span class="w"> </span>env<span class="w"> </span>remove<span class="w"> </span>-n<span class="w"> </span>tvm-unity-build
+<span class="c1"># create the conda environment with build dependency</span>
+conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>tvm-unity-build<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="s2">&quot;llvmdev&gt;=15&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="s2">&quot;cmake&gt;=3.18&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>git
+<span class="c1"># enter the build environment</span>
+conda<span class="w"> </span>activate<span class="w"> </span>tvm-unity-build
+</pre></div>
+</div>
+</div>
+<p><strong>Step 2. Configure and build.</strong> Standard git-based workflow are recommended to download Apache TVM Unity, and then specify build requirements in <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code>:</p>
+<div class="literal-block-wrapper docutils container" id="id2">
+<div class="code-block-caption"><span class="caption-text">Download TVM Unity from GitHub</span><a class="headerlink" href="#id2" title="Permalink to this code"></a></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># clone from GitHub</span>
+git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>git@github.com:mlc-ai/relax.git<span class="w"> </span>tvm-unity<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tvm-unity
+<span class="c1"># create the build directory</span>
+rm<span class="w"> </span>-rf<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>build
+<span class="c1"># specify build requirements in `config.cmake`</span>
+cp<span class="w"> </span>../cmake/config.cmake<span class="w"> </span>.
+vim<span class="w"> </span>config.cmake
+</pre></div>
+</div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We are temporarily using <a class="reference external" href="https://github.com/mlc-ai/relax">mlc-ai/relax</a> instead, which comes with several temporary outstanding changes that we will upstream to Apache TVM’s <a class="reference external" href="https://github.com/apache/tvm/tree/unity">unity branch</a>.</p>
+</div>
+<p>While <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code> is well-documented, below are flags of the most interest:</p>
+<div class="literal-block-wrapper docutils container" id="id3">
+<div class="code-block-caption"><span class="caption-text">Configure build in <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code></span><a class="headerlink" href="#id3" title="Permalink to this code"></a></div>
+<div class="highlight-cmake notranslate"><div class="highlight"><pre><span></span><span class="c">#### Edit `/path-tvm-unity/build/config.cmake`</span>
+<span class="c"># Can be one of `Debug`, `RelWithDebInfo` (recommended) and `Release`</span>
+<span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_BUILD_TYPE</span><span class="w"> </span><span class="s">RelWithDebInfo</span><span class="p">)</span>
+<span class="nb">set</span><span class="p">(</span><span class="s">USE_LLVM</span><span class="w">   </span><span class="s">ON</span><span class="p">)</span><span class="w">  </span><span class="c"># LLVM is a must-dependency</span>
+<span class="nb">set</span><span class="p">(</span><span class="s">USE_CUDA</span><span class="w">   </span><span class="s">OFF</span><span class="p">)</span><span class="w"> </span><span class="c"># Turn on if needed</span>
+<span class="nb">set</span><span class="p">(</span><span class="s">USE_METAL</span><span class="w">  </span><span class="s">OFF</span><span class="p">)</span><span class="w"> </span><span class="c"># Turn on if needed</span>
+<span class="nb">set</span><span class="p">(</span><span class="s">USE_VULKAN</span><span class="w"> </span><span class="s">OFF</span><span class="p">)</span><span class="w"> </span><span class="c"># Turn on if needed</span>
+<span class="nb">set</span><span class="p">(</span><span class="s">USE_OpenCL</span><span class="w"> </span><span class="s">OFF</span><span class="p">)</span><span class="w"> </span><span class="c"># Turn on if needed</span>
+</pre></div>
+</div>
+</div>
+<p>Once <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code> is edited accordingly, kick off build with the commands below</p>
+<div class="literal-block-wrapper docutils container" id="id4">
+<div class="code-block-caption"><span class="caption-text">Build <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> using cmake and cmake</span><a class="headerlink" href="#id4" title="Permalink to this code"></a></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>..
+make<span class="w"> </span>-j<span class="k">$(</span>nproc<span class="k">)</span>
+</pre></div>
+</div>
+</div>
+<p>A success build should produce <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> and <code class="docutils literal notranslate"><span class="pre">libtvm_runtime</span></code> under <code class="docutils literal notranslate"><span class="pre">/path-tvm-unity/build/</span></code> directory.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To troubleshoot the build, output from cmake is usually quite helpful.</p>
+</div>
+<p><strong>Step 3. Set up environment variables.</strong>
+The following two environment variables are generally required for TVM-based applications:</p>
+<div class="literal-block-wrapper docutils container" id="id5">
+<div class="code-block-caption"><span class="caption-text">Setting up environment variables for TVM</span><a class="headerlink" href="#id5" title="Permalink to this code"></a></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># make sure $TVM_HOME/build/libtvm.{so|dylib|dll} exists</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">TVM_HOME</span><span class="o">=</span>/path-tvm/
+<span class="c1"># make TVM&#39;s Python binding discoverable by Python interpreter</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$TVM_HOME</span>/python:<span class="nv">$PYTHONPATH</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="validate-installation">
+<h3><a class="toc-backref" href="#id10" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading"></a></h3>
+<p>Using a compiler infrastructure with multiple language bindings could be error-prone.
+Therefore, it is highly recommended to validate TVM Unity installation before use.</p>
+<p><strong>Step 1. Locate TVM Python package.</strong> The following command can help confirm that TVM is properly installed as a python package and provide the location of the TVM python package:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.__file__)&quot;</span>
+/some-path/lib/python3.11/site-packages/tvm/__init__.py
+</pre></div>
+</div>
+<p><strong>Step 2. Confirm which TVM library is used.</strong> When maintaining multiple build or installation of TVM, it becomes important to double check if the python package is using the proper <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> with the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm._ffi.base._LIB)&quot;</span>
+&lt;CDLL<span class="w"> </span><span class="s1">&#39;/some-path/lib/python3.11/site-packages/tvm/libtvm.dylib&#39;</span>,<span class="w"> </span>handle<span class="w"> </span>95ada510<span class="w"> </span>at<span class="w"> </span>0x1030e4e50&gt;
+</pre></div>
+</div>
+<p><strong>Step 3. Reflect TVM build option.</strong> Sometimes when downstream application fails, it could likely be some mistakes with a wrong TVM commit, or wrong build flags. To find it out, the following commands will be helpful:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(&#39;\n&#39;.join(f&#39;{k}: {v}&#39; for k, v in tvm.support.libinfo().items()))&quot;</span>
+...<span class="w"> </span><span class="c1"># Omitted less relevant options</span>
+GIT_COMMIT_HASH:<span class="w"> </span>4f6289590252a1cf45a4dc37bce55a25043b8338
+HIDE_PRIVATE_SYMBOLS:<span class="w"> </span>ON
+USE_LLVM:<span class="w"> </span>llvm-config<span class="w"> </span>--link-static
+LLVM_VERSION:<span class="w"> </span><span class="m">15</span>.0.7
+USE_VULKAN:<span class="w"> </span>OFF
+USE_CUDA:<span class="w"> </span>OFF
+CUDA_VERSION:<span class="w"> </span>NOT-FOUND
+USE_OPENCL:<span class="w"> </span>OFF
+USE_METAL:<span class="w"> </span>ON
+USE_ROCM:<span class="w"> </span>OFF
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">GIT_COMMIT_HASH</span></code> indicates the exact commit of the TVM build, and it can be found on GitHub via <a class="reference external" href="https://github.com/mlc-ai/relax/commit/$GIT_COMMIT_HASH">https://github.com/mlc-ai/relax/commit/$GIT_COMMIT_HASH</a>.</p>
+</div>
+<p><strong>Step 4. Check device detection.</strong> Sometimes it could be helpful to understand if TVM could detect your device at all with the following commands:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.metal().exist)&quot;</span>
+True<span class="w"> </span><span class="c1"># or False</span>
+&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.cuda().exist)&quot;</span>
+False<span class="w"> </span><span class="c1"># or True</span>
+&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.vulkan().exist)&quot;</span>
+False<span class="w"> </span><span class="c1"># or True</span>
+</pre></div>
+</div>
+<p>Please note that the commands above verify the presence of an actual device on the local machine for the TVM runtime (not the compiler) to execute properly. However, TVM compiler can perform compilation tasks without requiring a physical device. As long as the necessary toolchain, such as NVCC, is available, TVM supports cross-compilation even in the absence of an actual device.</p>
+</section>
+</section>
+<section id="install-mlc-llm-cli">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Install MLC-LLM CLI</a><a class="headerlink" href="#install-mlc-llm-cli" title="Permalink to this heading"></a></h2>
+<p>MLC-LLM CLI is a command-line interface for MLC-LLM, which enables user to chat with the bot in terminal. Please refer to <a class="reference internal" href="../tutorials/deploy-models.html#prepare-weight-library"><span class="std std-ref">Prepare model weight and library</span></a> for installation instructions.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../navigation.html" class="btn btn-neutral float-left" title="Navigation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="software-dependencies.html" class="btn btn-neutral float-right" title="Software Dependencies" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, MLC-LLM community.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
