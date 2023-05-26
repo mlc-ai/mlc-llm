@@ -75,7 +75,7 @@ conda install git git-lfs
 git lfs install
 
 # Clone the MLC LLM repo
-git clone https://github.com/mlc-ai/mlc-llm.git
+git clone --recursive https://github.com/mlc-ai/mlc-llm.git
 cd mlc-llm
 
 # Create the local build directory and compile the model
