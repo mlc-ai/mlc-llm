@@ -1,17 +1,38 @@
+
+
+
+
+
+
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>How to Deploy Models &mdash; MLC-LLM  documentation</title>
-      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
-      <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
-  <!--[if lt IE 9]>
-    <script src="../_static/js/html5shiv.min.js"></script>
-  <![endif]-->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
+  <title>How to Deploy Models &mdash; mlc-llm 0.1.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/tlcpack_theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+  
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
@@ -19,24 +40,109 @@
         <script src="../_static/doctools.js"></script>
         <script src="../_static/sphinx_highlight.js"></script>
         <script src="../_static/tabs.js"></script>
-    <script src="../_static/js/theme.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="How to Introduce a Model Architecture" href="bring-your-own-models.html" />
     <link rel="prev" title="How to Compile Models" href="compile-models.html" /> 
 </head>
 
-<body class="wy-body-for-nav"> 
+<body class="wy-body-for-nav">
+
+   
   <div class="wy-grid-for-nav">
-    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+    
+    
+<header class="header">
+    <div class="innercontainer">
+      <div class="headerInner d-flex justify-content-between align-items-center">
+          <div class="headerLogo">
+          </div>
+
+          <div id="headMenu" class="headerNav">
+            <button type="button" id="closeHeadMenu" class="navCloseBtn"><img src="../_static/img/close-icon.svg" alt="Close"></button>
+             <ul class="nav">
+                <li class="nav-item">
+                   <a class="nav-link" href=https://mlc.ai/mlc-llm>Home</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://github.com/mlc-ai/mlc-llm>Github</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://discord.gg/9Xpy2HGBuD>Discord Server</a>
+                </li>
+             </ul>
+               <div class="responsivetlcdropdown">
+                 <button type="button" class="btn-link">
+                   Other Resources
+                 </button>
+                 <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/blog>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/web-llm>Web LLM</a>
+                     </li>
+                 </ul>
+               </div>
+          </div>
+            <div class="responsiveMenuIcon">
+              <button type="button" id="menuBtn" class="btn-menu"><img src="../_static/img/menu-icon.svg" alt="Menu Icon"></button>
+            </div>
+
+            <div class="tlcDropdown">
+              <div class="dropdown">
+                <button type="button" class="btn-link dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Other Resources
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                  <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/blog>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/web-llm>Web LLM</a>
+                     </li>
+                  </ul>
+                </div>
+              </div>
+          </div>
+       </div>
+    </div>
+ </header>
+ 
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side fixed">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
+          
 
           
+            <a href="../index.html" class="sidetitle" alt="Documentation Home"> mlc-llm
           
-          <a href="../index.html" class="icon icon-home">
-            MLC-LLM
+
+          
           </a>
+
+          
+            
+            
+                <div class="version">
+                  0.1.0
+                </div>
+            
+          
+
+          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
@@ -44,7 +150,18 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
               <p class="caption" role="heading"><span class="caption-text">Navigation</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../navigation.html">Navigation</a></li>
@@ -97,32 +214,87 @@
 <li class="toctree-l1"><a class="reference internal" href="../misc/faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
+            
+          
         </div>
+        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
-          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../index.html">MLC-LLM</a>
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      
+      <nav class="wy-nav-top" aria-label="top navigation" data-toggle="wy-nav-top">
+        
+            <div class="togglemenu">
+
+            </div>
+            <div class="nav-content">
+              <!-- mlc-llm -->
+              Table of Contents
+            </div>
+        
       </nav>
 
+
       <div class="wy-nav-content">
+        
         <div class="rst-content">
-          <div role="navigation" aria-label="Page navigation">
+        
+
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">How to Deploy Models</li>
+    
+      <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
+        
+      <li>How to Deploy Models</li>
+    
+    
+      
+      
+    
+    
       <li class="wy-breadcrumbs-aside">
-            <a href="../_sources/tutorials/deploy-models.rst.txt" rel="nofollow"> View page source</a>
+        
+            
+            
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/tutorials/deploy-models.rst" class="fa fa-github"> Edit on GitHub</a>
+            
+          
+        
       </li>
+    
   </ul>
+
+  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-             
+            
   <section id="how-to-deploy-models">
-<span id="id1"></span><h1>How to Deploy Models<a class="headerlink" href="#how-to-deploy-models" title="Permalink to this heading"></a></h1>
+<span id="id1"></span><h1>How to Deploy Models<a class="headerlink" href="#how-to-deploy-models" title="Permalink to this heading">¶</a></h1>
 <p>In this tutorial, we will guide you on how to <strong>deploy</strong> models built by MLC LLM to different backends and devices. We support four options of device categories for deployment: laptop/desktop, web browser, iPhone/iPad, and Android phones.
 .. Before starting this tutorial, you are expected to have completed model build in <a class="reference internal" href="compile-models.html#how-to-compile-models"><span class="std std-ref">How to Compile Models</span></a>, and this page will not cover the model build part. After finishing this page, you will be able to run large language models on the device you want.</p>
 <p>This page contains the following sections. We first introduce how to prepare the (pre)built model libraries and weights, and one section for each backend device will then follow. Every section contains a Frequently Asked Questions (FAQ) subsection for troubleshooting.</p>
@@ -137,7 +309,7 @@
 </ul>
 </nav>
 <section id="prepare-model-weight-and-library">
-<span id="prepare-weight-library"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Prepare model weight and library</a><a class="headerlink" href="#prepare-model-weight-and-library" title="Permalink to this heading"></a></h2>
+<span id="prepare-weight-library"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Prepare model weight and library</a><a class="headerlink" href="#prepare-model-weight-and-library" title="Permalink to this heading">¶</a></h2>
 <p>In order to load the model correctly in deployment, we need to put the model libraries and weights to the right location before deployment.
 You can select from the panel below for the preparation steps you will need.</p>
 <div class="sphinx-tabs docutils container">
@@ -169,15 +341,15 @@ git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/m
 </div></div>
 </section>
 <section id="deploy-model-on-your-laptop-desktop">
-<span id="deploy-on-laptop-desktop"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Deploy model on your laptop/desktop</a><a class="headerlink" href="#deploy-model-on-your-laptop-desktop" title="Permalink to this heading"></a></h2>
+<span id="deploy-on-laptop-desktop"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Deploy model on your laptop/desktop</a><a class="headerlink" href="#deploy-model-on-your-laptop-desktop" title="Permalink to this heading">¶</a></h2>
 <p>This section goes through the process of deploying prebuilt model or the model you built on your laptop or desktop.
 MLC LLM provides a Command-Line Interface (CLI) application to deploy and help interact with the model.
 After <a class="reference internal" href="#cli-prepare-cli"><span class="std std-ref">preparing the CLI</span></a>, you can <a class="reference internal" href="#cli-run-model"><span class="std std-ref">deploy and interact</span></a> with the model on your machine through CLI.</p>
 <section id="prepare-the-cli">
-<span id="cli-prepare-cli"></span><h3>Prepare the CLI<a class="headerlink" href="#prepare-the-cli" title="Permalink to this heading"></a></h3>
+<span id="cli-prepare-cli"></span><h3>Prepare the CLI<a class="headerlink" href="#prepare-the-cli" title="Permalink to this heading">¶</a></h3>
 <p>We have released the <a class="reference external" href="https://anaconda.org/mlc-ai/mlc-chat-nightly">prebuilt CLI Conda package</a>, which you can directly <a class="reference internal" href="#cli-install-from-conda"><span class="std std-ref">install via Conda commands</span></a>. You can also <a class="reference internal" href="#cli-build-from-source"><span class="std std-ref">build CLI from source</span></a>.</p>
 <section id="option-1-install-from-conda">
-<span id="cli-install-from-conda"></span><h4>Option 1: Install from Conda<a class="headerlink" href="#option-1-install-from-conda" title="Permalink to this heading"></a></h4>
+<span id="cli-install-from-conda"></span><h4>Option 1: Install from Conda<a class="headerlink" href="#option-1-install-from-conda" title="Permalink to this heading">¶</a></h4>
 <p>The easiest way to install the CLI from Conda, we can follow the instructions below to create a Conda environment and then install.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -196,7 +368,7 @@ conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> <
 </div>
 </section>
 <section id="option-2-build-from-source">
-<span id="cli-build-from-source"></span><h4>Option 2: Build from source<a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading"></a></h4>
+<span id="cli-build-from-source"></span><h4>Option 2: Build from source<a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h4>
 <p>If you are a MLC-LLM developer and you add some functionalities to the CLI, you can build the CLI from source by running the following command:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>build
 python3<span class="w"> </span>cmake/gen_cmake_config.py
@@ -226,7 +398,7 @@ ldconfig<span class="w"> </span><span class="c1"># Re</span>
 </div>
 </section>
 <section id="validate-installation">
-<span id="cli-validate-installation"></span><h4>Validate Installation<a class="headerlink" href="#validate-installation" title="Permalink to this heading"></a></h4>
+<span id="cli-validate-installation"></span><h4>Validate Installation<a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h4>
 <p>You can validate the CLI build by executing the command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_chat_cli<span class="w"> </span>--help
 </pre></div>
@@ -236,7 +408,7 @@ which means the installation is successful.</p>
 </section>
 </section>
 <section id="run-the-model-through-cli">
-<span id="cli-run-model"></span><h3>Run the model through CLI<a class="headerlink" href="#run-the-model-through-cli" title="Permalink to this heading"></a></h3>
+<span id="cli-run-model"></span><h3>Run the model through CLI<a class="headerlink" href="#run-the-model-through-cli" title="Permalink to this heading">¶</a></h3>
 <p>To run the model, we need to know the model’s “id” which can be recognized by the CLI.
 Model id is in the format <code class="docutils literal notranslate"><span class="pre">MODEL_NAME-QUANTIZATION_MODE</span></code> (for example, <code class="docutils literal notranslate"><span class="pre">vicuna-v1-7b-q3f16_0</span></code>, <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_0</span></code>, etc.).
 You can find the model id by checking the directory names under <code class="docutils literal notranslate"><span class="pre">dist</span></code> (if you built model on your own) or <code class="docutils literal notranslate"><span class="pre">dist/prebuilt</span></code> if you use prebuilt models:</p>
@@ -265,65 +437,92 @@ mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-
 </div>
 </section>
 <section id="troubleshooting-faq">
-<h3>Troubleshooting FAQ<a class="headerlink" href="#troubleshooting-faq" title="Permalink to this heading"></a></h3>
+<h3>Troubleshooting FAQ<a class="headerlink" href="#troubleshooting-faq" title="Permalink to this heading">¶</a></h3>
 <p>TBA.</p>
 </section>
 </section>
 <section id="deploy-model-on-your-web-browser">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Deploy model on your web browser</a><a class="headerlink" href="#deploy-model-on-your-web-browser" title="Permalink to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Deploy model on your web browser</a><a class="headerlink" href="#deploy-model-on-your-web-browser" title="Permalink to this heading">¶</a></h2>
 <p>TBA.</p>
 <section id="id2">
-<h3>Troubleshooting FAQ<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
+<h3>Troubleshooting FAQ<a class="headerlink" href="#id2" title="Permalink to this heading">¶</a></h3>
 <p>TBA.</p>
 </section>
 </section>
 <section id="deploy-model-on-your-iphone-ipad">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Deploy model on your iPhone/iPad</a><a class="headerlink" href="#deploy-model-on-your-iphone-ipad" title="Permalink to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Deploy model on your iPhone/iPad</a><a class="headerlink" href="#deploy-model-on-your-iphone-ipad" title="Permalink to this heading">¶</a></h2>
 <p>This section introduces how to deploy model you built or prebuilt by us on your iPhone/iPad devices.
 The iOS/iPadOS application supports chatting with prebuilt Vicuna or RedPajama models, and also supports using the model you manually built.</p>
 <p>MLC LLM has released an iOS/iPadOS application which you can directly download and use.
 You can also build the application on your own.</p>
 <section id="id3">
-<h3>Troubleshooting FAQ<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h3>
+<h3>Troubleshooting FAQ<a class="headerlink" href="#id3" title="Permalink to this heading">¶</a></h3>
 </section>
 </section>
 <section id="deploy-model-on-your-android-phone">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Deploy model on your Android phone</a><a class="headerlink" href="#deploy-model-on-your-android-phone" title="Permalink to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Deploy model on your Android phone</a><a class="headerlink" href="#deploy-model-on-your-android-phone" title="Permalink to this heading">¶</a></h2>
 <section id="id4">
-<h3>Troubleshooting FAQ<a class="headerlink" href="#id4" title="Permalink to this heading"></a></h3>
+<h3>Troubleshooting FAQ<a class="headerlink" href="#id4" title="Permalink to this heading">¶</a></h3>
 </section>
 </section>
 </section>
 
 
            </div>
+           
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="compile-models.html" class="btn btn-neutral float-left" title="How to Compile Models" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="bring-your-own-models.html" class="btn btn-neutral float-right" title="How to Introduce a Model Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+          
+
+<footer>
+
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="bring-your-own-models.html" class="btn btn-neutral float-right" title="How to Introduce a Model Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="compile-models.html" class="btn btn-neutral float-left" title="How to Compile Models" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
     </div>
 
-  <hr/>
+<div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
+<section class="footerSec">
+    <div class="footerHeader">
+      <div class="d-flex align-md-items-center justify-content-between flex-column flex-md-row">
+        <div class="copywrite d-flex align-items-center">
+          <h5 id="copy-right-info">© 2022 MLC LLM</h5>
+        </div>
+      </div>
 
-  <div role="contentinfo">
-    <p>&#169; Copyright 2023, MLC-LLM community.</p>
-  </div>
+    </div>
 
-  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
-    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
-    provided by <a href="https://readthedocs.org">Read the Docs</a>.
-   
+    <div>
+      <div class="footernote"> </div>
+    </div>
 
+</section>
 </footer>
         </div>
       </div>
+
     </section>
+
   </div>
-  <script>
+  
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+  </body>
+  <script type="text/javascript">
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
+
+  
+  
+    
+   
 
 </body>
 </html>

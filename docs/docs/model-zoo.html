@@ -1,41 +1,147 @@
+
+
+
+
+
+
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Model Zoo &mdash; MLC-LLM  documentation</title>
-      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-      <link rel="stylesheet" href="_static/tabs.css" type="text/css" />
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
+  <title>Model Zoo &mdash; mlc-llm 0.1.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/css/tlcpack_theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+  
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
         <script src="_static/sphinx_highlight.js"></script>
-    <script src="_static/js/theme.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+    <script type="text/javascript" src="_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Frequently Asked Questions (FAQ)" href="misc/faq.html" />
     <link rel="prev" title="MLC-LLM Community Guidelines" href="contribute/community.html" /> 
 </head>
 
-<body class="wy-body-for-nav"> 
+<body class="wy-body-for-nav">
+
+   
   <div class="wy-grid-for-nav">
-    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+    
+    
+<header class="header">
+    <div class="innercontainer">
+      <div class="headerInner d-flex justify-content-between align-items-center">
+          <div class="headerLogo">
+          </div>
+
+          <div id="headMenu" class="headerNav">
+            <button type="button" id="closeHeadMenu" class="navCloseBtn"><img src="_static/img/close-icon.svg" alt="Close"></button>
+             <ul class="nav">
+                <li class="nav-item">
+                   <a class="nav-link" href=https://mlc.ai/mlc-llm>Home</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://github.com/mlc-ai/mlc-llm>Github</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://discord.gg/9Xpy2HGBuD>Discord Server</a>
+                </li>
+             </ul>
+               <div class="responsivetlcdropdown">
+                 <button type="button" class="btn-link">
+                   Other Resources
+                 </button>
+                 <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/blog>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/web-llm>Web LLM</a>
+                     </li>
+                 </ul>
+               </div>
+          </div>
+            <div class="responsiveMenuIcon">
+              <button type="button" id="menuBtn" class="btn-menu"><img src="_static/img/menu-icon.svg" alt="Menu Icon"></button>
+            </div>
+
+            <div class="tlcDropdown">
+              <div class="dropdown">
+                <button type="button" class="btn-link dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Other Resources
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                  <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/blog>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/web-llm>Web LLM</a>
+                     </li>
+                  </ul>
+                </div>
+              </div>
+          </div>
+       </div>
+    </div>
+ </header>
+ 
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side fixed">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
+          
 
           
+            <a href="index.html" class="sidetitle" alt="Documentation Home"> mlc-llm
           
-          <a href="index.html" class="icon icon-home">
-            MLC-LLM
+
+          
           </a>
+
+          
+            
+            
+                <div class="version">
+                  0.1.0
+                </div>
+            
+          
+
+          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
@@ -43,7 +149,18 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
               <p class="caption" role="heading"><span class="caption-text">Navigation</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="navigation.html">Navigation</a></li>
@@ -75,32 +192,87 @@
 <li class="toctree-l1"><a class="reference internal" href="misc/faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
+            
+          
         </div>
+        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
-          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">MLC-LLM</a>
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      
+      <nav class="wy-nav-top" aria-label="top navigation" data-toggle="wy-nav-top">
+        
+            <div class="togglemenu">
+
+            </div>
+            <div class="nav-content">
+              <!-- mlc-llm -->
+              Table of Contents
+            </div>
+        
       </nav>
 
+
       <div class="wy-nav-content">
+        
         <div class="rst-content">
-          <div role="navigation" aria-label="Page navigation">
+        
+
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
   <ul class="wy-breadcrumbs">
-      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Model Zoo</li>
+    
+      <li><a href="index.html">Docs</a> <span class="br-arrow">></span></li>
+        
+      <li>Model Zoo</li>
+    
+    
+      
+      
+    
+    
       <li class="wy-breadcrumbs-aside">
-            <a href="_sources/model-zoo.rst.txt" rel="nofollow"> View page source</a>
+        
+            
+            
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/model-zoo.rst" class="fa fa-github"> Edit on GitHub</a>
+            
+          
+        
       </li>
+    
   </ul>
+
+  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-             
+            
   <section id="model-zoo">
-<h1><a class="toc-backref" href="#id2" role="doc-backlink">Model Zoo</a><a class="headerlink" href="#model-zoo" title="Permalink to this heading"></a></h1>
+<h1><a class="toc-backref" href="#id2" role="doc-backlink">Model Zoo</a><a class="headerlink" href="#model-zoo" title="Permalink to this heading">¶</a></h1>
 <nav class="contents" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
@@ -116,10 +288,10 @@
 <p>MLC-LLM is a universal solution for deploying different language models, any language models that can be described in <a class="reference external" href="https://mlc.ai/chapter_graph_optimization/index.html">TVM Relax</a> (which is a general representation for Neural Networks, and can be imported from models written in PyTorch) should recognized by MLC-LLM and thus deployed to different backends with the help of TVM Unity.</p>
 <p>The community has already supported several LLM architectures, including LLaMA, GPT-NeoX, and MOSS. We eagerly anticipate further contributions from the community to expand the range of supported model architectures, with the goal of democratizing the deployment of LLMs.</p>
 <section id="list-of-officially-supported-models">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">List of Officially Supported Models</a><a class="headerlink" href="#list-of-officially-supported-models" title="Permalink to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">List of Officially Supported Models</a><a class="headerlink" href="#list-of-officially-supported-models" title="Permalink to this heading">¶</a></h2>
 <p>Below is a list of models officially supported by MLC-LLM community. Pre-built models are hosted on Hugging Face, eliminating the need for users to compile them on their own. Each model is accompanied by detailed configurations. These models have undergone extensive testing on various devices, and their kernel performance has been fine-tuned by developers with the help of TVM.</p>
 <table class="docutils align-default" id="id1">
-<caption><span class="caption-text">Supported Models</span><a class="headerlink" href="#id1" title="Permalink to this table"></a></caption>
+<caption><span class="caption-text">Supported Models</span><a class="headerlink" href="#id1" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25%" />
 <col style="width: 25%" />
@@ -179,44 +351,71 @@
 <p>You can see <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/pulls?q=is%3Aopen+is%3Apr+label%3Anew-models">MLC-LLM pull requests</a> to check the ongoing efforts of new models.</p>
 </section>
 <section id="want-to-try-different-models">
-<h2><a class="toc-backref" href="#id4" role="doc-backlink">Want to try different models?</a><a class="headerlink" href="#want-to-try-different-models" title="Permalink to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Want to try different models?</a><a class="headerlink" href="#want-to-try-different-models" title="Permalink to this heading">¶</a></h2>
 <p>Please check <a class="reference internal" href="tutorials/compile-models.html"><span class="doc">How to Compile Models</span></a> on how to compile models with supported model architectures, and <a class="reference internal" href="tutorials/bring-your-own-models.html"><span class="doc">How to Introduce a Model Architecture</span></a> on how to bring a new LLM model architecture.</p>
 </section>
 <section id="contribute-to-mlc-llm-model-zoo">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">Contribute to MLC-LLM Model Zoo</a><a class="headerlink" href="#contribute-to-mlc-llm-model-zoo" title="Permalink to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Contribute to MLC-LLM Model Zoo</a><a class="headerlink" href="#contribute-to-mlc-llm-model-zoo" title="Permalink to this heading">¶</a></h2>
 <p>Awesome! Please check our <a class="reference internal" href="contribute/community.html"><span class="doc">MLC-LLM Community Guidelines</span></a> on how to contribute to MLC-LLM.</p>
 </section>
 </section>
 
 
            </div>
+           
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="contribute/community.html" class="btn btn-neutral float-left" title="MLC-LLM Community Guidelines" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="misc/faq.html" class="btn btn-neutral float-right" title="Frequently Asked Questions (FAQ)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+          
+
+<footer>
+
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="misc/faq.html" class="btn btn-neutral float-right" title="Frequently Asked Questions (FAQ)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="contribute/community.html" class="btn btn-neutral float-left" title="MLC-LLM Community Guidelines" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
     </div>
 
-  <hr/>
+<div id="button" class="backtop"><img src="_static/img/right.svg" alt="backtop"/> </div>
+<section class="footerSec">
+    <div class="footerHeader">
+      <div class="d-flex align-md-items-center justify-content-between flex-column flex-md-row">
+        <div class="copywrite d-flex align-items-center">
+          <h5 id="copy-right-info">© 2022 MLC LLM</h5>
+        </div>
+      </div>
 
-  <div role="contentinfo">
-    <p>&#169; Copyright 2023, MLC-LLM community.</p>
-  </div>
+    </div>
 
-  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
-    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
-    provided by <a href="https://readthedocs.org">Read the Docs</a>.
-   
+    <div>
+      <div class="footernote"> </div>
+    </div>
 
+</section>
 </footer>
         </div>
       </div>
+
     </section>
+
   </div>
-  <script>
+  
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+  </body>
+  <script type="text/javascript">
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
+
+  
+  
+    
+   
 
 </body>
 </html>

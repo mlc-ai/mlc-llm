@@ -1,17 +1,38 @@
+
+
+
+
+
+
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Software Dependencies &mdash; MLC-LLM  documentation</title>
-      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
-      <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
-  <!--[if lt IE 9]>
-    <script src="../_static/js/html5shiv.min.js"></script>
-  <![endif]-->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
+  <title>Software Dependencies &mdash; mlc-llm 0.1.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/tlcpack_theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+  
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
@@ -19,24 +40,109 @@
         <script src="../_static/doctools.js"></script>
         <script src="../_static/sphinx_highlight.js"></script>
         <script src="../_static/tabs.js"></script>
-    <script src="../_static/js/theme.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="How to Compile Models" href="../tutorials/compile-models.html" />
     <link rel="prev" title="Install and Setup" href="index.html" /> 
 </head>
 
-<body class="wy-body-for-nav"> 
+<body class="wy-body-for-nav">
+
+   
   <div class="wy-grid-for-nav">
-    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+    
+    
+<header class="header">
+    <div class="innercontainer">
+      <div class="headerInner d-flex justify-content-between align-items-center">
+          <div class="headerLogo">
+          </div>
+
+          <div id="headMenu" class="headerNav">
+            <button type="button" id="closeHeadMenu" class="navCloseBtn"><img src="../_static/img/close-icon.svg" alt="Close"></button>
+             <ul class="nav">
+                <li class="nav-item">
+                   <a class="nav-link" href=https://mlc.ai/mlc-llm>Home</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://github.com/mlc-ai/mlc-llm>Github</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://discord.gg/9Xpy2HGBuD>Discord Server</a>
+                </li>
+             </ul>
+               <div class="responsivetlcdropdown">
+                 <button type="button" class="btn-link">
+                   Other Resources
+                 </button>
+                 <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/blog>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/web-llm>Web LLM</a>
+                     </li>
+                 </ul>
+               </div>
+          </div>
+            <div class="responsiveMenuIcon">
+              <button type="button" id="menuBtn" class="btn-menu"><img src="../_static/img/menu-icon.svg" alt="Menu Icon"></button>
+            </div>
+
+            <div class="tlcDropdown">
+              <div class="dropdown">
+                <button type="button" class="btn-link dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Other Resources
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                  <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/blog>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/web-llm>Web LLM</a>
+                     </li>
+                  </ul>
+                </div>
+              </div>
+          </div>
+       </div>
+    </div>
+ </header>
+ 
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side fixed">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
+          
 
           
+            <a href="../index.html" class="sidetitle" alt="Documentation Home"> mlc-llm
           
-          <a href="../index.html" class="icon icon-home">
-            MLC-LLM
+
+          
           </a>
+
+          
+            
+            
+                <div class="version">
+                  0.1.0
+                </div>
+            
+          
+
+          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
@@ -44,7 +150,18 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
               <p class="caption" role="heading"><span class="caption-text">Navigation</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../navigation.html">Navigation</a></li>
@@ -85,32 +202,87 @@
 <li class="toctree-l1"><a class="reference internal" href="../misc/faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
+            
+          
         </div>
+        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
-          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../index.html">MLC-LLM</a>
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      
+      <nav class="wy-nav-top" aria-label="top navigation" data-toggle="wy-nav-top">
+        
+            <div class="togglemenu">
+
+            </div>
+            <div class="nav-content">
+              <!-- mlc-llm -->
+              Table of Contents
+            </div>
+        
       </nav>
 
+
       <div class="wy-nav-content">
+        
         <div class="rst-content">
-          <div role="navigation" aria-label="Page navigation">
+        
+
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Software Dependencies</li>
+    
+      <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
+        
+      <li>Software Dependencies</li>
+    
+    
+      
+      
+    
+    
       <li class="wy-breadcrumbs-aside">
-            <a href="../_sources/install/software-dependencies.rst.txt" rel="nofollow"> View page source</a>
+        
+            
+            
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/install/software-dependencies.rst" class="fa fa-github"> Edit on GitHub</a>
+            
+          
+        
       </li>
+    
   </ul>
+
+  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-             
+            
   <section id="software-dependencies">
-<h1>Software Dependencies<a class="headerlink" href="#software-dependencies" title="Permalink to this heading"></a></h1>
+<h1>Software Dependencies<a class="headerlink" href="#software-dependencies" title="Permalink to this heading">¶</a></h1>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
@@ -132,31 +304,31 @@
 </nav>
 <p>While we have included most of the dependencies in our pre-built wheels/scripts, there are still some platform-dependent packages that you will need to install on your own. In most cases, you won’t need all the packages listed on this page. If you’re unsure about which packages are required for your specific use case, please refer to the <a class="reference internal" href="../navigation.html"><span class="doc">navigation page</span></a> first.</p>
 <section id="cuda">
-<span id="software-dependencies-cuda"></span><h2><a class="toc-backref" href="#id3" role="doc-backlink">CUDA</a><a class="headerlink" href="#cuda" title="Permalink to this heading"></a></h2>
+<span id="software-dependencies-cuda"></span><h2><a class="toc-backref" href="#id3" role="doc-backlink">CUDA</a><a class="headerlink" href="#cuda" title="Permalink to this heading">¶</a></h2>
 <p>CUDA is required to compile and run models with <code class="docutils literal notranslate"><span class="pre">cuda</span></code> backend.</p>
 <section id="installation">
-<h3><a class="toc-backref" href="#id4" role="doc-backlink">Installation</a><a class="headerlink" href="#installation" title="Permalink to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id4" role="doc-backlink">Installation</a><a class="headerlink" href="#installation" title="Permalink to this heading">¶</a></h3>
 <p>If you have a NVIDIA GPU and you want to use models compiled with CUDA
 backend, you should install CUDA, which can be downloaded from
 <a class="reference external" href="https://developer.nvidia.com/cuda-downloads">here</a>.</p>
 </section>
 <section id="verification">
-<h3><a class="toc-backref" href="#id5" role="doc-backlink">Verification</a><a class="headerlink" href="#verification" title="Permalink to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">Verification</a><a class="headerlink" href="#verification" title="Permalink to this heading">¶</a></h3>
 <p>To verify you have correctly installed CUDA runtime and NVIDIA driver, you can simply run <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span></code> in command line and see
 if you can get the GPU information.</p>
 </section>
 </section>
 <section id="vulkan-driver">
-<span id="software-dependencies-vulkan-driver"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Vulkan Driver</a><a class="headerlink" href="#vulkan-driver" title="Permalink to this heading"></a></h2>
+<span id="software-dependencies-vulkan-driver"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Vulkan Driver</a><a class="headerlink" href="#vulkan-driver" title="Permalink to this heading">¶</a></h2>
 <section id="id1">
-<h3><a class="toc-backref" href="#id7" role="doc-backlink">Installation</a><a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id7" role="doc-backlink">Installation</a><a class="headerlink" href="#id1" title="Permalink to this heading">¶</a></h3>
 <p>To run pre-trained models (e.g. pulled from MLC-AI’s Hugging Face repository) compiled with <code class="docutils literal notranslate"><span class="pre">vulkan</span></code> backend, you are expected to install Vulkan driver on your machine.</p>
 <p>Please check <a class="reference external" href="https://www.vulkan.org/tools#vulkan-gpu-resources">this
 page</a> and find the
 Vulkan driver according to your GPU vendor.</p>
 </section>
 <section id="id2">
-<h3><a class="toc-backref" href="#id8" role="doc-backlink">Verification</a><a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id8" role="doc-backlink">Verification</a><a class="headerlink" href="#id2" title="Permalink to this heading">¶</a></h3>
 <p>To verify whether Vulkan installation is successful or not, you are encouraged to install <code class="docutils literal notranslate"><span class="pre">vulkaninfo</span></code>, below are the instructions to install <code class="docutils literal notranslate"><span class="pre">vulkaninfo</span></code> on different platforms:</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-VWJ1bnR1L0RlYmlhbg==" aria-selected="true" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-VWJ1bnR1L0RlYmlhbg==" name="VWJ1bnR1L0RlYmlhbg==" role="tab" tabindex="0">Ubuntu/Debian</button><button aria-controls="panel-0-RmVkb3Jh" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-RmVkb3Jh" name="RmVkb3Jh" role="tab" tabindex="-1">Fedora</button><button aria-controls="panel-0-QXJjaCBMaW51eA==" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-QXJjaCBMaW51eA==" name="QXJjaCBMaW51eA==" role="tab" tabindex="-1">Arch Linux</button><button aria-controls="panel-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" name="T3RoZXIgRGlzdHJpYnV0aW9ucw==" role="tab" tabindex="-1">Other Distributions</button></div><div aria-labelledby="tab-0-VWJ1bnR1L0RlYmlhbg==" class="sphinx-tabs-panel code-tab group-tab" id="panel-0-VWJ1bnR1L0RlYmlhbg==" name="VWJ1bnR1L0RlYmlhbg==" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
@@ -183,7 +355,7 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 </section>
 </section>
 <section id="vulkan-sdk">
-<span id="software-dependencies-vulkan-sdk"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">Vulkan-SDK</a><a class="headerlink" href="#vulkan-sdk" title="Permalink to this heading"></a></h2>
+<span id="software-dependencies-vulkan-sdk"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">Vulkan-SDK</a><a class="headerlink" href="#vulkan-sdk" title="Permalink to this heading">¶</a></h2>
 <p>Vulkan-SDK is required for building your own models for Vulkan backend. However, our <a class="reference external" href="https://mlc.ai/package">pre-built mlc-ai-nightly wheels</a> already packaged Vulkan-SDK, so there is no need to install it separately.</p>
 <p>Installing Vulkan-SDK is only necessary when user build TVM-Unity from source by following our <a class="reference internal" href="index.html#tvm-unity-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a> manual.</p>
 <p>Please check the Vulkan-SDK installation guide according to your platform:</p>
@@ -198,40 +370,67 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 <p>Please refer to installation and setup page for next steps to build TVM-Unity from source.</p>
 </section>
 <section id="opencl-sdk">
-<span id="software-dependencies-opencl-sdk"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">OpenCL-SDK</a><a class="headerlink" href="#opencl-sdk" title="Permalink to this heading"></a></h2>
+<span id="software-dependencies-opencl-sdk"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">OpenCL-SDK</a><a class="headerlink" href="#opencl-sdk" title="Permalink to this heading">¶</a></h2>
 <p>OpenCL-SDK is only required when you want to build your own models for OpenCL backend. Please refer to <a class="reference external" href="https://github.com/KhronosGroup/OpenCL-SDK">OpenCL’s Github Repository</a> for installation guide of OpenCL-SDK.</p>
 </section>
 </section>
 
 
            </div>
+           
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="index.html" class="btn btn-neutral float-left" title="Install and Setup" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="../tutorials/compile-models.html" class="btn btn-neutral float-right" title="How to Compile Models" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+          
+
+<footer>
+
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../tutorials/compile-models.html" class="btn btn-neutral float-right" title="How to Compile Models" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="index.html" class="btn btn-neutral float-left" title="Install and Setup" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
     </div>
 
-  <hr/>
+<div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
+<section class="footerSec">
+    <div class="footerHeader">
+      <div class="d-flex align-md-items-center justify-content-between flex-column flex-md-row">
+        <div class="copywrite d-flex align-items-center">
+          <h5 id="copy-right-info">© 2022 MLC LLM</h5>
+        </div>
+      </div>
 
-  <div role="contentinfo">
-    <p>&#169; Copyright 2023, MLC-LLM community.</p>
-  </div>
+    </div>
 
-  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
-    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
-    provided by <a href="https://readthedocs.org">Read the Docs</a>.
-   
+    <div>
+      <div class="footernote"> </div>
+    </div>
 
+</section>
 </footer>
         </div>
       </div>
+
     </section>
+
   </div>
-  <script>
+  
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+  </body>
+  <script type="text/javascript">
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
+
+  
+  
+    
+   
 
 </body>
 </html>
