@@ -163,6 +163,10 @@ class Conversation {
     this->messages.back().push_back(msg);
   }
 
+  void Reset() {
+    this->messages.resize(this->offset);
+  }
+
  private:
   // Identity function
   static std::string Identity(std::string msg) { return msg; }
@@ -187,7 +191,7 @@ class Conversation {
     } else {
       // need to add a sep of last response
       // which was not added in the processing step.
-      ret.push_back(this->seps[1 % this->seps.size()]);
+     // ret.push_back(this->seps[1 % this->seps.size()]);
     }
 
     ICHECK_EQ(start_pos % 2, 0);

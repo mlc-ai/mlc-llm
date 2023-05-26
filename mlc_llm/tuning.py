@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring,invalid-name
 import argparse
 import os
+import sys
 from typing import Callable, List, Optional
 
 from tvm import meta_schedule as ms
@@ -21,12 +22,12 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--target", type=str, default="auto")
     args = parser.parse_args()
-
-    from mlc_llm.dispatch.gpt_neox.redpajama_q4f32_tune import (  # pylint: disable=import-outside-toplevel,import-error
+    sys.path.insert(0, f"{args.path}/debug")
+    from mod_tir_static import (  # type: ignore  # pylint: disable=import-outside-toplevel,import-error
         Module,
     )
 
-    from . import utils  # pylint: disable=import-outside-toplevel
+    from mlc_llm import utils  # pylint: disable=import-outside-toplevel
 
     args.mod = Module
     utils.parse_target(args)
@@ -37,6 +38,10 @@ def _parse_args() -> argparse.Namespace:
 
 def wrap(sch_func):
     return ms.space_generator.ScheduleFn(sch_func)
+
+
+def wrap_without_postproc(sch_func):
+    return ms.space_generator.ScheduleFn(sch_func, postprocs=[])
 
 
 def sch_fused_decode_gemv(
@@ -331,6 +336,83 @@ def sch_fused_NT_matmul2_add2_gelu(sch: tir.Schedule) -> None:
     # fmt: on
 
 
+def sch_fused_decode4_matmul3(sch: tir.Schedule) -> None:
+    # fmt: off
+    b0 = sch.get_block(name="compute", func_name="main")
+    b1 = sch.get_block(name="T_add", func_name="main")
+    b2 = sch.get_block(name="T_multiply", func_name="main")
+    b3 = sch.get_block(name="T_multiply_1", func_name="main")
+    b4 = sch.get_block(name="T_add_1", func_name="main")
+    b5 = sch.get_block(name="T_add_2", func_name="main")
+    b6 = sch.get_block(name="matmul", func_name="main")
+    b7 = sch.get_block(name="root", func_name="main")
+    sch.pad_einsum(b6, [1, 64, 64])
+    b8 = sch.get_producers(b6)[-1]
+    b9 = sch.get_consumers(b6)[-1]
+    sch.annotate(block_or_loop=b6, ann_key="meta_schedule.tiling_structure", ann_val="SSSRRSRS")
+    l8, l9, l10 = sch.get_loops(block=b6)
+    v11, v12, v13, v14, v15 = 1, 1, 1, 1, 1
+    l16, l17, l18, l19, l20 = sch.split(loop=l8, factors=[v11, v12, v13, v14, v15], preserve_unit_iters=True)
+    v21, v22, v23, v24, v25 = None, 1, 64, 1, 2
+    l26, l27, l28, l29, l30 = sch.split(loop=l9, factors=[v21, v22, v23, v24, v25], preserve_unit_iters=True)
+    v31, v32, v33 = None, 4, 4
+    l34, l35, l36 = sch.split(loop=l10, factors=[v31, v32, v33], preserve_unit_iters=True)
+    sch.reorder(l16, l26, l17, l27, l18, l28, l34, l35, l19, l29, l36, l20, l30)
+    l37 = sch.fuse(l16, l26, preserve_unit_iters=True)
+    sch.bind(loop=l37, thread_axis="blockIdx.x")
+    l38 = sch.fuse(l17, l27, preserve_unit_iters=True)
+    sch.bind(loop=l38, thread_axis="vthread.x")
+    l39 = sch.fuse(l18, l28, preserve_unit_iters=True)
+    sch.bind(loop=l39, thread_axis="threadIdx.x")
+    sch.annotate(block_or_loop=b6, ann_key="meta_schedule.thread_extent_low_inclusive", ann_val=32)
+    sch.annotate(block_or_loop=b6, ann_key="meta_schedule.thread_extent_high_inclusive", ann_val=1024)
+    b40 = sch.cache_write(block=b6, write_buffer_index=0, storage_scope="local")
+    sch.reverse_compute_at(block=b40, loop=l39, preserve_unit_loops=True, index=-1)
+    b41 = sch.cache_read(block=b6, read_buffer_index=0, storage_scope="shared", consumer_blocks=[b6])
+    sch.compute_at(block=b41, loop=l34, preserve_unit_loops=True, index=-1)
+    l42, l43, l44, l45, l46, l47 = sch.get_loops(block=b41)
+    l48 = sch.fuse(l46, l47, preserve_unit_iters=True)
+    v49 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25], decision=0)
+    sch.annotate(block_or_loop=b41, ann_key="meta_schedule.cooperative_fetch", ann_val=v49)
+    b50 = sch.cache_read(block=b6, read_buffer_index=1, storage_scope="shared", consumer_blocks=[b6])
+    sch.compute_at(block=b50, loop=l34, preserve_unit_loops=True, index=-1)
+    l51, l52, l53, l54, l55, l56 = sch.get_loops(block=b50)
+    l57 = sch.fuse(l55, l56, preserve_unit_iters=True)
+    v58 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25], decision=3)
+    sch.annotate(block_or_loop=b50, ann_key="meta_schedule.cooperative_fetch", ann_val=v58)
+    sch.compute_inline(block=b5)
+    sch.compute_inline(block=b4)
+    sch.compute_inline(block=b3)
+    sch.compute_inline(block=b2)
+    sch.compute_inline(block=b1)
+    sch.compute_inline(block=b0)
+    v59 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001], decision=2)
+    sch.annotate(block_or_loop=b7, ann_key="meta_schedule.unroll_explicit", ann_val=v59)
+    sch.unannotate(block_or_loop=b41, ann_key="meta_schedule.cooperative_fetch")
+    l60, l61, l62, l63, l64 = sch.get_loops(block=b41)
+    l65, l66 = sch.split(loop=l64, factors=[None, 64], preserve_unit_iters=True)
+    sch.bind(loop=l66, thread_axis="threadIdx.x")
+    sch.unannotate(block_or_loop=b50, ann_key="meta_schedule.cooperative_fetch")
+    l67, l68, l69, l70, l71 = sch.get_loops(block=b50)
+    l72, l73, l74 = sch.split(loop=l71, factors=[None, 64, 8], preserve_unit_iters=True)
+    sch.vectorize(loop=l74)
+    sch.bind(loop=l73, thread_axis="threadIdx.x")
+    b75 = sch.get_block(name="root", func_name="main")
+    sch.unannotate(block_or_loop=b75, ann_key="meta_schedule.unroll_explicit")
+    _, b76, b77, b78, b79, _ = sch.get_child_blocks(b75)
+    l80, l81, l82, l83, l84, l85 = sch.get_loops(block=b76)
+    l86, l87, l88, l89, l90, l91, l92 = sch.get_loops(block=b77)
+    l93, l94, l95, l96, l97, l98, l99, l100, l101, l102 = sch.get_loops(block=b78)
+    sch.annotate(block_or_loop=l93, ann_key="pragma_auto_unroll_max_step", ann_val=64)
+    sch.annotate(block_or_loop=l93, ann_key="pragma_unroll_explicit", ann_val=1)
+    b108 = sch.get_block(name="matmul", func_name="main")
+    l109, l110, l111, l112, l113, l114, l115, l116, l117, l118 = sch.get_loops(block=b108)
+    b119 = sch.decompose_reduction(block=b108, loop=l112)
+    sch.compute_inline(b8)
+    sch.reverse_compute_inline(b9)
+    # fmt: on
+
+
 def main():
     args = _parse_args()
     path_workload = os.path.join(args.path, "database_workload.json")
@@ -345,15 +427,16 @@ def main():
         mod=args.mod,
         target=args.target,
         work_dir=args.work_dir,
-        max_trials_global=10000,
+        max_trials_global=2000,
         # max_trials_per_task=2,
-        runner=ms.runner.RPCRunner(
-            ms.runner.RPCConfig(
-                tracker_host="192.168.10.1",
-                tracker_port=9191,
-                tracker_key="m2-mac-mini",
-            ),
-        ),
+        runner=ms.runner.LocalRunner(timeout_sec=10),
+        # runner=ms.runner.RPCRunner(
+        #     ms.runner.RPCConfig(
+        #         tracker_host="192.168.10.1",
+        #         tracker_port=9191,
+        #         tracker_key="m2-mac-mini",
+        #     ),
+        # ),
         special_space={
             "fused_decode3_matmul1": sch_fused_decode_gemv(
                 name_epilogues=[],
@@ -390,6 +473,7 @@ def main():
             "decode1": sch_decode(),
             "decode2": sch_decode(),
             "fused_NT_matmul2_add2_gelu": wrap(sch_fused_NT_matmul2_add2_gelu),
+            "fused_decode4_matmul3": wrap_without_postproc(sch_fused_decode4_matmul3),
         },
     )
     if os.path.exists(path_workload):
