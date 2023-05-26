@@ -1,4 +1,4 @@
-How to Introduce a Model Architecture 
-=====================================
+Add New Model Architectures
+===========================
 
 Coming soon!

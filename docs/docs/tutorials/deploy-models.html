@@ -47,7 +47,7 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="How to Introduce a Model Architecture" href="bring-your-own-models.html" />
+    <link rel="next" title="Add New Model Architectures" href="bring-your-own-models.html" />
     <link rel="prev" title="How to Compile Models" href="compile-models.html" /> 
 </head>
 
@@ -127,9 +127,12 @@
           
 
           
-            <a href="../index.html" class="sidetitle" alt="Documentation Home"> mlc-llm
+            <a href="../index.html">
           
 
+          
+            
+            <img src="../_static/mlc-logo-with-text-landscape.svg" class="logo" alt="Logo"/>
           
           </a>
 
@@ -173,33 +176,33 @@
 <li class="toctree-l1"><a class="reference internal" href="compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">How to Deploy Models</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#prepare-model-weight-and-library">Prepare model weight and library</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#deploy-model-on-your-laptop-desktop">Deploy model on your laptop/desktop</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#deploy-models-on-your-laptop-desktop">Deploy Models on Your Laptop/Desktop</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#prepare-the-cli">Prepare the CLI</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#option-1-install-from-conda">Option 1: Install from Conda</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#option-2-build-from-source">Option 2: Build from source</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#validate-installation">Validate Installation</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#run-the-model-through-cli">Run the model through CLI</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#run-the-models-through-cli">Run the Models Through CLI</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#troubleshooting-faq">Troubleshooting FAQ</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#deploy-model-on-your-web-browser">Deploy model on your web browser</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#deploy-models-on-your-web-browser">Deploy Models on Your Web Browser</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#id2">Troubleshooting FAQ</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#deploy-model-on-your-iphone-ipad">Deploy model on your iPhone/iPad</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#deploy-models-on-your-iphone-ipad">Deploy Models on Your iPhone/iPad</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#id3">Troubleshooting FAQ</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#deploy-model-on-your-android-phone">Deploy model on your Android phone</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#deploy-model-on-your-android-phone">Deploy Model on Your Android Phone</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#id4">Troubleshooting FAQ</a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="bring-your-own-models.html">How to Introduce a Model Architecture</a></li>
-<li class="toctree-l1"><a class="reference internal" href="customize.html">How to customize Model Compilation and Optimization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bring-your-own-models.html">Add New Model Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="customize.html">Customize Model Compilation and Optimization</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Contribute to MLC-LLM</span></p>
 <ul>
@@ -302,10 +305,10 @@
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="#prepare-model-weight-and-library" id="id5">Prepare model weight and library</a></p></li>
-<li><p><a class="reference internal" href="#deploy-model-on-your-laptop-desktop" id="id6">Deploy model on your laptop/desktop</a></p></li>
-<li><p><a class="reference internal" href="#deploy-model-on-your-web-browser" id="id7">Deploy model on your web browser</a></p></li>
-<li><p><a class="reference internal" href="#deploy-model-on-your-iphone-ipad" id="id8">Deploy model on your iPhone/iPad</a></p></li>
-<li><p><a class="reference internal" href="#deploy-model-on-your-android-phone" id="id9">Deploy model on your Android phone</a></p></li>
+<li><p><a class="reference internal" href="#deploy-models-on-your-laptop-desktop" id="id6">Deploy Models on Your Laptop/Desktop</a></p></li>
+<li><p><a class="reference internal" href="#deploy-models-on-your-web-browser" id="id7">Deploy Models on Your Web Browser</a></p></li>
+<li><p><a class="reference internal" href="#deploy-models-on-your-iphone-ipad" id="id8">Deploy Models on Your iPhone/iPad</a></p></li>
+<li><p><a class="reference internal" href="#deploy-model-on-your-android-phone" id="id9">Deploy Model on Your Android Phone</a></p></li>
 </ul>
 </nav>
 <section id="prepare-model-weight-and-library">
@@ -314,7 +317,7 @@
 You can select from the panel below for the preparation steps you will need.</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Desktop/laptop</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Web browser</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">iPhone/iPad/Android phones</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">Use prebuilt model</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">Use model you built</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><p>MLC LLM provides a list of prebuilt models (check our <span class="xref std std-doc">model-zoo</span> for the list).
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">Use prebuilt model</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">Use model you built</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><p>MLC LLM provides a list of prebuilt models (check our <a class="reference internal" href="../model-zoo.html"><span class="doc">Model Zoo</span></a> for the list).
 If you want to use them, run the commands below under the root directory of MLC LLM to download the libraries and weights to the target location.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Make sure you have installed git-lfs.</span>
 mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt
@@ -340,8 +343,8 @@ git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/m
 </div></div>
 </div></div>
 </section>
-<section id="deploy-model-on-your-laptop-desktop">
-<span id="deploy-on-laptop-desktop"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Deploy model on your laptop/desktop</a><a class="headerlink" href="#deploy-model-on-your-laptop-desktop" title="Permalink to this heading">¶</a></h2>
+<section id="deploy-models-on-your-laptop-desktop">
+<span id="deploy-on-laptop-desktop"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Deploy Models on Your Laptop/Desktop</a><a class="headerlink" href="#deploy-models-on-your-laptop-desktop" title="Permalink to this heading">¶</a></h2>
 <p>This section goes through the process of deploying prebuilt model or the model you built on your laptop or desktop.
 MLC LLM provides a Command-Line Interface (CLI) application to deploy and help interact with the model.
 After <a class="reference internal" href="#cli-prepare-cli"><span class="std std-ref">preparing the CLI</span></a>, you can <a class="reference internal" href="#cli-run-model"><span class="std std-ref">deploy and interact</span></a> with the model on your machine through CLI.</p>
@@ -407,8 +410,8 @@ ldconfig<span class="w"> </span><span class="c1"># Re</span>
 which means the installation is successful.</p>
 </section>
 </section>
-<section id="run-the-model-through-cli">
-<span id="cli-run-model"></span><h3>Run the model through CLI<a class="headerlink" href="#run-the-model-through-cli" title="Permalink to this heading">¶</a></h3>
+<section id="run-the-models-through-cli">
+<span id="cli-run-model"></span><h3>Run the Models Through CLI<a class="headerlink" href="#run-the-models-through-cli" title="Permalink to this heading">¶</a></h3>
 <p>To run the model, we need to know the model’s “id” which can be recognized by the CLI.
 Model id is in the format <code class="docutils literal notranslate"><span class="pre">MODEL_NAME-QUANTIZATION_MODE</span></code> (for example, <code class="docutils literal notranslate"><span class="pre">vicuna-v1-7b-q3f16_0</span></code>, <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_0</span></code>, etc.).
 You can find the model id by checking the directory names under <code class="docutils literal notranslate"><span class="pre">dist</span></code> (if you built model on your own) or <code class="docutils literal notranslate"><span class="pre">dist/prebuilt</span></code> if you use prebuilt models:</p>
@@ -441,16 +444,16 @@ mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-
 <p>TBA.</p>
 </section>
 </section>
-<section id="deploy-model-on-your-web-browser">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Deploy model on your web browser</a><a class="headerlink" href="#deploy-model-on-your-web-browser" title="Permalink to this heading">¶</a></h2>
+<section id="deploy-models-on-your-web-browser">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Deploy Models on Your Web Browser</a><a class="headerlink" href="#deploy-models-on-your-web-browser" title="Permalink to this heading">¶</a></h2>
 <p>TBA.</p>
 <section id="id2">
 <h3>Troubleshooting FAQ<a class="headerlink" href="#id2" title="Permalink to this heading">¶</a></h3>
 <p>TBA.</p>
 </section>
 </section>
-<section id="deploy-model-on-your-iphone-ipad">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Deploy model on your iPhone/iPad</a><a class="headerlink" href="#deploy-model-on-your-iphone-ipad" title="Permalink to this heading">¶</a></h2>
+<section id="deploy-models-on-your-iphone-ipad">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Deploy Models on Your iPhone/iPad</a><a class="headerlink" href="#deploy-models-on-your-iphone-ipad" title="Permalink to this heading">¶</a></h2>
 <p>This section introduces how to deploy model you built or prebuilt by us on your iPhone/iPad devices.
 The iOS/iPadOS application supports chatting with prebuilt Vicuna or RedPajama models, and also supports using the model you manually built.</p>
 <p>MLC LLM has released an iOS/iPadOS application which you can directly download and use.
@@ -460,7 +463,7 @@ You can also build the application on your own.</p>
 </section>
 </section>
 <section id="deploy-model-on-your-android-phone">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Deploy model on your Android phone</a><a class="headerlink" href="#deploy-model-on-your-android-phone" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Deploy Model on Your Android Phone</a><a class="headerlink" href="#deploy-model-on-your-android-phone" title="Permalink to this heading">¶</a></h2>
 <section id="id4">
 <h3>Troubleshooting FAQ<a class="headerlink" href="#id4" title="Permalink to this heading">¶</a></h3>
 </section>
@@ -477,7 +480,7 @@ You can also build the application on your own.</p>
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="bring-your-own-models.html" class="btn btn-neutral float-right" title="How to Introduce a Model Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="bring-your-own-models.html" class="btn btn-neutral float-right" title="Add New Model Architectures" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="compile-models.html" class="btn btn-neutral float-left" title="How to Compile Models" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

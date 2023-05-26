@@ -48,8 +48,8 @@ Below is a list of models officially supported by MLC-LLM community. Pre-built m
 
 You can see `MLC-LLM pull requests <https://github.com/mlc-ai/mlc-llm/pulls?q=is%3Aopen+is%3Apr+label%3Anew-models>`__ to check the ongoing efforts of new models.
 
-Want to try different models?
------------------------------
+Try different models
+--------------------
 
 Please check :doc:`/tutorials/compile-models` on how to compile models with supported model architectures, and :doc:`/tutorials/bring-your-own-models` on how to bring a new LLM model architecture.
 
