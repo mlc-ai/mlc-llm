@@ -1,6 +1,6 @@
 #!/bin/bash
 # This file prepares all the necessary dependencies for the web build.
-set -uxo pipefail
+set -uo pipefail
 
 # need rust for tokenizers
 cargo version
@@ -12,8 +12,9 @@ else
   read answer
   if [ "$answer" != "${answer#[Yy]}" ] ;then 
     curl https://sh.rustup.rs -sSf | sh
+    source "$HOME/.cargo/env"
   else
-    echo "Exit installation."
+    echo "Failed installation: the dependency cargo not installed."
     exit 1
   fi
 fi
