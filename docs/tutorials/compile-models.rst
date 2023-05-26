@@ -22,12 +22,12 @@ Dependencies
 `TVM-Unity <https://discuss.tvm.apache.org/t/establish-tvm-unity-connection-a-technical-strategy/13344>`__ is required to compile models, please follow the instructions in :ref:`tvm-unity-install` to install the
 TVM-Unity package before proceeding with this tutorial.
 
-Prepare model weight
+Prepare Model Weight
 --------------------
 
 This section briefly introduces how to prepare the weight of the model we want to build.
 
-Models with full weight
+Models with Full Weight
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 For models whose full weight is directly available (e.g., `RedPajama-v1-3B on Hugging Face <https://huggingface.co/togethercomputer/RedPajama-INCITE-Chat-3B-v1>`_), we need to put the model to path ``dist/models/MODEL_NAME`` under the path of your MLC LLM.
@@ -51,13 +51,13 @@ For models whose full weight is directly available (e.g., `RedPajama-v1-3B on Hu
 
             ln -s path/to/your/model dist/models/MODEL_NAME
 
-Models with base weight and delta weight
+Models with Base Weight and Delta Weight
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For models whose base weight and delta weight are available (e.g., Vicuna-v1-7B only releases the `delta weight <https://huggingface.co/lmsys/vicuna-7b-delta-v1.1>`_ on Hugging Face), we need to apply the delta weights to the base weight. You can refer to the instructions of `getting Vicuna model weight <https://github.com/lm-sys/FastChat#vicuna-weights>`_ as a reference. After getting the full weight of the model, copy or symbolic link the model to ``dist/models/MODEL_NAME``.
 
 
-Run build script
+Run Build Script
 ----------------
 
 We can now run the build script ``build.py`` under the path of MLC LLM. The command is usually in the following pattern:
@@ -256,7 +256,7 @@ After running the build script successfully, you can proceed to the next tutoria
 
 
 
-Why need build?
+Why Need Build?
 ---------------
 
 As supplementary, this section explains what the **build** means in MLC LLM. Compared with PyTorch that runs every model in *eager mode*, the overall workflow of MLC LLM separates model execution into two major stages: **build** and **deployment**.

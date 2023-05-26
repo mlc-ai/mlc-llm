@@ -21,8 +21,8 @@ If you have a NVIDIA GPU and you want to use models compiled with CUDA
 backend, you should install CUDA, which can be downloaded from
 `here <https://developer.nvidia.com/cuda-downloads>`__.
 
-Verification
-^^^^^^^^^^^^
+Validate Installation
+^^^^^^^^^^^^^^^^^^^^^
 
 To verify you have correctly installed CUDA runtime and NVIDIA driver, you can simply run ``nvidia-smi`` in command line and see
 if you can get the GPU information.
@@ -41,8 +41,8 @@ Please check `this
 page <https://www.vulkan.org/tools#vulkan-gpu-resources>`__ and find the
 Vulkan driver according to your GPU vendor.
 
-Verification
-^^^^^^^^^^^^
+Validate Installation
+^^^^^^^^^^^^^^^^^^^^^
 
 To verify whether Vulkan installation is successful or not, you are encouraged to install ``vulkaninfo``, below are the instructions to install ``vulkaninfo`` on different platforms:
 
