@@ -32,9 +32,21 @@ class GradioChatModule(LLMChatModule):
     def reload_model(
         self, model_name, quantization_name, text_input, chat_state, img_list
     ):
+        reload = True
         if model_name is None or quantization_name is None:
+            reload = False
+            placeholder = "Select both model type and quantization type to get started"
+        else:
+            model_dir = model_name + "-" + quantization_name
+            model_lib = model_dir + "-" + self.device_name + ".so"
+            load_path = os.path.join(self.artifact_path, model_dir, model_lib)
+            if not os.path.exists(load_path):
+                reload = False
+                placeholder = "Model selected does not exist in your artifact path."
+
+        if not reload:
             return (
-                text_input,
+                gr.update(interactive=False, placeholder=placeholder),
                 gr.update(interactive=False),
                 gr.update(interactive=False),
                 gr.update(interactive=False),
@@ -43,11 +55,7 @@ class GradioChatModule(LLMChatModule):
                 img_list,
             )
 
-        model_dir = model_name + "-" + quantization_name
-        model_lib = model_dir + "-" + self.device_name + ".so"
-        lib = tvm.runtime.load_module(
-            os.path.join(self.artifact_path, model_dir, model_lib)
-        )
+        lib = tvm.runtime.load_module(load_path)
         assert lib is not None
         chat_mod.reload_func(lib, os.path.join(self.artifact_path, model_dir, "params"))
         text_input = gr.update(interactive=True, placeholder="Type and press Enter")
