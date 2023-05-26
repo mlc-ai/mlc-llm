@@ -4,6 +4,7 @@ def _get_model_worker(_args) -> None:
     import os
 
     import numpy as np
+    from tqdm import tqdm
     from transformers import AutoModelForCausalLM  # type: ignore[import]
 
     model: str
@@ -14,7 +15,11 @@ def _get_model_worker(_args) -> None:
         print("Model weights already exist under:", dump_path)
         return
 
-    print("Extracting weights for model:", model)
+    print(
+        f"Loading HuggingFace model into memory: {model}"
+        "Note: This may take a while depending on the model size and your RAM availability, "
+        "and could be particularly slow if it uses swap memory."
+    )
     hf_model = AutoModelForCausalLM.from_pretrained(
         model,
         trust_remote_code=True,
@@ -27,9 +32,11 @@ def _get_model_worker(_args) -> None:
         for name, param in hf_model.named_parameters()
     ]
     del hf_model
+    print("Loading done.")
 
+    print("Dumping independent weights dumped to:", dump_path)
     os.makedirs(dump_path, exist_ok=True)
-    for i, (name, param) in enumerate(params):
+    for i, (_, param) in tqdm(enumerate(params), total=len(params)):
         param_path = os.path.join(dump_path, f"param_{i}.npy")
         np.save(param_path, param)
 
@@ -38,7 +45,6 @@ def _get_model_worker(_args) -> None:
             [name for name, _ in params],
             o_f,
         )
-    print("Model weights dumped to:", dump_path)
 
 
 def get_model(model: str, dump_path: str):
