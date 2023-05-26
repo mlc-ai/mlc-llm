@@ -1,0 +1,4 @@
+sphinx-tabs == 3.4.1
+sphinx-gallery == 5.2.3
+sphinx-rtd-theme == 1.1.1
+sphinx-toolbox == 3.4.0
