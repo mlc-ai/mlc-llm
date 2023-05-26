@@ -29,7 +29,7 @@ You can select from the panel below for the preparation steps you will need.
 
             .. tab:: Use prebuilt model
 
-                MLC LLM provides a list of prebuilt models (check our :doc:`model-zoo` for the list).
+                MLC LLM provides a list of prebuilt models (check our :doc:`/model-zoo` for the list).
                 If you want to use them, run the commands below under the root directory of MLC LLM to download the libraries and weights to the target location.
 
                 .. code:: shell
@@ -82,8 +82,8 @@ You can select from the panel below for the preparation steps you will need.
 
 .. _deploy-on-laptop-desktop:
 
-Deploy model on your laptop/desktop
------------------------------------
+Deploy Models on Your Laptop/Desktop
+------------------------------------
 
 This section goes through the process of deploying prebuilt model or the model you built on your laptop or desktop.
 MLC LLM provides a Command-Line Interface (CLI) application to deploy and help interact with the model.
@@ -172,8 +172,8 @@ which means the installation is successful.
 
 .. _CLI-run-model:
 
-Run the model through CLI
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Run the Models Through CLI
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To run the model, we need to know the model's "id" which can be recognized by the CLI.
 Model id is in the format ``MODEL_NAME-QUANTIZATION_MODE`` (for example, ``vicuna-v1-7b-q3f16_0``, ``RedPajama-INCITE-Chat-3B-v1-q4f16_0``, etc.).
@@ -212,8 +212,8 @@ Troubleshooting FAQ
 TBA.
 
 
-Deploy model on your web browser
---------------------------------
+Deploy Models on Your Web Browser
+---------------------------------
 
 TBA.
 
@@ -223,8 +223,8 @@ Troubleshooting FAQ
 TBA.
 
 
-Deploy model on your iPhone/iPad
---------------------------------
+Deploy Models on Your iPhone/iPad
+---------------------------------
 
 This section introduces how to deploy model you built or prebuilt by us on your iPhone/iPad devices.
 The iOS/iPadOS application supports chatting with prebuilt Vicuna or RedPajama models, and also supports using the model you manually built.
@@ -237,7 +237,7 @@ Troubleshooting FAQ
 ~~~~~~~~~~~~~~~~~~~
 
 
-Deploy model on your Android phone
+Deploy Model on Your Android Phone
 ----------------------------------
 
 Troubleshooting FAQ

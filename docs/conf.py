@@ -43,6 +43,8 @@ html_static_path = []
 footer_copyright = "© 2022 MLC LLM"
 footer_note = " "
 
+html_logo = "_static/img/mlc-logo-with-text-landscape.svg"
+
 html_theme_options = {
     "logo_only": True,
 }
@@ -72,7 +74,7 @@ html_context = {
     "github_repo": "mlc-llm",
     "github_version": "main/docs/",
     "theme_vcs_pageview_mode": "edit",
-    # "header_logo": "path/to/logo",
+    # "header_logo": "/path/to/logo",
     # "header_logo_link": "",
     # "version_selecter": "",
 }
