@@ -224,6 +224,7 @@ def copy_tokenizer(args: argparse.Namespace) -> None:
             "vocab.json",
             "merges.txt",
             "added_tokens.json",
+            "tokenizer_config.json",
         ]:
             shutil.copy(
                 os.path.join(args.model_path, filename),
