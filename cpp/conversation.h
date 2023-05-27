@@ -14,7 +14,9 @@ namespace mlc {
 namespace llm {
 
 enum class SeparatorStyle {
+  /*! \brief add colon ": " beween role and message. */
   kAddColon,
+  /*! \brief raw langauge model style, always only returns last message. */
   kLM,
 };
 
