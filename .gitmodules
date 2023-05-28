@@ -4,3 +4,6 @@
 [submodule "3rdparty/tokenizers-cpp"]
 	path = 3rdparty/tokenizers-cpp
 	url = https://github.com/mlc-ai/tokenizers-cpp
+[submodule "3rdparty/googletest"]
+	path = 3rdparty/googletest
+	url = https://github.com/google/googletest.git

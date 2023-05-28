@@ -1,7 +1,11 @@
+#include <filesystem>
 #include <string>
 #include <unordered_map>
 
 #include "conversation.h"
+#define PICOJSON_USE_INT64
+#define __STDC_FORMAT_MACROS
+#include <picojson.h>
 
 namespace mlc {
 namespace llm {
@@ -120,6 +124,102 @@ Conversation Conversation::FromTemplate(const std::string& name) {
     LOG(FATAL) << "Unknown conversation template: " << name;
   }
   return it->second();
+}
+
+void Conversation::LoadJSONOverride(const std::string& config_json) {
+  picojson::value v;
+  std::string err = picojson::parse(v, config_json);
+  if (!err.empty()) {
+    LOG(FATAL) << err;
+    return;
+  }
+  std::string err_templ = " in conversion template json file.";
+  picojson::object o = v.get<picojson::object>();
+  CHECK(o["name"].is<std::string>()) << "Invalid name" << err_templ;
+  this->name = o["name"].get<std::string>();
+  CHECK(o["system"].is<std::string>()) << "Invalid system" << err_templ;
+  this->system = o["system"].get<std::string>();
+  CHECK(o["roles"].is<picojson::array>()) << "Invalid roles" << err_templ;
+  picojson::array roles_arr = o["roles"].get<picojson::array>();
+  std::vector<std::string> roles;
+  for (const picojson::value& v : roles_arr) {
+    CHECK(v.is<std::string>()) << "Invalid roles" << err_templ;
+    roles.push_back(v.get<std::string>());
+  }
+  this->roles = roles;
+  CHECK(o["messages"].is<picojson::array>()) << "Invalid messages" << err_templ;
+  std::vector<std::vector<std::string>> messages;
+  picojson::array msgs_arr = o["messages"].get<picojson::array>();
+  for (const picojson::value& msgs_i : msgs_arr) {
+    CHECK(msgs_i.is<picojson::array>()) << "Invalid messages" << err_templ;
+    picojson::array msgs_i_arr = msgs_i.get<picojson::array>();
+    std::vector<std::string> messages_i;
+    for (const picojson::value& msg_v : msgs_i_arr) {
+      CHECK(msg_v.is<std::string>()) << "Invalid messages" << err_templ;
+      messages_i.push_back(msg_v.get<std::string>());
+    }
+    messages.push_back(messages_i);
+  }
+  this->messages = messages;
+  CHECK(o["offset"].is<int64_t>()) << "Invalid offset" << err_templ;
+  this->offset = o["offset"].get<int64_t>();
+  CHECK(o["separator_style"].is<int64_t>()) << "Invalid separator style" << err_templ;
+  this->separator_style = SeparatorStyle(o["separator_style"].get<int64_t>());
+  std::vector<std::string> seps;
+  CHECK(o["seps"].is<picojson::array>()) << "Invalid seps" << err_templ;
+  picojson::array seps_arr = o["seps"].get<picojson::array>();
+  for (const picojson::value& sep : seps_arr) {
+    CHECK(sep.is<std::string>()) << "Invalid seps" << err_templ;
+    seps.push_back(sep.get<std::string>());
+  }
+  this->seps = seps;
+  CHECK(o["stop_str"].is<std::string>()) << "Invalid stop_str" << err_templ;
+  this->stop_str = o["stop_str"].get<std::string>();
+  CHECK(o["stop_tokens"].is<picojson::array>()) << "Invalid stop_tokens" << err_templ;
+  picojson::array stop_tokens_arr = o["stop_tokens"].get<picojson::array>();
+  std::vector<int32_t> stop_tokens;
+  for (const picojson::value& stop_token : stop_tokens_arr) {
+    CHECK(stop_token.is<int64_t>()) << "Invalid stop_tokens" << err_templ;
+    stop_tokens.push_back(stop_token.get<int64_t>());
+  }
+  this->stop_tokens = stop_tokens;
+  CHECK(o["add_bos"].is<bool>()) << "Invalid add_bos" << err_templ;
+  this->add_bos = o["add_bos"].get<bool>();
+}
+
+std::string Conversation::SerializeToJSON() const {
+  picojson::object o;
+  o["name"] = picojson::value(this->name);
+  o["system"] = picojson::value(this->system);
+  picojson::array roles_arr;
+  for (const std::string& role_str : this->roles) {
+    roles_arr.push_back(picojson::value(role_str));
+  }
+  o["roles"] = picojson::value(roles_arr);
+  picojson::array msgs_arr;
+  for (const std::vector<std::string>& msgs_i : this->messages) {
+    picojson::array msgs_i_arr;
+    for (const std::string& msg_str : msgs_i) {
+      msgs_i_arr.push_back(picojson::value(msg_str));
+    }
+    msgs_arr.push_back(picojson::value(msgs_i_arr));
+  }
+  o["messages"] = picojson::value(msgs_arr);
+  o["offset"] = picojson::value((int64_t)this->offset);
+  o["separator_style"] = picojson::value((int64_t)this->separator_style);
+  picojson::array seps_arr;
+  for (const std::string& sep_str : this->seps) {
+    seps_arr.push_back(picojson::value(sep_str));
+  }
+  o["seps"] = picojson::value(seps_arr);
+  o["stop_str"] = picojson::value(this->stop_str);
+  picojson::array stop_tokens_arr;
+  for (const int32_t& stop_token_str : this->stop_tokens) {
+    stop_tokens_arr.push_back(picojson::value((int64_t)stop_token_str));
+  }
+  o["stop_tokens"] = picojson::value(stop_tokens_arr);
+  o["add_bos"] = picojson::value(this->add_bos);
+  return picojson::value(o).serialize(true);
 }
 
 }  // namespace llm
