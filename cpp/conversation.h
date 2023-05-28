@@ -109,8 +109,8 @@ class Conversation {
   void LoadJSONOverride(const std::string& config_json);
 
   /*!
-   * \brief Serialize the Conversation Template to JSON.
-   * \return A string storing the serialized conversion template in JSON format.
+   * \brief Serialize the Conversation to JSON.
+   * \return A string storing the serialized conversion in JSON format.
    */
   std::string SerializeToJSON() const;
 
