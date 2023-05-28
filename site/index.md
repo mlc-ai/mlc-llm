@@ -71,7 +71,7 @@ conda install -c mlc-ai -c conda-forge mlc-chat-nightly --force-reinstall
 # from GitHub. Select one of the following `LOCAL_ID` for a prebuilt LLM.
 
 mkdir -p dist/prebuilt
-git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git lib
+git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 
 # Download prebuilt weights of Vicuna-7B
 cd dist/prebuilt
