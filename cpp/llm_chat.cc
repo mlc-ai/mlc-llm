@@ -238,7 +238,18 @@ class LLMChat {
     this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
 
     // Step 7. Initialize conversation.
-    this->conversation_ = Conversation::FromTemplate(conv_template);
+    std::filesystem::path conv_path = std::filesystem::path(model_path) / "conversation.json";
+    if (std::filesystem::exists(conv_path)) {
+      LOG(INFO) << "Load conversation from disk...";
+      std::ifstream conv_istream(conv_path.c_str());
+      std::ostringstream conv_ostream;
+      ICHECK(conv_ostream);
+      conv_ostream << conv_istream.rdbuf();
+      this->conversation_.LoadJSONOverride(conv_ostream.str());
+    } else {
+      LOG(INFO) << "Load conversation from pre-defined templates...";
+      this->conversation_ = Conversation::FromTemplate(conv_template);
+    }
     this->ResetChat();
   }
 
