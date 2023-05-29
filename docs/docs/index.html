@@ -39,6 +39,7 @@
         <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
         <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/tabs.js"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -46,7 +47,7 @@
     <script type="text/javascript" src="_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Navigation" href="navigation.html" /> 
+    <link rel="next" title="Install and Setup" href="install/index.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -163,16 +164,12 @@
               
             
             
-              <p class="caption" role="heading"><span class="caption-text">Navigation</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="navigation.html">Navigation</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="install/index.html">Install and Setup</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install/software-dependencies.html">Software Dependencies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/deploy-models.html">How to Deploy Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/bring-your-own-models.html">Add New Model Architectures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/customize.html">Customize Model Compilation and Optimization</a></li>
 </ul>
@@ -274,20 +271,57 @@
 <p>Our mission is to <strong>enable everyone to develop, optimize and deploy AI models natively on everyone’s devices</strong>.</p>
 <p>Everything runs locally with no server support and accelerated with local GPUs on your phone and laptops.</p>
 <p><a class="reference external" href="https://discord.gg/9Xpy2HGBuD">Join our Discord Server!</a></p>
-<p>We prepared a navigation page for you to get started with MLC-LLM.</p>
-<div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Navigation</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="navigation.html">Navigation</a></li>
+<section id="navigation">
+<span id="id1"></span><h2>Navigation<a class="headerlink" href="#navigation" title="Permalink to this heading">¶</a></h2>
+<p>Before you start, please select your use case so that we can narrow down the search scope.</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">I want to run models on my device.</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">I need to customize MLC-LLM.</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>Please select your platform:</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">Android</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-1-1-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-2" name="1-2" role="tab" tabindex="-1">WebGPU</button><button aria-controls="panel-1-1-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-3" name="1-3" role="tab" tabindex="-1">PC</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><p>Please check our instructions on <a class="reference external" href="https://mlc.ai/mlc-llm/#android">MLC-LLM Android app</a>.</p>
+</div><div aria-labelledby="tab-1-1-1" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-1" name="1-1" role="tabpanel" tabindex="0"><p>Please check our instructions on <a class="reference external" href="https://mlc.ai/mlc-llm/#iphone">MLC-LLM IOS app</a></p>
+</div><div aria-labelledby="tab-1-1-2" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-2" name="1-2" role="tabpanel" tabindex="0"><p>Please check <a class="reference external" href="https://mlc.ai/web-llm/">Web-LLM project</a>.</p>
+</div><div aria-labelledby="tab-1-1-3" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-3" name="1-3" role="tabpanel" tabindex="0"><p>MLC-LLM already provided a set of prebuilt models which you can deploy directly, check the <a class="reference internal" href="model-zoo.html"><span class="doc">Model Zoo</span></a> for the list of supported models.</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">Use prebuilt models.</button><button aria-controls="panel-2-2-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-1" name="2-1" role="tab" tabindex="-1">Build your own models.</button></div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><p>Please check <a class="reference internal" href="tutorials/deploy-models.html"><span class="doc">How to Deploy Models</span></a> for instructions on preparing models and deploying models with MLC-LLM CLI.</p>
+<ul class="simple">
+<li><p>If you are a Mac OS user, and you will run a model compiled with <code class="docutils literal notranslate"><span class="pre">metal</span></code> backend, congratulations! You don’t need to install any external drivers/packages but <code class="docutils literal notranslate"><span class="pre">metal</span></code> is natively supported by Mac OS.</p></li>
+<li><p>If you will run a model compiled with <code class="docutils literal notranslate"><span class="pre">CUDA</span></code> backend, please install CUDA accordingly to our <a class="reference internal" href="install/software-dependencies.html#software-dependencies-cuda"><span class="std std-ref">CUDA installation guide</span></a>.</p></li>
+<li><p>If you will run a model compiled with <code class="docutils literal notranslate"><span class="pre">Vulkan</span></code> backend, please install Vulkan Driver accordingly to our <a class="reference internal" href="install/software-dependencies.html#software-dependencies-vulkan-driver"><span class="std std-ref">Vulkan Driver Installation Guide</span></a>.</p></li>
 </ul>
-</div>
+</div><div aria-labelledby="tab-2-2-1" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-1" name="2-1" role="tabpanel" tabindex="0"><p>There are two different cases where you need to build your own models:</p>
+<ul class="simple">
+<li><p>Use your own moden weights, or use different quantization data type/running data type.</p></li>
+<li><p>Please check <a class="reference internal" href="tutorials/compile-models.html"><span class="doc">How to Compile Models</span></a> for details on how to prepare build models for existing architectures.</p></li>
+<li><p>Use a brand new model architecture which is not supported by MLC-LLM yet.</p></li>
+<li><p>Please check <a class="reference internal" href="tutorials/bring-your-own-models.html"><span class="doc">Add New Model Architectures</span></a> for details on how to add new model architectures to the MLC-LLM family.</p></li>
+</ul>
+<p>In either cases, you are ecouraged to contribute to the MLC-LLM, see <a class="reference internal" href="contribute/community.html#contribute-new-models"><span class="std std-ref">Contribute New Models to MLC-LLM</span></a> on guidelines for contributing new models.</p>
+</div></div>
+</div></div>
+</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p>There are lots of interesting ways to further improve and customize MLC-LLM.</p>
+<ul class="simple">
+<li><p>The performance of MLC-LLM can be improved in a lot of ways, including (but not limited to) fusing multi-head attention with FlashAttention algorithm, or using more advanced quantization algorithms.</p></li>
+<li><p>We can also add new backends/language binding with the existing infrastructure.</p></li>
+</ul>
+<p>Before you start, please check our <a class="reference internal" href="tutorials/customize.html"><span class="doc">Customize Model Compilation and Optimization</span></a> to see how can you customize MLC-LLM for your own purpose.</p>
+<p>You are encouraged to contribute to the MLC-LLM if your found your customization intersting.</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-3-3-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-3-3-0" name="3-0" role="tab" tabindex="0">I need to customize TVM-Unity</button><button aria-controls="panel-3-3-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-1" name="3-1" role="tab" tabindex="-1">Use original TVM-Unity</button></div><div aria-labelledby="tab-3-3-0" class="sphinx-tabs-panel" id="panel-3-3-0" name="3-0" role="tabpanel" tabindex="0"><p>In this case, user need to change TVM-Unity codebase. Please check <a class="reference internal" href="install/index.html#tvm-unity-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a> on how to install TVM-Unity from source.</p>
+<ul class="simple">
+<li><p>If user want to compile models with <code class="docutils literal notranslate"><span class="pre">CUDA</span></code> backend, please install CUDA according to our <a class="reference internal" href="install/software-dependencies.html#software-dependencies-cuda"><span class="std std-ref">CUDA installation guide</span></a>.</p></li>
+<li><p>If user want to compile models with <code class="docutils literal notranslate"><span class="pre">Vulkan</span></code> backend, please install Vulkan-SDK according to our <a class="reference internal" href="install/software-dependencies.html#software-dependencies-vulkan-sdk"><span class="std std-ref">Vulkan SDK Installation Guide</span></a>.</p></li>
+<li><p>If user want to compile models with <code class="docutils literal notranslate"><span class="pre">OpenCL</span></code> backend, please install OpenCL-SDK according to our <a class="reference internal" href="install/software-dependencies.html#software-dependencies-opencl-sdk"><span class="std std-ref">OpenCL SDK Installation Guide</span></a>.</p></li>
+</ul>
+</div><div aria-labelledby="tab-3-3-1" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-1" name="3-1" role="tabpanel" tabindex="0"><p>In this case, please install prebuilt TVM-Unity package according to our <a class="reference internal" href="install/index.html#tvm-unity-install-prebuilt-package"><span class="std std-ref">Installation Guidelines</span></a>.</p>
+</div></div>
+</div></div>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="install/index.html">Install and Setup</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install/software-dependencies.html">Software Dependencies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/deploy-models.html">How to Deploy Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/bring-your-own-models.html">Add New Model Architectures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/customize.html">Customize Model Compilation and Optimization</a></li>
 </ul>
@@ -311,6 +345,7 @@
 </ul>
 </div>
 </section>
+</section>
 
 
            </div>
@@ -322,7 +357,7 @@
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="navigation.html" class="btn btn-neutral float-right" title="Navigation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="install/index.html" class="btn btn-neutral float-right" title="Install and Setup" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
     </div>

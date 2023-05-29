@@ -47,8 +47,8 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="How to Deploy Models" href="deploy-models.html" />
-    <link rel="prev" title="Software Dependencies" href="../install/software-dependencies.html" /> 
+    <link rel="next" title="Add New Model Architectures" href="bring-your-own-models.html" />
+    <link rel="prev" title="How to Deploy Models" href="deploy-models.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -165,14 +165,11 @@
               
             
             
-              <p class="caption" role="heading"><span class="caption-text">Navigation</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../navigation.html">Navigation</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../install/index.html">Install and Setup</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/software-dependencies.html">Software Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deploy-models.html">How to Deploy Models</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">How to Compile Models</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#dependencies">Dependencies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#prepare-model-weight">Prepare Model Weight</a><ul>
@@ -185,7 +182,6 @@
 <li class="toctree-l2"><a class="reference internal" href="#troubleshooting-faq">Troubleshooting FAQ</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="deploy-models.html">How to Deploy Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="bring-your-own-models.html">Add New Model Architectures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="customize.html">Customize Model Compilation and Optimization</a></li>
 </ul>
@@ -283,12 +279,10 @@
             
   <section id="how-to-compile-models">
 <span id="id1"></span><h1>How to Compile Models<a class="headerlink" href="#how-to-compile-models" title="Permalink to this heading">¶</a></h1>
-<p>In this tutorial, we will guide you on how to <strong>build</strong> LLM whose architectures are already supported by MLC LLM to different backends. Before diving into this tutorial, you should first finish the <a class="reference internal" href="../install/index.html#installation-and-setup"><span class="std std-ref">Install and Setup</span></a>. In the following content, we assume you have already installed them and will not cover the installation part. After finish building, you can checkout the tutorial <a class="reference external" href="http://127.0.0.1">deploy-build-applications</a>.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>At this moment, MLC LLM officially supports two model architectures: <a class="reference external" href="https://github.com/facebookresearch/llama">LLaMA</a> and <a class="reference external" href="https://github.com/EleutherAI/gpt-neox">GPT-NeoX</a>.
-To build models with other model architectures, please refer to the tutorial <a class="reference external" href="http://127.0.0.1">model-architecture-variant</a>.</p>
-</div>
+<p>In this tutorial, we will guide you on how to build an LLM with architectures that are already supported by MLC LLM for different backends. Before proceeding with this tutorial, make sure you have completed the <a class="reference internal" href="../install/index.html"><span class="doc">Install and Setup</span></a> tutorial. In the following content, we assume that you have already installed the necessary components and will not cover the installation steps.</p>
+<p>We have provided a list of off-the-shelf prebuilt models (refer to the <a class="reference internal" href="../model-zoo.html#off-the-shelf-models"><span class="std std-ref">Off-the-Shelf Models</span></a> section) that you can directly use without the need for building. To learn how to deploy these models, refer to the tutorial :doc:deploy-models.</p>
+<p>If your model is not included in the list of off-the-shelf models, but its architecture falls within the supported model architectures (see the <a class="reference internal" href="../model-zoo.html#supported-model-architectures"><span class="std std-ref">Supported Model Architectures</span></a> section), you can follow this tutorial to build your model for different backends.</p>
+<p>In the event that your model architecture is not supported, you can refer to the tutorial <a class="reference internal" href="bring-your-own-models.html"><span class="doc">Add New Model Architectures</span></a> to learn how to introduce new model architectures.</p>
 <p>This tutorial contains the following sections in order:</p>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
@@ -456,6 +450,10 @@ python3<span class="w"> </span>build.py<span class="w"> </span>--model<span clas
 <li><p>You can add <code class="docutils literal notranslate"><span class="pre">--debug-dump</span></code> to the build command to  optionally specifies if we will write some dump files for debugging.</p></li>
 </ul>
 <p>After running the build script successfully, you can proceed to the next tutorial on <a class="reference external" href="http:127.0.0.1">how to deploy models to different backends</a>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>In certain cases, using 3-bit quantization for compiling can be overly aggressive and may result in the compiled model generating meaningless text. If you encounter issues where the compiled model does not perform as expected, consider utilizing a higher number of bits for quantization (e.g., 4-bit quantization).</p>
+</div>
 </section>
 <section id="why-need-build">
 <h2><a class="toc-backref" href="#id5" role="doc-backlink">Why Need Build?</a><a class="headerlink" href="#why-need-build" title="Permalink to this heading">¶</a></h2>
@@ -490,10 +488,10 @@ This separation enables us to build LLM to different backends using a single com
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="deploy-models.html" class="btn btn-neutral float-right" title="How to Deploy Models" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="bring-your-own-models.html" class="btn btn-neutral float-right" title="Add New Model Architectures" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="../install/software-dependencies.html" class="btn btn-neutral float-left" title="Software Dependencies" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="deploy-models.html" class="btn btn-neutral float-left" title="How to Deploy Models" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

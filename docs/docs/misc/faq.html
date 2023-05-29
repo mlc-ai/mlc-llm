@@ -163,16 +163,12 @@
               
             
             
-              <p class="caption" role="heading"><span class="caption-text">Navigation</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../navigation.html">Navigation</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../install/index.html">Install and Setup</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/software-dependencies.html">Software Dependencies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/deploy-models.html">How to Deploy Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/bring-your-own-models.html">Add New Model Architectures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/customize.html">Customize Model Compilation and Optimization</a></li>
 </ul>
@@ -271,10 +267,12 @@
   <section id="frequently-asked-questions-faq">
 <h1>Frequently Asked Questions (FAQ)<a class="headerlink" href="#frequently-asked-questions-faq" title="Permalink to this heading">¶</a></h1>
 <p>This is a list of Frequently Asked Questions (FAQ) about the MLC-LLM. Feel free to suggest new entries!</p>
-<p>How can I customize the temperature, repetition penalty of models?</p>
-<ul class="simple">
-<li><p>There is a <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file under your model directory, where you can modity the parameters.</p></li>
-</ul>
+<dl class="simple">
+<dt>… How can I customize the temperature, repetition penalty of models?</dt><dd><p>There is a <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file under your model directory, where you can modify the parameters.</p>
+</dd>
+<dt>… What’s the quantization algorithm MLC-LLM using?</dt><dd><p>MLC-LLM does not impose any restrictions on the choice of the quantization algorithm, and the design should be compatible with all quantization algorithms. By default, we utilize the grouping quantization method discussed in the paper <a class="reference external" href="https://arxiv.org/abs/2212.09720">The case for 4-bit precision: k-bit Inference Scaling Laws</a>.</p>
+</dd>
+</dl>
 </section>
 
 

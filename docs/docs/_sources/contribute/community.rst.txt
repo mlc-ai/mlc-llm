@@ -53,8 +53,6 @@ on github directly. Once your update is complete, you can click the ``contribute
 Contribute New Models to MLC-LLM
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Woohoo! Congratulations
-
 * If you compiled a model for existing model architecture by following our :doc:`../tutorials/compile-models` tutorial.
   Please upload your model stored in ``dist`` directory to Hugging Face (an example can be
   found `here <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q4f32_0/tree/main>`__), and please create a
