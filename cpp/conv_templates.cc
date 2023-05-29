@@ -257,6 +257,27 @@ Conversation MOSS() {
   return conv;
 }
 
+Conversation MiniGPT() {
+  Conversation conv;
+  conv.name = "minigpt";
+  conv.system =
+      ("Give the following image: <Img>ImageContent</Img>. "
+       "You will be able to see the image once I provide it to you. Please answer my questions.");
+  conv.roles = {"Human", "Assistant"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kAccumRoleMsg;
+  conv.seps = {"###"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2};
+  conv.stop_str = "</s>";
+  conv.add_bos = true;
+  return conv;
+}
+
 Conversation VanillaLM() {
   Conversation conv;
   conv.name = "LM";
@@ -291,6 +312,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"oasst", Oasst},
       {"stablelm", StableLM},
       {"moss", MOSS},
+      {"minigpt", MiniGPT},
       {"LM", VanillaLM},
   };
   auto it = factory.find(name);

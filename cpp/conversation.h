@@ -17,6 +17,8 @@ namespace llm {
 enum class SeparatorStyle {
   /*! \brief Add separator between role and message. */
   kSepRoleMsg,
+  /*! \brief Accumulate user input and LM output history in the prompts, separated by separators. */
+  kAccumRoleMsg,
   /*! \brief raw language model style, always only returns last message. */
   kLM,
 };
@@ -152,6 +154,9 @@ class Conversation {
    */
   std::vector<std::string> GetPromptArrayLastRound() {
     ICHECK_GE(this->messages.size(), 2);
+    if (this->separator_style == SeparatorStyle::kAccumRoleMsg) {
+      return GetPromptArrayInternal(0);
+    }
     return GetPromptArrayInternal(this->messages.size() - 2);
   }
 
@@ -204,7 +209,11 @@ class Conversation {
       const auto& role = item[0];
       if (item.size() == 2) {
         const std::string message = fproc_message(item[1]);
-        ret.push_back(role + role_msg_sep + message + end_sep);
+        if (this->separator_style == SeparatorStyle::kAccumRoleMsg && i == start_pos) {
+          ret.push_back(role + role_msg_sep + "<Img><ImageHere></Img> " + message + end_sep);
+        } else {
+          ret.push_back(role + role_msg_sep + message + end_sep);
+        }
       } else {
         ICHECK(item.size() == 1);
         ret.push_back(role + role_empty_sep);
@@ -214,7 +223,8 @@ class Conversation {
   }
   // dispatcher based on separator style
   std::vector<std::string> GetPromptArrayInternal(size_t start_pos) {
-    if (this->separator_style == SeparatorStyle::kSepRoleMsg) {
+    if (this->separator_style == SeparatorStyle::kSepRoleMsg ||
+        this->separator_style == SeparatorStyle::kAccumRoleMsg) {
       std::string system_prefix;
       if (!this->system.empty()) {
         system_prefix = this->system + this->seps[0];

@@ -11,7 +11,7 @@ from tvm import relax
 
 import mlc_llm
 from mlc_llm import utils
-from mlc_llm.relax_model import gpt_neox, llama, moss, rwkv
+from mlc_llm.relax_model import gpt_neox, llama, minigpt, moss, rwkv
 
 
 def _parse_args():
@@ -266,13 +266,24 @@ def mod_transform_before_build(
     args: argparse.Namespace,
 ) -> tvm.IRModule:
     """First-stage: Legalize ops and trace"""
-    if ARGS.model.startswith("rwkv-"):
+    if args.model.startswith("rwkv-"):
         model_names = [
             "decode",
             "create_kv_cache",
             "softmax_with_temperature",
             "get_metadata",
             "reset_kv_cache",
+        ]
+    elif args.model.startswith("minigpt4-"):
+        model_names = ["embed"]
+    elif args.model_category == "llama":
+        model_names = [
+            "embed",
+            "prefill",
+            "decode",
+            "create_kv_cache",
+            "softmax_with_temperature",
+            "get_metadata",
         ]
     else:
         model_names = [
@@ -405,6 +416,8 @@ def main():
                 mod, params = moss.get_model(ARGS, config)
             elif ARGS.model_category == "rwkv":
                 mod, params = rwkv.get_model(ARGS, config)
+            elif ARGS.model_category == "minigpt":
+                mod, params = minigpt.get_model(ARGS)
             else:
                 raise ValueError(f"Model {ARGS.model} not supported")
             mod = mod_transform_before_build(mod, params, ARGS)
