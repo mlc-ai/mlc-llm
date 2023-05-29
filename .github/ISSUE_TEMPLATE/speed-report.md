@@ -1,8 +1,8 @@
 ---
 name: " 🏎️  Speed Report"
 about: Submit a speed report of an model running in MLC-LLM
-title: ''
-labels: ''
+title: '[Speed] '
+labels: ['status: help wanted', 'performance']
 assignees: ''
 
 ---

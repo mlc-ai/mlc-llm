@@ -1,8 +1,8 @@
 ---
 name: "️️⚙️  Model Request"
 about: Request a new model in MLC-LLM
-title: ''
-labels: ''
+title: '[Model Request] '
+labels: ['new-models']
 assignees: ''
 
 ---
