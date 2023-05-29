@@ -143,10 +143,103 @@ class LLMChat {
     return os.str();
   }
 
-  // TODO(mlc-team):
-  // Add an option: app_config_json
-  // which optionally overrides the mlc-chat-config
-  void Reload(tvm::runtime::Module executable, String model_path) {
+  /*!
+   * \brief Load JSON config and override options.
+   * \param config_json A json config in picojson type that is partially specifies
+   *        some of the options.
+   * \param partial_update Whether it's a partial update or full update, if set to true,
+   *        we perform a partial update on some of the provided options; if set to false, all
+   *        options must be provided.
+   * \note This function overrides existing configurations.
+   */
+  void LoadJSONOverride(const picojson::value& config_json, bool partial_update = false) {
+    picojson::object config = config_json.get<picojson::object>();
+    if (config.count("temperature")) {
+      CHECK(config["temperature"].is<double>());
+      this->temperature_ = config["temperature"].get<double>();
+    } else {
+      CHECK(partial_update) << "Key \"temperature\" not found.";
+    }
+    if (config.count("repetition_penalty")) {
+      CHECK(config["repetition_penalty"].is<double>());
+      CHECK(this->repetition_penalty_ > 0) << "Repetition penalty must be a positive number!";
+      this->repetition_penalty_ = config["repetition_penalty"].get<double>();
+    } else {
+      CHECK(partial_update) << "Key \"repetition_penalty\" not found.";
+    }
+    if (config.count("top_p")) {
+      CHECK(config["top_p"].is<double>());
+      this->top_p_ = config["top_p"].get<double>();
+    } else {
+      CHECK(partial_update) << "Key \"top_p\" not found.";
+    }
+    if (config.count("mean_gen_len")) {
+      CHECK(config["mean_gen_len"].is<int64_t>());
+      this->mean_gen_len_ = config["mean_gen_len"].get<int64_t>();
+    } else {
+      CHECK(partial_update) << "Key \"mean_gen_len\" not found.";
+    }
+    if (config.count("shift_fill_factor")) {
+      CHECK(config["shift_fill_factor"].is<double>());
+      this->shift_fill_factor_ = config["shift_fill_factor"].get<double>();
+    } else {
+      CHECK(partial_update) << "Key \"shift_fill_factor\" not found.";
+    }
+    if (config.count("conv_template") || config.count("conv_config")) {
+      if (config.count("conv_template")) {
+        ICHECK(config["conv_template"].is<std::string>());
+        std::string conv_template = config["conv_template"].get<std::string>();
+        this->conversation_ = Conversation::FromTemplate(conv_template);
+      }
+      if (config.count("conv_config")) {
+        // conv_config can override conv_template
+        this->conversation_.LoadJSONOverride(config["conv_config"]);
+      }
+    } else {
+      CHECK(partial_update) << "Key \"conv_template\" and \"conv_config\" not found.";
+    }
+  }
+
+  /*!
+   * \brief Load JSON config and override options.
+   * \param config_json A json config in picojson type that is partially specifies
+   *        some of the options.
+   * \param partial_update Whether it's a partial update or full update, if set to true,
+   *        we perform a partial update on some of the provided options; if set to false, all
+   *        options must be provided.
+   * \note This function overrides existing configurations.
+   */
+  void LoadJSONOverride(const std::string& config_str, bool partial_update = false) {
+    picojson::value config_json;
+    std::string err = picojson::parse(config_json, config_str);
+    if (!err.empty()) {
+      LOG(FATAL) << err;
+      return;
+    }
+    LoadJSONOverride(config_json, partial_update);
+  }
+
+  picojson::value SerializeToJSON() const {
+    picojson::object config;
+    config["temperature"] = picojson::value(this->temperature_);
+    config["repetition_penalty"] = picojson::value(this->repetition_penalty_);
+    config["top_p"] = picojson::value(this->top_p_);
+    config["mean_gen_len"] = picojson::value(this->mean_gen_len_);
+    config["shift_fill_factor"] = picojson::value(this->shift_fill_factor_);
+    config["conv_config"] = this->conversation_.SerializeToJSON();
+    return picojson::value(config);
+  }
+
+  std::string SerializeToJSONStr() const { return SerializeToJSON().serialize(true); }
+
+  /*!
+   * \brief Reload model, tokenizers and configurations from the specified model path.
+   * \param executable The module to reload.
+   * \param model_path The path to search for models.
+   * \param app_config_json The JSON string used to partially override the configuration loaded from
+   * disk, default to empty string.
+   */
+  void Reload(tvm::runtime::Module executable, String model_path, String app_config_json = "") {
     // Step 1. Set tokenizer.
     this->tokenizer_ = TokenizerFromPath(model_path);
 
@@ -210,22 +303,7 @@ class LLMChat {
     ICHECK(config_istream);
     config_ostream << config_istream.rdbuf();
     std::string config_str = config_ostream.str();
-    picojson::value config_info;
-    picojson::parse(config_info, config_str);
-    auto config = config_info.get<picojson::object>();
-    ICHECK(config["conv_template"].is<std::string>());
-    ICHECK(config["temperature"].is<double>());
-    ICHECK(config["repetition_penalty"].is<double>());
-    ICHECK(config["top_p"].is<double>());
-    ICHECK(config["mean_gen_len"].is<int64_t>());
-    ICHECK(config["shift_fill_factor"].is<double>());
-    std::string conv_template = config["conv_template"].get<std::string>();
-    this->temperature_ = config["temperature"].get<double>();
-    this->repetition_penalty_ = config["repetition_penalty"].get<double>();
-    CHECK(this->repetition_penalty_ > 0) << "Repetition penalty must be a positive number!";
-    this->top_p_ = config["top_p"].get<double>();
-    this->mean_gen_len_ = config["mean_gen_len"].get<int64_t>();
-    this->shift_fill_factor_ = config["shift_fill_factor"].get<double>();
+    LoadJSONOverride(config_str, false);
 
     // Step 6. Process metadata
     String metadata_str = this->get_metadata_func_();
@@ -237,8 +315,12 @@ class LLMChat {
     this->model_name_ = metadata["model_name"].get<std::string>();
     this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
 
-    // Step 7. Initialize conversation.
-    this->conversation_ = Conversation::FromTemplate(conv_template);
+    // Step 7. Override configuration from app_config_json.
+    if (!app_config_json.empty()) {
+      LOG(INFO) << "Apply configuration override from user-provided JSON...";
+      LoadJSONOverride(app_config_json, true);
+    }
+
     this->ResetChat();
   }
 
@@ -760,11 +842,16 @@ class LLMChatModule : public ModuleNode {
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "reload") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 2);
         chat_ = nullptr;
         ClearGlobalMemoryManager();
         chat_ = std::make_unique<LLMChat>(LLMChat(device_));
-        chat_->Reload(args[0], args[1]);
+        if (args.size() == 2) {
+          chat_->Reload(args[0], args[1]);
+        } else if (args.size() == 3) {
+          chat_->Reload(args[0], args[1], args[2]);
+        } else {
+          LOG(FATAL) << "Invalid number of arguments for reload function";
+        }
       });
     } else if (name == "unload") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
@@ -814,6 +901,10 @@ class LLMChatModule : public ModuleNode {
     } else if (name == "reset_runtime_stats") {
       return PackedFunc(
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->ResetRuntimeStats(); });
+    } else if (name == "serialize_config") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        *rv = GetChat()->SerializeToJSONStr();
+      });
     } else {
       return PackedFunc(nullptr);
     }

@@ -33,6 +33,8 @@ if (MLC_LLM_INSTALL_STATIC_LIB)
   set(BUILD_STATIC_RUNTIME ON)
 endif()
 
+option(BUILD_CPP_TEST "Build cpp unittests" OFF)
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # tvm runtime config: minimize runtime components
@@ -81,8 +83,18 @@ set_target_properties(mlc_llm_static PROPERTIES OUTPUT_NAME mlc_llm)
 target_link_libraries(mlc_llm PUBLIC tvm_runtime)
 target_link_libraries(mlc_llm PRIVATE tokenizers_cpp)
 
+if (BUILD_CPP_TEST)
+  message(STATUS "Building cpp unittests")
+  add_subdirectory(3rdparty/googletest)
+  file(GLOB_RECURSE MLC_LLM_TEST_SRCS ${PROJECT_SOURCE_DIR}/tests/cpp/*unittest.cc)
+  add_executable(mlc_llm_cpp_tests ${MLC_LLM_TEST_SRCS})
+  target_include_directories(mlc_llm_cpp_tests PRIVATE ${MLC_LLM_INCLUDES})
+  target_include_directories(mlc_llm_cpp_tests PRIVATE ${PROJECT_SOURCE_DIR}/cpp)
+  target_include_directories(mlc_llm_cpp_tests PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
+  target_link_libraries(mlc_llm_cpp_tests PUBLIC mlc_llm gtest gtest_main)
+endif(BUILD_CPP_TEST)
 
-# Exmaple app that may depends on mlc_llm
+# Example app that may depends on mlc_llm
 add_executable(mlc_chat_cli $<TARGET_OBJECTS:mlc_cli_objs>)
 target_include_directories(mlc_cli_objs PRIVATE ${MLC_LLM_INCLUDES})
 target_include_directories(mlc_cli_objs PRIVATE 3rdparty/argparse/include)

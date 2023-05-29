@@ -1,14 +1,15 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file llm_chat.cc
- * \brief Implementation of llm chat.
+ * \file conversation.h
+ * \brief Header of conversation template in MLC-LLM.
  */
-#define PICOJSON_USE_INT64
-#define __STDC_FORMAT_MACROS
 #include <tvm/runtime/module.h>
 
 #include <string>
 #include <vector>
+#define PICOJSON_USE_INT64
+#define __STDC_FORMAT_MACROS
+#include <picojson.h>
 
 namespace mlc {
 namespace llm {
@@ -53,22 +54,88 @@ class Conversation {
 
   Conversation() = default;
 
+  inline bool operator==(const Conversation& other) const {
+    bool eq_roles = true;
+    if (roles.size() != other.roles.size()) {
+      eq_roles = false;
+    } else {
+      eq_roles = std::equal(roles.begin(), roles.end(), other.roles.begin());
+    }
+    bool eq_messages = true;
+    if (messages.size() != other.messages.size()) {
+      eq_messages = false;
+    } else {
+      for (size_t i = 0; i < messages.size(); ++i) {
+        const std::vector<std::string>& lhs_message_i = messages[i];
+        const std::vector<std::string>& rhs_message_i = other.messages[i];
+        if (lhs_message_i.size() != rhs_message_i.size()) {
+          eq_messages = false;
+          break;
+        } else {
+          eq_messages &=
+              std::equal(lhs_message_i.begin(), lhs_message_i.end(), rhs_message_i.begin());
+        }
+      }
+    }
+    bool eq_seps = true;
+    if (seps.size() != other.seps.size()) {
+      eq_seps = false;
+    } else {
+      eq_seps = std::equal(seps.begin(), seps.end(), other.seps.begin());
+    }
+    bool eq_stop_tokens = true;
+    if (stop_tokens.size() != other.stop_tokens.size()) {
+      eq_stop_tokens = false;
+    } else {
+      eq_stop_tokens =
+          std::equal(stop_tokens.begin(), stop_tokens.end(), other.stop_tokens.begin());
+    }
+    return (name == other.name) && (system == other.system) && (offset == other.offset) &&
+           (separator_style == other.separator_style) && (stop_str == other.stop_str) &&
+           (add_bos == other.add_bos) && eq_roles && eq_messages && eq_seps && eq_stop_tokens;
+  }
+
   /**
    * \brief Create conversation from existing registered template.
    * \param name The template name.
    */
   static Conversation FromTemplate(const std::string& name);
 
-  // TODO(mlc-team): Implement this
   /*!
-   * \brief Load overrides from JSON that partially
-   * overrides some of the options.
+   * \brief Load JSON config in raw string and overrides options.
    *
-   * \param config_json A json config that partially specifies
-   *        some of the options
+   * \param config_str A json config in raw string that partially specifies
+   *        some of the options.
+   * \param partial_update Whether it's a partial update or full update, if set to true,
+   *        we perform a partial update on some of the provided options; if set to false, all
+   *        options must be provided.
    * \note This function overrides existing configurations.
    */
-  void LoadJSONOverride(const std::string& config_json);
+  void LoadJSONOverride(const std::string& config_str, bool partial_update = false);
+
+  /*!
+   * \brief Load JSON config and overrides options.
+   *
+   * \param config_json A json config in picojson type that is partially specifies
+   *        some of the options.
+   * \param partial_update Whether it's a partial update or full update, if set to true,
+   *        we perform a partial update on some of the provided options; if set to false, all
+   *        options must be provided.
+   * \note This function overrides existing configurations.
+   */
+  void LoadJSONOverride(const picojson::value& config_json, bool partial_update = false);
+
+  /*!
+   * \brief Serialize the Conversation to JSON.
+   * \return Serialized conversion in JSON format.
+   */
+  picojson::value SerializeToJSON() const;
+
+  /*!
+   * \brief Serialize the Conversation to JSON String.
+   * \return A string storing the serialized conversation in JSON format.
+   */
+  std::string SerializeToJSONStr() const;
 
   /*!
    * \brief Get the entire prompt array
