@@ -13,6 +13,9 @@ class DispatchTIROperator:  # pylint: disable=too-few-public-methods
         elif model == "gpt_neox":
             from .gpt_neox import lookup
 
+        elif model == "rwkv":
+            lookup = None
+
         else:
             raise ValueError(f"Model {model} not supported")
         self.lookup = lookup
@@ -24,6 +27,8 @@ class DispatchTIROperator:  # pylint: disable=too-few-public-methods
         mod: IRModule,
         ctx: tvm.transform.PassContext,
     ) -> IRModule:
+        if self.lookup is None:
+            return mod
         for gv in mod.functions:
             scheduled_func = self.lookup(mod[gv])
             if scheduled_func is not None:

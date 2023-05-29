@@ -7,7 +7,7 @@ from typing import Callable
 import numpy as np
 import torch
 import tvm
-from transformers import AutoTokenizer  # type: ignore[import]
+from transformers import AutoTokenizer, PreTrainedTokenizerFast  # type: ignore[import]
 from tvm import relax
 
 from mlc_llm import utils
@@ -52,8 +52,8 @@ class ModelWrapper:
         self,
         prompt: str,
         max_gen_len: int,
-        temperature: float = 0.7,
-        top_p: float = 0.95,
+        temperature: float = 1.1,
+        top_p: float = 0.7,
         stream_interval: int = 2,
         stop_str: str = None,
         stop_tokens=None,
@@ -188,19 +188,26 @@ def get_tvm_model(args):
             self.tot_seq_len = 0
             self.kv_cache = vm["create_kv_cache"]()
             self.args = args
+            try:
+                self.prefill_func = vm["prefill"]
+            except AttributeError:
+                self.prefill_func = None
 
         def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-            inputs = tvm.nd.array(inputs.numpy(), device=device)
+            inputs = inputs.numpy()
             self.tot_seq_len += inputs.shape[1]
             seq_len_shape = tvm.runtime.ShapeTuple([self.tot_seq_len])
-            if inputs.shape[1] > 1:
-                logits, kv_cache = vm["prefill"](
+            if inputs.shape[1] > 1 and self.prefill_func:
+                inputs = tvm.nd.array(inputs.numpy(), device=device)
+                logits, kv_cache = self.prefill_func(
                     inputs, seq_len_shape, self.kv_cache, const_params
                 )
             else:
-                logits, kv_cache = vm["decode"](
-                    inputs, seq_len_shape, self.kv_cache, const_params
-                )
+                for i in range(inputs.shape[1]):
+                    input_slice = tvm.nd.array(inputs[:, i : i + 1], device=device)
+                    logits, kv_cache = vm["decode"](
+                        input_slice, seq_len_shape, self.kv_cache, const_params
+                    )
             self.kv_cache = kv_cache
             if self.args.debug_dump:
                 from tvm._ffi import get_global_func

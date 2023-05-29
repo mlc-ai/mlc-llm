@@ -75,9 +75,12 @@ std::optional<std::filesystem::path> FindFile(
   for (const std::filesystem::path& prefix : search_paths) {
     for (const std::string& name : names) {
       for (const std::string& suffix : suffixes) {
-        std::filesystem::path path = prefix / (name + suffix);
-        if (std::filesystem::exists(path) && std::filesystem::is_regular_file(path)) {
-          return path;
+        try {
+          std::filesystem::path path = std::filesystem::canonical(prefix / (name + suffix));
+          if (std::filesystem::exists(path) && std::filesystem::is_regular_file(path)) {
+            return path;
+          }
+        } catch (const std::filesystem::filesystem_error& e) {
         }
       }
     }
@@ -156,8 +159,8 @@ struct ModelPaths {
   /*!
    * \brief Path to ${model}-${device}.{so|dylib}
    *
-   * This dynamic library contains all the compute kernels used in LLM inference, and can be loaded
-   * using tvm::runtime::Module::LoadFromFile.
+   * This dynamic library contains all the compute kernels used in LLM inference, and can be
+   * loaded using tvm::runtime::Module::LoadFromFile.
    */
   std::filesystem::path lib;
 
@@ -519,8 +522,8 @@ int main(int argc, char* argv[]) {
   try {
     ChatModule chat(GetDevice(device_name, device_id));
     if (args.get<bool>("--evaluate")) {
-      // `--evaluate` is only used for performance debugging, and thus will call low-level APIs that
-      // are not supposed to be used in chat app setting
+      // `--evaluate` is only used for performance debugging, and thus will call low-level APIs
+      // that are not supposed to be used in chat app setting
       ModelPaths model = ModelPaths::Find(artifact_path, device_name, local_id);
       tvm::runtime::Module chat_mod = mlc::llm::CreateChatModule(GetDevice(device_name, device_id));
       std::string model_path = model.config.parent_path().string();

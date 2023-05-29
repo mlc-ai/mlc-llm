@@ -5,7 +5,7 @@
 
 namespace mlc {
 namespace llm {
-
+namespace {
 Conversation VicunaV11() {
   Conversation conv;
   conv.name = "vicuna_v1.1";
@@ -89,6 +89,43 @@ Conversation RedPajamaChat() {
   return conv;
 }
 
+Conversation RWKV() {
+  Conversation conv;
+  conv.name = "rwkv";
+  conv.system = (
+    "\nThe following is a coherent verbose detailed conversation between a girl named Alice "
+    "and her friend Bob. \n"
+    "Alice is very intelligent, creative and friendly. \n"
+    "Alice is unlikely to disagree with Bob, and Alice doesn't like to ask Bob questions. \n"
+    "Alice likes to tell Bob a lot about herself and her opinions. \n"
+    "Alice usually gives Bob kind, helpful and informative advices."
+  );
+  conv.roles = {"Bob", "Alice"};
+  conv.messages = {
+    {"Bob", "Hello Alice, how are you doing?"},
+    {"Alice", "Hi! Thanks, I'm fine. What about you?"},
+    {"Bob", "I am fine. It's nice to see you. Look, here is a store selling tea and juice."},
+    {"Alice",
+    "Sure. Let's go inside. I would like to have some Mocha latte, which is my favourite!"},
+    {"Bob", "What is it?"},
+    {"Alice",
+    "Mocha latte is usually made with espresso, milk, chocolate, and frothed milk. Its "
+    "flavors are frequently sweet."},
+    {"Bob",
+    "Sounds tasty. I'll try it next time. Would you like to chat with me for a while?"},
+    {"Alice",
+    "Of course! I'm glad to answer your questions or give helpful advices. You know, I am "
+    "confident with my expertise. So please go ahead!"}
+  };
+  conv.separator_style = SeparatorStyle::kAddColon;
+  conv.offset = 8;
+  conv.seps = {"\n\n"};
+  conv.stop_str = "\n\n";
+  conv.stop_tokens = {0};
+  conv.add_bos = false;
+  return conv;
+}
+
 Conversation VanillaLM() {
   Conversation conv;
   conv.name = "LM";
@@ -105,6 +142,7 @@ Conversation VanillaLM() {
   conv.add_bos = true;
   return conv;
 }
+} // namespace
 
 using ConvFactory = Conversation (*)();
 
@@ -113,6 +151,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"vicuna_v1.1", VicunaV11},
       {"conv_one_shot", ConvOneShot},
       {"redpajama_chat", RedPajamaChat},
+      {"rwkv", RWKV},
       {"LM", VanillaLM},
   };
   auto it = factory.find(name);

@@ -26,6 +26,7 @@ class SeparatorStyle(Enum):
     OASST_PYTHIA = auto()
     MOSS = auto()
     REDPAJAMA_CHAT = auto()
+    RWKV = auto()
 
 
 @dataclasses.dataclass
@@ -100,7 +101,18 @@ class Conversation:
                 else:
                     ret += role + ":"
             return ret
-        raise ValueError(f"Invalid style: {self.sep_style}")
+        if self.sep_style == SeparatorStyle.RWKV:
+            init_prompt = self.system.strip().split("\n")
+            init_prompt = [x.strip().strip("\u3000").strip("\r") for x in init_prompt]
+            ret = "\n" + ("\n".join(init_prompt)).strip() + self.sep
+            for role, message in self.messages:
+                if message:
+                    ret += role + ": " + message + self.sep
+                else:
+                    ret += role + ":"
+            return ret
+        else:
+            raise ValueError(f"Invalid style: {self.sep_style}")
 
     def get_prompt_unprocessed(self):
         if self.cur == 0:
@@ -154,6 +166,11 @@ class Conversation:
             for i, (role, message) in enumerate(self.messages[self.cur + 1 :]):
                 if message:
                     ret += message + seps[i % 2] + "\n"
+        if self.sep_style == SeparatorStyle.RWKV:
+            ret = self.sep
+            for role, message in self.messages[self.cur + 1 :]:
+                if message:
+                    ret += role + ": " + message + self.sep
                 else:
                     ret += role + ":"
             self.cur = len(self.messages) - 1
@@ -316,6 +333,19 @@ conv_redpajama_chat = Conversation(
     sep_style=SeparatorStyle.REDPAJAMA_CHAT,
     sep="",
     sep2="",
+conv_rwkv = Conversation(
+    system="""The following is a coherent verbose detailed conversation between a girl named Alice and her friend Bob. \
+Alice is very intelligent, creative and friendly. \
+Alice is unlikely to disagree with Bob, and Alice doesn't like to ask Bob questions. \
+Alice likes to tell Bob a lot about herself and her opinions. \
+Alice usually gives Bob kind, helpful and informative advices.
+""",
+    roles=("Bob", "Alice"),
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.RWKV,
+    sep="\n\n",
+    sep2="\n\n",
 )
 
 conv_templates = {
@@ -327,6 +357,7 @@ conv_templates = {
     "stablelm": conv_stablelm,
     "moss": conv_moss,
     "redpajama_chat": conv_redpajama_chat,
+    "rwkv": conv_rwkv,
 }
 
 

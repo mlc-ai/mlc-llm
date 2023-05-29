@@ -297,7 +297,23 @@ class LLMChat {
     // Step 4. KV cache creation.
     kv_cache_ = vm_->GetFunction("create_kv_cache")();
 
-    // Step 5. Process config json string.
+    // Step 5. KV cache reset.
+    reset_kv_cache_func_ = vm_->GetFunction("reset_kv_cache");
+    if (!reset_kv_cache_func_.defined()) {
+      auto attention_kv_cache_array_clear_ptr =
+          tvm::runtime::Registry::Get("vm.builtin.attention_kv_cache_array_clear");
+      ICHECK(attention_kv_cache_array_clear_ptr)
+          << "TVM runtime cannot find vm.builtin.attention_kv_cache_array_clear";
+      reset_kv_cache_func_ = *attention_kv_cache_array_clear_ptr;
+      support_backtracking_kv_ = true;
+    } else {
+      // if there is a customized reset kv
+      // then it may not be the typical transformer model
+      // and we disable backtracking kv feature
+      support_backtracking_kv_ = false;
+    }
+
+    // Step 6. Process config json string.
     std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
     std::ostringstream config_ostream;
     ICHECK(config_istream);
@@ -305,7 +321,7 @@ class LLMChat {
     std::string config_str = config_ostream.str();
     LoadJSONOverride(config_str, false);
 
-    // Step 6. Process metadata
+    // Step 7. Process metadata
     String metadata_str = this->get_metadata_func_();
     picojson::value metadata_info;
     picojson::parse(metadata_info, std::string(metadata_str));
@@ -314,6 +330,10 @@ class LLMChat {
     ICHECK(metadata["max_window_size"].is<int64_t>());
     this->model_name_ = metadata["model_name"].get<std::string>();
     this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
+    if (this->max_window_size_ == -1) {
+      this->max_window_size_ = std::numeric_limits<int64_t>::max();
+    }
+    LOG(INFO) << "max window " << this->max_window_size_;
 
     // Step 7. Override configuration from app_config_json.
     if (!app_config_json.empty()) {
@@ -337,7 +357,10 @@ class LLMChat {
     ICHECK(metadata["add_prefix_space"].is<bool>());
     this->model_name_ = metadata["model_name"].get<std::string>();
     this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
-
+    if (this->max_window_size_ == -1) {
+      LOG(INFO) << "here";
+      this->max_window_size_ = std::numeric_limits<int64_t>::max();
+    }
     this->conversation_ = Conversation::FromTemplate(conv_template);
     this->temperature_ = temperature;
     this->top_p_ = top_p;
@@ -347,9 +370,12 @@ class LLMChat {
   }
 
   void ResetChat() {
-    this->conversation_.messages.clear();
+    // TODO(mlc-team): add conversation_.Reset to preserve system prompt
+    // and initial message.
+    // this->conversation_ = Conversation::Create(this->conversation_.conv_template);
+    this->conversation_.Reset();
     this->ResetRuntimeStats();
-    this->ClearKVCache();
+    this->ResetKVCache();
     this->filled_kv_cache_len_ = 0;
   }
 
@@ -362,14 +388,29 @@ class LLMChat {
     this->sample_total_time = 0;
   }
 
+  static std::string GetConcatPrompt(
+    const std::vector<std::string>& prompt_array,
+    size_t prefix_end,
+    size_t suffix_start
+  ) {
+    std::ostringstream os;
+    for (size_t i = 0; i < prefix_end; ++i) {
+      os << prompt_array[i];
+    }
+    for (size_t i = suffix_start; i < prompt_array.size(); ++i) {
+      os << prompt_array[i];
+    }
+    return os.str();
+  }
+
   /**
    * Get input tokens based on history
    */
   std::vector<int32_t> GetInputTokens() {
     std::vector<int32_t> tokens;
     std::vector<std::string> prompts;
-    // shift windows should
-    if (this->conversation_.messages.size() <= 2) {
+
+    if (this->filled_kv_cache_len_ == 0) {
       prompts = this->conversation_.GetPromptArray();
       if (this->conversation_.add_bos) {
         tokens.insert(tokens.begin(), bos_token_id_);
@@ -377,50 +418,37 @@ class LLMChat {
     } else {
       prompts = this->conversation_.GetPrompArrayLastRound();
     }
-    int ctx_length = tokens.size();
-    std::list<std::vector<int32_t>> context;
-    bool need_shift_window = false;
-    // TODO(zihao): move add_prefix space to conv template and recover moss
-    for (int i = prompts.size() - 1; i >= 0; i--) {
-      std::vector<int32_t> encoded = this->tokenizer_->Encode(prompts[i]);
-      ctx_length += encoded.size();
-      if (this->filled_kv_cache_len_ + ctx_length + this->mean_gen_len_ >= this->max_window_size_) {
-        need_shift_window = true;
-        break;
-      }
-      context.push_front(encoded);
-    }
-    if (!need_shift_window) {
-      for (const std::vector<int>& ctx : context) {
-        tokens.insert(tokens.end(), ctx.begin(), ctx.end());
-      }
+    // first try to encode all
+    std::string all_prompt = GetConcatPrompt(prompts, 0, 0);
+    std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
+    tokens.insert(tokens.end(), encoded.begin(), encoded.end());
+    if (this->filled_kv_cache_len_ + tokens.size() + this->mean_gen_len_ < this->max_window_size_) {
       return tokens;
     }
     // need shift window and re-encode
     this->filled_kv_cache_len_ = 0;
-    this->ClearKVCache();
-    context.clear();
+    this->ResetKVCache();
     tokens.clear();
     if (this->conversation_.add_bos) {
       tokens.insert(tokens.begin(), bos_token_id_);
     }
     std::vector<std::string> all_prompts = this->conversation_.GetPromptArray();
-    // keep system prompt
-    std::vector<int32_t> first_prompt_tokens = this->tokenizer_->Encode(all_prompts[0]);
-    tokens.insert(tokens.end(), first_prompt_tokens.begin(), first_prompt_tokens.end());
-    ctx_length = tokens.size();
-    for (int i = all_prompts.size() - 1; i > 0; i--) {
-      std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompts[i]);
-      ctx_length += encoded.size();
+    // get estimnate of the ragment
+    size_t ctx_length  = this->tokenizer_->Encode(all_prompts[0]).size();
+    size_t start_reencode_pos = 0;
+    for (int i = all_prompts.size() - 1; i > 0; i -= 2) {
+      ctx_length += this->tokenizer_->Encode(all_prompts[i]).size();
       if (ctx_length >= this->shift_fill_factor_ * this->max_window_size_ &&
           i + 2 < all_prompts.size()) {
+        start_reencode_pos = i;
         break;
       }
-      context.push_front(encoded);
     }
-    for (const std::vector<int>& ctx : context) {
-      tokens.insert(tokens.end(), ctx.begin(), ctx.end());
-    }
+    // keep system
+    all_prompt = GetConcatPrompt(prompts, 1, start_reencode_pos);
+    encoded = this->tokenizer_->Encode(all_prompt);
+    tokens.insert(tokens.end(), encoded.begin(), encoded.end());
+
     if (tokens.size() + this->mean_gen_len_ >= this->max_window_size_) {
       LOG(FATAL) << "Exceed max window length curr=" << tokens.size();
     }
@@ -429,8 +457,21 @@ class LLMChat {
 
   // get statically allocated input token
   NDArray GetInputTokenNDArray(const std::vector<int32_t>& token_ids) {
+    // try realloc
     if (!input_token_ids_.defined()) {
-      input_token_ids_ = NDArray::Empty({1, max_window_size_}, DataType::Int(32), device_);
+      int64_t init_size = 2048;
+      while (init_size < static_cast<int64_t>(token_ids.size())) {
+        init_size *= 2;
+      }
+      input_token_ids_ = NDArray::Empty({1, init_size}, DataType::Int(32), device_);
+    } else {
+      int64_t init_size = input_token_ids_->shape[1];
+      while (init_size < static_cast<int64_t>(token_ids.size())) {
+        init_size *= 2;
+      }
+      if (init_size != input_token_ids_->shape[1]) {
+        input_token_ids_ = NDArray::Empty({1, init_size}, DataType::Int(32), device_);
+      }
     }
     ICHECK_LE(token_ids.size(), input_token_ids_->shape[1]) << "Input tokens exceed window size";
     NDArray view = input_token_ids_.CreateView(
@@ -466,12 +507,11 @@ class LLMChat {
 
     std::vector<int32_t> prompt_tokens = this->GetInputTokens();
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
-    tvm::runtime::NDArray input_data = this->GetInputTokenNDArray(prompt_tokens);
 
     auto tstart = std::chrono::high_resolution_clock::now();
 
     int32_t new_seq_len = filled_kv_cache_len_ + token_len;
-    NDArray logits_on_device = this->Forward(input_data, new_seq_len);
+    NDArray logits_on_device = this->Forward(prompt_tokens, new_seq_len);
     filled_kv_cache_len_ = new_seq_len;
 
     int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
@@ -490,7 +530,7 @@ class LLMChat {
 
     auto tstart = std::chrono::high_resolution_clock::now();
 
-    NDArray logits_on_device = this->Forward(input_data, filled_kv_cache_len_ + 1);
+    NDArray logits_on_device = this->Forward({last_token}, filled_kv_cache_len_ + 1);
     filled_kv_cache_len_ += 1;
 
     int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
@@ -521,30 +561,26 @@ class LLMChat {
 
   // do some quick evaluation of the pipeline
   void Evaluate() {
-    this->ClearKVCache();
+    this->ResetKVCache();
     std::string test_prompt = "The capital of Canada is";
     std::vector<int32_t> tokens = tokenizer_->Encode(test_prompt);
     tokens.insert(tokens.begin(), bos_token_id_);
     int64_t token_len = static_cast<int64_t>(tokens.size());
-
-    tvm::runtime::NDArray input_data = NDArray::Empty({1, token_len}, DataType::Int(32), device_);
-    input_data.CopyFromBytes(tokens.data(), tokens.size() * sizeof(int32_t));
-    tvm::runtime::NDArray first_sample_token = NDArray::Empty({1, 1}, DataType::Int(32), device_);
     std::vector<int32_t> first_sample_data = {6234};
-    first_sample_token.CopyFromBytes(first_sample_data.data(), sizeof(int32_t));
 
     // warm up: skip first run
-    this->Forward(input_data, token_len);
-    this->Forward(first_sample_token, token_len + 1);
-    this->ClearKVCache();
+    this->Forward(tokens, token_len);
+    this->Forward(first_sample_data, token_len + 1);
+    this->ResetKVCache();
 
     // start recording
     auto encoding_start = std::chrono::high_resolution_clock::now();
-    this->Forward(input_data, token_len);
+    this->Forward(tokens, token_len);
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
 
     auto decoding_start = std::chrono::high_resolution_clock::now();
-    this->UpdateLogitsOrProbOnCPUSync(this->Forward(first_sample_token, token_len + 1));
+
+    this->UpdateLogitsOrProbOnCPUSync(this->Forward(first_sample_data, token_len + 1));
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     auto decoding_end = std::chrono::high_resolution_clock::now();
 
@@ -600,34 +636,39 @@ class LLMChat {
    */
   void ProccessNextToken(int32_t next_token) {
     ICHECK(!stop_triggered_) << "Cannot call process when it is stoppped";
-    output_ids_.push_back(next_token);
-    appeared_token_ids_.insert(next_token);
+
 
     stop_triggered_ =
         std::any_of(this->conversation_.stop_tokens.begin(), this->conversation_.stop_tokens.end(),
                     [next_token](int32_t token) { return token == next_token; });
-    // TODO(mlc-team): do a backtracking search
-    // to find how many tokens get removed
-    // reset kv accordingly so everything after stop-str
-    // get deleted
+
+    if (!stop_triggered_) {
+      output_ids_.push_back(next_token);
+      appeared_token_ids_.insert(next_token);
+    }
+
     output_message_ = tokenizer_->Decode(output_ids_);
+
     if (!conversation_.stop_str.empty()) {
       size_t stop_pos = output_message_.rfind(conversation_.stop_str);
       if (stop_pos != std::string::npos) {
         stop_triggered_ = true;
-        // back tracking, find the first set of token that is smaller
-        // than the length
-        size_t backoff = 0;
-        for (; backoff < output_ids_.size(); ++backoff) {
-          output_ids_.pop_back();
-          output_message_ = tokenizer_->Decode(output_ids_);
-          if (output_message_.length() <= stop_pos) break;
+        if (support_backtracking_kv_) {
+          // back tracking, find the first set of token that is smaller
+          // than the length
+          size_t backoff = 0;
+          for (; backoff < output_ids_.size(); ++backoff) {
+            output_ids_.pop_back();
+            output_message_ = tokenizer_->Decode(output_ids_);
+            if (output_message_.length() <= stop_pos) break;
+          }
+          // resize kv to remove the context
+          fkvcache_array_popn_(kv_cache_, backoff);
+          filled_kv_cache_len_ -= backoff;
         }
-        // resize kv to remove the context
-        fkvcache_array_popn_(kv_cache_, backoff);
-        filled_kv_cache_len_ -= backoff;
       }
     }
+    // TODO(mlc-team): add another per convo seq len trigger
     if (filled_kv_cache_len_ >= max_window_size_) {
       stop_triggered_ = true;
     }
@@ -636,23 +677,18 @@ class LLMChat {
     }
   }
 
-  int CountSubstr(const std::string& str, const std::string& sub) {
-    if (sub.length() == 0) return 0;
-    int count = 0;
-    for (size_t offset = str.find(sub); offset != std::string::npos;
-         offset = str.find(sub, offset + sub.length())) {
-      ++count;
-    }
-    return count;
-  }
-
   // run forward compute
-  NDArray Forward(NDArray inputs, int64_t cur_pos) {
+  NDArray Forward(std::vector<int32_t> input_tokens, int64_t cur_pos) {
     Array<ObjectRef> ret;
-    if (inputs->shape[1] > 1) {
-      ret = encoding_func_(inputs, ShapeTuple({cur_pos}), kv_cache_, params_);
+    if (input_tokens.size() > 1 && encoding_func_.defined()) {
+      NDArray input_data = this->GetInputTokenNDArray(input_tokens);
+      ret = encoding_func_(input_data, ShapeTuple({cur_pos}), kv_cache_, params_);
     } else {
-      ret = decoding_func_(inputs, ShapeTuple({cur_pos}), kv_cache_, params_);
+      for (int i = 0; i < input_tokens.size(); ++i) {
+        NDArray input_data = this->GetInputTokenNDArray({input_tokens[i]});
+        int64_t pos = cur_pos + i + 1 - input_tokens.size();
+        ret = decoding_func_(input_data, ShapeTuple({pos}), kv_cache_, params_);
+      }
     }
     return Downcast<NDArray>(ret[0]);
   }
@@ -710,12 +746,7 @@ class LLMChat {
   }
 
   // Clear kv cache
-  void ClearKVCache() {
-    const PackedFunc* fkv_clear =
-        tvm::runtime::Registry::Get("vm.builtin.attention_kv_cache_array_clear");
-    ICHECK(fkv_clear);
-    (*fkv_clear)(kv_cache_);
-  }
+  void ResetKVCache() { reset_kv_cache_func_(kv_cache_); }
 
   // Utils
   static double GetRandomNumber() {
@@ -774,13 +805,11 @@ class LLMChat {
   std::string output_message_;
   // Whether encounter stop str
   bool stop_triggered_{false};
+  // Whether we support rollback kv
+  bool support_backtracking_kv_ = true;
   //----------------------------
   // Tokenizer
   //----------------------------
-  // Specifies whether a prefix space should be added to non-leading sentences.
-  // If `add_prefix_space_` is set to `true`, a prefix space will be added to each non-leading
-  // sentence. Otherwise, no prefix space will be added.
-  bool add_prefix_space_{false};
   // internal tokenizer
   std::unique_ptr<Tokenizer> tokenizer_;
   // bos token
@@ -804,6 +833,8 @@ class LLMChat {
   PackedFunc softmax_func_;
   // get model metadata
   PackedFunc get_metadata_func_;
+  // reset kv cache
+  PackedFunc reset_kv_cache_func_;
   // sample top p from logits
   PackedFunc fsample_topp_from_logits_;
   // sample top p from prob
