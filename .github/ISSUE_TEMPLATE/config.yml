@@ -3,5 +3,7 @@ blank_issues_enabled: false
 contact_links:
   - name: Check the MLC-LLM Documentation
     url: https://mlc.ai/mlc-llm/docs/
+    about: Our documentation might provide answers to your questions.
   - name: Chat on Discord
     url: https://discord.gg/9Xpy2HGBuD
+    about: Join the Discord Server to live chat with the community.
