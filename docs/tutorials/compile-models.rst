@@ -3,11 +3,13 @@
 How to Compile Models
 =====================
 
-In this tutorial, we will guide you on how to **build** LLM whose architectures are already supported by MLC LLM to different backends. Before diving into this tutorial, you should first finish the :ref:`Installation and Setup`. In the following content, we assume you have already installed them and will not cover the installation part. After finish building, you can checkout the tutorial `deploy-build-applications <http://127.0.0.1>`_.
+In this tutorial, we will guide you on how to build an LLM with architectures that are already supported by MLC LLM for different backends. Before proceeding with this tutorial, make sure you have completed the :doc:`/install/index` tutorial. In the following content, we assume that you have already installed the necessary components and will not cover the installation steps.
 
-.. note::
-    At this moment, MLC LLM officially supports two model architectures: `LLaMA <https://github.com/facebookresearch/llama>`_ and `GPT-NeoX <https://github.com/EleutherAI/gpt-neox>`_.
-    To build models with other model architectures, please refer to the tutorial `model-architecture-variant <http://127.0.0.1>`_.
+We have provided a list of off-the-shelf prebuilt models (refer to the :ref:`off-the-shelf-models` section) that you can directly use without the need for building. To learn how to deploy these models, refer to the tutorial :doc:deploy-models.
+
+If your model is not included in the list of off-the-shelf models, but its architecture falls within the supported model architectures (see the :ref:`supported-model-architectures` section), you can follow this tutorial to build your model for different backends.
+
+In the event that your model architecture is not supported, you can refer to the tutorial :doc:`bring-your-own-models` to learn how to introduce new model architectures.
 
 This tutorial contains the following sections in order:
 
@@ -254,6 +256,8 @@ Here are some notes on the build commands above:
 
 After running the build script successfully, you can proceed to the next tutorial on `how to deploy models to different backends <http:127.0.0.1>`_.
 
+.. warning::
+    In certain cases, using 3-bit quantization for compiling can be overly aggressive and may result in the compiled model generating meaningless text. If you encounter issues where the compiled model does not perform as expected, consider utilizing a higher number of bits for quantization (e.g., 4-bit quantization).
 
 
 Why Need Build?

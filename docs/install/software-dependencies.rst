@@ -5,7 +5,7 @@ Software Dependencies
     :depth: 2
     :local:
 
-While we have included most of the dependencies in our pre-built wheels/scripts, there are still some platform-dependent packages that you will need to install on your own. In most cases, you won't need all the packages listed on this page. If you're unsure about which packages are required for your specific use case, please refer to the :doc:`navigation page <../navigation>` first.
+While we have included most of the dependencies in our pre-built wheels/scripts, there are still some platform-dependent packages that you will need to install on your own. In most cases, you won't need all the packages listed on this page. If you're unsure about which packages are required for your specific use case, please check the :ref:`navigation panel <navigation>` first.
 
 .. _software-dependencies-cuda:
 

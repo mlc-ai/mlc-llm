@@ -7,6 +7,7 @@ Install and Setup
 .. contents:: Table of Contents
     :depth: 3
 
+
 .. _tvm-unity-install:
 
 Install TVM Unity
@@ -167,7 +168,7 @@ Therefore, it is highly recommended to validate TVM Unity installation before us
     USE_ROCM: OFF
 
 .. note::
-    ``GIT_COMMIT_HASH`` indicates the exact commit of the TVM build, and it can be found on GitHub via `<https://github.com/mlc-ai/relax/commit/$GIT_COMMIT_HASH>`_.
+    ``GIT_COMMIT_HASH`` indicates the exact commit of the TVM build, and it can be found on GitHub via ``<https://github.com/mlc-ai/relax/commit/$GIT_COMMIT_HASH>``.
 
 **Step 4. Check device detection.** Sometimes it could be helpful to understand if TVM could detect your device at all with the following commands:
 

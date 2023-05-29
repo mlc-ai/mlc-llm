@@ -12,7 +12,6 @@ else
   read answer
   if [ "$answer" != "${answer#[Yy]}" ] ;then 
     curl https://sh.rustup.rs -sSf | sh
-    source "$HOME/.cargo/env"
   else
     echo "Failed installation: the dependency cargo not installed."
     exit 1

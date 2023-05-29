@@ -13,6 +13,19 @@ We first introduce how to prepare the (pre)built model libraries and weights, an
     :depth: 1
     :local:
 
+
+.. _clone_repo:
+
+Clone the MLC LLM Repository
+----------------------------
+
+If you haven't already cloned the MLC-LLM repository, now is the perfect time to do so.
+
+.. code:: shell
+
+    git clone git@github.com:mlc-ai/mlc-llm.git --recursive
+    cd mlc-llm
+
 .. _knowing-local-id:
 
 Get to Know Model's Local ID
@@ -274,14 +287,21 @@ If you are a MLC-LLM developer and you add some functionalities to the CLI, you 
 
 .. code:: shell
 
+    # create build directory
     mkdir -p build
+    # prepare dependencies
+    bash scripts/prep_deps.sh
+    source "$HOME/.cargo/env"
+    # generation cmake config
     python3 cmake/gen_cmake_config.py
-    cp cmake/config.cmake build
+    cp config.cmake build
+    # build
     cd build
     cmake ..
     make -j$(nproc)
     sudo make install
-    ldconfig  # Refresh shared library cache
+    # Refresh shared library cache
+    ldconfig  
     cd -
 
 .. note::
@@ -327,14 +347,9 @@ After confirming the local id, we can run the model in CLI by
 
 .. code:: shell
 
-    # If CLI is installed from Conda:
     mlc_chat_cli --local-id LOCAL_ID
     # example:
     mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
-
-    # If CLI is built from source:
-    mlc_chat_cli --local-id LOCAL_ID
-    # example:
     mlc_chat_cli --local-id vicuna-v1-7b-q3f16_0
 
 
