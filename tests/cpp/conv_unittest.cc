@@ -14,6 +14,7 @@ void _TestConversationPartialUpdate() {
   std::string json_str = "{\"offset\": -1}";
   ASSERT_ANY_THROW(conv.LoadJSONOverride(json_str, false));
   conv.LoadJSONOverride(json_str, true);
+  ASSERT_EQ(conv.offset, -1);
 }
 
 TEST(ConversationTest, ConversationJSONRoundTripTest) {

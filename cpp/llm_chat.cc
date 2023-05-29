@@ -237,10 +237,9 @@ class LLMChat {
    * \param executable The module to reload.
    * \param model_path The path to search for models.
    * \param app_config_json The JSON string used to partially override the configuration loaded from
-   * disk, default to None.
+   * disk, default to empty string.
    */
-  void Reload(tvm::runtime::Module executable, String model_path,
-              Optional<String> app_config_json = tvm::NullOpt) {
+  void Reload(tvm::runtime::Module executable, String model_path, String app_config_json = "") {
     // Step 1. Set tokenizer.
     this->tokenizer_ = TokenizerFromPath(model_path);
 
@@ -317,9 +316,9 @@ class LLMChat {
     this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
 
     // Step 7. Override configuration from app_config_json.
-    if (app_config_json.defined()) {
+    if (!app_config_json.empty()) {
       LOG(INFO) << "Apply configuration override from user-provided JSON...";
-      LoadJSONOverride(app_config_json.value(), true);
+      LoadJSONOverride(app_config_json, true);
     }
 
     this->ResetChat();
