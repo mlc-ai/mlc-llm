@@ -3,10 +3,17 @@
 
 void _TestConversationJSONRoundTrip(std::string templ_name) {
   mlc::llm::Conversation conv = mlc::llm::Conversation::FromTemplate(templ_name);
-  std::string conv_json = conv.SerializeToJSON();
+  std::string conv_json = conv.SerializeToJSONStr();
   mlc::llm::Conversation conv_new;
-  conv_new.LoadJSONOverride(conv_json);
+  conv_new.LoadJSONOverride(conv_json, false);
   ASSERT_EQ(conv, conv_new);
+}
+
+void _TestConversationPartialUpdate() {
+  mlc::llm::Conversation conv;
+  std::string json_str = "{\"offset\": -1}";
+  ASSERT_ANY_THROW(conv.LoadJSONOverride(json_str, false));
+  conv.LoadJSONOverride(json_str, true);
 }
 
 TEST(ConversationTest, ConversationJSONRoundTripTest) {
@@ -14,4 +21,8 @@ TEST(ConversationTest, ConversationJSONRoundTripTest) {
   _TestConversationJSONRoundTrip("conv_one_shot");
   _TestConversationJSONRoundTrip("redpajama_chat");
   _TestConversationJSONRoundTrip("LM");
+}
+
+TEST(ConversationTest, ConversationPartialUpdateTest) {
+  _TestConversationPartialUpdate();
 }

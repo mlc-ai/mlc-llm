@@ -7,6 +7,9 @@
 
 #include <string>
 #include <vector>
+#define PICOJSON_USE_INT64
+#define __STDC_FORMAT_MACROS
+#include <picojson.h>
 
 namespace mlc {
 namespace llm {
@@ -99,20 +102,40 @@ class Conversation {
   static Conversation FromTemplate(const std::string& name);
 
   /*!
-   * \brief Load overrides from JSON that partially
-   * overrides some of the options.
+   * \brief Load JSON config in raw string and overrides options.
    *
-   * \param config_json A json config that partially specifies
-   *        some of the options
+   * \param config_str A json config in raw string that partially specifies
+   *        some of the options.
+   * \param partial_update Whether it's a partial update or full update, if set to true,
+   *        we perform a partial update on some of the provided options; if set to false, all
+   *        options must be provided.
    * \note This function overrides existing configurations.
    */
-  void LoadJSONOverride(const std::string& config_json);
+  void LoadJSONOverride(const std::string& config_str, bool partial_update = false);
+
+  /*!
+   * \brief Load JSON config and overrides options.
+   *
+   * \param config_json A json config in picojson type that is partially specifies
+   *        some of the options.
+   * \param partial_update Whether it's a partial update or full update, if set to true,
+   *        we perform a partial update on some of the provided options; if set to false, all
+   *        options must be provided.
+   * \note This function overrides existing configurations.
+   */
+  void LoadJSONOverride(const picojson::value& config_json, bool partial_update = false);
 
   /*!
    * \brief Serialize the Conversation to JSON.
-   * \return A string storing the serialized conversion in JSON format.
+   * \return Serialized conversion in JSON format.
    */
-  std::string SerializeToJSON() const;
+  picojson::value SerializeToJSON() const;
+
+  /*!
+   * \brief Serialize the Conversation to JSON String.
+   * \return A string storing the serialized conversation in JSON format.
+   */
+  std::string SerializeToJSONStr() const;
 
   /*!
    * \brief Get the entire prompt array
