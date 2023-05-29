@@ -21,4 +21,4 @@ assignees: ''
 - Decode speed (Token/s):
 - Memory usage (if applicable):
 
-<!-- Note that the measured speed might not be accurate if the prompt/chat history is short. -->
+<!-- Note that the measured speed might reflect peak performance if the prompt/chat history is short. -->
