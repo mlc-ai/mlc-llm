@@ -309,17 +309,17 @@ We first introduce how to prepare the (pre)built model libraries and weights, an
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#clone-the-mlc-llm-repository" id="id2">Clone the MLC LLM Repository</a></p></li>
-<li><p><a class="reference internal" href="#get-to-know-model-s-local-id" id="id3">Get to Know Model’s Local ID</a></p></li>
-<li><p><a class="reference internal" href="#prepare-model-weight-and-library" id="id4">Prepare Model Weight and Library</a></p></li>
-<li><p><a class="reference internal" href="#deploy-models-on-your-laptop-desktop" id="id5">Deploy Models on Your Laptop/Desktop</a></p></li>
-<li><p><a class="reference internal" href="#deploy-models-on-your-iphone-ipad" id="id6">Deploy Models on Your iPhone/iPad</a></p></li>
-<li><p><a class="reference internal" href="#deploy-model-on-your-android-phone" id="id7">Deploy Model on Your Android Phone</a></p></li>
-<li><p><a class="reference internal" href="#deploy-models-on-your-web-browser" id="id8">Deploy Models on Your Web Browser</a></p></li>
+<li><p><a class="reference internal" href="#clone-the-mlc-llm-repository" id="id4">Clone the MLC LLM Repository</a></p></li>
+<li><p><a class="reference internal" href="#get-to-know-model-s-local-id" id="id5">Get to Know Model’s Local ID</a></p></li>
+<li><p><a class="reference internal" href="#prepare-model-weight-and-library" id="id6">Prepare Model Weight and Library</a></p></li>
+<li><p><a class="reference internal" href="#deploy-models-on-your-laptop-desktop" id="id7">Deploy Models on Your Laptop/Desktop</a></p></li>
+<li><p><a class="reference internal" href="#deploy-models-on-your-iphone-ipad" id="id8">Deploy Models on Your iPhone/iPad</a></p></li>
+<li><p><a class="reference internal" href="#deploy-model-on-your-android-phone" id="id9">Deploy Model on Your Android Phone</a></p></li>
+<li><p><a class="reference internal" href="#deploy-models-on-your-web-browser" id="id10">Deploy Models on Your Web Browser</a></p></li>
 </ul>
 </nav>
 <section id="clone-the-mlc-llm-repository">
-<span id="clone-repo"></span><h2><a class="toc-backref" href="#id2" role="doc-backlink">Clone the MLC LLM Repository</a><a class="headerlink" href="#clone-the-mlc-llm-repository" title="Permalink to this heading">¶</a></h2>
+<span id="clone-repo"></span><h2><a class="toc-backref" href="#id4" role="doc-backlink">Clone the MLC LLM Repository</a><a class="headerlink" href="#clone-the-mlc-llm-repository" title="Permalink to this heading">¶</a></h2>
 <p>If you haven’t already cloned the MLC-LLM repository, now is the perfect time to do so.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:mlc-ai/mlc-llm.git<span class="w"> </span>--recursive
 <span class="nb">cd</span><span class="w"> </span>mlc-llm
@@ -327,7 +327,7 @@ We first introduce how to prepare the (pre)built model libraries and weights, an
 </div>
 </section>
 <section id="get-to-know-model-s-local-id">
-<span id="knowing-local-id"></span><h2><a class="toc-backref" href="#id3" role="doc-backlink">Get to Know Model’s Local ID</a><a class="headerlink" href="#get-to-know-model-s-local-id" title="Permalink to this heading">¶</a></h2>
+<span id="knowing-local-id"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Get to Know Model’s Local ID</a><a class="headerlink" href="#get-to-know-model-s-local-id" title="Permalink to this heading">¶</a></h2>
 <p>In MLC LLM, we use <strong>local ids</strong> to denote the models we build.</p>
 <p>A model’s local id is in the format <code class="docutils literal notranslate"><span class="pre">MODELNAME-QUANTMODE</span></code> (for example, <code class="docutils literal notranslate"><span class="pre">vicuna-v1-7b-q3f16_0</span></code>, <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_0</span></code>, etc.).
 You can find the local id by checking the directory names under <code class="docutils literal notranslate"><span class="pre">dist</span></code> (if you built model on your own) or <code class="docutils literal notranslate"><span class="pre">dist/prebuilt</span></code> if you use prebuilt models:</p>
@@ -345,7 +345,7 @@ mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0<span class="w">    </span>mlc-chat-
 <p>We will use local ids for model deployment.</p>
 </section>
 <section id="prepare-model-weight-and-library">
-<span id="prepare-weight-library"></span><h2><a class="toc-backref" href="#id4" role="doc-backlink">Prepare Model Weight and Library</a><a class="headerlink" href="#prepare-model-weight-and-library" title="Permalink to this heading">¶</a></h2>
+<span id="prepare-weight-library"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Prepare Model Weight and Library</a><a class="headerlink" href="#prepare-model-weight-and-library" title="Permalink to this heading">¶</a></h2>
 <p>In order to load the model correctly in deployment, we need to put the model libraries and weights to the right location before deployment.
 You can select from the panel below for the preparation steps you will need.</p>
 <div class="sphinx-tabs docutils container">
@@ -465,7 +465,7 @@ Before uploading, we need to update <code class="docutils literal notranslate"><
 </section>
 </section>
 <section id="deploy-models-on-your-laptop-desktop">
-<span id="deploy-on-laptop-desktop"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Deploy Models on Your Laptop/Desktop</a><a class="headerlink" href="#deploy-models-on-your-laptop-desktop" title="Permalink to this heading">¶</a></h2>
+<span id="deploy-on-laptop-desktop"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Deploy Models on Your Laptop/Desktop</a><a class="headerlink" href="#deploy-models-on-your-laptop-desktop" title="Permalink to this heading">¶</a></h2>
 <p>This section goes through the process of deploying prebuilt model or the model you built on your laptop or desktop.
 MLC LLM provides a Command-Line Interface (CLI) application to deploy and help interact with the model.
 After <a class="reference internal" href="#cli-prepare-cli"><span class="std std-ref">preparing the CLI</span></a>, you can <a class="reference internal" href="#cli-run-model"><span class="std std-ref">deploy and interact</span></a> with the model on your machine through CLI.</p>
@@ -552,7 +552,7 @@ mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>vicuna-v1-
 </section>
 </section>
 <section id="deploy-models-on-your-iphone-ipad">
-<h2><a class="toc-backref" href="#id6" role="doc-backlink">Deploy Models on Your iPhone/iPad</a><a class="headerlink" href="#deploy-models-on-your-iphone-ipad" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Deploy Models on Your iPhone/iPad</a><a class="headerlink" href="#deploy-models-on-your-iphone-ipad" title="Permalink to this heading">¶</a></h2>
 <p>This section introduces how to deploy model you built or prebuilt by us on your iPhone/iPad devices.
 The iOS/iPadOS application supports chatting with prebuilt Vicuna or RedPajama models, and also supports using the model you manually built.</p>
 <p>MLC LLM has released an iOS/iPadOS application which you can directly <a class="reference internal" href="#iphone-download-app"><span class="std std-ref">download and use</span></a>.
@@ -574,7 +574,7 @@ The link is valid for the first 9000 users.</p>
 If you have not built the model, please refer to <a class="reference internal" href="compile-models.html#how-to-compile-models"><span class="std std-ref">the model build tutorial</span></a>, build the model, and then come back to this page.
 The following part of this subsection assumes you have built the model successfully and will not cover the model build part.</p>
 <section id="update-ios-app-config">
-<h4>Update iOS App Config<a class="headerlink" href="#update-ios-app-config" title="Permalink to this heading">¶</a></h4>
+<span id="id2"></span><h4>Update iOS App Config<a class="headerlink" href="#update-ios-app-config" title="Permalink to this heading">¶</a></h4>
 <p>First, open <code class="docutils literal notranslate"><span class="pre">ios/MLCChat/app-config.json</span></code> and update the file according to the model(s) you build.</p>
 <p>In this file, the <code class="docutils literal notranslate"><span class="pre">model_libs</span></code> list contains the local ids of the models we want to deploy on iPhone/iPad.</p>
 <div class="admonition note">
@@ -598,7 +598,7 @@ The <code class="docutils literal notranslate"><span class="pre">model_libs</spa
 </div>
 </section>
 <section id="run-library-weight-preparation-scripts">
-<h4>Run Library/Weight Preparation Scripts<a class="headerlink" href="#run-library-weight-preparation-scripts" title="Permalink to this heading">¶</a></h4>
+<span id="id3"></span><h4>Run Library/Weight Preparation Scripts<a class="headerlink" href="#run-library-weight-preparation-scripts" title="Permalink to this heading">¶</a></h4>
 <p>After updating <code class="docutils literal notranslate"><span class="pre">app-config.json</span></code>, run <code class="docutils literal notranslate"><span class="pre">prepare_libs.sh</span></code> under <code class="docutils literal notranslate"><span class="pre">ios/</span></code> to generate required libraries.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>ios
 ./prepare_libs.sh
@@ -613,7 +613,7 @@ For example, the existing <code class="docutils literal notranslate"><span class
 </div>
 </section>
 <section id="open-xcode-to-build-the-app">
-<h4>Open Xcode to Build the App<a class="headerlink" href="#open-xcode-to-build-the-app" title="Permalink to this heading">¶</a></h4>
+<span id="open-xcode-to-build-app"></span><h4>Open Xcode to Build the App<a class="headerlink" href="#open-xcode-to-build-the-app" title="Permalink to this heading">¶</a></h4>
 <p>The final steps go with <a class="reference external" href="https://developer.apple.com/xcode/">Xcode</a>. Download Xcode and open <code class="docutils literal notranslate"><span class="pre">ios/MLCChat.xcodeproj</span></code> using Xcode.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -641,14 +641,14 @@ For example, the existing <code class="docutils literal notranslate"><span class
 </section>
 </section>
 <section id="deploy-model-on-your-android-phone">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Deploy Model on Your Android Phone</a><a class="headerlink" href="#deploy-model-on-your-android-phone" title="Permalink to this heading">¶</a></h2>
+<span id="deploy-model-on-android"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">Deploy Model on Your Android Phone</a><a class="headerlink" href="#deploy-model-on-your-android-phone" title="Permalink to this heading">¶</a></h2>
 <section id="download-released-app">
 <span id="android-download-app"></span><h3>Download Released App<a class="headerlink" href="#download-released-app" title="Permalink to this heading">¶</a></h3>
 <p>TBA.</p>
 </section>
 </section>
 <section id="deploy-models-on-your-web-browser">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Deploy Models on Your Web Browser</a><a class="headerlink" href="#deploy-models-on-your-web-browser" title="Permalink to this heading">¶</a></h2>
+<span id="deploy-model-web-browser"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">Deploy Models on Your Web Browser</a><a class="headerlink" href="#deploy-models-on-your-web-browser" title="Permalink to this heading">¶</a></h2>
 <p>TBA.</p>
 </section>
 </section>

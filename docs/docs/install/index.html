@@ -304,7 +304,7 @@
 <span id="tvm-unity-install-prebuilt-package"></span><h3><a class="toc-backref" href="#id8" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading">¶</a></h3>
 <p>To help our community to use Apache TVM Unity, a nightly prebuilt developer package is provided with everything packaged.
 Please visit the installation page for installation instructions: <a class="reference external" href="https://mlc.ai/package/">https://mlc.ai/package/</a>.</p>
-<p><strong>Set up $TVM_HOME after installation.</strong> This environment variable is not used by TVM itself but by downstream applications like <a class="reference external" href="https://mlc.ai/mlc-llm">MLC LLM</a>, and thus it would be more convenient to set it up earlier:</p>
+<p><strong>Set up</strong> <code class="docutils literal notranslate"><span class="pre">$TVM_HOME</span></code> <strong>after installation.</strong> This environment variable is not used by TVM itself but by downstream applications like <a class="reference external" href="https://mlc.ai/mlc-llm">MLC LLM</a>, and thus it would be more convenient to set it up earlier:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Locate TVM python package</span>
 &gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.__file__)&quot;</span>
 /some-path/lib/python3.11/site-packages/tvm/__init__.py
@@ -324,10 +324,13 @@ Please visit the installation page for installation instructions: <a class="refe
 <li><p>CMake &gt;= 3.18</p></li>
 <li><p>LLVM &gt;= 15</p></li>
 <li><p>Git</p></li>
-<li><p>(Optional) CUDA &gt;= 11.8 (targeting NVIDIA GPUs)</p></li>
+<li><p>(Optional) CUDA &gt;= 11.8 (targeting NVIDIA GPUs)
+- Check <a class="reference internal" href="software-dependencies.html#software-dependencies-cuda"><span class="std std-ref">CUDA</span></a> on how to install CUDA.</p></li>
 <li><p>(Optional) Metal (targeting Apple GPUs such as M1 and M2)</p></li>
-<li><p>(Optional) Vulkan (targeting NVIDIA, AMD, Intel and mobile GPUs)</p></li>
-<li><p>(Optional) OpenCL (targeting NVIDIA, AMD, Intel and mobile GPUs)</p></li>
+<li><p>(Optional) Vulkan (targeting NVIDIA, AMD, Intel and mobile GPUs)
+- Check <a class="reference internal" href="software-dependencies.html#software-dependencies-vulkan-sdk"><span class="std std-ref">Vulkan-SDK</span></a> on how to install Vulkan SDK.</p></li>
+<li><p>(Optional) OpenCL (targeting NVIDIA, AMD, Intel and mobile GPUs)
+- Check <a class="reference internal" href="software-dependencies.html#software-dependencies-opencl-sdk"><span class="std std-ref">OpenCL-SDK</span></a> on how to install OpenCL.</p></li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -410,7 +413,7 @@ The following two environment variables are generally required for TVM-based app
 </div>
 </section>
 <section id="validate-installation">
-<h3><a class="toc-backref" href="#id10" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h3>
+<span id="tvm-unity-validate-installation"></span><h3><a class="toc-backref" href="#id10" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h3>
 <p>Using a compiler infrastructure with multiple language bindings could be error-prone.
 Therefore, it is highly recommended to validate TVM Unity installation before use.</p>
 <p><strong>Step 1. Locate TVM Python package.</strong> The following command can help confirm that TVM is properly installed as a python package and provide the location of the TVM python package:</p>
@@ -440,7 +443,7 @@ USE_ROCM:<span class="w"> </span>OFF
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code class="docutils literal notranslate"><span class="pre">GIT_COMMIT_HASH</span></code> indicates the exact commit of the TVM build, and it can be found on GitHub via <code class="docutils literal notranslate"><span class="pre">&lt;https://github.com/mlc-ai/relax/commit/$GIT_COMMIT_HASH&gt;</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">GIT_COMMIT_HASH</span></code> indicates the exact commit of the TVM build, and it can be found on GitHub via <code class="docutils literal notranslate"><span class="pre">https://github.com/mlc-ai/relax/commit/$GIT_COMMIT_HASH</span></code>.</p>
 </div>
 <p><strong>Step 4. Check device detection.</strong> Sometimes it could be helpful to understand if TVM could detect your device at all with the following commands:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.metal().exist)&quot;</span>
@@ -455,7 +458,7 @@ False<span class="w"> </span><span class="c1"># or True</span>
 </section>
 </section>
 <section id="install-mlc-llm-cli">
-<h2><a class="toc-backref" href="#id11" role="doc-backlink">Install MLC-LLM CLI</a><a class="headerlink" href="#install-mlc-llm-cli" title="Permalink to this heading">¶</a></h2>
+<span id="install-mlc-llm"></span><h2><a class="toc-backref" href="#id11" role="doc-backlink">Install MLC-LLM CLI</a><a class="headerlink" href="#install-mlc-llm-cli" title="Permalink to this heading">¶</a></h2>
 <p>MLC-LLM CLI is a command-line interface for MLC-LLM, which enables user to chat with the bot in terminal. Please refer to <a class="reference internal" href="../tutorials/deploy-models.html#prepare-weight-library"><span class="std std-ref">Prepare Model Weight and Library</span></a> for installation instructions.</p>
 </section>
 </section>

@@ -385,6 +385,8 @@ To start building the iOS/iPadOS application, you need first build the model man
 If you have not built the model, please refer to :ref:`the model build tutorial <How to Compile Models>`, build the model, and then come back to this page.
 The following part of this subsection assumes you have built the model successfully and will not cover the model build part.
 
+.. _update-ios-app-config:
+
 Update iOS App Config
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -409,6 +411,8 @@ For example, the existing ``app-config.json`` (`here <https://github.com/mlc-ai/
     1. By packing the library of ``vicuna-v1-7b-q3f16_0`` and ``RedPajama-INCITE-Chat-3B-v1-q4f16_0`` into the app, it means we support the any LLaMA-7B structured model quantized by ``q3f16_0`` and any GPT-NeoX-3B model quantized by ``q4f16_0``.
     2. For models we want to deploy to iPhone/iPad, if we do not put it in ``model_list``, we will need to pack the model weights to the application when building the app. This is done in the following steps. In the example app config, model ``RedPajama-INCITE-Chat-3B-v1-q4f16_0`` is not put in ``model_list``. It means we will pack the weight of ``RedPajama-INCITE-Chat-3B-v1-q4f16_0`` directly into the app later.
 
+.. _run-library-weight-preparation-scripts:
+
 Run Library/Weight Preparation Scripts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -429,6 +433,7 @@ Then run ``prepare_params.sh`` to copy the model weights to the pre-defined targ
 
     ./prepare_params.sh
 
+.. _open-xcode-to-build-app:
 
 Open Xcode to Build the App
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -489,6 +494,7 @@ If you want to run the model you built, simply follow the steps below.
             :width: 30%
 
 
+.. _deploy-model-on-android:
 
 Deploy Model on Your Android Phone
 ----------------------------------
@@ -500,6 +506,7 @@ Download Released App
 
 TBA.
 
+.. _deploy-model-web-browser:
 
 Deploy Models on Your Web Browser
 ---------------------------------

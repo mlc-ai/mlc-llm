@@ -175,8 +175,8 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#vulkan-driver">Vulkan Driver</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#id1">Installation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#id2">Validate Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#vulkan-driver-installation">Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#valkan-driver-validate-installation">Validate Installation</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#vulkan-sdk">Vulkan-SDK</a></li>
@@ -281,53 +281,53 @@
            <div itemprop="articleBody">
             
   <section id="software-dependencies">
-<h1>Software Dependencies<a class="headerlink" href="#software-dependencies" title="Permalink to this heading">¶</a></h1>
+<span id="id1"></span><h1>Software Dependencies<a class="headerlink" href="#software-dependencies" title="Permalink to this heading">¶</a></h1>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#cuda" id="id3">CUDA</a></p>
+<li><p><a class="reference internal" href="#cuda" id="id4">CUDA</a></p>
 <ul>
-<li><p><a class="reference internal" href="#installation" id="id4">Installation</a></p></li>
-<li><p><a class="reference internal" href="#validate-installation" id="id5">Validate Installation</a></p></li>
+<li><p><a class="reference internal" href="#installation" id="id5">Installation</a></p></li>
+<li><p><a class="reference internal" href="#validate-installation" id="id6">Validate Installation</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#vulkan-driver" id="id6">Vulkan Driver</a></p>
+<li><p><a class="reference internal" href="#vulkan-driver" id="id7">Vulkan Driver</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id1" id="id7">Installation</a></p></li>
-<li><p><a class="reference internal" href="#id2" id="id8">Validate Installation</a></p></li>
+<li><p><a class="reference internal" href="#vulkan-driver-installation" id="id8">Installation</a></p></li>
+<li><p><a class="reference internal" href="#valkan-driver-validate-installation" id="id9">Validate Installation</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#vulkan-sdk" id="id9">Vulkan-SDK</a></p></li>
-<li><p><a class="reference internal" href="#opencl-sdk" id="id10">OpenCL-SDK</a></p></li>
+<li><p><a class="reference internal" href="#vulkan-sdk" id="id10">Vulkan-SDK</a></p></li>
+<li><p><a class="reference internal" href="#opencl-sdk" id="id11">OpenCL-SDK</a></p></li>
 </ul>
 </nav>
 <p>While we have included most of the dependencies in our pre-built wheels/scripts, there are still some platform-dependent packages that you will need to install on your own. In most cases, you won’t need all the packages listed on this page. If you’re unsure about which packages are required for your specific use case, please check the <a class="reference internal" href="../index.html#navigation"><span class="std std-ref">navigation panel</span></a> first.</p>
 <section id="cuda">
-<span id="software-dependencies-cuda"></span><h2><a class="toc-backref" href="#id3" role="doc-backlink">CUDA</a><a class="headerlink" href="#cuda" title="Permalink to this heading">¶</a></h2>
+<span id="software-dependencies-cuda"></span><h2><a class="toc-backref" href="#id4" role="doc-backlink">CUDA</a><a class="headerlink" href="#cuda" title="Permalink to this heading">¶</a></h2>
 <p>CUDA is required to compile and run models with <code class="docutils literal notranslate"><span class="pre">cuda</span></code> backend.</p>
 <section id="installation">
-<h3><a class="toc-backref" href="#id4" role="doc-backlink">Installation</a><a class="headerlink" href="#installation" title="Permalink to this heading">¶</a></h3>
+<span id="cuda-installation"></span><h3><a class="toc-backref" href="#id5" role="doc-backlink">Installation</a><a class="headerlink" href="#installation" title="Permalink to this heading">¶</a></h3>
 <p>If you have a NVIDIA GPU and you want to use models compiled with CUDA
 backend, you should install CUDA, which can be downloaded from
 <a class="reference external" href="https://developer.nvidia.com/cuda-downloads">here</a>.</p>
 </section>
 <section id="validate-installation">
-<h3><a class="toc-backref" href="#id5" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h3>
+<span id="cuda-validate-installation"></span><h3><a class="toc-backref" href="#id6" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h3>
 <p>To verify you have correctly installed CUDA runtime and NVIDIA driver, you can simply run <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span></code> in command line and see
 if you can get the GPU information.</p>
 </section>
 </section>
 <section id="vulkan-driver">
-<span id="software-dependencies-vulkan-driver"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Vulkan Driver</a><a class="headerlink" href="#vulkan-driver" title="Permalink to this heading">¶</a></h2>
-<section id="id1">
-<h3><a class="toc-backref" href="#id7" role="doc-backlink">Installation</a><a class="headerlink" href="#id1" title="Permalink to this heading">¶</a></h3>
+<span id="software-dependencies-vulkan-driver"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Vulkan Driver</a><a class="headerlink" href="#vulkan-driver" title="Permalink to this heading">¶</a></h2>
+<section id="vulkan-driver-installation">
+<span id="id2"></span><h3><a class="toc-backref" href="#id8" role="doc-backlink">Installation</a><a class="headerlink" href="#vulkan-driver-installation" title="Permalink to this heading">¶</a></h3>
 <p>To run pre-trained models (e.g. pulled from MLC-AI’s Hugging Face repository) compiled with <code class="docutils literal notranslate"><span class="pre">vulkan</span></code> backend, you are expected to install Vulkan driver on your machine.</p>
 <p>Please check <a class="reference external" href="https://www.vulkan.org/tools#vulkan-gpu-resources">this
 page</a> and find the
 Vulkan driver according to your GPU vendor.</p>
 </section>
-<section id="id2">
-<h3><a class="toc-backref" href="#id8" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#id2" title="Permalink to this heading">¶</a></h3>
+<section id="valkan-driver-validate-installation">
+<span id="id3"></span><h3><a class="toc-backref" href="#id9" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#valkan-driver-validate-installation" title="Permalink to this heading">¶</a></h3>
 <p>To verify whether Vulkan installation is successful or not, you are encouraged to install <code class="docutils literal notranslate"><span class="pre">vulkaninfo</span></code>, below are the instructions to install <code class="docutils literal notranslate"><span class="pre">vulkaninfo</span></code> on different platforms:</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-VWJ1bnR1L0RlYmlhbg==" aria-selected="true" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-VWJ1bnR1L0RlYmlhbg==" name="VWJ1bnR1L0RlYmlhbg==" role="tab" tabindex="0">Ubuntu/Debian</button><button aria-controls="panel-0-RmVkb3Jh" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-RmVkb3Jh" name="RmVkb3Jh" role="tab" tabindex="-1">Fedora</button><button aria-controls="panel-0-QXJjaCBMaW51eA==" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-QXJjaCBMaW51eA==" name="QXJjaCBMaW51eA==" role="tab" tabindex="-1">Arch Linux</button><button aria-controls="panel-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" name="T3RoZXIgRGlzdHJpYnV0aW9ucw==" role="tab" tabindex="-1">Other Distributions</button></div><div aria-labelledby="tab-0-VWJ1bnR1L0RlYmlhbg==" class="sphinx-tabs-panel code-tab group-tab" id="panel-0-VWJ1bnR1L0RlYmlhbg==" name="VWJ1bnR1L0RlYmlhbg==" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
@@ -354,8 +354,8 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 </section>
 </section>
 <section id="vulkan-sdk">
-<span id="software-dependencies-vulkan-sdk"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">Vulkan-SDK</a><a class="headerlink" href="#vulkan-sdk" title="Permalink to this heading">¶</a></h2>
-<p>Vulkan-SDK is required for building your own models for Vulkan backend. However, our <a class="reference external" href="https://mlc.ai/package">pre-built mlc-ai-nightly wheels</a> already packaged Vulkan-SDK, so there is no need to install it separately.</p>
+<span id="software-dependencies-vulkan-sdk"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">Vulkan-SDK</a><a class="headerlink" href="#vulkan-sdk" title="Permalink to this heading">¶</a></h2>
+<p>Vulkan-SDK is required for compiling models to Vulkan backend. However, our <a class="reference external" href="https://mlc.ai/package">pre-built mlc-ai-nightly wheels</a> already packaged Vulkan-SDK, so there is no need to install it separately.</p>
 <p>Installing Vulkan-SDK is only necessary when user build TVM-Unity from source by following our <a class="reference internal" href="index.html#tvm-unity-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a> manual.</p>
 <p>Please check the Vulkan-SDK installation guide according to your platform:</p>
 <div class="sphinx-tabs docutils container">
@@ -369,7 +369,7 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 <p>Please refer to installation and setup page for next steps to build TVM-Unity from source.</p>
 </section>
 <section id="opencl-sdk">
-<span id="software-dependencies-opencl-sdk"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">OpenCL-SDK</a><a class="headerlink" href="#opencl-sdk" title="Permalink to this heading">¶</a></h2>
+<span id="software-dependencies-opencl-sdk"></span><h2><a class="toc-backref" href="#id11" role="doc-backlink">OpenCL-SDK</a><a class="headerlink" href="#opencl-sdk" title="Permalink to this heading">¶</a></h2>
 <p>OpenCL-SDK is only required when you want to build your own models for OpenCL backend. Please refer to <a class="reference external" href="https://github.com/KhronosGroup/OpenCL-SDK">OpenCL’s Github Repository</a> for installation guide of OpenCL-SDK.</p>
 </section>
 </section>
