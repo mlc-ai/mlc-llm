@@ -2,6 +2,7 @@
 
 
 import argparse
+import glob
 import os
 
 import gradio as gr
@@ -9,8 +10,7 @@ import tvm
 
 from .chat_module import ChatModule
 
-model_keys = ["vicuna-v1-7b"]
-quantization_keys = ["q3f16_0", "q4f16_0", "q4f32_0", "q0f32", "q0f16"]
+model_local_ids = []
 
 
 def _parse_args():
@@ -18,52 +18,57 @@ def _parse_args():
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument("--device-name", type=str, default="cuda")
     args.add_argument("--device-id", type=int, default=0)
+    args.add_argument(
+        "--share",
+        action="store_true",
+        help="create a publicly shareable link for the interface",
+    )
     parsed = args.parse_args()
-    parsed.mlc_lib_path = os.path.join(os.getcwd(), "build/libmlc_llm_module.so")
     return parsed
+
+
+def _check_model_dir(dir):
+    if not os.path.isdir(dir):
+        return False
+    params_exists, model_exists = False, False
+    for path in glob.glob(os.path.join(dir, "*")):
+        local_id = dir.split("/")[-1]
+        if path.split("/")[-1] == "params":
+            params_exists = True
+        if path.split("/")[-1].startswith(local_id):
+            model_exists = True
+    return params_exists and model_exists
+
+
+def get_local_ids(artifact_path):
+    for path in glob.glob(os.path.join(artifact_path, "*")):
+        if _check_model_dir(path):
+            local_id = path.split("/")[-1]
+            model_local_ids.append(local_id)
 
 
 class GradioChatModule(ChatModule):
     def __init__(self, ARGS):
-        super().__init__(ARGS.mlc_lib_path, ARGS.device_name, ARGS.device_id)
+        super().__init__(ARGS.device_name, ARGS.device_id)
         self.artifact_path = ARGS.artifact_path
         self.device_name = ARGS.device_name
 
-    def reload_model(
-        self, model_name, quantization_name, text_input, chat_state, img_list
-    ):
-        reload = True
-        if model_name is None or quantization_name is None:
-            reload = False
-            placeholder = "Select both model type and quantization type to get started"
-        else:
-            model_dir = model_name + "-" + quantization_name
-            model_lib = model_dir + "-" + self.device_name + ".so"
-            load_path = os.path.join(self.artifact_path, model_dir, model_lib)
-            if not os.path.exists(load_path):
-                reload = False
-                placeholder = "Model selected does not exist in your artifact path."
-
-        if not reload:
-            return (
-                gr.update(interactive=False, placeholder=placeholder),
-                gr.update(interactive=False),
-                gr.update(interactive=False),
-                gr.update(interactive=False),
-                None,
-                chat_state,
-                img_list,
-            )
-
-        lib = tvm.runtime.load_module(load_path)
+    def reload_model(self, model_name, text_input, chat_state, img_list):
+        model_lib, model_dir = None, os.path.join(self.artifact_path, model_name)
+        for path in glob.glob(os.path.join(model_dir, "*")):
+            if path.split("/")[-1].startswith(model_name + "-" + self.device_name):
+                model_lib = path
+                break
+        assert model_lib is not None
+        lib = tvm.runtime.load_module(os.path.join(model_dir, model_lib))
         assert lib is not None
-        chat_mod.reload_func(lib, os.path.join(self.artifact_path, model_dir, "params"))
-        text_input = gr.update(interactive=True, placeholder="Type and press Enter")
+        chat_mod.reload_func(lib, os.path.join(model_dir, "params"))
+        self.reset_runtime_stats_func()
         if chat_state is not None:
             chat_state.messages = []
         if img_list is not None:
             img_list = []
-        self.reset_runtime_stats_func()
+        text_input = gr.update(interactive=True, placeholder="Type and press Enter")
 
         return (
             text_input,
@@ -112,26 +117,19 @@ class GradioChatModule(ChatModule):
         return stats_output
 
 
-def launch_gradio(chat_mod):
+def launch_gradio(chat_mod, share_link=False):
     title = """<h1 align="center">MLC Chat Demo</h1>"""
-    description = """<h3>Welcome to MLC Chat!</h3>"""
+    description = """<h3>Welcome to MLC Chat! Pick a model from your local models to get started!</h3>"""
 
     with gr.Blocks() as demo:
         gr.Markdown(title)
         gr.Markdown(description)
         with gr.Row():
-            with gr.Column(scale=0.5):
-                model_choice = gr.Radio(
-                    model_keys,
-                    label="Model Name",
-                    info="Pick a model to get started!",
-                )
-            with gr.Column():
-                quantization_choice = gr.Radio(
-                    quantization_keys,
-                    label="Quantization Type",
-                    info="Pick a quantization type!",
-                )
+            model_choice = gr.Radio(
+                model_local_ids,
+                label="Model Name",
+                info="Choose a model from your local models",
+            )
 
         with gr.Row():
             with gr.Column(scale=0.5):
@@ -157,27 +155,13 @@ def launch_gradio(chat_mod):
                 chatbot = gr.Chatbot(label="MLC Chat")
                 text_input = gr.Textbox(
                     show_label=False,
-                    placeholder="Select both model type and quantization type to get started",
+                    placeholder="Select a model to start chatting!",
                     interactive=False,
                 ).style(container=False)
 
         model_choice.change(
             chat_mod.reload_model,
-            [model_choice, quantization_choice, text_input, chat_state, img_list],
-            [
-                text_input,
-                reset_button,
-                stats_output,
-                stats_button,
-                chatbot,
-                chat_state,
-                img_list,
-            ],
-            queue=False,
-        )
-        quantization_choice.change(
-            chat_mod.reload_model,
-            [model_choice, quantization_choice, text_input, chat_state, img_list],
+            [model_choice, text_input, chat_state, img_list],
             [
                 text_input,
                 reset_button,
@@ -199,7 +183,7 @@ def launch_gradio(chat_mod):
             chat_mod.ask, [text_input, chatbot], [text_input, chatbot]
         ).then(chat_mod.answer, [chatbot, stream_interval], [chatbot])
 
-    demo.launch(share=True, enable_queue=True)
+    demo.launch(share=share_link, enable_queue=True)
 
 
 def first_idx_mismatch(str1, str2):
@@ -212,5 +196,6 @@ def first_idx_mismatch(str1, str2):
 
 if __name__ == "__main__":
     ARGS = _parse_args()
+    get_local_ids(ARGS.artifact_path)
     chat_mod = GradioChatModule(ARGS)
-    launch_gradio(chat_mod)
+    launch_gradio(chat_mod, ARGS.share)

@@ -1,10 +1,12 @@
 """Python runtime for MLC chat."""
 #! pylint: disable=unused-import
+import ctypes
 import os
 import sys
-import ctypes
+
 import tvm
 import tvm._ffi.base
+
 from . import libinfo
 
 
@@ -30,7 +32,7 @@ def quantization_keys():
 
 
 class ChatModule:
-    def __init__(self, mlc_lib_path, target="cuda", device_id=0):
+    def __init__(self, target="cuda", device_id=0):
         fcreate = tvm.get_global_func("mlc.llm_chat_create")
         assert fcreate is not None
         if target == "cuda":
