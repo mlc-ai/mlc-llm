@@ -22,7 +22,7 @@ Install TVM Unity
 Option 1. Prebuilt Package
 ==========================
 
-To help our community to use Apache TVM Unity, a nightly prebuilt developer package is providedd with everything packaged.
+To help our community to use Apache TVM Unity, a nightly prebuilt developer package is provided with everything packaged.
 Please visit the installation page for installation instructions: https://mlc.ai/package/.
 
 **Set up $TVM_HOME after installation.** This environment variable is not used by TVM itself but by downstream applications like `MLC LLM <https://mlc.ai/mlc-llm>`_, and thus it would be more convenient to set it up earlier:
@@ -51,8 +51,8 @@ Option 2. Build from Source
 - Git
 - (Optional) CUDA >= 11.8 (targeting NVIDIA GPUs)
 - (Optional) Metal (targeting Apple GPUs such as M1 and M2)
-- (Optional) Vulkan (targeting NVIDIA, AMD, Intel and moble GPUs)
-- (Optional) OpenCL (targeting NVIDIA, AMD, Intel and moble GPUs)
+- (Optional) Vulkan (targeting NVIDIA, AMD, Intel and mobile GPUs)
+- (Optional) OpenCL (targeting NVIDIA, AMD, Intel and mobile GPUs)
 
 .. note::
     - To target NVIDIA GPUs, either CUDA or Vulkan is required (CUDA is recommended);
