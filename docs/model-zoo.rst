@@ -1,3 +1,5 @@
+.. _Model Zoo:
+
 Model Zoo
 =========
 
@@ -71,6 +73,7 @@ MLC-LLM supports the following model architectures:
     - * `Alpaca <https://github.com/tatsu-lab/stanford_alpaca>`__
       * `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
       * `Guanaco <https://github.com/artidoro/qlora>`__
+      * `OpenLLaMA <https://github.com/openlm-research/open_llama>`__
   * - ``gpt-neox``
     - `GPT-NeoX <https://github.com/EleutherAI/gpt-neox>`__
     - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_neox.py>`__
@@ -84,7 +87,9 @@ MLC-LLM supports the following model architectures:
 
 For models within these model architectures, you can check the :doc:`/tutorials/compile-models` on how to compile models. Please create a new issue if you want to request a new model architecture. Our tutorial :doc:`/tutorials/bring-your-own-models` introduces how to bring a new  model architecture to MLC-LLM.
 
+.. _contribute-to-mlc-llm-model-zoo:
+
 Contribute to MLC-LLM Model Zoo
 -------------------------------
 
-Ready to contribute your compiled models/new model architectures? Awesome! Please check our :doc:`/contribute/community` on how to contribute to MLC-LLM.
+Ready to contribute your compiled models/new model architectures? Awesome! Please check :ref:`contribute-new-models` on how to contribute new models to MLC-LLM.

@@ -26,7 +26,7 @@ Option 1. Prebuilt Package
 To help our community to use Apache TVM Unity, a nightly prebuilt developer package is provided with everything packaged.
 Please visit the installation page for installation instructions: https://mlc.ai/package/.
 
-**Set up $TVM_HOME after installation.** This environment variable is not used by TVM itself but by downstream applications like `MLC LLM <https://mlc.ai/mlc-llm>`_, and thus it would be more convenient to set it up earlier:
+**Set up** ``$TVM_HOME`` **after installation.** This environment variable is not used by TVM itself but by downstream applications like `MLC LLM <https://mlc.ai/mlc-llm>`_, and thus it would be more convenient to set it up earlier:
 
 .. code-block:: bash
 
@@ -39,7 +39,6 @@ Please visit the installation page for installation instructions: https://mlc.ai
 .. note::
     If installed properly, ``libtvm.{so|dylib|dll}`` should exist right under ``$TVM_HOME``.
 
-
 .. _tvm-unity-build-from-source:
 
 Option 2. Build from Source
@@ -51,9 +50,12 @@ Option 2. Build from Source
 - LLVM >= 15
 - Git
 - (Optional) CUDA >= 11.8 (targeting NVIDIA GPUs)
+  - Check :ref:`software-dependencies-cuda` on how to install CUDA.
 - (Optional) Metal (targeting Apple GPUs such as M1 and M2)
 - (Optional) Vulkan (targeting NVIDIA, AMD, Intel and mobile GPUs)
+  - Check :ref:`software-dependencies-vulkan-sdk` on how to install Vulkan SDK.
 - (Optional) OpenCL (targeting NVIDIA, AMD, Intel and mobile GPUs)
+  - Check :ref:`software-dependencies-opencl-sdk` on how to install OpenCL.
 
 .. note::
     - To target NVIDIA GPUs, either CUDA or Vulkan is required (CUDA is recommended);
@@ -130,6 +132,8 @@ The following two environment variables are generally required for TVM-based app
     # make TVM's Python binding discoverable by Python interpreter
     export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
 
+.. _tvm-unity-validate-installation:
+
 Validate Installation
 =====================
 
@@ -168,7 +172,7 @@ Therefore, it is highly recommended to validate TVM Unity installation before us
     USE_ROCM: OFF
 
 .. note::
-    ``GIT_COMMIT_HASH`` indicates the exact commit of the TVM build, and it can be found on GitHub via ``<https://github.com/mlc-ai/relax/commit/$GIT_COMMIT_HASH>``.
+    ``GIT_COMMIT_HASH`` indicates the exact commit of the TVM build, and it can be found on GitHub via ``https://github.com/mlc-ai/relax/commit/$GIT_COMMIT_HASH``.
 
 **Step 4. Check device detection.** Sometimes it could be helpful to understand if TVM could detect your device at all with the following commands:
 
@@ -183,6 +187,7 @@ Therefore, it is highly recommended to validate TVM Unity installation before us
 
 Please note that the commands above verify the presence of an actual device on the local machine for the TVM runtime (not the compiler) to execute properly. However, TVM compiler can perform compilation tasks without requiring a physical device. As long as the necessary toolchain, such as NVCC, is available, TVM supports cross-compilation even in the absence of an actual device.
 
+.. _install-mlc-llm:
 
 Install MLC-LLM CLI
 -------------------
