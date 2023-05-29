@@ -135,7 +135,7 @@ class Conversation {
    * \brief Serialize the Conversation to JSON String.
    * \return A string storing the serialized conversation in JSON format.
    */
-  std::string SerializeToJSONStr() const;
+  std::string GetConfigJSON() const;
 
   /*!
    * \brief Get the entire prompt array

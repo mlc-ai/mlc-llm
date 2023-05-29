@@ -179,6 +179,12 @@ class LLMChat {
     } else {
       CHECK(partial_update) << "Key \"mean_gen_len\" not found.";
     }
+    // NOTE: for backward compact
+    // max gen len is optonal
+    if (config.count("max_gen_len")) {
+      CHECK(config["max_gen_len"].is<int64_t>());
+      this->max_gen_len_ = config["max_gen_len"].get<int64_t>();
+    }
     if (config.count("shift_fill_factor")) {
       CHECK(config["shift_fill_factor"].is<double>());
       this->shift_fill_factor_ = config["shift_fill_factor"].get<double>();
@@ -219,18 +225,8 @@ class LLMChat {
     LoadJSONOverride(config_json, partial_update);
   }
 
-  picojson::value SerializeToJSON() const {
-    picojson::object config;
-    config["temperature"] = picojson::value(this->temperature_);
-    config["repetition_penalty"] = picojson::value(this->repetition_penalty_);
-    config["top_p"] = picojson::value(this->top_p_);
-    config["mean_gen_len"] = picojson::value(this->mean_gen_len_);
-    config["shift_fill_factor"] = picojson::value(this->shift_fill_factor_);
-    config["conv_config"] = this->conversation_.SerializeToJSON();
-    return picojson::value(config);
-  }
 
-  std::string SerializeToJSONStr() const { return SerializeToJSON().serialize(true); }
+  std::string GetConfigJSON() const { return SerializeConfigToJSONValue().serialize(true); }
 
   /*!
    * \brief Reload model, tokenizers and configurations from the specified model path.
@@ -595,6 +591,17 @@ class LLMChat {
   }
 
  private:
+  picojson::value SerializeConfigToJSONValue() const {
+    picojson::object config;
+    config["temperature"] = picojson::value(this->temperature_);
+    config["repetition_penalty"] = picojson::value(this->repetition_penalty_);
+    config["top_p"] = picojson::value(this->top_p_);
+    config["mean_gen_len"] = picojson::value(this->mean_gen_len_);
+    config["max_gen_len"] = picojson::value(this->max_gen_len_);
+    config["shift_fill_factor"] = picojson::value(this->shift_fill_factor_);
+    config["conv_config"] = this->conversation_.SerializeToJSON();
+    return picojson::value(config);
+  }
   /*!
    * \brief Sample output token from logits on device
    */
@@ -662,8 +669,10 @@ class LLMChat {
         }
       }
     }
-    // TODO(mlc-team): add another per convo seq len trigger
-    if (total_seq_len_ >= max_window_size_) {
+
+    if (static_cast<int64_t>(output_ids_.size()) >= max_gen_len_) {
+      stop_triggered_ = true;
+    } else if (total_seq_len_ >= max_window_size_) {
       stop_triggered_ = true;
     }
     if (stop_triggered_) {
@@ -783,7 +792,7 @@ class LLMChat {
   // total sequence len,
   int64_t total_seq_len_{0};
   // max window size, mean generation length
-  int64_t max_window_size_{768}, mean_gen_len_{128};
+  int64_t max_window_size_{768}, mean_gen_len_{128}, max_gen_len_{512};
   // shift window fill factor
   double shift_fill_factor_{0.3};
   // temperature
@@ -927,9 +936,9 @@ class LLMChatModule : public ModuleNode {
     } else if (name == "reset_runtime_stats") {
       return PackedFunc(
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->ResetRuntimeStats(); });
-    } else if (name == "serialize_config") {
+    } else if (name == "get_config_json") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        *rv = GetChat()->SerializeToJSONStr();
+        *rv = GetChat()->GetConfigJSON();
       });
     } else {
       return PackedFunc(nullptr);

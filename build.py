@@ -291,6 +291,7 @@ def dump_default_mlc_chat_config(args):
     config["repetition_penalty"] = 1.0
     config["top_p"] = 0.95
     config["mean_gen_len"] = 128
+    config["max_gen_len"] = 512
     config["shift_fill_factor"] = 0.3
     config["tokenizer_files"] = utils.get_tokenizer_files(params_path)
 
