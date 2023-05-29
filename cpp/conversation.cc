@@ -148,7 +148,7 @@ picojson::value Conversation::SerializeToJSON() const {
   return picojson::value(config);
 }
 
-std::string Conversation::SerializeToJSONStr() const { return SerializeToJSON().serialize(true); }
+std::string Conversation::GetConfigJSON() const { return SerializeToJSON().serialize(true); }
 
 }  // namespace llm
 }  // namespace mlc

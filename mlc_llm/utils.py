@@ -40,8 +40,8 @@ quantization_dict = {
     "q0f16": Quantization(
         name="q0f16", mode="no", sym=False, storage_nbit=-1, model_dtype="float16"
     ),
-    "q8f16": Quantization(
-        name="q8f16", mode="uint8", sym=False, storage_nbit=-1, model_dtype="float16"
+    "q8f16_0": Quantization(
+        name="q8f16_0", mode="uint8", sym=False, storage_nbit=-1, model_dtype="float16"
     ),
 }
 
@@ -306,6 +306,7 @@ def _detect_local_vulkan():
             "thread_warp_size": dev.warp_size,
             "supports_float16": 1,
             "supports_int16": 1,
+            "supports_int8": 1,
             "supports_16bit_buffer": 1,
         }
     )
@@ -424,23 +425,23 @@ def parse_target(args: argparse.Namespace) -> None:
         args.target = target
         args.target_kind = "iphone"
     elif args.target == "vulkan":
-        target = _detect_local_vulkan()
-        if target is None:
-            print("Cannot detect local Vulkan GPU target! Falling back...")
-            target = tvm.target.Target(
-                tvm.target.Target(
-                    {
-                        "kind": "vulkan",
-                        "max_threads_per_block": 256,
-                        "max_shared_memory_per_block": 32768,
-                        "thread_warp_size": 1,
-                        "supports_float16": 1,
-                        "supports_int16": 1,
-                        "supports_16bit_buffer": 1,
-                    }
-                ),
-                host="llvm",
-            )
+        target = tvm.target.Target(
+            tvm.target.Target(
+                {
+                    "kind": "vulkan",
+                    "max_threads_per_block": 256,
+                    "max_shared_memory_per_block": 32768,
+                    "thread_warp_size": 1,
+                    "supports_float16": 1,
+                    "supports_int16": 1,
+                    "supports_int8": 1,
+                    "supports_8bit_buffer": 1,
+                    "supports_16bit_buffer": 1,
+                    "supports_storage_buffer_storage_class": 1
+                }
+            ),
+            host="llvm",
+        )
         args.target = target
         args.target_kind = args.target.kind.default_keys[0]
     elif args.target == "webgpu":

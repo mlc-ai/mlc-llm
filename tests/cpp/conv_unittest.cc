@@ -3,7 +3,7 @@
 
 void _TestConversationJSONRoundTrip(std::string templ_name) {
   mlc::llm::Conversation conv = mlc::llm::Conversation::FromTemplate(templ_name);
-  std::string conv_json = conv.SerializeToJSONStr();
+  std::string conv_json = conv.GetConfigJSON();
   mlc::llm::Conversation conv_new;
   conv_new.LoadJSONOverride(conv_json, false);
   ASSERT_EQ(conv, conv_new);
