@@ -53,13 +53,9 @@ on github directly. Once your update is complete, you can click the ``contribute
 Contribute New Models to MLC-LLM
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* If you compiled a model for existing model architecture by following our :doc:`../tutorials/compile-models` tutorial.
-  Please upload your model stored in ``dist`` directory to Hugging Face (an example can be
-  found `here <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q4f32_0/tree/main>`__), and please create a
-  pull request to MLC-LLM and add your model code to the `model zoo <https://github.com/mlc-ai/mlc-llm/tree/main/docs/model-zoo.rst>`__,
-  and create a issue to track the speed and memory consumption of your model, see an example `here <https://github.com/mlc-ai/mlc-llm/issues/15>`__
-  (you don't need to test on all devices, let the community build it together!).
-* If you add a new model variant to MLC-LLM by following our :doc:`../tutorials/bring-your-own-models` tutorial.
+* If you have compiled a model using our :doc:`/tutorials/compile-models` tutorial for an existing model architecture, please upload your models to the internet (e.g., Hugging Face) by following :ref:`upload-model` tutorial. Once you have done that, you can create a pull request to add an entry in :ref:`off-the-shelf-models` table. Additionally, you have the option to `create a speed report issue <https://github.com/mlc-ai/mlc-llm/issues/new?assignees=&labels=Work+Item&projects=&template=speed-report.md&title=>`__ to track the speed and memory consumption of your model. You don't need to test it on all devices; let the community collaborate on building it together!
+
+* If you add a new model variant to MLC-LLM by following our :doc:`/tutorials/bring-your-own-models` tutorial.
   Please create a pull request to add your model architecture (currently model architectures are placed under
   `relax_models <https://github.com/mlc-ai/mlc-llm/tree/main/mlc_llm/relax_model>`__ folder).
 

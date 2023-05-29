@@ -96,4 +96,4 @@ For models within these model architectures, you can check the :doc:`/tutorials/
 Contribute to MLC-LLM Model Zoo
 -------------------------------
 
-Ready to contribute your compiled models/new model architectures? Awesome! Please check our :doc:`/contribute/community` on how to contribute to MLC-LLM.
+Ready to contribute your compiled models/new model architectures? Awesome! Please check :ref:`contribute-new-models` on how to contribute new models to MLC-LLM.
