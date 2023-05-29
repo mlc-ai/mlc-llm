@@ -333,11 +333,9 @@ class LLMChat {
     if (this->max_window_size_ == -1) {
       this->max_window_size_ = std::numeric_limits<int64_t>::max();
     }
-    LOG(INFO) << "max window " << this->max_window_size_;
 
     // Step 7. Override configuration from app_config_json.
     if (!app_config_json.empty()) {
-      LOG(INFO) << "Apply configuration override from user-provided JSON...";
       LoadJSONOverride(app_config_json, true);
     }
 
@@ -388,11 +386,8 @@ class LLMChat {
     this->sample_total_time = 0;
   }
 
-  static std::string GetConcatPrompt(
-    const std::vector<std::string>& prompt_array,
-    size_t prefix_end,
-    size_t suffix_start
-  ) {
+  static std::string GetConcatPrompt(const std::vector<std::string>& prompt_array,
+                                     size_t prefix_end, size_t suffix_start) {
     std::ostringstream os;
     for (size_t i = 0; i < prefix_end; ++i) {
       os << prompt_array[i];
@@ -434,7 +429,7 @@ class LLMChat {
     }
     std::vector<std::string> all_prompts = this->conversation_.GetPromptArray();
     // get estimnate of the ragment
-    size_t ctx_length  = this->tokenizer_->Encode(all_prompts[0]).size();
+    size_t ctx_length = this->tokenizer_->Encode(all_prompts[0]).size();
     size_t start_reencode_pos = 0;
     for (int i = all_prompts.size() - 1; i > 0; i -= 2) {
       ctx_length += this->tokenizer_->Encode(all_prompts[i]).size();
@@ -636,7 +631,6 @@ class LLMChat {
    */
   void ProccessNextToken(int32_t next_token) {
     ICHECK(!stop_triggered_) << "Cannot call process when it is stoppped";
-
 
     stop_triggered_ =
         std::any_of(this->conversation_.stop_tokens.begin(), this->conversation_.stop_tokens.end(),

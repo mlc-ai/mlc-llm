@@ -3,13 +3,13 @@
  * \file conversation.h
  * \brief Header of conversation template in MLC-LLM.
  */
+#define PICOJSON_USE_INT64
+#define __STDC_FORMAT_MACROS
+#include <picojson.h>
 #include <tvm/runtime/module.h>
 
 #include <string>
 #include <vector>
-#define PICOJSON_USE_INT64
-#define __STDC_FORMAT_MACROS
-#include <picojson.h>
 
 namespace mlc {
 namespace llm {
@@ -163,9 +163,7 @@ class Conversation {
     this->messages.back().push_back(msg);
   }
 
-  void Reset() {
-    this->messages.resize(this->offset);
-  }
+  void Reset() { this->messages.resize(this->offset); }
 
  private:
   // Identity function
@@ -191,7 +189,7 @@ class Conversation {
     } else {
       // need to add a sep of last response
       // which was not added in the processing step.
-     // ret.push_back(this->seps[1 % this->seps.size()]);
+      ret.push_back(this->seps[1 % this->seps.size()]);
     }
 
     ICHECK_EQ(start_pos % 2, 0);
