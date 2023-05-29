@@ -1,12 +1,24 @@
 """Python runtime for MLC chat."""
-
+#! pylint: disable=unused-import
+import os
+import sys
 import ctypes
-
 import tvm
+import tvm._ffi.base
+from . import libinfo
 
 
-def load_llm_chat(mlc_lib_path):
-    return ctypes.CDLL(mlc_lib_path)
+def _load_mlc_llm_lib():
+    """Load mlc llm lib"""
+    if sys.platform.startswith("win32") and sys.version_info >= (3, 8):
+        for path in libinfo.get_dll_directories():
+            os.add_dll_directory(path)
+    lib_name = "mlc_llm" if tvm._ffi.base._RUNTIME_ONLY else "mlc_llm_module"
+    lib_path = libinfo.find_lib_path(lib_name, optional=False)
+    return ctypes.CDLL(lib_path[0]), lib_path[0]
+
+
+_LIB, _LIB_PATH = _load_mlc_llm_lib()
 
 
 def supported_models():
@@ -17,9 +29,8 @@ def quantization_keys():
     return ["q3f16_0", "q4f16_0", "q4f32_0", "q0f32", "q0f16"]
 
 
-class LLMChatModule:
+class ChatModule:
     def __init__(self, mlc_lib_path, target="cuda", device_id=0):
-        load_llm_chat(mlc_lib_path)
         fcreate = tvm.get_global_func("mlc.llm_chat_create")
         assert fcreate is not None
         if target == "cuda":

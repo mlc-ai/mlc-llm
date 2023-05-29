@@ -114,15 +114,11 @@ else()
   target_link_libraries(mlc_chat_cli PUBLIC mlc_llm)
 endif()
 
-if (UNIX OR APPLE)
-  add_library(mlc_llm_module MODULE $<TARGET_OBJECTS:mlc_llm_objs>)
-  target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp)
-  if (APPLE)
-    set_property(TARGET mlc_llm_module APPEND PROPERTY LINK_OPTIONS -undefined dynamic_lookup)
-  else()
-    set_property(TARGET mlc_llm_module APPEND PROPERTY LINK_OPTIONS)
-  endif()
-endif()
+# create a dummy libtvms.so, so mlc_llm_module can be loaded by tvm smoothly
+add_library(libtvm_dummy SHARED $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
+set_target_properties(libtvm_dummy PROPERTIES OUTPUT_NAME "tvm")
+add_library(mlc_llm_module MODULE $<TARGET_OBJECTS:mlc_llm_objs>)
+target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp libtvm_dummy)
 
 # when this option is on,
 # we install all static lib deps into lib
@@ -145,7 +141,7 @@ if (MLC_LLM_INSTALL_STATIC_LIB)
       )
   endif()
 else()
-  install(TARGETS mlc_chat_cli tvm_runtime mlc_llm
+  install(TARGETS mlc_chat_cli tvm_runtime mlc_llm mlc_llm_module
     mlc_llm_static
     tokenizers_cpp
     sentencepiece-static

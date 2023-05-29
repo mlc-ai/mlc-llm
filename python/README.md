@@ -19,4 +19,4 @@ There is currently a dependency to build from source in order to use the [REST A
 
 To launch the Gradio API, locate to the root of the mlc-llm repo. The arguments you need to provide are `artifact-path` which stores your pre-built models, `device-name` (default cuda) and `device-id` (default 0). After launched, the Gradio API allows you to select different models and quantization types in its interface.
 
-    python3 -m python.mlc_chat.gradio --artifact-path /path/to/your/models --device-name cuda --device-id 0
+    PYTHONPATH=python python3 -m mlc_chat.gradio --artifact-path /path/to/your/models --device-name cuda --device-id 0

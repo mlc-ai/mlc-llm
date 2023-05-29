@@ -7,7 +7,7 @@ import os
 import gradio as gr
 import tvm
 
-from python.mlc_chat.chat_module import LLMChatModule
+from .chat_module import ChatModule
 
 model_keys = ["vicuna-v1-7b"]
 quantization_keys = ["q3f16_0", "q4f16_0", "q4f32_0", "q0f32", "q0f16"]
@@ -23,7 +23,7 @@ def _parse_args():
     return parsed
 
 
-class GradioChatModule(LLMChatModule):
+class GradioChatModule(ChatModule):
     def __init__(self, ARGS):
         super().__init__(ARGS.mlc_lib_path, ARGS.device_name, ARGS.device_id)
         self.artifact_path = ARGS.artifact_path
