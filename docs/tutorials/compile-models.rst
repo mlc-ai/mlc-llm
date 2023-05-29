@@ -17,6 +17,7 @@ This tutorial contains the following sections in order:
     :depth: 1
     :local:
 
+.. _compile-model-dependencies:
 
 Dependencies
 ------------
@@ -24,10 +25,14 @@ Dependencies
 `TVM-Unity <https://discuss.tvm.apache.org/t/establish-tvm-unity-connection-a-technical-strategy/13344>`__ is required to compile models, please follow the instructions in :ref:`tvm-unity-install` to install the
 TVM-Unity package before proceeding with this tutorial.
 
+.. _compile-model-prepare-model-weight:
+
 Prepare Model Weight
 --------------------
 
 This section briefly introduces how to prepare the weight of the model we want to build.
+
+.. _compile-models-with-full-weight:
 
 Models with Full Weight
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -53,11 +58,14 @@ For models whose full weight is directly available (e.g., `RedPajama-v1-3B on Hu
 
             ln -s path/to/your/model dist/models/MODEL_NAME
 
+.. _compile-models-with-base-weight-and-delta-weight:
+
 Models with Base Weight and Delta Weight
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For models whose base weight and delta weight are available (e.g., Vicuna-v1-7B only releases the `delta weight <https://huggingface.co/lmsys/vicuna-7b-delta-v1.1>`_ on Hugging Face), we need to apply the delta weights to the base weight. You can refer to the instructions of `getting Vicuna model weight <https://github.com/lm-sys/FastChat#vicuna-weights>`_ as a reference. After getting the full weight of the model, copy or symbolic link the model to ``dist/models/MODEL_NAME``.
 
+.. _compile-models-run-build-script:
 
 Run Build Script
 ----------------
@@ -259,6 +267,7 @@ After running the build script successfully, you can proceed to the next tutoria
 .. warning::
     In certain cases, using 3-bit quantization for compiling can be overly aggressive and may result in the compiled model generating meaningless text. If you encounter issues where the compiled model does not perform as expected, consider utilizing a higher number of bits for quantization (e.g., 4-bit quantization).
 
+.. _compile-models-why-need-build:
 
 Why Need Build?
 ---------------
@@ -273,6 +282,7 @@ This separation enables us to build LLM to different backends using a single com
    :alt: compilation workflow
    :align: center
 
+.. _compile-models-troubleshooting:
 
 Troubleshooting FAQ
 -------------------

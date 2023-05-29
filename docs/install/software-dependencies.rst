@@ -1,3 +1,5 @@
+.. _Software Dependencies:
+
 Software Dependencies
 =====================
 
@@ -14,12 +16,16 @@ CUDA
 
 CUDA is required to compile and run models with ``cuda`` backend.
 
+.. _cuda-installation:
+
 Installation
 ^^^^^^^^^^^^
 
 If you have a NVIDIA GPU and you want to use models compiled with CUDA
 backend, you should install CUDA, which can be downloaded from
 `here <https://developer.nvidia.com/cuda-downloads>`__.
+
+.. _cuda-validate-installation:
 
 Validate Installation
 ^^^^^^^^^^^^^^^^^^^^^
@@ -32,6 +38,8 @@ if you can get the GPU information.
 Vulkan Driver
 -------------
 
+.. _vulkan-driver-installation:
+
 Installation
 ^^^^^^^^^^^^
 
@@ -40,6 +48,8 @@ To run pre-trained models (e.g. pulled from MLC-AI's Hugging Face repository) co
 Please check `this
 page <https://www.vulkan.org/tools#vulkan-gpu-resources>`__ and find the
 Vulkan driver according to your GPU vendor.
+
+.. _valkan-driver-validate-installation:
 
 Validate Installation
 ^^^^^^^^^^^^^^^^^^^^^
@@ -78,7 +88,7 @@ After installation, you can run ``vulkaninfo`` in command line and see if you ca
 Vulkan-SDK
 ----------
 
-Vulkan-SDK is required for building your own models for Vulkan backend. However, our `pre-built mlc-ai-nightly wheels <https://mlc.ai/package>`__ already packaged Vulkan-SDK, so there is no need to install it separately.
+Vulkan-SDK is required for compiling models to Vulkan backend. However, our `pre-built mlc-ai-nightly wheels <https://mlc.ai/package>`__ already packaged Vulkan-SDK, so there is no need to install it separately.
 
 Installing Vulkan-SDK is only necessary when user build TVM-Unity from source by following our :ref:`tvm-unity-build-from-source` manual.
 

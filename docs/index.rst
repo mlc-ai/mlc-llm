@@ -44,7 +44,9 @@ Before you start, please select your use case so that we can narrow down the sea
          
          .. tab :: PC
 
-            MLC-LLM already provided a set of prebuilt models which you can deploy directly, check the :doc:`model-zoo` for the list of supported models.
+            MLC-LLM provided a set of prebuilt models that you can run directly without compile models by your self, check :ref:`off-the-shelf-models` and see if your model is in the list.
+
+            In other cases, you need you build your own models.
 
             .. tabs ::
                
@@ -58,14 +60,11 @@ Before you start, please select your use case so that we can narrow down the sea
 
                .. tab :: Build your own models.
 
-                  There are two different cases where you need to build your own models:
+                  If your model architecture is supported by MLC-LLM, you can compile your own models with MLC-LLM, and customize the model weights/quantization algorithms/running data types/etc. Please check :doc:`tutorials/compile-models` for details on how to compile models with MLC-LLM.
 
-                  * Use your own moden weights, or use different quantization data type/running data type.
-                  * Please check :doc:`tutorials/compile-models` for details on how to prepare build models for existing architectures.
-                  * Use a brand new model architecture which is not supported by MLC-LLM yet.
-                  * Please check :doc:`tutorials/bring-your-own-models` for details on how to add new model architectures to the MLC-LLM family.
-                
-                  In either cases, you are ecouraged to contribute to the MLC-LLM, see :ref:`contribute-new-models` on guidelines for contributing new models.
+                  If the model architecture is not supported yet, you can add a new model architecture to the MLC-LLM family by following tutorial :doc:`tutorials/bring-your-own-models`. You can also create a `model request issue <https://github.com/mlc-ai/mlc-llm/issues/new?assignees=&labels=&projects=&template=model-request.md&title=>`__ to request help from the community to add a new model architecture to MLC-LLM family.
+
+                  In either cases, you are encouraged to contribute to the MLC-LLM, see :ref:`contribute-new-models` on guidelines for contributing new models.
 
    .. tab :: I need to customize MLC-LLM.
 
