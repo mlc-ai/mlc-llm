@@ -287,14 +287,21 @@ If you are a MLC-LLM developer and you add some functionalities to the CLI, you 
 
 .. code:: shell
 
+    # create build directory
     mkdir -p build
+    # prepare dependencies
+    bash scripts/prep_deps.sh
+    source "$HOME/.cargo/env"
+    # generation cmake config
     python3 cmake/gen_cmake_config.py
-    cp cmake/config.cmake build
+    cp config.cmake build
+    # build
     cd build
     cmake ..
     make -j$(nproc)
     sudo make install
-    ldconfig  # Refresh shared library cache
+    # Refresh shared library cache
+    ldconfig  
     cd -
 
 .. note::
