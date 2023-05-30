@@ -115,10 +115,9 @@ else()
 endif()
 
 # create a dummy libtvms.so, so mlc_llm_module can be loaded by tvm smoothly
-add_library(libtvm_dummy SHARED $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
-set_target_properties(libtvm_dummy PROPERTIES OUTPUT_NAME "tvm")
+set_target_properties(tvm_dummy PROPERTIES OUTPUT_NAME "tvm")
 add_library(mlc_llm_module MODULE $<TARGET_OBJECTS:mlc_llm_objs>)
-target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp libtvm_dummy)
+target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp tvm_dummy)
 
 # when this option is on,
 # we install all static lib deps into lib
