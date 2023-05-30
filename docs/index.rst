@@ -8,6 +8,8 @@ Welcome to MLC-LLM!
 
 `Join our Discord Server! <https://discord.gg/9Xpy2HGBuD>`_
 
+🚧 This doc is under heavy construction.
+
 MLC LLM is the universal deployment solution that allows LLMs to run locally with native hardware acceleration on consumer devices.
 
 .. _navigation:
