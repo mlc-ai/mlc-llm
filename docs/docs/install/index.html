@@ -379,7 +379,8 @@ vim<span class="w"> </span>config.cmake
 <div class="highlight-cmake notranslate"><div class="highlight"><pre><span></span><span class="c">#### Edit `/path-tvm-unity/build/config.cmake`</span>
 <span class="c"># Can be one of `Debug`, `RelWithDebInfo` (recommended) and `Release`</span>
 <span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_BUILD_TYPE</span><span class="w"> </span><span class="s">RelWithDebInfo</span><span class="p">)</span>
-<span class="nb">set</span><span class="p">(</span><span class="s">USE_LLVM</span><span class="w">   </span><span class="s">ON</span><span class="p">)</span><span class="w">  </span><span class="c"># LLVM is a must-dependency</span>
+<span class="nb">set</span><span class="p">(</span><span class="s">USE_LLVM</span><span class="w"> </span><span class="s2">&quot;llvm-config --ignore-libllvm --link-static&quot;</span><span class="p">)</span><span class="w">  </span><span class="c"># LLVM is a must dependency</span>
+<span class="nb">set</span><span class="p">(</span><span class="s">HIDE_PRIVATE_SYMBOLS</span><span class="w"> </span><span class="s">ON</span><span class="p">)</span><span class="w">  </span><span class="c"># Avoid symbol conflict</span>
 <span class="nb">set</span><span class="p">(</span><span class="s">USE_CUDA</span><span class="w">   </span><span class="s">OFF</span><span class="p">)</span><span class="w"> </span><span class="c"># Turn on if needed</span>
 <span class="nb">set</span><span class="p">(</span><span class="s">USE_METAL</span><span class="w">  </span><span class="s">OFF</span><span class="p">)</span><span class="w"> </span><span class="c"># Turn on if needed</span>
 <span class="nb">set</span><span class="p">(</span><span class="s">USE_VULKAN</span><span class="w"> </span><span class="s">OFF</span><span class="p">)</span><span class="w"> </span><span class="c"># Turn on if needed</span>

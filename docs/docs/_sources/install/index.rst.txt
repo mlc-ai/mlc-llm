@@ -102,7 +102,8 @@ While ``config.cmake`` is well-documented, below are flags of the most interest:
     #### Edit `/path-tvm-unity/build/config.cmake`
     # Can be one of `Debug`, `RelWithDebInfo` (recommended) and `Release`
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
-    set(USE_LLVM   ON)  # LLVM is a must-dependency
+    set(USE_LLVM "llvm-config --ignore-libllvm --link-static")  # LLVM is a must dependency
+    set(HIDE_PRIVATE_SYMBOLS ON)  # Avoid symbol conflict
     set(USE_CUDA   OFF) # Turn on if needed
     set(USE_METAL  OFF) # Turn on if needed
     set(USE_VULKAN OFF) # Turn on if needed
