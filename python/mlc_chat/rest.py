@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
 
     ARGS = _parse_args()
 
-    chat_mod = ChatModule(ARGS.mlc_lib_path, ARGS.device_name, ARGS.device_id)
+    chat_mod = ChatModule(ARGS.device_name, ARGS.device_id)
     model_path = os.path.join(ARGS.artifact_path, ARGS.model + "-" + ARGS.quantization)
     model_dir = ARGS.model + "-" + ARGS.quantization
     model_lib = model_dir + "-" + ARGS.device_name + ".so"
@@ -72,11 +72,7 @@ def _parse_args():
     )
     args.add_argument("--device-name", type=str, default="cuda")
     args.add_argument("--device-id", type=int, default=0)
-    args.add_argument(
-        "--mlc-path", type=str, default="", help="path to the mlc-llm repo"
-    )
     parsed = args.parse_args()
-    parsed.mlc_lib_path = os.path.join(parsed.mlc_path, "build/libmlc_llm_module.so")
     return parsed
 
 
@@ -153,4 +149,4 @@ def read_stats():
 
 
 if __name__ == "__main__":
-    uvicorn.run("mlc_chat.server:app", port=8000, reload=True, access_log=False)
+    uvicorn.run("mlc_chat.rest:app", port=8000, reload=True, access_log=False)

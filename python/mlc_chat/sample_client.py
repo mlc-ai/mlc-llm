@@ -2,7 +2,7 @@ import requests
 import json
 
 # To launch the server, run
-# $ python python/mlc_chat/server.py
+# $ python -m mlc_chat.rest
 
 # List the models that are currently supported
 r = requests.get("http://127.0.0.1:8000/models")
