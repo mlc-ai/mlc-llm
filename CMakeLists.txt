@@ -46,6 +46,7 @@ set(USE_AOT_EXECUTOR OFF)
 set(USE_PROFILER OFF)
 set(USE_GTEST OFF)
 set(USE_LIBBACKTRACE OFF)
+set(BUILD_DUMMY_LIBTVM ON)
 add_subdirectory($ENV{TVM_HOME} tvm EXCLUDE_FROM_ALL)
 
 set(MLC_LLM_RUNTIME_LINKER_LIB "")
@@ -114,10 +115,8 @@ else()
   target_link_libraries(mlc_chat_cli PUBLIC mlc_llm)
 endif()
 
-# create a dummy libtvms.so, so mlc_llm_module can be loaded by tvm smoothly
-set_target_properties(tvm_dummy PROPERTIES OUTPUT_NAME "tvm")
 add_library(mlc_llm_module MODULE $<TARGET_OBJECTS:mlc_llm_objs>)
-target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp tvm_dummy)
+target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp tvm)
 
 # when this option is on,
 # we install all static lib deps into lib
