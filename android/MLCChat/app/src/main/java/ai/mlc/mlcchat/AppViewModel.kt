@@ -21,7 +21,12 @@ import kotlin.concurrent.thread
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     val modelList = emptyList<ModelState>().toMutableStateList()
     val chatState = ChatState()
-    private var appConfig = AppConfig(emptyList(), emptyList<ModelRecord>().toMutableList())
+    val modelSampleList = emptyList<ModelRecord>().toMutableStateList()
+    private var appConfig = AppConfig(
+        emptyList(),
+        emptyList<ModelRecord>().toMutableList(),
+        emptyList<ModelRecord>().toMutableList()
+    )
     private val application = getApplication<Application>()
     private val appDirFile = application.getExternalFilesDir("")
     private val gson = Gson()
@@ -38,9 +43,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         loadAppConfig()
     }
 
-    fun addModelUrl(url: String) {
-        downloadModelConfig(url, null)
+    fun requestAddModel(url: String, localId: String?) {
+        if (localId != null && localIdSet.contains(localId)) {
+            Toast.makeText(
+                application,
+                "localId: $localId has been occupied",
+                Toast.LENGTH_SHORT
+            ).show()
+        } else {
+            downloadModelConfig(url, localId, false)
+        }
     }
+
 
     private fun loadAppConfig() {
         val appConfigFile = File(appDirFile, AppConfigFilename)
@@ -50,18 +64,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             appConfigFile.readText()
         }
         appConfig = gson.fromJson(jsonString, AppConfig::class.java)
+        modelList.clear()
+        localIdSet.clear()
+        modelSampleList.clear()
         for (modelRecord in appConfig.modelList) {
             val modelDirFile = File(appDirFile, modelRecord.localId)
             val modelConfigFile = File(modelDirFile, ModelConfigFilename)
-            localIdSet.add(modelRecord.localId)
             if (modelConfigFile.exists()) {
                 val modelConfigString = modelConfigFile.readText()
                 val modelConfig = gson.fromJson(modelConfigString, ModelConfig::class.java)
                 addModelConfig(modelConfig, modelRecord.modelUrl)
             } else {
-                downloadModelConfig(modelRecord.modelUrl, modelRecord.localId)
+                downloadModelConfig(modelRecord.modelUrl, modelRecord.localId, true)
             }
         }
+        modelSampleList += appConfig.modelSamples
     }
 
     private fun updateAppConfig(modelUrl: String, localId: String) {
@@ -72,6 +89,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun addModelConfig(modelConfig: ModelConfig, modelUrl: String) {
+        assert(!localIdSet.contains(modelConfig.localId))
+        localIdSet.add(modelConfig.localId)
         modelList.add(
             ModelState(
                 modelConfig,
@@ -81,10 +100,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    private fun downloadModelConfig(modelUrl: String, localId: String?) {
+    private fun downloadModelConfig(modelUrl: String, localId: String?, isBuiltin: Boolean) {
         thread(start = true) {
             try {
-
                 val url = URL("${modelUrl}${ModelConfigFilename}")
                 val tempId = UUID.randomUUID().toString()
                 val tempFile = File(
@@ -99,31 +117,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 assert(tempFile.exists())
-                val modelConfigString = tempFile.readText()
-                val modelConfig = gson.fromJson(modelConfigString, ModelConfig::class.java)
-                if (localId != null) {
-                    assert(modelConfig.localId == localId)
-                } else {
+                viewModelScope.launch {
+                    val modelConfigString = tempFile.readText()
+                    val modelConfig = gson.fromJson(modelConfigString, ModelConfig::class.java)
+                    if (localId != null) {
+                        assert(modelConfig.localId == localId)
+                    }
                     if (localIdSet.contains(modelConfig.localId)) {
                         tempFile.delete()
-                        viewModelScope.launch {
-                            Toast.makeText(
-                                application,
-                                "${modelConfig.localId} has been used, please consider another local ID",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                        return@thread
+                        Toast.makeText(
+                            application,
+                            "${modelConfig.localId} has been used, please consider another local ID",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
-                }
-                val modelDirFile = File(appDirFile, modelConfig.localId)
-                val modelConfigFile = File(modelDirFile, ModelConfigFilename)
-                tempFile.copyTo(modelConfigFile, overwrite = true)
-                tempFile.delete()
-                assert(modelConfigFile.exists())
-                viewModelScope.launch {
+                    val modelDirFile = File(appDirFile, modelConfig.localId)
+                    val modelConfigFile = File(modelDirFile, ModelConfigFilename)
+                    tempFile.copyTo(modelConfigFile, overwrite = true)
+                    tempFile.delete()
+                    assert(modelConfigFile.exists())
                     addModelConfig(modelConfig, modelUrl)
-                    if (localId == null) {
+                    if (!isBuiltin) {
                         updateAppConfig(modelUrl, modelConfig.localId)
                     }
                 }
@@ -492,7 +506,8 @@ data class MessageData(val role: MessageRole, val text: String, val id: UUID = U
 
 data class AppConfig(
     @SerializedName("model_libs") val modelLibs: List<String>,
-    @SerializedName("model_list") val modelList: MutableList<ModelRecord>
+    @SerializedName("model_list") val modelList: MutableList<ModelRecord>,
+    @SerializedName("add_model_samples") val modelSamples: MutableList<ModelRecord>
 )
 
 data class ModelRecord(

@@ -3,7 +3,6 @@ package ai.mlc.mlcchat
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Pause
@@ -29,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -52,6 +51,7 @@ fun StartView(
     appViewModel: AppViewModel
 ) {
     val localFocusManager = LocalFocusManager.current
+    var isAddingModel by rememberSaveable { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -79,11 +79,56 @@ fun StartView(
                 ) { modelState ->
                     ModelView(navController = navController, modelState = modelState)
                 }
+                if (!isAddingModel) {
+                    item {
+                        TextButton(onClick = { isAddingModel = true }) {
+                            Text(text = "Add Model Variant")
+                        }
+                    }
+                }
             }
-            Text(
-                text = "Add Model", modifier = Modifier.padding(vertical = 10.dp)
-            )
-            AddModelView { url -> appViewModel.addModelUrl(url) }
+            if (isAddingModel) {
+                Text(
+                    text = "Add Model Variant", modifier = Modifier.padding(top = 10.dp)
+                )
+                LazyColumn() {
+                    items(
+                        items = appViewModel.modelSampleList
+                    ) { modelRecord ->
+                        TextButton(onClick = {
+                            appViewModel.requestAddModel(
+                                modelRecord.modelUrl,
+                                modelRecord.localId
+                            )
+                        }) {
+                            Text(text = modelRecord.localId)
+                        }
+                    }
+                }
+                Text(text = "Add Model by URL")
+                var url by rememberSaveable { mutableStateOf("") }
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text(text = "Model URL") },
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(onClick = { url = "" }) {
+                        Text(text = "Clear")
+                    }
+                    TextButton(onClick = { isAddingModel = false }) {
+                        Text(text = "Cancel")
+                    }
+                    TextButton(onClick = {
+                        appViewModel.requestAddModel(url, null)
+                        url = ""
+                    }) {
+                        Text(text = "Add")
+                    }
+                }
+            }
         }
 
     }
@@ -174,37 +219,3 @@ fun ModelView(
     }
 }
 
-@ExperimentalMaterial3Api
-@Composable
-fun AddModelView(onClick: (String) -> Unit) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .height(IntrinsicSize.Max)
-            .fillMaxWidth()
-    ) {
-        var url by rememberSaveable { mutableStateOf("") }
-        OutlinedTextField(
-            value = url,
-            onValueChange = { url = it },
-            label = { Text(text = "Model URL") },
-            modifier = Modifier
-                .weight(9f),
-        )
-        IconButton(
-            onClick = {
-                onClick(url)
-                url = ""
-            }, enabled = (url != ""), modifier = Modifier
-                .aspectRatio(1f)
-                .weight(1f)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Add,
-                contentDescription = "add model by url",
-            )
-        }
-
-    }
-}
