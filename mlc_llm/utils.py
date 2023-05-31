@@ -3,11 +3,13 @@ import argparse
 import os
 import shutil
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Dict, List, Set, Optional, Tuple
 
 import tvm
 from tvm import meta_schedule as ms
 from tvm import relax
+
+from .transform import ReorderTransformFunc
 
 
 @dataclass
@@ -117,8 +119,25 @@ def split_transform_deploy_mod(
 
 def transform_params(
     mod_transform: tvm.IRModule,
-    model_params: List[tvm.nd.NDArray],
+    model_params: List[Optional[tvm.nd.NDArray]],
+    args: argparse.Namespace,
 ) -> List[tvm.nd.NDArray]:
+    # The directory that contains the raw model weights.
+    model_path: str = args.model_path
+    # Weight index to torch weight name
+    pidx2pname: Dict[int, str] = args.pidx2pname
+    # Torch weight name to the name of the binary file the weight resides in.
+    pname2binname: Dict[str, str] = args.pname2binname
+    # Torch weight name to weight index.
+    pname2pidx: Dict[str, int] = {pname: pidx for pidx, pname in pidx2pname.items()}
+    # Weight index to the name of the binary file the torch weight resides in.
+    pidx2binname: Dict[int, str] = {
+        pidx: pname2binname[pname] for pidx, pname in pidx2pname.items()
+    }
+    # The weight indices such that the weights are already loaded from binary file to memory.
+    loaded_idx_set: Set[int] = set()
+
+    mod_transform = ReorderTransformFunc(pidx2binname)(mod_transform)
     # Remove the dataflow block inside the param transform function,
     # so that the LazyTransformParams pass can be applied.
     mod_transform = relax.transform.ToNonDataflow()(mod_transform)
@@ -133,11 +152,45 @@ def transform_params(
     target = detect_local_target()
     print(f"Automatically using target for weight quantization: {target}")
     device = tvm.device(target.kind.default_keys[0])
+    device_cpu = tvm.cpu()
+    loaded_params_dict: Dict[int, tvm.nd.NDArray] = {}
 
     @tvm.register_func("get_item", override=True)
     def get_item(i):
-        gpu_input = tvm.nd.array(model_params[i], device=device)
-        return gpu_input
+        # If the weight is already provided by `model_params`, directly use it
+        # and no need to load from binary file.
+        if model_params[i] is not None:
+            assert i not in pidx2binname
+            assert i not in loaded_params_dict
+            return tvm.nd.array(model_params[i], device=device)
+
+        # Otherwise, we load the weight from its corresponding binary file.
+        if i not in loaded_params_dict:
+            import torch  # pylint: disable=import-outside-toplevel
+
+            assert i in pidx2binname
+            torch_params = torch.load(os.path.join(model_path, pidx2binname[i]))
+
+            param_names = list(torch_params.keys())
+            for param_name in param_names:
+                if param_name in pname2pidx.keys():
+                    assert pname2pidx[param_name] not in loaded_params_dict
+                    loaded_params_dict[pname2pidx[param_name]] = tvm.nd.array(
+                        torch_params[param_name]
+                        .detach()
+                        .cpu()
+                        .numpy()
+                        .astype(args.quantization.model_dtype),
+                        device_cpu,
+                    )
+                del torch_params[param_name]
+
+        assert i in loaded_params_dict
+        assert i not in loaded_idx_set
+        param_on_device = tvm.nd.array(loaded_params_dict[i], device=device)
+        loaded_idx_set.add(i)
+        del loaded_params_dict[i]
+        return param_on_device
 
     res = []
 
@@ -145,8 +198,7 @@ def transform_params(
     def set_item(i, value):
         if len(res) <= i:
             res.extend([None for _ in range(i - len(res) + 1)])
-        res[i] = tvm.nd.array(value, device=tvm.cpu())
-        return tvm.nd.empty((1,), device=device)
+        res[i] = tvm.nd.array(value, device=device_cpu)
 
     if target.kind.name != "llvm":
         with tvm.target.Target(target):
@@ -154,7 +206,9 @@ def transform_params(
 
     ex = relax.build(mod_transform, target=target)
     vm = relax.vm.VirtualMachine(ex, device)
+    print("Start computing and quantizing weights... This may take a while.")
     vm[transform_func_name]()
+    print("Finish computing and quantizing weights.")
     return res
 
 
