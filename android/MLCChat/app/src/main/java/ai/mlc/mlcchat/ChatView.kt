@@ -58,7 +58,7 @@ fun ChatView(
         TopAppBar(
             title = {
                 Text(
-                    text = chatState.modelName.value,
+                    text = "MLCChat: " + chatState.modelName.value.split("-")[0],
                     color = MaterialTheme.colorScheme.onPrimary
                 )
             },
@@ -108,7 +108,7 @@ fun ChatView(
                     .wrapContentHeight()
                     .padding(top = 5.dp)
             )
-            Divider(thickness = 1.dp, modifier = Modifier.padding(5.dp))
+            Divider(thickness = 1.dp, modifier = Modifier.padding(vertical = 5.dp))
             LazyColumn(
                 modifier = Modifier.weight(9f),
                 verticalArrangement = Arrangement.spacedBy(5.dp, alignment = Alignment.Bottom),
@@ -127,7 +127,7 @@ fun ChatView(
                     // place holder item for scrolling to the bottom
                 }
             }
-            Divider(thickness = 1.dp, modifier = Modifier.padding(5.dp))
+            Divider(thickness = 1.dp, modifier = Modifier.padding(top = 5.dp))
             SendMessageView(chatState = chatState)
         }
     }
