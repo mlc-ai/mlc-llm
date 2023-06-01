@@ -1,8 +1,6 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.MLCChat" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-    </style>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
 
-    <style name="Theme.MLCChat" parent="Base.Theme.MLCChat" />
+    <style name="Theme.MLCChat" parent="android:Theme.Material.Light" />
+
 </resources>

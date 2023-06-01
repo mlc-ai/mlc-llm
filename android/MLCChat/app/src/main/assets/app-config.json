@@ -1,0 +1,13 @@
+{
+  "model_libs": [
+    "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
+  ],
+  "model_list": [
+    {
+      "model_url": "https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/resolve/main/",
+      "local_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
+    }
+  ],
+  "add_model_samples": [
+  ]
+}

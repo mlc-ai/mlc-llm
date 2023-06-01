@@ -507,7 +507,7 @@ def parse_target(args: argparse.Namespace) -> None:
         args.lib_format = "wasm"
         args.system_lib = True
     elif args.target in ["android", "android-dylib"]:  # android-opencl
-        from tvm.contrib import cc, ndk
+        from tvm.contrib import tar, ndk
 
         if args.target == "android-dylib":
             args.export_kwargs = {
@@ -516,10 +516,13 @@ def parse_target(args: argparse.Namespace) -> None:
             args.lib_format = "so"
         else:
             args.export_kwargs = {
-                "fcompile": ndk.create_staticlib,
+                "fcompile": tar.tar,
             }
-            args.lib_format = "a"
+            args.lib_format = "tar"
             args.system_lib = True
+            args.system_lib_prefix = f"{args.model}_{args.quantization}_".replace(
+                "-", "_"
+            )
         args.target = tvm.target.Target(
             "opencl",
             host="llvm -mtriple=aarch64-linux-android",  # TODO: Only support arm64 for now

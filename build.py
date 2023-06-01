@@ -316,11 +316,11 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     if target_kind != "cpu":
         db = utils.get_database(args.db_path)  # pylint: disable=invalid-name
         with db, tvm.target.Target("apple/m1-gpu-restricted"):
-            mod_deploy = relax.transform.MetaScheduleApplyDatabase()(mod_deploy)
             if args.target_kind == "android":
                 mod_deploy = mlc_llm.dispatch.DispatchTIROperatorAdreno()(  # pylint: disable=not-callable
                     mod_deploy
                 )
+            mod_deploy = relax.transform.MetaScheduleApplyDatabase()(mod_deploy)
             mod_deploy = (
                 mlc_llm.dispatch.DispatchTIROperator(  # pylint: disable=not-callable
                     args.model_category
