@@ -1,16 +1,15 @@
 # pylint: disable=missing-docstring,invalid-name
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
-import torch
-import tvm
 from tvm import relax
 from tvm.relax import Expr, op
 from tvm.relax.testing import nn
 from tvm.script import relax as R
 
+from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
-from .modules import ModuleList
+from .modules import ModuleList, named_parameters
 
 # Reference: https://github.com/BlinkDL/RWKV-LM/blob/main/RWKV-v4/src/model_run.py
 
@@ -128,10 +127,10 @@ class RWKV_FFN(nn.Module):
         self.hidden_size = config.hidden_size
         self.dtype = config.dtype
         self.index = index
-        self.k_mixed = nn.Parameter(
+        self.time_mix_key = nn.Parameter(
             (self.hidden_size,), dtype=config.dtype, name=f"ffn_{index}_time_mix_k"
         )
-        self.r_mixed = nn.Parameter(
+        self.time_mix_receptance = nn.Parameter(
             (self.hidden_size,), dtype=config.dtype, name=f"ffn_{index}_time_mix_r"
         )
         self.key_weight = nn.Parameter(
@@ -155,8 +154,10 @@ class RWKV_FFN(nn.Module):
 
         saved_x = _load_state(state[offset], self.hidden_size, self.dtype)
         ones = nn.emit(relax.op.ones((self.hidden_size,), self.dtype))
-        xk = nn.emit(x * self.k_mixed + saved_x * (ones - self.k_mixed))
-        xr = nn.emit(x * self.r_mixed + saved_x * (ones - self.r_mixed))
+        xk = nn.emit(x * self.time_mix_key + saved_x * (ones - self.time_mix_key))
+        xr = nn.emit(
+            x * self.time_mix_receptance + saved_x * (ones - self.time_mix_receptance)
+        )
         saved_x = _store_state(state[offset], x)
 
         r = nn.emit(op.sigmoid(op.matmul(xr, self.receptance_weight)))
@@ -177,13 +178,13 @@ class RWKV_Attention(nn.Module):
         self.time_first = nn.Parameter(
             (self.hidden_size,), dtype="float32", name=f"att_{index}_time_first"
         )
-        self.k_mixed = nn.Parameter(
+        self.time_mix_key = nn.Parameter(
             (self.hidden_size,), dtype=config.dtype, name=f"att_{index}_time_mix_k"
         )
-        self.v_mixed = nn.Parameter(
+        self.time_mix_value = nn.Parameter(
             (self.hidden_size,), dtype=config.dtype, name=f"att_{index}_time_mix_v"
         )
-        self.r_mixed = nn.Parameter(
+        self.time_mix_receptance = nn.Parameter(
             (self.hidden_size,), dtype=config.dtype, name=f"att_{index}_time_mix_r"
         )
         self.key_weight = nn.Parameter(
@@ -222,9 +223,11 @@ class RWKV_Attention(nn.Module):
             state[self.index * 5 + State.ATT_P], self.hidden_size, "float32"
         )
         ones = nn.emit(relax.op.ones((self.hidden_size,), self.dtype))
-        xk = nn.emit(x * self.k_mixed + saved_x * (ones - self.k_mixed))
-        xv = nn.emit(x * self.v_mixed + saved_x * (ones - self.v_mixed))
-        xr = nn.emit(x * self.r_mixed + saved_x * (ones - self.r_mixed))
+        xk = nn.emit(x * self.time_mix_key + saved_x * (ones - self.time_mix_key))
+        xv = nn.emit(x * self.time_mix_value + saved_x * (ones - self.time_mix_value))
+        xr = nn.emit(
+            x * self.time_mix_receptance + saved_x * (ones - self.time_mix_receptance)
+        )
 
         r = nn.emit(op.sigmoid(op.matmul(xr, self.receptance_weight)))
         k = nn.emit(op.astype(op.matmul(xk, self.key_weight), "float32"))
@@ -268,20 +271,20 @@ class RWKVLayer(nn.Module):
                 eps=config.layer_norm_epsilon,
                 name_prefix="pre_ln",
             )
-        self.att_layer_norm = RWKV_LayerNorm(
+        self.ln1 = RWKV_LayerNorm(
             config.hidden_size,
             config.dtype,
             eps=config.layer_norm_epsilon,
             name_prefix=f"att_{index}",
         )
-        self.ffn_layer_norm = RWKV_LayerNorm(
+        self.ln2 = RWKV_LayerNorm(
             config.hidden_size,
             config.dtype,
             eps=config.layer_norm_epsilon,
             name_prefix=f"ffn_{index}",
         )
         self.attention = RWKV_Attention(config, index)
-        self.ffn = RWKV_FFN(config, index)
+        self.feed_forward = RWKV_FFN(config, index)
         self.rescale_every = config.rescale_every
         self.dtype = config.dtype
         self.index = index
@@ -289,9 +292,9 @@ class RWKVLayer(nn.Module):
     def forward(self, x: Expr, state: Expr) -> Tuple[Expr, List[Expr]]:
         if self.index == 0:
             x = self.pre_ln(x)
-        att, att_state = self.attention(self.att_layer_norm(x), state)
+        att, att_state = self.attention(self.ln1(x), state)
         x = nn.emit(x + att)
-        ffn, ffn_state = self.ffn(self.ffn_layer_norm(x), state)
+        ffn, ffn_state = self.feed_forward(self.ln2(x), state)
         x = nn.emit(x + ffn)
         if self.rescale_every > 0 and (self.index + 1) % self.rescale_every == 0:
             x = nn.emit(x / relax.const(2, dtype=self.dtype))
@@ -301,15 +304,15 @@ class RWKVLayer(nn.Module):
 class RWKVModel(nn.Module):
     def __init__(self, config: RWKVConfig) -> None:
         super().__init__()
-        self.embedding = RWKV_Embedding(
+        self.embeddings = RWKV_Embedding(
             num_embeddings=config.vocab_size,
             embedding_dim=config.hidden_size,
             dtype=config.dtype,
         )
-        self.layers = ModuleList(
+        self.blocks = ModuleList(
             [RWKVLayer(config, i) for i in range(config.num_hidden_layers)]
         )
-        self.layer_norm = RWKV_LayerNorm(
+        self.ln_out = RWKV_LayerNorm(
             config.hidden_size,
             config.dtype,
             eps=config.layer_norm_epsilon,
@@ -317,18 +320,18 @@ class RWKVModel(nn.Module):
         )
 
     def forward(self, input_ids: Expr, state: Expr) -> Tuple[Expr, List[Expr]]:
-        hidden_states = self.embedding(input_ids)
+        hidden_states = self.embeddings(input_ids)
         states = []
-        for _, layer in enumerate(self.layers):
+        for _, layer in enumerate(self.blocks):
             hidden_states, layer_states = layer(hidden_states, state)
             states += layer_states
-        hidden_states = self.layer_norm(hidden_states)
+        hidden_states = self.ln_out(hidden_states)
         return hidden_states, states
 
 
 class RWKVForCausalLM(nn.Module):
     def __init__(self, config: RWKVConfig):
-        self.model = RWKVModel(config)
+        self.rwkv = RWKVModel(config)
         self.head_weight = nn.Parameter(
             (config.hidden_size, config.vocab_size),
             dtype=config.dtype,
@@ -342,7 +345,7 @@ class RWKVForCausalLM(nn.Module):
         input_ids: relax.Expr,
         state: relax.Expr,
     ):
-        hidden_states, key_value_cache = self.model(input_ids, state)
+        hidden_states, key_value_cache = self.rwkv(input_ids, state)
         logits = nn.emit(op.matmul(hidden_states, self.head_weight))
         logits = nn.emit(op.reshape(logits, (1, 1, self.vocab_size)))
         if logits.struct_info.dtype != "float32":
@@ -351,7 +354,8 @@ class RWKVForCausalLM(nn.Module):
         return logits, key_value_cache
 
 
-def create_decoding_func(bb: relax.BlockBuilder, config: RWKVConfig) -> None:
+def create_decoding_func(bb: relax.BlockBuilder, config: RWKVConfig) -> Dict[int, str]:
+    pidx2pname: Dict[int, str] = {}
     with bb.function("decode"):
         model = RWKVForCausalLM(config)
         input_ids = nn.Placeholder((1, 1), dtype="int32", name="input_ids")
@@ -365,12 +369,20 @@ def create_decoding_func(bb: relax.BlockBuilder, config: RWKVConfig) -> None:
                 all_seq_len_shape,
                 state,
             ] + model.parameters()
+
+            named_params = named_parameters(model)
+            for i, (name, param) in enumerate(named_params.items()):
+                pidx2pname[i] = name
+                assert param.same_as(params[i + 3])
+
             gv = bb.emit_output((logits, relax.Tuple(states)))
         bb.emit_func_output(gv, params)
 
     mod = bb.get()
     gv = mod.get_global_var("decode")
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
+
+    return pidx2pname
 
 
 def create_kv_cache_func(bb: relax.BlockBuilder, config: RWKVConfig) -> None:
@@ -442,46 +454,10 @@ def create_softmax_func(bb: relax.BlockBuilder, config: RWKVConfig) -> None:
         bb.emit_func_output(gv, [logits, temperature])
 
 
-def convert_weight(config: RWKVConfig, hf_model):
-    torch_dtype_map = {"float16": torch.float16, "float32": torch.float32}
-    torch_dtype = torch_dtype_map[config.dtype]
-
-    param_list = []
-    for key, value in hf_model.named_parameters():
-        # rescale_every
-        if config.rescale_every > 0:
-            layer_id = (
-                int(key.split(".")[2]) if ("blocks." in key) else 0
-            )  # based-on the assumption that the layer id is the second element in the key
-            if "attention.output.weight" in key or "feed_forward.value.weight" in key:
-                value = value / (2 ** (layer_id // config.rescale_every))
-        # reshape
-        if "time_" in key:
-            value = value.squeeze()
-        elif (
-            "key.weight" in key
-            or "value.weight" in key
-            or "receptance.weight" in key
-            or "output.weight" in key
-            or "head.weight" in key
-        ):
-            value = value.T
-        # convert dtype
-        if "time_decay" in key:  # need fp32 for this
-            value = -torch.exp(value.float())
-        elif "time_first" in key:
-            value = value.float()
-        else:
-            value = value.to(torch_dtype)
-        param_list.append(tvm.nd.array(value.detach().cpu().numpy(), tvm.cpu()))
-    return param_list
-
-
 def get_model(args, hf_config):
     from transformers import AutoModelForCausalLM  # type: ignore[import]
 
     model_name = args.model
-    model_path = args.model_path
     max_seq_len = args.max_seq_len
     dtype = args.quantization.model_dtype
 
@@ -492,12 +468,8 @@ def get_model(args, hf_config):
     if max_seq_len != -1:
         config.context_length = max_seq_len
 
-    hf_model = AutoModelForCausalLM.from_pretrained(model_path)
-    param_list = convert_weight(config, hf_model)
-    del hf_model
-
     bb = relax.BlockBuilder()
-    create_decoding_func(bb, config)
+    pidx2pname = create_decoding_func(bb, config)
     create_kv_cache_func(bb, config)
     create_softmax_func(bb, config)
     create_metadata_func(
@@ -511,4 +483,62 @@ def get_model(args, hf_config):
     create_kv_cache_reset_func(bb, config)
     mod = bb.get()
 
-    return mod, param_list
+    def f_convert_pname_fwd(pname: str) -> str:
+        if (
+            "key_weight" in pname
+            or "value_weight" in pname
+            or "receptance_weight" in pname
+            or "output_weight" in pname
+            or "head_weight" in pname
+        ):
+            return pname.replace("_weight", ".weight")
+        else:
+            return pname
+
+    pname2binname = load_torch_pname2binname_map(
+        args.model_path, set(pidx2pname.values()), f_convert_pname_fwd
+    )
+
+    def f_convert_param_bkwd(torch_pname: str, raw_param):
+        # raw_param: numpy.ndarray
+        import numpy as np  # pylint: disable=import-outside-toplevel
+
+        # rescale_every
+        if config.rescale_every > 0 and "blocks." in torch_pname:
+            # based-on the assumption that the layer id is the second element in torch_pname
+            layer_id = int(torch_pname.split(".")[2])
+            if (
+                "attention.output.weight" in torch_pname
+                or "feed_forward.value.weight" in torch_pname
+            ):
+                raw_param = raw_param / (2 ** (layer_id // config.rescale_every))
+
+        # reshape
+        if "time_" in torch_pname:
+            raw_param = raw_param.squeeze()
+        if (
+            "key.weight" in torch_pname
+            or "value.weight" in torch_pname
+            or "receptance.weight" in torch_pname
+            or "output.weight" in torch_pname
+            or "head.weight" in torch_pname
+        ):
+            pname = torch_pname.replace(".weight", "_weight")
+            raw_param = raw_param.T
+        else:
+            pname = torch_pname
+
+        # convert dtype
+        if "time_decay" in torch_pname:  # need fp32 for this
+            return [(pname, -np.exp(raw_param.astype("float32")))]
+        elif "time_first" in torch_pname:
+            return [(pname, raw_param.astype("float32"))]
+        else:
+            return [(pname, raw_param.astype(config.dtype))]
+
+    args.pidx2pname = pidx2pname
+    args.pname2binname = pname2binname
+    args.f_convert_pname_fwd = f_convert_pname_fwd
+    args.f_convert_param_bkwd = f_convert_param_bkwd
+
+    return mod, [None] * len(pidx2pname)

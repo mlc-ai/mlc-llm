@@ -1,9 +1,10 @@
 # pylint: disable=missing-docstring,invalid-name
 import argparse
+import json
 import os
 import shutil
 from dataclasses import dataclass
-from typing import Dict, List, Set, Optional, Tuple
+from typing import Any, Callable, Dict, List, Set, Optional, Tuple
 
 import tvm
 from tvm import meta_schedule as ms
@@ -117,6 +118,30 @@ def split_transform_deploy_mod(
     return mod_transform, mod_deploy
 
 
+def load_torch_pname2binname_map(
+    model_path: str,
+    pnames: Set[str],
+    f_convert_pname_fwd: Callable[[str], str] = lambda pname: pname,
+) -> Dict[str, str]:
+    bin_idx_path = os.path.join(model_path, "pytorch_model.bin.index.json")
+    if os.path.isfile(bin_idx_path):
+        # Multiple weight shards.
+        with open(bin_idx_path, "r") as f_torch_json:
+            torch_bin_json = json.load(f_torch_json)
+            pname2binname = torch_bin_json["weight_map"]
+    else:
+        # Single weight shard.
+        single_shard_path = os.path.join(model_path, "pytorch_model.bin")
+        assert os.path.isfile(single_shard_path)
+        pname2binname = {
+            f_convert_pname_fwd(pname): "pytorch_model.bin" for pname in pnames
+        }
+
+    for pname in pnames:
+        assert f_convert_pname_fwd(pname) in pname2binname
+    return pname2binname
+
+
 def transform_params(
     mod_transform: tvm.IRModule,
     model_params: List[Optional[tvm.nd.NDArray]],
@@ -124,20 +149,27 @@ def transform_params(
 ) -> List[tvm.nd.NDArray]:
     # The directory that contains the raw model weights.
     model_path: str = args.model_path
+    # The weight name conversion function.
+    # It converts relax model weight names to torch model weight names.
+    f_convert_pname_fwd: Callable[[str], str] = args.f_convert_pname_fwd
+    # The weight conversion function.
+    # It converts torch weight names and weight tensors to relax weight names and weights.
+    # The first "Any" stands for torch.Tensor, and the second stands for numpy.ndarray.
+    f_convert_param_bkwd: Callable[
+        [str, Any], List[Tuple[str, Any]]
+    ] = args.f_convert_param_bkwd
     # Weight index to torch weight name
     pidx2pname: Dict[int, str] = args.pidx2pname
     # Torch weight name to the name of the binary file the weight resides in.
     pname2binname: Dict[str, str] = args.pname2binname
     # Torch weight name to weight index.
     pname2pidx: Dict[str, int] = {pname: pidx for pidx, pname in pidx2pname.items()}
-    # Weight index to the name of the binary file the torch weight resides in.
-    pidx2binname: Dict[int, str] = {
-        pidx: pname2binname[pname] for pidx, pname in pidx2pname.items()
-    }
     # The weight indices such that the weights are already loaded from binary file to memory.
     loaded_idx_set: Set[int] = set()
 
-    mod_transform = ReorderTransformFunc(pidx2binname)(mod_transform)
+    mod_transform = ReorderTransformFunc(
+        pidx2pname, pname2binname, f_convert_pname_fwd
+    )(mod_transform)
     # Remove the dataflow block inside the param transform function,
     # so that the LazyTransformParams pass can be applied.
     mod_transform = relax.transform.ToNonDataflow()(mod_transform)
@@ -160,30 +192,38 @@ def transform_params(
         # If the weight is already provided by `model_params`, directly use it
         # and no need to load from binary file.
         if model_params[i] is not None:
-            assert i not in pidx2binname
+            assert i not in pidx2pname
             assert i not in loaded_params_dict
             return tvm.nd.array(model_params[i], device=device)
 
+        assert f_convert_pname_fwd is not None
+        assert f_convert_param_bkwd is not None
         # Otherwise, we load the weight from its corresponding binary file.
         if i not in loaded_params_dict:
             import torch  # pylint: disable=import-outside-toplevel
 
-            assert i in pidx2binname
-            torch_params = torch.load(os.path.join(model_path, pidx2binname[i]))
+            assert i in pidx2pname
+            pname = pidx2pname[i]
+            torch_pname = f_convert_pname_fwd(pname)
+            assert torch_pname in pname2binname
+            torch_params = torch.load(
+                os.path.join(model_path, pname2binname[torch_pname])
+            )
 
-            param_names = list(torch_params.keys())
-            for param_name in param_names:
-                if param_name in pname2pidx.keys():
-                    assert pname2pidx[param_name] not in loaded_params_dict
-                    loaded_params_dict[pname2pidx[param_name]] = tvm.nd.array(
-                        torch_params[param_name]
-                        .detach()
-                        .cpu()
-                        .numpy()
-                        .astype(args.quantization.model_dtype),
-                        device_cpu,
-                    )
-                del torch_params[param_name]
+            torch_param_names = list(torch_params.keys())
+            for torch_param_name in torch_param_names:
+                raw_param = torch_params[torch_param_name].detach().cpu().numpy()
+                del torch_params[torch_param_name]
+
+                for param_name, param in f_convert_param_bkwd(
+                    torch_param_name, raw_param
+                ):
+                    if param_name in pname2pidx.keys():
+                        assert pname2pidx[param_name] not in loaded_params_dict
+                        loaded_params_dict[pname2pidx[param_name]] = tvm.nd.array(
+                            param, device_cpu
+                        )
+                del raw_param
 
         assert i in loaded_params_dict
         assert i not in loaded_idx_set
