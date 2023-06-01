@@ -3,97 +3,92 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to MLC-LLM's documentation!
+Welcome to MLC-LLM!
 ===================================
-
-MLC LLM is a **universal solution** that allows **any language models** to be **deployed natively** on a diverse set of hardware backends and native applications, plus a **productive framework** for everyone to further optimize model performance for their own use cases.
-
-Our mission is to **enable everyone to develop, optimize and deploy AI models natively on everyone's devices**.
-
-Everything runs locally with no server support and accelerated with local GPUs on your phone and laptops.
 
 `Join our Discord Server! <https://discord.gg/9Xpy2HGBuD>`_
 
+🚧 This doc is under heavy construction.
+
+MLC LLM is the universal deployment solution that allows LLMs to run locally with native hardware acceleration on consumer devices.
+
 .. _navigation:
 
-Navigation
-----------
+.. |mlc-cli-demo| image:: https://mlc.ai/mlc-llm/gif/linux-demo.gif
+.. |web-llm-demo| image:: https://github.com/mlc-ai/web-llm/raw/main/site/img/fig/demo.gif
+.. |ios-demo| image:: https://mlc.ai/mlc-llm/gif/ios-demo.gif
+.. |android-demo| image:: https://mlc.ai/mlc-llm/gif/android-demo.gif
 
-Before you start, please select your use case so that we can narrow down the search scope.
+Navigate by Topics
+------------------
+
+MLC LLM offers a set of pre-compiled models (:ref:`off-the-shelf-models`), as well as Python scripts that enable developers to define and compile models using either existing architectures or create new ones with customized weights.
 
 .. tabs ::
 
-   .. tab :: I want to run models on my device.
- 
+   .. tab :: Run Compiled Model
 
-      Please select your platform:
+      An MLC-compiled model is composed of two elements: weights and a library of CPU/GPU compute kernels. For easy integration and redistribution, MLC further offers platform-specific lightweight runtimes, with a user-friendly interface to interact with the compiled models.
 
       .. tabs ::
 
-         .. tab :: Android
+         .. tab :: Command Line
 
-            Please check our instructions on `MLC-LLM Android app <https://mlc.ai/mlc-llm/#android>`__.
+            ``mlc_chat_cli`` is the CLI app provided to load the model weights and compute kernels.
+
+            - Demo: |mlc-cli-demo|
+            - Install or build the CLI app: :ref:`install-mlc-chat-cli`.
+            - Run compiled models via the CLI app: :ref:`CLI-run-model`.
+
+            .. - Use MLC-compiled models in your own C++ project: TBA
+
+         .. tab :: Web Browser
+
+            MLC compiles a model to WebGPU and WebAssembly, which can be executed by MLC LLM JavaScript runtime.
+
+            - Demo: |web-llm-demo|
+            - Set up WebLLM: `Web-LLM project <https://mlc.ai/web-llm/>`__.
+            - Use MLC-compiled models in your own JavaScript project: `Web-LLM NPM Package <https://www.npmjs.com/package/@mlc-ai/web-llm>`__.
 
          .. tab :: iOS
 
-            Please check our instructions on `MLC-LLM IOS app <https://mlc.ai/mlc-llm/#iphone>`__
-         
-         .. tab :: WebGPU
+            A model can be compiled to static system libraries and further linked to an iOS app. An example iOS app is provided with a clear structure that iOS developers could refer to ship LLMs in iOS.
 
-            Please check `Web-LLM project <https://mlc.ai/web-llm/>`__.
-         
-         .. tab :: PC
+            - Demo: |ios-demo|
+            - Set up iOS: `iOS <https://mlc.ai/mlc-llm/#iphone>`__.
 
-            MLC-LLM provided a set of prebuilt models that you can run directly without compile models by your self, check :ref:`off-the-shelf-models` and see if your model is in the list.
+            .. - Use MLC-compiled models in your own iOS app: TBD
 
-            In other cases, you need you build your own models.
+         .. tab :: Android
 
-            .. tabs ::
-               
-               .. tab :: Use prebuilt models.
+            A model can be compiled to static system libraries and further linked to an Android app. An example Android app is provided with a clear structure that Android developers could refer to ship LLMs in Android.
 
-                  Please check :doc:`tutorials/deploy-models` for instructions on preparing models and deploying models with MLC-LLM CLI.
+            - Demo: |android-demo|
+            - Set up Android: `Android <https://mlc.ai/mlc-llm/#android>`__
 
-                  * If you are a Mac OS user, and you will run a model compiled with ``metal`` backend, congratulations! You don't need to install any external drivers/packages but ``metal`` is natively supported by Mac OS.
-                  * If you will run a model compiled with ``CUDA`` backend, please install CUDA accordingly to our :ref:`CUDA installation guide <software-dependencies-cuda>`.
-                  * If you will run a model compiled with ``Vulkan`` backend, please install Vulkan Driver accordingly to our :ref:`Vulkan Driver Installation Guide <software-dependencies-vulkan-driver>`.
+            .. - Use MLC-compiled models in your own Android app: TBD
 
-               .. tab :: Build your own models.
+   .. tab :: Compile Models
 
-                  If your model architecture is supported by MLC-LLM, you can compile your own models with MLC-LLM, and customize the model weights/quantization algorithms/running data types/etc. Please check :doc:`tutorials/compile-models` for details on how to compile models with MLC-LLM.
+      MLC LLM is a Python package that uses TVM Unity to compile LLMs for universal deployment.
 
-                  If the model architecture is not supported yet, you can add a new model architecture to the MLC-LLM family by following tutorial :doc:`tutorials/bring-your-own-models`. You can also create a `model request issue <https://github.com/mlc-ai/mlc-llm/issues/new?assignees=&labels=&projects=&template=model-request.md&title=>`__ to request help from the community to add a new model architecture to MLC-LLM family.
+      - Install TVM Unity: :ref:`Installation Guidelines <tvm-unity-install-prebuilt-package>`.
+      - Compile models: :doc:`tutorials/compile-models`.
+      - Contribute new models: :ref:`contribute-new-models`.
 
-                  In either cases, you are encouraged to contribute to the MLC-LLM, see :ref:`contribute-new-models` on guidelines for contributing new models.
+      .. - MLC LLM Compilation: TBD
+      .. - Configuring build environments: TBD
 
-   .. tab :: I need to customize MLC-LLM.
+   .. tab :: Define Model Architectures
 
-      There are lots of interesting ways to further improve and customize MLC-LLM.
+      - Install TVM Unity: :ref:`Installation Guidelines <tvm-unity-install-prebuilt-package>`.
+      - Define new model architectures: :doc:`tutorials/bring-your-own-models`.
+      - Contribute new models: :ref:`contribute-new-models`.
 
-      * The performance of MLC-LLM can be improved in a lot of ways, including (but not limited to) fusing multi-head attention with FlashAttention algorithm, or using more advanced quantization algorithms.
-      * We can also add new backends/language binding with the existing infrastructure.
-      
-      Before you start, please check our :doc:`tutorials/customize` to see how can you customize MLC-LLM for your own purpose.
-
-      You are encouraged to contribute to the MLC-LLM if your found your customization intersting.
-
-      .. tabs ::
-     
-         .. tab :: I need to customize TVM-Unity
-
-            In this case, user need to change TVM-Unity codebase. Please check :ref:`tvm-unity-build-from-source` on how to install TVM-Unity from source.
-
-            * If user want to compile models with ``CUDA`` backend, please install CUDA according to our :ref:`CUDA installation guide <software-dependencies-cuda>`.
-            * If user want to compile models with ``Vulkan`` backend, please install Vulkan-SDK according to our :ref:`Vulkan SDK Installation Guide <software-dependencies-vulkan-sdk>`.
-            * If user want to compile models with ``OpenCL`` backend, please install OpenCL-SDK according to our :ref:`OpenCL SDK Installation Guide <software-dependencies-opencl-sdk>`.
-
-         .. tab :: Use original TVM-Unity
-
-            In this case, please install prebuilt TVM-Unity package according to our :ref:`Installation Guidelines <tvm-unity-install-prebuilt-package>`.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Tutorials
+   :caption: All tutorials
 
    install/index.rst
    install/software-dependencies.rst
@@ -119,4 +114,3 @@ Before you start, please select your use case so that we can narrow down the sea
    :caption: Misc
 
    misc/faq.rst
-
