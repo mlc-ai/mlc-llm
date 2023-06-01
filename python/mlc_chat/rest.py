@@ -61,7 +61,7 @@ app = FastAPI(lifespan=lifespan)
 def _parse_args():
     args = argparse.ArgumentParser()
     args.add_argument(
-        "--model", type=str, choices=supported_models(), default="vicuna-v1-7b"
+        "--model", type=str, default="vicuna-v1-7b"
     )
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument(
@@ -76,40 +76,17 @@ def _parse_args():
     return parsed
 
 
-"""
-List the currently supported models and provides basic information about each of them.
-"""
-
-
-@app.get("/models")
-async def read_models():
-    return {"data": [{"id": model, "object": "model"} for model in supported_models()]}
-
-
-"""
-Retrieve a model instance with basic information about the model.
-"""
-
-
-@app.get("/models/{model}")
-async def read_model(model: str):
-    if model not in supported_models():
-        raise HTTPException(status_code=404, detail=f"Model {model} is not supported.")
-    return {"id": model, "object": "model"}
-
-
 class ChatRequest(BaseModel):
     prompt: str
     stream: bool = False
 
 
-"""
-Creates model response for the given chat conversation.
-"""
-
 
 @app.post("/chat/completions")
 def request_completion(request: ChatRequest):
+    """
+    Creates model response for the given chat conversation.
+    """
     session["chat_mod"].prefill(input=request.prompt)
     if request.stream:
 
@@ -128,23 +105,19 @@ def request_completion(request: ChatRequest):
         return {"message": msg}
 
 
-"""
-Reset the chat for the currently initialized model.
-"""
-
-
 @app.post("/chat/reset")
 def reset():
+    """
+    Reset the chat for the currently initialized model.
+    """
     session["chat_mod"].reset_chat()
-
-
-"""
-Get the runtime stats.
-"""
 
 
 @app.get("/stats")
 def read_stats():
+    """
+    Get the runtime stats.
+    """
     return session["chat_mod"].runtime_stats_text()
 
 
