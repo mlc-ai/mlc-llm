@@ -333,6 +333,8 @@ conv_redpajama_chat = Conversation(
     sep_style=SeparatorStyle.REDPAJAMA_CHAT,
     sep="",
     sep2="",
+)
+
 conv_rwkv = Conversation(
     system="""The following is a coherent verbose detailed conversation between a girl named Alice and her friend Bob. \
 Alice is very intelligent, creative and friendly. \
@@ -348,6 +350,18 @@ Alice usually gives Bob kind, helpful and informative advices.
     sep2="\n\n",
 )
 
+conv_gorilla = Conversation(
+    name="gorilla_v0",
+    system="A chat between a curious user and an artificial intelligence assistant. "
+    "The assistant gives helpful, detailed, and polite answers to the user's questions.",
+    roles=("USER", "ASSISTANT"),
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.TWO,
+    sep="\n",
+    sep2="</s>",
+)
+
 conv_templates = {
     "conv_one_shot": conv_one_shot,
     "vicuna_v1.1": conv_vicuna_v1_1,
@@ -358,6 +372,7 @@ conv_templates = {
     "moss": conv_moss,
     "redpajama_chat": conv_redpajama_chat,
     "rwkv": conv_rwkv,
+    "gorilla": conv_gorilla,
 }
 
 
@@ -377,6 +392,8 @@ def get_default_conv_template(model_name):
         return conv_moss
     if "redpajama_chat" in model_name:
         return conv_redpajama_chat
+    if "gorilla" in model_name:
+        return conv_gorilla
     return conv_one_shot
 
 
