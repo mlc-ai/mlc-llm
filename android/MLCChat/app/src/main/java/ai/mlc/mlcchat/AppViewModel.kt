@@ -428,8 +428,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 viewModelScope.launch {
                     Toast.makeText(application, "Initialize...", Toast.LENGTH_SHORT).show()
                 }
+                System.err.println("Unloading model")
                 backend.unload()
+                System.err.println("Loading model " + modelLib + " " + modelPath)
                 backend.reload(modelLib, modelPath)
+                System.err.println("Model loaded")
                 viewModelScope.launch {
                     Toast.makeText(application, "Ready to chat", Toast.LENGTH_SHORT).show()
                     switchToReady()
