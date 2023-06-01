@@ -14,6 +14,11 @@ MLC LLM is the universal deployment solution that allows LLMs to run locally wit
 
 .. _navigation:
 
+.. |mlc-cli-demo| image:: https://mlc.ai/mlc-llm/gif/linux-demo.gif
+.. |web-llm-demo| image:: https://github.com/mlc-ai/web-llm/raw/main/site/img/fig/demo.gif
+.. |ios-demo| image:: https://mlc.ai/mlc-llm/gif/ios-demo.gif
+.. |android-demo| image:: https://mlc.ai/mlc-llm/gif/android-demo.gif
+
 Navigate by Topics
 ------------------
 
@@ -31,46 +36,54 @@ MLC LLM offers a set of pre-compiled models (:ref:`off-the-shelf-models`), as we
 
             ``mlc_chat_cli`` is the CLI app provided to load the model weights and compute kernels.
 
-            - Demo: screen recording TBD
-            - Install or build the CLI app: :doc:`tutorials/deploy-models`
-            - Run compiled models via the CLI app: TBD
-            - Use MLC-compiled models in your own C++ project: TBD
+            - Demo: |mlc-cli-demo|
+            - Install or build the CLI app: :ref:`install-mlc-chat-cli`.
+            - Run compiled models via the CLI app: :ref:`CLI-run-model`.
+
+            .. - Use MLC-compiled models in your own C++ project: TBA
 
          .. tab :: Web Browser
 
             MLC compiles a model to WebGPU and WebAssembly, which can be executed by MLC LLM JavaScript runtime.
 
-            - Demo: screen recording
-            - Set up WebLLM: `Web-LLM project <https://mlc.ai/web-llm/>`__
-            - Use MLC-compiled models in your own JavaScript project: TBD
+            - Demo: |web-llm-demo|
+            - Set up WebLLM: `Web-LLM project <https://mlc.ai/web-llm/>`__.
+            - Use MLC-compiled models in your own JavaScript project: `Web-LLM NPM Package <https://www.npmjs.com/package/@mlc-ai/web-llm>`__.
 
          .. tab :: iOS
 
             A model can be compiled to static system libraries and further linked to an iOS app. An example iOS app is provided with a clear structure that iOS developers could refer to ship LLMs in iOS.
 
-            - Demo: `screen recording <https://mlc.ai/mlc-llm/#iphone>`__
-            - Set up iOS: `iOS <https://mlc.ai/mlc-llm/#iphone>`__
-            - Use MLC-compiled models in your own iOS app: TBD
+            - Demo: |ios-demo|
+            - Set up iOS: `iOS <https://mlc.ai/mlc-llm/#iphone>`__.
+
+            .. - Use MLC-compiled models in your own iOS app: TBD
 
          .. tab :: Android
 
             A model can be compiled to static system libraries and further linked to an Android app. An example Android app is provided with a clear structure that Android developers could refer to ship LLMs in Android.
 
-            - Demo: `screen recording <https://mlc.ai/mlc-llm/#android>`__
+            - Demo: |android-demo|
             - Set up Android: `Android <https://mlc.ai/mlc-llm/#android>`__
-            - Use MLC-compiled models in your own Android app: TBD
+
+            .. - Use MLC-compiled models in your own Android app: TBD
 
    .. tab :: Compile Models
 
       MLC LLM is a Python package that uses TVM Unity to compile LLMs for universal deployment.
 
       - Install TVM Unity: :ref:`Installation Guidelines <tvm-unity-install-prebuilt-package>`.
-      - MLC LLM Compilation: TBD
-      - Configuring build environments: TBD
+      - Compile models: :doc:`tutorials/compile-models`.
+      - Contribute new models: :ref:`contribute-new-models`.
+
+      .. - MLC LLM Compilation: TBD
+      .. - Configuring build environments: TBD
 
    .. tab :: Define Model Architectures
 
-      TBD
+      - Install TVM Unity: :ref:`Installation Guidelines <tvm-unity-install-prebuilt-package>`.
+      - Define new model architectures: :doc:`tutorials/bring-your-own-models`.
+      - Contribute new models: :ref:`contribute-new-models`.
 
 
 .. toctree::
