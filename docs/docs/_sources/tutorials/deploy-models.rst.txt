@@ -246,96 +246,8 @@ Deploy Models on Your Laptop/Desktop
 
 This section goes through the process of deploying prebuilt model or the model you built on your laptop or desktop.
 MLC LLM provides a Command-Line Interface (CLI) application to deploy and help interact with the model.
-After :ref:`preparing the CLI <CLI-prepare-CLI>`, you can :ref:`deploy and interact <CLI-run-model>` with the model on your machine through CLI.
 
-.. _CLI-prepare-CLI:
-
-Prepare the CLI
-~~~~~~~~~~~~~~~
-
-We have released the `prebuilt CLI Conda package <https://anaconda.org/mlc-ai/mlc-chat-nightly>`_, which you can directly :ref:`install via Conda commands <CLI-install-from-Conda>`.
-You can also :ref:`build CLI from source <CLI-build-from-source>`.
-
-
-.. _CLI-install-from-Conda:
-
-Option 1: Install from Conda
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The easiest way to install the CLI from Conda, we can follow the instructions below to create a Conda environment and then install.
-
-.. note::
-    The prebuilt CLI **does not** support CUDA. Please :ref:`build CLI from source <CLI-build-from-source>` if you want to deploy models to CUDA backend.
-
-.. code:: shell
-
-    # Create a new conda environment and activate the environment.
-    conda create -n mlc-chat
-    conda activate mlc-chat
-    # Install the chat CLI app from Conda.
-    conda install -c mlc-ai -c conda-forge mlc-chat-nightly --force-reinstall
-
-.. note::
-    After installation, you can run ``mlc_chat_cli --help`` to verify that the CLI is installed correctly.
-
-.. _CLI-build-from-source:
-
-Option 2: Build from source
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If you are a MLC-LLM developer and you add some functionalities to the CLI, you can build the CLI from source by running the following command:
-
-.. code:: shell
-
-    # create build directory
-    mkdir -p build
-    # prepare dependencies
-    bash scripts/prep_deps.sh
-    source "$HOME/.cargo/env"
-    # generation cmake config
-    python3 cmake/gen_cmake_config.py
-    cp config.cmake build
-    # build
-    cd build
-    cmake ..
-    make -j$(nproc)
-    sudo make install
-    # Refresh shared library cache
-    ldconfig  
-    cd -
-
-.. note::
-    The ``make`` commands above is expected to end with ``[100%] Built target mlc_chat_cli`` on Linux and macOS.
-
-    In the case that user do not have sudo privilege, user can customize the install prefix by adding ``-DCMAKE_INSTALL_PREFIX=/path/to/install`` to the ``cmake`` command. For example, if you want to install MLC-LLM CLI to ``~/.local``, you can run the following command:
-
-    .. code-block:: bash
-    
-        export LOCAL_PATH=~/.local
-        cmake .. -DCMAKE_INSTALL_PREFIX=$LOCAL_PATH
-
-    Please also remember to add ``$LOCAL_PATH/bin`` to your ``$PATH`` environment variable and ``$LOCAL_PATH/lib`` to your ``$LD_LIBRARY_PATH`` environment variable:
-
-    .. code-block:: bash
-        
-        export PATH=$LOCAL_PATH/bin:$PATH
-        export LD_LIBRARY_PATH=$LOCAL_PATH/lib:$LD_LIBRARY_PATH
-        ldconfig # Refresh shared library cache
-    
-
-.. _CLI_validate-installation:
-
-Validate Installation
-^^^^^^^^^^^^^^^^^^^^^
-
-You can validate the CLI build by executing the command:
-
-.. code:: bash
-
-   mlc_chat_cli --help
-
-You are expected to see the help documentation of ``mlc_chat_cli``,
-which means the installation is successful.
+Please follow the instructions in :ref:`install-mlc-chat-cli` section to install the CLI application, then you can :ref:`deploy and interact <CLI-run-model>` with the model on your machine through CLI.
 
 .. _CLI-run-model:
 
@@ -352,6 +264,9 @@ After confirming the local id, we can run the model in CLI by
     mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
     mlc_chat_cli --local-id vicuna-v1-7b-q3f16_0
 
+.. image:: https://mlc.ai/mlc-llm/gif/linux-demo.gif
+
+.. _deploy-on-ios:
 
 Deploy Models on Your iPhone/iPad
 ---------------------------------
