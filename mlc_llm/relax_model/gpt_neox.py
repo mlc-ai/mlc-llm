@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring,too-few-public-methods,too-many-instance-attributes,invalid-name,too-many-locals,too-many-arguments
 import argparse
 import math
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm import relax, te
@@ -17,10 +17,9 @@ from tvm.relax.op import (
 )
 from tvm.relax.op.nn import gelu, softmax
 from tvm.relax.testing import nn
-from tvm.runtime import NDArray
 from tvm.script import relax as R
 
-from .. import transformers
+from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
 from .modules import (
     Embedding,
@@ -464,11 +463,11 @@ class GPTNeoXForCausalLM(nn.Module):
 def create_encoding_func(
     bb: relax.BlockBuilder,
     config: GPTNeoXConfig,
-    ordered_params: List[str],
-) -> None:
+) -> Dict[int, str]:
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.Var("n", "int64")
     all_seq_len = tvm.tir.Var("m", "int64")
+    pidx2pname: Dict[int, str] = {}
     with bb.function("prefill"):
         model = GPTNeoXForCausalLM(config)
         input_ids = nn.Placeholder(
@@ -493,21 +492,24 @@ def create_encoding_func(
                 input_ids,
                 all_seq_len_shape,
                 past_key_values,
-            ]
+            ] + model.parameters()
             named_params = named_parameters(model)
-            for name in ordered_params:
-                params.append(named_params[name])
+            for i, (name, param) in enumerate(named_params.items()):
+                pidx2pname[i] = name
+                assert param.same_as(params[i + 3])
+
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
         bb.emit_func_output(gv, params)
     mod = bb.get()
     gv = mod.get_global_var("prefill")
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
+    return pidx2pname
+
 
 def create_decoding_func(
     bb: relax.BlockBuilder,
     config: GPTNeoXConfig,
-    ordered_params: List[str],
 ) -> None:
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.IntImm("int64", 1)
@@ -537,10 +539,7 @@ def create_decoding_func(
                 input_ids,
                 all_seq_len_shape,
                 past_key_values,
-            ]
-            named_params = named_parameters(model)
-            for name in ordered_params:
-                params.append(named_params[name])
+            ] + model.parameters()
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
         bb.emit_func_output(gv, params)
     mod = bb.get()
@@ -617,53 +616,9 @@ def get_model(
         ffn_out_dtype=ffn_out_dtype,
     )
 
-    num_heads = config.num_attention_heads
-    hidden_size = config.hidden_size
-    head_dim = hidden_size // num_heads
-    param_list: List[Tuple[str, NDArray]] = []
-    for name, param in transformers.get_model(
-        args.model_path,
-        args.raw_params_path,
-    ):
-        if param.dtype == "float32":
-            if "layernorm" in name or "layer_norm" in name or "embed_out" in name:
-                param = param.astype("float32")
-            elif ".dense_h_to_4h.bias" in name or ".dense_4h_to_h.bias" in name:
-                param = param.astype(ffn_out_dtype)
-            else:
-                param = param.astype(dtype)
-        if name.endswith("query_key_value.weight"):
-            name = name.replace("query_key_value.weight", "{}_proj.weight")
-            assert param.ndim == 2
-            param = param.reshape(num_heads, 3, head_dim, hidden_size)
-            q = param[:, 0, :, :].reshape(hidden_size, hidden_size)
-            k = param[:, 1, :, :].reshape(hidden_size, hidden_size)
-            v = param[:, 2, :, :].reshape(hidden_size, hidden_size)
-            param_list.append((name.format("q"), q))
-            param_list.append((name.format("k"), k))
-            param_list.append((name.format("v"), v))
-        elif name.endswith("query_key_value.bias"):
-            name = name.replace("query_key_value.bias", "{}_proj.bias")
-            assert param.ndim == 1
-            param = param.reshape(num_heads, 3, head_dim)
-            q = param[:, 0, :].reshape(hidden_size)
-            k = param[:, 1, :].reshape(hidden_size)
-            v = param[:, 2, :].reshape(hidden_size)
-            param_list.append((name.format("q"), q))
-            param_list.append((name.format("k"), k))
-            param_list.append((name.format("v"), v))
-        else:
-            param_list.append((name, param))
-    param_list = [
-        (
-            name,
-            tvm.nd.array(param, tvm.cpu()),
-        )
-        for name, param in param_list
-    ]
     bb = relax.BlockBuilder()
-    create_encoding_func(bb, config, [k for k, _ in param_list])
-    create_decoding_func(bb, config, [k for k, _ in param_list])
+    pidx2pname = create_encoding_func(bb, config)
+    create_decoding_func(bb, config)
     create_kv_cache_func(bb, config)
     create_softmax_func(bb, config)
     create_metadata_func(
@@ -684,4 +639,66 @@ def get_model(
                     "m": config.max_sequence_length,
                 },
             )
-    return mod, [v for _, v in param_list]
+
+    def f_convert_pname_fwd(pname: str) -> str:
+        import re  # pylint: disable=import-outside-toplevel
+
+        str_pattern = re.compile(r"(q|k|v)_proj")
+        if re.search(str_pattern, pname) is not None:
+            return str_pattern.sub("query_key_value", pname)
+        else:
+            return pname
+
+    pname2binname = load_torch_pname2binname_map(
+        args.model_path, set(pidx2pname.values()), f_convert_pname_fwd
+    )
+
+    num_heads = config.num_attention_heads
+    hidden_size = config.hidden_size
+    head_dim = hidden_size // num_heads
+
+    def f_convert_param_bkwd(torch_pname: str, raw_param):
+        # raw_param: numpy.ndarray
+        if torch_pname.endswith("query_key_value.weight"):
+            assert raw_param.ndim == 2
+            raw_param = raw_param.astype(dtype).reshape(
+                num_heads, 3, head_dim, hidden_size
+            )
+            q_weight = raw_param[:, 0, :, :].reshape(hidden_size, hidden_size)
+            k_weight = raw_param[:, 1, :, :].reshape(hidden_size, hidden_size)
+            v_weight = raw_param[:, 2, :, :].reshape(hidden_size, hidden_size)
+            return [
+                (torch_pname.replace("query_key_value", "q_proj"), q_weight),
+                (torch_pname.replace("query_key_value", "k_proj"), k_weight),
+                (torch_pname.replace("query_key_value", "v_proj"), v_weight),
+            ]
+        elif torch_pname.endswith("query_key_value.bias"):
+            assert raw_param.ndim == 1
+            raw_param = raw_param.astype(dtype).reshape(num_heads, 3, head_dim)
+            q_bias = raw_param[:, 0, :].reshape(hidden_size)
+            k_bias = raw_param[:, 1, :].reshape(hidden_size)
+            v_bias = raw_param[:, 2, :].reshape(hidden_size)
+            return [
+                (torch_pname.replace("query_key_value", "q_proj"), q_bias),
+                (torch_pname.replace("query_key_value", "k_proj"), k_bias),
+                (torch_pname.replace("query_key_value", "v_proj"), v_bias),
+            ]
+        elif (
+            "layernorm" in torch_pname
+            or "layer_norm" in torch_pname
+            or "embed_out" in torch_pname
+        ):
+            return [(torch_pname, raw_param.astype("float32"))]
+        elif (
+            ".dense_h_to_4h.bias" in torch_pname or ".dense_4h_to_h.bias" in torch_pname
+        ):
+            return [(torch_pname, raw_param.astype(ffn_out_dtype))]
+        else:
+            return [(torch_pname, raw_param.astype(dtype))]
+
+    args.pidx2pname = pidx2pname
+    args.pname2binname = pname2binname
+    args.f_convert_pname_fwd = f_convert_pname_fwd
+    args.f_convert_param_bkwd = f_convert_param_bkwd
+
+    return mod, [None] * len(pidx2pname)

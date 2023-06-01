@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 import pickle
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import tvm
 from tvm import meta_schedule as ms
@@ -113,9 +113,13 @@ def _parse_args():
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
     )
 
-    # These two dict are used for model weight loading: "p" here stands for "parameter".
+    # These dictionaries and functions are used for model weight loading.
+    #  - "p" here stands for "parameter".
+    #  - The first "Any" here stands for torch.Tensor, and the second stands for numpy.ndarray.
     parsed.pidx2pname: Dict[int, str] = dict()
     parsed.pname2binname: Dict[str, str] = dict()
+    parsed.f_convert_pname_fwd: Callable[[str], str] = None
+    parsed.f_convert_param_bkwd: Callable[[str, Any], List[Tuple[str, Any]]] = None
 
     return parsed
 

@@ -1,4 +1,4 @@
-from typing import Dict, List, Set, Tuple
+from typing import Callable, Dict, List, Set, Tuple
 
 import tvm
 from tvm import relax
@@ -205,8 +205,16 @@ def reorder_func(
 
 @tvm.transform.module_pass(opt_level=0, name="ReorderTransformFunc")
 class ReorderTransformFunc:
-    def __init__(self, pidx2binname: Dict[int, str]) -> None:
-        self.pidx2binname = pidx2binname
+    def __init__(
+        self,
+        pidx2pname: Dict[int, str],
+        pname2binname: Dict[str, str],
+        f_convert_pname_fwd: Callable[[str], str],
+    ) -> None:
+        self.pidx2binname: Dict[int, str] = {
+            pidx: pname2binname[f_convert_pname_fwd(pname)]
+            for pidx, pname in pidx2pname.items()
+        }
 
     def transform_module(
         self, mod: IRModule, ctx: tvm.transform.PassContext

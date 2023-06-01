@@ -1,6 +1,4 @@
-import json
 import math
-import os
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
@@ -10,6 +8,7 @@ from tvm import relax, te
 from tvm.relax.testing import nn
 from tvm.script import relax as R
 
+from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
 from .modules import ModuleList, named_parameters
 
@@ -714,24 +713,9 @@ def get_model(args, hf_config):
                     },
                 )
 
-        bin_idx_path = os.path.join(model_path, "pytorch_model.bin.index.json")
-        if os.path.isfile(bin_idx_path):
-            # Multiple weight shards.
-            with open(bin_idx_path, "r") as f_torch_json:
-                torch_bin_json = json.load(f_torch_json)
-                pname2binname = torch_bin_json["weight_map"]
-            # The torch impl contains a `inv_freq` weight for each layer, which we don't need.
-            assert len(pidx2pname) + config.num_hidden_layers == len(pname2binname)
-        else:
-            # Single weight shard.
-            single_shard_path = os.path.join(model_path, "pytorch_model.bin")
-            assert os.path.isfile(single_shard_path)
-            pname2binname = {
-                pname: "pytorch_model.bin" for pname in pidx2pname.values()
-            }
-
-        for pname in pidx2pname.values():
-            assert pname in pname2binname
+        pname2binname = load_torch_pname2binname_map(
+            model_path, set(pidx2pname.values())
+        )
 
         device = tvm.cpu()
 
@@ -754,6 +738,10 @@ def get_model(args, hf_config):
 
         args.pidx2pname = pidx2pname
         args.pname2binname = pname2binname
+        args.f_convert_pname_fwd = lambda pname: pname
+        args.f_convert_param_bkwd = lambda torch_pname, raw_param: [
+            (torch_pname, raw_param.astype(dtype))
+        ]
 
         return mod, param_list
 
