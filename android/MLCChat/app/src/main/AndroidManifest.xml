@@ -18,6 +18,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MLCChat"
         tools:targetApi="31">
+        <uses-native-library
+            android:name="libOpenCL.so"
+            android:required="false"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"
