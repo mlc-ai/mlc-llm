@@ -26,6 +26,9 @@ def get_dll_directories():
     if "MLC_LIBRARY_PATH" in os.environ:
         dll_path.append(os.environ["MLC_LIBRARY_PATH"])
 
+    if "CONDA_PREFIX" in os.environ:
+        dll_path.append(os.path.join(os.environ["CONDA_PREFIX"], "lib"))
+
     if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
         dll_path.extend(get_env_paths("LD_LIBRARY_PATH", ":"))
     elif sys.platform.startswith("darwin"):
