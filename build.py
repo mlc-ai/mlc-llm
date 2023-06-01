@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 import pickle
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import tvm
 from tvm import meta_schedule as ms
@@ -113,6 +113,10 @@ def _parse_args():
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
     )
 
+    # These two dict are used for model weight loading: "p" here stands for "parameter".
+    parsed.pidx2pname: Dict[int, str] = dict()
+    parsed.pname2binname: Dict[str, str] = dict()
+
     return parsed
 
 
@@ -220,7 +224,7 @@ def debug_dump_shader(ex, name, args):
 
 def mod_transform_before_build(
     mod: tvm.IRModule,
-    model_params: List[tvm.nd.NDArray],
+    model_params: List[Optional[tvm.nd.NDArray]],
     args: argparse.Namespace,
 ) -> tvm.IRModule:
     """First-stage: Legalize ops and trace"""
@@ -267,7 +271,7 @@ def mod_transform_before_build(
     debug_dump_script(mod_transform, "mod_lift_params.py", args)
     debug_dump_script(mod_deploy, "mod_deploy.py", args)
 
-    new_params = utils.transform_params(mod_transform, model_params)
+    new_params = utils.transform_params(mod_transform, model_params, args)
     utils.save_params(new_params, args.artifact_path)
     return mod_deploy
 
