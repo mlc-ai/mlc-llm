@@ -14,7 +14,7 @@ MLC LLM is the universal deployment solution that allows LLMs to run locally wit
 
 .. _navigation:
 
-.. |mlc-cli-demo| image:: https://mlc.ai/mlc-llm/gif/linux-demo.gif
+.. |mlc-cli-demo| image:: https://mlc.ai/blog/img/redpajama/cli.gif
 .. |web-llm-demo| image:: https://github.com/mlc-ai/web-llm/raw/main/site/img/fig/demo.gif
 .. |ios-demo| image:: https://mlc.ai/mlc-llm/gif/ios-demo.gif
 .. |android-demo| image:: https://mlc.ai/mlc-llm/gif/android-demo.gif
@@ -72,6 +72,8 @@ MLC LLM offers a set of pre-compiled models (:ref:`off-the-shelf-models`), as we
 
       MLC LLM is a Python package that uses TVM Unity to compile LLMs for universal deployment.
 
+      .. image:: https://mlc.ai/blog/img/redpajama/customization.svg
+
       - Install TVM Unity: :ref:`Installation Guidelines <tvm-unity-install-prebuilt-package>`.
       - Compile models: :doc:`tutorials/compile-models`.
       - Contribute new models: :ref:`contribute-new-models`.
@@ -83,6 +85,7 @@ MLC LLM offers a set of pre-compiled models (:ref:`off-the-shelf-models`), as we
 
       - Install TVM Unity: :ref:`Installation Guidelines <tvm-unity-install-prebuilt-package>`.
       - Define new model architectures: :doc:`tutorials/bring-your-own-models`.
+      - Machine Learning Compilation Basics: `Machine Learning Compilation <https://mlc.ai/>`__
       - Contribute new models: :ref:`contribute-new-models`.
 
 
@@ -105,9 +108,9 @@ MLC LLM offers a set of pre-compiled models (:ref:`off-the-shelf-models`), as we
 
 .. toctree::
    :maxdepth: 1
-   :caption: Model Zoo
+   :caption: Model Prebuilts
 
-   model-zoo.rst
+   model-prebuilts.rst
 
 .. toctree::
    :maxdepth: 1

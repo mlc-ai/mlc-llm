@@ -67,7 +67,7 @@ You can select from the panel below for the preparation steps you will need.
 
             .. tab:: Use prebuilt model
 
-                MLC LLM provides a list of prebuilt models (check our :doc:`/model-zoo` for the list).
+                MLC LLM provides a list of prebuilt models (check our :doc:`/model-prebuilts` for the list).
                 If you want to use them, run the commands below under the root directory of MLC LLM to download the libraries and weights to the target location.
 
                 .. code:: shell
@@ -275,7 +275,7 @@ After confirming the local id, we can run the model in CLI by
     mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
     mlc_chat_cli --local-id vicuna-v1-7b-q3f16_0
 
-.. image:: https://mlc.ai/mlc-llm/gif/linux-demo.gif
+.. image:: https://mlc.ai/blog/img/redpajama/cli.gif
 
 .. _deploy-on-ios:
 
