@@ -140,7 +140,7 @@ This section introduces how to prepare and upload the model you built.
 .. note::
     Before proceeding, you should first have the model built manually.
     At this moment, the iOS/Android/web app released by MLC LLM only support **specific model architectures with specific quantization modes**. Particularly,
-    
+
     - the :ref:`released iOS/iPadOS app <iPhone-download-app>` supports models structured by LLaMA-7B and quantized by ``q3f16_0``, and models structured by GPT-NeoX-3B and quantized by ``q4f16_0``.
     - the :ref:`released Android app <Android-download-app>` supports models structured by LLaMA-7B and quantized by ``q4f16_0``.
     - the `Web LLM demo page <https://mlc.ai/web-llm/>`_ supports models structured by LLaMA-7B and quantized by ``q4f32_0``, and models structured by GPT-NeoX-3B and quantized by both ``q4f16_0`` and ``q4f32_0``.
@@ -168,7 +168,7 @@ Opening that file, the ``model_lib`` field specifies the model library name we u
                         "model_lib": "vicuna-v1-7b-q3f16_0",
                         ...
                     }
-            
+
             .. tab:: GPT-NeoX-3B
 
                 The model is expected to be quantized by ``q4f16_0``:
@@ -179,7 +179,18 @@ Opening that file, the ``model_lib`` field specifies the model library name we u
                         "model_lib": "RedPajama-INCITE-Chat-3B-v1-q4f16_0",
                         ...
                     }
-    
+
+            .. tab:: RWKV
+
+                The model is expected to be quantized by ``q8f16_0``:
+
+                .. code::
+
+                    {
+                        "model_lib": "rwkv-raven-1b5-q8f16_0",
+                        ...
+                    }
+
     .. tab:: Android
 
         .. tabs::
@@ -194,7 +205,7 @@ Opening that file, the ``model_lib`` field specifies the model library name we u
                         "model_lib": "vicuna-v1-7b-q4f16_0",
                         ...
                     }
-    
+
     .. tab:: Web
 
         .. tabs::
@@ -209,7 +220,7 @@ Opening that file, the ``model_lib`` field specifies the model library name we u
                         "model_lib": "vicuna-v1-7b-q4f32_0",
                         ...
                     }
-            
+
             .. tab:: GPT-NeoX-3B
 
                 If the model is quantized by ``q4f16_0``:

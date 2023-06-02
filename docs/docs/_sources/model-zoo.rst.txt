@@ -41,14 +41,32 @@ Below is a list of off-the-shelf prebuilt models compiled by MLC-LLM community. 
     - `RedPajama <https://www.together.xyz/blog/redpajama>`__
     - * Weight storage data type: int4
       * Running data type: float32
-      * Symmetric quantization 
+      * Symmetric quantization
     - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f32_0>`__
   * - `RedPajama-INCITE-Chat-3B-v1-q4f16_0`
     - `RedPajama <https://www.together.xyz/blog/redpajama>`__
     - * Weight storage data type: int4
       * Running data type: float16
-      * Symmetric quantization 
+      * Symmetric quantization
     - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0>`__
+  * - `rwkv-raven-1b5-q8f16_0`
+    - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
+    - * Weight storage data type: uint8
+      * Running data type: float16
+      * Symmetric quantization
+    - `link <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0>`__
+  * - `rwkv-raven-3b-q8f16_0`
+    - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
+    - * Weight storage data type: uint8
+      * Running data type: float16
+      * Symmetric quantization
+    - `link <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0>`__
+  * - `rwkv-raven-7b-q8f16_0`
+    - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
+    - * Weight storage data type: uint8
+      * Running data type: float16
+      * Symmetric quantization
+    - `link <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0>`__
 
 You can check `MLC-LLM pull requests <https://github.com/mlc-ai/mlc-llm/pulls?q=is%3Aopen+is%3Apr+label%3Anew-models>`__ to track the ongoing efforts of new models. We encourage users to upload their compiled models to Hugging Face and share them with the community.
 
@@ -84,6 +102,10 @@ MLC-LLM supports the following model architectures:
     - `GPT-J <https://github.com/kingoflolz/mesh-transformer-jax>`__
     - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gptj.py>`__
     - * `MOSS <https://github.com/OpenLMLab/MOSS>`__
+  * - ``rwkv``
+    - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
+    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py>`__
+    - * `RWKV-raven <https://github.com/BlinkDL/RWKV-LM>
 
 For models within these model architectures, you can check the :doc:`/tutorials/compile-models` on how to compile models. Please create a new issue if you want to request a new model architecture. Our tutorial :doc:`/tutorials/bring-your-own-models` introduces how to bring a new  model architecture to MLC-LLM.
 

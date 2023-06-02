@@ -143,6 +143,7 @@ Vulkan driver, as the CUDA driver may not be good.</li>
 </ol>
 
 <p>After installing all the dependencies, just follow the instructions below the install the CLI app:</p>
+
 <div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Create a new conda environment and activate the environment.</span>
 conda create <span class="nt">-n</span> mlc-chat
 conda activate mlc-chat
@@ -172,6 +173,14 @@ mlc_chat_cli <span class="nt">--local-id</span> vicuna-v1-7b-q3f16_0
 git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
 <span class="nb">cd</span> ../..
 mlc_chat_cli <span class="nt">--local-id</span> RedPajama-INCITE-Chat-3B-v1-q4f16_0
+
+<span class="c"># Download prebuilt weights of RWKV-raven-1.5B/3B/7B</span>
+<span class="nb">cd </span>dist/prebuilt
+git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0
+<span class="c"># or git clone  https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0</span>
+<span class="c"># or git clone  https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0</span>
+<span class="nb">cd</span> ../..
+mlc_chat_cli <span class="nt">--local-id</span> rwkv-raven-1b5-q8f16_0 <span class="c"># Replace your local id if you use 3b or 7b model.</span>
 </code></pre></div></div>
 
 <p align="center">
@@ -193,6 +202,7 @@ walkthrough of our approaches.</li>
 </ul>
 
 <h2 id="disclaimer">Disclaimer</h2>
+
 <p>The pre-packaged demos are for research purposes only, subject to the model License.</p>
 
             

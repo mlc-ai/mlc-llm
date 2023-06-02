@@ -401,7 +401,7 @@ Before uploading, we need to update <code class="docutils literal notranslate"><
 <p>Opening that file, the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field specifies the model library name we use when deploying this model. Please update this field according to the panel selection below.</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-4-4-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-4-4-0" name="4-0" role="tab" tabindex="0">iPhone/iPad</button><button aria-controls="panel-4-4-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-1" name="4-1" role="tab" tabindex="-1">Android</button><button aria-controls="panel-4-4-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-2" name="4-2" role="tab" tabindex="-1">Web</button></div><div aria-labelledby="tab-4-4-0" class="sphinx-tabs-panel" id="panel-4-4-0" name="4-0" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-5-5-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-5-5-0" name="5-0" role="tab" tabindex="0">Model arch: LLaMA-7B</button><button aria-controls="panel-5-5-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-1" name="5-1" role="tab" tabindex="-1">GPT-NeoX-3B</button></div><div aria-labelledby="tab-5-5-0" class="sphinx-tabs-panel" id="panel-5-5-0" name="5-0" role="tabpanel" tabindex="0"><p>The model is expected to be quantized by <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>:</p>
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-5-5-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-5-5-0" name="5-0" role="tab" tabindex="0">Model arch: LLaMA-7B</button><button aria-controls="panel-5-5-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-1" name="5-1" role="tab" tabindex="-1">GPT-NeoX-3B</button><button aria-controls="panel-5-5-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-2" name="5-2" role="tab" tabindex="-1">RWKV</button></div><div aria-labelledby="tab-5-5-0" class="sphinx-tabs-panel" id="panel-5-5-0" name="5-0" role="tabpanel" tabindex="0"><p>The model is expected to be quantized by <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
     <span class="s2">&quot;model_lib&quot;</span><span class="p">:</span> <span class="s2">&quot;vicuna-v1-7b-q3f16_0&quot;</span><span class="p">,</span>
     <span class="o">...</span>
@@ -411,6 +411,13 @@ Before uploading, we need to update <code class="docutils literal notranslate"><
 </div><div aria-labelledby="tab-5-5-1" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-1" name="5-1" role="tabpanel" tabindex="0"><p>The model is expected to be quantized by <code class="docutils literal notranslate"><span class="pre">q4f16_0</span></code>:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
     <span class="s2">&quot;model_lib&quot;</span><span class="p">:</span> <span class="s2">&quot;RedPajama-INCITE-Chat-3B-v1-q4f16_0&quot;</span><span class="p">,</span>
+    <span class="o">...</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-5-5-2" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-2" name="5-2" role="tabpanel" tabindex="0"><p>The model is expected to be quantized by <code class="docutils literal notranslate"><span class="pre">q8f16_0</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s2">&quot;model_lib&quot;</span><span class="p">:</span> <span class="s2">&quot;rwkv-raven-1b5-q8f16_0&quot;</span><span class="p">,</span>
     <span class="o">...</span>
 <span class="p">}</span>
 </pre></div>
