@@ -54,6 +54,7 @@ please install the latest [Vulkan driver](https://developer.nvidia.com/vulkan-dr
 Vulkan driver, as the CUDA driver may not be good.
 
 After installing all the dependencies, just follow the instructions below the install the CLI app:
+
 ```shell
 # Create a new conda environment and activate the environment.
 conda create -n mlc-chat
@@ -84,12 +85,19 @@ cd dist/prebuilt
 git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
 cd ../..
 mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
+
+# Download prebuilt weights of RWKV-raven-1.5B/3B/7B
+cd dist/prebuilt
+git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0
+# or git clone  https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0
+# or git clone  https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0
+cd ../..
+mlc_chat_cli --local-id rwkv-raven-1b5-q8f16_0 # Replace your local id if you use 3b or 7b model.
 ```
 
 <p align="center">
 <img src="gif/linux-demo.gif" width="80%">
 </p>
-
 
 ### Web Browser
 
@@ -104,4 +112,5 @@ Please check out [WebLLM](https://mlc.ai/web-llm/), our companion project that d
 walkthrough of our approaches.
 
 ## Disclaimer
+
 The pre-packaged demos are for research purposes only, subject to the model License.

@@ -192,6 +192,79 @@ In the command above, ``--model`` specifies the name of the model to build, ``--
 
                     python3 build.py --model RedPajama-INCITE-Chat-3B-v1 --target android --max-seq-len 768 --quantization q4f16_0
 
+    .. tab:: rwkv-raven-1b5/3b/7b
+
+        .. tabs::
+
+            .. tab:: Target: CUDA
+
+                .. code:: shell
+                    # For 1.5B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target cuda --quantization q8f16_0
+                    # For 3B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-3b --target cuda --quantization q8f16_0
+                    # For 7B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-7b --target cuda --quantization q8f16_0
+
+            .. tab:: Metal
+
+                On Apple Silicon powered Mac, build for Apple Silicon Mac:
+
+                .. code:: shell
+
+                    # For 1.5B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target metal --quantization q8f16_0
+                    # For 3B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-3b --target metal --quantization q8f16_0
+                    # For 7B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-7b --target metal --quantization q8f16_0
+
+                On Apple Silicon powered Mac, build for x86 Mac:
+
+                .. code:: shell
+
+                    # For 1.5B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target metal_x86_64 --quantization q8f16_0
+                    # For 3B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-3b --target metal_x86_64 --quantization q8f16_0
+                    # For 7B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-7b --target metal_x86_64 --quantization q8f16_0
+
+            .. tab:: Vulkan
+
+                On Linux, build for Linux:
+
+                .. code:: shell
+
+                    # For 1.5B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target vulkan --quantization q8f16_0
+                    # For 3B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-3b --target vulkan --quantization q8f16_0
+                    # For 7B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-7b --target vulkan --quantization q8f16_0
+
+                On Linux, build for Windows:
+
+                .. code:: shell
+
+                    # For 1.5B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target vulkan --quantization q8f16_0 --llvm-mingw path/to/llvm-mingw
+                    # For 3B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-3b --target vulkan --quantization q8f16_0 --llvm-mingw path/to/llvm-mingw
+                    # For 7B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-7b --target vulkan --quantization q8f16_0 --llvm-mingw path/to/llvm-mingw
+
+            .. tab:: iPhone/iPad
+
+                .. code:: shell
+
+                    # For 1.5B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target iphone --quantization q8f16_0
+                    # For 3B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-3b --target iphone --quantization q8f16_0
+                    # For 7B model
+                    python3 build.py --hf-path=RWKV/rwkv-raven-7b --target iphone --quantization q8f16_0
+
     .. tab:: Other models
 
         .. tabs::
