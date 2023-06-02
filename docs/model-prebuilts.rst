@@ -1,7 +1,7 @@
-.. _Model Zoo:
+.. _Model Prebulits:
 
-Model Zoo
-=========
+Model Prebuilts
+===============
 
 .. contents:: Table of Contents
     :depth: 3
@@ -109,9 +109,9 @@ MLC-LLM supports the following model architectures:
 
 For models within these model architectures, you can check the :doc:`/tutorials/compile-models` on how to compile models. Please create a new issue if you want to request a new model architecture. Our tutorial :doc:`/tutorials/bring-your-own-models` introduces how to bring a new  model architecture to MLC-LLM.
 
-.. _contribute-to-mlc-llm-model-zoo:
+.. _contribute-models-to-mlc-llm:
 
-Contribute to MLC-LLM Model Zoo
--------------------------------
+Contribute Models to MLC-LLM
+----------------------------
 
 Ready to contribute your compiled models/new model architectures? Awesome! Please check :ref:`contribute-new-models` on how to contribute new models to MLC-LLM.
