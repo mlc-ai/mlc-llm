@@ -46,7 +46,7 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="prev" title="Model Zoo" href="../model-zoo.html" /> 
+    <link rel="prev" title="Model Prebuilts" href="../model-prebuilts.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -176,9 +176,9 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../contribute/community.html">MLC-LLM Community Guidelines</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Model Zoo</span></p>
+<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../model-zoo.html">Model Zoo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../model-prebuilts.html">Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Misc</span></p>
 <ul class="current">
@@ -272,6 +272,10 @@
 </dd>
 <dt>… What’s the quantization algorithm MLC-LLM using?</dt><dd><p>MLC-LLM does not impose any restrictions on the choice of the quantization algorithm, and the design should be compatible with all quantization algorithms. By default, we utilize the grouping quantization method discussed in the paper <a class="reference external" href="https://arxiv.org/abs/2212.09720">The case for 4-bit precision: k-bit Inference Scaling Laws</a>.</p>
 </dd>
+<dt>… Why do I encounter an error <code class="docutils literal notranslate"><span class="pre">free():</span> <span class="pre">invalid</span> <span class="pre">pointer,</span> <span class="pre">Aborted</span> <span class="pre">(core</span> <span class="pre">dumped)</span></code> at the end of model compilation?</dt><dd><p>This happens if you compiled TVM-Unity from source and didn’t hide LLVM symbols in cmake configurations.
+Please follow our instructions in <a class="reference internal" href="../install/index.html#tvm-unity-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a> to compile TVM-Unity which hides LLVM symbols,
+or use our pre-builc MLC-AI pip wheels from <a class="reference external" href="https://mlc.ai/package/">MLC Packages</a>.</p>
+</dd>
 </dl>
 </section>
 
@@ -286,7 +290,7 @@
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
       
-        <a href="../model-zoo.html" class="btn btn-neutral float-left" title="Model Zoo" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="../model-prebuilts.html" class="btn btn-neutral float-left" title="Model Prebuilts" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 
