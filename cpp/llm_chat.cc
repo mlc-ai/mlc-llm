@@ -434,12 +434,24 @@ class LLMChat {
       }
     }
     // keep system
-    all_prompt = GetConcatPrompt(prompts, 1, start_re_encode_pos);
+    if (this->conversation_.system.empty()) {
+      all_prompt = GetConcatPrompt(prompts, 0, start_re_encode_pos);
+    } else {
+      all_prompt = GetConcatPrompt(prompts, 1, start_re_encode_pos);
+    }
     encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
-
-    if (tokens.size() + this->mean_gen_len_ >= this->max_window_size_) {
-      LOG(FATAL) << "Exceed max window length curr=" << tokens.size();
+    if (tokens.size() >= this->max_window_size_) {
+      LOG(WARNING)
+          << "The prompt tokens are more than `max_window_size`, the input will be truncated.";
+      ICHECK_GT(this->max_window_size_, this->mean_gen_len_);
+      std::vector<int32_t> truncated_tokens(
+          tokens.end() - (this->max_window_size_ - this->mean_gen_len_), tokens.end());
+      return truncated_tokens;
+    } else if (tokens.size() + this->mean_gen_len_ >= this->max_window_size_) {
+      LOG(WARNING)
+          << "The prompt tokens are too long and the generated text may be incomplete, due to "
+             "limited `max_window_size`. ";
     }
     return tokens;
   }
