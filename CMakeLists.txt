@@ -115,8 +115,9 @@ else()
   target_link_libraries(mlc_chat_cli PUBLIC mlc_llm)
 endif()
 
-add_library(mlc_llm_module MODULE $<TARGET_OBJECTS:mlc_llm_objs>)
-target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp tvm)
+add_library(mlc_llm_module SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
+target_link_libraries(mlc_llm_module PUBLIC tvm)
+target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp)
 
 # when this option is on,
 # we install all static lib deps into lib
