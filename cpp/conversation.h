@@ -15,9 +15,9 @@ namespace mlc {
 namespace llm {
 
 enum class SeparatorStyle {
-  /*! \brief add colon ": " beween role and message. */
+  /*! \brief add colon ": " between role and message. */
   kAddColon,
-  /*! \brief raw langauge model style, always only returns last message. */
+  /*! \brief raw language model style, always only returns last message. */
   kLM,
 };
 
@@ -36,15 +36,13 @@ class Conversation {
   std::vector<std::vector<std::string>> messages = {};
   /*! \brief offset to point to the end of few short examples */
   int32_t offset = 0;
-  /*! \brief the seperator style */
+  /*! \brief the separator style */
   SeparatorStyle separator_style = SeparatorStyle::kAddColon;
-  /*!
-   * \brief Seperator that appended to the messages, can be of size 1 or two
-   */
+  /*! \brief Separator that appended to the messages, can be of size 1 or two */
   std::vector<std::string> seps;
   /*! \brief Matches stop str. */
   std::string stop_str = "";
-  /*! \brief tokenlist that matches stop */
+  /*! \brief token list that matches stop */
   std::vector<int32_t> stop_tokens = {};
   /*!
    * \brief Whether caller should consider add bos before system prompt.
@@ -139,14 +137,15 @@ class Conversation {
 
   /*!
    * \brief Get the entire prompt array
+   * \return A vector of strings storing the prompt array.
    */
   std::vector<std::string> GetPromptArray() { return GetPromptArrayInternal(0); }
 
   /**
    * \brief Get prompt array for the last round.
-   * The last round convo is usually unprocessed by LM
+   * The last round conversation is usually unprocessed by LM
    */
-  std::vector<std::string> GetPrompArrayLastRound() {
+  std::vector<std::string> GetPromptArrayLastRound() {
     ICHECK_GE(this->messages.size(), 2);
     return GetPromptArrayInternal(this->messages.size() - 2);
   }
@@ -172,8 +171,8 @@ class Conversation {
    * \brief Internal function to get prompted array
    * \param system_prefix The system prompt prefix that needs to be added if start_pos == 0
    * \param start_pos The start message position.
-   * \param role_msg_sep The seperator between role and message.
-   * \param role_empty_sep The seperator to appending to role when we do not yet have a message.
+   * \param role_msg_sep The separator between role and message.
+   * \param role_empty_sep The separator to appending to role when we do not yet have a message.
    */
   template <typename FProcMessage>
   std::vector<std::string> GetPromptArrayInternal(std::string system_prefix, size_t start_pos,
