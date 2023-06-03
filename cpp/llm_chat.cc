@@ -180,7 +180,7 @@ class LLMChat {
       CHECK(partial_update) << "Key \"mean_gen_len\" not found.";
     }
     // NOTE: for backward compact
-    // max gen len is optonal
+    // max gen len is optional
     if (config.count("max_gen_len")) {
       CHECK(config["max_gen_len"].is<int64_t>());
       this->max_gen_len_ = config["max_gen_len"].get<int64_t>();
@@ -351,7 +351,6 @@ class LLMChat {
     this->model_name_ = metadata["model_name"].get<std::string>();
     this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
     if (this->max_window_size_ == -1) {
-      LOG(INFO) << "here";
       this->max_window_size_ = std::numeric_limits<int64_t>::max();
     }
     this->conversation_ = Conversation::FromTemplate(conv_template);
@@ -406,7 +405,7 @@ class LLMChat {
         tokens.insert(tokens.begin(), bos_token_id_);
       }
     } else {
-      prompts = this->conversation_.GetPrompArrayLastRound();
+      prompts = this->conversation_.GetPromptArrayLastRound();
     }
     // first try to encode all
     std::string all_prompt = GetConcatPrompt(prompts, 0, 0);
@@ -423,19 +422,19 @@ class LLMChat {
       tokens.insert(tokens.begin(), bos_token_id_);
     }
     std::vector<std::string> all_prompts = this->conversation_.GetPromptArray();
-    // get estimnate of the ragment
+    // get estimate of the fragment
     size_t ctx_length = this->tokenizer_->Encode(all_prompts[0]).size();
-    size_t start_reencode_pos = 0;
+    size_t start_re_encode_pos = 0;
     for (int i = all_prompts.size() - 1; i > 0; i -= 2) {
       ctx_length += this->tokenizer_->Encode(all_prompts[i]).size();
       if (ctx_length >= this->shift_fill_factor_ * this->max_window_size_ &&
           i + 2 < all_prompts.size()) {
-        start_reencode_pos = i;
+        start_re_encode_pos = i;
         break;
       }
     }
     // keep system
-    all_prompt = GetConcatPrompt(prompts, 1, start_reencode_pos);
+    all_prompt = GetConcatPrompt(prompts, 1, start_re_encode_pos);
     encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
 
@@ -491,9 +490,10 @@ class LLMChat {
     appeared_token_ids_.clear();
     output_message_.clear();
     stop_triggered_ = false;
-
-    conversation_.AppendMessage(conversation_.roles[0], inp);
-    conversation_.AppendReplyHeader(conversation_.roles[1]);
+    if (!inp.empty()) {
+      conversation_.AppendMessage(conversation_.roles[0], inp);
+      conversation_.AppendReplyHeader(conversation_.roles[1]);
+    }
 
     std::vector<int32_t> prompt_tokens = this->GetInputTokens();
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
@@ -510,7 +510,7 @@ class LLMChat {
 
     this->prefill_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
     this->prefill_total_tokens += token_len;
-    this->ProccessNextToken(next_token);
+    this->ProcessNextToken(next_token);
   }
 
   void DecodeStep() {
@@ -529,7 +529,7 @@ class LLMChat {
 
     this->decode_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
     this->decode_total_tokens += 1;
-    this->ProccessNextToken(next_token);
+    this->ProcessNextToken(next_token);
   }
 
   bool Stopped() { return stop_triggered_; }
@@ -632,11 +632,10 @@ class LLMChat {
 
   /*!
    * \brief Add a generated token and check for stop condition.
-   *
    * \param next_token The next token.
    */
-  void ProccessNextToken(int32_t next_token) {
-    ICHECK(!stop_triggered_) << "Cannot call process when it is stoppped";
+  void ProcessNextToken(int32_t next_token) {
+    ICHECK(!stop_triggered_) << "Cannot call process when it is stopped";
 
     stop_triggered_ =
         std::any_of(this->conversation_.stop_tokens.begin(), this->conversation_.stop_tokens.end(),
@@ -750,6 +749,8 @@ class LLMChat {
 
   // Clear kv cache
   void ResetKVCache() { reset_kv_cache_func_(kv_cache_); }
+
+  void ProcessSystemPrompts() { this->PrefillStep(/*inp=*/""); }
 
   // Utils
   static double GetRandomNumber() {
@@ -939,6 +940,10 @@ class LLMChatModule : public ModuleNode {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         *rv = GetChat()->GetConfigJSON();
       });
+    } else if (name == "process_system_prompts") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        GetChat()->ProcessSystemPrompts();
+      });
     } else {
       return PackedFunc(nullptr);
     }
@@ -960,7 +965,7 @@ class LLMChatModule : public ModuleNode {
     chat_->device_ = device;
     chat_->tokenizer_ = std::move(tokenizer);
 
-    // load in nd-arracy cache
+    // load in nd-array cache
     const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
     ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
     (*fload_cache)(param_path, static_cast<int32_t>(device_.device_type), device.device_id);

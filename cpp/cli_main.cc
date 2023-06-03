@@ -215,6 +215,7 @@ class ChatModule {
     this->get_role1_ = this->chat_mod_->GetFunction("get_role1");
     this->runtime_stats_text_ = this->chat_mod_->GetFunction("runtime_stats_text");
     this->reset_chat_ = this->chat_mod_->GetFunction("reset_chat");
+    this->process_system_prompts_ = this->chat_mod_->GetFunction("process_system_prompts");
     this->lib_path_ = "";
     this->executable_ = tvm::runtime::Module(nullptr);
     ICHECK(prefill_ != nullptr);
@@ -232,6 +233,7 @@ class ChatModule {
    * \param model The model path spec.
    */
   void Reload(const ModelPaths& model) {
+    std::cout << "Loading model..." << std::endl;
     std::string new_lib_path = model.lib.string();
     std::string new_model_path = model.config.parent_path().string();
     if (this->lib_path_ != new_lib_path) {
@@ -239,13 +241,21 @@ class ChatModule {
       this->executable_ = tvm::runtime::Module::LoadFromFile(this->lib_path_);
     }
     reload_(this->executable_, tvm::runtime::String(new_model_path));
+    std::cout << "Loading finished" << std::endl << std::flush;
   }
 
   /*!
    * \brief Reset the current chat session.
-   * \note The model remains the same, to change model, call  Reload.
+   * \note The model remains the same, to change model, call Reload.
    */
   void ResetChat() { reset_chat_(); }
+
+  /*! \brief Process system prompts before starting conversation. */
+  void ProcessSystemPrompts() {
+    std::cout << "Running system prompts..." << std::endl << std::flush;
+    process_system_prompts_();
+    std::cout << "System prompts finished" << std::endl << std::flush;
+  }
 
   /*! \return Role0(user) name in the chat template. */
   std::string GetRole0() { return get_role0_(); }
@@ -289,6 +299,7 @@ class ChatModule {
   tvm::runtime::PackedFunc get_role1_;
   tvm::runtime::PackedFunc runtime_stats_text_;
   tvm::runtime::PackedFunc reset_chat_;
+  tvm::runtime::PackedFunc process_system_prompts_;
 
   std::string lib_path_;
   tvm::runtime::Module executable_;
@@ -430,9 +441,9 @@ void Converse(ChatModule* chat, const std::string& input, int stream_interval,
 void Chat(ChatModule* chat, const std::filesystem::path& artifact_path,
           const std::string& device_name, std::string local_id, int stream_interval = 2) {
   ModelPaths model = ModelPaths::Find(artifact_path, device_name, local_id);
-  std::cout << "Loading model..." << std::endl;
   PrintSpecialCommands();
   chat->Reload(model);
+  chat->ProcessSystemPrompts();
   while (true) {
     std::string input;
     std::cout << chat->GetRole0() << ": " << std::flush;
@@ -442,6 +453,7 @@ void Chat(ChatModule* chat, const std::filesystem::path& artifact_path,
     } else if (input.substr(0, 6) == "/reset") {
       chat->ResetChat();
       std::cout << "RESET CHAT SUCCESS" << std::endl << std::flush;
+      chat->ProcessSystemPrompts();
     } else if (input.substr(0, 5) == "/exit") {
       break;
     } else if (input.substr(0, 6) == "/stats") {
@@ -457,10 +469,8 @@ void Chat(ChatModule* chat, const std::filesystem::path& artifact_path,
         new_local_id = local_id;
       }
       model = ModelPaths::Find(artifact_path, device_name, new_local_id);
-      std::cout << "Loading model..." << std::endl;
       chat->Reload(model);
       local_id = new_local_id;
-      std::cout << "LOAD MODEL " << local_id << " SUCCESS" << std::endl << std::flush;
     } else if (input.substr(0, 5) == "/help") {
       PrintSpecialCommands();
     } else {
