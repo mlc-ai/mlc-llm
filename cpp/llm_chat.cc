@@ -502,10 +502,8 @@ class LLMChat {
     appeared_token_ids_.clear();
     output_message_.clear();
     stop_triggered_ = false;
-    if (!inp.empty()) {
-      conversation_.AppendMessage(conversation_.roles[0], inp);
-      conversation_.AppendReplyHeader(conversation_.roles[1]);
-    }
+    conversation_.AppendMessage(conversation_.roles[0], inp);
+    conversation_.AppendReplyHeader(conversation_.roles[1]);
 
     std::vector<int32_t> prompt_tokens = this->GetInputTokens();
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
