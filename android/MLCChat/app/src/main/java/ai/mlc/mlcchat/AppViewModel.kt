@@ -2,6 +2,7 @@ package ai.mlc.mlcchat
 
 import android.app.Application
 import android.os.Environment
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.toMutableStateList
@@ -33,11 +34,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val localIdSet = emptySet<String>().toMutableSet()
 
     companion object {
+        private const val TAG = "AppViewModel"
+
         const val AppConfigFilename = "app-config.json"
         const val ModelConfigFilename = "mlc-chat-config.json"
         const val ParamsConfigFilename = "ndarray-cache.json"
     }
-
 
     init {
         loadAppConfig()
@@ -89,7 +91,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun addModelConfig(modelConfig: ModelConfig, modelUrl: String) {
-        assert(!localIdSet.contains(modelConfig.localId))
+        require(!localIdSet.contains(modelConfig.localId))
         localIdSet.add(modelConfig.localId)
         modelList.add(
             ModelState(
@@ -116,12 +118,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                 }
-                assert(tempFile.exists())
+                require(tempFile.exists())
                 viewModelScope.launch {
                     val modelConfigString = tempFile.readText()
                     val modelConfig = gson.fromJson(modelConfigString, ModelConfig::class.java)
                     if (localId != null) {
-                        assert(modelConfig.localId == localId)
+                        require(modelConfig.localId == localId)
                     }
                     if (localIdSet.contains(modelConfig.localId)) {
                         tempFile.delete()
@@ -135,7 +137,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val modelConfigFile = File(modelDirFile, ModelConfigFilename)
                     tempFile.copyTo(modelConfigFile, overwrite = true)
                     tempFile.delete()
-                    assert(modelConfigFile.exists())
+                    require(modelConfigFile.exists())
                     addModelConfig(modelConfig, modelUrl)
                     if (!isBuiltin) {
                         updateAppConfig(modelUrl, modelConfig.localId)
@@ -186,7 +188,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         private fun loadParamsConfig() {
             val paramsConfigFile = File(modelDirFile, ParamsConfigFilename)
-            assert(paramsConfigFile.exists())
+            require(paramsConfigFile.exists())
             val jsonString = paramsConfigFile.readText()
             paramsConfig = gson.fromJson(jsonString, ParamsConfig::class.java)
         }
@@ -203,10 +205,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                 }
-                assert(tempFile.exists())
+                require(tempFile.exists())
                 val paramsConfigFile = File(modelDirFile, ParamsConfigFilename)
                 tempFile.renameTo(paramsConfigFile)
-                assert(paramsConfigFile.exists())
+                require(paramsConfigFile.exists())
                 viewModelScope.launch {
                     loadParamsConfig()
                     switchToIndexing()
@@ -266,8 +268,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         private fun handleNewDownload(downloadTask: DownloadTask) {
-            assert(modelInitState.value == ModelInitState.Downloading)
-            assert(!downloadingTasks.contains(downloadTask))
+            require(modelInitState.value == ModelInitState.Downloading)
+            require(!downloadingTasks.contains(downloadTask))
             downloadingTasks.add(downloadTask)
             thread(start = true) {
                 val tempId = UUID.randomUUID().toString()
@@ -279,9 +281,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                 }
-                assert(tempFile.exists())
+                require(tempFile.exists())
                 tempFile.renameTo(downloadTask.file)
-                assert(downloadTask.file.exists())
+                require(downloadTask.file.exists())
                 viewModelScope.launch {
                     handleFinishDownload(downloadTask)
                 }
@@ -289,7 +291,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         private fun handleNextDownload() {
-            assert(modelInitState.value == ModelInitState.Downloading)
+            require(modelInitState.value == ModelInitState.Downloading)
             for (downloadTask in remainingTasks) {
                 if (!downloadingTasks.contains(downloadTask)) {
                     handleNewDownload(downloadTask)
@@ -302,7 +304,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             remainingTasks.remove(downloadTask)
             downloadingTasks.remove(downloadTask)
             ++progress.value
-            assert(modelInitState.value == ModelInitState.Downloading || modelInitState.value == ModelInitState.Pausing)
+            require(modelInitState.value == ModelInitState.Downloading || modelInitState.value == ModelInitState.Pausing)
             if (modelInitState.value == ModelInitState.Downloading) {
                 if (remainingTasks.isEmpty()) {
                     if (downloadingTasks.isEmpty()) {
@@ -341,7 +343,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     }
 
-    inner class ChatState() {
+    inner class ChatState {
         val messages = emptyList<MessageData>().toMutableStateList()
         val report = mutableStateOf("")
         val modelName = mutableStateOf("")
@@ -352,11 +354,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private var modelLib = ""
         private var modelPath = ""
         private val executorService = Executors.newSingleThreadExecutor()
-
-
-        init {
-        }
-
 
         private fun mainResetChat() {
             messages.clear()
@@ -381,7 +378,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         fun requestResetChat() {
-            assert(interuptable())
+            require(interuptable())
             if (modelChatState.value == ModelChatState.Ready) {
                 switchToResetting()
                 mainResetChat()
@@ -396,12 +393,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             } else {
-                assert(false)
+                require(false)
             }
         }
 
         fun requestReloadChat(modelName: String, modelLib: String, modelPath: String) {
-            assert(interuptable())
+            require(interuptable())
             if (modelChatState.value == ModelChatState.Ready) {
                 switchToReloading()
                 mainReloadChat(modelName, modelLib, modelPath)
@@ -428,11 +425,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 viewModelScope.launch {
                     Toast.makeText(application, "Initialize...", Toast.LENGTH_SHORT).show()
                 }
-                System.err.println("Unloading model")
+                Log.i(TAG, "Unloading model")
                 backend.unload()
-                System.err.println("Loading model " + modelLib + " " + modelPath)
+                Log.i(TAG, "Loading model $modelLib $modelPath")
                 backend.reload(modelLib, modelPath)
-                System.err.println("Model loaded")
+                Log.i(TAG, "Model loaded")
                 viewModelScope.launch {
                     Toast.makeText(application, "Ready to chat", Toast.LENGTH_SHORT).show()
                     switchToReady()
@@ -441,7 +438,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         fun requestGenerate(prompt: String) {
-            assert(chatable())
+            require(chatable())
             switchToGenerting()
             executorService.submit {
                 appendMessage(MessageRole.User, prompt)
@@ -477,8 +474,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         fun interuptable(): Boolean {
             return modelChatState.value == ModelChatState.Ready || modelChatState.value == ModelChatState.Generating
         }
-
-
     }
 }
 
