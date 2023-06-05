@@ -333,6 +333,8 @@ conv_redpajama_chat = Conversation(
     sep_style=SeparatorStyle.REDPAJAMA_CHAT,
     sep="",
     sep2="",
+)
+
 conv_rwkv = Conversation(
     system="""The following is a coherent verbose detailed conversation between a girl named Alice and her friend Bob. \
 Alice is very intelligent, creative and friendly. \
