@@ -33,7 +33,7 @@ task buildJni(type: Exec, description: 'Build JNI libs') {
     def buildPath = "${project.projectDir}/src/main/jni"
     Properties properties = new Properties()
     properties.load(project.rootProject.file('local.properties').newDataInputStream())
-    commandLine "ndk-build", "--directory", buildPath
+    commandLine "${properties.getProperty('ndk.dir')}/ndk-build", "--directory", buildPath
 }
 
 tasks.withType(JavaCompile) {
