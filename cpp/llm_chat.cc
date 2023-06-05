@@ -509,6 +509,7 @@ class LLMChat {
 
     std::vector<int32_t> prompt_tokens = this->GetInputTokens();
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
+    if (token_len == 0) return;
 
     auto tstart = std::chrono::high_resolution_clock::now();
 
