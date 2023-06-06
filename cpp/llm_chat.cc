@@ -491,7 +491,7 @@ class LLMChat {
   /*!
    * \brief Generate the next token given a prompt.
    */
-  void PrefillStep(std::string inp) {
+  void PrefillStep(std::string inp, bool append_conversation = true) {
     if (conversation_.name == "LM") {
       this->ResetChat();
     }
@@ -502,7 +502,7 @@ class LLMChat {
     appeared_token_ids_.clear();
     output_message_.clear();
     stop_triggered_ = false;
-    if (!inp.empty()) {
+    if (append_conversation) {
       conversation_.AppendMessage(conversation_.roles[0], inp);
       conversation_.AppendReplyHeader(conversation_.roles[1]);
     }
@@ -763,7 +763,7 @@ class LLMChat {
   // Clear kv cache
   void ResetKVCache() { reset_kv_cache_func_(kv_cache_); }
 
-  void ProcessSystemPrompts() { this->PrefillStep(/*inp=*/""); }
+  void ProcessSystemPrompts() { this->PrefillStep(/*inp=*/"", /*append_conversation=*/false); }
 
   // Utils
   static double GetRandomNumber() {
