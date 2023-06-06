@@ -51,7 +51,7 @@ quantization_dict = {
     ),
 }
 
-supported_model_types = set(["llama", "gpt_neox", "gpt_bigcode", "moss", "rwkv"])
+supported_model_types = set(["llama", "gpt_neox", "gpt_bigcode", "moss", "rwkv", "mpt"])
 
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
@@ -78,6 +78,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "gorilla-": ("gorilla", "llama"),
         "starcoder": ("code_gpt", "gpt_bigcode"),
         "wizardcoder-": ("code_gpt", "gpt_bigcode"),
+        "mpt-": ("mpt", "mpt-7b", "mpt-7b-instruct"),
     }
     model = args.model.lower()
     for prefix, (conv_template, model_category) in supported_model_prefix.items():
