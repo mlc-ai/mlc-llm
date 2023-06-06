@@ -5,8 +5,36 @@ import torch
 
 import tvm
 from tvm import relax, te
+from tvm.relax.testing import nn
+from tvm.script import relax as R
 
 from .mpt_config import MPTConfig
+
+
+# TODO: it is identical to Linear from llama.py
+class Linear(nn.Module):
+  def __init__(self, in_features, out_features, dtype: str, bias=True):
+    self.in_features = in_features
+    self.out_features = out_features
+    self.weight = nn.Parameter(
+        (out_features, in_features), dtype=dtype, name="linear_weight"
+    )
+    if bias:
+        self.bias = nn.Parameter((out_features,), dtype=dtype, name="linear_bias")
+    else:
+        self.bias = None
+
+  def forward(self, input: relax.Expr) -> relax.Var:
+    return nn.emit(relax.op.linear(input, self.weight, self.bias))
+
+
+class MPTMLP(nn.Module):
+    def __init__(self, hidden_size: int, intermediate_size: int, dtype: str):
+        self.down_proj = Linear(intermediate_size, hidden_size, dtype=dtype)
+        self.up_proj = Linear(hidden_size, intermediate_size, dtype=dtype)
+
+    def forward(self, x):
+        return self.down_proj(relax.op.nn.gelu(self.up_proj(x)))
 
 
 def create_encoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> None:
