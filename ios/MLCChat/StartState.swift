@@ -87,7 +87,12 @@ class StartState : ObservableObject {
                 return
             }
         }
-        downloadConfig(modelUrl: URL(string: modelRemoteBaseUrl)!, newRecord: true)
+        
+        if let modelUrl = URL(string: modelRemoteBaseUrl) {
+            downloadConfig(modelUrl: modelUrl, newRecord: true)
+        } else {
+            self.showAlert(message: "Cannot resolve the given url")
+        }
     }
 
     func showAlert(message: String) {
@@ -99,7 +104,18 @@ class StartState : ObservableObject {
     func downloadConfig(modelUrl: URL, newRecord: Bool) {
         let downloadTask = URLSession.shared.downloadTask(with: modelUrl.appending(path: "mlc-chat-config.json")) {
             urlOrNil, responseOrNil, errorOrNil in
-            guard let fileUrl = urlOrNil else { return }
+            if let error = errorOrNil {
+                DispatchQueue.main.sync {
+                    self.showAlert(message: "Downloading model config from the given url failed by error: " + error.localizedDescription)
+                }
+                return
+            }
+            guard let fileUrl = urlOrNil else {
+                DispatchQueue.main.sync {
+                    self.showAlert(message: "Cannot download model config from the given url")
+                }
+                return
+            }
             do {
                 let fileHandle = try FileHandle(forReadingFrom: fileUrl)
                 let data = fileHandle.readDataToEndOfFile()
@@ -141,7 +157,7 @@ class StartState : ObservableObject {
                 }
             } catch {
                 DispatchQueue.main.sync {
-                    self.showAlert(message: "Cannot download model config from the given url")
+                    self.showAlert(message: "Cannot resolve the downloaded model config from the given url")
                 }
             }
         }
