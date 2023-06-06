@@ -11,7 +11,7 @@ from tvm import relax
 
 import mlc_llm
 from mlc_llm import utils
-from mlc_llm.relax_model import gpt_bigcode, gpt_neox, llama, moss, rwkv
+from mlc_llm.relax_model import gpt_bigcode, gpt_neox, llama, moss, rwkv, mpt
 
 
 def _parse_args():
@@ -407,6 +407,8 @@ def main():
                 mod, params = moss.get_model(ARGS, config)
             elif ARGS.model_category == "rwkv":
                 mod, params = rwkv.get_model(ARGS, config)
+            elif ARGS.model_category == "mpt":
+                mod, params = mpt.get_model(ARGS, config)
             else:
                 raise ValueError(f"Model {ARGS.model} not supported")
             mod = mod_transform_before_build(mod, params, ARGS)
