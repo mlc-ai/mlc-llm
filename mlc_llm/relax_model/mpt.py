@@ -11,6 +11,37 @@ from tvm.script import relax as R
 from .mpt_config import MPTConfig
 
 
+def _cast_if_autocast_enabled(tensor):
+  if torch.is_autocast_enabled():
+    if tensor.device.type == 'cuda':
+      dtype = torch.get_autocast_gpu_dtype()
+    elif tensor.device.type == 'cpu':
+      dtype = torch.get_autocast_cpu_dtype()
+    else:
+      raise NotImplementedError()
+    return tensor.to(dtype=dtype)
+  return tensor
+
+class LPLayerNorm(torch.nn.LayerNorm):
+  def __init__(self, normalized_shape, eps=1e-05, dtype=None):
+    self.weight = nn.Parameter((normalized_shape,), dtype=dtype, name="low_precision_layernorm_weight")
+    self.bias = nn.Parameter((normalized_shape,), dtype=dtype, name="low_precision_layernorm_bias")
+    # TODO: check
+    self.weight = relax.op.ones((normalized_shape,), dtype)
+    self.bias = relax.op.zeros((normalized_shape,), dtype)
+    self.variance_epsilon = tvm.tir.const(eps, dtype)
+
+  def forward(self, x):
+    module_device = x.device
+    downcast_x = _cast_if_autocast_enabled(x)
+    downcast_weight = _cast_if_autocast_enabled(self.weight) if self.weight is not None else self.weight
+    downcast_bias = _cast_if_autocast_enabled(self.bias) if self.bias is not None else self.bias
+    with torch.autocast(enabled=False, device_type=module_device.type):
+      return torch.nn.functional.layer_norm(downcast_x, self.normalized_shape, downcast_weight, downcast_bias, self.eps)
+
+NORM_CLASS_REGISTRY = {'low_precision_layernorm': LPLayerNorm}
+
+
 # TODO: it is identical to Linear from llama.py
 class Linear(nn.Module):
   def __init__(self, in_features, out_features, dtype: str, bias=True):
@@ -35,6 +66,59 @@ class MPTMLP(nn.Module):
 
     def forward(self, x):
         return self.down_proj(relax.op.nn.gelu(self.up_proj(x)))
+
+
+class MPTBlock(nn.Module):
+    def __init__(self, config: MPTConfig):
+        self.hidden_size = config.d_model
+        self.self_attn = LlamaAttention(
+            hidden_size=self.hidden_size,
+            num_heads=config.num_attention_heads,
+            dtype=config.dtype,
+        )
+        self.mlp = MPTMLP(
+            hidden_size=self.hidden_size,
+            intermediate_size=config.expansion_ratio*self.hidden_size,
+            dtype=config.dtype,
+        )
+        self.input_layernorm = LlamaRMSNorm(
+            config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps
+        )
+        self.post_attention_layernorm = LlamaRMSNorm(
+            config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps
+        )
+
+    def forward(
+        self,
+        hidden_states: relax.Expr,
+        cos_cached: relax.Expr,
+        sin_cached: relax.Expr,
+        all_seq_len_shape: relax.Expr,
+        past_key_value: Tuple[relax.Expr],
+        attention_mask: Optional[relax.Expr] = None,
+    ) -> Tuple[relax.Expr, Optional[Tuple[relax.Expr, relax.Expr]]]:
+        residual = hidden_states
+
+        hidden_states = self.input_layernorm(hidden_states)
+
+        # Self Attention
+        hidden_states, present_key_value = self.self_attn(
+            hidden_states=hidden_states,
+            cos_cached=cos_cached,
+            sin_cached=sin_cached,
+            past_key_value=past_key_value,
+            attention_mask=attention_mask,
+            all_seq_len_shape=all_seq_len_shape,
+        )
+        hidden_states = nn.emit(residual + hidden_states)
+
+        # Fully Connected
+        residual = hidden_states
+        hidden_states = self.post_attention_layernorm(hidden_states)
+        hidden_states = self.mlp(hidden_states)
+        hidden_states = nn.emit(residual + hidden_states)
+
+        return hidden_states, attn_weights, present_key_value
 
 
 def create_encoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> None:
