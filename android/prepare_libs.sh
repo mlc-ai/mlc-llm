@@ -27,4 +27,5 @@ cmake --build . --target install --config release -j
 cd ..
 rm -rf build/tvm_home
 ln -s  ${TVM_HOME} build/tvm_home
-cp ../dist/vicuna-v1-7b-q4f16_0/vicuna-v1-7b-q4f16_0-android.a build/lib/libmodel_android.a
+
+python prepare_model_lib.py
