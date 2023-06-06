@@ -8,7 +8,7 @@ from tvm import relax, te
 from tvm.relax.testing import nn
 from tvm.script import relax as R
 
-from .mpt_config import MPTConfig
+from .mpt_config import MPTConfig, attn_config_defaults
 
 
 def _cast_if_autocast_enabled(tensor):
@@ -69,56 +69,62 @@ class MPTMLP(nn.Module):
 
 
 class MPTBlock(nn.Module):
-    def __init__(self, config: MPTConfig):
-        self.hidden_size = config.d_model
-        self.self_attn = LlamaAttention(
-            hidden_size=self.hidden_size,
-            num_heads=config.num_attention_heads,
-            dtype=config.dtype,
-        )
-        self.mlp = MPTMLP(
-            hidden_size=self.hidden_size,
-            intermediate_size=config.expansion_ratio*self.hidden_size,
-            dtype=config.dtype,
-        )
-        self.input_layernorm = LlamaRMSNorm(
-            config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps
-        )
-        self.post_attention_layernorm = LlamaRMSNorm(
-            config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps
-        )
+  def __init__(self, config: MPTConfig):
+    # Get values from config or defaults
+    attn_config = config.attn_config if config.attn_config is not None else attn_config_defaults
+    norm_type = config.norm_type if config.norm_type is not None else 'low_precision_layernorm'
+    verbose = config.verbose if config.verbose is not None else 0
+    # Define layer norm and attention classes
+    norm_class = NORM_CLASS_REGISTRY[norm_type.lower()]
+    attn_class = ATTN_CLASS_REGISTRY[attn_config['attn_type']]
 
-    def forward(
-        self,
-        hidden_states: relax.Expr,
-        cos_cached: relax.Expr,
-        sin_cached: relax.Expr,
-        all_seq_len_shape: relax.Expr,
-        past_key_value: Tuple[relax.Expr],
-        attention_mask: Optional[relax.Expr] = None,
-    ) -> Tuple[relax.Expr, Optional[Tuple[relax.Expr, relax.Expr]]]:
-        residual = hidden_states
+    self.hidden_size = config.d_model
+    # Init layers
+    self.self_attn = attn_class(
+        attn_impl=attn_config['attn_impl'],
+        clip_qkv=attn_config['clip_qkv'],
+        qk_ln=attn_config['qk_ln'],
+        softmax_scale=attn_config['softmax_scale'],
+        attn_pdrop=attn_config['attn_pdrop'],
+        d_model=self.hidden_size,
+        n_heads=config.n_heads,
+        verbose=verbose,
+    )
+    self.mlp = MPTMLP(
+        hidden_size=self.hidden_size,
+        intermediate_size=config.expansion_ratio*self.hidden_size,
+        dtype=config.dtype,
+    )
+    self.input_layernorm = norm_class(self.hidden_size)
+    self.post_attention_layernorm = norm_class(self.hidden_size)
 
-        hidden_states = self.input_layernorm(hidden_states)
+  def forward(
+      self,
+      hidden_states: relax.Expr,
+      past_key_value: Tuple[relax.Expr],
+      attn_bias: Optional[relax.Expr] = None,
+      attention_mask: Optional[relax.Expr] = None,
+      is_causal: bool=True,
+  ) -> Tuple[relax.Expr, relax.Expr, Optional[Tuple[relax.Expr, relax.Expr]]]:
+    residual = hidden_states
+    hidden_states = self.input_layernorm(hidden_states)
 
-        # Self Attention
-        hidden_states, present_key_value = self.self_attn(
-            hidden_states=hidden_states,
-            cos_cached=cos_cached,
-            sin_cached=sin_cached,
-            past_key_value=past_key_value,
-            attention_mask=attention_mask,
-            all_seq_len_shape=all_seq_len_shape,
-        )
-        hidden_states = nn.emit(residual + hidden_states)
+    # Self Attention
+    (hidden_states, attn_weights, present_key_value) = self.self_attn(
+      hidden_states,
+      past_key_value=past_key_value,
+      attn_bias=attn_bias,
+      attention_mask=attention_mask,
+      is_causal=is_causal
+    )
+    residual = nn.emit(residual + hidden_states)
 
-        # Fully Connected
-        residual = hidden_states
-        hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
-        hidden_states = nn.emit(residual + hidden_states)
+    # Fully Connected
+    hidden_states = self.post_attention_layernorm(residual)
+    hidden_states = self.mlp(hidden_states)
+    hidden_states = nn.emit(residual + hidden_states)
 
-        return hidden_states, attn_weights, present_key_value
+    return (hidden_states, attn_weights, present_key_value)
 
 
 def create_encoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> None:
