@@ -23,10 +23,6 @@ def _load_mlc_llm_lib():
 _LIB, _LIB_PATH = _load_mlc_llm_lib()
 
 
-def supported_models():
-    return set(["vicuna-v1-7b", "RedPajama-INCITE-Chat-3B-v1"])
-
-
 def quantization_keys():
     return ["q3f16_0", "q4f16_0", "q4f32_0", "q0f32", "q0f16"]
 
