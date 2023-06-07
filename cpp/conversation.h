@@ -15,8 +15,8 @@ namespace mlc {
 namespace llm {
 
 enum class SeparatorStyle {
-  /*! \brief add colon ": " between role and message. */
-  kAddColon,
+  /*! \brief Add separator between role and message. */
+  kSepRoleMsg,
   /*! \brief raw language model style, always only returns last message. */
   kLM,
 };
@@ -37,9 +37,13 @@ class Conversation {
   /*! \brief offset to point to the end of few short examples */
   int32_t offset = 0;
   /*! \brief the separator style */
-  SeparatorStyle separator_style = SeparatorStyle::kAddColon;
+  SeparatorStyle separator_style = SeparatorStyle::kSepRoleMsg;
   /*! \brief Separator that appended to the messages, can be of size 1 or two */
   std::vector<std::string> seps;
+  /*! \brief Separator between role and message. */
+  std::string role_msg_sep = "";
+  /*! \brief The separator to append to role when there is no message yet. */
+  std::string role_empty_sep = "";
   /*! \brief Matches stop str. */
   std::string stop_str = "";
   /*! \brief token list that matches stop */
@@ -89,7 +93,8 @@ class Conversation {
           std::equal(stop_tokens.begin(), stop_tokens.end(), other.stop_tokens.begin());
     }
     return (name == other.name) && (system == other.system) && (offset == other.offset) &&
-           (separator_style == other.separator_style) && (stop_str == other.stop_str) &&
+           (separator_style == other.separator_style) && (role_msg_sep == other.role_msg_sep) &&
+           (role_empty_sep == other.role_empty_sep) && (stop_str == other.stop_str) &&
            (add_bos == other.add_bos) && eq_roles && eq_messages && eq_seps && eq_stop_tokens;
   }
 
@@ -209,7 +214,7 @@ class Conversation {
   }
   // dispatcher based on separator style
   std::vector<std::string> GetPromptArrayInternal(size_t start_pos) {
-    if (this->separator_style == SeparatorStyle::kAddColon) {
+    if (this->separator_style == SeparatorStyle::kSepRoleMsg) {
       std::string system_prefix;
       if (!this->system.empty()) {
         system_prefix = this->system + this->seps[0];
@@ -217,8 +222,8 @@ class Conversation {
       return GetPromptArrayInternal(
           /* system_prefix= */ system_prefix,
           /* start_pos= */ start_pos,
-          /* role_msg_sep= */ ": ",
-          /* role_empty_sep= */ ":",
+          /* role_msg_sep= */ role_msg_sep,
+          /* role_empty_sep= */ role_empty_sep,
           /* fproc_message= */ Identity);
     } else {
       ICHECK(this->separator_style == SeparatorStyle::kLM) << "Unsupported separator_style";
