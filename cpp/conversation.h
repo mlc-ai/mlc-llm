@@ -229,7 +229,11 @@ class Conversation {
       ICHECK(this->separator_style == SeparatorStyle::kLM) << "Unsupported separator_style";
       // special handle LM, LM mode have no memory
       // and only returns last one
-      return {this->messages[this->messages.size() - 2][1]};
+      if (this->messages.size() >= 2) {
+        return {this->messages[this->messages.size() - 2][1]};
+      } else {
+        return {};
+      }
     }
   }
 };
