@@ -83,6 +83,12 @@ void Conversation::LoadJSONOverride(const picojson::value& config_json, bool par
   } else {
     CHECK(partial_update) << "Key \"role_msg_sep\" not found.";
   }
+  if (config.count("role_empty_sep")) {
+    CHECK(config["role_empty_sep"].is<std::string>()) << "Invalid role_empty_sep" << err_templ;
+    this->role_empty_sep = config["role_empty_sep"].get<std::string>();
+  } else {
+    CHECK(partial_update) << "Key \"role_empty_sep\" not found.";
+  }
   if (config.count("stop_str")) {
     CHECK(config["stop_str"].is<std::string>()) << "Invalid stop_str" << err_templ;
     this->stop_str = config["stop_str"].get<std::string>();
@@ -145,6 +151,7 @@ picojson::value Conversation::SerializeToJSON() const {
   }
   config["seps"] = picojson::value(seps_arr);
   config["role_msg_sep"] = picojson::value(role_msg_sep);
+  config["role_empty_sep"] = picojson::value(role_empty_sep);
   config["stop_str"] = picojson::value(this->stop_str);
   picojson::array stop_tokens_arr;
   for (const int32_t& stop_token_str : this->stop_tokens) {
