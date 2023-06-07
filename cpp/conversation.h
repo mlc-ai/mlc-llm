@@ -40,6 +40,8 @@ class Conversation {
   SeparatorStyle separator_style = SeparatorStyle::kAddColon;
   /*! \brief Separator that appended to the messages, can be of size 1 or two */
   std::vector<std::string> seps;
+  /*! \brief Separator between role and message. */
+  std::string role_msg_sep = "";
   /*! \brief Matches stop str. */
   std::string stop_str = "";
   /*! \brief token list that matches stop */
@@ -89,8 +91,9 @@ class Conversation {
           std::equal(stop_tokens.begin(), stop_tokens.end(), other.stop_tokens.begin());
     }
     return (name == other.name) && (system == other.system) && (offset == other.offset) &&
-           (separator_style == other.separator_style) && (stop_str == other.stop_str) &&
-           (add_bos == other.add_bos) && eq_roles && eq_messages && eq_seps && eq_stop_tokens;
+           (separator_style == other.separator_style) && (role_msg_sep == other.role_msg_sep) &&
+           (stop_str == other.stop_str) && (add_bos == other.add_bos) && eq_roles && eq_messages &&
+           eq_seps && eq_stop_tokens;
   }
 
   /**
@@ -217,7 +220,7 @@ class Conversation {
       return GetPromptArrayInternal(
           /* system_prefix= */ system_prefix,
           /* start_pos= */ start_pos,
-          /* role_msg_sep= */ ": ",
+          /* role_msg_sep= */ role_msg_sep,
           /* role_empty_sep= */ ":",
           /* fproc_message= */ Identity);
     } else {

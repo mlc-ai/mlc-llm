@@ -17,6 +17,7 @@ Conversation VicunaV11() {
   conv.offset = 0;
   conv.separator_style = SeparatorStyle::kAddColon;
   conv.seps = {" ", "</s>"};
+  conv.role_msg_sep = ": ";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
   conv.stop_tokens = {2};
@@ -64,6 +65,7 @@ Conversation ConvOneShot() {
   conv.separator_style = SeparatorStyle::kAddColon;
   conv.offset = 2;
   conv.seps = {"\n###"};
+  conv.role_msg_sep = ": ";
   conv.stop_str = "###";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
@@ -81,6 +83,7 @@ Conversation RedPajamaChat() {
   conv.separator_style = SeparatorStyle::kAddColon;
   conv.offset = 0;
   conv.seps = {"\n"};
+  conv.role_msg_sep = ": ";
   conv.stop_str = "<human>";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
@@ -117,6 +120,7 @@ Conversation RWKV() {
   conv.separator_style = SeparatorStyle::kAddColon;
   conv.offset = 8;
   conv.seps = {"\n\n"};
+  conv.role_msg_sep = ": ";
   conv.stop_str = "\n\n";
   conv.stop_tokens = {0};
   conv.add_bos = false;
