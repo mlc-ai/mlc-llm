@@ -1,5 +1,6 @@
 """
-It is simply copy from https://huggingface.co/mosaicml/mpt-7b-instruct/blob/main/configuration_mpt.py 
+It is practicaly copy from https://huggingface.co/mosaicml/mpt-7b-instruct/blob/main/configuration_mpt.py
+but `dtype` field is added
 A HuggingFace-style model configuration.
 """
 from typing import Dict, Optional, Union
@@ -52,6 +53,7 @@ class MPTConfig(PretrainedConfig):
       norm_type: str='low_precision_layernorm',
       use_cache: bool=False,
       init_config: Dict=init_config_defaults,
+      dtype=None,
       **kwargs
   ):
     """The MPT configuration class.
@@ -126,6 +128,7 @@ class MPTConfig(PretrainedConfig):
     self.norm_type = norm_type
     self.use_cache = use_cache
     self.init_config = init_config
+    self.dtype = dtype
     if 'name' in kwargs:
       del kwargs['name']
     if 'loss_fn' in kwargs:
