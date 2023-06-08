@@ -1,0 +1,508 @@
+
+
+
+
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>How to Customize Conversation &mdash; mlc-llm 0.1.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/tlcpack_theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+  
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Customize Model Compilation and Optimization" href="customize.html" />
+    <link rel="prev" title="Add New Model Architectures" href="bring-your-own-models.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    
+<header class="header">
+    <div class="innercontainer">
+      <div class="headerInner d-flex justify-content-between align-items-center">
+          <div class="headerLogo">
+          </div>
+
+          <div id="headMenu" class="headerNav">
+            <button type="button" id="closeHeadMenu" class="navCloseBtn"><img src="../_static/img/close-icon.svg" alt="Close"></button>
+             <ul class="nav">
+                <li class="nav-item">
+                   <a class="nav-link" href=https://mlc.ai/mlc-llm>Home</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://github.com/mlc-ai/mlc-llm>Github</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://discord.gg/9Xpy2HGBuD>Discord Server</a>
+                </li>
+             </ul>
+               <div class="responsivetlcdropdown">
+                 <button type="button" class="btn-link">
+                   Other Resources
+                 </button>
+                 <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/blog>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/web-llm>Web LLM</a>
+                     </li>
+                 </ul>
+               </div>
+          </div>
+            <div class="responsiveMenuIcon">
+              <button type="button" id="menuBtn" class="btn-menu"><img src="../_static/img/menu-icon.svg" alt="Menu Icon"></button>
+            </div>
+
+            <div class="tlcDropdown">
+              <div class="dropdown">
+                <button type="button" class="btn-link dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Other Resources
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                  <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/blog>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/web-llm>Web LLM</a>
+                     </li>
+                  </ul>
+                </div>
+              </div>
+          </div>
+       </div>
+    </div>
+ </header>
+ 
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side fixed">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html">
+          
+
+          
+            
+            <img src="../_static/mlc-logo-with-text-landscape.svg" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+                <div class="version">
+                  0.1.0
+                </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption" role="heading"><span class="caption-text">All tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../install/index.html">Install and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/software-dependencies.html">Software Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deploy-models.html">How to Deploy Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="compile-models.html">How to Compile Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bring-your-own-models.html">Add New Model Architectures</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">How to Customize Conversation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#structure-of-mlc-chat-configuration">Structure of MLC-Chat Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#conversation-structure">Conversation Structure</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#load-from-pre-defined-conversation-templates">Load from Pre-defined Conversation Templates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#load-from-json-conversation-configuration">Load from JSON Conversation Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#customize-conversation-template">Customize Conversation Template</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#example-1-replace-system-prompt">Example 1: Replace System Prompt</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-2-start-chat-from-history">Example 2: Start Chat from history</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="customize.html">Customize Model Compilation and Optimization</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contribute to MLC-LLM</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contribute/community.html">MLC-LLM Community Guidelines</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../model-prebuilts.html">Model Prebuilts</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Misc</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../misc/faq.html">Frequently Asked Questions (FAQ)</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      
+      <nav class="wy-nav-top" aria-label="top navigation" data-toggle="wy-nav-top">
+        
+            <div class="togglemenu">
+
+            </div>
+            <div class="nav-content">
+              <!-- mlc-llm -->
+              Table of Contents
+            </div>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
+        
+      <li>How to Customize Conversation</li>
+    
+    
+      
+      
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/tutorials/customize-conversation.rst" class="fa fa-github"> Edit on GitHub</a>
+            
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <section id="how-to-customize-conversation">
+<h1>How to Customize Conversation<a class="headerlink" href="#how-to-customize-conversation" title="Permalink to this heading">¶</a></h1>
+<p>This tutorials explains the components of a chat configuration and how to customize them for your own purposes.</p>
+<p>There is a <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file under the directory of each compiled model (e.g.
+<a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/blob/main/mlc-chat-config.json">RedPajama chat config</a> ) which contains the chat configuration. You can customize the chat configuration by modifying this file.</p>
+<section id="structure-of-mlc-chat-configuration">
+<span id="struct-mlc-chat-conv"></span><h2>Structure of MLC-Chat Configuration<a class="headerlink" href="#structure-of-mlc-chat-configuration" title="Permalink to this heading">¶</a></h2>
+<p>Below is the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file corresponding to Vicuna model:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="c1">// mlc-chat-config.json</span>
+<span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;model_lib&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vicuna-v1-7b-q4f32_0&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;local_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vicuna-v1-7b-q4f32_0&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;conv_template&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vicuna_v1.1&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;temperature&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.7</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;repetition_penalty&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;top_p&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.95</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;mean_gen_len&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;shift_fill_factor&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.3</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;tokenizer_files&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="s2">&quot;tokenizer.model&quot;</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The following parameters can be customized to change the behavior of the model:</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">conv_template</span></code></dt><dd><p>The name of the conversation template that this chat uses. For more information, refer to the section on conversation structure (<a class="reference internal" href="#struct-conv"><span class="std std-ref">Conversation Structure</span></a>).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">temperature</span></code></dt><dd><p>The temperature applied to logits before sampling. The default value is <code class="docutils literal notranslate"><span class="pre">0.7</span></code>. A higher temperature encourages more diverse outputs, while a lower temperature produces more deterministic outputs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">repetition_penalty</span></code></dt><dd><p>This parameter controls the likelihood of the model generating repeated texts. The default value is set to <code class="docutils literal notranslate"><span class="pre">1.0</span></code>, indicating that no repetition penalty is applied. Increasing the value reduces the likelihood of repeat text generation. However, setting a high <code class="docutils literal notranslate"><span class="pre">repetition_penalty</span></code> may result in the model generating meaningless text. The ideal choice of repetition penalty depends on the specific model.</p>
+<p>For more details on how repetition penalty controls text generation, please consult the <cite>CTRL paper &lt;https://arxiv.org/pdf/1909.05858.pdf&gt;__</cite>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">top_p</span></code></dt><dd><p>This parameter determines the set of tokens from which we sample during decoding. The default value is set to 0.95. At each step, we select tokens from the minimal set that has a cumulative probability exceeding the <code class="docutils literal notranslate"><span class="pre">top_p</span></code> parameter.</p>
+<p>For additional information on top-p sampling, please refer to this <cite>blog post &lt;https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling&gt;__</cite>.</p>
+</dd>
+</dl>
+<section id="conversation-structure">
+<span id="struct-conv"></span><h3>Conversation Structure<a class="headerlink" href="#conversation-structure" title="Permalink to this heading">¶</a></h3>
+<p>There are three options of loading conversation configurations:</p>
+<ol class="arabic simple">
+<li><p>Load from pre-defined conversation templates.</p></li>
+<li><p>Load from JSON format conversation configuration.</p></li>
+<li><p>First load from pre-defined conversation templates, then override some fields with JSON format conversation configuration.</p></li>
+</ol>
+</section>
+</section>
+<section id="load-from-pre-defined-conversation-templates">
+<span id="load-predefined-conv-template"></span><h2>Load from Pre-defined Conversation Templates<a class="headerlink" href="#load-from-pre-defined-conversation-templates" title="Permalink to this heading">¶</a></h2>
+<p>MLC-LLM provided a set of pre-defined conversation templates, which you can directly use by specifying the template name in <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> field in the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>, below is a list (not complete) of supported conversation templates:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">vicuna_v1.1</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">redpajama_chat</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">rwkv</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dolly</span></code></p></li>
+<li><p>…</p></li>
+</ul>
+<p>Please refer to <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/cpp/conv_templates.cc">conv_template.cc</a> for the full list of supported templates and their implementations.</p>
+</section>
+<section id="load-from-json-conversation-configuration">
+<span id="load-json-conv-config"></span><h2>Load from JSON Conversation Configuration<a class="headerlink" href="#load-from-json-conversation-configuration" title="Permalink to this heading">¶</a></h2>
+<p>Below is a generic structure of a JSON conversation configuration (we use vicuna as an example):</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="c1">// mlc-chat-config.json</span>
+<span class="p">{</span>
+<span class="w">  </span><span class="c1">// ...</span>
+<span class="w">  </span><span class="nt">&quot;conv_config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;seps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="s2">&quot; &quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;&lt;\/s&gt;&quot;</span>
+<span class="w">    </span><span class="p">],</span>
+<span class="w">    </span><span class="nt">&quot;stop_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="mi">2</span>
+<span class="w">    </span><span class="p">],</span>
+<span class="w">    </span><span class="nt">&quot;offset&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;separator_style&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;messages&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">    </span><span class="nt">&quot;stop_str&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;\/s&gt;&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;roles&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="s2">&quot;USER&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;ASSISTANT&quot;</span>
+<span class="w">    </span><span class="p">],</span>
+<span class="w">    </span><span class="nt">&quot;role_msg_sep&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;: &quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;role_empty_sep&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;: &quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;system&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user&#39;s questions.&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;add_bos&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vicuna_v1.1&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">roles</span></code></dt><dd><p>An array describes the role names of the user and the model, this names are model-dependent.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">system</span></code></dt><dd><p>The prompt before we start chat, can be customized to user-defined prompt.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">add_bos</span></code></dt><dd><p>Whether to add a bos token before the input tokens.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">stop_str</span></code></dt><dd><p>When the <code class="docutils literal notranslate"><span class="pre">stop_str</span></code> is encountered, the model will stop generation.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">stop_tokens</span></code></dt><dd><p>The list of stop token ids.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">seps</span></code></dt><dd><p>An array of string, indicating the separators after user message and model message, correspondingly.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">messages</span></code></dt><dd><p>The chat history in an array of string pairs, in the format of following:
+<code class="docutils literal notranslate"><span class="pre">[[role_0,</span> <span class="pre">msg_0],</span> <span class="pre">[role_1,</span> <span class="pre">msg_1],</span> <span class="pre">...}</span></code> where <code class="docutils literal notranslate"><span class="pre">role_i</span></code> and <code class="docutils literal notranslate"><span class="pre">msg_i</span></code> are role strings and message strings.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">offset</span></code></dt><dd><p>The offset indicating the point we start from examples.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">separator_style</span></code></dt><dd><p>Whether we are in chat-bot mode (0) or pure LM prompt mode (1).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">role_msg_sep</span></code></dt><dd><p>A string indicating the separator between role and message, please check :conv-format: section for more details.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">role_empty_sep</span></code></dt><dd><p>A string indicating the separator to append to role when there is no message yet.</p>
+</dd>
+</dl>
+<p>When <code class="docutils literal notranslate"><span class="pre">separator_style</span></code> is 0 (or <code class="docutils literal notranslate"><span class="pre">kSepRoleMsg</span></code>), one round of conversation has the following format:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>{role[0]}{separator_style}{user_input}{sep[0]}
+{role[1]}{separator_style}{model_output}{sep[1]}
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">{user_input}</span></code> and <code class="docutils literal notranslate"><span class="pre">{model_output}</span></code> are the user input and model outputs.</p>
+<p>If the <code class="docutils literal notranslate"><span class="pre">separator_style</span></code> is 1 (or <code class="docutils literal notranslate"><span class="pre">kLM</span></code>), the model will not be aware of chat history, and the model will generate immediately after the user input prompt:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>{user_prompt}{model_output}
+</pre></div>
+</div>
+</section>
+<section id="customize-conversation-template">
+<span id="customize-conv-template"></span><h2>Customize Conversation Template<a class="headerlink" href="#customize-conversation-template" title="Permalink to this heading">¶</a></h2>
+<p>You can specify both <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> and <code class="docutils literal notranslate"><span class="pre">conv_config</span></code> in the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file, and MLC-LLM would first load the pre-defined template with name specified in <code class="docutils literal notranslate"><span class="pre">conv_template</span></code>, then override the some of the configurations specified in <code class="docutils literal notranslate"><span class="pre">conv_config</span></code> (note that the config don’t need to be complete and we can perform partial update).</p>
+<section id="example-1-replace-system-prompt">
+<span id="example-replace-system-prompt"></span><h3>Example 1: Replace System Prompt<a class="headerlink" href="#example-1-replace-system-prompt" title="Permalink to this heading">¶</a></h3>
+<p>You might be tired of the default system prompt, here is an example of how to replace it:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="c1">// mlc-chat-config.json</span>
+<span class="p">{</span>
+<span class="w">  </span><span class="c1">// ...</span>
+<span class="w">  </span><span class="nt">&quot;conv_template&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vicuna_v1.1&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;conv_config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;system&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;You are not Vicuna, your name is Guanaco, now let&#39;s chat!&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Then next time you start <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, you will chat with vicuna with new system prompt.</p>
+</section>
+<section id="example-2-start-chat-from-history">
+<span id="example-add-messages"></span><h3>Example 2: Start Chat from history<a class="headerlink" href="#example-2-start-chat-from-history" title="Permalink to this heading">¶</a></h3>
+<p>Suppose you want to chat with model from a chat history:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="c1">// mlc-chat-config.json</span>
+<span class="p">{</span>
+<span class="w">  </span><span class="c1">// ...</span>
+<span class="w">  </span><span class="nt">&quot;conv_template&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vicuna_v1.1&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;conv_config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;messages&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">[</span><span class="s2">&quot;USER&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Suppose we already have projects llama, alpaca and vicuna, what do you think would be a great name for the next project?&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="p">[</span><span class="s2">&quot;ASSISTANT&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Based on the previous projects, a possible name for the next project could be \&quot;cervidae\&quot; which is the scientific name for deer family. This name reflects the collaboration and teamwork involved in the development of the project, and also nods to the previous projects that have been developed by the team.&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="p">[</span><span class="s2">&quot;USER&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;I like cervidae, but the name is too long!&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="p">[</span><span class="s2">&quot;ASSISTANT&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;In that case, a shorter and catchier name for the next project could be \&quot;DeerRun\&quot; which plays on the idea of the project being fast and efficient, just like a deer running through the woods. This name is memorable and easy to pronounce, making it a good choice for a project name.&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="p">],</span>
+<span class="w">    </span><span class="nt">&quot;offset&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Then next time you start <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, you will chat with vicuna and start from the provided chat history.</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+           
+          </div>
+          
+
+<footer>
+
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="customize.html" class="btn btn-neutral float-right" title="Customize Model Compilation and Optimization" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="bring-your-own-models.html" class="btn btn-neutral float-left" title="Add New Model Architectures" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+
+<div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
+<section class="footerSec">
+    <div class="footerHeader">
+      <div class="d-flex align-md-items-center justify-content-between flex-column flex-md-row">
+        <div class="copywrite d-flex align-items-center">
+          <h5 id="copy-right-info">© 2022 MLC LLM</h5>
+        </div>
+      </div>
+
+    </div>
+
+    <div>
+      <div class="footernote"> </div>
+    </div>
+
+</section>
+</footer>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+  </body>
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

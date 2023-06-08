@@ -98,6 +98,7 @@ MLC LLM offers a set of pre-compiled models (:ref:`off-the-shelf-models`), as we
    tutorials/deploy-models.rst
    tutorials/compile-models.rst
    tutorials/bring-your-own-models.rst
+   tutorials/customize-conversation.rst
    tutorials/customize.rst
 
 .. toctree::
