@@ -98,40 +98,45 @@ def scaled_multihead_dot_product_attention(
   k = reshape_and_permute(key, kv_n_heads, d_model)
   v = reshape_and_permute(value, kv_n_heads, d_model)
   if past_key_value is not None:
-      if len(past_key_value) != 0:
-          k = torch.cat([past_key_value[0], k], dim=3)
-          v = torch.cat([past_key_value[1], v], dim=2)
-      past_key_value = (k, v)
-  (b, _, s_q, d) = q.shape
-  s_k = k.size(-1)
+    if len(past_key_value) != 0:
+      k = nn.emit(relax.op.concat([past_key_value[0], k], axis=3))
+      v = nn.emit(relax.op.concat([past_key_value[1], v], axis=2))
+    past_key_value = (k, v)
+  (b, _, s_q, d) = q.struct_info.shape
+  s_k = k.struct_info.shape[-1]
   if softmax_scale is None:
       softmax_scale = 1 / math.sqrt(d)
-  attn_weight = q.matmul(k) * softmax_scale
+  attn_weight = nn.emit(relax.op.matmul(q, k) * softmax_scale)
   if attn_bias is not None:
-      _s_q = max(0, attn_bias.size(2) - s_q)
-      _s_k = max(0, attn_bias.size(3) - s_k)
-      attn_bias = attn_bias[:, :, _s_q:, _s_k:]
-      if attn_bias.size(-1) != 1 and attn_bias.size(-1) != s_k or (attn_bias.size(-2) != 1 and attn_bias.size(-2) != s_q):
-          raise RuntimeError(f'attn_bias (shape: {attn_bias.shape}) is expected to broadcast to shape: {attn_weight.shape}.')
-      attn_weight = attn_weight + attn_bias
+    _s_q = max(0, attn_bias.struct_info.shape[2] - s_q)
+    _s_k = max(0, attn_bias.struct_info.shape[3] - s_k)
+    # TODO: use split
+    attn_bias = attn_bias[:, :, _s_q:, _s_k:]
+    if (attn_bias.struct_info.shape[-1] != 1 and
+        attn_bias.struct_info.shape[-1] != s_k or
+        (attn_bias.struct_info.shape[-2] != 1 and
+          attn_bias.struct_info.shape[-2] != s_q)):
+      raise RuntimeError(f'attn_bias (shape: {attn_bias.struct_info.shape}) is expected to broadcast to shape: {attn_weight.struct_info.shape}.')
+    attn_weight = attn_weight + attn_bias
   min_val = torch.finfo(q.dtype).min
   if key_padding_mask is not None:
       if attn_bias is not None:
           warnings.warn('Propogating key_padding_mask to the attention module ' + 'and applying it within the attention module can cause ' + 'unneccessary computation/memory usage. Consider integrating ' + 'into attn_bias once and passing that to each attention ' + 'module instead.')
       attn_weight = attn_weight.masked_fill(~key_padding_mask.view((b, 1, 1, s_k)), min_val)
-  if is_causal and (not q.size(2) == 1):
+  if is_causal and (not q.struct_info.shape[2] == 1):
       s = max(s_q, s_k)
+      causal_mask = nn.emit
       causal_mask = attn_weight.new_ones(s, s, dtype=torch.float16)
       causal_mask = causal_mask.tril()
       causal_mask = causal_mask.to(torch.bool)
       causal_mask = ~causal_mask
       causal_mask = causal_mask[-s_q:, -s_k:]
       attn_weight = attn_weight.masked_fill(causal_mask.view(1, 1, s_q, s_k), min_val)
-  attn_weight = torch.softmax(attn_weight, dim=-1)
-  out = attn_weight.matmul(v)
+  attn_weight = nn.emit(relax.op.nn.softmax(attn_weight))
+  out = nn.emit(relax.op.matmul(attn_weight, v))
   out = reverse_reshape_and_permute(out)
   if needs_weights:
-      return (out, attn_weight, past_key_value)
+    return (out, attn_weight, past_key_value)
   return (out, None, past_key_value)
 
 
