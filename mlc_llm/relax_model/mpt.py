@@ -120,18 +120,22 @@ def scaled_multihead_dot_product_attention(
     attn_weight = attn_weight + attn_bias
   min_val = tvm.tir.min_value(q.struct_info.dtype)
   if key_padding_mask is not None:
-      if attn_bias is not None:
-          warnings.warn('Propogating key_padding_mask to the attention module ' + 'and applying it within the attention module can cause ' + 'unneccessary computation/memory usage. Consider integrating ' + 'into attn_bias once and passing that to each attention ' + 'module instead.')
-      attn_weight = attn_weight.masked_fill(~key_padding_mask.view((b, 1, 1, s_k)), min_val)
+    if attn_bias is not None:
+      warnings.warn('Propogating key_padding_mask to the attention module ' + 'and applying it within the attention module can cause ' + 'unneccessary computation/memory usage. Consider integrating ' + 'into attn_bias once and passing that to each attention ' + 'module instead.')
+    key_mask = nn.emit(tvm.tir.bitwise_not(relax.op.reshape(key_padding_mask, (b, 1, 1, s_k))))
+    # TODO: implement masked_fill by relax ops
+    attn_weight = attn_weight.masked_fill(key_mask, min_val)
   if is_causal and (not q.struct_info.shape[2] == 1):
       s = max(s_q, s_k)
-      causal_mask = nn.emit
-      causal_mask = attn_weight.new_ones(s, s, dtype=torch.float16)
-      causal_mask = causal_mask.tril()
-      causal_mask = causal_mask.to(torch.bool)
-      causal_mask = ~causal_mask
+      causal_mask = nn.emit(relax.op.ones((s, s,), dtype="float16"))
+      causal_mask = nn.emit(relax.op.tril(causal_mask))
+      causal_mask = tvm.tir.Cast("bool", causal_mask)
+      causal_mask = tvm.tir.bitwise_not(causal_mask)
+      # TODO: use split
       causal_mask = causal_mask[-s_q:, -s_k:]
-      attn_weight = attn_weight.masked_fill(causal_mask.view(1, 1, s_q, s_k), min_val)
+      causal_mask = nn.emit(relax.op.reshape(causal_mask, (1, 1, s_q, s_k)))
+      # TODO: implement masked_fill by relax ops
+      attn_weight = attn_weight.masked_fill(causal_mask, min_val)
   attn_weight = nn.emit(relax.op.nn.softmax(attn_weight))
   out = nn.emit(relax.op.matmul(attn_weight, v))
   out = reverse_reshape_and_permute(out)
