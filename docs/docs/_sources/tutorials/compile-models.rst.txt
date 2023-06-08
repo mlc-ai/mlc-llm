@@ -70,13 +70,42 @@ For models whose base weight and delta weight are available (e.g., Vicuna-v1-7B 
 Run Build Script
 ----------------
 
-We can now run the build script ``build.py`` under the path of MLC LLM. The command is usually in the following pattern:
+To run the build script "build.py" in the MLC LLM path, follow the command pattern below:
 
-.. code:: shell
+.. code:: bash
 
-    python3 build.py --model MODEL_NAME_OR_PATH --target TARGET_NAME --quantization QUANTIZATION_NAME [--max-seq-len MAX_ALLOWED_SEQUENCE_LENGTH] [--debug-dump] [--use-cache=0]
+    python3 build.py --model MODEL_NAME_OR_PATH --target TARGET_NAME --quantization QUANTIZATION_NAME [--hf-path HUGGINGFACE_PATH] [--artifact-path ARTIFACT_PATH] [--db-path DB_PATH] [--max-seq-len MAX_ALLOWED_SEQUENCE_LENGTH] [--use-cache=0] [--reuse-lib]
 
-In the command above, ``--model`` specifies the name of the model to build, ``--target`` specifies the backend we build the model to, ``--quantization`` specifies the quantization mode we use for build. You can find the build command according to the combination of different models and targets. For full explanation and usage of each argument, please check out the `API reference <http://127.0.0.1>`_.
+
+The necessary arguments for the build script are listed in the table below:
+
+--model             The name of the model to build. The default value is ``auto``. If set to ``auto``, the model name will be
+                    automatically determined based on ``--hf-path``. Otherwise, the model name will be searched in the artifact folder.
+--hf-path           (optional): Hugging Face path from which to download parameters, tokenizer, and configuration (e.g.,
+                    ``stabilityai/stablelm-base-alpha-7b``). The default value is ``None``, indicating that the model will not be downloaded
+                    from Hugging Face, but rather use the local model specified by ``--model``.
+--target            The target device to build the model for. The default value is ``auto``, which allows the script to automatically detect
+                    the target device. Available options are: ``auto``, ``metal`` (for M1/M2), ``metal_x86_64`` (for Intel CPU), ``iphone``,
+                    ``vulkan``, ``cuda``, ``webgpu``, ``android``, and ``opencl``.
+--quantization      The code indicating the quantization mode to use. The format of the code is ``qAfB(_0)``, where ``A`` represents the number
+                    of bits for storing weights and ``B`` represents the number of bits for storing activations. The ``_0`` suffix indicates
+                    symmetric quantization is used (if not presented, asymmetric quantization is used). Available options are: ``q3f16_0``, ``q4f16_0``,
+                    ``q4f32_0``, ``q0f32``, ``q0f16``, and ``q8f16_0``. The default value is ``q3f16_0``.
+
+The following arguments are optional:
+
+--artifact-path     The path to the artifact folder where models are stored. The default value is ``dist``.
+--db-path           The path to the database folder where TVM auto-tuning results are stored. The default value is ``log_db``.
+--max-seq-len       The maximum allowed sequence length for the model. The default value is ``-1``, indicating no limit on the sequence length.
+--use-cache         Specifies whether to use previously pickled IRModule and skip tracing. The default value is ``1``, enabling cache reuse.
+                    To disable caching and build the model from scratch, set ``--use-cache=0``.
+--reuse-lib         Specifies whether to reuse a previously generated library. This is useful when building the same model architecture with different weights.
+
+
+.. _compile-models-build-examples:
+
+Model Building Examples
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. tabs::
 
@@ -199,6 +228,7 @@ In the command above, ``--model`` specifies the name of the model to build, ``--
             .. tab:: Target: CUDA
 
                 .. code:: shell
+
                     # For 1.5B model
                     python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target cuda --quantization q8f16_0
                     # For 3B model
@@ -335,7 +365,7 @@ Here are some notes on the build commands above:
 - After a successful build, the build script outputs some cache files for quicker future builds. If you want to ignore the cached files and want to build from the very beginning, please append ``--use-cache=0`` to the end of the build command.
 - You can add ``--debug-dump`` to the build command to  optionally specifies if we will write some dump files for debugging.
 
-After running the build script successfully, you can proceed to the next tutorial on `how to deploy models to different backends <http:127.0.0.1>`_.
+After running the build script successfully, you deploy the model by following tutorial :doc:`/tutorials/deploy-models`.
 
 .. warning::
     In certain cases, using 3-bit quantization for compiling can be overly aggressive and may result in the compiled model generating meaningless text. If you encounter issues where the compiled model does not perform as expected, consider utilizing a higher number of bits for quantization (e.g., 4-bit quantization).

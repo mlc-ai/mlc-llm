@@ -180,7 +180,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#load-from-json-conversation-configuration">Load from JSON Conversation Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#customize-conversation-template">Customize Conversation Template</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#example-1-replace-system-prompt">Example 1: Replace System Prompt</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#example-2-start-chat-from-history">Example 2: Start Chat from history</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-2-resume-from-chat-history">Example 2: Resume from Chat History</a></li>
 </ul>
 </li>
 </ul>
@@ -370,47 +370,46 @@
 </pre></div>
 </div>
 <dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">roles</span></code></dt><dd><p>An array describes the role names of the user and the model, this names are model-dependent.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">roles</span></code></dt><dd><p>An array that describes the role names of the user and the model. These names are specific to the model being used.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">system</span></code></dt><dd><p>The prompt before we start chat, can be customized to user-defined prompt.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">system</span></code></dt><dd><p>The prompt encoded before starting the chat. It can be customized to a user-defined prompt.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">add_bos</span></code></dt><dd><p>Whether to add a bos token before the input tokens.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">add_bos</span></code></dt><dd><p>Determines whether a beginning-of-string (bos) token should be added before the input tokens.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">stop_str</span></code></dt><dd><p>When the <code class="docutils literal notranslate"><span class="pre">stop_str</span></code> is encountered, the model will stop generation.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">stop_str</span></code></dt><dd><p>When the <code class="docutils literal notranslate"><span class="pre">stop_str</span></code> is encountered, the model will stop generating output.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">stop_tokens</span></code></dt><dd><p>The list of stop token ids.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">stop_tokens</span></code></dt><dd><p>A list of token IDs that act as stop tokens.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">seps</span></code></dt><dd><p>An array of string, indicating the separators after user message and model message, correspondingly.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">seps</span></code></dt><dd><p>An array of strings indicating the separators to be used after a user message and a model message respectively.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">messages</span></code></dt><dd><p>The chat history in an array of string pairs, in the format of following:
-<code class="docutils literal notranslate"><span class="pre">[[role_0,</span> <span class="pre">msg_0],</span> <span class="pre">[role_1,</span> <span class="pre">msg_1],</span> <span class="pre">...}</span></code> where <code class="docutils literal notranslate"><span class="pre">role_i</span></code> and <code class="docutils literal notranslate"><span class="pre">msg_i</span></code> are role strings and message strings.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">messages</span></code></dt><dd><p>The chat history represented as an array of string pairs in the following format: <code class="docutils literal notranslate"><span class="pre">[[role_0,</span> <span class="pre">msg_0],</span> <span class="pre">[role_1,</span> <span class="pre">msg_1],</span> <span class="pre">...]</span></code></p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">offset</span></code></dt><dd><p>The offset indicating the point we start from examples.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">offset</span></code></dt><dd><p>The offset used to begin the chat from the chat history. When <code class="docutils literal notranslate"><span class="pre">offset</span></code> is not <code class="docutils literal notranslate"><span class="pre">0</span></code>, <code class="docutils literal notranslate"><span class="pre">messages[0:offset-1]</span></code> will be encoded.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">separator_style</span></code></dt><dd><p>Whether we are in chat-bot mode (0) or pure LM prompt mode (1).</p>
+<dt><code class="docutils literal notranslate"><span class="pre">separator_style</span></code></dt><dd><p>Specifies whether we are in chat-bot mode (<code class="docutils literal notranslate"><span class="pre">0</span></code>) or pure LM prompt mode (<code class="docutils literal notranslate"><span class="pre">1</span></code>).</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">role_msg_sep</span></code></dt><dd><p>A string indicating the separator between role and message, please check :conv-format: section for more details.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">role_msg_sep</span></code></dt><dd><p>A string indicating the separator between a role and a message.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">role_empty_sep</span></code></dt><dd><p>A string indicating the separator to append to role when there is no message yet.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">role_empty_sep</span></code></dt><dd><p>A string indicating the separator to append to a role when there is no message yet.</p>
 </dd>
 </dl>
-<p>When <code class="docutils literal notranslate"><span class="pre">separator_style</span></code> is 0 (or <code class="docutils literal notranslate"><span class="pre">kSepRoleMsg</span></code>), one round of conversation has the following format:</p>
+<p>When the value of <code class="docutils literal notranslate"><span class="pre">separator_style</span></code> is set to 0 (or <code class="docutils literal notranslate"><span class="pre">kSepRoleMsg</span></code>), each round of conversation follows the format:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>{role[0]}{separator_style}{user_input}{sep[0]}
 {role[1]}{separator_style}{model_output}{sep[1]}
 </pre></div>
 </div>
-<p>where <code class="docutils literal notranslate"><span class="pre">{user_input}</span></code> and <code class="docutils literal notranslate"><span class="pre">{model_output}</span></code> are the user input and model outputs.</p>
-<p>If the <code class="docutils literal notranslate"><span class="pre">separator_style</span></code> is 1 (or <code class="docutils literal notranslate"><span class="pre">kLM</span></code>), the model will not be aware of chat history, and the model will generate immediately after the user input prompt:</p>
+<p>Here, <code class="docutils literal notranslate"><span class="pre">{user_input}</span></code> represents the input provided by the user, and <code class="docutils literal notranslate"><span class="pre">{model_output}</span></code> represents the output generated by the model.</p>
+<p>On the other hand, if the value of <code class="docutils literal notranslate"><span class="pre">separator_style</span></code> is set to 1 (or <code class="docutils literal notranslate"><span class="pre">kLM</span></code>), the model is not aware of the chat history and generates the response immediately after the user input prompt:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>{user_prompt}{model_output}
 </pre></div>
 </div>
 </section>
 <section id="customize-conversation-template">
 <span id="customize-conv-template"></span><h2>Customize Conversation Template<a class="headerlink" href="#customize-conversation-template" title="Permalink to this heading">¶</a></h2>
-<p>You can specify both <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> and <code class="docutils literal notranslate"><span class="pre">conv_config</span></code> in the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file, and MLC-LLM would first load the pre-defined template with name specified in <code class="docutils literal notranslate"><span class="pre">conv_template</span></code>, then override the some of the configurations specified in <code class="docutils literal notranslate"><span class="pre">conv_config</span></code> (note that the config don’t need to be complete and we can perform partial update).</p>
+<p>In the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file, you have the option to specify both <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> and <code class="docutils literal notranslate"><span class="pre">conv_config</span></code>. MLC-LLM will first load the predefined template with the name specified in <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> and then override some of the configurations specified in <code class="docutils literal notranslate"><span class="pre">conv_config</span></code>. It’s important to note that the configurations in <code class="docutils literal notranslate"><span class="pre">conv_config</span></code> don’t need to be complete, allowing for partial updates.</p>
 <section id="example-1-replace-system-prompt">
 <span id="example-replace-system-prompt"></span><h3>Example 1: Replace System Prompt<a class="headerlink" href="#example-1-replace-system-prompt" title="Permalink to this heading">¶</a></h3>
-<p>You might be tired of the default system prompt, here is an example of how to replace it:</p>
+<p>If you’re tired of the default system prompt, here’s an example of how you can replace it:</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="c1">// mlc-chat-config.json</span>
 <span class="p">{</span>
 <span class="w">  </span><span class="c1">// ...</span>
@@ -421,11 +420,11 @@
 <span class="p">}</span>
 </pre></div>
 </div>
-<p>Then next time you start <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, you will chat with vicuna with new system prompt.</p>
+<p>The next time you run <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, you will start a chat with Vicuna using a new system prompt.</p>
 </section>
-<section id="example-2-start-chat-from-history">
-<span id="example-add-messages"></span><h3>Example 2: Start Chat from history<a class="headerlink" href="#example-2-start-chat-from-history" title="Permalink to this heading">¶</a></h3>
-<p>Suppose you want to chat with model from a chat history:</p>
+<section id="example-2-resume-from-chat-history">
+<span id="example-resume-chat-history"></span><h3>Example 2: Resume from Chat History<a class="headerlink" href="#example-2-resume-from-chat-history" title="Permalink to this heading">¶</a></h3>
+<p>The following example demonstrates how to chat with Vicuna and resume from a chat history:</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="c1">// mlc-chat-config.json</span>
 <span class="p">{</span>
 <span class="w">  </span><span class="c1">// ...</span>
@@ -442,7 +441,7 @@
 <span class="p">}</span>
 </pre></div>
 </div>
-<p>Then next time you start <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, you will chat with vicuna and start from the provided chat history.</p>
+<p>The next time you start <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, you will initiate a chat with Vicuna and resume from the provided chat history.</p>
 </section>
 </section>
 </section>
