@@ -60,8 +60,6 @@ Tutorials
       - :doc:`tutorials/runtime/ios` for iOS
       - :doc:`tutorials/runtime/rest` for REST API with Python
 
-      TODO: document ``mlc-chat-config.json``
-
       **Note.** TVM Unity compiler is not a dependency to running any MLC-compiled model.
 
    .. tab :: ➁ Compile Models
@@ -122,6 +120,7 @@ Community
 .. toctree::
    :maxdepth: 1
    :caption: Installation and Dependency
+   :hidden:
 
    install/tvm.rst
    install/cli.rst
