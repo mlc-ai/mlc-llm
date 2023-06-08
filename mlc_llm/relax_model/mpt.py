@@ -118,7 +118,7 @@ def scaled_multihead_dot_product_attention(
           attn_bias.struct_info.shape[-2] != s_q)):
       raise RuntimeError(f'attn_bias (shape: {attn_bias.struct_info.shape}) is expected to broadcast to shape: {attn_weight.struct_info.shape}.')
     attn_weight = attn_weight + attn_bias
-  min_val = torch.finfo(q.dtype).min
+  min_val = tvm.tir.min_value(q.struct_info.dtype)
   if key_padding_mask is not None:
       if attn_bias is not None:
           warnings.warn('Propogating key_padding_mask to the attention module ' + 'and applying it within the attention module can cause ' + 'unneccessary computation/memory usage. Consider integrating ' + 'into attn_bias once and passing that to each attention ' + 'module instead.')
@@ -259,7 +259,10 @@ def triton_flash_attn_fn(
     (b_size, s_k) = key_padding_mask.shape[:2]
     if attn_bias is None:
       attn_bias = query.new_zeros(b_size, 1, 1, s_k)
-    attn_bias = attn_bias.masked_fill(~key_padding_mask.view((b_size, 1, 1, s_k)), torch.finfo(query.dtype).min)
+    attn_bias = attn_bias.masked_fill(
+      ~key_padding_mask.view((b_size, 1, 1, s_k)),
+      tvm.tir.min_value(query.struct_info.dtype)
+    )
 
   batch_size, seq_len, _ = query.struct_info.shape
   query = nn.emit(relax.op.reshape(
@@ -515,7 +518,7 @@ class MPTModel(nn.Module):
             attn_bias = attn_bias[:, :, :, _s_k:]
         if prefix_mask is not None and attention_mask.shape != prefix_mask.shape:
             raise ValueError(f'attention_mask shape={attention_mask.shape} ' + f'and prefix_mask shape={prefix_mask.shape} are not equal.')
-        min_val = torch.finfo(attn_bias.dtype).min
+        min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
         attn_bias = attn_bias.masked_fill(~attention_mask.view(-1, 1, 1, s_k), min_val)
     return (attn_bias, None)
 
@@ -530,7 +533,7 @@ class MPTModel(nn.Module):
     causal = torch.tril(torch.ones((seq_len, seq_len), dtype=torch.bool, device=prefix_mask.device)).view(1, 1, seq_len, seq_len)
     prefix = prefix_mask.view(-1, 1, 1, seq_len)
     cannot_attend = ~torch.logical_or(causal, prefix.bool())
-    min_val = torch.finfo(attn_bias.dtype).min
+    min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
     attn_bias = attn_bias.masked_fill(cannot_attend, min_val)
     return attn_bias
 
@@ -540,7 +543,7 @@ class MPTModel(nn.Module):
         raise ValueError(f'sequence_id sequence length cannot exceed max_seq_len={self.config.max_seq_len}')
     attn_bias = attn_bias[..., :seq_len, :seq_len]
     cannot_attend = torch.logical_not(torch.eq(sequence_id.view(-1, seq_len, 1), sequence_id.view(-1, 1, seq_len))).unsqueeze(1)
-    min_val = torch.finfo(attn_bias.dtype).min
+    min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
     attn_bias = attn_bias.masked_fill(cannot_attend, min_val)
     return attn_bias
 
