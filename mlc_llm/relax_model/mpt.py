@@ -108,6 +108,7 @@ def scaled_multihead_dot_product_attention(
       softmax_scale = 1 / math.sqrt(d)
   attn_weight = nn.emit(relax.op.matmul(q, k) * softmax_scale)
   if attn_bias is not None:
+    # TODO: dynamic max
     _s_q = max(0, attn_bias.struct_info.shape[2] - s_q)
     _s_k = max(0, attn_bias.struct_info.shape[3] - s_k)
     # TODO: use split
@@ -173,46 +174,51 @@ def flash_attn_fn(
   check_valid_inputs(query, key, value)
   if past_key_value is not None:
     if len(past_key_value) != 0:
-      key = torch.cat([past_key_value[0], key], dim=1)
-      value = torch.cat([past_key_value[1], value], dim=1)
+      key = nn.emit(relax.op.concat([past_key_value[0], key], axis=1))
+      value = nn.emit(relax.op.concat([past_key_value[1], value], axis=1))
     past_key_value = (key, value)
   if attn_bias is not None:
-    _s_q = max(0, attn_bias.size(2) - query.size(1))
-    _s_k = max(0, attn_bias.size(3) - key.size(1))
+    # TODO: dynamic max
+    _s_q = max(0, attn_bias.struct_info.shape[2] - query.struct_info.shape[1])
+    _s_k = max(0, attn_bias.struct_info.shape[3] - key.struct_info.shape[1])
+    # TODO: use split
     attn_bias = attn_bias[:, :, _s_q:, _s_k:]
   if attn_bias is not None:
     raise NotImplementedError(f'attn_bias not implemented for flash attn.')
   (batch_size, seqlen) = query.shape[:2]
   if key_padding_mask is None:
     key_shape = key.struct_info.shape[:2]
+    # TODO: dynamic shape
     key_padding_mask = nn.emit(relax.op.ones(Tuple(*key_shape, 1), dtype="bool"))
-  query_padding_mask = key_padding_mask[:, -query.size(1):]
+  # TODO: use split
+  query_padding_mask = key_padding_mask[:, -query.struct_info.shape[1]:]
   (query_unpad, indices_q, cu_seqlens_q, max_seqlen_q) = bert_padding.unpad_input(query, query_padding_mask)
 
-  nnz, _, _ = query_unpad.struct_info.shape
+  qnnz, _, _ = query_unpad.struct_info.shape
   query_unpad = nn.emit(relax.op.reshape(
       query_unpad,
-      (nnz, n_heads, d_model),
+      (qnnz, n_heads, d_model),
   ))  # (nnz, (h d)) -> (nnz, h, d)
 
-  nnz, _, _ = key_unpad.struct_info.shape
+  kv_nnz, _, _ = key_unpad.struct_info.shape
   kv_n_heads = 1 if multiquery else n_heads
   (key_unpad, _, cu_seqlens_k, max_seqlen_k) = bert_padding.unpad_input(key, key_padding_mask)
   key_unpad = nn.emit(relax.op.reshape(
       key_unpad,
-      (nnz, kv_n_heads, d_model),
+      (kv_nnz, kv_n_heads, d_model),
   ))  # (nnz, (h d)) -> (nnz, h, d)
   (value_unpad, _, _, _) = bert_padding.unpad_input(value, key_padding_mask)
   value_unpad = nn.emit(relax.op.reshape(
       value_unpad,
-      (nnz, kv_n_heads, d_model),
+      (kv_nnz, kv_n_heads, d_model),
   ))  # (nnz, (h d)) -> (nnz, h, d)
 
   if multiquery:
-    key_unpad = key_unpad.expand(key_unpad.size(0), n_heads, key_unpad.size(-1))
-    value_unpad = value_unpad.expand(value_unpad.size(0), n_heads, value_unpad.size(-1))
+    key_unpad = relax.op.broadcast_to(key_unpad, (kv_nnz, n_heads, d_model))
+    value_unpad = relax.op.broadcast_to(value_unpad, (kv_nnz, n_heads, d_model))
   reset_is_causal = _reset_is_causal(query.struct_info.shape[1], key.struct_info.shape[1], is_causal)
   output_unpad = flash_attn_interface.flash_attn_unpadded_func(query_unpad, key_unpad, value_unpad, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, 0.0, softmax_scale=softmax_scale, causal=reset_is_causal, return_attn_probs=needs_weights)
+  nnz, _, _ = output_unpad.struct_info.shape
   output_unpad = nn.emit(relax.op.reshape(
       output_unpad,
       (nnz, n_heads*d_model),
