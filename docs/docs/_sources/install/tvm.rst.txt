@@ -1,27 +1,16 @@
-.. _Installation and Setup:
-
-=================
-Install and Setup
+Install TVM Unity
 =================
 
 .. contents:: Table of Contents
-    :depth: 3
-
-
-.. _tvm-unity-install:
-
-Install TVM Unity
------------------
+    :depth: 2
 
 `TVM Unity <https://discuss.tvm.apache.org/t/establish-tvm-unity-connection-a-technical-strategy/13344>`__, the latest development in Apache TVM, is required to build MLC LLM. To install TVM Unity, there are two options available:
 
 - installing a prebuilt developer package, or
 - building TVM Unity from source.
 
-.. _tvm-unity-install-prebuilt-package:
-
 Option 1. Prebuilt Package
-==========================
+--------------------------
 
 To help our community to use Apache TVM Unity, a nightly prebuilt developer package is provided with everything packaged.
 Please visit the installation page for installation instructions: https://mlc.ai/package/.
@@ -39,10 +28,8 @@ Please visit the installation page for installation instructions: https://mlc.ai
 .. note::
     If installed properly, ``libtvm.{so|dylib|dll}`` should exist right under ``$TVM_HOME``.
 
-.. _tvm-unity-build-from-source:
-
 Option 2. Build from Source
-===========================
+---------------------------
 
 **Step 1. Set up build dependency.** To build from source, you need to ensure that the following build dependencies are met:
 
@@ -133,10 +120,8 @@ The following two environment variables are generally required for TVM-based app
     # make TVM's Python binding discoverable by Python interpreter
     export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
 
-.. _tvm-unity-validate-installation:
-
 Validate Installation
-=====================
+---------------------
 
 Using a compiler infrastructure with multiple language bindings could be error-prone.
 Therefore, it is highly recommended to validate TVM Unity installation before use.
@@ -187,94 +172,3 @@ Therefore, it is highly recommended to validate TVM Unity installation before us
     False # or True
 
 Please note that the commands above verify the presence of an actual device on the local machine for the TVM runtime (not the compiler) to execute properly. However, TVM compiler can perform compilation tasks without requiring a physical device. As long as the necessary toolchain, such as NVCC, is available, TVM supports cross-compilation even in the absence of an actual device.
-
-.. _install-mlc-chat-cli:
-
-Install MLC-LLM CLI
--------------------
-
-MLC-LLM CLI is a command-line interface for MLC-LLM, which enables user to chat with the bot in terminal. Please refer to :ref:`prepare-weight-library` for installation instructions.
-We have released the `prebuilt CLI Conda package <https://anaconda.org/mlc-ai/mlc-chat-nightly>`_, which you can directly :ref:`install via Conda commands <CLI-install-from-Conda>`.
-You can also :ref:`build CLI from source <CLI-build-from-source>`.
-
-
-.. _CLI-install-from-Conda:
-
-Option 1: Install from Conda
-============================
-
-The easiest way to install the CLI from Conda, we can follow the instructions below to create a Conda environment and then install.
-
-.. note::
-    The prebuilt CLI **does not** support CUDA. Please :ref:`build CLI from source <CLI-build-from-source>` if you want to deploy models to CUDA backend.
-
-.. code:: shell
-
-    # Create a new conda environment and activate the environment.
-    conda create -n mlc-chat
-    conda activate mlc-chat
-    # Install the chat CLI app from Conda.
-    conda install -c mlc-ai -c conda-forge mlc-chat-nightly --force-reinstall
-
-.. note::
-    After installation, you can run ``mlc_chat_cli --help`` to verify that the CLI is installed correctly.
-
-.. _CLI-build-from-source:
-
-Option 2: Build from source
-===========================
-
-If you are a MLC-LLM developer and you add some functionalities to the CLI, you can build the CLI from source by running the following command:
-
-.. code:: shell
-
-    # create build directory
-    mkdir -p build
-    # prepare dependencies
-    bash scripts/prep_deps.sh
-    source "$HOME/.cargo/env"
-    # generation cmake config
-    python3 cmake/gen_cmake_config.py
-    cp config.cmake build
-    # build
-    cd build
-    cmake ..
-    make -j$(nproc)
-    sudo make install
-    # Refresh shared library cache
-    ldconfig  
-    cd -
-
-.. note::
-    The ``make`` commands above is expected to end with ``[100%] Built target mlc_chat_cli`` on Linux and macOS.
-
-    In the case that user do not have sudo privilege, user can customize the install prefix by adding ``-DCMAKE_INSTALL_PREFIX=/path/to/install`` to the ``cmake`` command. For example, if you want to install MLC-LLM CLI to ``~/.local``, you can run the following command:
-
-    .. code-block:: bash
-    
-        export LOCAL_PATH=~/.local
-        cmake .. -DCMAKE_INSTALL_PREFIX=$LOCAL_PATH
-
-    Please also remember to add ``$LOCAL_PATH/bin`` to your ``$PATH`` environment variable and ``$LOCAL_PATH/lib`` to your ``$LD_LIBRARY_PATH`` environment variable:
-
-    .. code-block:: bash
-        
-        export PATH=$LOCAL_PATH/bin:$PATH
-        export LD_LIBRARY_PATH=$LOCAL_PATH/lib:$LD_LIBRARY_PATH
-        ldconfig # Refresh shared library cache
-    
-
-.. _CLI-validate-installation:
-
-Validate Installation
-=====================
-
-You can validate the CLI build by executing the command:
-
-.. code:: bash
-
-   mlc_chat_cli --help
-
-You are expected to see the help documentation of ``mlc_chat_cli``,
-which means the installation is successful.
-

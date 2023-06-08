@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Welcome to MLC-LLM! &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>👋 Welcome to MLC LLM &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -47,7 +47,7 @@
     <script type="text/javascript" src="_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Install and Setup" href="install/index.html" /> 
+    <link rel="next" title="🚧 Use Compiled LLMs in C++ CLI" href="tutorials/runtime/cpp.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -164,9 +164,36 @@
               
             
             
-              <p class="caption" role="heading"><span class="caption-text">All tutorials</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Use Compiled Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="install/index.html">Install and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/cpp.html">🚧 Use Compiled LLMs in C++ CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/javascript.html">🚧 Use Compiled LLMs in JavaScript</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/android.html">🚧 Use Compiled LLMs in Android</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/ios.html">🚧 Use Compiled LLMs in iOS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/rest.html">🚧 Use Compiled LLMs with REST</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/model_compilation_walkthrough.html">🚧 Compile a Model in MLC LLM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/compiler_artifacts.html">🚧 Compiler Artifact Spec</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/configure_targets.html">🚧 Configure Targets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Installation and Dependency</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="install/tvm.html">Install TVM Unity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install/cli.html">Install CLI</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/customize/define_new_models.html">🚧 Define New Model Architectures</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/prebuilts/prebuilt_models.html">🚧 Model Prebuilts</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Other tutorials</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="install/software-dependencies.html">Software Dependencies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/deploy-models.html">How to Deploy Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/compile-models.html">How to Compile Models</a></li>
@@ -174,17 +201,10 @@
 <li class="toctree-l1"><a class="reference internal" href="tutorials/customize-conversation.html">How to Customize Conversation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/customize.html">Customize Model Compilation and Optimization</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contribute to MLC-LLM</span></p>
+<p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="contribute/community.html">MLC-LLM Community Guidelines</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="model-prebuilts.html">Model Prebuilts</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Misc</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="misc/faq.html">Frequently Asked Questions (FAQ)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="community/guideline.html">Community Guideline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="community/faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
             
@@ -241,7 +261,7 @@
     
       <li><a href="#">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Welcome to MLC-LLM!</li>
+      <li>👋 Welcome to MLC LLM</li>
     
     
       
@@ -267,56 +287,114 @@
            <div itemprop="articleBody">
             
   <section id="welcome-to-mlc-llm">
-<h1>Welcome to MLC-LLM!<a class="headerlink" href="#welcome-to-mlc-llm" title="Permalink to this heading">¶</a></h1>
-<p><a class="reference external" href="https://discord.gg/9Xpy2HGBuD">Join our Discord Server!</a></p>
-<p>🚧 This doc is under heavy construction.</p>
-<p>MLC LLM is the universal deployment solution that allows LLMs to run locally with native hardware acceleration on consumer devices.</p>
-<span class="target" id="navigation"></span><section id="navigate-by-topics">
-<h2>Navigate by Topics<a class="headerlink" href="#navigate-by-topics" title="Permalink to this heading">¶</a></h2>
-<p>MLC LLM offers a set of pre-compiled models (<a class="reference internal" href="model-prebuilts.html#off-the-shelf-models"><span class="std std-ref">Off-the-Shelf Models</span></a>), as well as Python scripts that enable developers to define and compile models using either existing architectures or create new ones with customized weights.</p>
+<h1>👋 Welcome to MLC LLM<a class="headerlink" href="#welcome-to-mlc-llm" title="Permalink to this heading">¶</a></h1>
+<p><a class="reference external" href="https://discord.gg/9Xpy2HGBuD">Discord</a> | <a class="reference external" href="https://mlc.ai/mlc-llm">Demo</a> | <a class="reference external" href="https://github.com/mlc-ai/mlc-llm">GitHub</a></p>
+<p>🚧 This document is currently undergoing heavy construction.</p>
+<p>Machine Learning Compilation for LLM (MLC LLM) is a universal deployment solution that enables LLMs to run efficiently on consumer devices, leveraging native hardware acceleration like GPUs.</p>
+<table class="docutils align-center" id="id1">
+<caption><span class="caption-text">MLC LLM: A universal deployment solution for large language models</span><a class="headerlink" href="#id1" title="Permalink to this table">¶</a></caption>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 21%" />
+<col style="width: 21%" />
+<col style="width: 21%" />
+<col style="width: 21%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"></th>
+<th class="head"><p>AMD GPU</p></th>
+<th class="head"><p>NVIDIA GPU</p></th>
+<th class="head"><p>Apple M1/M2 GPU</p></th>
+<th class="head"><p>Intel GPU</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Linux / Win</p></td>
+<td><p>✅ Vulkan, ROCm</p></td>
+<td><p>✅ Vulkan, CUDA</p></td>
+<td><p>❌</p></td>
+<td><p>✅ Vulkan</p></td>
+</tr>
+<tr class="row-odd"><td><p>macOS</p></td>
+<td><p>✅ Metal</p></td>
+<td><p>❌</p></td>
+<td><p>✅ Metal</p></td>
+<td><p>✅ Metal</p></td>
+</tr>
+<tr class="row-even"><td><p>Web Browser</p></td>
+<td><p>✅ WebGPU</p></td>
+<td><p>✅ WebGPU</p></td>
+<td><p>✅ WebGPU</p></td>
+<td><p>✅ WebGPU</p></td>
+</tr>
+<tr class="row-odd"><td><p>iOS / iPadOS</p></td>
+<td colspan="4"><p>✅ Metal on Apple M1/M2 GPU</p></td>
+</tr>
+<tr class="row-even"><td><p>Android</p></td>
+<td colspan="2"><p>✅ OpenCL on Adreno GPU</p></td>
+<td colspan="2"><p>🚧  OpenCL on Mali GPU</p></td>
+</tr>
+</tbody>
+</table>
+<section id="project-structure">
+<h2>Project Structure<a class="headerlink" href="#project-structure" title="Permalink to this heading">¶</a></h2>
+<p>The project comprises three independent modules: model definition, model compilation, and runtimes.</p>
+<a class="reference internal image-reference" href="_images/project-structure.svg"><img alt="Project Structure" class="align-center" src="_images/project-structure.svg" width="600" /></a>
+<p><strong>➀ Model definition in Python.</strong> MLC offers a variety of pre-defined architectures, such as Llama (e.g., Vicuna, OpenLlama, Llama, Wizard), GPT-NeoX (e.g., RedPajama, Dolly), RNNs (e.g., RWKV), and GPT-J (e.g., MOSS). Model developers could solely define the model in pure Python, without having to touch code generation and runtime.</p>
+<p><strong>➁ Model compilation in Python.</strong> TVM Unity compiler are configured in pure python, and the compiled artifact can be exported as shared or static libraries. Performance experts can concentrate on compiler optimization to enhance the speed of LLMs on specific devices of interest.</p>
+<p><strong>➂ Platform-native runtimes.</strong> MLCChat are provided as lightweight runtimes tailored for each platform, including <strong>C++</strong> for command line, <strong>Javascript</strong> for web, <strong>Swift</strong> for iOS, and <strong>Java</strong> for Android. App developers only need to familiarize themselves with the platform-naive runtimes to integrate MLC-compiled LLM into their applications.</p>
+</section>
+<section id="tutorials">
+<h2>Tutorials<a class="headerlink" href="#tutorials" title="Permalink to this heading">¶</a></h2>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Run Compiled Model</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Compile Models</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Define Model Architectures</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>An MLC-compiled model is composed of two elements: weights and a library of CPU/GPU compute kernels. For easy integration and redistribution, MLC further offers platform-specific lightweight runtimes, with a user-friendly interface to interact with the compiled models.</p>
-<div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">Command Line</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-1-1-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-2" name="1-2" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-1-1-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-3" name="1-3" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><p><code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> is the CLI app provided to load the model weights and compute kernels.</p>
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">➂ Use Compiled Models</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">➁ Compile Models</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">➀ Define Model Architectures</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">MLC-Prebuilt LLMs</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>MLC-compiled models can be used with or without MLCChat per-platform, the default runtime designed to demonstrate reusable ways of integration.</p>
 <ul class="simple">
-<li><p>Demo: <img alt="mlc-cli-demo" src="https://mlc.ai/blog/img/redpajama/cli.gif" /></p></li>
-<li><p>Install or build the CLI app: <a class="reference internal" href="install/index.html#install-mlc-chat-cli"><span class="std std-ref">Install MLC-LLM CLI</span></a>.</p></li>
-<li><p>Run compiled models via the CLI app: <a class="reference internal" href="tutorials/deploy-models.html#cli-run-model"><span class="std std-ref">Run the Models Through CLI</span></a>.</p></li>
+<li><p><a class="reference internal" href="tutorials/runtime/cpp.html"><span class="doc">🚧 Use Compiled LLMs in C++ CLI</span></a> for command line</p></li>
+<li><p><a class="reference internal" href="tutorials/runtime/javascript.html"><span class="doc">🚧 Use Compiled LLMs in JavaScript</span></a> for WebLLM</p></li>
+<li><p><a class="reference internal" href="tutorials/runtime/android.html"><span class="doc">🚧 Use Compiled LLMs in Android</span></a> for Android</p></li>
+<li><p><a class="reference internal" href="tutorials/runtime/ios.html"><span class="doc">🚧 Use Compiled LLMs in iOS</span></a> for iOS</p></li>
+<li><p><a class="reference internal" href="tutorials/runtime/rest.html"><span class="doc">🚧 Use Compiled LLMs with REST</span></a> for REST API with Python</p></li>
 </ul>
-</div><div aria-labelledby="tab-1-1-1" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-1" name="1-1" role="tabpanel" tabindex="0"><p>MLC compiles a model to WebGPU and WebAssembly, which can be executed by MLC LLM JavaScript runtime.</p>
+<p><strong>Note.</strong> TVM Unity compiler is not a dependency to running any MLC-compiled model.</p>
+</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p><a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a> is required to compile models.</p>
 <ul class="simple">
-<li><p>Demo: <img alt="web-llm-demo" src="https://github.com/mlc-ai/web-llm/raw/main/site/img/fig/demo.gif" /></p></li>
-<li><p>Set up WebLLM: <a class="reference external" href="https://mlc.ai/web-llm/">Web-LLM project</a>.</p></li>
-<li><p>Use MLC-compiled models in your own JavaScript project: <a class="reference external" href="https://www.npmjs.com/package/&#64;mlc-ai/web-llm">Web-LLM NPM Package</a>.</p></li>
+<li><p><a class="reference internal" href="tutorials/compilation/model_compilation_walkthrough.html"><span class="doc">🚧 Compile a Model in MLC LLM</span></a></p></li>
+<li><p><a class="reference internal" href="tutorials/compilation/compiler_artifacts.html"><span class="doc">🚧 Compiler Artifact Spec</span></a></p></li>
+<li><p><a class="reference internal" href="tutorials/compilation/configure_targets.html"><span class="doc">🚧 Configure Targets</span></a></p></li>
+<li><p><a class="reference internal" href="tutorials/compilation/configure_quantization.html"><span class="doc">🚧 Configure Quantization</span></a></p></li>
 </ul>
-</div><div aria-labelledby="tab-1-1-2" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-2" name="1-2" role="tabpanel" tabindex="0"><p>A model can be compiled to static system libraries and further linked to an iOS app. An example iOS app is provided with a clear structure that iOS developers could refer to ship LLMs in iOS.</p>
+</div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><p><a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a> is required to define new model architectures.</p>
 <ul class="simple">
-<li><p>Demo: <img alt="ios-demo" src="https://mlc.ai/mlc-llm/gif/ios-demo.gif" /></p></li>
-<li><p>Set up iOS: <a class="reference external" href="https://mlc.ai/mlc-llm/#iphone">iOS</a>.</p></li>
+<li><p><a class="reference internal" href="tutorials/customize/define_new_models.html"><span class="doc">🚧 Define New Model Architectures</span></a></p></li>
 </ul>
-</div><div aria-labelledby="tab-1-1-3" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-3" name="1-3" role="tabpanel" tabindex="0"><p>A model can be compiled to static system libraries and further linked to an Android app. An example Android app is provided with a clear structure that Android developers could refer to ship LLMs in Android.</p>
-<ul class="simple">
-<li><p>Demo: <img alt="android-demo" src="https://mlc.ai/mlc-llm/gif/android-demo.gif" /></p></li>
-<li><p>Set up Android: <a class="reference external" href="https://mlc.ai/mlc-llm/#android">Android</a></p></li>
+</div><div aria-labelledby="tab-0-0-3" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-3" name="0-3" role="tabpanel" tabindex="0"><ul class="simple">
+<li><p><a class="reference internal" href="tutorials/prebuilts/prebuilt_models.html"><span class="doc">🚧 Model Prebuilts</span></a></p></li>
 </ul>
 </div></div>
-</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p>MLC LLM is a Python package that uses TVM Unity to compile LLMs for universal deployment.</p>
-<img alt="https://mlc.ai/blog/img/redpajama/customization.svg" src="https://mlc.ai/blog/img/redpajama/customization.svg" /><ul class="simple">
-<li><p>Install TVM Unity: <a class="reference internal" href="install/index.html#tvm-unity-install-prebuilt-package"><span class="std std-ref">Installation Guidelines</span></a>.</p></li>
-<li><p>Compile models: <a class="reference internal" href="tutorials/compile-models.html"><span class="doc">How to Compile Models</span></a>.</p></li>
-<li><p>Contribute new models: <a class="reference internal" href="contribute/community.html#contribute-new-models"><span class="std std-ref">Contribute New Models to MLC-LLM</span></a>.</p></li>
+</section>
+<section id="vertical-walkthroughs">
+<h2>Vertical Walkthroughs<a class="headerlink" href="#vertical-walkthroughs" title="Permalink to this heading">¶</a></h2>
+<p>🚧 This document is currently undergoing heavy construction.</p>
+</section>
+<section id="community">
+<h2>Community<a class="headerlink" href="#community" title="Permalink to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="community/guideline.html"><span class="doc">Community guideline</span></a></p></li>
+<li><p><a class="reference internal" href="community/faq.html"><span class="doc">FAQs</span></a></p></li>
 </ul>
-</div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><ul class="simple">
-<li><p>Install TVM Unity: <a class="reference internal" href="install/index.html#tvm-unity-install-prebuilt-package"><span class="std std-ref">Installation Guidelines</span></a>.</p></li>
-<li><p>Define new model architectures: <a class="reference internal" href="tutorials/bring-your-own-models.html"><span class="doc">Add New Model Architectures</span></a>.</p></li>
-<li><p>Machine Learning Compilation Basics: <a class="reference external" href="https://mlc.ai/">Machine Learning Compilation</a></p></li>
-<li><p>Contribute new models: <a class="reference internal" href="contribute/community.html#contribute-new-models"><span class="std std-ref">Contribute New Models to MLC-LLM</span></a>.</p></li>
-</ul>
-</div></div>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">All tutorials</span></p>
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Other tutorials</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="install/index.html">Install and Setup</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install/software-dependencies.html">Software Dependencies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/deploy-models.html">How to Deploy Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/compile-models.html">How to Compile Models</a></li>
@@ -326,22 +404,6 @@
 </ul>
 </div>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Contribute to MLC-LLM</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="contribute/community.html">MLC-LLM Community Guidelines</a></li>
-</ul>
-</div>
-<div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="model-prebuilts.html">Model Prebuilts</a></li>
-</ul>
-</div>
-<div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Misc</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="misc/faq.html">Frequently Asked Questions (FAQ)</a></li>
-</ul>
 </div>
 </section>
 </section>
@@ -356,7 +418,7 @@
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="install/index.html" class="btn btn-neutral float-right" title="Install and Setup" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="tutorials/runtime/cpp.html" class="btn btn-neutral float-right" title="🚧 Use Compiled LLMs in C++ CLI" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
     </div>

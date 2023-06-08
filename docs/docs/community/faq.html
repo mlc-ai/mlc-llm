@@ -46,7 +46,7 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="prev" title="Model Prebuilts" href="../model-prebuilts.html" /> 
+    <link rel="prev" title="Community Guideline" href="guideline.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -163,9 +163,36 @@
               
             
             
-              <p class="caption" role="heading"><span class="caption-text">All tutorials</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Use Compiled Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../install/index.html">Install and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">🚧 Use Compiled LLMs in C++ CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">🚧 Use Compiled LLMs in JavaScript</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/android.html">🚧 Use Compiled LLMs in Android</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/ios.html">🚧 Use Compiled LLMs in iOS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/rest.html">🚧 Use Compiled LLMs with REST</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/model_compilation_walkthrough.html">🚧 Compile a Model in MLC LLM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/compiler_artifacts.html">🚧 Compiler Artifact Spec</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/configure_targets.html">🚧 Configure Targets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Installation and Dependency</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/cli.html">Install CLI</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/customize/define_new_models.html">🚧 Define New Model Architectures</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/prebuilts/prebuilt_models.html">🚧 Model Prebuilts</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Other tutorials</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="../install/software-dependencies.html">Software Dependencies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/deploy-models.html">How to Deploy Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/compile-models.html">How to Compile Models</a></li>
@@ -173,16 +200,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/customize-conversation.html">How to Customize Conversation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/customize.html">Customize Model Compilation and Optimization</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contribute to MLC-LLM</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../contribute/community.html">MLC-LLM Community Guidelines</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../model-prebuilts.html">Model Prebuilts</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Misc</span></p>
+<p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="guideline.html">Community Guideline</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -251,7 +271,7 @@
         
             
             
-              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/misc/faq.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/community/faq.rst" class="fa fa-github"> Edit on GitHub</a>
             
           
         
@@ -274,7 +294,7 @@
 <dt>… What’s the quantization algorithm MLC-LLM using?</dt><dd><p>MLC-LLM does not impose any restrictions on the choice of the quantization algorithm, and the design should be compatible with all quantization algorithms. By default, we utilize the grouping quantization method discussed in the paper <a class="reference external" href="https://arxiv.org/abs/2212.09720">The case for 4-bit precision: k-bit Inference Scaling Laws</a>.</p>
 </dd>
 <dt>… Why do I encounter an error <code class="docutils literal notranslate"><span class="pre">free():</span> <span class="pre">invalid</span> <span class="pre">pointer,</span> <span class="pre">Aborted</span> <span class="pre">(core</span> <span class="pre">dumped)</span></code> at the end of model compilation?</dt><dd><p>This happens if you compiled TVM-Unity from source and didn’t hide LLVM symbols in cmake configurations.
-Please follow our instructions in <a class="reference internal" href="../install/index.html#tvm-unity-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a> to compile TVM-Unity which hides LLVM symbols,
+Please follow our instructions in <span class="xref std std-ref">tvm-unity-build-from-source</span> to compile TVM-Unity which hides LLVM symbols,
 or use our pre-builc MLC-AI pip wheels from <a class="reference external" href="https://mlc.ai/package/">MLC Packages</a>.</p>
 </dd>
 </dl>
@@ -291,7 +311,7 @@ or use our pre-builc MLC-AI pip wheels from <a class="reference external" href="
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
       
-        <a href="../model-prebuilts.html" class="btn btn-neutral float-left" title="Model Prebuilts" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="guideline.html" class="btn btn-neutral float-left" title="Community Guideline" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

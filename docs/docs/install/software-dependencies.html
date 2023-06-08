@@ -48,7 +48,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="How to Deploy Models" href="../tutorials/deploy-models.html" />
-    <link rel="prev" title="Install and Setup" href="index.html" /> 
+    <link rel="prev" title="🚧 Model Prebuilts" href="../tutorials/prebuilts/prebuilt_models.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -165,9 +165,36 @@
               
             
             
-              <p class="caption" role="heading"><span class="caption-text">All tutorials</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Use Compiled Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">🚧 Use Compiled LLMs in C++ CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">🚧 Use Compiled LLMs in JavaScript</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/android.html">🚧 Use Compiled LLMs in Android</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/ios.html">🚧 Use Compiled LLMs in iOS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/rest.html">🚧 Use Compiled LLMs with REST</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/model_compilation_walkthrough.html">🚧 Compile a Model in MLC LLM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/compiler_artifacts.html">🚧 Compiler Artifact Spec</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/configure_targets.html">🚧 Configure Targets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Installation and Dependency</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Unity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">Install CLI</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/customize/define_new_models.html">🚧 Define New Model Architectures</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/prebuilts/prebuilt_models.html">🚧 Model Prebuilts</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Other tutorials</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="index.html">Install and Setup</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Software Dependencies</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#cuda">CUDA</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#installation">Installation</a></li>
@@ -189,17 +216,10 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/customize-conversation.html">How to Customize Conversation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/customize.html">Customize Model Compilation and Optimization</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contribute to MLC-LLM</span></p>
+<p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../contribute/community.html">MLC-LLM Community Guidelines</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../model-prebuilts.html">Model Prebuilts</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Misc</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../misc/faq.html">Frequently Asked Questions (FAQ)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../community/guideline.html">Community Guideline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../community/faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
             
@@ -302,7 +322,7 @@
 <li><p><a class="reference internal" href="#opencl-sdk" id="id11">OpenCL-SDK</a></p></li>
 </ul>
 </nav>
-<p>While we have included most of the dependencies in our pre-built wheels/scripts, there are still some platform-dependent packages that you will need to install on your own. In most cases, you won’t need all the packages listed on this page. If you’re unsure about which packages are required for your specific use case, please check the <a class="reference internal" href="../index.html#navigation"><span class="std std-ref">navigation panel</span></a> first.</p>
+<p>While we have included most of the dependencies in our pre-built wheels/scripts, there are still some platform-dependent packages that you will need to install on your own. In most cases, you won’t need all the packages listed on this page. If you’re unsure about which packages are required for your specific use case, please check the <span class="xref std std-ref">navigation panel</span> first.</p>
 <section id="cuda">
 <span id="software-dependencies-cuda"></span><h2><a class="toc-backref" href="#id4" role="doc-backlink">CUDA</a><a class="headerlink" href="#cuda" title="Permalink to this heading">¶</a></h2>
 <p>CUDA is required to compile and run models with <code class="docutils literal notranslate"><span class="pre">cuda</span></code> backend.</p>
@@ -357,7 +377,7 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 <section id="vulkan-sdk">
 <span id="software-dependencies-vulkan-sdk"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">Vulkan-SDK</a><a class="headerlink" href="#vulkan-sdk" title="Permalink to this heading">¶</a></h2>
 <p>Vulkan-SDK is required for compiling models to Vulkan backend. However, our <a class="reference external" href="https://mlc.ai/package">pre-built mlc-ai-nightly wheels</a> already packaged Vulkan-SDK, so there is no need to install it separately.</p>
-<p>Installing Vulkan-SDK is only necessary when user build TVM-Unity from source by following our <a class="reference internal" href="index.html#tvm-unity-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a> manual.</p>
+<p>Installing Vulkan-SDK is only necessary when user build TVM-Unity from source by following our <span class="xref std std-ref">tvm-unity-build-from-source</span> manual.</p>
 <p>Please check the Vulkan-SDK installation guide according to your platform:</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">Windows</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">Linux</button><button aria-controls="panel-1-1-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-2" name="1-2" role="tab" tabindex="-1">Mac</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><p><a class="reference external" href="https://vulkan.lunarg.com/doc/sdk/latest/windows/getting_started.html">Getting Started with the Windows Tarball Vulkan SDK</a></p>
@@ -388,7 +408,7 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
         <a href="../tutorials/deploy-models.html" class="btn btn-neutral float-right" title="How to Deploy Models" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="index.html" class="btn btn-neutral float-left" title="Install and Setup" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="../tutorials/prebuilts/prebuilt_models.html" class="btn btn-neutral float-left" title="🚧 Model Prebuilts" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 
