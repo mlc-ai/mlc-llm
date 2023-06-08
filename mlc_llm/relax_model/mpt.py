@@ -1,5 +1,4 @@
 import math
-from einops import rearrange  # TODO: replace
 import warnings
 from typing import Optional, Tuple, List
 import numpy as np
@@ -56,11 +55,36 @@ def _reset_is_causal(num_query_tokens: int, num_key_tokens: int, original_is_cau
   return original_is_causal
 
 
+def reshape_and_permute(hidden_states: relax.Expr, n_heads: int, d_model: int):
+  '''
+  Transform shape of input: b s (h d) -> b h d s
+  '''
+  batch_size, seqlen, _ = hidden_states.struct_info.shape
+  inter = nn.emit(relax.op.reshape(
+      hidden_states,
+      (batch_size, seqlen, n_heads, d_model),
+  ))
+  return nn.emit(relax.op.permute_dims(inter, [0, 2, 1, 3]))
+
+
+def reverse_reshape_and_permute(hidden_states: relax.Expr):
+  '''
+  Transform shape of input: b h s d -> b s (h d)
+  '''
+  batch_size, n_heads, seqlen, d_model = hidden_states.struct_info.shape
+  inter = nn.emit(relax.op.permute_dims(hidden_states, [0, 2, 1, 3]))
+  return nn.emit(relax.op.reshape(
+      inter,
+      (batch_size, seqlen, n_heads*d_model),
+  ))
+
+
 def scaled_multihead_dot_product_attention(
     query,
     key,
     value,
     n_heads,
+    d_model,
     past_key_value=None,
     softmax_scale=None,
     attn_bias=None,
@@ -69,10 +93,10 @@ def scaled_multihead_dot_product_attention(
     needs_weights=False,
     multiquery=False
 ):
-  q = rearrange(query, 'b s (h d) -> b h s d', h=n_heads)
+  q = reshape_and_permute(query, n_heads, d_model)
   kv_n_heads = 1 if multiquery else n_heads
-  k = rearrange(key, 'b s (h d) -> b h d s', h=kv_n_heads)
-  v = rearrange(value, 'b s (h d) -> b h s d', h=kv_n_heads)
+  k = reshape_and_permute(key, kv_n_heads, d_model)
+  v = reshape_and_permute(value, kv_n_heads, d_model)
   if past_key_value is not None:
       if len(past_key_value) != 0:
           k = torch.cat([past_key_value[0], k], dim=3)
@@ -105,7 +129,7 @@ def scaled_multihead_dot_product_attention(
       attn_weight = attn_weight.masked_fill(causal_mask.view(1, 1, s_q, s_k), min_val)
   attn_weight = torch.softmax(attn_weight, dim=-1)
   out = attn_weight.matmul(v)
-  out = rearrange(out, 'b h s d -> b s (h d)')
+  out = reverse_reshape_and_permute(out)
   if needs_weights:
       return (out, attn_weight, past_key_value)
   return (out, None, past_key_value)
@@ -124,6 +148,7 @@ def flash_attn_fn(
     key,
     value,
     n_heads,
+    d_model,
     past_key_value=None,
     softmax_scale=None,
     attn_bias=None,
@@ -150,20 +175,40 @@ def flash_attn_fn(
     raise NotImplementedError(f'attn_bias not implemented for flash attn.')
   (batch_size, seqlen) = query.shape[:2]
   if key_padding_mask is None:
-    key_padding_mask = torch.ones_like(key[:, :, 0], dtype=torch.bool)
+    key_shape = key.struct_info.shape[:2]
+    key_padding_mask = nn.emit(relax.op.ones(Tuple(*key_shape, 1), dtype="bool"))
   query_padding_mask = key_padding_mask[:, -query.size(1):]
   (query_unpad, indices_q, cu_seqlens_q, max_seqlen_q) = bert_padding.unpad_input(query, query_padding_mask)
-  query_unpad = rearrange(query_unpad, 'nnz (h d) -> nnz h d', h=n_heads)
+
+  nnz, _, _ = query_unpad.struct_info.shape
+  query_unpad = nn.emit(relax.op.reshape(
+      query_unpad,
+      (nnz, n_heads, d_model),
+  ))  # (nnz, (h d)) -> (nnz, h, d)
+
+  nnz, _, _ = key_unpad.struct_info.shape
+  kv_n_heads = 1 if multiquery else n_heads
   (key_unpad, _, cu_seqlens_k, max_seqlen_k) = bert_padding.unpad_input(key, key_padding_mask)
-  key_unpad = rearrange(key_unpad, 'nnz (h d) -> nnz h d', h=1 if multiquery else n_heads)
+  key_unpad = nn.emit(relax.op.reshape(
+      key_unpad,
+      (nnz, kv_n_heads, d_model),
+  ))  # (nnz, (h d)) -> (nnz, h, d)
   (value_unpad, _, _, _) = bert_padding.unpad_input(value, key_padding_mask)
-  value_unpad = rearrange(value_unpad, 'nnz (h d) -> nnz h d', h=1 if multiquery else n_heads)
+  value_unpad = nn.emit(relax.op.reshape(
+      value_unpad,
+      (nnz, kv_n_heads, d_model),
+  ))  # (nnz, (h d)) -> (nnz, h, d)
+
   if multiquery:
     key_unpad = key_unpad.expand(key_unpad.size(0), n_heads, key_unpad.size(-1))
     value_unpad = value_unpad.expand(value_unpad.size(0), n_heads, value_unpad.size(-1))
-  reset_is_causal = _reset_is_causal(query.size(1), key.size(1), is_causal)
+  reset_is_causal = _reset_is_causal(query.struct_info.shape[1], key.struct_info.shape[1], is_causal)
   output_unpad = flash_attn_interface.flash_attn_unpadded_func(query_unpad, key_unpad, value_unpad, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, 0.0, softmax_scale=softmax_scale, causal=reset_is_causal, return_attn_probs=needs_weights)
-  output = bert_padding.pad_input(rearrange(output_unpad, 'nnz h d -> nnz (h d)'), indices_q, batch_size, seqlen)
+  output_unpad = nn.emit(relax.op.reshape(
+      output_unpad,
+      (nnz, n_heads*d_model),
+  ))  # (nnz, h, d)) -> (nnz, (h d))
+  output = bert_padding.pad_input(output_unpad, indices_q, batch_size, seqlen)
   return (output, None, past_key_value)
 
 
@@ -172,6 +217,7 @@ def triton_flash_attn_fn(
     key,
     value,
     n_heads,
+    d_model,
     past_key_value=None,
     softmax_scale=None,
     attn_bias=None,
@@ -209,13 +255,27 @@ def triton_flash_attn_fn(
     if attn_bias is None:
       attn_bias = query.new_zeros(b_size, 1, 1, s_k)
     attn_bias = attn_bias.masked_fill(~key_padding_mask.view((b_size, 1, 1, s_k)), torch.finfo(query.dtype).min)
-  query = rearrange(query, 'b s (h d) -> b s h d', h=n_heads)
-  key = rearrange(key, 'b s (h d) -> b s h d', h=1 if multiquery else n_heads)
-  value = rearrange(value, 'b s (h d) -> b s h d', h=1 if multiquery else n_heads)
+
+  batch_size, seq_len, _ = query.struct_info.shape
+  query = nn.emit(relax.op.reshape(
+      query,
+      (batch_size, seq_len, n_heads, d_model),
+  ))  # b s (h d) -> b s h d
+
+  batch_size, seq_len, _ = key.struct_info.shape
+  kv_n_heads = 1 if multiquery else n_heads
+  key = nn.emit(relax.op.reshape(
+      key,
+      (batch_size, seq_len, kv_n_heads, d_model),
+  ))  # b s (h d) -> b s h d
+  value = nn.emit(relax.op.reshape(
+      value,
+      (batch_size, seq_len, kv_n_heads, d_model),
+  ))  # b s (h d) -> b s h d
   if multiquery:
     key = key.expand(*key.shape[:2], n_heads, key.size(-1))
     value = value.expand(*value.shape[:2], n_heads, value.size(-1))
-  reset_is_causal = _reset_is_causal(query.size(1), key.size(1), is_causal)
+  reset_is_causal = _reset_is_causal(query.struct_info.shape[1], key.struct_info.shape[1], is_causal)
   attn_output = flash_attn_func(query, key, value, attn_bias, reset_is_causal, softmax_scale)
   output = attn_output.view(*attn_output.shape[:2], -1)
   return (output, None, past_key_value)
@@ -287,6 +347,7 @@ class MultiheadAttention(nn.Module):
         key,
         value,
         self.n_heads,
+        self.d_model,
         past_key_value=past_key_value,
         softmax_scale=self.softmax_scale,
         attn_bias=attn_bias,
@@ -656,6 +717,7 @@ def create_encoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> None:
 
 def get_model(args, hf_config):
   from transformers import AutoModelForCausalLM # type: ignore[import]
+  import torch                                  # type: ignore[import]
 
   model_name = args.model
   # TODO: download model and use model_path instead of args for from_pretrained
@@ -678,6 +740,7 @@ def get_model(args, hf_config):
     device = tvm.cpu()
     # TODO: get default mpt-7b-instruct from HF. Possibly it should be downloaded earlier
     # and use model_path instead
+
     hf_model = AutoModelForCausalLM.from_pretrained(
       'mosaicml/mpt-7b-instruct',
       config=config,
