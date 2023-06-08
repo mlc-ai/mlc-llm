@@ -1,7 +1,7 @@
-import math                   # TODO: replace
+import math
 from einops import rearrange  # TODO: replace
 import warnings
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import numpy as np
 
 import tvm
@@ -553,6 +553,7 @@ class MPTForCausalLM(nn.Module):
     if not config.tie_word_embeddings:
       raise ValueError('MPTForCausalLM only supports tied word embeddings')
     self.transformer = MPTModel(config)
+    self.dtype = config.dtype
 
   def get_input_embeddings(self):
     return self.transformer.wte
@@ -572,17 +573,34 @@ class MPTForCausalLM(nn.Module):
   def get_decoder(self):
     return self.transformer
 
-  def forward(self, input_ids: torch.LongTensor, past_key_values: Optional[List[Tuple[torch.FloatTensor]]]=None, attention_mask: Optional[torch.ByteTensor]=None, prefix_mask: Optional[torch.ByteTensor]=None, sequence_id: Optional[torch.LongTensor]=None, labels: Optional[torch.LongTensor]=None, return_dict: Optional[bool]=None, output_attentions: Optional[bool]=None, output_hidden_states: Optional[bool]=None, use_cache: Optional[bool]=None):
+  def forward(
+      self,
+      input_ids: relax.Expr,
+      past_key_values: Optional[List[Tuple[relax.Expr]]]=None,
+      attention_mask: Optional[relax.Expr]=None,
+      prefix_mask: Optional[relax.Expr]=None,
+      sequence_id: Optional[relax.Expr]=None,
+      return_dict: Optional[bool]=None,
+      output_attentions: Optional[bool]=None,
+      output_hidden_states: Optional[bool]=None,
+      use_cache: Optional[bool]=None
+  ):
     return_dict = return_dict if return_dict is not None else self.config.return_dict
     use_cache = use_cache if use_cache is not None else self.config.use_cache
-    outputs = self.transformer(input_ids=input_ids, past_key_values=past_key_values, attention_mask=attention_mask, prefix_mask=prefix_mask, sequence_id=sequence_id, return_dict=return_dict, output_attentions=output_attentions, output_hidden_states=output_hidden_states, use_cache=use_cache)
-    logits = F.linear(outputs.last_hidden_state.to(self.transformer.wte.weight.device), self.transformer.wte.weight)
-    loss = None
-    if labels is not None:
-      labels = torch.roll(labels, shifts=-1)
-      labels[:, -1] = -100
-      loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.to(logits.device).view(-1))
-    return CausalLMOutputWithPast(loss=loss, logits=logits, past_key_values=outputs.past_key_values, hidden_states=outputs.hidden_states, attentions=outputs.attentions)
+    outputs = self.transformer(
+        input_ids=input_ids,
+        past_key_values=past_key_values,
+        attention_mask=attention_mask,
+        prefix_mask=prefix_mask,
+        sequence_id=sequence_id,
+        return_dict=return_dict,
+        output_attentions=output_attentions,
+        output_hidden_states=output_hidden_states,
+        use_cache=use_cache
+    )
+    logits = nn.emit(relax.op.matmul(outputs.last_hidden_state, self.transformer.wte.weight))
+
+    return logits, outputs.past_key_values
 
   def fsdp_wrap_fn(self, module):
     return isinstance(module, MPTBlock)
@@ -597,18 +615,27 @@ class MPTForCausalLM(nn.Module):
     if attention_mask[:, -1].sum() != attention_mask.shape[0]:
       raise NotImplementedError('MPT does not support generation with right padding.')
     if self.transformer.attn_uses_sequence_id and self.training:
-      sequence_id = torch.zeros_like(input_ids[:1])
+      # TODO: [:1] in Relax?
+      sequence_id = nn.emit(relax.op.zeros_like(input_ids[:1]))
     else:
       sequence_id = None
     if past_key_values is not None:
+      # TODO: Relax implementation?
       input_ids = input_ids[:, -1].unsqueeze(-1)
     if self.transformer.prefix_lm:
-      prefix_mask = torch.ones_like(attention_mask)
+      prefix_mask = nn.emit(relax.op.ones_like(attention_mask, self.dtype))
       if kwargs.get('use_cache') == False:
         raise NotImplementedError('MPT with prefix_lm=True does not support use_cache=False.')
     else:
       prefix_mask = None
-    return {'input_ids': input_ids, 'attention_mask': attention_mask, 'prefix_mask': prefix_mask, 'sequence_id': sequence_id, 'past_key_values': past_key_values, 'use_cache': kwargs.get('use_cache', True)}
+    return {
+        'input_ids': input_ids,
+        'attention_mask': attention_mask,
+        'prefix_mask': prefix_mask,
+        'sequence_id': sequence_id,
+        'past_key_values': past_key_values,
+        'use_cache': kwargs.get('use_cache', True)
+    }
 
   @staticmethod
   def _reorder_cache(past_key_values, beam_idx):
@@ -618,7 +645,8 @@ class MPTForCausalLM(nn.Module):
       """
       reordered_past = []
       for layer_past in past_key_values:
-          reordered_past += [tuple((past_state.index_select(0, beam_idx) for past_state in layer_past))]
+        # TODO: Relax implementation?
+        reordered_past += [tuple((past_state.index_select(0, beam_idx) for past_state in layer_past))]
       return reordered_past
 
 
