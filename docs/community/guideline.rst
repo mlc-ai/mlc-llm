@@ -1,7 +1,7 @@
 .. _community_guide:
 
-MLC-LLM Community Guidelines
-============================
+Community Guideline
+===================
 
 .. contents::
   :depth: 2

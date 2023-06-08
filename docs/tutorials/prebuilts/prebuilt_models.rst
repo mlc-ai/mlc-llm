@@ -1,7 +1,7 @@
 .. _Model Prebulits:
 
-Model Prebuilts
-===============
+🚧 Model Prebuilts
+==================
 
 .. contents:: Table of Contents
     :depth: 3
@@ -105,7 +105,7 @@ MLC-LLM supports the following model architectures:
   * - ``rwkv``
     - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
     - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py>`__
-    - * `RWKV-raven <https://github.com/BlinkDL/RWKV-LM>
+    - * `RWKV-raven <https://github.com/BlinkDL/RWKV-LM>`__
 
 For models within these model architectures, you can check the :doc:`/tutorials/compile-models` on how to compile models. Please create a new issue if you want to request a new model architecture. Our tutorial :doc:`/tutorials/bring-your-own-models` introduces how to bring a new  model architecture to MLC-LLM.
 
