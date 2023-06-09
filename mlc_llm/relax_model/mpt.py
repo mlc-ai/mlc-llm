@@ -551,9 +551,9 @@ class MPTModel(nn.Module):
         )
       self._attn_bias_initialized = True
     if self.attn_impl == 'flash':
-        return (self.attn_bias, attention_mask)
+      return (self.attn_bias, attention_mask)
     if self.attn_bias is not None:
-        self.attn_bias = self.attn_bias.to(dtype=dtype, device=device)
+      self.attn_bias = nn.emit(tvm.tir.Cast(dtype, self.attn_bias))
     attn_bias = self.attn_bias
     if self.prefix_lm:
         assert isinstance(attn_bias, relax.Expr)
@@ -563,16 +563,18 @@ class MPTModel(nn.Module):
         assert isinstance(attn_bias, relax.Expr)
         attn_bias = self._apply_sequence_id(attn_bias, sequence_id)
     if attention_mask is not None:
-        s_k = attention_mask.struct_info.shape[-1]
-        if attn_bias is None:
-            attn_bias = torch.zeros((1, 1, 1, s_k), device=device, dtype=dtype)
-        else:
-            _s_k = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[-1] - s_k)
-            attn_bias = attn_bias[:, :, :, _s_k:]
-        if prefix_mask is not None and attention_mask.struct_info.shape != prefix_mask.struct_info.shape:
-            raise ValueError(f'attention_mask shape={attention_mask.shape} ' + f'and prefix_mask shape={prefix_mask.shape} are not equal.')
-        min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
-        attn_bias = masked_fill_relax(attn_bias, ~attention_mask.view(-1, 1, 1, s_k), min_val)
+      s_k = attention_mask.struct_info.shape[-1]
+      if attn_bias is None:
+        attn_bias = nn.emit(relax.op.zeros((1, 1, 1, s_k), dtype=dtype))
+      else:
+        _s_k = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[-1] - s_k)
+        # TODO: use split
+        attn_bias = attn_bias[:, :, :, _s_k:]
+      if prefix_mask is not None and attention_mask.struct_info.shape != prefix_mask.struct_info.shape:
+        raise ValueError(f'attention_mask shape={attention_mask.shape} ' + f'and prefix_mask shape={prefix_mask.shape} are not equal.')
+      min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
+      attn_mask = nn.emit(tvm.tir.bitwise_not(relax.op.reshape(attention_mask, (-1, 1, 1, s_k))))
+      attn_bias = masked_fill_relax(attn_bias, attn_mask, min_val)
     return (attn_bias, None)
 
   def _apply_prefix_mask(self, attn_bias: relax.Expr, prefix_mask: relax.Expr):
