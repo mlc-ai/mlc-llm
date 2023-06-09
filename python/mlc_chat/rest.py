@@ -1,4 +1,4 @@
-from .chat_module import ChatModule, supported_models, quantization_keys
+from .chat_module import ChatModule, quantization_keys
 
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
@@ -63,7 +63,7 @@ def _parse_args():
     args.add_argument(
         "--model", type=str, default="vicuna-v1-7b"
     )
-    args.add_argument("--artifact-path", type=str, default="dist")
+    args.add_argument("--artifact-path", type=str, default="../dist")
     args.add_argument(
         "--quantization",
         type=str,
