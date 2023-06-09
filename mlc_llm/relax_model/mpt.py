@@ -191,7 +191,6 @@ def flash_attn_fn(
   (batch_size, seqlen) = query.shape[:2]
   if key_padding_mask is None:
     key_shape = key.struct_info.shape[:2]
-    # TODO: dynamic shape
     key_padding_mask = nn.emit(relax.op.ones(Tuple(*key_shape, 1), dtype="bool"))
   # TODO: use split
   query_padding_mask = key_padding_mask[:, -query.struct_info.shape[1]:]
@@ -465,6 +464,42 @@ class MPTBlock(nn.Module):
     return (hidden_states, attn_weights, present_key_value)
 
 
+def gen_slopes(n_heads, alibi_bias_max=8):
+    _n_heads = 2 ** math.ceil(math.log2(n_heads))
+    m = nn.emit(relax.op.arange(1, _n_heads + 1, dtype="float32"))
+    m = nn.emit(m * (alibi_bias_max / _n_heads))
+    slopes = 1.0 / math.pow(2, m)
+    if _n_heads != n_heads:
+      # TODO: relax [::]
+      slopes = nn.emit(relax.op.concat([slopes[1::2], slopes[::2]])[:n_heads])
+    return nn.emit(relax.op.reshape(slopes, (1, n_heads, 1, 1)))
+
+
+def build_alibi_bias(n_heads, seq_len, full=False, alibi_bias_max=8, dtype=None):
+  alibi_bias = nn.emit(relax.op.reshape(relax.op.arange(1 - seq_len, 1, dtype="int32"), (1, 1, 1, seq_len)))
+  if full:
+    alibi_bias = nn.emit(alibi_bias - relax.op.reshape(relax.op.arange(1 - seq_len, 1, dtype="int32"), (1, 1, seq_len, 1)))
+    alibi_bias = nn.emit(relax.op.negative(relax.op.abs(alibi_bias)))
+  slopes = gen_slopes(n_heads, alibi_bias_max)
+  alibi_bias = nn.emit(alibi_bias * slopes)
+  if dtype is not None:
+    alibi_bias = nn.emit(tvm.tir.Cast(dtype, alibi_bias))
+  return alibi_bias
+
+
+def build_attn_bias(attn_impl, attn_bias, n_heads, seq_len, causal=False, alibi=False, alibi_bias_max=8):
+  if attn_impl == 'flash':
+    return None
+  elif attn_impl in ['torch', 'triton']:
+    if alibi:
+      attn_bias = nn.emit(relax.op.add(attn_bias, build_alibi_bias(
+        n_heads, seq_len, full=not causal, alibi_bias_max=alibi_bias_max, dtype=attn_bias.struct_info.dtype
+      )))
+    return attn_bias
+  else:
+    raise ValueError(f'attn_impl={attn_impl!r} is an invalid setting.')
+
+
 class MPTModel(nn.Module):
   def __init__(self, config: MPTConfig):
     config._validate_config()
@@ -507,12 +542,14 @@ class MPTModel(nn.Module):
   def set_input_embeddings(self, value):
     self.wte = value
 
-  def _attn_bias(self, device, dtype, attention_mask: Optional[relax.Expr]=None, prefix_mask: Optional[relax.Expr]=None, sequence_id: Optional[relax.Expr]=None):
+  def _attn_bias(self, dtype, attention_mask: Optional[relax.Expr]=None, prefix_mask: Optional[relax.Expr]=None, sequence_id: Optional[relax.Expr]=None):
     if not self._attn_bias_initialized:
-        if self.attn_bias_shape:
-            self.attn_bias = torch.zeros(self.attn_bias_shape, device=device, dtype=dtype)
-            self.attn_bias = build_attn_bias(self.attn_impl, self.attn_bias, self.config.n_heads, self.config.max_seq_len, causal=self.is_causal, alibi=self.alibi, alibi_bias_max=self.alibi_bias_max)
-        self._attn_bias_initialized = True
+      if self.attn_bias_shape:
+        self.attn_bias = nn.emit(relax.op.zeros(self.attn_bias_shape, dtype=dtype))
+        self.attn_bias = build_attn_bias(
+            self.attn_impl, self.attn_bias, self.config.n_heads, self.config.max_seq_len, causal=self.is_causal, alibi=self.alibi, alibi_bias_max=self.alibi_bias_max
+        )
+      self._attn_bias_initialized = True
     if self.attn_impl == 'flash':
         return (self.attn_bias, attention_mask)
     if self.attn_bias is not None:
