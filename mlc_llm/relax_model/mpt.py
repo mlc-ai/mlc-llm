@@ -24,15 +24,15 @@ def masked_fill_relax(input, mask, value):
 
 
 def _cast_if_autocast_enabled(tensor):
-  if torch.is_autocast_enabled():
-    if tensor.device.type == 'cuda':
-      dtype = torch.get_autocast_gpu_dtype()
-    elif tensor.device.type == 'cpu':
-      dtype = torch.get_autocast_cpu_dtype()
-    else:
-      raise NotImplementedError()
-    return tensor.to(dtype=dtype)
-  return tensor
+  # # TODO: how to check device?
+  # if tensor.device.type == 'cuda':
+  #   dtype = "float16"
+  # elif tensor.device.type == 'cpu':
+  #   dtype = "bfloat16"
+  # else:
+  #   raise NotImplementedError()
+  dtype = "float32" # TODO: temporal workaround
+  return nn.emit(tvm.tir.Cast(dtype, tensor))
 
 # Low-precision layer norm for mpt-7b-instruct, where are no biases expected
 class LPLayerNormWOBias(nn.Module):
@@ -40,15 +40,14 @@ class LPLayerNormWOBias(nn.Module):
     self.weight = nn.Parameter((normalized_shape,), dtype=dtype, name="low_precision_layernorm_weight")
     # TODO: check default filling of weights
     self.weight = relax.op.ones((normalized_shape,), dtype)
-    self.variance_epsilon = relax.const(eps, dtype)
+    self.bias = relax.op.zeros((normalized_shape,), dtype)
+    self.eps = relax.const(eps, dtype)
 
   def forward(self, x):
-    module_device = x.device
     downcast_x = _cast_if_autocast_enabled(x)
     downcast_weight = _cast_if_autocast_enabled(self.weight) if self.weight is not None else self.weight
     downcast_bias = _cast_if_autocast_enabled(self.bias) if self.bias is not None else self.bias
-    with torch.autocast(enabled=False, device_type=module_device.type):
-      return torch.nn.functional.layer_norm(downcast_x, self.normalized_shape, downcast_weight, downcast_bias, self.eps)
+    return nn.emit(relax.op.nn.layer_norm(downcast_x, downcast_weight, downcast_bias, axes=-1, epsilon=self.eps))
 
 NORM_CLASS_REGISTRY = {'low_precision_layernorm': LPLayerNormWOBias}
 
@@ -149,12 +148,13 @@ def scaled_multihead_dot_product_attention(
   return (out, None, past_key_value)
 
 
-def check_valid_inputs(*tensors, valid_dtypes=[torch.float16, torch.bfloat16]):
-    for tensor in tensors:
-        if tensor.dtype not in valid_dtypes:
-            raise TypeError(f'tensor.dtype={tensor.dtype!r} must be in valid_dtypes={valid_dtypes!r}.')
-        if not tensor.is_cuda:
-            raise TypeError(f'Inputs must be cuda tensors (tensor.is_cuda={tensor.is_cuda!r}).')
+def check_valid_inputs(*tensors, valid_dtypes=["float16", "bfloat16"]):
+  for tensor in tensors:
+    if tensor.struct_info.dtype not in valid_dtypes:
+      raise TypeError(f'tensor.dtype={tensor.struct_info.dtype!r} must be in valid_dtypes={valid_dtypes!r}.')
+    # TODO: check on relax that CUDA is used
+    # if not tensor.is_cuda:
+    #   raise TypeError(f'Inputs must be cuda tensors (tensor.is_cuda={tensor.is_cuda!r}).')
 
 
 def flash_attn_fn(
