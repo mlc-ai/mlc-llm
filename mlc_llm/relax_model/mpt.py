@@ -600,7 +600,10 @@ class MPTModel(nn.Module):
       raise ValueError(f'sequence_id sequence length cannot exceed max_seq_len={self.config.max_seq_len}')
     # TODO: use split
     attn_bias = attn_bias[..., :seq_len, :seq_len]
-    cannot_attend = torch.logical_not(torch.eq(sequence_id.view(-1, seq_len, 1), sequence_id.view(-1, 1, seq_len))).unsqueeze(1)
+    # TODO: logical_not on relax
+    seq_id_l = nn.emit(relax.op.reshape(sequence_id, (-1, seq_len, 1)))
+    seq_id_r = nn.emit(relax.op.reshape(sequence_id, (-1, 1, seq_len)))
+    cannot_attend = nn.emit(relax.op.expand_dims(torch.logical_not(relax.op.equal(seq_id_l, seq_id_r)), axis=1))
     min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
     attn_bias = masked_fill_relax(attn_bias, cannot_attend, min_val)
     return attn_bias
