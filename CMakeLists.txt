@@ -47,7 +47,8 @@ set(USE_PROFILER OFF)
 set(USE_GTEST OFF)
 set(USE_LIBBACKTRACE OFF)
 set(BUILD_DUMMY_LIBTVM ON)
-add_subdirectory($ENV{TVM_HOME} tvm EXCLUDE_FROM_ALL)
+set(TVM_HOME 3rdparty/tvm)
+add_subdirectory(${TVM_HOME} tvm EXCLUDE_FROM_ALL)
 
 set(MLC_LLM_RUNTIME_LINKER_LIB "")
 set(TOKENZIER_CPP_PATH 3rdparty/tokenizers-cpp)
@@ -63,10 +64,10 @@ add_library(mlc_cli_objs OBJECT ${MLC_CLI_SRCS})
 
 set(
   MLC_LLM_INCLUDES
-  $ENV{TVM_HOME}/include
-  $ENV{TVM_HOME}/3rdparty/dlpack/include
-  $ENV{TVM_HOME}/3rdparty/dmlc-core/include
-  $ENV{TVM_HOME}/3rdparty/picojson
+  ${TVM_HOME}/include
+  ${TVM_HOME}/3rdparty/dlpack/include
+  ${TVM_HOME}/3rdparty/dmlc-core/include
+  ${TVM_HOME}/3rdparty/picojson
 )
 
 set(MLC_LLM_COMPILE_DEFS DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
