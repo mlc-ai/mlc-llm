@@ -127,6 +127,7 @@ if (MLC_LLM_INSTALL_STATIC_LIB)
     tokenizers_cpp
     sentencepiece-static
     tvm_runtime
+    tvm
     LIBRARY DESTINATION lib${LIB_SUFFIX}
     )
   # tokenizers need special handling as it builds from rust
@@ -141,6 +142,7 @@ if (MLC_LLM_INSTALL_STATIC_LIB)
   endif()
 else()
   install(TARGETS mlc_chat_cli tvm_runtime mlc_llm mlc_llm_module
+    tvm
     mlc_llm_static
     tokenizers_cpp
     sentencepiece-static
