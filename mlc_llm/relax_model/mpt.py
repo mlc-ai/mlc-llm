@@ -255,24 +255,25 @@ def triton_flash_attn_fn(
   check_valid_inputs(query, key, value)
   if past_key_value is not None:
     if len(past_key_value) != 0:
-      key = torch.cat([past_key_value[0], key], dim=1)
-      value = torch.cat([past_key_value[1], value], dim=1)
+      key = nn.emit(relax.op.concat([past_key_value[0], key], axis=1))
+      value = nn.emit(relax.op.concat([past_key_value[1], value], axis=1))
     past_key_value = (key, value)
   if attn_bias is not None:
-    _s_q = max(0, attn_bias.size(2) - query.size(1))
-    _s_k = max(0, attn_bias.size(3) - key.size(1))
+    # TODO: dynamic max
+    _s_q = max(0, attn_bias.struct_info.shape[2] - query.struct_info.shape[1])
+    _s_k = max(0, attn_bias.struct_info.shape[3] - key.struct_info.shape[1])
+    # TODO: use split
     attn_bias = attn_bias[:, :, _s_q:, _s_k:]
   if needs_weights:
     raise NotImplementedError(f'attn_impl: triton cannot return attn weights.')
   if key_padding_mask is not None:
     warnings.warn('Propagating key_padding_mask to the attention module ' + 'and applying it within the attention module can cause ' + 'unnecessary computation/memory usage. Consider integrating ' + 'into attn_bias once and passing that to each attention ' + 'module instead.')
-    (b_size, s_k) = key_padding_mask.shape[:2]
+    (b_size, s_k) = key_padding_mask.struct_info.shape[:2]
     if attn_bias is None:
-      attn_bias = query.new_zeros(b_size, 1, 1, s_k)
-    attn_bias = attn_bias.masked_fill(
-      ~key_padding_mask.view((b_size, 1, 1, s_k)),
-      tvm.tir.min_value(query.struct_info.dtype)
-    )
+      attn_bias = nn.emit(relax.op.zeros((b_size, 1, 1, s_k), dtype=query.struct_info.dtype))
+    key_mask = nn.emit(tvm.tir.bitwise_not(relax.op.reshape(key_padding_mask, (b_size, 1, 1, s_k))))
+    # TODO: implement masked_fill by relax ops
+    attn_bias = attn_bias.masked_fill(key_mask, tvm.tir.min_value(query.struct_info.dtype))
 
   batch_size, seq_len, _ = query.struct_info.shape
   query = nn.emit(relax.op.reshape(
@@ -291,11 +292,15 @@ def triton_flash_attn_fn(
       (batch_size, seq_len, kv_n_heads, d_model),
   ))  # b s (h d) -> b s h d
   if multiquery:
-    key = key.expand(*key.shape[:2], n_heads, key.size(-1))
-    value = value.expand(*value.shape[:2], n_heads, value.size(-1))
+    key = relax.op.broadcast_to(key, (batch_size, seq_len, n_heads, d_model))
+    value = relax.op.broadcast_to(value, (batch_size, seq_len, n_heads, d_model))
   reset_is_causal = _reset_is_causal(query.struct_info.shape[1], key.struct_info.shape[1], is_causal)
   attn_output = flash_attn_func(query, key, value, attn_bias, reset_is_causal, softmax_scale)
-  output = attn_output.view(*attn_output.shape[:2], -1)
+  batch_size, seq_len, _, _ = attn_output.struct_info.shape
+  output = nn.emit(relax.op.reshape(
+      attn_output,
+      (batch_size, seq_len, n_heads*d_model),
+  ))  # (b, s, h, d)) -> (b, s, (h d))
   return (output, None, past_key_value)
 
 
