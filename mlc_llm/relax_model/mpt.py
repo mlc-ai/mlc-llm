@@ -318,8 +318,7 @@ class MultiheadAttention(nn.Module):
       clip_qkv: Optional[float]=None,
       qk_ln: bool=False,
       softmax_scale: Optional[float]=None,
-      low_precision_layernorm: bool=False,
-      device: Optional[str]=None
+      low_precision_layernorm: bool=False
   ):
     # Init fields
     self.d_model = d_model
@@ -331,13 +330,13 @@ class MultiheadAttention(nn.Module):
 
     if self.softmax_scale is None:
       self.softmax_scale = 1 / math.sqrt(self.d_model / self.n_heads)
-    self.Wqkv = Linear(self.d_model, 3 * self.d_model, device=device)
+    self.Wqkv = Linear(self.d_model, 3 * self.d_model)
     fuse_splits = (d_model, 2 * d_model)
     self.Wqkv._fused = (0, fuse_splits)
     if self.qk_ln:
       layernorm_class = LPLayerNormWOBias if low_precision_layernorm else LayerNorm
-      self.q_ln = layernorm_class(self.d_model, device=device)
-      self.k_ln = layernorm_class(self.d_model, device=device)
+      self.q_ln = layernorm_class(self.d_model)
+      self.k_ln = layernorm_class(self.d_model)
     if self.attn_impl == 'flash':
       self.attn_fn = flash_attn_fn
     elif self.attn_impl == 'triton':
@@ -351,7 +350,7 @@ class MultiheadAttention(nn.Module):
       self.attn_fn = scaled_multihead_dot_product_attention
     else:
       raise ValueError(f'attn_impl={attn_impl!r} is an invalid setting.')
-    self.out_proj = Linear(self.d_model, self.d_model, device=device)
+    self.out_proj = Linear(self.d_model, self.d_model)
     # TODO: Does field _is_residual exist?
     self.out_proj._is_residual = True
 
@@ -657,8 +656,7 @@ class MPTModel(nn.Module):
         pos = nn.emit(relax.op.clip(pos - pos_diff, min=0))
       pos_emb = self.wpe(pos)
       x = tok_emb + pos_emb
-    # TODO: reimplement _attn_bias, check removed args
-    (attn_bias, attention_mask) = self._attn_bias(device=x.device, dtype=x.dtype, attention_mask=attention_mask, prefix_mask=prefix_mask, sequence_id=sequence_id)
+    (attn_bias, attention_mask) = self._attn_bias(dtype=x.dtype, attention_mask=attention_mask, prefix_mask=prefix_mask, sequence_id=sequence_id)
     if use_cache and past_key_values is None:
       past_key_values = [() for _ in range(self.config.n_layers)]
     all_hidden_states = () if output_hidden_states else None
