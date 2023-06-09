@@ -383,21 +383,6 @@ class MultiheadAttention(nn.Module):
 ATTN_CLASS_REGISTRY = {'multihead_attention': MultiheadAttention}
 
 
-def attn_bias_shape(attn_impl, n_heads, seq_len, alibi, prefix_lm, causal, use_sequence_id):
-  if attn_impl == 'flash':
-    return None
-  elif attn_impl in ['torch', 'triton']:
-    if alibi:
-      if (prefix_lm or not causal) or use_sequence_id:
-        return (1, n_heads, seq_len, seq_len)
-      return (1, n_heads, 1, seq_len)
-    elif prefix_lm or use_sequence_id:
-      return (1, 1, seq_len, seq_len)
-    return None
-  else:
-    raise ValueError(f'attn_impl={attn_impl!r} is an invalid setting.')
-
-
 class MPTMLP(nn.Module):
     def __init__(self, hidden_size: int, intermediate_size: int, dtype: str):
         self.down_proj = Linear(intermediate_size, hidden_size, dtype=dtype)
@@ -462,6 +447,21 @@ class MPTBlock(nn.Module):
     hidden_states = nn.emit(residual + hidden_states)
 
     return (hidden_states, attn_weights, present_key_value)
+
+
+def attn_bias_shape(attn_impl, n_heads, seq_len, alibi, prefix_lm, causal, use_sequence_id):
+  if attn_impl == 'flash':
+    return None
+  elif attn_impl in ['torch', 'triton']:
+    if alibi:
+      if (prefix_lm or not causal) or use_sequence_id:
+        return (1, n_heads, seq_len, seq_len)
+      return (1, n_heads, 1, seq_len)
+    elif prefix_lm or use_sequence_id:
+      return (1, 1, seq_len, seq_len)
+    return None
+  else:
+    raise ValueError(f'attn_impl={attn_impl!r} is an invalid setting.')
 
 
 def gen_slopes(n_heads, alibi_bias_max=8):
