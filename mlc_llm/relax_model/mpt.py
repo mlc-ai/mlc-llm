@@ -562,68 +562,77 @@ class MPTModel(nn.Module):
     attn_bias = attn_bias.masked_fill(cannot_attend, min_val)
     return attn_bias
 
-  def forward(self, input_ids: torch.LongTensor, past_key_values: Optional[List[Tuple[torch.FloatTensor]]]=None, attention_mask: Optional[torch.ByteTensor]=None, prefix_mask: Optional[torch.ByteTensor]=None, sequence_id: Optional[torch.LongTensor]=None, return_dict: Optional[bool]=None, output_attentions: Optional[bool]=None, output_hidden_states: Optional[bool]=None, use_cache: Optional[bool]=None):
+  def forward(
+      self,
+      input_ids: relax.Expr,
+      past_key_values: Optional[List[Tuple[relax.Expr]]]=None,
+      attention_mask: Optional[relax.Expr]=None,
+      prefix_mask: Optional[relax.Expr]=None,
+      sequence_id: Optional[relax.Expr]=None,
+      return_dict: Optional[bool]=None,
+      output_attentions: Optional[bool]=None,
+      output_hidden_states: Optional[bool]=None,
+      use_cache: Optional[bool]=None
+  ):
     return_dict = return_dict if return_dict is not None else self.config.return_dict
     use_cache = use_cache if use_cache is not None else self.config.use_cache
     if attention_mask is not None:
-        attention_mask = attention_mask.bool()
+      attention_mask = nn.emit(tvm.tir.Cast("bool", attention_mask))
     if prefix_mask is not None:
-        prefix_mask = prefix_mask.bool()
+      prefix_mask = nn.emit(tvm.tir.Cast("bool", prefix_mask))
     if not return_dict:
-        raise NotImplementedError('return_dict False is not implemented yet for MPT')
+      raise NotImplementedError('return_dict False is not implemented yet for MPT')
     if output_attentions:
-        if self.attn_impl != 'torch':
-            raise NotImplementedError('output_attentions is not implemented for MPT when using attn_impl `flash` or `triton`.')
-    if attention_mask is not None and attention_mask[:, 0].sum() != attention_mask.shape[0] and self.training:
-        raise NotImplementedError('MPT does not support training with left padding.')
+      if self.attn_impl != 'torch':
+        raise NotImplementedError('output_attentions is not implemented for MPT when using attn_impl `flash` or `triton`.')
     if self.prefix_lm and prefix_mask is None:
-        raise ValueError('prefix_mask is a required argument when MPT is configured with prefix_lm=True.')
-    if self.training:
-        if self.attn_uses_sequence_id and sequence_id is None:
-            raise ValueError('sequence_id is a required argument when MPT is configured with attn_uses_sequence_id=True ' + 'and the model is in train mode.')
-        elif self.attn_uses_sequence_id is False and sequence_id is not None:
-            warnings.warn('MPT received non-None input for `sequence_id` but is configured with attn_uses_sequence_id=False. ' + 'This input will be ignored. If you want the model to use `sequence_id`, set attn_uses_sequence_id to True.')
-    S = input_ids.size(1)
+      raise ValueError('prefix_mask is a required argument when MPT is configured with prefix_lm=True.')
+
+    S = input_ids.struct_info.shape[1]
     assert S <= self.config.max_seq_len, f'Cannot forward input with seq_len={S}, this model only supports seq_len<={self.config.max_seq_len}'
+
     tok_emb = self.wte(input_ids)
     if self.alibi:
-        x = tok_emb
+      x = tok_emb
     else:
-        past_position = 0
-        if past_key_values is not None:
-            if len(past_key_values) != self.config.n_layers:
-                raise ValueError(f'past_key_values must provide a past_key_value for each attention ' + f'layer in the network (len(past_key_values)={len(past_key_values)!r}; self.config.n_layers={self.config.n_layers!r}).')
-            past_position = past_key_values[0][0].size(1)
-            if self.attn_impl == 'torch':
-                past_position = past_key_values[0][0].size(3)
-        if S + past_position > self.config.max_seq_len:
-            raise ValueError(f'Cannot forward input with past sequence length {past_position} and current sequence length {S + 1}, this model only supports total sequence length <= {self.config.max_seq_len}.')
-        pos = torch.arange(past_position, S + past_position, dtype=torch.long, device=input_ids.device).unsqueeze(0)
-        if attention_mask is not None:
-            pos = torch.clamp(pos - torch.cumsum((~attention_mask).to(torch.int32), dim=1)[:, past_position:], min=0)
-        pos_emb = self.wpe(pos)
-        x = tok_emb + pos_emb
+      past_position = 0
+      if past_key_values is not None:
+        if len(past_key_values) != self.config.n_layers:
+          raise ValueError(f'past_key_values must provide a past_key_value for each attention ' + f'layer in the network (len(past_key_values)={len(past_key_values)!r}; self.config.n_layers={self.config.n_layers!r}).')
+        past_position = past_key_values[0][0].struct_info.shape[1]
+        if self.attn_impl == 'torch':
+          past_position = past_key_values[0][0].struct_info.shape[3]
+      if S + past_position > self.config.max_seq_len:
+        raise ValueError(f'Cannot forward input with past sequence length {past_position} and current sequence length {S + 1}, this model only supports total sequence length <= {self.config.max_seq_len}.')
+      pos = nn.emit(relax.op.expand_dims(relax.op.arange(past_position, S + past_position, dtype="long"), axis=0))
+      if attention_mask is not None:
+        #TODO use split
+        pos_diff = nn.emit(relax.op.cumsum(tvm.tir.Cast("int32", tvm.tir.bitwise_not(attention_mask)), axis=1)[:, past_position:])
+        pos = nn.emit(relax.op.clip(pos - pos_diff, min=0))
+      pos_emb = self.wpe(pos)
+      x = tok_emb + pos_emb
+    # TODO: reimplement _attn_bias, check removed args
     (attn_bias, attention_mask) = self._attn_bias(device=x.device, dtype=x.dtype, attention_mask=attention_mask, prefix_mask=prefix_mask, sequence_id=sequence_id)
     if use_cache and past_key_values is None:
-        past_key_values = [() for _ in range(self.config.n_layers)]
+      past_key_values = [() for _ in range(self.config.n_layers)]
     all_hidden_states = () if output_hidden_states else None
     all_self_attns = () if output_attentions else None
     for (b_idx, block) in enumerate(self.blocks):
-        if output_hidden_states:
-            assert all_hidden_states is not None
-            all_hidden_states = all_hidden_states + (x,)
-        past_key_value = past_key_values[b_idx] if past_key_values is not None else None
-        (x, attn_weights, past_key_value) = block(x, past_key_value=past_key_value, attn_bias=attn_bias, attention_mask=attention_mask, is_causal=self.is_causal)
-        if past_key_values is not None:
-            past_key_values[b_idx] = past_key_value
-        if output_attentions:
-            assert all_self_attns is not None
-            all_self_attns = all_self_attns + (attn_weights,)
-    x = self.norm_f(x)
-    if output_hidden_states:
+      if output_hidden_states:
         assert all_hidden_states is not None
         all_hidden_states = all_hidden_states + (x,)
-    return BaseModelOutputWithPast(last_hidden_state=x, past_key_values=past_key_values, hidden_states=all_hidden_states, attentions=all_self_attns)
+      past_key_value = past_key_values[b_idx] if past_key_values is not None else None
+      (x, attn_weights, past_key_value) = block(x, past_key_value=past_key_value, attn_bias=attn_bias, attention_mask=attention_mask, is_causal=self.is_causal)
+      if past_key_values is not None:
+        past_key_values[b_idx] = past_key_value
+      if output_attentions:
+        assert all_self_attns is not None
+        all_self_attns = all_self_attns + (attn_weights,)
+    x = self.norm_f(x)
+    if output_hidden_states:
+      assert all_hidden_states is not None
+      all_hidden_states = all_hidden_states + (x,)
+    return x, past_key_values, all_hidden_states, all_self_attns
 
   def fsdp_wrap_fn(self, module):
     return isinstance(module, MPTBlock)
