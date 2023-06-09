@@ -15,18 +15,11 @@ Option 1. Prebuilt Package
 To help our community to use Apache TVM Unity, a nightly prebuilt developer package is provided with everything packaged.
 Please visit the installation page for installation instructions: https://mlc.ai/package/.
 
-**Set up** ``$TVM_HOME`` **after installation.** This environment variable is not used by TVM itself but by downstream applications like `MLC LLM <https://mlc.ai/mlc-llm>`_, and thus it would be more convenient to set it up earlier:
-
 .. code-block:: bash
 
     # Locate TVM python package
     >>> python -c "import tvm; print(tvm.__file__)"
     /some-path/lib/python3.11/site-packages/tvm/__init__.py
-    # Set up the environment variable
-    >>> export TVM_HOME=/some-path/lib/python3.11/site-packages/tvm/
-
-.. note::
-    If installed properly, ``libtvm.{so|dylib|dll}`` should exist right under ``$TVM_HOME``.
 
 Option 2. Build from Source
 ---------------------------
@@ -106,19 +99,15 @@ Once ``config.cmake`` is edited accordingly, kick off build with the commands be
 
 A success build should produce ``libtvm`` and ``libtvm_runtime`` under ``/path-tvm-unity/build/`` directory.
 
-.. note::
-    To troubleshoot the build, output from cmake is usually quite helpful.
-
-**Step 3. Set up environment variables.**
-The following two environment variables are generally required for TVM-based applications:
+Then you can install the python binding of TVM-Unity with the following commands:
 
 .. code-block:: bash
-    :caption: Setting up environment variables for TVM
 
-    # make sure $TVM_HOME/build/libtvm.{so|dylib|dll} exists
-    export TVM_HOME=/path-tvm/
-    # make TVM's Python binding discoverable by Python interpreter
-    export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
+    cd ../python
+    python setup.py install
+
+.. note::
+    To troubleshoot the build, output from cmake is usually quite helpful.
 
 Validate Installation
 ---------------------

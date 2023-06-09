@@ -292,15 +292,15 @@
            <div itemprop="articleBody">
             
   <section id="install-tvm-unity">
-<h1><a class="toc-backref" href="#id6" role="doc-backlink">Install TVM Unity</a><a class="headerlink" href="#install-tvm-unity" title="Permalink to this heading">¶</a></h1>
+<h1><a class="toc-backref" href="#id5" role="doc-backlink">Install TVM Unity</a><a class="headerlink" href="#install-tvm-unity" title="Permalink to this heading">¶</a></h1>
 <nav class="contents" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#install-tvm-unity" id="id6">Install TVM Unity</a></p>
+<li><p><a class="reference internal" href="#install-tvm-unity" id="id5">Install TVM Unity</a></p>
 <ul>
-<li><p><a class="reference internal" href="#option-1-prebuilt-package" id="id7">Option 1. Prebuilt Package</a></p></li>
-<li><p><a class="reference internal" href="#option-2-build-from-source" id="id8">Option 2. Build from Source</a></p></li>
-<li><p><a class="reference internal" href="#validate-installation" id="id9">Validate Installation</a></p></li>
+<li><p><a class="reference internal" href="#option-1-prebuilt-package" id="id6">Option 1. Prebuilt Package</a></p></li>
+<li><p><a class="reference internal" href="#option-2-build-from-source" id="id7">Option 2. Build from Source</a></p></li>
+<li><p><a class="reference internal" href="#validate-installation" id="id8">Validate Installation</a></p></li>
 </ul>
 </li>
 </ul>
@@ -311,24 +311,17 @@
 <li><p>building TVM Unity from source.</p></li>
 </ul>
 <section id="option-1-prebuilt-package">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading">¶</a></h2>
 <p>To help our community to use Apache TVM Unity, a nightly prebuilt developer package is provided with everything packaged.
 Please visit the installation page for installation instructions: <a class="reference external" href="https://mlc.ai/package/">https://mlc.ai/package/</a>.</p>
-<p><strong>Set up</strong> <code class="docutils literal notranslate"><span class="pre">$TVM_HOME</span></code> <strong>after installation.</strong> This environment variable is not used by TVM itself but by downstream applications like <a class="reference external" href="https://mlc.ai/mlc-llm">MLC LLM</a>, and thus it would be more convenient to set it up earlier:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Locate TVM python package</span>
 &gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.__file__)&quot;</span>
 /some-path/lib/python3.11/site-packages/tvm/__init__.py
-<span class="c1"># Set up the environment variable</span>
-&gt;&gt;&gt;<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">TVM_HOME</span><span class="o">=</span>/some-path/lib/python3.11/site-packages/tvm/
 </pre></div>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If installed properly, <code class="docutils literal notranslate"><span class="pre">libtvm.{so|dylib|dll}</span></code> should exist right under <code class="docutils literal notranslate"><span class="pre">$TVM_HOME</span></code>.</p>
 </div>
 </section>
 <section id="option-2-build-from-source">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
 <p><strong>Step 1. Set up build dependency.</strong> To build from source, you need to ensure that the following build dependencies are met:</p>
 <ul class="simple">
 <li><p>CMake &gt;= 3.18</p></li>
@@ -407,24 +400,18 @@ make<span class="w"> </span>-j<span class="k">$(</span>nproc<span class="k">)</s
 </div>
 </div>
 <p>A success build should produce <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> and <code class="docutils literal notranslate"><span class="pre">libtvm_runtime</span></code> under <code class="docutils literal notranslate"><span class="pre">/path-tvm-unity/build/</span></code> directory.</p>
+<p>Then you can install the python binding of TVM-Unity with the following commands:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>../python
+python<span class="w"> </span>setup.py<span class="w"> </span>install
+</pre></div>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>To troubleshoot the build, output from cmake is usually quite helpful.</p>
 </div>
-<p><strong>Step 3. Set up environment variables.</strong>
-The following two environment variables are generally required for TVM-based applications:</p>
-<div class="literal-block-wrapper docutils container" id="id5">
-<div class="code-block-caption"><span class="caption-text">Setting up environment variables for TVM</span><a class="headerlink" href="#id5" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># make sure $TVM_HOME/build/libtvm.{so|dylib|dll} exists</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">TVM_HOME</span><span class="o">=</span>/path-tvm/
-<span class="c1"># make TVM&#39;s Python binding discoverable by Python interpreter</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$TVM_HOME</span>/python:<span class="nv">$PYTHONPATH</span>
-</pre></div>
-</div>
-</div>
 </section>
 <section id="validate-installation">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h2>
 <p>Using a compiler infrastructure with multiple language bindings could be error-prone.
 Therefore, it is highly recommended to validate TVM Unity installation before use.</p>
 <p><strong>Step 1. Locate TVM Python package.</strong> The following command can help confirm that TVM is properly installed as a python package and provide the location of the TVM python package:</p>
