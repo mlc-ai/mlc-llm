@@ -38,9 +38,9 @@ def _cast_if_autocast_enabled(tensor):
 class LPLayerNormWOBias(nn.Module):
   def __init__(self, normalized_shape, eps=1e-05, dtype=None):
     self.weight = nn.Parameter((normalized_shape,), dtype=dtype, name="low_precision_layernorm_weight")
-    # TODO: check
+    # TODO: check default filling of weights
     self.weight = relax.op.ones((normalized_shape,), dtype)
-    self.variance_epsilon = tvm.tir.const(eps, dtype)
+    self.variance_epsilon = relax.const(eps, dtype)
 
   def forward(self, x):
     module_device = x.device
@@ -62,7 +62,7 @@ def _reset_is_causal(num_query_tokens: int, num_key_tokens: int, original_is_cau
   return original_is_causal
 
 
-def reshape_and_permute(hidden_states: relax.Expr, n_heads: int, d_model: int):
+def reshape_and_permute(hidden_states: relax.Expr, n_heads: int, d_model: int, indeces: List[int] = [0, 2, 1, 3]):
   '''
   Transform shape of input: b s (h d) -> b h d s
   '''
@@ -71,7 +71,7 @@ def reshape_and_permute(hidden_states: relax.Expr, n_heads: int, d_model: int):
       hidden_states,
       (batch_size, seqlen, n_heads, d_model),
   ))
-  return nn.emit(relax.op.permute_dims(inter, [0, 2, 1, 3]))
+  return nn.emit(relax.op.permute_dims(inter, indeces))
 
 
 def reverse_reshape_and_permute(hidden_states: relax.Expr):
@@ -102,7 +102,7 @@ def scaled_multihead_dot_product_attention(
 ):
   q = reshape_and_permute(query, n_heads, d_model)
   kv_n_heads = 1 if multiquery else n_heads
-  k = reshape_and_permute(key, kv_n_heads, d_model)
+  k = reshape_and_permute(key, kv_n_heads, d_model, [0, 2, 3, 1])
   v = reshape_and_permute(value, kv_n_heads, d_model)
   if past_key_value is not None:
     if len(past_key_value) != 0:
@@ -115,15 +115,14 @@ def scaled_multihead_dot_product_attention(
       softmax_scale = 1 / math.sqrt(d)
   attn_weight = nn.emit(relax.op.matmul(q, k) * softmax_scale)
   if attn_bias is not None:
-    # TODO: dynamic max
-    _s_q = max(0, attn_bias.struct_info.shape[2] - s_q)
-    _s_k = max(0, attn_bias.struct_info.shape[3] - s_k)
+    _s_q = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[2] - s_q)
+    _s_k = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[3] - s_k)
     # TODO: use split
     attn_bias = attn_bias[:, :, _s_q:, _s_k:]
     if (attn_bias.struct_info.shape[-1] != 1 and
-        attn_bias.struct_info.shape[-1] != s_k or
+        attn_bias.struct_info.shape[-1] != s_k or # dynamic condition?
         (attn_bias.struct_info.shape[-2] != 1 and
-          attn_bias.struct_info.shape[-2] != s_q)):
+          attn_bias.struct_info.shape[-2] != s_q)): # dynamic condition?
       raise RuntimeError(f'attn_bias (shape: {attn_bias.struct_info.shape}) is expected to broadcast to shape: {attn_weight.struct_info.shape}.')
     attn_weight = attn_weight + attn_bias
   min_val = tvm.tir.min_value(q.struct_info.dtype)
@@ -133,7 +132,7 @@ def scaled_multihead_dot_product_attention(
     key_mask = nn.emit(tvm.tir.bitwise_not(relax.op.reshape(key_padding_mask, (b, 1, 1, s_k))))
     attn_weight = masked_fill_relax(attn_weight, key_mask, min_val)
   if is_causal and (not q.struct_info.shape[2] == 1):
-      s = max(s_q, s_k)
+      s = relax.op.maximum(s_q, s_k)
       causal_mask = nn.emit(relax.op.ones((s, s,), dtype="float16"))
       causal_mask = nn.emit(relax.op.tril(causal_mask))
       causal_mask = tvm.tir.Cast("bool", causal_mask)
@@ -183,9 +182,8 @@ def flash_attn_fn(
       value = nn.emit(relax.op.concat([past_key_value[1], value], axis=1))
     past_key_value = (key, value)
   if attn_bias is not None:
-    # TODO: dynamic max
-    _s_q = max(0, attn_bias.struct_info.shape[2] - query.struct_info.shape[1])
-    _s_k = max(0, attn_bias.struct_info.shape[3] - key.struct_info.shape[1])
+    _s_q = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[2] - query.struct_info.shape[1])
+    _s_k = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[3] - key.struct_info.shape[1])
     # TODO: use split
     attn_bias = attn_bias[:, :, _s_q:, _s_k:]
   if attn_bias is not None:
@@ -264,9 +262,8 @@ def triton_flash_attn_fn(
       value = nn.emit(relax.op.concat([past_key_value[1], value], axis=1))
     past_key_value = (key, value)
   if attn_bias is not None:
-    # TODO: dynamic max
-    _s_q = max(0, attn_bias.struct_info.shape[2] - query.struct_info.shape[1])
-    _s_k = max(0, attn_bias.struct_info.shape[3] - key.struct_info.shape[1])
+    _s_q = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[2] - query.struct_info.shape[1])
+    _s_k = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[3] - key.struct_info.shape[1])
     # TODO: use split
     attn_bias = attn_bias[:, :, _s_q:, _s_k:]
   if needs_weights:
@@ -522,20 +519,20 @@ class MPTModel(nn.Module):
         self.attn_bias = self.attn_bias.to(dtype=dtype, device=device)
     attn_bias = self.attn_bias
     if self.prefix_lm:
-        assert isinstance(attn_bias, torch.Tensor)
-        assert isinstance(prefix_mask, torch.Tensor)
+        assert isinstance(attn_bias, relax.Expr)
+        assert isinstance(prefix_mask, relax.Expr)
         attn_bias = self._apply_prefix_mask(attn_bias, prefix_mask)
     if self.attn_uses_sequence_id and sequence_id is not None:
-        assert isinstance(attn_bias, torch.Tensor)
+        assert isinstance(attn_bias, relax.Expr)
         attn_bias = self._apply_sequence_id(attn_bias, sequence_id)
     if attention_mask is not None:
-        s_k = attention_mask.shape[-1]
+        s_k = attention_mask.struct_info.shape[-1]
         if attn_bias is None:
             attn_bias = torch.zeros((1, 1, 1, s_k), device=device, dtype=dtype)
         else:
-            _s_k = max(0, attn_bias.size(-1) - s_k)
+            _s_k = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[-1] - s_k)
             attn_bias = attn_bias[:, :, :, _s_k:]
-        if prefix_mask is not None and attention_mask.shape != prefix_mask.shape:
+        if prefix_mask is not None and attention_mask.struct_info.shape != prefix_mask.struct_info.shape:
             raise ValueError(f'attention_mask shape={attention_mask.shape} ' + f'and prefix_mask shape={prefix_mask.shape} are not equal.')
         min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
         attn_bias = masked_fill_relax(attn_bias, ~attention_mask.view(-1, 1, 1, s_k), min_val)
