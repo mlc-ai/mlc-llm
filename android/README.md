@@ -21,8 +21,6 @@ We are excited to share that we have enabled the Android support for MLC-LLM. Ch
     In build/config.cmake, set `USE_OPENCL` and `USE_LLVM` as ON
     ```shell
     make -j
-    export TVM_HOME=$(pwd)
-    export PYTHONPATH=$PYTHONPATH:$TVM_HOME/python
     export TVM_NDK_CC=/path/to/android/ndk/clang
     For example
     export TVM_NDK_CC=/Users/me/Library/Android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
@@ -32,7 +30,7 @@ We are excited to share that we have enabled the Android support for MLC-LLM. Ch
 
 3. Build TVM4j (Java Frontend for TVM Runtime).
     ```shell
-    cd ${TVM_HOME}/jvm; mvn install -pl core -DskipTests -Dcheckstyle.skip=true
+    cd 3rdparty/tvm/jvm; mvn install -pl core -DskipTests -Dcheckstyle.skip=true
     ```
 
 4. Follow the instructions [here](https://github.com/mlc-ai/mlc-llm#building-from-source) to either build the model using a Hugging Face URL, or a local directory. If opting for a local directory, you can follow the instructions [here](https://huggingface.co/docs/transformers/main/model_doc/llama) to get the original LLaMA weights in the HuggingFace format, and [here](https://github.com/lm-sys/FastChat#vicuna-weights) to get Vicuna weights.
