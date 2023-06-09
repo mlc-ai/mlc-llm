@@ -581,13 +581,15 @@ class MPTModel(nn.Module):
     (s_k, s_q) = attn_bias.struct_info.shape[-2:]
     if s_k != self.config.max_seq_len or s_q != self.config.max_seq_len:
       raise ValueError('attn_bias does not match the expected shape. ' + f'The last two dimensions should both be {self.config.max_length} ' + f'but are {s_k} and {s_q}.')
-    seq_len = prefix_mask.shape[-1]
+    seq_len = prefix_mask.struct_info.shape[-1]
     if seq_len > self.config.max_seq_len:
       raise ValueError(f'prefix_mask sequence length cannot exceed max_seq_len={self.config.max_seq_len}')
+    # TODO: use split
     attn_bias = attn_bias[..., :seq_len, :seq_len]
-    causal = torch.tril(torch.ones((seq_len, seq_len), dtype=torch.bool, device=prefix_mask.device)).view(1, 1, seq_len, seq_len)
-    prefix = prefix_mask.view(-1, 1, 1, seq_len)
-    cannot_attend = ~torch.logical_or(causal, prefix.bool())
+    causal = nn.emit(relax.op.reshape(relax.op.tril(relax.op.ones((seq_len, seq_len), dtype="bool")), (1, 1, seq_len, seq_len)))
+    prefix = nn.emit(relax.op.reshape(prefix_mask, (-1, 1, 1, seq_len)))
+    # TODO: logical_or on relax
+    cannot_attend = nn.emit(tvm.tir.bitwise_not(torch.logical_or(causal, tvm.tir.Cast("bool", prefix))))
     min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
     attn_bias = masked_fill_relax(attn_bias, cannot_attend, min_val)
     return attn_bias
