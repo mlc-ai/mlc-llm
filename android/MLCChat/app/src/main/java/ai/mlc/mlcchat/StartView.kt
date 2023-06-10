@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Chat
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.Schedule
@@ -77,7 +79,11 @@ fun StartView(
                 items(items = appViewModel.modelList,
                     key = { modelState -> modelState.id }
                 ) { modelState ->
-                    ModelView(navController = navController, modelState = modelState)
+                    ModelView(
+                        navController = navController,
+                        modelState = modelState,
+                        appViewModel = appViewModel
+                    )
                 }
                 if (!isAddingModel) {
                     item {
@@ -106,6 +112,12 @@ fun StartView(
                     }
                 }
                 Text(text = "Add Model by URL")
+                SelectionContainer {
+                    Text(
+                        text = "Sample URL: https://huggingface.co/mlc-ai/demo-vicuna-v1-7b-int4/",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
                 var url by rememberSaveable { mutableStateOf("") }
                 OutlinedTextField(
                     value = url,
@@ -114,7 +126,13 @@ fun StartView(
                     maxLines = 3,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .wrapContentHeight()
+                ) {
                     TextButton(onClick = { url = "" }) {
                         Text(text = "Clear")
                     }
@@ -136,8 +154,11 @@ fun StartView(
 
 @Composable
 fun ModelView(
-    navController: NavController, modelState: AppViewModel.ModelState
+    navController: NavController,
+    modelState: AppViewModel.ModelState,
+    appViewModel: AppViewModel
 ) {
+    var isDeletingModel by rememberSaveable { mutableStateOf(false) }
     Column(
         verticalArrangement = Arrangement.SpaceBetween,
         modifier = Modifier
@@ -155,7 +176,7 @@ fun ModelView(
                 textAlign = TextAlign.Left,
                 modifier = Modifier
                     .wrapContentHeight()
-                    .weight(9f)
+                    .weight(8f)
             )
             Divider(
                 modifier = Modifier
@@ -190,7 +211,9 @@ fun ModelView(
                     onClick = {
                         modelState.startChat()
                         navController.navigate("chat")
-                    }, modifier = Modifier
+                    },
+                    enabled = appViewModel.chatState.interruptable(),
+                    modifier = Modifier
                         .aspectRatio(1f)
                         .weight(1f)
                 ) {
@@ -211,11 +234,53 @@ fun ModelView(
                     )
                 }
             }
+            if (modelState.modelInitState.value == ModelInitState.Downloading ||
+                modelState.modelInitState.value == ModelInitState.Paused ||
+                modelState.modelInitState.value == ModelInitState.Finished
+            ) {
+                IconButton(
+                    onClick = { isDeletingModel = true },
+                    modifier = Modifier
+                        .aspectRatio(1f)
+                        .weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        contentDescription = "start downloading",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
         }
         LinearProgressIndicator(
             progress = modelState.progress.value.toFloat() / modelState.total.value,
             modifier = Modifier.fillMaxWidth()
         )
+        if (isDeletingModel) {
+            Row(
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+            ) {
+                TextButton(onClick = { isDeletingModel = false }) {
+                    Text(text = "cancel")
+                }
+                TextButton(onClick = {
+                    isDeletingModel = false
+                    modelState.handleClear()
+                }) {
+                    Text(text = "clear data", color = MaterialTheme.colorScheme.error)
+                }
+                TextButton(onClick = {
+                    isDeletingModel = false
+                    modelState.handleDelete()
+                }) {
+                    Text(text = "delete model", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
     }
 }
 
