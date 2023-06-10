@@ -2,7 +2,6 @@ package ai.mlc.mlcchat
 
 import android.app.Application
 import android.os.Environment
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.toMutableStateList
@@ -34,11 +33,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val localIdSet = emptySet<String>().toMutableSet()
 
     companion object {
-        private const val TAG = "AppViewModel"
-
         const val AppConfigFilename = "app-config.json"
         const val ModelConfigFilename = "mlc-chat-config.json"
         const val ParamsConfigFilename = "ndarray-cache.json"
+        const val ModelUrlSuffix = "resolve/main/"
     }
 
     init {
@@ -53,8 +51,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 Toast.LENGTH_SHORT
             ).show()
         } else {
-            downloadModelConfig(url, localId, false)
+            downloadModelConfig(if (url.endsWith("/")) url else "$url/", localId, false)
         }
+    }
+
+    fun requestDeleteModel(localId: String) {
+        deleteModel(localId)
+        Toast.makeText(
+            application,
+            "Model: $localId has been deleted",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
 
@@ -75,7 +82,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (modelConfigFile.exists()) {
                 val modelConfigString = modelConfigFile.readText()
                 val modelConfig = gson.fromJson(modelConfigString, ModelConfig::class.java)
-                addModelConfig(modelConfig, modelRecord.modelUrl)
+                addModelConfig(modelConfig, modelRecord.modelUrl, true)
             } else {
                 downloadModelConfig(modelRecord.modelUrl, modelRecord.localId, true)
             }
@@ -83,14 +90,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         modelSampleList += appConfig.modelSamples
     }
 
-    private fun updateAppConfig(modelUrl: String, localId: String) {
-        appConfig.modelList.add(ModelRecord(modelUrl, localId))
+    private fun updateAppConfig(action: () -> Unit) {
+        action()
         val jsonString = gson.toJson(appConfig)
         val appConfigFile = File(appDirFile, AppConfigFilename)
         appConfigFile.writeText(jsonString)
     }
 
-    private fun addModelConfig(modelConfig: ModelConfig, modelUrl: String) {
+    private fun addModelConfig(modelConfig: ModelConfig, modelUrl: String, isBuiltin: Boolean) {
         require(!localIdSet.contains(modelConfig.localId))
         localIdSet.add(modelConfig.localId)
         modelList.add(
@@ -100,12 +107,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 File(appDirFile, modelConfig.localId)
             )
         )
+        if (!isBuiltin) {
+            updateAppConfig {
+                appConfig.modelList.add(ModelRecord(modelUrl, modelConfig.localId))
+            }
+        }
     }
+
+    private fun deleteModel(localId: String) {
+        val modelDirFile = File(appDirFile, localId)
+        modelDirFile.deleteRecursively()
+        require(!modelDirFile.exists())
+        localIdSet.remove(localId)
+        modelList.removeIf { modelState -> modelState.modelConfig.localId == localId }
+        updateAppConfig {
+            appConfig.modelList.removeIf { modelRecord -> modelRecord.localId == localId }
+        }
+    }
+
 
     private fun downloadModelConfig(modelUrl: String, localId: String?, isBuiltin: Boolean) {
         thread(start = true) {
             try {
-                val url = URL("${modelUrl}${ModelConfigFilename}")
+                val url = URL("${modelUrl}${ModelUrlSuffix}${ModelConfigFilename}")
                 val tempId = UUID.randomUUID().toString()
                 val tempFile = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
@@ -120,27 +144,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 require(tempFile.exists())
                 viewModelScope.launch {
-                    val modelConfigString = tempFile.readText()
-                    val modelConfig = gson.fromJson(modelConfigString, ModelConfig::class.java)
-                    if (localId != null) {
-                        require(modelConfig.localId == localId)
-                    }
-                    if (localIdSet.contains(modelConfig.localId)) {
+                    try {
+                        val modelConfigString = tempFile.readText()
+                        val modelConfig = gson.fromJson(modelConfigString, ModelConfig::class.java)
+                        if (localId != null) {
+                            require(modelConfig.localId == localId)
+                        }
+                        if (localIdSet.contains(modelConfig.localId)) {
+                            tempFile.delete()
+                            Toast.makeText(
+                                application,
+                                "${modelConfig.localId} has been used, please consider another local ID",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            return@launch
+                        }
+                        val modelDirFile = File(appDirFile, modelConfig.localId)
+                        val modelConfigFile = File(modelDirFile, ModelConfigFilename)
+                        tempFile.copyTo(modelConfigFile, overwrite = true)
                         tempFile.delete()
-                        Toast.makeText(
-                            application,
-                            "${modelConfig.localId} has been used, please consider another local ID",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    val modelDirFile = File(appDirFile, modelConfig.localId)
-                    val modelConfigFile = File(modelDirFile, ModelConfigFilename)
-                    tempFile.copyTo(modelConfigFile, overwrite = true)
-                    tempFile.delete()
-                    require(modelConfigFile.exists())
-                    addModelConfig(modelConfig, modelUrl)
-                    if (!isBuiltin) {
-                        updateAppConfig(modelUrl, modelConfig.localId)
+                        require(modelConfigFile.exists())
+                        addModelConfig(modelConfig, modelUrl, isBuiltin)
+                    } catch (e: Exception) {
+                        viewModelScope.launch {
+                            Toast.makeText(
+                                application,
+                                "Add model failed: ${e.localizedMessage}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -195,7 +227,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         private fun downloadParamsConfig() {
             thread(start = true) {
-                val url = URL("${modelUrl}${ParamsConfigFilename}")
+                val url = URL("${modelUrl}${ModelUrlSuffix}${ParamsConfigFilename}")
                 val tempId = UUID.randomUUID().toString()
                 val tempFile = File(modelDirFile, tempId)
                 url.openStream().use {
@@ -224,6 +256,56 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             switchToPausing()
         }
 
+        fun handleClear() {
+            require(
+                modelInitState.value == ModelInitState.Downloading ||
+                        modelInitState.value == ModelInitState.Paused ||
+                        modelInitState.value == ModelInitState.Finished
+            )
+            switchToClearing()
+        }
+
+        private fun switchToClearing() {
+            if (modelInitState.value == ModelInitState.Paused) {
+                modelInitState.value = ModelInitState.Clearing
+                clear()
+            } else if (modelInitState.value == ModelInitState.Finished) {
+                modelInitState.value = ModelInitState.Clearing
+                if (chatState.modelName.value == modelConfig.localId) {
+                    chatState.requestTerminateChat { clear() }
+                } else {
+                    clear()
+                }
+            } else {
+                modelInitState.value = ModelInitState.Clearing
+            }
+        }
+
+        fun handleDelete() {
+            require(
+                modelInitState.value == ModelInitState.Downloading ||
+                        modelInitState.value == ModelInitState.Paused ||
+                        modelInitState.value == ModelInitState.Finished
+            )
+            switchToDeleting()
+        }
+
+        private fun switchToDeleting() {
+            if (modelInitState.value == ModelInitState.Paused) {
+                modelInitState.value = ModelInitState.Deleting
+                delete()
+            } else if (modelInitState.value == ModelInitState.Finished) {
+                modelInitState.value = ModelInitState.Deleting
+                if (chatState.modelName.value == modelConfig.localId) {
+                    chatState.requestTerminateChat { delete() }
+                } else {
+                    delete()
+                }
+            } else {
+                modelInitState.value = ModelInitState.Deleting
+            }
+        }
+
         private fun switchToIndexing() {
             modelInitState.value = ModelInitState.Indexing
             progress.value = 0
@@ -233,7 +315,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (file.exists()) {
                     ++progress.value
                 } else {
-                    remainingTasks.add(DownloadTask(URL("${modelUrl}${tokenizerFilename}"), file))
+                    remainingTasks.add(
+                        DownloadTask(
+                            URL("${modelUrl}${ModelUrlSuffix}${tokenizerFilename}"),
+                            file
+                        )
+                    )
                 }
             }
             for (paramsRecord in paramsConfig.paramsRecords) {
@@ -243,7 +330,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     remainingTasks.add(
                         DownloadTask(
-                            URL("${modelUrl}${paramsRecord.dataPath}"),
+                            URL("${modelUrl}${ModelUrlSuffix}${paramsRecord.dataPath}"),
                             file
                         )
                     )
@@ -304,7 +391,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             remainingTasks.remove(downloadTask)
             downloadingTasks.remove(downloadTask)
             ++progress.value
-            require(modelInitState.value == ModelInitState.Downloading || modelInitState.value == ModelInitState.Pausing)
+            require(
+                modelInitState.value == ModelInitState.Downloading ||
+                        modelInitState.value == ModelInitState.Pausing ||
+                        modelInitState.value == ModelInitState.Clearing ||
+                        modelInitState.value == ModelInitState.Deleting
+            )
             if (modelInitState.value == ModelInitState.Downloading) {
                 if (remainingTasks.isEmpty()) {
                     if (downloadingTasks.isEmpty()) {
@@ -317,7 +409,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (downloadingTasks.isEmpty()) {
                     switchToPaused()
                 }
+            } else if (modelInitState.value == ModelInitState.Clearing) {
+                if (downloadingTasks.isEmpty()) {
+                    clear()
+                }
+            } else if (modelInitState.value == ModelInitState.Deleting) {
+                if (downloadingTasks.isEmpty()) {
+                    delete()
+                }
             }
+        }
+
+        private fun clear() {
+            val files = modelDirFile.listFiles { dir, name ->
+                !(dir == modelDirFile && name == ModelConfigFilename)
+            }
+            require(files != null)
+            for (file in files) {
+                file.deleteRecursively()
+                require(!file.exists())
+            }
+            val modelConfigFile = File(modelDirFile, ModelConfigFilename)
+            require(modelConfigFile.exists())
+            switchToIndexing()
+        }
+
+        private fun delete() {
+            modelDirFile.deleteRecursively()
+            require(!modelDirFile.exists())
+            requestDeleteModel(modelConfig.localId)
         }
 
         private fun switchToPausing() {
@@ -356,6 +476,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private val executorService = Executors.newSingleThreadExecutor()
 
         private fun mainResetChat() {
+            executorService.submit {
+                backend.resetChat()
+                viewModelScope.launch {
+                    clearHistory()
+                    switchToReady()
+                }
+            }
+        }
+
+        private fun clearHistory() {
             messages.clear()
             report.value = ""
         }
@@ -365,7 +495,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             modelChatState.value = ModelChatState.Resetting
         }
 
-        private fun switchToGenerting() {
+        private fun switchToGenerating() {
             modelChatState.value = ModelChatState.Generating
         }
 
@@ -378,46 +508,79 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         fun requestResetChat() {
-            require(interuptable())
+            require(interruptable())
+            interruptChat(
+                prologue = {
+                    switchToResetting()
+                },
+                epilogue = {
+                    mainResetChat()
+                }
+            )
+        }
+
+        private fun interruptChat(prologue: () -> Unit, epilogue: () -> Unit) {
+            // prologue runs before interruption
+            // epilogue runs after interruption
+            require(interruptable())
             if (modelChatState.value == ModelChatState.Ready) {
-                switchToResetting()
-                mainResetChat()
-                switchToReady()
+                prologue()
+                epilogue()
             } else if (modelChatState.value == ModelChatState.Generating) {
-                switchToResetting()
+                prologue()
                 executorService.submit {
-                    backend.resetChat()
-                    viewModelScope.launch {
-                        mainResetChat()
-                        switchToReady()
-                    }
+                    viewModelScope.launch { epilogue() }
                 }
             } else {
                 require(false)
             }
         }
 
-        fun requestReloadChat(modelName: String, modelLib: String, modelPath: String) {
-            require(interuptable())
-            if (modelChatState.value == ModelChatState.Ready) {
-                switchToReloading()
-                mainReloadChat(modelName, modelLib, modelPath)
-            } else if (modelChatState.value == ModelChatState.Generating) {
-                switchToReloading()
-                executorService.submit {
-                    viewModelScope.launch {
-                        mainReloadChat(modelName, modelLib, modelPath)
-                    }
+        fun requestTerminateChat(callback: () -> Unit) {
+            require(interruptable())
+            interruptChat(
+                prologue = {
+                    switchToTerminating()
+                },
+                epilogue = {
+                    mainTerminateChat(callback)
+                }
+            )
+        }
+
+        private fun mainTerminateChat(callback: () -> Unit) {
+            executorService.submit {
+                backend.unload()
+                viewModelScope.launch {
+                    clearHistory()
+                    switchToReady()
+                    callback()
                 }
             }
         }
 
-        private fun mainReloadChat(modelName: String, modelLib: String, modelPath: String) {
-            mainResetChat()
+        private fun switchToTerminating() {
+            modelChatState.value = ModelChatState.Terminating
+        }
+
+
+        fun requestReloadChat(modelName: String, modelLib: String, modelPath: String) {
             if (this.modelName.value == modelName && this.modelLib == modelLib && this.modelPath == modelPath) {
-                switchToReady()
                 return
             }
+            require(interruptable())
+            interruptChat(
+                prologue = {
+                    switchToReloading()
+                },
+                epilogue = {
+                    mainReloadChat(modelName, modelLib, modelPath)
+                }
+            )
+        }
+
+        private fun mainReloadChat(modelName: String, modelLib: String, modelPath: String) {
+            clearHistory()
             this.modelName.value = modelName
             this.modelLib = modelLib
             this.modelPath = modelPath
@@ -425,11 +588,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 viewModelScope.launch {
                     Toast.makeText(application, "Initialize...", Toast.LENGTH_SHORT).show()
                 }
-                Log.i(TAG, "Unloading model")
                 backend.unload()
-                Log.i(TAG, "Loading model $modelLib $modelPath")
                 backend.reload(modelLib, modelPath)
-                Log.i(TAG, "Model loaded")
                 viewModelScope.launch {
                     Toast.makeText(application, "Ready to chat", Toast.LENGTH_SHORT).show()
                     switchToReady()
@@ -439,7 +599,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         fun requestGenerate(prompt: String) {
             require(chatable())
-            switchToGenerting()
+            switchToGenerating()
             executorService.submit {
                 appendMessage(MessageRole.User, prompt)
                 appendMessage(MessageRole.Bot, "")
@@ -471,7 +631,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             return modelChatState.value == ModelChatState.Ready
         }
 
-        fun interuptable(): Boolean {
+        fun interruptable(): Boolean {
             return modelChatState.value == ModelChatState.Ready || modelChatState.value == ModelChatState.Generating
         }
     }
@@ -483,6 +643,8 @@ enum class ModelInitState {
     Paused,
     Downloading,
     Pausing,
+    Clearing,
+    Deleting,
     Finished
 }
 
@@ -490,6 +652,7 @@ enum class ModelChatState {
     Generating,
     Resetting,
     Reloading,
+    Terminating,
     Ready
 }
 
