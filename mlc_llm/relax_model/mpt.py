@@ -116,8 +116,9 @@ def scaled_multihead_dot_product_attention(
   if attn_bias is not None:
     _s_q = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[2] - s_q)
     _s_k = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[3] - s_k)
-    # TODO: use split
-    attn_bias = attn_bias[:, :, _s_q:, _s_k:]
+    # slicing attn_bias[:, :, _s_q:, _s_k:]
+    s_q_end, s_k_end = attn_bias.struct_info.shape[-2:]
+    attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [2, 3], [_s_q, _s_k], [s_q_end, s_k_end]))
     if (attn_bias.struct_info.shape[-1] != 1 and
         attn_bias.struct_info.shape[-1] != s_k or # dynamic condition?
         (attn_bias.struct_info.shape[-2] != 1 and
@@ -136,8 +137,9 @@ def scaled_multihead_dot_product_attention(
       causal_mask = nn.emit(relax.op.tril(causal_mask))
       causal_mask = tvm.tir.Cast("bool", causal_mask)
       causal_mask = tvm.tir.bitwise_not(causal_mask)
-      # TODO: use split
-      causal_mask = causal_mask[-s_q:, -s_k:]
+      # slicing causal_mask[-s_q:, -s_k:]
+      s_q_end, s_k_end = causal_mask.struct_info.shape
+      causal_mask = nn.emit(relax.op.strided_slice(causal_mask, [0, 1], [s_q_end - s_q, s_k_end - s_k], [s_q_end, s_k_end]))
       causal_mask = nn.emit(relax.op.reshape(causal_mask, (1, 1, s_q, s_k)))
       attn_weight = masked_fill_relax(attn_weight, causal_mask, min_val)
   attn_weight = nn.emit(relax.op.nn.softmax(attn_weight))
@@ -322,16 +324,18 @@ def flash_attn_fn(
   if attn_bias is not None:
     _s_q = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[2] - query.struct_info.shape[1])
     _s_k = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[3] - key.struct_info.shape[1])
-    # TODO: use split
-    attn_bias = attn_bias[:, :, _s_q:, _s_k:]
+    # slicing attn_bias[:, :, _s_q:, _s_k:]
+    s_q_end, s_k_end = attn_bias.struct_info.shape[-2:]
+    attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [2, 3], [_s_q, _s_k], [s_q_end, s_k_end]))
   if attn_bias is not None:
     raise NotImplementedError(f'attn_bias not implemented for flash attn.')
-  (batch_size, seqlen) = query.shape[:2]
+  batch_size, seqlen = query.struct_info.shape[:2]
   if key_padding_mask is None:
     key_shape = key.struct_info.shape[:2]
     key_padding_mask = nn.emit(relax.op.ones(Tuple(*key_shape, 1), dtype="bool"))
-  # TODO: use split
-  query_padding_mask = key_padding_mask[:, -query.struct_info.shape[1]:]
+  # slicing key_padding_mask[:, -query.struct_info.shape[1]:]
+  dim1_length = key_padding_mask.struct_info.shape[1]
+  query_padding_mask = nn.emit(relax.op.strided_slice(key_padding_mask, [1], [dim1_length - seqlen], [dim1_length]))
   (query_unpad, indices_q, cu_seqlens_q, max_seqlen_q) = bert_padding_unpad_input(query, query_padding_mask)
 
   qnnz, _, _ = query_unpad.struct_info.shape
@@ -401,8 +405,9 @@ def triton_flash_attn_fn(
   if attn_bias is not None:
     _s_q = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[2] - query.struct_info.shape[1])
     _s_k = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[3] - key.struct_info.shape[1])
-    # TODO: use split
-    attn_bias = attn_bias[:, :, _s_q:, _s_k:]
+    # slicing attn_bias[:, :, _s_q:, _s_k:]
+    s_q_end, s_k_end = attn_bias.struct_info.shape[-2:]
+    attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [2, 3], [_s_q, _s_k], [s_q_end, s_k_end]))
   if needs_weights:
     raise NotImplementedError(f'attn_impl: triton cannot return attn weights.')
   if key_padding_mask is not None:
@@ -607,8 +612,13 @@ def gen_slopes(n_heads, alibi_bias_max=8):
     m = nn.emit(m * (alibi_bias_max / _n_heads))
     slopes = 1.0 / math.pow(2, m)
     if _n_heads != n_heads:
-      # TODO: relax [::]
-      slopes = nn.emit(relax.op.concat([slopes[1::2], slopes[::2]])[:n_heads])
+      slopes_len = slopes.struct_info.shape[0]
+      slopes = nn.emit(relax.op.strided_slice(
+          relax.op.concat(
+            [relax.op.strided_slice(slopes, [0], [relax.const(1)], [slopes_len], [relax.const(2)]), # [1::2]
+             relax.op.strided_slice(slopes, [0], [relax.const(0)], [slopes_len], [relax.const(2)])] # [::2]
+          ), [0], [relax.const(0)], [relax.const(n_heads)]) # slicing [:n_heads]
+      )
     return nn.emit(relax.op.reshape(slopes, (1, n_heads, 1, 1)))
 
 
@@ -705,8 +715,9 @@ class MPTModel(nn.Module):
         attn_bias = nn.emit(relax.op.zeros((1, 1, 1, s_k), dtype=dtype))
       else:
         _s_k = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[-1] - s_k)
-        # TODO: use split
-        attn_bias = attn_bias[:, :, :, _s_k:]
+        # slicing attn_bias[:, :, :, _s_k:]
+        s_k_end = attn_bias.struct_info.shape[3]
+        attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [3], [_s_k], [s_k_end]))
       if prefix_mask is not None and attention_mask.struct_info.shape != prefix_mask.struct_info.shape:
         raise ValueError(f'attention_mask shape={attention_mask.shape} ' + f'and prefix_mask shape={prefix_mask.shape} are not equal.')
       min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
@@ -721,8 +732,9 @@ class MPTModel(nn.Module):
     seq_len = prefix_mask.struct_info.shape[-1]
     if seq_len > self.config.max_seq_len:
       raise ValueError(f'prefix_mask sequence length cannot exceed max_seq_len={self.config.max_seq_len}')
-    # TODO: use split
-    attn_bias = attn_bias[..., :seq_len, :seq_len]
+    # slicing attn_bias[..., :seq_len, :seq_len]
+    dims_len = len(attn_bias.struct_info.shape) # TODO: rank?
+    attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [dims_len - 2, dims_len - 1], [relax.const(0), relax.const(0)], [seq_len, seq_len]))
     causal = nn.emit(relax.op.reshape(relax.op.tril(relax.op.ones((seq_len, seq_len), dtype="bool")), (1, 1, seq_len, seq_len)))
     prefix = nn.emit(relax.op.reshape(prefix_mask, (-1, 1, 1, seq_len)))
     # TODO: logical_or on relax
@@ -735,8 +747,9 @@ class MPTModel(nn.Module):
     seq_len = sequence_id.struct_info.shape[-1]
     if seq_len > self.config.max_seq_len:
       raise ValueError(f'sequence_id sequence length cannot exceed max_seq_len={self.config.max_seq_len}')
-    # TODO: use split
-    attn_bias = attn_bias[..., :seq_len, :seq_len]
+    # slicing attn_bias[..., :seq_len, :seq_len]
+    dims_len = len(attn_bias.struct_info.shape) # TODO: rank?
+    attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [dims_len - 2, dims_len - 1], [relax.const(0), relax.const(0)], [seq_len, seq_len]))
     # TODO: logical_not on relax
     seq_id_l = nn.emit(relax.op.reshape(sequence_id, (-1, seq_len, 1)))
     seq_id_r = nn.emit(relax.op.reshape(sequence_id, (-1, 1, seq_len)))
@@ -789,8 +802,10 @@ class MPTModel(nn.Module):
         raise ValueError(f'Cannot forward input with past sequence length {past_position} and current sequence length {S + 1}, this model only supports total sequence length <= {self.config.max_seq_len}.')
       pos = nn.emit(relax.op.expand_dims(relax.op.arange(past_position, S + past_position, dtype="long"), axis=0))
       if attention_mask is not None:
-        #TODO use split
-        pos_diff = nn.emit(relax.op.cumsum(tvm.tir.Cast("int32", tvm.tir.bitwise_not(attention_mask)), axis=1)[:, past_position:])
+        pos_diff_to_slice = nn.emit(relax.op.cumsum(tvm.tir.Cast("int32", tvm.tir.bitwise_not(attention_mask)), axis=1))
+        dim1_len = pos_diff_to_slice.struct_info.shape[1]
+        # slicing [:, past_position:]
+        pos_diff = nn.emit(relax.op.strided_slice(pos_diff_to_slice, [1], [past_position], [dim1_len]))
         pos = nn.emit(relax.op.clip(pos - pos_diff, min=0))
       pos_emb = self.wpe(pos)
       x = tok_emb + pos_emb
@@ -890,13 +905,16 @@ class MPTForCausalLM(nn.Module):
     if attention_mask[:, -1].sum() != attention_mask.shape[0]:
       raise NotImplementedError('MPT does not support generation with right padding.')
     if self.transformer.attn_uses_sequence_id and self.training:
-      # TODO: [:1] in Relax?
-      sequence_id = nn.emit(relax.op.zeros_like(input_ids[:1]))
+      # slicing input_ids[:1]
+      input_ids_slice = nn.emit(relax.op.strided_slice(input_ids, [0], [relax.const(0)], [relax.const(1)]))
+      sequence_id = nn.emit(relax.op.zeros_like(input_ids_slice))
     else:
       sequence_id = None
     if past_key_values is not None:
-      # TODO: Relax implementation?
-      input_ids = nn.emit(relax.op.expand_dims(input_ids[:, -1], axis=-1))
+      # slicing input_ids[:, -1]
+      dim1_len = input_ids.struct_info.shape[1]
+      input_ids_slice = nn.emit(relax.op.strided_slice(input_ids, [1], [dim1_len - 1], [dim1_len]))
+      input_ids = nn.emit(relax.op.expand_dims(input_ids_slice, axis=-1))
     if self.transformer.prefix_lm:
       prefix_mask = nn.emit(relax.op.ones_like(attention_mask, self.dtype))
       if kwargs.get('use_cache') == False:
