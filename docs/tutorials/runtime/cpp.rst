@@ -172,7 +172,7 @@ Advanced Topic: Integrate Models in C++
 
 MLC-compiled models can be integrated into any C++ project using TVM's C/C++ API without going through the command line.
 
-**Step 1. Create ``libmlc_llm``.** Both static and shared libraries are available via the :ref:`CMake instructions <mlcchat_build_from_source>`, and the downstream developer may include either one into the C++ project depending on needs.
+**Step 1. Create libmlc_llm.** Both static and shared libraries are available via the :ref:`CMake instructions <mlcchat_build_from_source>`, and the downstream developer may include either one into the C++ project depending on needs.
 
 **Step 2. Calling into the model in your C++ Project.** Use ``tvm::runtime::Module`` API from TVM runtime to interact with MLC LLM without MLCChat.
 
@@ -199,25 +199,27 @@ MLC-compiled models can be integrated into any C++ project using TVM's C/C++ API
     #include <dlpack/dlpack.h>
 
     void ChatModule(
-      const DLDevice& device,
+      const DLDeviceType& device_type, // from dlpack.h
+      int device_id, // which one if there are multiple devices, usually 0
       const std::string& path_model_lib,
       const std::string& path_weight_config
     ) {
       // PackedFunc is TVM's calling convention
       using tvm::runtime::PackedFunc;
-      // Make sure the following files exist:
+      // Step 0. Make sure the following files exist:
       // - model lib  : `$(path_model_lib)`
       // - chat config: `$(path_weight_config)/mlc-chat-config.json`
       // - weights    : `$(path_weight_config)/ndarray-cache.json`
 
-      const PackedFunc* fcreate = tvm::runtime::Registry::Get("mlc.llm_chat_create");
-      assert(fcreate != nullptr);
-      llm_chat_ = (*fcreate)(
-        static_cast<int>(kDLMetal), // kDLMetal comes from DLPack
-        0
+      // Step 1. Call `mlc.llm_chat_create`
+      // This method will exist if `libmlc_llm` is successfully loaded or linked as a shared or static library.
+      const PackedFunc* llm_chat_create = tvm::runtime::Registry::Get("mlc.llm_chat_create");
+      assert(llm_chat_create != nullptr);
+      tvm::runtime::Module chat_mod = (*llm_chat_create)(
+        static_cast<int>(device_type),
+        device_id,
       );
-      // Obtain all available functions in `libmlc_llm`
-      tvm::runtime::Module chat_mod = mlc::llm::CreateChatModule(device);
+      // Obtain all available functions in `chat_mod`
       PackedFunc prefill_ = chat_mod->GetFunction("prefill");
       PackedFunc decode_ = chat_mod->GetFunction("decode");
       PackedFunc stopped_ = chat_mod->GetFunction("stopped");
@@ -228,7 +230,7 @@ MLC-compiled models can be integrated into any C++ project using TVM's C/C++ API
       PackedFunc runtime_stats_text_ = chat_mod->GetFunction("runtime_stats_text");
       PackedFunc reset_chat_ = chat_mod->GetFunction("reset_chat");
       PackedFunc process_system_prompts_ = chat_mod->GetFunction("process_system_prompts");
-      // Load model lib which contains optimized tensor computation
+      // Load the model lib containing optimized tensor computation
       tvm::runtime::Module model_lib = tvm::runtime::Module::LoadFromFile(path_model_lib);
       reload_(model_lib, path_weight_config);
     }
