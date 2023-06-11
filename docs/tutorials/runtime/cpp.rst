@@ -184,6 +184,8 @@ MLC-compiled models can be integrated into any C++ project using TVM's C/C++ API
     `TensorFlow <https://www.tensorflow.org/api_docs/python/tf/experimental/dlpack/>`_,
     etc.
 
+In fact, MLCChat CLI can be considered as a `single-file <https://github.com/mlc-ai/mlc-llm/blob/main/cpp/cli_main.cc>` project that serves as a good example of using MLC LLM in any C++ project.
+
 .. collapse:: Example code
 
   .. code:: c++
