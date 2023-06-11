@@ -172,7 +172,7 @@ Advanced Topic: Integrate Models in C++
 
 MLC-compiled models can be integrated into any C++ project using TVM's C/C++ API without going through the command line.
 
-**Step 1. Create ``libmlc_llm``.** Both static and shared libraries are available via the :ref:`CMake instructions <mlcchat_build_from_source>`, and the downstream developer may include either one into the C++ project depending on needs.
+**Step 1. Create libmlc_llm.** Both static and shared libraries are available via the :ref:`CMake instructions <mlcchat_build_from_source>`, and the downstream developer may include either one into the C++ project depending on needs.
 
 **Step 2. Calling into the model in your C++ Project.** Use ``tvm::runtime::Module`` API from TVM runtime to interact with MLC LLM without MLCChat.
 
@@ -199,43 +199,50 @@ MLC-compiled models can be integrated into any C++ project using TVM's C/C++ API
     #include <dlpack/dlpack.h>
 
     void ChatModule(
-      const DLDevice& device,
+      const DLDeviceType& device_type, // from dlpack.h
+      int device_id, // which one if there are multiple devices, usually 0
       const std::string& path_model_lib,
       const std::string& path_weight_config
     ) {
-      // PackedFunc is TVM's calling convention
-      using tvm::runtime::PackedFunc;
-      // Make sure the following files exist:
+      // Step 0. Make sure the following files exist:
       // - model lib  : `$(path_model_lib)`
       // - chat config: `$(path_weight_config)/mlc-chat-config.json`
       // - weights    : `$(path_weight_config)/ndarray-cache.json`
+      using tvm::runtime::PackedFunc;
 
-      const PackedFunc* fcreate = tvm::runtime::Registry::Get("mlc.llm_chat_create");
-      assert(fcreate != nullptr);
-      llm_chat_ = (*fcreate)(
-        static_cast<int>(kDLMetal), // kDLMetal comes from DLPack
-        0
+      // Step 1. Call `mlc.llm_chat_create`
+      // This method will exist if `libmlc_llm` is successfully loaded or linked as a shared or static library.
+      const PackedFunc* llm_chat_create = tvm::runtime::Registry::Get("mlc.llm_chat_create");
+      assert(llm_chat_create != nullptr);
+      tvm::runtime::Module mlc_llm = (*llm_chat_create)(
+        static_cast<int>(device_type),
+        device_id,
       );
-      // Obtain all available functions in `libmlc_llm`
-      tvm::runtime::Module chat_mod = mlc::llm::CreateChatModule(device);
-      PackedFunc prefill_ = chat_mod->GetFunction("prefill");
-      PackedFunc decode_ = chat_mod->GetFunction("decode");
-      PackedFunc stopped_ = chat_mod->GetFunction("stopped");
-      PackedFunc get_message_ = chat_mod->GetFunction("get_message");
-      PackedFunc reload_ = chat_mod->GetFunction("reload");
-      PackedFunc get_role0_ = chat_mod->GetFunction("get_role0");
-      PackedFunc get_role1_ = chat_mod->GetFunction("get_role1");
-      PackedFunc runtime_stats_text_ = chat_mod->GetFunction("runtime_stats_text");
-      PackedFunc reset_chat_ = chat_mod->GetFunction("reset_chat");
-      PackedFunc process_system_prompts_ = chat_mod->GetFunction("process_system_prompts");
-      // Load model lib which contains optimized tensor computation
+      // Step 2. Obtain all available functions in `mlc_llm`
+      PackedFunc prefill = mlc_llm->GetFunction("prefill");
+      PackedFunc decode = mlc_llm->GetFunction("decode");
+      PackedFunc stopped = mlc_llm->GetFunction("stopped");
+      PackedFunc get_message = mlc_llm->GetFunction("get_message");
+      PackedFunc reload = mlc_llm->GetFunction("reload");
+      PackedFunc get_role0 = mlc_llm->GetFunction("get_role0");
+      PackedFunc get_role1 = mlc_llm->GetFunction("get_role1");
+      PackedFunc runtime_stats_text = mlc_llm->GetFunction("runtime_stats_text");
+      PackedFunc reset_chat = mlc_llm->GetFunction("reset_chat");
+      PackedFunc process_system_prompts = mlc_llm->GetFunction("process_system_prompts");
+      // Step 3. Load the model lib containing optimized tensor computation
       tvm::runtime::Module model_lib = tvm::runtime::Module::LoadFromFile(path_model_lib);
-      reload_(model_lib, path_weight_config);
+      // Step 4. Inform MLC LLM to use `model_lib`
+      reload(model_lib, path_weight_config);
     }
 
 .. `|` adds a blank line
 
 |
+
+.. note::
+
+  MLCChat CLI can be considered as a `single-file <https://github.com/mlc-ai/mlc-llm/blob/main/cpp/cli_main.cc>`_ project serving a good example of using MLC LLM in any C++ project.
+
 
 **Step 3. Set up compilation flags.** To properly compile the code above, you will have to set up compiler flags properly in your own C++ project:
 
