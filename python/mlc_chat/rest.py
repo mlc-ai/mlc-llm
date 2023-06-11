@@ -63,7 +63,7 @@ def _parse_args():
     args.add_argument(
         "--model", type=str, default="vicuna-v1-7b"
     )
-    args.add_argument("--artifact-path", type=str, default="../dist")
+    args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument(
         "--quantization",
         type=str,
