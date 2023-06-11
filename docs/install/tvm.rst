@@ -90,7 +90,7 @@ While it is always recommended to use prebuilt TVM Unity, for more customization
     .. code-block:: bash
         :caption: Build ``libtvm`` using cmake and cmake
 
-        cmake .. && cmake --build . --parallel $(nproc) && cd ..
+        cmake .. && cmake --build . --parallel $(nproc)
 
     A success build should produce ``libtvm`` and ``libtvm_runtime`` under ``/path-tvm-unity/build/`` directory.
 
