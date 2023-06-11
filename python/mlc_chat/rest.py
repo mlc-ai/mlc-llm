@@ -1,4 +1,4 @@
-from .chat_module import ChatModule, supported_models, quantization_keys
+from .chat_module import ChatModule, quantization_keys
 
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
