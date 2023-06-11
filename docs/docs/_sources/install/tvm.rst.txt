@@ -13,13 +13,8 @@ Option 1. Prebuilt Package
 --------------------------
 
 To help our community to use Apache TVM Unity, a nightly prebuilt developer package is provided with everything packaged.
+
 Please visit the installation page for installation instructions: https://mlc.ai/package/.
-
-.. code-block:: bash
-
-    # Locate TVM python package
-    >>> python -c "import tvm; print(tvm.__file__)"
-    /some-path/lib/python3.11/site-packages/tvm/__init__.py
 
 Option 2. Build from Source
 ---------------------------
@@ -95,8 +90,7 @@ While it is always recommended to use prebuilt TVM Unity, for more customization
     .. code-block:: bash
         :caption: Build ``libtvm`` using cmake and cmake
 
-        cmake ..
-        make -j$(nproc)
+        cmake .. && cmake --build . --parallel $(nproc)
 
     A success build should produce ``libtvm`` and ``libtvm_runtime`` under ``/path-tvm-unity/build/`` directory.
 

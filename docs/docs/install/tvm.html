@@ -315,13 +315,8 @@
 </ul>
 <section id="option-1-prebuilt-package">
 <h2><a class="toc-backref" href="#id6" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading">¶</a></h2>
-<p>To help our community to use Apache TVM Unity, a nightly prebuilt developer package is provided with everything packaged.
-Please visit the installation page for installation instructions: <a class="reference external" href="https://mlc.ai/package/">https://mlc.ai/package/</a>.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Locate TVM python package</span>
-&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.__file__)&quot;</span>
-/some-path/lib/python3.11/site-packages/tvm/__init__.py
-</pre></div>
-</div>
+<p>To help our community to use Apache TVM Unity, a nightly prebuilt developer package is provided with everything packaged.</p>
+<p>Please visit the installation page for installation instructions: <a class="reference external" href="https://mlc.ai/package/">https://mlc.ai/package/</a>.</p>
 </section>
 <section id="option-2-build-from-source">
 <h2><a class="toc-backref" href="#id7" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
@@ -396,8 +391,7 @@ vim<span class="w"> </span>config.cmake
 <p>Once <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code> is edited accordingly, kick off build with the commands below:</p>
 <div class="literal-block-wrapper docutils container" id="id4">
 <div class="code-block-caption"><span class="caption-text">Build <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> using cmake and cmake</span><a class="headerlink" href="#id4" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>..
-make<span class="w"> </span>-j<span class="k">$(</span>nproc<span class="k">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cmake<span class="w"> </span>--build<span class="w"> </span>.<span class="w"> </span>--parallel<span class="w"> </span><span class="k">$(</span>nproc<span class="k">)</span>
 </pre></div>
 </div>
 </div>
