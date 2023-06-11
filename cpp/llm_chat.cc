@@ -195,7 +195,6 @@ class LLMChat {
         ICHECK(config["conv_template"].is<std::string>());
         std::string conv_template = config["conv_template"].get<std::string>();
         this->conversation_ = Conversation::FromTemplate(conv_template);
-
         if (config.count("conv_config")) {
           // conv_config can override conv_template
           this->conversation_.LoadJSONOverride(config["conv_config"], true);
