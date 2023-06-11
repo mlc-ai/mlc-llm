@@ -191,16 +191,17 @@ class LLMChat {
     } else {
       CHECK(partial_update) << "Key \"shift_fill_factor\" not found.";
     }
-    if (config.count("conv_template") || config.count("conv_config")) {
-      if (config.count("conv_template")) {
+    if (config.count("conv_template")) {
         ICHECK(config["conv_template"].is<std::string>());
         std::string conv_template = config["conv_template"].get<std::string>();
         this->conversation_ = Conversation::FromTemplate(conv_template);
-      }
-      if (config.count("conv_config")) {
-        // conv_config can override conv_template
-        this->conversation_.LoadJSONOverride(config["conv_config"]);
-      }
+        if (config.count("conv_config")) {
+          // conv_config can override conv_template
+          this->conversation_.LoadJSONOverride(config["conv_config"], true);
+        }
+    } else if (config.count("conv_config")) {
+      // without conv template, conv_config needs to be a complete config
+      this->conversation_.LoadJSONOverride(config["conv_config"], false);
     } else {
       CHECK(partial_update) << "Key \"conv_template\" and \"conv_config\" not found.";
     }
