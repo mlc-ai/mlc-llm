@@ -26,24 +26,32 @@ Machine Learning Compilation for LLM (MLC LLM) is a universal deployment solutio
    +-------------------+-------------------+-------------------+-------------------+---------------------+
 
 
+Get Started
+-----------
+
+:doc:`get_started/mlcchat_terminologies`
+
+
 Project Structure
 -----------------
 
-The project comprises three independent modules: model definition, model compilation, and runtimes.
+The project comprises three independent submodules: model definition, model compilation, and runtimes.
 
-.. image:: _static/img/project-structure.svg
+.. figure:: _static/img/project-structure.svg
    :width: 600
    :align: center
    :alt: Project Structure
+
+   Three independent submodules in MLC LLM
 
 .. ➀➁➂➃➄➅➆➇➈➉
 .. ➊➋➌➍➎➏➐➑➒➓
 
 **➀ Model definition in Python.** MLC offers a variety of pre-defined architectures, such as Llama (e.g., Vicuna, OpenLlama, Llama, Wizard), GPT-NeoX (e.g., RedPajama, Dolly), RNNs (e.g., RWKV), and GPT-J (e.g., MOSS). Model developers could solely define the model in pure Python, without having to touch code generation and runtime.
 
-**➁ Model compilation in Python.** TVM Unity compiler are configured in pure python, and the compiled artifact can be exported as shared or static libraries. Performance experts can concentrate on compiler optimization to enhance the speed of LLMs on specific devices of interest.
+**➁ Model compilation in Python.** TVM Unity compiler are configured in pure python, and it quantizes and exports the Python-based model to :ref:`model lib <model_lib>` and quantized :ref:`model weights <model_weights>`. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.
 
-**➂ Platform-native runtimes.** MLCChat are provided as lightweight runtimes tailored for each platform, including **C++** for command line, **Javascript** for web, **Swift** for iOS, and **Java** for Android. App developers only need to familiarize themselves with the platform-naive runtimes to integrate MLC-compiled LLM into their applications.
+**➂ Platform-native runtimes.** Variants of MLCChat are provided on each platform: **C++** for command line, **Javascript** for web, **Swift** for iOS, and **Java** for Android, configurable with a JSON :ref:`chat config <chat_config>`. App developers only need to familiarize with the platform-naive runtimes to integrate MLC-compiled LLMs into their projects.
 
 Tutorials
 ---------
@@ -52,7 +60,7 @@ Tutorials
 
    .. tab :: ➂ Use Compiled Models
 
-      MLC-compiled models can be used with or without MLCChat per-platform, the default runtime designed to demonstrate reusable ways of integration.
+      The following tutorials introduce how to run MLC-compiled models with MLCChat or in platform-native projects.
 
       - :doc:`tutorials/runtime/cpp` for command line
       - :doc:`tutorials/runtime/javascript` for WebLLM
@@ -83,11 +91,6 @@ Tutorials
 
 .. - Machine Learning Compilation Basics: `Machine Learning Compilation <https://mlc.ai/>`__
 
-Vertical Walkthroughs
----------------------
-
-🚧 This document is currently undergoing heavy construction.
-
 
 Community
 ---------
@@ -95,6 +98,12 @@ Community
 - :doc:`Community guideline <community/guideline>` 
 - :doc:`FAQs <community/faq>` 
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Get Started
+   :hidden:
+
+   get_started/mlcchat_terminologies.rst
 
 .. toctree::
    :maxdepth: 1
@@ -119,14 +128,6 @@ Community
 
 .. toctree::
    :maxdepth: 1
-   :caption: Installation and Dependency
-   :hidden:
-
-   install/tvm.rst
-   install/cli.rst
-
-.. toctree::
-   :maxdepth: 1
    :caption: Define Model Architectures
    :hidden:
 
@@ -141,14 +142,10 @@ Community
 
 .. toctree::
    :maxdepth: 1
-   :caption: Other tutorials
+   :caption: Installation and Dependency
+   :hidden:
 
-   install/software-dependencies.rst
-   tutorials/deploy-models.rst
-   tutorials/compile-models.rst
-   tutorials/bring-your-own-models.rst
-   tutorials/customize-conversation.rst
-   tutorials/customize.rst
+   install/tvm.rst
 
 .. toctree::
    :maxdepth: 1
@@ -157,3 +154,14 @@ Community
 
    community/guideline.rst
    community/faq.rst
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Other tutorials
+
+   install/software-dependencies.rst
+   tutorials/deploy-models.rst
+   tutorials/compile-models.rst
+   tutorials/bring-your-own-models.rst
+   tutorials/customize-conversation.rst
+   tutorials/customize.rst
