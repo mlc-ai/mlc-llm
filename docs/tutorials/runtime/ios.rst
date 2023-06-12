@@ -102,7 +102,7 @@ To organize the assets, execute the following script within the
 
 The outcome should be as follows:
 
-.. code::bash
+.. code:: bash
 
    >>> ls ./dist/
    params/              # Parameter shards
