@@ -732,8 +732,7 @@ class MPTModel(nn.Module):
     attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [dims_len - 2, dims_len - 1], [relax.const(0), relax.const(0)], [seq_len, seq_len]))
     causal = nn.emit(relax.op.reshape(relax.op.tril(relax.op.ones((seq_len, seq_len), dtype="bool")), (1, 1, seq_len, seq_len)))
     prefix = nn.emit(relax.op.reshape(prefix_mask, (-1, 1, 1, seq_len)))
-    # TODO: logical_or on relax
-    cannot_attend = nn.emit(tvm.tir.bitwise_not(torch.logical_or(causal, tvm.tir.Cast("bool", prefix))))
+    cannot_attend = nn.emit(tvm.tir.bitwise_not(relax.op.logical_or(causal, tvm.tir.Cast("bool", prefix))))
     min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
     attn_bias = nn.emit(relax.op.masked_fill(attn_bias, cannot_attend, min_val))
     return attn_bias
