@@ -358,10 +358,34 @@ def get_database(db_paths: str) -> ms.Database:
     return db
 
 
+def _detect_local_metal_host():
+    target_triple = tvm._ffi.get_global_func("tvm.codegen.llvm.GetDefaultTargetTriple")()
+    process_triple = tvm._ffi.get_global_func("tvm.codegen.llvm.GetProcessTriple")()
+    host_cpu = tvm._ffi.get_global_func("tvm.codegen.llvm.GetHostCPUName")()
+    print(f"Host CPU dection:\n  Target triple: {target_triple}\n  Process triple: {process_triple}\n  Host CPU: {host_cpu}")
+    if target_triple.startswith("x86_64-"):
+        return tvm.target.Target(
+           {
+                "kind": "llvm",
+                "mtriple": "x86_64-apple-macos",
+                "mcpu": host_cpu,
+           }
+        )
+    # should start with "arm64-"
+    return tvm.target.Target(
+       {
+            "kind": "llvm",
+            "mtriple": "arm64-apple-macos",
+            "mcpu": host_cpu,
+       }
+    )
+
+
 def _detect_local_metal():
     dev = tvm.metal()
     if not dev.exist:
         return None
+    
     return tvm.target.Target(
         {
             "kind": "metal",
@@ -369,13 +393,7 @@ def _detect_local_metal():
             "max_threads_per_block": dev.max_threads_per_block,
             "thread_warp_size": 32,
         },
-        host=tvm.target.Target(  # TODO: assuming ARM mac for now
-            {
-                "kind": "llvm",
-                "mtriple": "arm64-apple-macos",
-                "mcpu": "apple-latest",
-            }
-        ),
+        host=_detect_local_metal_host(),
     )
 
 
@@ -414,10 +432,6 @@ def _detect_local_vulkan():
 
 
 def detect_local_target():
-    dev = tvm.metal()
-    if dev.exist:
-        return tvm.target.Target("apple/m1-gpu")
-
     for method in [
         _detect_local_metal,
         _detect_local_cuda,
@@ -456,13 +470,7 @@ def parse_target(args: argparse.Namespace) -> None:
                         "thread_warp_size": 1,
                     }
                 ),
-                host=tvm.target.Target(  # TODO: assuming ARM mac for now
-                    {
-                        "kind": "llvm",
-                        "mtriple": "arm64-apple-macos",
-                        "mcpu": "apple-latest",
-                    }
-                ),
+                host=_detect_local_metal_host(),
             )
         args.target = target
         args.target_kind = args.target.kind.default_keys[0]
