@@ -26,6 +26,6 @@ cmake --build . --target install --config release -j
 
 cd ..
 rm -rf build/tvm_home
-ln -s  ${TVM_HOME} build/tvm_home
+ln -s ../3rdparty/tvm build/tvm_home
 
 python prepare_model_lib.py

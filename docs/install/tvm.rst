@@ -13,112 +13,100 @@ Option 1. Prebuilt Package
 --------------------------
 
 To help our community to use Apache TVM Unity, a nightly prebuilt developer package is provided with everything packaged.
+
 Please visit the installation page for installation instructions: https://mlc.ai/package/.
-
-**Set up** ``$TVM_HOME`` **after installation.** This environment variable is not used by TVM itself but by downstream applications like `MLC LLM <https://mlc.ai/mlc-llm>`_, and thus it would be more convenient to set it up earlier:
-
-.. code-block:: bash
-
-    # Locate TVM python package
-    >>> python -c "import tvm; print(tvm.__file__)"
-    /some-path/lib/python3.11/site-packages/tvm/__init__.py
-    # Set up the environment variable
-    >>> export TVM_HOME=/some-path/lib/python3.11/site-packages/tvm/
-
-.. note::
-    If installed properly, ``libtvm.{so|dylib|dll}`` should exist right under ``$TVM_HOME``.
 
 Option 2. Build from Source
 ---------------------------
 
-**Step 1. Set up build dependency.** To build from source, you need to ensure that the following build dependencies are met:
+While it is always recommended to use prebuilt TVM Unity, for more customization, one has to build it from source with the following steps:
 
-- CMake >= 3.18
-- LLVM >= 15
-- Git
-- (Optional) CUDA >= 11.8 (targeting NVIDIA GPUs)
-  - Check :ref:`software-dependencies-cuda` on how to install CUDA.
-- (Optional) Metal (targeting Apple GPUs such as M1 and M2)
-- (Optional) Vulkan (targeting NVIDIA, AMD, Intel and mobile GPUs)
-  - Check :ref:`software-dependencies-vulkan-sdk` on how to install Vulkan SDK.
-- (Optional) OpenCL (targeting NVIDIA, AMD, Intel and mobile GPUs)
-  - Check :ref:`software-dependencies-opencl-sdk` on how to install OpenCL.
+.. collapse:: Details
 
-.. note::
-    - To target NVIDIA GPUs, either CUDA or Vulkan is required (CUDA is recommended);
-    - For AMD and Intel GPUs, Vulkan is necessary;
-    - When targeting Apple (macOS, iOS, iPadOS), Metal is a mandatory dependency;
-    - Some Android devices only support OpenCL, but most of them support Vulkan.
+    **Step 1. Set up build dependency.** To build from source, you need to ensure that the following build dependencies are met:
 
-To easiest way to manage dependency is via conda, which maintains a set of toolchains including LLVM across platforms. To create the environment of those build dependencies, one may simply use:
+    - CMake >= 3.24
+    - LLVM >= 15
+    - Git
+    - (Optional) CUDA >= 11.8 (targeting NVIDIA GPUs)
+    - (Optional) Metal (targeting Apple GPUs such as M1 and M2)
+    - (Optional) Vulkan (targeting NVIDIA, AMD, Intel and mobile GPUs)
+    - (Optional) OpenCL (targeting NVIDIA, AMD, Intel and mobile GPUs)
 
-.. code-block:: bash
-    :caption: Set up build dependencies in conda
+    .. note::
+        - To target NVIDIA GPUs, either CUDA or Vulkan is required (CUDA is recommended);
+        - For AMD and Intel GPUs, Vulkan is necessary;
+        - When targeting Apple (macOS, iOS, iPadOS), Metal is a mandatory dependency;
+        - Some Android devices only support OpenCL, but most of them support Vulkan.
 
-    # make sure to start with a fresh environment
-    conda env remove -n tvm-unity-build
-    # create the conda environment with build dependency
-    conda create -n tvm-unity-build -c conda-forge \
-        "llvmdev>=15" \
-        "cmake>=3.18" \
-        git
-    # enter the build environment
-    conda activate tvm-unity-build
+    To easiest way to manage dependency is via conda, which maintains a set of toolchains including LLVM across platforms. To create the environment of those build dependencies, one may simply use:
 
-**Step 2. Configure and build.** Standard git-based workflow are recommended to download Apache TVM Unity, and then specify build requirements in ``config.cmake``:
+    .. code-block:: bash
+        :caption: Set up build dependencies in conda
 
-.. code-block:: bash
-    :caption: Download TVM Unity from GitHub
+        # make sure to start with a fresh environment
+        conda env remove -n tvm-build-venv
+        # create the conda environment with build dependency
+        conda create -n tvm-build-venv -c conda-forge \
+            "llvmdev>=15" \
+            "cmake>=3.24" \
+            git
+        # enter the build environment
+        conda activate tvm-build-venv
 
-    # clone from GitHub
-    git clone --recursive git@github.com:mlc-ai/relax.git tvm-unity && cd tvm-unity
-    # create the build directory
-    rm -rf build && mkdir build && cd build
-    # specify build requirements in `config.cmake`
-    cp ../cmake/config.cmake .
-    vim config.cmake
+    **Step 2. Configure and build.** Standard git-based workflow are recommended to download Apache TVM Unity, and then specify build requirements in ``config.cmake``:
 
-.. note::
-    We are temporarily using `mlc-ai/relax <https://github.com/mlc-ai/relax>`_ instead, which comes with several temporary outstanding changes that we will upstream to Apache TVM's `unity branch <https://github.com/apache/tvm/tree/unity>`_.
+    .. code-block:: bash
+        :caption: Download TVM Unity from GitHub
 
-While ``config.cmake`` is well-documented, below are flags of the most interest:
+        # clone from GitHub
+        git clone --recursive git@github.com:mlc-ai/relax.git tvm-unity && cd tvm-unity
+        # create the build directory
+        rm -rf build && mkdir build && cd build
+        # specify build requirements in `config.cmake`
+        cp ../cmake/config.cmake .
+        vim config.cmake
 
-.. code-block:: cmake
-    :caption: Configure build in ``config.cmake``
+    .. note::
+        We are temporarily using `mlc-ai/relax <https://github.com/mlc-ai/relax>`_ instead, which comes with several temporary outstanding changes that we will upstream to Apache TVM's `unity branch <https://github.com/apache/tvm/tree/unity>`_.
 
-    #### Edit `/path-tvm-unity/build/config.cmake`
-    # Can be one of `Debug`, `RelWithDebInfo` (recommended) and `Release`
-    set(CMAKE_BUILD_TYPE RelWithDebInfo)
-    set(USE_LLVM "llvm-config --ignore-libllvm --link-static")  # LLVM is a must dependency
-    set(HIDE_PRIVATE_SYMBOLS ON)  # Avoid symbol conflict
-    set(USE_CUDA   OFF) # Turn on if needed
-    set(USE_METAL  OFF) # Turn on if needed
-    set(USE_VULKAN OFF) # Turn on if needed
-    set(USE_OpenCL OFF) # Turn on if needed
+    While ``config.cmake`` is well-documented, below are flags of the most interest:
 
-Once ``config.cmake`` is edited accordingly, kick off build with the commands below
+    .. code-block:: cmake
+        :caption: Configure build in ``config.cmake``
 
-.. code-block:: bash
-    :caption: Build ``libtvm`` using cmake and cmake
+        #### Edit `/path-tvm-unity/build/config.cmake`
+        # Can be one of `Debug`, `RelWithDebInfo` (recommended) and `Release`
+        set(CMAKE_BUILD_TYPE RelWithDebInfo)
+        set(USE_LLVM "llvm-config --ignore-libllvm --link-static")  # LLVM is a must dependency
+        set(HIDE_PRIVATE_SYMBOLS ON)  # Avoid symbol conflict
+        set(USE_CUDA   OFF) # Turn on if needed
+        set(USE_METAL  OFF) # Turn on if needed
+        set(USE_VULKAN OFF) # Turn on if needed
+        set(USE_OpenCL OFF) # Turn on if needed
 
-    cmake ..
-    make -j$(nproc)
+    Once ``config.cmake`` is edited accordingly, kick off build with the commands below:
 
-A success build should produce ``libtvm`` and ``libtvm_runtime`` under ``/path-tvm-unity/build/`` directory.
+    .. code-block:: bash
+        :caption: Build ``libtvm`` using cmake and cmake
 
-.. note::
-    To troubleshoot the build, output from cmake is usually quite helpful.
+        cmake .. && cmake --build . --parallel $(nproc)
 
-**Step 3. Set up environment variables.**
-The following two environment variables are generally required for TVM-based applications:
+    A success build should produce ``libtvm`` and ``libtvm_runtime`` under ``/path-tvm-unity/build/`` directory.
 
-.. code-block:: bash
-    :caption: Setting up environment variables for TVM
+    Then you can install the python binding of TVM-Unity with the following commands:
 
-    # make sure $TVM_HOME/build/libtvm.{so|dylib|dll} exists
-    export TVM_HOME=/path-tvm/
-    # make TVM's Python binding discoverable by Python interpreter
-    export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
+    .. code-block:: bash
+
+        cd ../python
+        python setup.py install
+
+    .. note::
+        Outputs from cmake is usually helpful for troubleshooting TVM build.
+
+.. `|` adds a blank line
+
+|
 
 Validate Installation
 ---------------------

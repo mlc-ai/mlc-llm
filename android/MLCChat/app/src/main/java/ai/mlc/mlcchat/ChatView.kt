@@ -66,7 +66,7 @@ fun ChatView(
             navigationIcon = {
                 IconButton(
                     onClick = { navController.popBackStack() },
-                    enabled = chatState.interuptable()
+                    enabled = chatState.interruptable()
                 ) {
                     Icon(
                         imageVector = Icons.Filled.ArrowBack,
@@ -78,7 +78,7 @@ fun ChatView(
             actions = {
                 IconButton(
                     onClick = { chatState.requestResetChat() },
-                    enabled = chatState.interuptable()
+                    enabled = chatState.interruptable()
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Replay,

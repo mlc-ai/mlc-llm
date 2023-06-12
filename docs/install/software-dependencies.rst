@@ -1,13 +1,18 @@
 .. _Software Dependencies:
 
-Software Dependencies
-=====================
+🚧 Software Dependencies
+========================
 
 .. contents:: Table of Contents
     :depth: 2
     :local:
 
 While we have included most of the dependencies in our pre-built wheels/scripts, there are still some platform-dependent packages that you will need to install on your own. In most cases, you won't need all the packages listed on this page. If you're unsure about which packages are required for your specific use case, please check the :ref:`navigation panel <navigation>` first.
+
+Conda
+-----
+
+🚧 TBA
 
 .. _software-dependencies-cuda:
 
@@ -90,7 +95,7 @@ Vulkan-SDK
 
 Vulkan-SDK is required for compiling models to Vulkan backend. However, our `pre-built mlc-ai-nightly wheels <https://mlc.ai/package>`__ already packaged Vulkan-SDK, so there is no need to install it separately.
 
-Installing Vulkan-SDK is only necessary when user build TVM-Unity from source by following our :ref:`tvm-unity-build-from-source` manual.
+Installing Vulkan-SDK is only necessary when user build TVM-Unity from source.
 
 Please check the Vulkan-SDK installation guide according to your platform:
 

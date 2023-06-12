@@ -4,47 +4,7 @@ We will use `vicuna-v1-7b` as an example to demonstrate the quantization and cro
 
 ## Step 1. Install TVM Unity
 
-First, we need to install the TVM Unity compiler for machine learning compilation. You can choose to install it from pip or build it from source.
-
-**Option 1. Install using pip**
-
-You can install a nightly build of TVM Unity for macOS from the following location: [https://mlc.ai/wheels](https://mlc.ai/wheels). Create a fresh python3 environment and run the following command to install it:
-
-```bash
-pip3 install mlc-ai-nightly -f https://mlc.ai/wheels
-```
-
-Next, determine the installation location of TVM by executing the following command and set an environment variable `TVM_HOME` for MLC LLM to use:
-
-```bash
-python3 -c "import tvm, os; print(os.path.dirname(tvm.__file__))"
-export TVM_HOME=... # The output from the previous command
-```
-
-**Option 2. Build from source**
-
-To build TVM Unity from source, follow these steps:
-
-```bash
-# Download TVM Unity from GitHub
-git clone https://github.com/mlc-ai/relax.git --recursive tvm-unity && cd tvm-unity
-# Configure CMake build
-mkdir build && cd build
-cp ../cmake/config.cmake .
-echo set\(USE_METAL ON\) >> config.cmake
-echo set\(USE_LLVM ON\) >> config.cmake
-echo set\(CMAKE_BUILD_TYPE Release\) >> config.cmake
-echo set\(CMAKE_EXPORT_COMPILE_COMMANDS ON\) >> config.cmake
-# Build TVM Unity
-cmake .. && make -j$(nproc) && cd ..
-```
-
-Once TVM Unity is successfully built, set two environment variables so that the python package of TVM Unity can be found:
-
-```bash
-export TVM_HOME=$(pwd) # make sure the file exists: $TVM_HOME/build/libtvm.so
-export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
-```
+Please follow [this tutorial](https://mlc.ai/mlc-llm/docs/install/tvm.html) to install TVM Unity.
 
 ## Step 2. Download LLM weights
 
