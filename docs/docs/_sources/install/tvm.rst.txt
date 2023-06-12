@@ -16,6 +16,8 @@ To help our community to use Apache TVM Unity, a nightly prebuilt developer pack
 
 Please visit the installation page for installation instructions: https://mlc.ai/package/.
 
+.. _tvm-unity-build-from-source:
+
 Option 2. Build from Source
 ---------------------------
 

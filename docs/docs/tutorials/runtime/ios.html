@@ -46,7 +46,7 @@
     <script type="text/javascript" src="../../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="🚧 Run Models with REST" href="rest.html" />
+    <link rel="next" title="🚧 Run Models with Python" href="python.html" />
     <link rel="prev" title="🚧 Run Models in Android" href="android.html" /> 
 </head>
 
@@ -173,8 +173,15 @@
 <li class="toctree-l1"><a class="reference internal" href="cpp.html">Run Models in C++</a></li>
 <li class="toctree-l1"><a class="reference internal" href="javascript.html">🚧 Run Models in JavaScript</a></li>
 <li class="toctree-l1"><a class="reference internal" href="android.html">🚧 Run Models in Android</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">🚧 Run Models in iOS</a></li>
-<li class="toctree-l1"><a class="reference internal" href="rest.html">🚧 Run Models with REST</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">🚧 Run Models in iOS</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#step-1-install-tvm-unity">Step 1. Install TVM Unity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-2-download-llm-weights">Step 2. Download LLM weights</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-3-quantize-and-cross-compile-llms-with-tvm-unity">Step 3. Quantize and cross-compile LLMs with TVM Unity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-4-build-auxiliary-components">Step 4. Build auxiliary components</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-5-build-ios-app">Step 5. Build iOS App</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="python.html">🚧 Run Models with Python</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
@@ -291,6 +298,107 @@
             
   <section id="run-models-in-ios">
 <h1>🚧 Run Models in iOS<a class="headerlink" href="#run-models-in-ios" title="Permalink to this heading">¶</a></h1>
+<a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/ios.gif"><img alt="https://mlc.ai/blog/img/redpajama/ios.gif" class="align-center" src="https://mlc.ai/blog/img/redpajama/ios.gif" style="width: 400px;" /></a>
+<p>We will use <code class="docutils literal notranslate"><span class="pre">vicuna-v1-7b</span></code> as an example to demonstrate the
+quantization and cross-compilation workflow for LLM on iOS devices. The
+same procedure can be applied to other models as well, such as Dolly and
+RedPajama.</p>
+<section id="step-1-install-tvm-unity">
+<h2>Step 1. Install TVM Unity<a class="headerlink" href="#step-1-install-tvm-unity" title="Permalink to this heading">¶</a></h2>
+<p>Please follow <a class="reference internal" href="../../install/tvm.html"><span class="doc">Install TVM Unity</span></a> to install TVM Unity.</p>
+</section>
+<section id="step-2-download-llm-weights">
+<h2>Step 2. Download LLM weights<a class="headerlink" href="#step-2-download-llm-weights" title="Permalink to this heading">¶</a></h2>
+<p>Download the LLM weights for Vicuna-7b by following the instructions
+from <a class="reference external" href="https://github.com/lm-sys/FastChat#vicuna-weights">LMSys</a>.
+Place the downloaded weights under the <code class="docutils literal notranslate"><span class="pre">./dist/models/vicuna-v1-7b</span></code>
+directory within the <code class="docutils literal notranslate"><span class="pre">mlc-llm</span></code> folder. The contents of the folder
+should include the following files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>./dist/models/vicuna-v1-7b
+config.json
+pytorch_model.bin.index.json
+pytorch_model-00001-of-00002.bin
+pytorch_model-00002-of-00002.bin
+tokenizer.model
+tokenizer_config.json
+special_tokens_map.json
+</pre></div>
+</div>
+</section>
+<section id="step-3-quantize-and-cross-compile-llms-with-tvm-unity">
+<h2>Step 3. Quantize and cross-compile LLMs with TVM Unity<a class="headerlink" href="#step-3-quantize-and-cross-compile-llms-with-tvm-unity" title="Permalink to this heading">¶</a></h2>
+<p>To quantize and cross-compile the LLMs to iPhone/iPad targets, use the
+provided <code class="docutils literal notranslate"><span class="pre">build.py</span></code> script:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>build.py<span class="w">                    </span><span class="se">\</span>
+<span class="w">    </span>--model<span class="w"> </span>/path/to/vicuna-v1-7b<span class="w">   </span><span class="se">\</span>
+<span class="w">    </span>--quantization<span class="w"> </span>q3f16_0<span class="w">          </span><span class="se">\</span>
+<span class="w">    </span>--target<span class="w"> </span>iphone<span class="w">                 </span><span class="se">\</span>
+<span class="w">    </span>--max-seq-len<span class="w"> </span><span class="m">768</span>
+
+<span class="c1"># If the model path is `./dist/models/vicuna-v1-7b`,</span>
+<span class="c1"># we can simplify the build command to</span>
+python3<span class="w"> </span>build.py<span class="w">            </span><span class="se">\</span>
+<span class="w">    </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w">    </span><span class="se">\</span>
+<span class="w">    </span>--quantization<span class="w"> </span>q3f16_0<span class="w">  </span><span class="se">\</span>
+<span class="w">    </span>--target<span class="w"> </span>iphone<span class="w">         </span><span class="se">\</span>
+<span class="w">    </span>--max-seq-len<span class="w"> </span><span class="m">768</span>
+</pre></div>
+</div>
+<p>By default, the compiled artifact will be located under
+<code class="docutils literal notranslate"><span class="pre">./dist/vicuna-v1-7b-q3f16_0</span></code>. The folder includes: - The static
+library for LLM computation: <code class="docutils literal notranslate"><span class="pre">vicuna-v1-7b-q3f16_0-iphone.a</span></code> - Assets,
+including weight shards under <code class="docutils literal notranslate"><span class="pre">params/</span></code> - Tokenizer metadata</p>
+</section>
+<section id="step-4-build-auxiliary-components">
+<h2>Step 4. Build auxiliary components<a class="headerlink" href="#step-4-build-auxiliary-components" title="Permalink to this heading">¶</a></h2>
+<p><strong>Tokenizer and runtime</strong></p>
+<p>In addition to the model itself, a lightweight runtime and tokenizer are
+required to actually run the LLM. You can build and organize these
+components by following these steps:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>./ios
+vim<span class="w"> </span>./prepare_libs.sh<span class="w"> </span><span class="c1"># Update MODEL, QUANTIZATION, and other variables</span>
+./prepare_libs.sh
+</pre></div>
+</div>
+<p>This will create a <code class="docutils literal notranslate"><span class="pre">./build</span></code> folder that contains the following files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>./build/lib/
+libmlc_llm.a<span class="w">         </span><span class="c1"># The lightweight interface to interact with LLM, tokenizer, and TVM Unity runtime</span>
+libmodel_iphone.a<span class="w">    </span><span class="c1"># The compiled LLM</span>
+libsentencepiece.a<span class="w">   </span><span class="c1"># SentencePiece tokenizer</span>
+libtokenizers_cpp.a<span class="w">  </span><span class="c1"># Huggingface tokenizer</span>
+libtvm_runtime.a<span class="w">     </span><span class="c1"># TVM Unity runtime</span>
+</pre></div>
+</div>
+<p><strong>Collect assets</strong></p>
+<p>To organize the assets, execute the following script within the
+<code class="docutils literal notranslate"><span class="pre">./ios</span></code> directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>./ios
+vim<span class="w"> </span>./prepare_params.sh<span class="w"> </span><span class="c1"># Update MODEL, QUANTIZATION, TOKENIZER, and other variables</span>
+./prepare_params.sh
+</pre></div>
+</div>
+<p>The outcome should be as follows:</p>
+</section>
+<section id="step-5-build-ios-app">
+<h2>Step 5. Build iOS App<a class="headerlink" href="#step-5-build-ios-app" title="Permalink to this heading">¶</a></h2>
+<p>Open <code class="docutils literal notranslate"><span class="pre">./ios/MLCChat.xcodeproj</span></code> using Xcode. Note that you will need an
+Apple Developer Account to use Xcode, and you may be prompted to use
+your own developer team credential and product bundle identifier.</p>
+<p>To use a specific model, edit <code class="docutils literal notranslate"><span class="pre">./ios/MLCChat/LLMChat.mm</span></code> to configure
+the following settings properly:</p>
+<ol class="arabic simple">
+<li><p>Model name using the <code class="docutils literal notranslate"><span class="pre">model</span></code> variable</p></li>
+<li><p>Conversation template using the <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> variable</p></li>
+<li><p>Tokenizer name using the <code class="docutils literal notranslate"><span class="pre">tokenizer_path</span></code> variable</p></li>
+<li><p>Other settings including max sequence length, temperature, etc.</p></li>
+</ol>
+<p>Ensure that all the necessary dependencies and configurations are
+correctly set up in the Xcode project.</p>
+<p>Once you have made the necessary changes, build the iOS app using Xcode.
+Make sure to select a target device or simulator for the build.</p>
+<p>After a successful build, you can run the iOS app on your device or
+simulator to use the LLM model for text generation and processing.</p>
+</section>
 </section>
 
 
@@ -303,7 +411,7 @@
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="rest.html" class="btn btn-neutral float-right" title="🚧 Run Models with REST" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="python.html" class="btn btn-neutral float-right" title="🚧 Run Models with Python" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="android.html" class="btn btn-neutral float-left" title="🚧 Run Models in Android" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

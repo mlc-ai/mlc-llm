@@ -66,7 +66,7 @@ Tutorials
       - :doc:`tutorials/runtime/javascript` for WebLLM
       - :doc:`tutorials/runtime/android` for Android
       - :doc:`tutorials/runtime/ios` for iOS
-      - :doc:`tutorials/runtime/rest` for REST API with Python
+      - :doc:`tutorials/runtime/python` for running models in Python
 
       **Note.** TVM Unity compiler is not a dependency to running any MLC-compiled model.
 
@@ -114,7 +114,7 @@ Community
    tutorials/runtime/javascript.rst
    tutorials/runtime/android.rst
    tutorials/runtime/ios.rst
-   tutorials/runtime/rest.rst
+   tutorials/runtime/python.rst
 
 .. toctree::
    :maxdepth: 1

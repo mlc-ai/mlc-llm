@@ -172,9 +172,13 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="cpp.html">Run Models in C++</a></li>
 <li class="toctree-l1"><a class="reference internal" href="javascript.html">🚧 Run Models in JavaScript</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">🚧 Run Models in Android</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">🚧 Run Models in Android</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#app-build-instructions">App Build Instructions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#use-your-own-model-weights">Use Your Own Model Weights</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="ios.html">🚧 Run Models in iOS</a></li>
-<li class="toctree-l1"><a class="reference internal" href="rest.html">🚧 Run Models with REST</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python.html">🚧 Run Models with Python</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
@@ -291,6 +295,148 @@
             
   <section id="run-models-in-android">
 <h1>🚧 Run Models in Android<a class="headerlink" href="#run-models-in-android" title="Permalink to this heading">¶</a></h1>
+<a class="reference internal image-reference" href="https://github.com/mlc-ai/mlc-llm/raw/main/site/gif/android-demo.gif"><img alt="https://github.com/mlc-ai/mlc-llm/raw/main/site/gif/android-demo.gif" class="align-center" src="https://github.com/mlc-ai/mlc-llm/raw/main/site/gif/android-demo.gif" style="width: 400px;" /></a>
+<p>We are excited to share that we have enabled the Android support for
+MLC-LLM. Checkout <a class="reference external" href="https://mlc.ai/mlc-llm/#android">the instruction
+page</a> for instructions to download
+and install our Android app. Checkout the <a class="reference external" href="https://mlc.ai/blog/2023/05/08/bringing-hardware-accelerated-language-models-to-android-devices">announcing blog
+post</a>
+for the technical details throughout our process of making MLC-LLM
+possible for Android.</p>
+<section id="app-build-instructions">
+<h2>App Build Instructions<a class="headerlink" href="#app-build-instructions" title="Permalink to this heading">¶</a></h2>
+<ol class="arabic">
+<li><p>Install TVM Unity by following <a class="reference internal" href="../../install/tvm.html#tvm-unity-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a>.</p>
+<p>Note that our pre-built wheels do not support OpenCL, and you need to built TVM-Unity
+from source and set <code class="docutils literal notranslate"><span class="pre">USE_OPENCL</span></code> as <code class="docutils literal notranslate"><span class="pre">ON</span></code>.</p>
+</li>
+<li><p>Setup <code class="docutils literal notranslate"><span class="pre">TVM_NDK_CC</span></code> environment variable to NDK compiler path:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># replace the /path/to/android/ndk/clang to your NDK compiler path</span>
+<span class="c1"># e.g. export TVM_NDK_CC=/Users/me/Library/Android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">TVM_NDK_CC</span><span class="o">=</span>/path/to/android/ndk/clang
+</pre></div>
+</div>
+</li>
+<li><p>Install <a class="reference external" href="https://maven.apache.org/download.cgi">Apache Maven</a> for
+our Java dependency management. Run command <code class="docutils literal notranslate"><span class="pre">mvn</span> <span class="pre">--version</span></code> to
+verify that Maven is correctly installed.</p></li>
+<li><p>Build TVM4j (Java Frontend for TVM Runtime) under the TVM Unity directory.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>jvm<span class="p">;</span><span class="w"> </span>mvn<span class="w"> </span>install<span class="w"> </span>-pl<span class="w"> </span>core<span class="w"> </span>-DskipTests<span class="w"> </span>-Dcheckstyle.skip<span class="o">=</span><span class="nb">true</span>
+</pre></div>
+</div>
+</li>
+<li><p>Follow the instructions
+<a class="reference external" href="https://github.com/mlc-ai/mlc-llm#building-from-source">here</a> to
+either build the model using a Hugging Face URL, or a local
+directory. If opting for a local directory, you can follow the
+instructions
+<a class="reference external" href="https://huggingface.co/docs/transformers/main/model_doc/llama">here</a>
+to get the original LLaMA weights in the HuggingFace format, and
+<a class="reference external" href="https://github.com/lm-sys/FastChat#vicuna-weights">here</a> to get
+Vicuna weights.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># From mlc-llm project directory</span>
+python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>path/to/vicuna-v1-7b<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span>
+
+<span class="c1"># If the model path is `dist/models/vicuna-v1-7b`,</span>
+<span class="c1"># we can simplify the build command to</span>
+<span class="c1"># python build.py --model vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768</span>
+</pre></div>
+</div>
+</li>
+<li><p>Build libraries for Android app.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">ANDROID_NDK</span><span class="o">=</span>/path/to/android/ndk
+For<span class="w"> </span>example
+<span class="nb">export</span><span class="w"> </span><span class="nv">ANDROID_NDK</span><span class="o">=</span>/Users/me/Library/Android/sdk/ndk/25.2.9519653
+<span class="nb">cd</span><span class="w"> </span>android<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./prepare_libs.sh
+</pre></div>
+</div>
+</li>
+<li><p>Download <a class="reference external" href="https://developer.android.com/studio">Android Studio</a>,
+and use Android Studio to open folder <code class="docutils literal notranslate"><span class="pre">android/MLCChat</span></code> as the
+project.</p>
+<ol class="arabic">
+<li><p>Install Android SDK and NDK either inside Android Studio
+(recommended) or separately.</p></li>
+<li><p>Specify the Android SDK and NDK path in file
+<code class="docutils literal notranslate"><span class="pre">android/MLCChat/local.properties</span></code> (if it does not exist, create
+one):</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>sdk.dir<span class="o">=</span>/path/to/android/sdk
+ndk.dir<span class="o">=</span>/path/to/android/ndk
+</pre></div>
+</div>
+<p>For example, a good <code class="docutils literal notranslate"><span class="pre">local.properties</span></code> can be:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>sdk.dir<span class="o">=</span>/Users/me/Library/Android/sdk
+ndk.dir<span class="o">=</span>/Users/me/Library/Android/sdk/ndk/25.2.9519653
+</pre></div>
+</div>
+</li>
+</ol>
+</li>
+<li><p>Connect your Android device to your machine. In the menu bar of
+Android Studio, click <code class="docutils literal notranslate"><span class="pre">Build</span> <span class="pre">-</span> <span class="pre">Make</span> <span class="pre">Project</span></code>.</p></li>
+<li><p>Once the build is finished, click <code class="docutils literal notranslate"><span class="pre">Run</span> <span class="pre">-</span> <span class="pre">Run</span> <span class="pre">'app'</span></code>, and you will see the app launched on your phone.</p></li>
+</ol>
+<img alt="https://github.com/mlc-ai/mlc-llm/raw/main/site/img/android/android-studio.png" src="https://github.com/mlc-ai/mlc-llm/raw/main/site/img/android/android-studio.png" />
+</section>
+<section id="use-your-own-model-weights">
+<h2>Use Your Own Model Weights<a class="headerlink" href="#use-your-own-model-weights" title="Permalink to this heading">¶</a></h2>
+<p>By following the instructions above, the installed app will download
+weights from our pre-uploaded HuggingFace repository. If you do not want
+to download the weights from Internet and instead wish to use the
+weights you build, please follow the steps below.</p>
+<ul class="simple">
+<li><p>Step 1 - step 9: same as <a class="reference external" href="#app-build-instructions">section ”App Build
+Instructions”</a>.</p></li>
+<li><p>Step 10. In <code class="docutils literal notranslate"><span class="pre">Build</span> <span class="pre">-</span> <span class="pre">Generate</span> <span class="pre">Signed</span> <span class="pre">Bundle</span> <span class="pre">/</span> <span class="pre">APK</span></code>, build the
+project to an APK for release. If it is the first time you generate
+an APK, you will need to create a key. Please follow <a class="reference external" href="https://developer.android.com/studio/publish/app-signing#generate-key">the official
+guide from
+Android</a>
+for more instructions on this. After generating the release APK, you
+will get the APK file <code class="docutils literal notranslate"><span class="pre">app-release.apk</span></code> under
+<code class="docutils literal notranslate"><span class="pre">android/MLCChat/app/release/</span></code>.</p></li>
+<li><p>Step 11. Enable “USB debugging” in the developer options your phone
+settings.</p></li>
+<li><p>Step 12. Install <a class="reference external" href="https://developer.android.com/studio/releases/platform-tools">Android SDK
+Platform-Tools</a>
+for ADB (Android Debug Bridge). The platform tools will be already
+available under your Android SDK path if you have installed SDK
+(e.g., at <code class="docutils literal notranslate"><span class="pre">/path/to/android-sdk/platform-tools/</span></code>). Add the
+platform-tool path to your PATH environment. Run <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">devices</span></code> to
+verify that ADB is installed correctly your phone is listed as a
+device.</p></li>
+<li><p>Step 13. In command line, run the following command to install APK to your phone:</p></li>
+</ul>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>adb<span class="w"> </span>install<span class="w"> </span>android/MLCChat/app/release/app-release.apk
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If it errors with message</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>adb:<span class="w"> </span>failed<span class="w"> </span>to<span class="w"> </span>install<span class="w"> </span>android/MLCChat/app/release/app-release.apk:<span class="w"> </span>Failure<span class="w"> </span><span class="o">[</span>INSTALL_FAILED_UPDATE_INCOMPATIBLE:<span class="w"> </span>Existing<span class="w"> </span>package<span class="w"> </span>ai.mlc.mlcchat<span class="w"> </span>signatures<span class="w"> </span><span class="k">do</span><span class="w"> </span>not<span class="w"> </span>match<span class="w"> </span>newer<span class="w"> </span>version<span class="p">;</span><span class="w"> </span>ignoring!<span class="o">]</span>
+</pre></div>
+</div>
+<p>please uninstall the existing app and try <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">install</span></code> again.</p>
+</div>
+</div></blockquote>
+<ul>
+<li><p>Step 14. Push the tokenizer and model weights to your phone through
+ADB.</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>adb<span class="w"> </span>push<span class="w"> </span>dist/models/vicuna-v1-7b/tokenizer.model<span class="w"> </span>/data/local/tmp/vicuna-v1-7b/tokenizer.model
+adb<span class="w"> </span>push<span class="w"> </span>dist/vicuna-v1-7b/float16/params<span class="w"> </span>/data/local/tmp/vicuna-v1-7b/params
+adb<span class="w"> </span>shell<span class="w"> </span><span class="s2">&quot;mkdir -p /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/Download/&quot;</span>
+adb<span class="w"> </span>shell<span class="w"> </span><span class="s2">&quot;mv /data/local/tmp/vicuna-v1-7b /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/Download/vicuna-v1-7b&quot;</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+<li><p>Step 15. Everything is ready. Launch the MLCChat on your phone and
+you will be able to use the app with your own weights. You will find
+that no weight download is needed.</p></li>
+</ul>
+</section>
 </section>
 
 
