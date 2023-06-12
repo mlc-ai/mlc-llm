@@ -9,16 +9,17 @@ We are excited to share that we have enabled the Android support for MLC-LLM. Ch
 ## App Build Instructions
 
 1. Install TVM Unity.
-    We have some local changes to TVM Unity, so please try out the mlc/relax repo for now. We will migrate change back to TVM Unity soon.
+    We have some local changes to TVM Unity, so we use the mlc/relax repo. We will migrate change back to TVM Unity soon.
 
     ```shell
-    git clone https://github.com/mlc-ai/relax.git --recursive
-    cd relax
+    git clone https://github.com/mlc-ai/mlc-llm.git --recursive
+    cd mlc-llm/3rdparty/tvm
     mkdir build
     cp cmake/config.cmake build
     ```
 
     In build/config.cmake, set `USE_OPENCL` and `USE_LLVM` as ON
+
     ```shell
     make -j
     export TVM_NDK_CC=/path/to/android/ndk/clang
@@ -26,20 +27,18 @@ We are excited to share that we have enabled the Android support for MLC-LLM. Ch
     export TVM_NDK_CC=/Users/me/Library/Android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
     ```
 
-2. Install [Apache Maven](https://maven.apache.org/download.cgi) for our Java dependency management. Run command `mnv --version` to verify that Maven is correctly installed.
+2. Install [Apache Maven](https://maven.apache.org/download.cgi) for our Java dependency management. Run command `mvn --version` to verify that Maven is correctly installed.
 
 3. Build TVM4j (Java Frontend for TVM Runtime).
+
     ```shell
-    cd 3rdparty/tvm/jvm; mvn install -pl core -DskipTests -Dcheckstyle.skip=true
+    cd jvm; mvn install -pl core -DskipTests -Dcheckstyle.skip=true
     ```
 
 4. Follow the instructions [here](https://github.com/mlc-ai/mlc-llm#building-from-source) to either build the model using a Hugging Face URL, or a local directory. If opting for a local directory, you can follow the instructions [here](https://huggingface.co/docs/transformers/main/model_doc/llama) to get the original LLaMA weights in the HuggingFace format, and [here](https://github.com/lm-sys/FastChat#vicuna-weights) to get Vicuna weights.
 
     ```shell
-    git clone https://github.com/mlc-ai/mlc-llm.git --recursive
-    cd mlc-llm
-
-    # From local directory
+    # From mlc-llm project directory
     python3 build.py --model path/to/vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768
 
     # If the model path is `dist/models/vicuna-v1-7b`,
@@ -48,22 +47,25 @@ We are excited to share that we have enabled the Android support for MLC-LLM. Ch
     ```
 
 5. Build libraries for Android app.
+
     ```shell
     export ANDROID_NDK=/path/to/android/ndk
     For example
     export ANDROID_NDK=/Users/me/Library/Android/sdk/ndk/25.2.9519653
-    cd android
-    ./prepare_libs.sh
+    cd android && ./prepare_libs.sh
     ```
 
 6. Download [Android Studio](https://developer.android.com/studio), and use Android Studio to open folder `android/MLCChat` as the project.
     1. Install Android SDK and NDK either inside Android Studio (recommended) or separately.
     2. Specify the Android SDK and NDK path in file `android/MLCChat/local.properties` (if it does not exist, create one):
+
         ```shell
         sdk.dir=/path/to/android/sdk
         ndk.dir=/path/to/android/ndk
         ```
+
         For example, a good `local.properties` can be:
+
         ```shell
         sdk.dir=/Users/me/Library/Android/sdk
         ndk.dir=/Users/me/Library/Android/sdk/ndk/25.2.9519653
