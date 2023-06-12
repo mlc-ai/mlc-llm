@@ -18,12 +18,6 @@ from .modules import (
 )
 
 
-def masked_fill_relax(input, mask, value):
-  rx_value = relax.const(value)
-  values = nn.emit(relax.op.full_like(input, rx_value))
-  return nn.emit(relax.op.where(mask, values, input))
-
-
 def _cast_if_autocast_enabled(tensor):
   # # TODO: how to check device?
   # if tensor.device.type == 'cuda':
@@ -131,7 +125,7 @@ def scaled_multihead_dot_product_attention(
     if attn_bias is not None:
       warnings.warn('Propogating key_padding_mask to the attention module ' + 'and applying it within the attention module can cause ' + 'unneccessary computation/memory usage. Consider integrating ' + 'into attn_bias once and passing that to each attention ' + 'module instead.')
     key_mask = nn.emit(tvm.tir.bitwise_not(relax.op.reshape(key_padding_mask, (b, 1, 1, s_k))))
-    attn_weight = masked_fill_relax(attn_weight, key_mask, min_val)
+    attn_weight = nn.emit(relax.op.masked_fill(attn_weight, key_mask, min_val))
   if is_causal and (not q.struct_info.shape[2] == 1):
       s = relax.op.maximum(s_q, s_k)
       causal_mask = nn.emit(relax.op.ones((s, s,), dtype="float16"))
@@ -142,7 +136,7 @@ def scaled_multihead_dot_product_attention(
       s_q_end, s_k_end = causal_mask.struct_info.shape
       causal_mask = nn.emit(relax.op.strided_slice(causal_mask, [0, 1], [s_q_end - s_q, s_k_end - s_k], [s_q_end, s_k_end]))
       causal_mask = nn.emit(relax.op.reshape(causal_mask, (1, 1, s_q, s_k)))
-      attn_weight = masked_fill_relax(attn_weight, causal_mask, min_val)
+      attn_weight = nn.emit(relax.op.masked_fill(attn_weight, causal_mask, min_val))
   attn_weight = nn.emit(relax.op.nn.softmax(attn_weight))
   out = nn.emit(relax.op.matmul(attn_weight, v))
   out = reverse_reshape_and_permute(out)
@@ -417,7 +411,7 @@ def triton_flash_attn_fn(
     if attn_bias is None:
       attn_bias = nn.emit(relax.op.zeros((b_size, 1, 1, s_k), dtype=query.struct_info.dtype))
     key_mask = nn.emit(tvm.tir.bitwise_not(relax.op.reshape(key_padding_mask, (b_size, 1, 1, s_k))))
-    attn_bias = masked_fill_relax(attn_bias, key_mask, tvm.tir.min_value(query.struct_info.dtype))
+    attn_bias = nn.emit(relax.op.masked_fill(attn_bias, key_mask, tvm.tir.min_value(query.struct_info.dtype)))
 
   batch_size, seq_len, _ = query.struct_info.shape
   query = nn.emit(relax.op.reshape(
@@ -723,7 +717,7 @@ class MPTModel(nn.Module):
         raise ValueError(f'attention_mask shape={attention_mask.shape} ' + f'and prefix_mask shape={prefix_mask.shape} are not equal.')
       min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
       attn_mask = nn.emit(tvm.tir.bitwise_not(relax.op.reshape(attention_mask, (-1, 1, 1, s_k))))
-      attn_bias = masked_fill_relax(attn_bias, attn_mask, min_val)
+      attn_bias = nn.emit(relax.op.masked_fill(attn_bias, attn_mask, min_val))
     return (attn_bias, None)
 
   def _apply_prefix_mask(self, attn_bias: relax.Expr, prefix_mask: relax.Expr):
@@ -741,7 +735,7 @@ class MPTModel(nn.Module):
     # TODO: logical_or on relax
     cannot_attend = nn.emit(tvm.tir.bitwise_not(torch.logical_or(causal, tvm.tir.Cast("bool", prefix))))
     min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
-    attn_bias = masked_fill_relax(attn_bias, cannot_attend, min_val)
+    attn_bias = nn.emit(relax.op.masked_fill(attn_bias, cannot_attend, min_val))
     return attn_bias
 
   def _apply_sequence_id(self, attn_bias: relax.Expr, sequence_id: relax.Expr):
@@ -756,7 +750,7 @@ class MPTModel(nn.Module):
     seq_id_r = nn.emit(relax.op.reshape(sequence_id, (-1, 1, seq_len)))
     cannot_attend = nn.emit(relax.op.expand_dims(torch.logical_not(relax.op.equal(seq_id_l, seq_id_r)), axis=1))
     min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
-    attn_bias = masked_fill_relax(attn_bias, cannot_attend, min_val)
+    attn_bias = nn.emit(relax.op.masked_fill(attn_bias, cannot_attend, min_val))
     return attn_bias
 
   def forward(
