@@ -1,6 +1,6 @@
 import math
 import warnings
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 import numpy as np
 
 import tvm
@@ -14,6 +14,7 @@ from .modules import (
     LayerNorm,
     Linear,
     ModuleList,
+    named_parameters,
 )
 
 
@@ -733,7 +734,7 @@ class MPTModel(nn.Module):
     if seq_len > self.config.max_seq_len:
       raise ValueError(f'prefix_mask sequence length cannot exceed max_seq_len={self.config.max_seq_len}')
     # slicing attn_bias[..., :seq_len, :seq_len]
-    dims_len = len(attn_bias.struct_info.shape) # TODO: rank?
+    dims_len = attn_bias.struct_info.ndim
     attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [dims_len - 2, dims_len - 1], [relax.const(0), relax.const(0)], [seq_len, seq_len]))
     causal = nn.emit(relax.op.reshape(relax.op.tril(relax.op.ones((seq_len, seq_len), dtype="bool")), (1, 1, seq_len, seq_len)))
     prefix = nn.emit(relax.op.reshape(prefix_mask, (-1, 1, 1, seq_len)))
@@ -748,7 +749,7 @@ class MPTModel(nn.Module):
     if seq_len > self.config.max_seq_len:
       raise ValueError(f'sequence_id sequence length cannot exceed max_seq_len={self.config.max_seq_len}')
     # slicing attn_bias[..., :seq_len, :seq_len]
-    dims_len = len(attn_bias.struct_info.shape) # TODO: rank?
+    dims_len = attn_bias.struct_info.ndim
     attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [dims_len - 2, dims_len - 1], [relax.const(0), relax.const(0)], [seq_len, seq_len]))
     # TODO: logical_not on relax
     seq_id_l = nn.emit(relax.op.reshape(sequence_id, (-1, seq_len, 1)))
@@ -943,9 +944,35 @@ class MPTForCausalLM(nn.Module):
       return reordered_past
 
 
-def create_encoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> None:
-  pass
+def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int, str]:
+  pidx2pname: Dict[int, str] = {}
+  with bb.function("decode"):
+    model = MPTForCausalLM(config)
+    input_ids = nn.Placeholder((1, 1), dtype="int32", name="input_ids")
+    # Placeholder for compatibility to LLAMA
+    all_seq_len_shape = relax.Var("place_holder", R.Object())
+    state = relax.Var("state", R.Tuple([R.Object()] * config.n_layers * 5))
+    with bb.dataflow():
+      logits, states = model(input_ids, state)
+      params = [
+          input_ids,
+          all_seq_len_shape,
+          state,
+      ] + model.parameters()
 
+      named_params = named_parameters(model)
+      for i, (name, param) in enumerate(named_params.items()):
+        pidx2pname[i] = name
+        assert param.same_as(params[i + 3])
+
+      gv = bb.emit_output((logits, relax.Tuple(states)))
+    bb.emit_func_output(gv, params)
+
+  mod = bb.get()
+  gv = mod.get_global_var("decode")
+  bb.update_func(gv, mod[gv].with_attr("num_input", 3))
+
+  return pidx2pname
 
 def get_model(args, hf_config):
   from transformers import AutoModelForCausalLM # type: ignore[import]
