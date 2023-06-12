@@ -176,6 +176,13 @@ def _setup_model_path(args):  # pylint: disable=too-many-branches
 
 
 def validate_config(model_path: str):
+    if os.path.exists(os.path.join(model_path, "mlc-chat-config.json")):
+        raise KeyError(
+            "The model located in the directory {} has already been compiled by MLC-LLM. There is"
+            " no need to compile it again. If you wish to compile a new model, please provide a"
+            " directory (or hf-path) that contains the pre-compiled model in raw HuggingFace"
+            " format instead.".format(model_path)
+        )
     assert os.path.exists(
         os.path.join(model_path, "config.json")
     ), "Model path must contain valid config file."
