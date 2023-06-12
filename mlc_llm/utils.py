@@ -360,13 +360,15 @@ def get_database(db_paths: str) -> ms.Database:
 
 def _detect_local_metal_host():
     target_triple = tvm._ffi.get_global_func("tvm.codegen.llvm.GetDefaultTargetTriple")()
-    print(f"Target triple of host CPU is detected as: {target_triple}")
+    process_triple = tvm._ffi.get_global_func("tvm.codegen.llvm.GetProcessTriple")()
+    host_cpu = tvm._ffi.get_global_func("tvm.codegen.llvm.GetHostCPUName")()
+    print(f"Host CPU dection:\n  Target triple: {target_triple}\n  Process triple: {process_triple}\n  Host CPU: {host_cpu}")
     if target_triple.startswith("x86_64-"):
         return tvm.target.Target(
            {
                 "kind": "llvm",
                 "mtriple": "x86_64-apple-macos",
-                "mcpu": "apple-latest",
+                "mcpu": host_cpu,
            }
         )
     # should start with "arm64-"
@@ -374,7 +376,7 @@ def _detect_local_metal_host():
        {
             "kind": "llvm",
             "mtriple": "arm64-apple-macos",
-            "mcpu": "apple-latest",
+            "mcpu": host_cpu,
        }
     )
 
