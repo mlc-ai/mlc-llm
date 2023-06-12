@@ -3,7 +3,7 @@ from langchain import LLMChain, PromptTemplate
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
-# Set the following in your environment:
+# First set the following in your environment:
 # export OPENAI_API_BASE=http://127.0.0.1:8000/v1
 # export OPENAI_API_KEY=EMPTY
 
@@ -17,12 +17,12 @@ prompt = PromptTemplate(
     template=template
 )
 
-chatgpt_chain = LLMChain(
+llm_chain = LLMChain(
     llm=ChatOpenAI(streaming=True, callbacks=[StreamingStdOutCallbackHandler()]),
     prompt=prompt,
     verbose=True, 
     memory=ConversationBufferWindowMemory(human_prefix="USER", ai_prefix="ASSISTANT")
 )
 
-output = chatgpt_chain.predict(human_input="Suggest some things to do in Pittsburgh.")
-output = chatgpt_chain.predict(human_input="That's great. Can you suggest something else?")
+output = llm_chain.predict(human_input="Write a short poem about Pittsburgh.")
+output = llm_chain.predict(human_input="What does it mean?")
