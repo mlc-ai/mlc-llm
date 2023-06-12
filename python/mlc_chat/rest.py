@@ -1,7 +1,7 @@
 from .chat_module import ChatModule, quantization_keys
+from .interface.openai_api import *
 
-from pydantic import BaseModel
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import uvicorn
@@ -10,7 +10,7 @@ import tvm
 
 import argparse
 import os
-import json
+import asyncio
 
 
 session = {}
@@ -75,34 +75,74 @@ def _parse_args():
     parsed = args.parse_args()
     return parsed
 
+class AsyncChatCompletionStream:
 
-class ChatRequest(BaseModel):
-    prompt: str
-    stream: bool = False
+    def __aiter__(self):
+        return self
+    
+    def get_next_msg(self):
+        session["chat_mod"].decode()
+        msg = session["chat_mod"].get_message()
+        return msg
 
+    async def __anext__(self):
+        if not session["chat_mod"].stopped():
+            loop = asyncio.get_event_loop()
+            msg = await loop.run_in_executor(None, self.get_next_msg)
+            return msg
+        else:
+            raise StopAsyncIteration
 
-
-@app.post("/chat/completions")
-def request_completion(request: ChatRequest):
+@app.post("/v1/chat/completions")
+def request_completion(request: ChatCompletionRequest):
     """
     Creates model response for the given chat conversation.
     """
-    session["chat_mod"].prefill(input=request.prompt)
+    for message in request.messages:
+        session["chat_mod"].prefill(input=message.content)
     if request.stream:
-
-        def iter_response():
-            while not session["chat_mod"].stopped():
-                session["chat_mod"].decode()
-                msg = session["chat_mod"].get_message()
-                yield json.dumps({"message": msg})
-
-        return StreamingResponse(iter_response(), media_type="application/json")
+        async def iter_response():
+            prev_txt = ""
+            async for content in AsyncChatCompletionStream():
+                if content:
+                    chunk = ChatCompletionStreamResponse(
+                        choices=[
+                            ChatCompletionResponseStreamChoice(
+                                index=0,
+                                delta=DeltaMessage(
+                                    role="assistant", 
+                                    content=content[len(prev_txt):]
+                                ),
+                                finish_reason="stop"
+                            )
+                        ]
+                    )
+                    prev_txt = content
+                    yield f"data: {chunk.json(exclude_unset=True, ensure_ascii=False)}\n\n"
+        return StreamingResponse(iter_response(), media_type="text/event-stream")
     else:
         msg = None
         while not session["chat_mod"].stopped():
             session["chat_mod"].decode()
             msg = session["chat_mod"].get_message()
-        return {"message": msg}
+        return ChatCompletionResponse(
+            choices=[
+                ChatCompletionResponseChoice(
+                    index=0,
+                    message=ChatMessage(
+                        role="assistant", 
+                        content=msg
+                    ),
+                    finish_reason="stop"
+                )
+            ],
+            # TODO: Fill in correct usage info
+            usage=UsageInfo(
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0
+            )
+    )
 
 
 @app.post("/chat/reset")
