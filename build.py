@@ -176,6 +176,12 @@ def _setup_model_path(args):  # pylint: disable=too-many-branches
 
 
 def validate_config(model_path: str):
+    if os.path.exists(os.path.join(model_path, "mlc-chat-config.json")):
+        raise KeyError(
+            "The model located in directory {} has already been compiled, please specify a directory that contains the pre-compiled model instead.".format(
+                model_path
+            )
+        )
     assert os.path.exists(
         os.path.join(model_path, "config.json")
     ), "Model path must contain valid config file."
