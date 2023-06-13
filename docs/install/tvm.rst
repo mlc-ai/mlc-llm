@@ -25,7 +25,7 @@ Please visit the installation page for installation instructions: https://mlc.ai
 Option 2. Build from Source
 ---------------------------
 
-While it is always recommended to use prebuilt TVM Unity, for more customization, one has to build it from source with the following steps:
+While it is generally recommended to always use the prebuilt TVM Unity, if you require more customization, you may need to build it from source. **NOTE.** this should only be attempted if you are familiar with the intricacies of C++, CMake, LLVM, Python, and other related systems.
 
 .. collapse:: Details
 
@@ -71,25 +71,34 @@ While it is always recommended to use prebuilt TVM Unity, for more customization
         rm -rf build && mkdir build && cd build
         # specify build requirements in `config.cmake`
         cp ../cmake/config.cmake .
-        vim config.cmake
 
     .. note::
         We are temporarily using `mlc-ai/relax <https://github.com/mlc-ai/relax>`_ instead, which comes with several temporary outstanding changes that we will upstream to Apache TVM's `unity branch <https://github.com/apache/tvm/tree/unity>`_.
 
-    While ``config.cmake`` is well-documented, below are flags of the most interest:
+    We want to specifically tweak the following flags by appending them to the end of the configuration file:
 
-    .. code-block:: cmake
+    .. code-block:: bash
         :caption: Configure build in ``config.cmake``
 
-        #### Edit `/path-tvm-unity/build/config.cmake`
-        # Can be one of `Debug`, `RelWithDebInfo` (recommended) and `Release`
-        set(CMAKE_BUILD_TYPE RelWithDebInfo)
-        set(USE_LLVM "llvm-config --ignore-libllvm --link-static")  # LLVM is a must dependency
-        set(HIDE_PRIVATE_SYMBOLS ON)  # Avoid symbol conflict
-        set(USE_CUDA   OFF) # Turn on if needed
-        set(USE_METAL  OFF) # Turn on if needed
-        set(USE_VULKAN OFF) # Turn on if needed
-        set(USE_OpenCL OFF) # Turn on if needed
+        # controls default compilation flags
+        echo "set(CMAKE_BUILD_TYPE RelWithDebInfo)" >> config.cmake
+        # LLVM is a must dependency
+        echo "set(USE_LLVM \"llvm-config --ignore-libllvm --link-static\")" >> config.cmake
+        echo "set(HIDE_PRIVATE_SYMBOLS ON)" >> config.cmake
+        # GPU SDKs, turn on if needed
+        echo "set(USE_CUDA   OFF)" >> config.cmake
+        echo "set(USE_METAL  OFF)" >> config.cmake
+        echo "set(USE_VULKAN OFF)" >> config.cmake
+        echo "set(USE_OpenCL OFF)" >> config.cmake
+
+    .. note::
+        ``HIDE_PRIVATE_SYMBOLS`` is a configuration option that enables the ``-fvisibility=hidden`` flag. This flag helps prevent potential symbol conflicts between TVM and PyTorch. These conflicts arise due to the frameworks shipping LLVMs of different versions.
+
+        `CMAKE_BUILD_TYPE <https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html>`_ controls default compilation flag:
+
+        - ``Debug`` sets ``-O0 -g``
+        - ``RelWithDebInfo`` sets ``-O2 -g -DNDEBUG`` (recommended)
+        - ``Release`` sets ``-O3 -DNDEBUG``
 
     Once ``config.cmake`` is edited accordingly, kick off build with the commands below:
 
@@ -100,15 +109,20 @@ While it is always recommended to use prebuilt TVM Unity, for more customization
 
     A success build should produce ``libtvm`` and ``libtvm_runtime`` under ``/path-tvm-unity/build/`` directory.
 
-    Then you can install the python binding of TVM-Unity with the following commands:
+    Leaving the build environment ``tvm-build-venv``, there are two ways to install the successful build into your environment:
 
-    .. code-block:: bash
+    .. tabs ::
 
-        cd ../python
-        python setup.py install
+       .. code-tab :: bash Install via environment variable
 
-    .. note::
-        Outputs from cmake is usually helpful for troubleshooting TVM build.
+          export PYTHONPATH=/path-to-tvm-unity/python:$PYTHONPATH
+
+       .. code-tab :: bash Install via pip local project
+
+          conda activate your-own-env
+          conda install python # make sure python is installed
+          cd /path-to-tvm-unity/python
+          pip install -e .
 
 .. `|` adds a blank line
 
