@@ -63,7 +63,7 @@ While it is always recommended to use prebuilt MLCChat, for more customization, 
         conda activate mlc-chat-venv
 
     .. note::
-        TVM Unity compiler is not a dependency to MLCChat CLI. Only its runtime is required, which is automatically included in `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`_.
+        :doc:`TVM Unity <install/tvm>` compiler is not a dependency to MLCChat CLI. Only its runtime is required, which is automatically included in `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`_.
 
     **Step 2. Configure and build.** Standard git-based workflow are recommended to download MLC LLM, and then specify build requirements with our small config generation tool:
 
