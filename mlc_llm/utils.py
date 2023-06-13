@@ -4,7 +4,7 @@ import json
 import os
 import shutil
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Set, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import tvm
 from tvm import meta_schedule as ms
@@ -72,7 +72,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "moss-": ("moss", "moss"),
         "open-llama-": ("LM", "llama"),
         "rwkv-": ("rwkv", "rwkv"),
-        "gorilla-": ("gorilla", "llama")
+        "gorilla-": ("gorilla", "llama"),
     }
     model = args.model.lower()
     for prefix, (conv_template, model_category) in supported_model_prefix.items():
@@ -208,7 +208,8 @@ def transform_params(
             torch_pname = f_convert_pname_fwd(pname)
             assert torch_pname in pname2binname
             torch_params = torch.load(
-                os.path.join(model_path, pname2binname[torch_pname])
+                os.path.join(model_path, pname2binname[torch_pname]),
+                map_location=torch.device("cpu"),
             )
 
             torch_param_names = list(torch_params.keys())
@@ -359,25 +360,29 @@ def get_database(db_paths: str) -> ms.Database:
 
 
 def _detect_local_metal_host():
-    target_triple = tvm._ffi.get_global_func("tvm.codegen.llvm.GetDefaultTargetTriple")()
+    target_triple = tvm._ffi.get_global_func(
+        "tvm.codegen.llvm.GetDefaultTargetTriple"
+    )()
     process_triple = tvm._ffi.get_global_func("tvm.codegen.llvm.GetProcessTriple")()
     host_cpu = tvm._ffi.get_global_func("tvm.codegen.llvm.GetHostCPUName")()
-    print(f"Host CPU dection:\n  Target triple: {target_triple}\n  Process triple: {process_triple}\n  Host CPU: {host_cpu}")
+    print(
+        f"Host CPU dection:\n  Target triple: {target_triple}\n  Process triple: {process_triple}\n  Host CPU: {host_cpu}"
+    )
     if target_triple.startswith("x86_64-"):
         return tvm.target.Target(
-           {
+            {
                 "kind": "llvm",
                 "mtriple": "x86_64-apple-macos",
                 "mcpu": host_cpu,
-           }
+            }
         )
     # should start with "arm64-"
     return tvm.target.Target(
-       {
+        {
             "kind": "llvm",
             "mtriple": "arm64-apple-macos",
             "mcpu": host_cpu,
-       }
+        }
     )
 
 
@@ -385,7 +390,7 @@ def _detect_local_metal():
     dev = tvm.metal()
     if not dev.exist:
         return None
-    
+
     return tvm.target.Target(
         {
             "kind": "metal",
@@ -562,7 +567,7 @@ def parse_target(args: argparse.Namespace) -> None:
         args.lib_format = "wasm"
         args.system_lib = True
     elif args.target in ["android", "android-dylib"]:  # android-opencl
-        from tvm.contrib import tar, ndk
+        from tvm.contrib import ndk, tar
 
         if args.target == "android-dylib":
             args.export_kwargs = {

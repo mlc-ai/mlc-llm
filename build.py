@@ -129,7 +129,8 @@ def _setup_model_path(args):  # pylint: disable=too-many-branches
         if args.model != "auto":
             assert args.model == os.path.basename(args.hf_path), (
                 'When both "--model" and "--hf-path" is specified, the '
-                'value of "--model" is required to match the basename of "--hf-path"'
+                'value of "--model" is required to match the basename of "--hf-path". '
+                f'Got "--model {args.model}" and "--hf-path {args.hf_path}"'
             )
         else:
             args.model = os.path.basename(args.hf_path)
@@ -183,12 +184,15 @@ def validate_config(model_path: str):
             " directory (or hf-path) that contains the pre-compiled model in raw HuggingFace"
             " format instead.".format(model_path)
         )
+    config_path = os.path.join(model_path, "config.json")
     assert os.path.exists(
-        os.path.join(model_path, "config.json")
-    ), "Model path must contain valid config file."
-    with open(os.path.join(model_path, "config.json"), encoding="utf-8") as i_f:
+        config_path
+    ), f"Expecting HuggingFace config, but file not found: {config_path}."
+    with open(config_path, encoding="utf-8") as i_f:
         config = json.load(i_f)
-        assert "model_type" in config, "Invalid config format."
+        assert (
+            "model_type" in config
+        ), f"Invalid config format. Expecting HuggingFace config format in: {config_path}"
         assert (
             config["model_type"] in utils.supported_model_types
         ), f"Model type {config['model_type']} not supported."
