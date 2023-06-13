@@ -744,10 +744,9 @@ class MPTModel(nn.Module):
     # slicing attn_bias[..., :seq_len, :seq_len]
     dims_len = attn_bias.struct_info.ndim
     attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [dims_len - 2, dims_len - 1], [relax.const(0), relax.const(0)], [seq_len, seq_len]))
-    # TODO: logical_not on relax
     seq_id_l = nn.emit(relax.op.reshape(sequence_id, (-1, seq_len, 1)))
     seq_id_r = nn.emit(relax.op.reshape(sequence_id, (-1, 1, seq_len)))
-    cannot_attend = nn.emit(relax.op.expand_dims(torch.logical_not(relax.op.equal(seq_id_l, seq_id_r)), axis=1))
+    cannot_attend = nn.emit(relax.op.expand_dims(relax.op.logical_not(relax.op.equal(seq_id_l, seq_id_r)), axis=1))
     min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
     attn_bias = nn.emit(relax.op.masked_fill(attn_bias, cannot_attend, min_val))
     return attn_bias
