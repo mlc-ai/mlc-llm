@@ -1,5 +1,5 @@
-How to Customize Conversation
-=============================
+Configure MLCChat in JSON
+=========================
 
 This tutorials explains the components of a chat configuration and how to customize them for your own purposes.
 
@@ -8,8 +8,8 @@ There is a ``mlc-chat-config.json`` file under the directory of each compiled mo
 
 .. _struct-mlc-chat-conv:
 
-Structure of MLC-Chat Configuration
------------------------------------
+Structure of MLCChat Configuration
+----------------------------------
 
 Below is the ``mlc-chat-config.json`` file corresponding to Vicuna model:
 

@@ -22,8 +22,7 @@ This tutorial contains the following sections in order:
 Dependencies
 ------------
 
-`TVM-Unity <https://discuss.tvm.apache.org/t/establish-tvm-unity-connection-a-technical-strategy/13344>`__ is required to compile models, please follow the instructions in :ref:`tvm-unity-install` to install the
-TVM-Unity package before proceeding with this tutorial.
+:doc:`TVM-Unity </install/tvm>` is required to compile models.
 
 .. _compile-model-prepare-model-weight:
 

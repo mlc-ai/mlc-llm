@@ -11,10 +11,7 @@ Install TVM Unity
 - Supporting both inference and training;
 - Productive python-first compiler implementation. As a concrete example, MLC LLM compilation is implemented in pure python using its API.
 
-There are two options available to install TVM Unity:
-
-- Installing a prebuilt developer package, or
-- Building TVM Unity from source.
+TVM Unity can be installed directly from a prebuilt developer package, or built from source.
 
 Option 1. Prebuilt Package
 --------------------------
