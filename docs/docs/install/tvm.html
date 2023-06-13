@@ -39,6 +39,7 @@
         <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script src="../_static/sphinx_highlight.js"></script>
+        <script src="../_static/tabs.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -324,7 +325,7 @@
 </section>
 <section id="option-2-build-from-source">
 <span id="tvm-unity-build-from-source"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
-<p>While it is always recommended to use prebuilt TVM Unity, for more customization, one has to build it from source with the following steps:</p>
+<p>While it is generally recommended to always use the prebuilt TVM Unity, if you require more customization, you may need to build it from source. <strong>NOTE.</strong> this should only be attempted if you are familiar with the intricacies of C++, CMake, LLVM, Python, and other related systems.</p>
 <details class="summary-details">
 <summary>Details</summary><p><strong>Step 1. Set up build dependency.</strong> To build from source, you need to ensure that the following build dependencies are met:</p>
 <ul class="simple">
@@ -369,7 +370,6 @@ git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="
 rm<span class="w"> </span>-rf<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>build
 <span class="c1"># specify build requirements in `config.cmake`</span>
 cp<span class="w"> </span>../cmake/config.cmake<span class="w"> </span>.
-vim<span class="w"> </span>config.cmake
 </pre></div>
 </div>
 </div>
@@ -377,20 +377,31 @@ vim<span class="w"> </span>config.cmake
 <p class="admonition-title">Note</p>
 <p>We are temporarily using <a class="reference external" href="https://github.com/mlc-ai/relax">mlc-ai/relax</a> instead, which comes with several temporary outstanding changes that we will upstream to Apache TVM’s <a class="reference external" href="https://github.com/apache/tvm/tree/unity">unity branch</a>.</p>
 </div>
-<p>While <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code> is well-documented, below are flags of the most interest:</p>
+<p>We want to specifically tweak the following flags by appending them to the end of the configuration file:</p>
 <div class="literal-block-wrapper docutils container" id="id3">
 <div class="code-block-caption"><span class="caption-text">Configure build in <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code></span><a class="headerlink" href="#id3" title="Permalink to this code">¶</a></div>
-<div class="highlight-cmake notranslate"><div class="highlight"><pre><span></span><span class="c">#### Edit `/path-tvm-unity/build/config.cmake`</span>
-<span class="c"># Can be one of `Debug`, `RelWithDebInfo` (recommended) and `Release`</span>
-<span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_BUILD_TYPE</span><span class="w"> </span><span class="s">RelWithDebInfo</span><span class="p">)</span>
-<span class="nb">set</span><span class="p">(</span><span class="s">USE_LLVM</span><span class="w"> </span><span class="s2">&quot;llvm-config --ignore-libllvm --link-static&quot;</span><span class="p">)</span><span class="w">  </span><span class="c"># LLVM is a must dependency</span>
-<span class="nb">set</span><span class="p">(</span><span class="s">HIDE_PRIVATE_SYMBOLS</span><span class="w"> </span><span class="s">ON</span><span class="p">)</span><span class="w">  </span><span class="c"># Avoid symbol conflict</span>
-<span class="nb">set</span><span class="p">(</span><span class="s">USE_CUDA</span><span class="w">   </span><span class="s">OFF</span><span class="p">)</span><span class="w"> </span><span class="c"># Turn on if needed</span>
-<span class="nb">set</span><span class="p">(</span><span class="s">USE_METAL</span><span class="w">  </span><span class="s">OFF</span><span class="p">)</span><span class="w"> </span><span class="c"># Turn on if needed</span>
-<span class="nb">set</span><span class="p">(</span><span class="s">USE_VULKAN</span><span class="w"> </span><span class="s">OFF</span><span class="p">)</span><span class="w"> </span><span class="c"># Turn on if needed</span>
-<span class="nb">set</span><span class="p">(</span><span class="s">USE_OpenCL</span><span class="w"> </span><span class="s">OFF</span><span class="p">)</span><span class="w"> </span><span class="c"># Turn on if needed</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># controls default compilation flags</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(CMAKE_BUILD_TYPE RelWithDebInfo)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="c1"># LLVM is a must dependency</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_LLVM \&quot;llvm-config --ignore-libllvm --link-static\&quot;)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(HIDE_PRIVATE_SYMBOLS ON)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="c1"># GPU SDKs, turn on if needed</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_CUDA   OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_METAL  OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_VULKAN OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_OpenCL OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
 </pre></div>
 </div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">HIDE_PRIVATE_SYMBOLS</span></code> is a configuration option that enables the <code class="docutils literal notranslate"><span class="pre">-fvisibility=hidden</span></code> flag. This flag helps prevent potential symbol conflicts between TVM and PyTorch. These conflicts arise due to the frameworks shipping LLVMs of different versions.</p>
+<p><a class="reference external" href="https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html">CMAKE_BUILD_TYPE</a> controls default compilation flag:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Debug</span></code> sets <code class="docutils literal notranslate"><span class="pre">-O0</span> <span class="pre">-g</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">RelWithDebInfo</span></code> sets <code class="docutils literal notranslate"><span class="pre">-O2</span> <span class="pre">-g</span> <span class="pre">-DNDEBUG</span></code> (recommended)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Release</span></code> sets <code class="docutils literal notranslate"><span class="pre">-O3</span> <span class="pre">-DNDEBUG</span></code></p></li>
+</ul>
 </div>
 <p>Once <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code> is edited accordingly, kick off build with the commands below:</p>
 <div class="literal-block-wrapper docutils container" id="id4">
@@ -400,15 +411,18 @@ vim<span class="w"> </span>config.cmake
 </div>
 </div>
 <p>A success build should produce <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> and <code class="docutils literal notranslate"><span class="pre">libtvm_runtime</span></code> under <code class="docutils literal notranslate"><span class="pre">/path-tvm-unity/build/</span></code> directory.</p>
-<p>Then you can install the python binding of TVM-Unity with the following commands:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>../python
-python<span class="w"> </span>setup.py<span class="w"> </span>install
+<p>Leaving the build environment <code class="docutils literal notranslate"><span class="pre">tvm-build-venv</span></code>, there are two ways to install the successful build into your environment:</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" aria-selected="true" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" name="SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" role="tab" tabindex="0">Install via environment variable</button><button aria-controls="panel-0-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" name="SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" role="tab" tabindex="-1">Install via pip local project</button></div><div aria-labelledby="tab-0-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" class="sphinx-tabs-panel code-tab group-tab" id="panel-0-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" name="SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/path-to-tvm-unity/python:<span class="nv">$PYTHONPATH</span>
 </pre></div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Outputs from cmake is usually helpful for troubleshooting TVM build.</p>
+</div><div aria-labelledby="tab-0-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-0-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" name="SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-own-env
+conda<span class="w"> </span>install<span class="w"> </span>python<span class="w"> </span><span class="c1"># make sure python is installed</span>
+<span class="nb">cd</span><span class="w"> </span>/path-to-tvm-unity/python
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
 </div>
+</div></div>
 </details><div class="line-block">
 <div class="line"><br /></div>
 </div>
