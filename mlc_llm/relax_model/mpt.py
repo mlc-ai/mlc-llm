@@ -490,7 +490,7 @@ class MultiheadAttention(nn.Module):
       raise ValueError(f'attn_impl={attn_impl!r} is an invalid setting.')
     self.out_proj = Linear(self.d_model, self.d_model)
     # TODO: Does field _is_residual exist?
-    self.out_proj._is_residual = True
+    # self.out_proj._is_residual = True
 
   def forward(self, x, past_key_value=None, attn_bias=None, attention_mask=None, is_causal=True, needs_weights=False):
     qkv = self.Wqkv(x)
@@ -983,7 +983,7 @@ def get_model(args, hf_config):
     config = MPTConfig(**hf_config, dtype=dtype)
 
     bb = relax.BlockBuilder()
-    create_encoding_func(bb, config)
+    create_decoding_func(bb, config)
 
     mod = bb.get()
 
@@ -1003,7 +1003,6 @@ def get_model(args, hf_config):
     param_list = [param for _, param in hf_model.named_parameters()]
 
     for i, param in enumerate(param_list):
-      # TODO: dtype? what is about mix-precision?
       param_list[i] = tvm.nd.array(
         param.detach().cpu().numpy().astype(dtype), device
       )
