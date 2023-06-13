@@ -80,6 +80,8 @@ def reverse_reshape_and_permute(hidden_states: relax.Expr):
   ))
 
 
+######################### FLASH ATTENTION IMPLEMENTATION TYPE TORCH (BEGIN) ##########################
+
 def scaled_multihead_dot_product_attention(
     query,
     key,
@@ -144,6 +146,8 @@ def scaled_multihead_dot_product_attention(
     return (out, attn_weight, past_key_value)
   return (out, None, past_key_value)
 
+######################### FLASH ATTENTION IMPLEMENTATION TYPE TORCH (END) ##########################
+
 
 def check_valid_inputs(*tensors, valid_dtypes=["float16", "bfloat16"]):
   for tensor in tensors:
@@ -153,6 +157,8 @@ def check_valid_inputs(*tensors, valid_dtypes=["float16", "bfloat16"]):
     # if not tensor.is_cuda:
     #   raise TypeError(f'Inputs must be cuda tensors (tensor.is_cuda={tensor.is_cuda!r}).')
 
+
+######################### FLASH ATTENTION IMPLEMENTATION TYPE FLASH (BEGIN) ##########################
 
 class IndexFirstAxis(torch.autograd.Function):
 
@@ -333,6 +339,10 @@ def flash_attn_fn(
   output = bert_padding_pad_input(output_unpad, indices_q, batch_size, seqlen)
   return (output, None, past_key_value)
 
+######################### FLASH ATTENTION IMPLEMENTATION TYPE FLASH (END) ##########################
+
+
+######################### FLASH ATTENTION IMPLEMENTATION TYPE TRITON (BEGIN) ##########################
 
 def triton_flash_attn_fn(
     query,
@@ -408,6 +418,8 @@ def triton_flash_attn_fn(
       (batch_size, seq_len, n_heads*d_model),
   ))  # (b, s, h, d)) -> (b, s, (h d))
   return (output, None, past_key_value)
+
+######################### FLASH ATTENTION IMPLEMENTATION TYPE TRITON (END) ##########################
 
 
 class MultiheadAttention(nn.Module):
