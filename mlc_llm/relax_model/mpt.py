@@ -931,8 +931,7 @@ class MPTForCausalLM(nn.Module):
       """
       reordered_past = []
       for layer_past in past_key_values:
-        # TODO: Relax implementation?
-        reordered_past += [tuple((past_state.index_select(0, beam_idx) for past_state in layer_past))]
+        reordered_past += [tuple((nn.emit(relax.op.take(past_state, beam_idx, 0)) for past_state in layer_past))]
       return reordered_past
 
 
