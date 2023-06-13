@@ -185,6 +185,7 @@
 <li class="toctree-l1"><a class="reference internal" href="android.html">🚧 Run Models in Android</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ios.html">🚧 Run Models in iOS</a></li>
 <li class="toctree-l1"><a class="reference internal" href="python.html">🚧 Run Models with Python</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlc_chat_config.html">Configure MLCChat in JSON</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
@@ -217,7 +218,6 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy-models.html">How to Deploy Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../bring-your-own-models.html">Add New Model Architectures</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../customize-conversation.html">How to Customize Conversation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../customize.html">Customize Model Compilation and Optimization</a></li>
 </ul>
 
@@ -371,7 +371,7 @@ conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><span class="xref std std-doc">TVM Unity</span> compiler is not a dependency to MLCChat CLI. Only its runtime is required, which is automatically included in <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a>.</p>
+<p><a class="reference internal" href="../../install/tvm.html"><span class="doc">TVM Unity</span></a> compiler is not a dependency to MLCChat CLI. Only its runtime is required, which is automatically included in <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a>.</p>
 </div>
 <p><strong>Step 2. Configure and build.</strong> Standard git-based workflow are recommended to download MLC LLM, and then specify build requirements with our small config generation tool:</p>
 <div class="literal-block-wrapper docutils container" id="id2">
