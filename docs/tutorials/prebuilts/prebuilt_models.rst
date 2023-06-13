@@ -6,7 +6,7 @@
 .. contents:: Table of Contents
     :depth: 3
 
-MLC-LLM is a universal solution for deploying different language models, any language models that can be described in `TVM Relax <https://mlc.ai/chapter_graph_optimization/index.html>`__ (which is a general representation for Neural Networks, and can be imported from models written in PyTorch) should recognized by MLC-LLM and thus deployed to different backends with the help of :doc:`TVM Unity <install/tvm>`.
+MLC-LLM is a universal solution for deploying different language models, any language models that can be described in `TVM Relax <https://mlc.ai/chapter_graph_optimization/index.html>`__ (which is a general representation for Neural Networks, and can be imported from models written in PyTorch) should recognized by MLC-LLM and thus deployed to different backends with the help of :doc:`TVM Unity </install/tvm>`.
 
 The community has already supported several LLM architectures, including LLaMA, GPT-NeoX, and GPT-J. We eagerly anticipate further contributions from the community to expand the range of supported model architectures, with the goal of democratizing the deployment of LLMs.
 

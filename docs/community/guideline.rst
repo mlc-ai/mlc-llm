@@ -26,7 +26,7 @@ Additionally, we have set up a `discord server <https://discord.gg/9Xpy2HGBuD>`_
 While we encourage participation in the Discord server, we also recommend creating a GitHub issue even if the
 topic has been discussed there. This ensures that the discussion is archived and searchable for future reference.
 
-Before submitting an issue, we kindly ask you to check our :doc:`/misc/faq` to see if your question has already been answered.
+Before submitting an issue, we kindly ask you to check our :doc:`/community/faq` to see if your question has already been answered.
 
 .. _contribute-to-mlc-llm:
 

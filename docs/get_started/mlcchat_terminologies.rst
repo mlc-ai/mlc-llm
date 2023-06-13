@@ -27,7 +27,7 @@ The model library refers to the executable libraries that enable the execution o
 
 Chat Config
 -----------
-The chat configuration includes settings that allow customization of parameters such as temperature and system prompt. For detailed instructions on how to customize conversations in the chat app, please refer to our documentation: :doc:`/tutorials/customize-conversation`.
+The chat configuration includes settings that allow customization of parameters such as temperature and system prompt. For detailed instructions on how to customize conversations in the chat app, please refer to our documentation: :doc:`/tutorials/runtime/mlc_chat_config`.
 
 Additionally, the chat configuration contains metadata that is essential for the application to locate and execute the model and tokenizers:
 
