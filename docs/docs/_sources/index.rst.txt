@@ -146,6 +146,8 @@ Community
    :hidden:
 
    install/tvm.rst
+   install/conda.rst
+   install/gpu.rst
 
 .. toctree::
    :maxdepth: 1
@@ -159,7 +161,6 @@ Community
    :maxdepth: 1
    :caption: Other tutorials
 
-   install/software-dependencies.rst
    tutorials/deploy-models.rst
    tutorials/compile-models.rst
    tutorials/bring-your-own-models.rst

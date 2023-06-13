@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>🚧 Terminologies &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Install Conda &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -46,8 +46,8 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Run Models in C++" href="../tutorials/runtime/cpp.html" />
-    <link rel="prev" title="👋 Welcome to MLC LLM" href="../index.html" /> 
+    <link rel="next" title="GPU Drivers and SDKs" href="gpu.html" />
+    <link rel="prev" title="Install TVM Unity" href="tvm.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -165,14 +165,8 @@
             
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">🚧 Terminologies</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#model-weights">Model Weights</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#model-library">Model Library</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#chat-config">Chat Config</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#runtime-workflow">Runtime Workflow</a></li>
-</ul>
-</li>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/mlcchat_terminologies.html">🚧 Terminologies</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Use Compiled Models</span></p>
 <ul>
@@ -198,10 +192,14 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/prebuilts/prebuilt_models.html">🚧 Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Installation and Dependency</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../install/conda.html">Install Conda</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../install/gpu.html">GPU Drivers and SDKs</a></li>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Unity</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Install Conda</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#install-miniconda">Install Miniconda</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#validate-installation">Validate installation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="gpu.html">GPU Drivers and SDKs</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
@@ -271,7 +269,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>🚧 Terminologies</li>
+      <li>Install Conda</li>
     
     
       
@@ -282,7 +280,7 @@
         
             
             
-              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/get_started/mlcchat_terminologies.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/install/conda.rst" class="fa fa-github"> Edit on GitHub</a>
             
           
         
@@ -296,42 +294,77 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="terminologies">
-<h1>🚧 Terminologies<a class="headerlink" href="#terminologies" title="Permalink to this heading">¶</a></h1>
-<p>Welcome to mlc-llm! This page provides an overview of the basic concepts of MLC LLM, including how to run a model, share the models you build, and utilize MLC build to create new model libraries that can be run on various environments.</p>
-<p>Firstly, let’s review the fundamental components required for running an MLC LLM Chat application. When running a chat app, three key elements come into play:</p>
-<section id="model-weights">
-<span id="id1"></span><h2>Model Weights<a class="headerlink" href="#model-weights" title="Permalink to this heading">¶</a></h2>
-<p>The models weights are sharded and stored in a list of binary files with name: <code class="docutils literal notranslate"><span class="pre">params_shard_ID.bin</span></code> where <code class="docutils literal notranslate"><span class="pre">ID</span></code> is th shard index.</p>
-</section>
-<section id="model-library">
-<span id="model-lib"></span><h2>Model Library<a class="headerlink" href="#model-library" title="Permalink to this heading">¶</a></h2>
-<p>The model weights are divided into shards and stored as a list of binary files named <code class="docutils literal notranslate"><span class="pre">params_shard_ID.bin</span></code>, where <code class="docutils literal notranslate"><span class="pre">ID</span></code> represents the shard index.</p>
-<p>The model library refers to the executable libraries that enable the execution of a specific model architecture. On Linux, these libraries have the suffix <code class="docutils literal notranslate"><span class="pre">.so</span></code>, on macOS, the suffix is <code class="docutils literal notranslate"><span class="pre">.dylib</span></code>, and on Windows, the library file ends with <code class="docutils literal notranslate"><span class="pre">.dll</span></code>.</p>
-</section>
-<section id="chat-config">
-<span id="id2"></span><h2>Chat Config<a class="headerlink" href="#chat-config" title="Permalink to this heading">¶</a></h2>
-<p>The chat configuration includes settings that allow customization of parameters such as temperature and system prompt. For detailed instructions on how to customize conversations in the chat app, please refer to our documentation: <a class="reference internal" href="../tutorials/customize-conversation.html"><span class="doc">How to Customize Conversation</span></a>.</p>
-<p>Additionally, the chat configuration contains metadata that is essential for the application to locate and execute the model and tokenizers:</p>
-<dl>
-<dt><code class="docutils literal notranslate"><span class="pre">local_id</span></code></dt><dd><p>The key uniquely identifies the model within an app.</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">model_lib</span></code></dt><dd><p>This key specifies which model library to use.</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">tokenizer_files</span></code></dt><dd><p>This field accepts a list of filenames (under current directory) that specifies how to load tokeniziers,</p>
-<details class="summary-details">
-<summary>Details</summary><ul class="simple">
-<li><p>For SentencePiece tokenizer, the tokenizer files would be a single <code class="docutils literal notranslate"><span class="pre">tokenizer.model</span></code> file.</p></li>
-<li><p>For HuggingFace-style tokenizer, the tokenizer files would be a single <code class="docutils literal notranslate"><span class="pre">tokenizer.json</span></code> file.</p></li>
-<li><p>For Byte-Level BPE tokenizer, the tokenizer files would be a <code class="docutils literal notranslate"><span class="pre">vocab.json</span></code> file, a <code class="docutils literal notranslate"><span class="pre">merges.txt</span></code> and a <code class="docutils literal notranslate"><span class="pre">added_tokens.json</span></code> file.</p></li>
+  <section id="install-conda">
+<h1><a class="toc-backref" href="#id5" role="doc-backlink">Install Conda</a><a class="headerlink" href="#install-conda" title="Permalink to this heading">¶</a></h1>
+<p>MLC LLM does not depend on, but generally recommends conda as a generic dependency manager, primarily because it creates unified cross-platform experience to make windows/Linux/macOS development equally easy. Moreover, conda is python-friendly and provides all the python packages needed for MLC LLM, such as numpy.</p>
+<nav class="contents" id="table-of-contents">
+<p class="topic-title">Table of Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#install-conda" id="id5">Install Conda</a></p>
+<ul>
+<li><p><a class="reference internal" href="#install-miniconda" id="id6">Install Miniconda</a></p></li>
+<li><p><a class="reference internal" href="#validate-installation" id="id7">Validate installation</a></p></li>
 </ul>
-</details></dd>
-</dl>
+</li>
+</ul>
+</nav>
+<section id="install-miniconda">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Install Miniconda</a><a class="headerlink" href="#install-miniconda" title="Permalink to this heading">¶</a></h2>
+<p><strong>Use installer.</strong> Miniconda, a minimal distribution of conda, comes with out-of-box installer across Windows/macOS/Linux. Please refer to its <a class="reference external" href="https://docs.conda.io/en/latest/miniconda.html#latest-miniconda-installer-links">official website</a> link for detailed instructions.</p>
+<p><strong>Set libmamba as the dependency solver.</strong> The default dependency solver in conda could be slow in certain scenarios, and it is always recommended to upgrade it to libmamba, a faster solver.</p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">Set libmamba as the default solver</span><a class="headerlink" href="#id1" title="Permalink to this code">¶</a></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># update conda</span>
+conda<span class="w"> </span>update<span class="w"> </span>--yes<span class="w"> </span>-n<span class="w"> </span>base<span class="w"> </span>-c<span class="w"> </span>defaults<span class="w"> </span>conda
+<span class="c1"># install `conda-libmamba-solver`</span>
+conda<span class="w"> </span>install<span class="w"> </span>--yes<span class="w"> </span>-n<span class="w"> </span>base<span class="w"> </span>conda-libmamba-solver
+<span class="c1"># set it as the default solver</span>
+conda<span class="w"> </span>config<span class="w"> </span>--set<span class="w"> </span>solver<span class="w"> </span>libmamba
+</pre></div>
+</div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Conda is a generic dependency manager, which is not necessarily related to any Python distributions.
+In fact, some of our tutorials recommends to use conda to install cmake, git and rust for its unified experience across OS platforms.</p>
+</div>
 </section>
-<section id="runtime-workflow">
-<h2>Runtime Workflow<a class="headerlink" href="#runtime-workflow" title="Permalink to this heading">¶</a></h2>
-<img alt="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg" src="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg" /><p>On the right side of the figure, you can see pseudo code illustrating the structure of an MLC chat API during the execution of a chat app. Typically, there is a ChatModule that manages the model. The chat app includes a reload function that takes a <code class="docutils literal notranslate"><span class="pre">local_id</span></code> as well as an optional chat configuration override, which allows for overriding settings such as the system prompt and temperature. The MLC Chat runtime utilizes the <code class="docutils literal notranslate"><span class="pre">local_id</span></code> and <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> to locate the model and initialize its internal state.</p>
-<p>All MLC Chat runtimes, including iOS, Web, CLI, and others, make use of these key elements. They are capable of reading the same model weights, although the packaging of the model libraries may vary. For the CLI, the model libraries are stored in a DLL directory. iOS and Android include pre-packaged model libraries within the app itself due to restrictions on dynamic loading. WebLLM, on the other hand, utilizes a <code class="docutils literal notranslate"><span class="pre">model_lib_map</span></code> that maps the library name to URLs of WebAssembly (Wasm) files. Thanks to the shared model weights, we can create the weights once and run them across different platforms.</p>
+<section id="validate-installation">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Validate installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h2>
+<p><strong>Step 1. Check conda-arch mismatch.</strong> Nowadays macOS runs on two different architectures: arm64 and x86_64, which could particularly lead to many misuses in MLC LLM, where the error message hints about “architecture mismatch”. Use the following command to make sure particular conda architecture is installed accordingly:</p>
+<div class="literal-block-wrapper docutils container" id="id2">
+<div class="code-block-caption"><span class="caption-text">Check conda architecture</span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>conda<span class="w"> </span>info<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>platform
+<span class="c1"># for arm mac</span>
+platform<span class="w"> </span>:<span class="w"> </span>osx-arm64
+<span class="c1"># for x86 mac</span>
+platform<span class="w"> </span>:<span class="w"> </span>osx-64
+</pre></div>
+</div>
+</div>
+<p><strong>Step 2. Check conda virtual environment.</strong> If you have installed python in your conda virtual environment, make sure conda, Python and pip are all from this environment:</p>
+<div class="literal-block-wrapper docutils container" id="id3">
+<div class="code-block-caption"><span class="caption-text">Check conda virtual environment (macOS, Linux)</span><a class="headerlink" href="#id3" title="Permalink to this code">¶</a></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$CONDA_PREFIX</span>
+/.../miniconda3/envs/mlc-doc-venv
+&gt;&gt;&gt;<span class="w"> </span>which<span class="w"> </span>python
+/.../miniconda3/envs/mlc-doc-venv/bin/python
+&gt;&gt;&gt;<span class="w"> </span>which<span class="w"> </span>pip
+/.../miniconda3/envs/mlc-doc-venv/bin/pip
+</pre></div>
+</div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id4">
+<div class="code-block-caption"><span class="caption-text">Check conda virtual environment (Windows)</span><a class="headerlink" href="#id4" title="Permalink to this code">¶</a></div>
+<div class="highlight-bat notranslate"><div class="highlight"><pre><span></span><span class="p">&gt;&gt;</span>&gt; <span class="k">echo</span> $Env:CONDA_PREFIX
+\...\miniconda3\envs\mlc-doc-venv
+<span class="p">&gt;&gt;</span>&gt; Get-Command python.exe
+\...\miniconda3\envs\mlc-doc-venv\bin\python.exe
+<span class="p">&gt;&gt;</span>&gt; Get-Command pip.exe
+\...\miniconda3\envs\mlc-doc-venv\bin\pip.exe
+</pre></div>
+</div>
+</div>
 </section>
 </section>
 
@@ -345,10 +378,10 @@
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../tutorials/runtime/cpp.html" class="btn btn-neutral float-right" title="Run Models in C++" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="gpu.html" class="btn btn-neutral float-right" title="GPU Drivers and SDKs" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="../index.html" class="btn btn-neutral float-left" title="👋 Welcome to MLC LLM" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="tvm.html" class="btn btn-neutral float-left" title="Install TVM Unity" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

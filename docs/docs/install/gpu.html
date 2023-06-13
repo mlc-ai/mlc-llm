@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>🚧 Software Dependencies &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>GPU Drivers and SDKs &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -47,8 +47,8 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="How to Deploy Models" href="../tutorials/deploy-models.html" />
-    <link rel="prev" title="Frequently Asked Questions (FAQ)" href="../community/faq.html" /> 
+    <link rel="next" title="Community Guideline" href="../community/guideline.html" />
+    <link rel="prev" title="Install Conda" href="conda.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -193,8 +193,24 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/prebuilts/prebuilt_models.html">🚧 Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Installation and Dependency</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Unity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conda.html">Install Conda</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">GPU Drivers and SDKs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#cuda">CUDA</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#installation">Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#validate-installation">Validate Installation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#vulkan-driver">Vulkan Driver</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id1">Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id2">Validate Installation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#vulkan-sdk">Vulkan SDK</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#opencl-sdk">OpenCL SDK</a></li>
+</ul>
+</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
@@ -202,23 +218,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../community/faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Other tutorials</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">🚧 Software Dependencies</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#conda">Conda</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#cuda">CUDA</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#installation">Installation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#validate-installation">Validate Installation</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#vulkan-driver">Vulkan Driver</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#vulkan-driver-installation">Installation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#valkan-driver-validate-installation">Validate Installation</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#vulkan-sdk">Vulkan-SDK</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#opencl-sdk">OpenCL-SDK</a></li>
-</ul>
-</li>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/deploy-models.html">How to Deploy Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/bring-your-own-models.html">Add New Model Architectures</a></li>
@@ -280,7 +280,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>🚧 Software Dependencies</li>
+      <li>GPU Drivers and SDKs</li>
     
     
       
@@ -291,7 +291,7 @@
         
             
             
-              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/install/software-dependencies.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/install/gpu.rst" class="fa fa-github"> Edit on GitHub</a>
             
           
         
@@ -305,63 +305,54 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="software-dependencies">
-<span id="id1"></span><h1>🚧 Software Dependencies<a class="headerlink" href="#software-dependencies" title="Permalink to this heading">¶</a></h1>
-<nav class="contents local" id="table-of-contents">
+  <section id="gpu-drivers-and-sdks">
+<h1><a class="toc-backref" href="#id3" role="doc-backlink">GPU Drivers and SDKs</a><a class="headerlink" href="#gpu-drivers-and-sdks" title="Permalink to this heading">¶</a></h1>
+<nav class="contents" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#conda" id="id4">Conda</a></p></li>
-<li><p><a class="reference internal" href="#cuda" id="id5">CUDA</a></p>
+<li><p><a class="reference internal" href="#gpu-drivers-and-sdks" id="id3">GPU Drivers and SDKs</a></p>
 <ul>
-<li><p><a class="reference internal" href="#installation" id="id6">Installation</a></p></li>
-<li><p><a class="reference internal" href="#validate-installation" id="id7">Validate Installation</a></p></li>
+<li><p><a class="reference internal" href="#cuda" id="id4">CUDA</a></p></li>
+<li><p><a class="reference internal" href="#vulkan-driver" id="id5">Vulkan Driver</a></p></li>
+<li><p><a class="reference internal" href="#vulkan-sdk" id="id6">Vulkan SDK</a></p></li>
+<li><p><a class="reference internal" href="#opencl-sdk" id="id7">OpenCL SDK</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#vulkan-driver" id="id8">Vulkan Driver</a></p>
-<ul>
-<li><p><a class="reference internal" href="#vulkan-driver-installation" id="id9">Installation</a></p></li>
-<li><p><a class="reference internal" href="#valkan-driver-validate-installation" id="id10">Validate Installation</a></p></li>
-</ul>
-</li>
-<li><p><a class="reference internal" href="#vulkan-sdk" id="id11">Vulkan-SDK</a></p></li>
-<li><p><a class="reference internal" href="#opencl-sdk" id="id12">OpenCL-SDK</a></p></li>
 </ul>
 </nav>
-<p>While we have included most of the dependencies in our pre-built wheels/scripts, there are still some platform-dependent packages that you will need to install on your own. In most cases, you won’t need all the packages listed on this page.</p>
-<section id="conda">
-<h2><a class="toc-backref" href="#id4" role="doc-backlink">Conda</a><a class="headerlink" href="#conda" title="Permalink to this heading">¶</a></h2>
-<p>🚧 TBA</p>
-</section>
+<p>MLC LLM is a universal deployment solution that allows efficient CPU/GPU code generation without AutoTVM-based performance tuning. This section focuses on generic GPU environment setup and troubleshooting.</p>
 <section id="cuda">
-<span id="software-dependencies-cuda"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">CUDA</a><a class="headerlink" href="#cuda" title="Permalink to this heading">¶</a></h2>
-<p>CUDA is required to compile and run models with <code class="docutils literal notranslate"><span class="pre">cuda</span></code> backend.</p>
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">CUDA</a><a class="headerlink" href="#cuda" title="Permalink to this heading">¶</a></h2>
+<p>CUDA is required to compile and run models with CUDA backend.</p>
 <section id="installation">
-<span id="cuda-installation"></span><h3><a class="toc-backref" href="#id6" role="doc-backlink">Installation</a><a class="headerlink" href="#installation" title="Permalink to this heading">¶</a></h3>
+<h3>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">¶</a></h3>
 <p>If you have a NVIDIA GPU and you want to use models compiled with CUDA
 backend, you should install CUDA, which can be downloaded from
 <a class="reference external" href="https://developer.nvidia.com/cuda-downloads">here</a>.</p>
 </section>
 <section id="validate-installation">
-<span id="cuda-validate-installation"></span><h3><a class="toc-backref" href="#id7" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h3>
-<p>To verify you have correctly installed CUDA runtime and NVIDIA driver, you can simply run <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span></code> in command line and see
-if you can get the GPU information.</p>
+<h3>Validate Installation<a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h3>
+<p>To verify you have correctly installed CUDA runtime and NVIDIA driver, run <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span></code> in command line and see if you can get the GPU information.</p>
 </section>
 </section>
 <section id="vulkan-driver">
-<span id="software-dependencies-vulkan-driver"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Vulkan Driver</a><a class="headerlink" href="#vulkan-driver" title="Permalink to this heading">¶</a></h2>
-<section id="vulkan-driver-installation">
-<span id="id2"></span><h3><a class="toc-backref" href="#id9" role="doc-backlink">Installation</a><a class="headerlink" href="#vulkan-driver-installation" title="Permalink to this heading">¶</a></h3>
-<p>To run pre-trained models (e.g. pulled from MLC-AI’s Hugging Face repository) compiled with <code class="docutils literal notranslate"><span class="pre">vulkan</span></code> backend, you are expected to install Vulkan driver on your machine.</p>
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Vulkan Driver</a><a class="headerlink" href="#vulkan-driver" title="Permalink to this heading">¶</a></h2>
+<section id="id1">
+<h3>Installation<a class="headerlink" href="#id1" title="Permalink to this heading">¶</a></h3>
+<p>To run pre-trained models (e.g. pulled from MLC-AI’s Hugging Face repository) compiled with Vulkan backend, you are expected to install Vulkan driver on your machine.</p>
 <p>Please check <a class="reference external" href="https://www.vulkan.org/tools#vulkan-gpu-resources">this
 page</a> and find the
 Vulkan driver according to your GPU vendor.</p>
 </section>
-<section id="valkan-driver-validate-installation">
-<span id="id3"></span><h3><a class="toc-backref" href="#id10" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#valkan-driver-validate-installation" title="Permalink to this heading">¶</a></h3>
+<section id="id2">
+<h3>Validate Installation<a class="headerlink" href="#id2" title="Permalink to this heading">¶</a></h3>
 <p>To verify whether Vulkan installation is successful or not, you are encouraged to install <code class="docutils literal notranslate"><span class="pre">vulkaninfo</span></code>, below are the instructions to install <code class="docutils literal notranslate"><span class="pre">vulkaninfo</span></code> on different platforms:</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-VWJ1bnR1L0RlYmlhbg==" aria-selected="true" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-VWJ1bnR1L0RlYmlhbg==" name="VWJ1bnR1L0RlYmlhbg==" role="tab" tabindex="0">Ubuntu/Debian</button><button aria-controls="panel-0-RmVkb3Jh" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-RmVkb3Jh" name="RmVkb3Jh" role="tab" tabindex="-1">Fedora</button><button aria-controls="panel-0-QXJjaCBMaW51eA==" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-QXJjaCBMaW51eA==" name="QXJjaCBMaW51eA==" role="tab" tabindex="-1">Arch Linux</button><button aria-controls="panel-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" name="T3RoZXIgRGlzdHJpYnV0aW9ucw==" role="tab" tabindex="-1">Other Distributions</button></div><div aria-labelledby="tab-0-VWJ1bnR1L0RlYmlhbg==" class="sphinx-tabs-panel code-tab group-tab" id="panel-0-VWJ1bnR1L0RlYmlhbg==" name="VWJ1bnR1L0RlYmlhbg==" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-VWJ1bnR1L0RlYmlhbg==" aria-selected="true" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-VWJ1bnR1L0RlYmlhbg==" name="VWJ1bnR1L0RlYmlhbg==" role="tab" tabindex="0">Ubuntu/Debian</button><button aria-controls="panel-0-V2luZG93cw==" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-V2luZG93cw==" name="V2luZG93cw==" role="tab" tabindex="-1">Windows</button><button aria-controls="panel-0-RmVkb3Jh" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-RmVkb3Jh" name="RmVkb3Jh" role="tab" tabindex="-1">Fedora</button><button aria-controls="panel-0-QXJjaCBMaW51eA==" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-QXJjaCBMaW51eA==" name="QXJjaCBMaW51eA==" role="tab" tabindex="-1">Arch Linux</button><button aria-controls="panel-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" name="T3RoZXIgRGlzdHJpYnV0aW9ucw==" role="tab" tabindex="-1">Other Distributions</button></div><div aria-labelledby="tab-0-VWJ1bnR1L0RlYmlhbg==" class="sphinx-tabs-panel code-tab group-tab" id="panel-0-VWJ1bnR1L0RlYmlhbg==" name="VWJ1bnR1L0RlYmlhbg==" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
 sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>vulkan-tools
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-0-V2luZG93cw==" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-0-V2luZG93cw==" name="V2luZG93cw==" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># It comes with your GPU driver</span>
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-0-RmVkb3Jh" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-0-RmVkb3Jh" name="RmVkb3Jh" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>vulkan-tools
@@ -371,7 +362,7 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 <span class="c1"># Arch Linux has maintained an awesome wiki page for Vulkan which you can refer to for troubleshooting: https://wiki.archlinux.org/title/Vulkan</span>
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" name="T3RoZXIgRGlzdHJpYnV0aW9ucw==" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Please install vulkan-sdk for your platform</span>
+</div><div aria-labelledby="tab-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" name="T3RoZXIgRGlzdHJpYnV0aW9ucw==" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Please install Vulkan SDK for your platform</span>
 <span class="c1"># https://vulkan.lunarg.com/sdk/home</span>
 </pre></div>
 </div>
@@ -379,15 +370,14 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 <p>After installation, you can run <code class="docutils literal notranslate"><span class="pre">vulkaninfo</span></code> in command line and see if you can get the GPU information.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>If you found trouble running models with vulkan backend, please attach the <code class="docutils literal notranslate"><span class="pre">vulkaninfo</span></code> output in your issue report so that we can identify whether it’s vulkan driver installation issue.</p>
+<p>WSL support for Windows is work-in-progress at the moment. Please do not use WSL on Windows to run Vulkan.</p>
 </div>
 </section>
 </section>
 <section id="vulkan-sdk">
-<span id="software-dependencies-vulkan-sdk"></span><h2><a class="toc-backref" href="#id11" role="doc-backlink">Vulkan-SDK</a><a class="headerlink" href="#vulkan-sdk" title="Permalink to this heading">¶</a></h2>
-<p>Vulkan-SDK is required for compiling models to Vulkan backend. However, our <a class="reference external" href="https://mlc.ai/package">pre-built mlc-ai-nightly wheels</a> already packaged Vulkan-SDK, so there is no need to install it separately.</p>
-<p>Installing Vulkan-SDK is only necessary when user build TVM-Unity from source.</p>
-<p>Please check the Vulkan-SDK installation guide according to your platform:</p>
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Vulkan SDK</a><a class="headerlink" href="#vulkan-sdk" title="Permalink to this heading">¶</a></h2>
+<p>Vulkan SDK is required for compiling models to Vulkan backend. To build TVM Unity compiler from source, you will need to install Vulkan SDK as a dependency, but our <a class="reference external" href="https://mlc.ai/package">pre-built wheels</a> already ships with Vulkan SDK.</p>
+<p>Check Vulkan SDK installation guide according to your platform:</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">Windows</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">Linux</button><button aria-controls="panel-1-1-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-2" name="1-2" role="tab" tabindex="-1">Mac</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><p><a class="reference external" href="https://vulkan.lunarg.com/doc/sdk/latest/windows/getting_started.html">Getting Started with the Windows Tarball Vulkan SDK</a></p>
 </div><div aria-labelledby="tab-1-1-1" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-1" name="1-1" role="tabpanel" tabindex="0"><p>For Ubuntu user, please check
@@ -399,8 +389,8 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 <p>Please refer to installation and setup page for next steps to build TVM-Unity from source.</p>
 </section>
 <section id="opencl-sdk">
-<span id="software-dependencies-opencl-sdk"></span><h2><a class="toc-backref" href="#id12" role="doc-backlink">OpenCL-SDK</a><a class="headerlink" href="#opencl-sdk" title="Permalink to this heading">¶</a></h2>
-<p>OpenCL-SDK is only required when you want to build your own models for OpenCL backend. Please refer to <a class="reference external" href="https://github.com/KhronosGroup/OpenCL-SDK">OpenCL’s Github Repository</a> for installation guide of OpenCL-SDK.</p>
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">OpenCL SDK</a><a class="headerlink" href="#opencl-sdk" title="Permalink to this heading">¶</a></h2>
+<p>OpenCL SDK is only required when you want to build your own models for OpenCL backend. Please refer to <a class="reference external" href="https://github.com/KhronosGroup/OpenCL-SDK">OpenCL’s Github Repository</a> for installation guide of OpenCL-SDK.</p>
 </section>
 </section>
 
@@ -414,10 +404,10 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../tutorials/deploy-models.html" class="btn btn-neutral float-right" title="How to Deploy Models" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../community/guideline.html" class="btn btn-neutral float-right" title="Community Guideline" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="../community/faq.html" class="btn btn-neutral float-left" title="Frequently Asked Questions (FAQ)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="conda.html" class="btn btn-neutral float-left" title="Install Conda" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 
