@@ -167,19 +167,6 @@ class IndexFirstAxis(torch.autograd.Function):
         return torch.gather(rearrange(input, 'b ... -> b (...)'), 0,
                             repeat(indices, 'z -> z d', d=second_dim)).reshape(-1, *other_shape)
 
-    @staticmethod
-    def backward(ctx, grad_output):
-        indices, = ctx.saved_tensors
-        assert grad_output.ndim >= 2
-        other_shape = grad_output.shape[1:]
-        grad_output = rearrange(grad_output, 'b ... -> b (...)')
-        grad_input = torch.zeros([ctx.first_axis_dim, grad_output.shape[1]],
-                                  device=grad_output.device, dtype=grad_output.dtype)
-        # TD [2022-03-04] For some reason torch.scatter is a bit faster than indexing.
-        # grad_input[indices] = grad_output
-        grad_input.scatter_(0, repeat(indices, 'z -> z d', d=grad_output.shape[1]), grad_output)
-        return grad_input.reshape(ctx.first_axis_dim, *other_shape), None
-
 
 index_first_axis = IndexFirstAxis.apply
 
@@ -197,14 +184,6 @@ class IndexPutFirstAxis(torch.autograd.Function):
         output[indices] = values
         # output.scatter_(0, repeat(indices, 'z -> z d', d=values.shape[1]), values)
         return output
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        indices, = ctx.saved_tensors
-        # TD [2022-03-04] For some reason torch.gather is a bit faster than indexing.
-        grad_values = grad_output[indices]
-        # grad_values = torch.gather(grad_output, 0, repeat(indices, 'z -> z d', d=grad_output.shape[1]))
-        return grad_values, None, None
 
 
 index_put_first_axis = IndexPutFirstAxis.apply
@@ -275,17 +254,6 @@ class FlashAttnFunc(torch.autograd.Function):
         ctx.causal = causal
         ctx.deterministic = deterministic
         return out if not return_softmax else (out, softmax_lse, S_dmask)
-
-    @staticmethod
-    def backward(ctx, dout, *args):
-        q, k, v, out, softmax_lse, cu_seqlens_q, cu_seqlens_k, rng_state = ctx.saved_tensors
-        dq, dk, dv = torch.empty_like(q), torch.empty_like(k), torch.empty_like(v)
-        _flash_attn_backward(
-            dout, q, k, v, out, softmax_lse, dq, dk, dv, cu_seqlens_q, cu_seqlens_k,
-            ctx.max_seqlen_q, ctx.max_seqlen_k, ctx.dropout_p, ctx.softmax_scale, ctx.causal,
-            rng_state=rng_state, num_splits=1 if ctx.deterministic else 0,
-        )
-        return dq, dk, dv, None, None, None, None, None, None, None, None, None
 
 
 def flash_attn_interface_flash_attn_unpadded_func(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k,
