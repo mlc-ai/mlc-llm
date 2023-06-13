@@ -13,8 +13,8 @@ Install TVM Unity
 
 There are two options available to install TVM Unity:
 
-- installing a prebuilt developer package, or
-- building TVM Unity from source.
+- Installing a prebuilt developer package, or
+- Building TVM Unity from source.
 
 Option 1. Prebuilt Package
 --------------------------
