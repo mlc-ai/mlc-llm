@@ -4,7 +4,14 @@ Install TVM Unity
 .. contents:: Table of Contents
     :depth: 2
 
-`TVM Unity <https://discuss.tvm.apache.org/t/establish-tvm-unity-connection-a-technical-strategy/13344>`__, the latest development in Apache TVM, is required to build MLC LLM. To install TVM Unity, there are two options available:
+`TVM Unity <https://discuss.tvm.apache.org/t/establish-tvm-unity-connection-a-technical-strategy/13344>`__, the latest development in Apache TVM, is required to build MLC LLM. Its features include:
+
+- High-performance CPU/GPU code generation instantly without tuning;
+- Dynamic shape and symbolic shape tracking by design;
+- Supporting both inference and training;
+- Productive python-first compiler implementation. As a concrete example, MLC LLM compilation is implemented in pure python using its API.
+
+There are two options available to install TVM Unity:
 
 - installing a prebuilt developer package, or
 - building TVM Unity from source.
