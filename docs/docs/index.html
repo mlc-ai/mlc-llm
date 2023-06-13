@@ -353,7 +353,7 @@
 </figcaption>
 </figure>
 <p><strong>➀ Model definition in Python.</strong> MLC offers a variety of pre-defined architectures, such as Llama (e.g., Vicuna, OpenLlama, Llama, Wizard), GPT-NeoX (e.g., RedPajama, Dolly), RNNs (e.g., RWKV), and GPT-J (e.g., MOSS). Model developers could solely define the model in pure Python, without having to touch code generation and runtime.</p>
-<p><strong>➁ Model compilation in Python.</strong> TVM Unity compiler are configured in pure python, and it quantizes and exports the Python-based model to <a class="reference internal" href="get_started/mlcchat_terminologies.html#model-lib"><span class="std std-ref">model lib</span></a> and quantized <a class="reference internal" href="get_started/mlcchat_terminologies.html#model-weights"><span class="std std-ref">model weights</span></a>. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.</p>
+<p><strong>➁ Model compilation in Python.</strong> <a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a> compiler are configured in pure python, and it quantizes and exports the Python-based model to <a class="reference internal" href="get_started/mlcchat_terminologies.html#model-lib"><span class="std std-ref">model lib</span></a> and quantized <a class="reference internal" href="get_started/mlcchat_terminologies.html#model-weights"><span class="std std-ref">model weights</span></a>. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.</p>
 <p><strong>➂ Platform-native runtimes.</strong> Variants of MLCChat are provided on each platform: <strong>C++</strong> for command line, <strong>Javascript</strong> for web, <strong>Swift</strong> for iOS, and <strong>Java</strong> for Android, configurable with a JSON <a class="reference internal" href="get_started/mlcchat_terminologies.html#chat-config"><span class="std std-ref">chat config</span></a>. App developers only need to familiarize with the platform-naive runtimes to integrate MLC-compiled LLMs into their projects.</p>
 </section>
 <section id="tutorials">
@@ -367,7 +367,7 @@
 <li><p><a class="reference internal" href="tutorials/runtime/ios.html"><span class="doc">🚧 Run Models in iOS</span></a> for iOS</p></li>
 <li><p><a class="reference internal" href="tutorials/runtime/python.html"><span class="doc">🚧 Run Models with Python</span></a> for running models in Python</p></li>
 </ul>
-<p><strong>Note.</strong> TVM Unity compiler is not a dependency to running any MLC-compiled model.</p>
+<p><strong>Note.</strong> <a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a> compiler is not a dependency to running any MLC-compiled model.</p>
 </div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p><a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a> is required to compile models.</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="tutorials/compilation/model_compilation_walkthrough.html"><span class="doc">🚧 Compile a Model in MLC LLM</span></a></p></li>
