@@ -432,6 +432,7 @@ class MultiheadAttention(nn.Module):
       self,
       d_model: int,
       n_heads: int,
+      dtype: str,
       attn_impl: str='triton',
       clip_qkv: Optional[float]=None,
       qk_ln: bool=False,
@@ -448,7 +449,7 @@ class MultiheadAttention(nn.Module):
 
     if self.softmax_scale is None:
       self.softmax_scale = 1 / math.sqrt(self.d_model / self.n_heads)
-    self.Wqkv = Linear(self.d_model, 3 * self.d_model)
+    self.Wqkv = Linear(self.d_model, 3 * self.d_model, dtype)
     fuse_splits = (d_model, 2 * d_model)
     self.Wqkv._fused = (0, fuse_splits)
     if self.qk_ln:
@@ -456,19 +457,21 @@ class MultiheadAttention(nn.Module):
       self.q_ln = layernorm_class(self.d_model)
       self.k_ln = layernorm_class(self.d_model)
     if self.attn_impl == 'flash':
-      self.attn_fn = flash_attn_fn
+      raise NotImplemented("Flash type of flash attention has not been implemented yet")
+      # self.attn_fn = flash_attn_fn
     elif self.attn_impl == 'triton':
       # While `attn_impl: triton` can be faster than `attn_impl: flash` it uses more memory.
       # When training larger models this can trigger alloc retries which hurts performance.
       # If encountered, we recommend using `attn_impl: flash` if your model does not use `alibi` or `prefix_lm`.
-      self.attn_fn = triton_flash_attn_fn
+      raise NotImplemented("Triton type of flash attention has not been implemented yet")
+      # self.attn_fn = triton_flash_attn_fn
     elif self.attn_impl == 'torch':
       # Using `attn_impl: torch`. If your model does not use `alibi` or `prefix_lm` we recommend using `attn_impl: flash`
       # otherwise we recommend using `attn_impl: triton`.
       self.attn_fn = scaled_multihead_dot_product_attention
     else:
       raise ValueError(f'attn_impl={attn_impl!r} is an invalid setting.')
-    self.out_proj = Linear(self.d_model, self.d_model)
+    self.out_proj = Linear(self.d_model, self.d_model, dtype)
     # TODO: Does field _is_residual exist?
     # self.out_proj._is_residual = True
 
@@ -523,6 +526,7 @@ class MPTBlock(nn.Module):
     self.self_attn = attn_class(
         d_model=self.hidden_size,
         n_heads=config.n_heads,
+        dtype=config.dtype,
         attn_impl=attn_config['attn_impl'],
         clip_qkv=attn_config['clip_qkv'],
         qk_ln=attn_config['qk_ln'],
