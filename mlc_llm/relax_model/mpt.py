@@ -27,7 +27,7 @@ def _cast_if_autocast_enabled(tensor):
   # else:
   #   raise NotImplementedError()
   dtype = "float32" # TODO: temporal workaround
-  return nn.emit(tvm.tir.Cast(dtype, tensor))
+  return nn.emit(relax.op.astype(tensor, dtype))
 
 # Low-precision layer norm for mpt-7b-instruct, where are no biases expected
 class LPLayerNormWOBias(nn.Module):
@@ -132,7 +132,7 @@ def scaled_multihead_dot_product_attention(
       s = relax.op.maximum(s_q, s_k)
       causal_mask = nn.emit(relax.op.ones((s, s,), dtype="float16"))
       causal_mask = nn.emit(relax.op.tril(causal_mask))
-      causal_mask = tvm.tir.Cast("bool", causal_mask)
+      causal_mask = nn.emit(relax.op.astype(causal_mask, "bool"))
       causal_mask = tvm.tir.bitwise_not(causal_mask)
       # slicing causal_mask[-s_q:, -s_k:]
       s_q_end, s_k_end = causal_mask.struct_info.shape
@@ -588,7 +588,8 @@ def gen_slopes(n_heads, alibi_bias_max=8):
     _n_heads = 2 ** math.ceil(math.log2(n_heads))
     m = nn.emit(relax.op.arange(1, _n_heads + 1, dtype="float32"))
     m = nn.emit(m * relax.const(alibi_bias_max / _n_heads))
-    slopes = relax.const(1.0) / relax.op.power(m, 2)
+    slopes = nn.emit(relax.op.divide(relax.const(1.0), relax.op.power(m, relax.const(2.0))))
+
     if _n_heads != n_heads:
       slopes_len = slopes.struct_info.shape[0]
       slopes = nn.emit(relax.op.strided_slice(
@@ -606,9 +607,10 @@ def build_alibi_bias(n_heads, seq_len, full=False, alibi_bias_max=8, dtype=None)
     alibi_bias = nn.emit(alibi_bias - relax.op.reshape(relax.op.arange(1 - seq_len, 1, dtype="int32"), (1, 1, seq_len, 1)))
     alibi_bias = nn.emit(relax.op.negative(relax.op.abs(alibi_bias)))
   slopes = gen_slopes(n_heads, alibi_bias_max)
+  alibi_bias = nn.emit(relax.op.astype(alibi_bias, slopes.struct_info.dtype.value))
   alibi_bias = nn.emit(alibi_bias * slopes)
   if dtype is not None:
-    alibi_bias = nn.emit(tvm.tir.Cast(dtype, alibi_bias))
+    alibi_bias = nn.emit(relax.op.astype(alibi_bias, dtype))
   return alibi_bias
 
 
@@ -684,7 +686,7 @@ class MPTModel(nn.Module):
     if self.attn_impl == 'flash':
       return (self.attn_bias, attention_mask)
     if self.attn_bias is not None:
-      self.attn_bias = nn.emit(tvm.tir.Cast(dtype, self.attn_bias))
+      self.attn_bias = nn.emit(relax.op.astype(self.attn_bias, dtype))
     attn_bias = self.attn_bias
     if self.prefix_lm:
         assert isinstance(attn_bias, relax.Expr)
@@ -721,7 +723,7 @@ class MPTModel(nn.Module):
     attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [dims_len - 2, dims_len - 1], [relax.const(0), relax.const(0)], [seq_len, seq_len]))
     causal = nn.emit(relax.op.reshape(relax.op.tril(relax.op.ones((seq_len, seq_len), dtype="bool")), (1, 1, seq_len, seq_len)))
     prefix = nn.emit(relax.op.reshape(prefix_mask, (-1, 1, 1, seq_len)))
-    cannot_attend = nn.emit(tvm.tir.bitwise_not(relax.op.logical_or(causal, tvm.tir.Cast("bool", prefix))))
+    cannot_attend = nn.emit(tvm.tir.bitwise_not(relax.op.logical_or(causal, relax.op.astype(prefix, "bool"))))
     min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
     attn_bias = nn.emit(relax.op.masked_fill(attn_bias, cannot_attend, min_val))
     return attn_bias
@@ -755,9 +757,9 @@ class MPTModel(nn.Module):
     return_dict = return_dict if return_dict is not None else self.return_dict
     use_cache = use_cache if use_cache is not None else self.use_cache
     if attention_mask is not None:
-      attention_mask = nn.emit(tvm.tir.Cast("bool", attention_mask))
+      attention_mask = nn.emit(relax.op.astype(attention_mask, "bool"))
     if prefix_mask is not None:
-      prefix_mask = nn.emit(tvm.tir.Cast("bool", prefix_mask))
+      prefix_mask = nn.emit(relax.op.astype(prefix_mask, "bool"))
     if not return_dict:
       raise NotImplementedError('return_dict False is not implemented yet for MPT')
     if output_attentions:
@@ -784,7 +786,7 @@ class MPTModel(nn.Module):
         raise ValueError(f'Cannot forward input with past sequence length {past_position} and current sequence length {S + 1}, this model only supports total sequence length <= {self.max_seq_len}.')
       pos = nn.emit(relax.op.expand_dims(relax.op.arange(past_position, S + past_position, dtype="long"), axis=0))
       if attention_mask is not None:
-        pos_diff_to_slice = nn.emit(relax.op.cumsum(tvm.tir.Cast("int32", tvm.tir.bitwise_not(attention_mask)), axis=1))
+        pos_diff_to_slice = nn.emit(relax.op.cumsum(relax.op.astype(tvm.tir.bitwise_not(attention_mask), "int32"), axis=1))
         dim1_len = pos_diff_to_slice.struct_info.shape[1]
         # slicing [:, past_position:]
         pos_diff = nn.emit(relax.op.strided_slice(pos_diff_to_slice, [1], [past_position], [dim1_len]))
