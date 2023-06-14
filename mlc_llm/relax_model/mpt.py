@@ -636,12 +636,18 @@ class MPTModel(nn.Module):
     self.alibi_bias_max = config.attn_config['alibi_bias_max']
     self.is_causal = not self.prefix_lm
 
+    self.n_heads = config.n_heads
+    self.n_layers = config.n_layers
+    self.max_seq_len = config.max_seq_len
+    self.return_dict = config.return_dict
+    self.use_cache = config.use_cache
+
     self._attn_bias_initialized = False
     self.attn_bias = None
     self.attn_bias_shape = attn_bias_shape(
         self.attn_impl,
-        config.n_heads,
-        config.max_seq_len,
+        self.n_heads,
+        self.max_seq_len,
         self.alibi,
         prefix_lm=self.prefix_lm,
         causal=self.is_causal,
@@ -672,7 +678,7 @@ class MPTModel(nn.Module):
       if self.attn_bias_shape:
         self.attn_bias = nn.emit(relax.op.zeros(self.attn_bias_shape, dtype=dtype))
         self.attn_bias = build_attn_bias(
-            self.attn_impl, self.attn_bias, self.config.n_heads, self.config.max_seq_len, causal=self.is_causal, alibi=self.alibi, alibi_bias_max=self.alibi_bias_max
+            self.attn_impl, self.attn_bias, self.n_heads, self.max_seq_len, causal=self.is_causal, alibi=self.alibi, alibi_bias_max=self.alibi_bias_max
         )
       self._attn_bias_initialized = True
     if self.attn_impl == 'flash':
@@ -705,11 +711,11 @@ class MPTModel(nn.Module):
 
   def _apply_prefix_mask(self, attn_bias: relax.Expr, prefix_mask: relax.Expr):
     (s_k, s_q) = attn_bias.struct_info.shape[-2:]
-    if s_k != self.config.max_seq_len or s_q != self.config.max_seq_len:
-      raise ValueError('attn_bias does not match the expected shape. ' + f'The last two dimensions should both be {self.config.max_length} ' + f'but are {s_k} and {s_q}.')
+    if s_k != self.max_seq_len or s_q != self.max_seq_len:
+      raise ValueError('attn_bias does not match the expected shape. ' + f'The last two dimensions should both be {self.max_seq_len} ' + f'but are {s_k} and {s_q}.')
     seq_len = prefix_mask.struct_info.shape[-1]
-    if seq_len > self.config.max_seq_len:
-      raise ValueError(f'prefix_mask sequence length cannot exceed max_seq_len={self.config.max_seq_len}')
+    if seq_len > self.max_seq_len:
+      raise ValueError(f'prefix_mask sequence length cannot exceed max_seq_len={self.max_seq_len}')
     # slicing attn_bias[..., :seq_len, :seq_len]
     dims_len = attn_bias.struct_info.ndim
     attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [dims_len - 2, dims_len - 1], [relax.const(0), relax.const(0)], [seq_len, seq_len]))
@@ -722,8 +728,8 @@ class MPTModel(nn.Module):
 
   def _apply_sequence_id(self, attn_bias: relax.Expr, sequence_id: relax.Expr):
     seq_len = sequence_id.struct_info.shape[-1]
-    if seq_len > self.config.max_seq_len:
-      raise ValueError(f'sequence_id sequence length cannot exceed max_seq_len={self.config.max_seq_len}')
+    if seq_len > self.max_seq_len:
+      raise ValueError(f'sequence_id sequence length cannot exceed max_seq_len={self.max_seq_len}')
     # slicing attn_bias[..., :seq_len, :seq_len]
     dims_len = attn_bias.struct_info.ndim
     attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [dims_len - 2, dims_len - 1], [relax.const(0), relax.const(0)], [seq_len, seq_len]))
@@ -746,8 +752,8 @@ class MPTModel(nn.Module):
       output_hidden_states: Optional[bool]=None,
       use_cache: Optional[bool]=None
   ):
-    return_dict = return_dict if return_dict is not None else self.config.return_dict
-    use_cache = use_cache if use_cache is not None else self.config.use_cache
+    return_dict = return_dict if return_dict is not None else self.return_dict
+    use_cache = use_cache if use_cache is not None else self.use_cache
     if attention_mask is not None:
       attention_mask = nn.emit(tvm.tir.Cast("bool", attention_mask))
     if prefix_mask is not None:
@@ -761,7 +767,7 @@ class MPTModel(nn.Module):
       raise ValueError('prefix_mask is a required argument when MPT is configured with prefix_lm=True.')
 
     S = input_ids.struct_info.shape[1]
-    assert S <= self.config.max_seq_len, f'Cannot forward input with seq_len={S}, this model only supports seq_len<={self.config.max_seq_len}'
+    assert S <= self.max_seq_len, f'Cannot forward input with seq_len={S}, this model only supports seq_len<={self.max_seq_len}'
 
     tok_emb = self.wte(input_ids)
     if self.alibi:
@@ -769,13 +775,13 @@ class MPTModel(nn.Module):
     else:
       past_position = 0
       if past_key_values is not None:
-        if len(past_key_values) != self.config.n_layers:
-          raise ValueError(f'past_key_values must provide a past_key_value for each attention ' + f'layer in the network (len(past_key_values)={len(past_key_values)!r}; self.config.n_layers={self.config.n_layers!r}).')
+        if len(past_key_values) != self.n_layers:
+          raise ValueError(f'past_key_values must provide a past_key_value for each attention ' + f'layer in the network (len(past_key_values)={len(past_key_values)!r}; self.config.n_layers={self.n_layers!r}).')
         past_position = past_key_values[0][0].struct_info.shape[1]
         if self.attn_impl == 'torch':
           past_position = past_key_values[0][0].struct_info.shape[3]
-      if S + past_position > self.config.max_seq_len:
-        raise ValueError(f'Cannot forward input with past sequence length {past_position} and current sequence length {S + 1}, this model only supports total sequence length <= {self.config.max_seq_len}.')
+      if S + past_position > self.max_seq_len:
+        raise ValueError(f'Cannot forward input with past sequence length {past_position} and current sequence length {S + 1}, this model only supports total sequence length <= {self.max_seq_len}.')
       pos = nn.emit(relax.op.expand_dims(relax.op.arange(past_position, S + past_position, dtype="long"), axis=0))
       if attention_mask is not None:
         pos_diff_to_slice = nn.emit(relax.op.cumsum(tvm.tir.Cast("int32", tvm.tir.bitwise_not(attention_mask)), axis=1))
@@ -787,7 +793,7 @@ class MPTModel(nn.Module):
       x = tok_emb + pos_emb
     (attn_bias, attention_mask) = self._attn_bias(dtype=x.dtype, attention_mask=attention_mask, prefix_mask=prefix_mask, sequence_id=sequence_id)
     if use_cache and past_key_values is None:
-      past_key_values = [() for _ in range(self.config.n_layers)]
+      past_key_values = [() for _ in range(self.n_layers)]
     all_hidden_states = () if output_hidden_states else None
     all_self_attns = () if output_attentions else None
     for (b_idx, block) in enumerate(self.blocks):
@@ -821,6 +827,9 @@ class MPTForCausalLM(nn.Module):
     self.transformer = MPTModel(config)
     self.dtype = config.dtype
 
+    self.return_dict = config.return_dict
+    self.use_cache = config.use_cache
+
   def get_input_embeddings(self):
     return self.transformer.wte
 
@@ -851,8 +860,8 @@ class MPTForCausalLM(nn.Module):
       output_hidden_states: Optional[bool]=None,
       use_cache: Optional[bool]=None
   ):
-    return_dict = return_dict if return_dict is not None else self.config.return_dict
-    use_cache = use_cache if use_cache is not None else self.config.use_cache
+    return_dict = return_dict if return_dict is not None else self.return_dict
+    use_cache = use_cache if use_cache is not None else self.use_cache
     outputs = self.transformer(
         input_ids=input_ids,
         past_key_values=past_key_values,
