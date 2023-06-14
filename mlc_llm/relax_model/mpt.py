@@ -480,14 +480,17 @@ class MultiheadAttention(nn.Module):
   def forward(self, x, past_key_value=None, attn_bias=None, attention_mask=None, is_causal=True, needs_weights=False):
     qkv = self.Wqkv(x)
     if self.clip_qkv:
-      qkv.clamp_(min=-self.clip_qkv, max=self.clip_qkv)
-    (query, key, value) = qkv.chunk(3, dim=2)
+      qkv = nn.emit(relax.op.clip(qkv, min=relax.const(-self.clip_qkv), max=relax.const(self.clip_qkv)))
+    qkv_out = relax.op.split(qkv, 3, axis=2)
+    query = nn.emit(qkv_out[0])
+    key = nn.emit(qkv_out[1])
+    value = nn.emit(qkv_out[2])
     key_padding_mask = attention_mask
     if self.qk_ln:
-      dtype = query.dtype
-      query = self.q_ln(query).to(dtype)
-      key = self.k_ln(key).to(dtype)
-    (context, attn_weights, past_key_value) = self.attn_fn(
+      dtype = query.struct_info.dtype
+      query = nn.emit(relax.op.astype(self.q_ln(query), dtype))
+      key = nn.emit(relax.op.astype(self.k_ln(key), dtype))
+    attn_out = self.attn_fn(
         query,
         key,
         value,
@@ -500,7 +503,7 @@ class MultiheadAttention(nn.Module):
         is_causal=is_causal,
         needs_weights=needs_weights
     )
-    return (self.out_proj(context), attn_weights, past_key_value)
+    return (self.out_proj(attn_out[0]), attn_out[1], attn_out[2])
 
 ATTN_CLASS_REGISTRY = {'multihead_attention': MultiheadAttention}
 
@@ -609,7 +612,7 @@ def build_alibi_bias(n_heads, seq_len, full=False, alibi_bias_max=8, dtype=None)
     alibi_bias = nn.emit(alibi_bias - relax.op.reshape(relax.op.arange(1 - seq_len, 1, dtype="int32"), (1, 1, seq_len, 1)))
     alibi_bias = nn.emit(relax.op.negative(relax.op.abs(alibi_bias)))
   slopes = gen_slopes(n_heads, alibi_bias_max)
-  alibi_bias = nn.emit(relax.op.astype(alibi_bias, slopes.struct_info.dtype.value))
+  alibi_bias = nn.emit(relax.op.astype(alibi_bias, slopes.struct_info.dtype))
   alibi_bias = nn.emit(alibi_bias * slopes)
   if dtype is not None:
     alibi_bias = nn.emit(relax.op.astype(alibi_bias, dtype))
