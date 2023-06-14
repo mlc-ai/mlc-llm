@@ -18,7 +18,7 @@ from .modules import (
 )
 
 
-def _cast_if_autocast_enabled(tensor):
+def _cast_if_autocast_enabled(tensor: relax.Expr, dtype="float32"):
   # # TODO: how to check device?
   # if tensor.device.type == 'cuda':
   #   dtype = "float16"
@@ -26,7 +26,6 @@ def _cast_if_autocast_enabled(tensor):
   #   dtype = "bfloat16"
   # else:
   #   raise NotImplementedError()
-  dtype = "float32" # TODO: temporal workaround
   return nn.emit(relax.op.astype(tensor, dtype))
 
 # Low-precision layer norm for mpt-7b-instruct, where are no biases expected
@@ -36,12 +35,15 @@ class LPLayerNormWOBias(nn.Module):
     # TODO: check default filling of weights
     self.weight = relax.op.ones((normalized_shape,), dtype)
     self.bias = relax.op.zeros((normalized_shape,), dtype)
-    self.eps = relax.const(eps, dtype)
+    self.eps = eps
+
+    self.dtype = dtype
 
   def forward(self, x):
-    downcast_x = _cast_if_autocast_enabled(x)
-    downcast_weight = _cast_if_autocast_enabled(self.weight) if self.weight is not None else self.weight
-    downcast_bias = _cast_if_autocast_enabled(self.bias) if self.bias is not None else self.bias
+    dtype = self.dtype # TODO: temporal workaround
+    downcast_x = _cast_if_autocast_enabled(x, dtype)
+    downcast_weight = _cast_if_autocast_enabled(self.weight, dtype) if self.weight is not None else self.weight
+    downcast_bias = _cast_if_autocast_enabled(self.bias, dtype) if self.bias is not None else self.bias
     return nn.emit(relax.op.nn.layer_norm(downcast_x, downcast_weight, downcast_bias, axes=-1, epsilon=self.eps))
 
 NORM_CLASS_REGISTRY = {'low_precision_layernorm': LPLayerNormWOBias}
