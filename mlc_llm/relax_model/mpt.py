@@ -31,7 +31,7 @@ def _cast_if_autocast_enabled(tensor):
 
 # Low-precision layer norm for mpt-7b-instruct, where are no biases expected
 class LPLayerNormWOBias(nn.Module):
-  def __init__(self, normalized_shape, eps=1e-05, dtype=None):
+  def __init__(self, normalized_shape, dtype, eps=1e-05):
     self.weight = nn.Parameter((normalized_shape,), dtype=dtype, name="low_precision_layernorm_weight")
     # TODO: check default filling of weights
     self.weight = relax.op.ones((normalized_shape,), dtype)
@@ -454,8 +454,8 @@ class MultiheadAttention(nn.Module):
     self.Wqkv._fused = (0, fuse_splits)
     if self.qk_ln:
       layernorm_class = LPLayerNormWOBias if low_precision_layernorm else LayerNorm
-      self.q_ln = layernorm_class(self.d_model)
-      self.k_ln = layernorm_class(self.d_model)
+      self.q_ln = layernorm_class(self.d_model, dtype)
+      self.k_ln = layernorm_class(self.d_model, dtype)
     if self.attn_impl == 'flash':
       raise NotImplemented("Flash type of flash attention has not been implemented yet")
       # self.attn_fn = flash_attn_fn
@@ -537,8 +537,8 @@ class MPTBlock(nn.Module):
         intermediate_size=config.expansion_ratio*self.hidden_size,
         dtype=config.dtype,
     )
-    self.input_layernorm = norm_class(self.hidden_size)
-    self.post_attention_layernorm = norm_class(self.hidden_size)
+    self.input_layernorm = norm_class(self.hidden_size, config.dtype)
+    self.post_attention_layernorm = norm_class(self.hidden_size, config.dtype)
 
   def forward(
       self,
