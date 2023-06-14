@@ -78,7 +78,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "gorilla-": ("gorilla", "llama"),
         "starcoder": ("code_gpt", "gpt_bigcode"),
         "wizardcoder-": ("code_gpt", "gpt_bigcode"),
-        "mpt-": ("mpt", "mpt-7b", "mpt-7b-instruct"),
+        "mpt-": ("mpt", "mpt"),
     }
     model = args.model.lower()
     for prefix, (conv_template, model_category) in supported_model_prefix.items():

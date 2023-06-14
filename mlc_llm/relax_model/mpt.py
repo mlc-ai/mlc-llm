@@ -527,7 +527,6 @@ class MPTBlock(nn.Module):
         clip_qkv=attn_config['clip_qkv'],
         qk_ln=attn_config['qk_ln'],
         softmax_scale=attn_config['softmax_scale'],
-        attn_pdrop=attn_config['attn_pdrop'],
     )
     self.mlp = MPTMLP(
         hidden_size=self.hidden_size,
@@ -861,9 +860,9 @@ class MPTForCausalLM(nn.Module):
         output_hidden_states=output_hidden_states,
         use_cache=use_cache
     )
-    logits = nn.emit(relax.op.matmul(outputs.last_hidden_state, self.transformer.wte.weight))
+    logits = nn.emit(relax.op.matmul(outputs[0], self.transformer.wte.weight))
 
-    return logits, outputs.past_key_values
+    return logits, outputs[1]
 
   def fsdp_wrap_fn(self, module):
     return isinstance(module, MPTBlock)
@@ -956,8 +955,8 @@ def get_model(args, hf_config):
   # Recommendation from https://huggingface.co/mosaicml/mpt-7b-instruct
   max_seq_len = args.max_seq_len if args.max_seq_len is not None else 4096  # 4096 recommended
 
-  config.update({"max_seq_len": max_seq_len})
-  config.update({"max_new_tokens": args.seq_len})
+  hf_config.update({"max_seq_len": max_seq_len})
+  # hf_config.update({"max_new_tokens": args.seq_len})
 
   if model_name.startswith("mpt-"):
     config = MPTConfig(**hf_config, dtype=dtype)
