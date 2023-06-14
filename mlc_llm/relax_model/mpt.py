@@ -587,8 +587,8 @@ def attn_bias_shape(attn_impl, n_heads, seq_len, alibi, prefix_lm, causal, use_s
 def gen_slopes(n_heads, alibi_bias_max=8):
     _n_heads = 2 ** math.ceil(math.log2(n_heads))
     m = nn.emit(relax.op.arange(1, _n_heads + 1, dtype="float32"))
-    m = nn.emit(m * (alibi_bias_max / _n_heads))
-    slopes = 1.0 / math.pow(2, m)
+    m = nn.emit(m * relax.const(alibi_bias_max / _n_heads))
+    slopes = relax.const(1.0) / relax.op.power(m, 2)
     if _n_heads != n_heads:
       slopes_len = slopes.struct_info.shape[0]
       slopes = nn.emit(relax.op.strided_slice(
@@ -791,7 +791,7 @@ class MPTModel(nn.Module):
         pos = nn.emit(relax.op.clip(pos - pos_diff, min=0))
       pos_emb = self.wpe(pos)
       x = tok_emb + pos_emb
-    (attn_bias, attention_mask) = self._attn_bias(dtype=x.dtype, attention_mask=attention_mask, prefix_mask=prefix_mask, sequence_id=sequence_id)
+    (attn_bias, attention_mask) = self._attn_bias(dtype=x.struct_info.dtype, attention_mask=attention_mask, prefix_mask=prefix_mask, sequence_id=sequence_id)
     if use_cache and past_key_values is None:
       past_key_values = [() for _ in range(self.n_layers)]
     all_hidden_states = () if output_hidden_states else None
@@ -966,7 +966,7 @@ def get_model(args, hf_config):
   # model_path = args.model_path
   dtype = args.quantization.model_dtype
   # Recommendation from https://huggingface.co/mosaicml/mpt-7b-instruct
-  max_seq_len = args.max_seq_len if args.max_seq_len is not None else 4096  # 4096 recommended
+  max_seq_len = args.max_seq_len if args.max_seq_len is not None and args.max_seq_len > 0 else 4096  # 4096 recommended
 
   hf_config.update({"max_seq_len": max_seq_len})
   # hf_config.update({"max_new_tokens": args.seq_len})
