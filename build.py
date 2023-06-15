@@ -245,6 +245,7 @@ def mod_transform_before_build(
     """First-stage: Legalize ops and trace"""
     if ARGS.model.startswith("rwkv-"):
         model_names = [
+            "embed",
             "decode",
             "create_kv_cache",
             "softmax_with_temperature",
@@ -253,6 +254,7 @@ def mod_transform_before_build(
         ]
     else:
         model_names = [
+            "embed",
             "prefill",
             "decode",
             "create_kv_cache",

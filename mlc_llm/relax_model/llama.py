@@ -557,6 +557,33 @@ class LlamaForCausalLM(nn.Module):
         return logits, key_value_cache
 
 
+class LlamaForSentenceEmbedding(nn.Module):
+    def __init__(self, config: LlamaConfig):
+        self.model = LlamaModel(config)
+
+    def forward(
+        self,
+        input_ids: relax.Expr
+    ):
+        inputs_embeds = self.model.embed_tokens(input_ids)
+        return inputs_embeds
+
+
+def create_embed_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
+    bsz = 1
+    seq_len = tvm.tir.Var("n", "int64")
+    with bb.function("embed"):
+        model = LlamaForSentenceEmbedding(config)
+        input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
+        with bb.dataflow():
+            embs = model(input_ids)
+            gv = bb.emit_output(embs)
+        bb.emit_func_output(gv, [input_ids] + model.parameters())
+    mod = bb.get()
+    gv = mod.get_global_var("embed")
+    bb.update_func(gv, mod[gv].with_attr("num_input", 1))
+
+
 def create_encoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> Dict[int, str]:
     bsz = 1
     seq_len = tvm.tir.Var("n", "int64")
@@ -690,6 +717,7 @@ def get_model(args, hf_config):
             config.max_sequence_length = max_seq_len
 
         bb = relax.BlockBuilder()
+        create_embed_func(bb, config)
         pidx2pname = create_encoding_func(bb, config)
         create_decoding_func(bb, config)
         create_kv_cache_func(bb, config)
