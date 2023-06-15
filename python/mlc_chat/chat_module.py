@@ -43,6 +43,7 @@ class ChatModule:
         chat_mod = fcreate(device_type, device_id)
 
         self.reload_func = chat_mod["reload"]
+        self.embed_func = chat_mod["embed"]
         self.prefill_func = chat_mod["prefill"]
         self.decode_func = chat_mod["decode"]
         self.stopped_func = chat_mod["stopped"]
@@ -56,6 +57,9 @@ class ChatModule:
 
     def reload(self, lib, model_path):
         self.reload_func(lib, model_path)
+
+    def embed(self, input):
+        return self.embed_func(input)
 
     def prefill(self, input):
         self.prefill_func(input)
