@@ -15,6 +15,15 @@ declare -a builtin_list=(
 
 for model in "${builtin_list[@]}"
 do
-   cp -r ../dist/$model/params dist/$model
+    if [ -d  ../dist/$model/params ]; then
+        cp -r ../dist/$model/params dist/$model
+    elif [ -d  ../dist/prebuilt/$model ]; then
+        cp -r ../dist/prebuilt/$model dist/$model
+    elif [ -d  ../dist/prebuilt/mlc-chat-$model ]; then
+        cp -r ../dist/prebuilt/mlc-chat-$model dist/$model
+    else
+        echo "Cannot find prebuilt weights for " $model
+        exit 1
+    fi
 done
 
