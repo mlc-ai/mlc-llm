@@ -966,11 +966,9 @@ def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int,
 
 def get_model(args, hf_config):
   from transformers import AutoModelForCausalLM # type: ignore[import]
-  import torch                                  # type: ignore[import]
 
   model_name = args.model
-  # TODO: download model and use model_path instead of args for from_pretrained
-  # model_path = args.model_path
+  model_path = args.model_path
   dtype = args.quantization.model_dtype
   # Recommendation from https://huggingface.co/mosaicml/mpt-7b-instruct
   max_seq_len = args.max_seq_len if args.max_seq_len is not None and args.max_seq_len > 0 else 4096  # 4096 recommended
@@ -987,14 +985,9 @@ def get_model(args, hf_config):
     mod = bb.get()
 
     device = tvm.cpu()
-    # TODO: get default mpt-7b-instruct from HF. Possibly it should be downloaded earlier
-    # and use model_path instead
 
     hf_model = AutoModelForCausalLM.from_pretrained(
-      'mosaicml/mpt-7b-instruct',
-      config=config,
-      torch_dtype=torch.bfloat16,
-      trust_remote_code=True
+      model_path,
     )
     for name, param in hf_model.named_parameters():
       print(name, param.shape)
