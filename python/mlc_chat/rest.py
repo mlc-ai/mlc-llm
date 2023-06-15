@@ -144,6 +144,25 @@ def request_completion(request: ChatCompletionRequest):
             )
     )
 
+@app.post("/v1/embeddings")
+def request_embeddings(request: EmbeddingsRequest):
+    """
+    Gets embedding for some text.
+    """
+    print(f"Requesting embedding for input {request.input}")
+    embedding = session["chat_mod"].embed("hello world")
+    print(embedding)
+    embs = [["hello world"]]
+    print("Got embedding", embs[0])
+    data = [{"object": "embedding", "embedding": emb, "index": i} for i, emb in enumerate(embs)]
+    return EmbeddingsResponse(
+        data=data,
+        usage=UsageInfo(
+            prompt_tokens=0,
+            completion_tokens=0,
+            total_tokens=0
+        )
+    )
 
 @app.post("/chat/reset")
 def reset():

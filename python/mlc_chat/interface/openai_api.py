@@ -59,3 +59,14 @@ class ChatCompletionStreamResponse(BaseModel):
     object: str = "chat.completion.chunk"
     created: int = Field(default_factory=lambda: int(time.time()))
     choices: List[ChatCompletionResponseStreamChoice]
+
+class EmbeddingsRequest(BaseModel):
+    model: Optional[str] = None
+    input: Union[str, List[Any]]
+    user: Optional[str] = None
+
+class EmbeddingsResponse(BaseModel):
+    object: str = "list"
+    data: List[Dict[str, Any]]
+    model: Optional[str] = None
+    usage: UsageInfo

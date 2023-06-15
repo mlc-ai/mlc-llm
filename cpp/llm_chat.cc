@@ -250,6 +250,7 @@ class LLMChat {
                                           static_cast<int>(kDLCPU), 0,
                                           static_cast<int>(relax_vm::AllocatorType::kPooled));
 
+    embed_func_ = vm_->GetFunction("embed");
     prefill_func_ = vm_->GetFunction("prefill");
     decode_func_ = vm_->GetFunction("decode");
     encoding_without_cache_func_ = vm_->GetFunction("encoding_without_cache");
@@ -563,6 +564,22 @@ class LLMChat {
     return cropped_message;
   }
 
+  NDArray Embed(std::string inp) {
+    Array<ObjectRef> ret;
+    std::vector<int32_t> tokens = tokenizer_->Encode(inp);
+    tokens.insert(tokens.begin(), bos_token_id_);
+    int64_t token_len = static_cast<int64_t>(tokens.size());
+    
+    if (tokens.size() > 1 && embed_func_.defined()) {
+      NDArray input_data = this->GetInputTokenNDArray(tokens);
+      Array<NDArray> emb_params_;
+      emb_params_.push_back(params_[params_.size()-2]);
+      emb_params_.push_back(params_[params_.size()-1]);
+      ret = embed_func_(input_data, emb_params_);
+    }
+    return Downcast<NDArray>(ret[0]);
+  }
+
   // do some quick evaluation of the pipeline
   void Evaluate() {
     this->ResetKVCache();
@@ -841,6 +858,8 @@ class LLMChat {
   Device device_;
   // The vm module
   Module vm_;
+  // embed function
+  PackedFunc embed_func_;
   // encoding function
   PackedFunc prefill_func_;
   // decoding function
@@ -910,6 +929,12 @@ class LLMChatModule : public ModuleNode {
     } else if (name == "evaluate") {
       return PackedFunc(
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->Evaluate(); });
+    
+    } else if (name == "embed") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 1);
+        *rv = GetChat()->Embed(args[0]);
+      });
     } else if (name == "prefill") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 1);
@@ -996,6 +1021,7 @@ class LLMChatModule : public ModuleNode {
         static_cast<int>(relax_vm::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
         static_cast<int>(relax_vm::AllocatorType::kPooled));
 
+    chat_->embed_func_ = chat_->vm_->GetFunction("embed");
     chat_->prefill_func_ = chat_->vm_->GetFunction("prefill");
     chat_->decode_func_ = chat_->vm_->GetFunction("decode");
     chat_->encoding_without_cache_func_ = chat_->vm_->GetFunction("encoding_without_cache");

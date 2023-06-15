@@ -565,8 +565,10 @@ class LlamaForSentenceEmbedding(nn.Module):
         self,
         input_ids: relax.Expr
     ):
-        inputs_embeds = self.model.embed_tokens(input_ids)
-        return inputs_embeds
+        batch_size, seq_length = input_ids.struct_info.shape
+        input_embs = self.model.embed_tokens(input_ids)
+        mean_embs = relax.op.mean(input_embs, axis=1)
+        return mean_embs
 
 
 def create_embed_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:

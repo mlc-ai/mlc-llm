@@ -206,6 +206,7 @@ class ChatModule {
    */
   explicit ChatModule(const DLDevice& device) {
     this->chat_mod_ = mlc::llm::CreateChatModule(device);
+    this->embed_ = this->chat_mod_->GetFunction("embed");
     this->prefill_ = this->chat_mod_->GetFunction("prefill");
     this->decode_ = this->chat_mod_->GetFunction("decode");
     this->stopped_ = this->chat_mod_->GetFunction("stopped");
@@ -218,6 +219,7 @@ class ChatModule {
     this->process_system_prompts_ = this->chat_mod_->GetFunction("process_system_prompts");
     this->lib_path_ = "";
     this->executable_ = tvm::runtime::Module(nullptr);
+    ICHECK(embed_ != nullptr);
     ICHECK(prefill_ != nullptr);
     ICHECK(decode_ != nullptr);
     ICHECK(stopped_ != nullptr);
@@ -267,6 +269,12 @@ class ChatModule {
   std::string RuntimeStatsText() { return runtime_stats_text_(); }
 
   /*!
+   * \brief Get embedding for input.
+   * \param input the user input.
+   */
+  std::string Embed(const std::string& input) { return embed_(input); }
+
+  /*!
    * \brief Run prefill stage for a given input and decode the first output token.
    * \param input the user input.
    */
@@ -290,6 +298,7 @@ class ChatModule {
  protected:
   // TVM Modules and functions with TVM's calling convention
   tvm::runtime::Module chat_mod_;
+  tvm::runtime::PackedFunc embed_;
   tvm::runtime::PackedFunc prefill_;
   tvm::runtime::PackedFunc decode_;
   tvm::runtime::PackedFunc stopped_;
