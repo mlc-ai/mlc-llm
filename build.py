@@ -274,6 +274,10 @@ def mod_transform_before_build(
             "get_metadata",
             "reset_kv_cache",
         ]
+    elif ARGS.model.startswith("mpt-"):
+        model_names = [
+            "decode",
+        ]
     else:
         model_names = [
             "prefill",
