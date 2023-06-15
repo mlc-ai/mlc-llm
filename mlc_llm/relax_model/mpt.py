@@ -882,7 +882,7 @@ class MPTForCausalLM(nn.Module):
         output_hidden_states=output_hidden_states,
         use_cache=use_cache
     )
-    logits = nn.emit(relax.op.matmul(outputs[0], self.transformer.wte.weight))
+    logits = nn.emit(relax.op.linear(outputs[0], self.transformer.wte.weight))
 
     return logits, outputs[1]
 
