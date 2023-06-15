@@ -22,7 +22,7 @@ make mlc_llm_static
 cmake --build . --target install --config release -j
 cd ..
 
-rm -rf build/tvm_home
-ln -s ../3rdparty/tvm build/tvm_home
+rm -rf MLCSwift/tvm_home
+ln -s ../../3rdparty/tvm MLCSwift/tvm_home
 
 python prepare_model_lib.py
