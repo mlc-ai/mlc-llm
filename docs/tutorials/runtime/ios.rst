@@ -45,7 +45,7 @@ provided ``build.py`` script:
 
 
    python3 build.py                    \
-       --model /path/to/vicuna-v1-7b   \ 
+       --model /path/to/vicuna-v1-7b   \
        --quantization q3f16_0          \
        --target iphone                 \
        --max-seq-len 768
@@ -115,14 +115,6 @@ Open ``./ios/MLCChat.xcodeproj`` using Xcode. Note that you will need an
 Apple Developer Account to use Xcode, and you may be prompted to use
 your own developer team credential and product bundle identifier.
 
-To use a specific model, edit ``./ios/MLCChat/LLMChat.mm`` to configure
-the following settings properly:
-
-1. Model name using the ``model`` variable
-2. Conversation template using the ``conv_template`` variable
-3. Tokenizer name using the ``tokenizer_path`` variable
-4. Other settings including max sequence length, temperature, etc.
-
 Ensure that all the necessary dependencies and configurations are
 correctly set up in the Xcode project.
 
@@ -131,3 +123,62 @@ Make sure to select a target device or simulator for the build.
 
 After a successful build, you can run the iOS app on your device or
 simulator to use the LLM model for text generation and processing.
+
+Build your own App with MLC Swift API
+-------------------------------------
+
+We also provide an swift package that you can use to build
+your own app. The package is located under `ios/MLCSwift`.
+
+- First make sure you have run the same steps listed
+  this this document. This will give us the necessary libraries
+  under `/path/to/ios/build/lib`.
+- Then you can add `ios/MLCSwift` package to your app in xcode.
+  Under frameworks libraries embedded content, click add package dependencies
+  and add local package that points to ios/MLCSwift
+- Finally, we need to add the libraries dependencies. Under build settings:
+
+  - Add library search path `/path/to/ios/build/lib`
+  - Add the following items to "other linker flags"
+
+   .. code::
+
+      -Wl,-all_load
+      -lmodel_iphone
+      -lmlc_llm -ltvm_runtime
+      -Wl,-noall_load
+      -ltokenizers_cpp
+      -lsentencepiece
+      -ltokenizers_c
+
+
+You can then can import the `MLCSwift` package in your app.
+The following code shows an illustrative example about how to use the chat module.
+
+.. code:: swift
+
+   import MLCSwift
+
+   let threadWorker = ThreadWorker()
+   let chat = ChatModule()
+
+   threadWorker.push {
+      let modelLib = "model-lib-name"
+      let modelPath = "/path/to/model/weights"
+      let input = "What is the capital of Canada?"
+      chat.reload(modelLib, modelPath: modelPath)
+
+      chat.prefill(input)
+      while (!chat.stopped()) {
+         displayReply(chat.getMessage())
+         chat.decode()
+      }
+   }
+
+Because the chat module makes heavy use of GPU and thread-local
+resources, it needs to run on a dedicated background thread.
+Do not use DispatchQueue, as that can cause context switching to
+different threads and segfaults due to thread-safety issue.
+Use the ThreadWorker class to launch all the jobs related
+to the chat module. You can checkot the source code of
+the MLCChat app for a complete example.
