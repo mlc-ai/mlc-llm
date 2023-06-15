@@ -2,8 +2,6 @@ name: 'Relax Submodule Sync'
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 8 * * *' # 8 AM UTC
 
 jobs:
   sync:
