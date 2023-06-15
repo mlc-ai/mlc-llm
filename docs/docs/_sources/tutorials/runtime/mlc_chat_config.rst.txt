@@ -42,12 +42,12 @@ The following parameters can be customized to change the behavior of the model:
 ``repetition_penalty``
   This parameter controls the likelihood of the model generating repeated texts. The default value is set to ``1.0``, indicating that no repetition penalty is applied. Increasing the value reduces the likelihood of repeat text generation. However, setting a high ``repetition_penalty`` may result in the model generating meaningless text. The ideal choice of repetition penalty depends on the specific model.
 
-  For more details on how repetition penalty controls text generation, please consult the `CTRL paper <https://arxiv.org/pdf/1909.05858.pdf>__`.
+  For more details on how repetition penalty controls text generation, please consult the `CTRL paper <https://arxiv.org/pdf/1909.05858.pdf>`_.
 
 ``top_p``
   This parameter determines the set of tokens from which we sample during decoding. The default value is set to 0.95. At each step, we select tokens from the minimal set that has a cumulative probability exceeding the ``top_p`` parameter.
 
-  For additional information on top-p sampling, please refer to this `blog post <https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling>__`.
+  For additional information on top-p sampling, please refer to this `blog post <https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling>`_.
 
 
 .. _struct-conv:
@@ -74,7 +74,7 @@ MLC-LLM provided a set of pre-defined conversation templates, which you can dire
 - ``dolly``
 - ...
 
-Please refer to `conv_template.cc <https://github.com/mlc-ai/mlc-llm/blob/main/cpp/conv_templates.cc>`__ for the full list of supported templates and their implementations.
+Please refer to `conv_template.cc <https://github.com/mlc-ai/mlc-llm/blob/main/cpp/conv_templates.cc>`_ for the full list of supported templates and their implementations.
 
 .. _load-json-conv-config:
 

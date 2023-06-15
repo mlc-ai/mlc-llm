@@ -334,10 +334,10 @@
 <dt><code class="docutils literal notranslate"><span class="pre">temperature</span></code></dt><dd><p>The temperature applied to logits before sampling. The default value is <code class="docutils literal notranslate"><span class="pre">0.7</span></code>. A higher temperature encourages more diverse outputs, while a lower temperature produces more deterministic outputs.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">repetition_penalty</span></code></dt><dd><p>This parameter controls the likelihood of the model generating repeated texts. The default value is set to <code class="docutils literal notranslate"><span class="pre">1.0</span></code>, indicating that no repetition penalty is applied. Increasing the value reduces the likelihood of repeat text generation. However, setting a high <code class="docutils literal notranslate"><span class="pre">repetition_penalty</span></code> may result in the model generating meaningless text. The ideal choice of repetition penalty depends on the specific model.</p>
-<p>For more details on how repetition penalty controls text generation, please consult the <cite>CTRL paper &lt;https://arxiv.org/pdf/1909.05858.pdf&gt;__</cite>.</p>
+<p>For more details on how repetition penalty controls text generation, please consult the <a class="reference external" href="https://arxiv.org/pdf/1909.05858.pdf">CTRL paper</a>.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">top_p</span></code></dt><dd><p>This parameter determines the set of tokens from which we sample during decoding. The default value is set to 0.95. At each step, we select tokens from the minimal set that has a cumulative probability exceeding the <code class="docutils literal notranslate"><span class="pre">top_p</span></code> parameter.</p>
-<p>For additional information on top-p sampling, please refer to this <cite>blog post &lt;https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling&gt;__</cite>.</p>
+<p>For additional information on top-p sampling, please refer to this <a class="reference external" href="https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling">blog post</a>.</p>
 </dd>
 </dl>
 <section id="conversation-structure">
