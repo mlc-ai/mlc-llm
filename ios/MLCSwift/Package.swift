@@ -7,7 +7,7 @@ let package = Package(
     name: "MLCSwift",
     products: [
         .library(
-            name: "MLCChatSwift",
+            name: "MLCSwift",
             targets: ["LLMChatObjC", "MLCSwift"]
         )
     ],
