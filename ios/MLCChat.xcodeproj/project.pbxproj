@@ -20,7 +20,7 @@
 		C0D643C429F99B07004DDAA4 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D643C229F99B07004DDAA4 /* ChatView.swift */; };
 		C0D643C829F99B34004DDAA4 /* MessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D643C729F99B34004DDAA4 /* MessageView.swift */; };
 		C0DDBDF62A39103F00E9D060 /* ChatState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D643C029F99B07004DDAA4 /* ChatState.swift */; };
-		C0DDBE0A2A391CCF00E9D060 /* MLCChatSwift in Frameworks */ = {isa = PBXBuildFile; productRef = C0DDBE092A391CCF00E9D060 /* MLCChatSwift */; };
+		C0DDBE0D2A3BCD8000E9D060 /* MLCSwift in Frameworks */ = {isa = PBXBuildFile; productRef = C0DDBE0C2A3BCD8000E9D060 /* MLCSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -71,7 +71,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C0DDBE0A2A391CCF00E9D060 /* MLCChatSwift in Frameworks */,
+				C0DDBE0D2A3BCD8000E9D060 /* MLCSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -159,7 +159,7 @@
 			);
 			name = MLCChat;
 			packageProductDependencies = (
-				C0DDBE092A391CCF00E9D060 /* MLCChatSwift */,
+				C0DDBE0C2A3BCD8000E9D060 /* MLCSwift */,
 			);
 			productName = MLCChat;
 			productReference = C0D643AF29F99A7F004DDAA4 /* MLCChat.app */;
@@ -474,9 +474,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		C0DDBE092A391CCF00E9D060 /* MLCChatSwift */ = {
+		C0DDBE0C2A3BCD8000E9D060 /* MLCSwift */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = MLCChatSwift;
+			productName = MLCSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
