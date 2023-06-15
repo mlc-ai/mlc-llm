@@ -951,8 +951,9 @@ def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int,
       named_params = named_parameters(model)
       for i, (name, param) in enumerate(named_params.items()):
         pidx2pname[i] = name
-        assert param.same_as(params[i + 3])
-
+        assert param.same_as(params[i + 1])
+      if states is None:
+        states = ()
       gv = bb.emit_output((logits, relax.Tuple(states)))
     bb.emit_func_output(gv, params)
 
@@ -979,13 +980,13 @@ def get_model(args, hf_config):
 
     bb = relax.BlockBuilder()
     create_decoding_func(bb, config)
-
     mod = bb.get()
 
     device = tvm.cpu()
 
     hf_model = AutoModelForCausalLM.from_pretrained(
       model_path,
+      trust_remote_code=True,
     )
     for name, param in hf_model.named_parameters():
       print(name, param.shape)
