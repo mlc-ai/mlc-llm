@@ -110,13 +110,14 @@ def scaled_multihead_dot_product_attention(
   (b, _, s_q, d) = q.struct_info.shape
   s_k = k.struct_info.shape[-1]
   if softmax_scale is None:
-      softmax_scale = 1 / math.sqrt(d)
+    softmax_scale = 1 / math.sqrt(d)
+  softmax_scale = relax.op.astype(relax.const(softmax_scale), q.struct_info.dtype)
   attn_weight = nn.emit(relax.op.matmul(q, k) * softmax_scale)
+  _, _, s_q_end, s_k_end = attn_bias.struct_info.shape
   if attn_bias is not None:
-    _s_q = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[2] - s_q)
-    _s_k = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[3] - s_k)
+    _s_q = np.maximum(0, s_q_end - s_q)
+    _s_k = np.maximum(0, s_k_end - s_k)
     # slicing attn_bias[:, :, _s_q:, _s_k:]
-    s_q_end, s_k_end = attn_bias.struct_info.shape[-2:]
     attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [2, 3], [_s_q, _s_k], [s_q_end, s_k_end]))
     if (attn_bias.struct_info.shape[-1] != 1 and
         attn_bias.struct_info.shape[-1] != s_k or # dynamic condition?
@@ -717,7 +718,8 @@ class MPTModel(nn.Module):
     return (attn_bias, None)
 
   def _apply_prefix_mask(self, attn_bias: relax.Expr, prefix_mask: relax.Expr):
-    (s_k, s_q) = attn_bias.struct_info.shape[-2:]
+    s_k = attn_bias.struct_info.shape[-2]
+    s_q = attn_bias.struct_info.shape[-1]
     if s_k != self.max_seq_len or s_q != self.max_seq_len:
       raise ValueError('attn_bias does not match the expected shape. ' + f'The last two dimensions should both be {self.max_seq_len} ' + f'but are {s_k} and {s_q}.')
     seq_len = prefix_mask.struct_info.shape[-1]
@@ -939,15 +941,11 @@ def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int,
   with bb.function("decode"):
     model = MPTForCausalLM(config)
     input_ids = nn.Placeholder((1, 1), dtype="int32", name="input_ids")
-    # Placeholder for compatibility to LLAMA
-    all_seq_len_shape = relax.Var("place_holder", R.Object())
-    state = relax.Var("state", R.Tuple([R.Object()] * config.n_layers * 5))
+
     with bb.dataflow():
-      logits, states = model(input_ids, state)
+      logits, states = model(input_ids)
       params = [
           input_ids,
-          all_seq_len_shape,
-          state,
       ] + model.parameters()
 
       named_params = named_parameters(model)
@@ -960,7 +958,7 @@ def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int,
 
   mod = bb.get()
   gv = mod.get_global_var("decode")
-  bb.update_func(gv, mod[gv].with_attr("num_input", 3))
+  bb.update_func(gv, mod[gv].with_attr("num_input", 1))
 
   return pidx2pname
 
