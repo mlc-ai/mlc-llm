@@ -179,6 +179,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#step-3-quantize-and-cross-compile-llms-with-tvm-unity">Step 3. Quantize and cross-compile LLMs with TVM Unity</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#step-4-build-auxiliary-components">Step 4. Build auxiliary components</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#step-5-build-ios-app">Step 5. Build iOS App</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#build-your-own-app-with-mlc-swift-api">Build your own App with MLC Swift API</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="python.html">🚧 Run Models with Python</a></li>
@@ -390,20 +391,70 @@ tokenizer.json<span class="w">       </span><span class="c1"># Tokenizer metadat
 <p>Open <code class="docutils literal notranslate"><span class="pre">./ios/MLCChat.xcodeproj</span></code> using Xcode. Note that you will need an
 Apple Developer Account to use Xcode, and you may be prompted to use
 your own developer team credential and product bundle identifier.</p>
-<p>To use a specific model, edit <code class="docutils literal notranslate"><span class="pre">./ios/MLCChat/LLMChat.mm</span></code> to configure
-the following settings properly:</p>
-<ol class="arabic simple">
-<li><p>Model name using the <code class="docutils literal notranslate"><span class="pre">model</span></code> variable</p></li>
-<li><p>Conversation template using the <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> variable</p></li>
-<li><p>Tokenizer name using the <code class="docutils literal notranslate"><span class="pre">tokenizer_path</span></code> variable</p></li>
-<li><p>Other settings including max sequence length, temperature, etc.</p></li>
-</ol>
 <p>Ensure that all the necessary dependencies and configurations are
 correctly set up in the Xcode project.</p>
 <p>Once you have made the necessary changes, build the iOS app using Xcode.
 Make sure to select a target device or simulator for the build.</p>
 <p>After a successful build, you can run the iOS app on your device or
 simulator to use the LLM model for text generation and processing.</p>
+</section>
+<section id="build-your-own-app-with-mlc-swift-api">
+<h2>Build your own App with MLC Swift API<a class="headerlink" href="#build-your-own-app-with-mlc-swift-api" title="Permalink to this heading">¶</a></h2>
+<p>We also provide an swift package that you can use to build
+your own app. The package is located under <cite>ios/MLCSwift</cite>.</p>
+<ul>
+<li><p>First make sure you have run the same steps listed
+this this document. This will give us the necessary libraries
+under <cite>/path/to/ios/build/lib</cite>.</p></li>
+<li><p>Then you can add <cite>ios/MLCSwift</cite> package to your app in xcode.
+Under frameworks libraries embedded content, click add package dependencies
+and add local package that points to ios/MLCSwift</p></li>
+<li><p>Finally, we need to add the libraries dependencies. Under build settings:</p>
+<ul class="simple">
+<li><p>Add library search path <cite>/path/to/ios/build/lib</cite></p></li>
+<li><p>Add the following items to “other linker flags”</p></li>
+</ul>
+<blockquote>
+<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">-</span><span class="n">Wl</span><span class="p">,</span><span class="o">-</span><span class="n">all_load</span>
+<span class="o">-</span><span class="n">lmodel_iphone</span>
+<span class="o">-</span><span class="n">lmlc_llm</span> <span class="o">-</span><span class="n">ltvm_runtime</span>
+<span class="o">-</span><span class="n">Wl</span><span class="p">,</span><span class="o">-</span><span class="n">noall_load</span>
+<span class="o">-</span><span class="n">ltokenizers_cpp</span>
+<span class="o">-</span><span class="n">lsentencepiece</span>
+<span class="o">-</span><span class="n">ltokenizers_c</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p>You can then can import the <cite>MLCSwift</cite> package in your app.
+The following code shows an illustrative example about how to use the chat module.</p>
+<div class="highlight-swift notranslate"><div class="highlight"><pre><span></span><span class="kd">import</span> <span class="nc">MLCSwift</span>
+
+<span class="kd">let</span> <span class="nv">threadWorker</span> <span class="p">=</span> <span class="n">ThreadWorker</span><span class="p">()</span>
+<span class="kd">let</span> <span class="nv">chat</span> <span class="p">=</span> <span class="n">ChatModule</span><span class="p">()</span>
+
+<span class="n">threadWorker</span><span class="p">.</span><span class="n">push</span> <span class="p">{</span>
+   <span class="kd">let</span> <span class="nv">modelLib</span> <span class="p">=</span> <span class="s">&quot;model-lib-name&quot;</span>
+   <span class="kd">let</span> <span class="nv">modelPath</span> <span class="p">=</span> <span class="s">&quot;/path/to/model/weights&quot;</span>
+   <span class="kd">let</span> <span class="nv">input</span> <span class="p">=</span> <span class="s">&quot;What is the capital of Canada?&quot;</span>
+   <span class="n">chat</span><span class="p">.</span><span class="n">reload</span><span class="p">(</span><span class="n">modelLib</span><span class="p">,</span> <span class="n">modelPath</span><span class="p">:</span> <span class="n">modelPath</span><span class="p">)</span>
+
+   <span class="n">chat</span><span class="p">.</span><span class="n">prefill</span><span class="p">(</span><span class="n">input</span><span class="p">)</span>
+   <span class="k">while</span> <span class="p">(</span><span class="o">!</span><span class="n">chat</span><span class="p">.</span><span class="n">stopped</span><span class="p">())</span> <span class="p">{</span>
+      <span class="n">displayReply</span><span class="p">(</span><span class="n">chat</span><span class="p">.</span><span class="n">getMessage</span><span class="p">())</span>
+      <span class="n">chat</span><span class="p">.</span><span class="n">decode</span><span class="p">()</span>
+   <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Because the chat module makes heavy use of GPU and thread-local
+resources, it needs to run on a dedicated background thread.
+Do not use DispatchQueue, as that can cause context switching to
+different threads and segfaults due to thread-safety issue.
+Use the ThreadWorker class to launch all the jobs related
+to the chat module. You can checkot the source code of
+the MLCChat app for a complete example.</p>
 </section>
 </section>
 
