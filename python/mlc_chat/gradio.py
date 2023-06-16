@@ -14,7 +14,7 @@ model_local_ids = []
 
 
 def _parse_args():
-    args = argparse.ArgumentParser()
+    args = argparse.ArgumentParser("MLC-Chat Gradio Interface")
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument("--device-name", type=str, default="cuda")
     args.add_argument("--device-id", type=int, default=0)
