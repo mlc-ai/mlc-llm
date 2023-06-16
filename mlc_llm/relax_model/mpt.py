@@ -992,10 +992,10 @@ def get_model(args, hf_config):
   mod = bb.get()
 
   def f_convert_pname_fwd(pname: str) -> str:
-    if (
-      "self_attn" in pname
-    ):
+    if "self_attn" in pname:
       return pname.replace("self_attn", "attn")
+    elif "mlp" in pname:
+      return pname.replace("mlp", "ffn")
     else:
       return pname
 
