@@ -1003,11 +1003,18 @@ def get_model(args, hf_config):
       model_path, set(pidx2pname.values()), f_convert_pname_fwd
   )
 
-  # device = tvm.cpu()
+  def f_convert_param_bkwd(torch_pname: str, raw_param):
+    if "attn" in pname:
+      pname = torch_pname.replace("attn", "self_attn")
+    elif "ffn" in pname:
+      pname = torch_pname.replace("ffn", "mlp")
+    else:
+      pname = torch_pname
+    return [(pname, raw_param)]
 
   args.pidx2pname = pidx2pname
   args.pname2binname = pname2binname
   args.f_convert_pname_fwd = f_convert_pname_fwd
-  # args.f_convert_param_bkwd = f_convert_param_bkwd
+  args.f_convert_param_bkwd = f_convert_param_bkwd
 
   return mod, [None] * len(pidx2pname)
