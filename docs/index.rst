@@ -29,29 +29,49 @@ Machine Learning Compilation for LLM (MLC LLM) is a universal deployment solutio
 Get Started
 -----------
 
-:doc:`get_started/mlcchat_terminologies`
+Try out MLC LLM for your platform:
+
+.. tabs ::
+
+   .. tab :: iOS
+      - :doc:`get_started/ios`
+   .. tab :: android
+      - :doc:`get_started/android`
+   .. tab :: CLI
+      - :doc:`get_started/cli`
+   .. tab :: Web Browser
+      - :doc:`get_started/webgpu`
+
+To get familiar with design and terminologies of MLC LLM, check the :doc:`get_started/index`.
+
+- :doc:`/tutorials/runtime/mlc_chat_config`
 
 
-Project Structure
------------------
+Run models with MLC APIs
+------------------------
 
-The project comprises three independent submodules: model definition, model compilation, and runtimes.
+.. tabs ::
 
-.. figure:: _static/img/project-structure.svg
-   :width: 600
-   :align: center
-   :alt: Project Structure
+   .. tab :: cpp
+      - :doc:`tutorials/runtime/cpp`
+   .. tab :: javascript
+      - :doc:`tutorials/runtime/javascript`
+   .. tab :: rest
+      - :doc:`tutorials/runtime/swift`
+   .. tab :: 
 
-   Three independent submodules in MLC LLM
 
-.. ➀➁➂➃➄➅➆➇➈➉
-.. ➊➋➌➍➎➏➐➑➒➓
 
-**➀ Model definition in Python.** MLC offers a variety of pre-defined architectures, such as Llama (e.g., Vicuna, OpenLlama, Llama, Wizard), GPT-NeoX (e.g., RedPajama, Dolly), RNNs (e.g., RWKV), and GPT-J (e.g., MOSS). Model developers could solely define the model in pure Python, without having to touch code generation and runtime.
+Compile Models
+--------------
 
-**➁ Model compilation in Python.** :doc:`TVM Unity </install/tvm>` compiler are configured in pure python, and it quantizes and exports the Python-based model to :ref:`model lib <model_lib>` and quantized :ref:`model weights <model_weights>`. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.
+- :doc:`tutorials/compile-models`
 
-**➂ Platform-native runtimes.** Variants of MLCChat are provided on each platform: **C++** for command line, **Javascript** for web, **Swift** for iOS, and **Java** for Android, configurable with a JSON :ref:`chat config <chat_config>`. App developers only need to familiarize with the platform-naive runtimes to integrate MLC-compiled LLMs into their projects.
+
+Define New Model Architectures
+------------------------------
+
+- :doc:`tutorials/bring-your-own-models`
 
 Tutorials
 ---------
@@ -105,7 +125,7 @@ Community
    :caption: Get Started
    :hidden:
 
-   get_started/mlcchat_terminologies.rst
+   get_started/index.rst
 
 .. toctree::
    :maxdepth: 1
@@ -167,4 +187,3 @@ Community
    tutorials/deploy-models.rst
    tutorials/compile-models.rst
    tutorials/bring-your-own-models.rst
-   tutorials/customize.rst

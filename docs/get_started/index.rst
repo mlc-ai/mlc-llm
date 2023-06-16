@@ -1,5 +1,5 @@
-A Blitz Introduction to MLC-LLM
-===============================
+Overview and Terminologies of MLC LLM
+=====================================
 
 Welcome to mlc-llm! This page provides an overview of the basic concepts of MLC LLM, including how to run a model, share the models you build, and utilize MLC build to create new model libraries that can be run on various environments.
 
