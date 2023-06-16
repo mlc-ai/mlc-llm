@@ -86,6 +86,7 @@ setup(
     zip_safe=False,
     packages=find_packages(),
     package_dir={"mlc_chat": "mlc_chat"},
+    install_requires=["gradio", "fastapi", "pydantic", "uvicorn", "shortuuid"],
     distclass=BinaryDistribution,
     **setup_kwargs,
 )
