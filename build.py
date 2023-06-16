@@ -277,6 +277,7 @@ def mod_transform_before_build(
     elif ARGS.model.startswith("mpt-"):
         model_names = [
             "decode",
+            "get_metadata",
         ]
     else:
         model_names = [

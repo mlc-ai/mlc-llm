@@ -9,6 +9,8 @@ from tvm.relax.testing import nn
 from tvm.script import relax as R
 
 from .mpt_config import MPTConfig, attn_config_defaults
+from ..utils import load_torch_pname2binname_map
+from .commons import create_metadata_func
 from .modules import (
     Embedding,
     LayerNorm,
@@ -964,7 +966,7 @@ def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int,
   return pidx2pname
 
 def get_model(args, hf_config):
-  from transformers import AutoModelForCausalLM # type: ignore[import]
+  assert model_name.startswith("mpt-"), f"Unsupported model name: {args.model_name}"
 
   model_name = args.model
   model_path = args.model_path
@@ -975,31 +977,29 @@ def get_model(args, hf_config):
   hf_config.update({"max_seq_len": max_seq_len})
   # hf_config.update({"max_new_tokens": args.seq_len})
 
-  if model_name.startswith("mpt-"):
-    config = MPTConfig(**hf_config, dtype=dtype)
+  config = MPTConfig(**hf_config, dtype=dtype)
 
-    bb = relax.BlockBuilder()
-    create_decoding_func(bb, config)
-    mod = bb.get()
+  bb = relax.BlockBuilder()
+  pidx2pname = create_decoding_func(bb, config)
+  create_metadata_func(
+      bb,
+      model_name=model_name,
+      max_window_size=-1,     # TODO: check
+      stop_tokens=[0],        # TODO: check for mpt embeddings
+      add_prefix_space=False, # TODO: what is it?
+  )
 
-    device = tvm.cpu()
+  mod = bb.get()
 
-    hf_model = AutoModelForCausalLM.from_pretrained(
-      model_path,
-      trust_remote_code=True,
-    )
-    for name, param in hf_model.named_parameters():
-      print(name, param.shape)
-    # Get a list of parameters in advance, then delete the model to save memory
-    param_list = [param for _, param in hf_model.named_parameters()]
+  pname2binname = load_torch_pname2binname_map(
+      model_path, set(pidx2pname.values())
+  )
 
-    for i, param in enumerate(param_list):
-      param_list[i] = tvm.nd.array(
-        param.detach().cpu().numpy().astype(dtype), device
-      )
-    del hf_model
+  # device = tvm.cpu()
 
-    print(mod)
-    return mod, param_list
+  args.pidx2pname = pidx2pname
+  args.pname2binname = pname2binname
+  # args.f_convert_pname_fwd = f_convert_pname_fwd
+  # args.f_convert_param_bkwd = f_convert_param_bkwd
 
-  raise ValueError(f"Unsupported model: {model_name}")
+  return mod, [None] * len(pidx2pname)
