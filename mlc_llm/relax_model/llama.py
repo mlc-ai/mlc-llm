@@ -7,7 +7,6 @@ import tvm
 from tvm import relax, te
 from tvm.relax.testing import nn
 from tvm.script import relax as R
-from quantization.auto_gptq import AutoGPTQForCausalLM
 
 from .commons import create_metadata_func
 
@@ -704,6 +703,8 @@ def get_model(args, hf_config):
 
         device = tvm.cpu()
         if args.quantized_model:
+            from quantization.auto_gptq import AutoGPTQForCausalLM
+
             model = AutoGPTQForCausalLM.from_quantized(
                 model_path, export_mlc=True)
 
