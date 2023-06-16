@@ -966,9 +966,9 @@ def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int,
   return pidx2pname
 
 def get_model(args, hf_config):
-  assert model_name.startswith("mpt-"), f"Unsupported model name: {args.model_name}"
-
   model_name = args.model
+  assert model_name.startswith("mpt-") , f"Unsupported model name: {model_name}"
+
   model_path = args.model_path
   dtype = args.quantization.model_dtype
   # Recommendation from https://huggingface.co/mosaicml/mpt-7b-instruct
