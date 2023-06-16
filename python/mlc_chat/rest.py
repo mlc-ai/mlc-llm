@@ -18,9 +18,6 @@ session = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-
-    ARGS = _parse_args()
-
     chat_mod = ChatModule(ARGS.device_name, ARGS.device_id)
     model_path = os.path.join(ARGS.artifact_path, ARGS.model + "-" + ARGS.quantization)
     model_dir = ARGS.model + "-" + ARGS.quantization
@@ -59,10 +56,8 @@ app = FastAPI(lifespan=lifespan)
 
 
 def _parse_args():
-    args = argparse.ArgumentParser()
-    args.add_argument(
-        "--model", type=str, default="vicuna-v1-7b"
-    )
+    args = argparse.ArgumentParser("MLC Chat REST API")
+    args.add_argument("--model", type=str, default="vicuna-v1-7b")
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument(
         "--quantization",
@@ -72,14 +67,16 @@ def _parse_args():
     )
     args.add_argument("--device-name", type=str, default="cuda")
     args.add_argument("--device-id", type=int, default=0)
+    args.add_argument("--port", type=int, default=8000)
+
     parsed = args.parse_args()
     return parsed
 
-class AsyncChatCompletionStream:
 
+class AsyncChatCompletionStream:
     def __aiter__(self):
         return self
-    
+
     def get_next_msg(self):
         session["chat_mod"].decode()
         msg = session["chat_mod"].get_message()
@@ -93,6 +90,7 @@ class AsyncChatCompletionStream:
         else:
             raise StopAsyncIteration
 
+
 @app.post("/v1/chat/completions")
 def request_completion(request: ChatCompletionRequest):
     """
@@ -101,6 +99,7 @@ def request_completion(request: ChatCompletionRequest):
     for message in request.messages:
         session["chat_mod"].prefill(input=message.content)
     if request.stream:
+
         async def iter_response():
             prev_txt = ""
             async for content in AsyncChatCompletionStream():
@@ -110,15 +109,15 @@ def request_completion(request: ChatCompletionRequest):
                             ChatCompletionResponseStreamChoice(
                                 index=0,
                                 delta=DeltaMessage(
-                                    role="assistant", 
-                                    content=content[len(prev_txt):]
+                                    role="assistant", content=content[len(prev_txt) :]
                                 ),
-                                finish_reason="stop"
+                                finish_reason="stop",
                             )
                         ]
                     )
                     prev_txt = content
                     yield f"data: {chunk.json(exclude_unset=True, ensure_ascii=False)}\n\n"
+
         return StreamingResponse(iter_response(), media_type="text/event-stream")
     else:
         msg = None
@@ -129,20 +128,13 @@ def request_completion(request: ChatCompletionRequest):
             choices=[
                 ChatCompletionResponseChoice(
                     index=0,
-                    message=ChatMessage(
-                        role="assistant", 
-                        content=msg
-                    ),
-                    finish_reason="stop"
+                    message=ChatMessage(role="assistant", content=msg),
+                    finish_reason="stop",
                 )
             ],
             # TODO: Fill in correct usage info
-            usage=UsageInfo(
-                prompt_tokens=0,
-                completion_tokens=0,
-                total_tokens=0
-            )
-    )
+            usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+        )
 
 
 @app.post("/chat/reset")
@@ -161,5 +153,6 @@ def read_stats():
     return session["chat_mod"].runtime_stats_text()
 
 
+ARGS = _parse_args()
 if __name__ == "__main__":
-    uvicorn.run("mlc_chat.rest:app", port=8000, reload=True, access_log=False)
+    uvicorn.run("mlc_chat.rest:app", port=ARGS.port, reload=True, access_log=False)
