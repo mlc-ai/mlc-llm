@@ -454,7 +454,7 @@ class MultiheadAttention(nn.Module):
 
     if self.softmax_scale is None:
       self.softmax_scale = 1 / math.sqrt(self.d_model / self.n_heads)
-    self.Wqkv = Linear(self.d_model, 3 * self.d_model, dtype)
+    self.Wqkv = Linear(self.d_model, 3 * self.d_model, dtype, bias=False)
     fuse_splits = (d_model, 2 * d_model)
     self.Wqkv._fused = (0, fuse_splits)
     if self.qk_ln:
@@ -476,7 +476,7 @@ class MultiheadAttention(nn.Module):
       self.attn_fn = scaled_multihead_dot_product_attention
     else:
       raise ValueError(f'attn_impl={attn_impl!r} is an invalid setting.')
-    self.out_proj = Linear(self.d_model, self.d_model, dtype)
+    self.out_proj = Linear(self.d_model, self.d_model, dtype, bias=False)
     # TODO: Does field _is_residual exist?
     # self.out_proj._is_residual = True
 
@@ -513,11 +513,11 @@ ATTN_CLASS_REGISTRY = {'multihead_attention': MultiheadAttention}
 
 class MPTMLP(nn.Module):
     def __init__(self, hidden_size: int, intermediate_size: int, dtype: str):
-        self.down_proj = Linear(intermediate_size, hidden_size, dtype=dtype)
-        self.up_proj = Linear(hidden_size, intermediate_size, dtype=dtype)
+      self.down_proj = Linear(intermediate_size, hidden_size, dtype=dtype, bias=False)
+      self.up_proj = Linear(hidden_size, intermediate_size, dtype=dtype, bias=False)
 
     def forward(self, x):
-        return self.down_proj(relax.op.nn.gelu(self.up_proj(x)))
+      return self.down_proj(relax.op.nn.gelu(self.up_proj(x)))
 
 
 class MPTBlock(nn.Module):
