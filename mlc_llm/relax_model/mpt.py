@@ -991,15 +991,23 @@ def get_model(args, hf_config):
 
   mod = bb.get()
 
+  def f_convert_pname_fwd(pname: str) -> str:
+    if (
+      "self_attn" in pname
+    ):
+      return pname.replace("self_attn", "attn")
+    else:
+      return pname
+
   pname2binname = load_torch_pname2binname_map(
-      model_path, set(pidx2pname.values())
+      model_path, set(pidx2pname.values()), f_convert_pname_fwd
   )
 
   # device = tvm.cpu()
 
   args.pidx2pname = pidx2pname
   args.pname2binname = pname2binname
-  # args.f_convert_pname_fwd = f_convert_pname_fwd
+  args.f_convert_pname_fwd = f_convert_pname_fwd
   # args.f_convert_param_bkwd = f_convert_param_bkwd
 
   return mod, [None] * len(pidx2pname)
