@@ -35,7 +35,7 @@ def get_wikitext2(nsamples, seed, seqlen, model):
     return traindataset, testenc
 
 bits = 4
-pretrained_model_dir = "/workspace/v-leiwang3/lowbit_workspace/mlc-llm/dist/models/llama-7b-hf"
+pretrained_model_dir = "./dist/models/llama-7b-hf"
 quantized_model_dir = f"quantization/models/llama-7b-{bits}bit"
 
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model_dir, use_fast=True)
