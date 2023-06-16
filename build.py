@@ -237,6 +237,29 @@ def debug_dump_shader(ex, name, args):
     print(f"Dump shader to {dump_path}")
 
 
+def dump_split_tir(mod: tvm.IRModule, args):
+    if not args.debug_dump:
+        return
+
+    template = """
+from tvm.script import ir as I
+from tvm.script import tir as T
+
+# fmt: off
+{content}
+# fmt: on
+"""
+    mod_static, mod_dynamic = utils.split_static_dynamic_tir(mod)
+    static_path = os.path.join(args.artifact_path, "debug", "mod_tir_static.py")
+    dynamic_path = os.path.join(args.artifact_path, "debug", "mod_tir_dynamic.py")
+    print(f"Dump static shape TIR to {static_path}")
+    with open(static_path, "w", encoding="utf-8") as o_f:
+        o_f.write(template.format(content=mod_static.script()))
+    print(f"Dump dynamic shape TIR to {dynamic_path}")
+    with open(dynamic_path, "w", encoding="utf-8") as o_f:
+        o_f.write(template.format(content=mod_dynamic.script()))
+
+
 def mod_transform_before_build(
     mod: tvm.IRModule,
     model_params: List[Optional[tvm.nd.NDArray]],
@@ -362,29 +385,10 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     print(f"Finish exporting to {lib_path}")
 
 
-def dump_split_tir(mod: tvm.IRModule):
-    template = """
-from tvm.script import ir as I
-from tvm.script import tir as T
-
-# fmt: off
-{content}
-# fmt: on
-"""
-    mod_static, mod_dynamic = utils.split_static_dynamic_tir(mod)
-    static_path = os.path.join(ARGS.artifact_path, "debug", "mod_tir_static.py")
-    dynamic_path = os.path.join(ARGS.artifact_path, "debug", "mod_tir_dynamic.py")
-    print(f"Dump static shape TIR to {static_path}")
-    with open(static_path, "w", encoding="utf-8") as o_f:
-        o_f.write(template.format(content=mod_static.script()))
-    print(f"Dump dynamic shape TIR to {dynamic_path}")
-    with open(dynamic_path, "w", encoding="utf-8") as o_f:
-        o_f.write(template.format(content=mod_dynamic.script()))
-
-
 def main():
     os.makedirs(ARGS.artifact_path, exist_ok=True)
-    os.makedirs(os.path.join(ARGS.artifact_path, "debug"), exist_ok=True)
+    if ARGS.debug_dump:
+        os.makedirs(os.path.join(ARGS.artifact_path, "debug"), exist_ok=True)
     cache_path = os.path.join(
         ARGS.artifact_path, f"mod_cache_before_build_{ARGS.target_kind}.pkl"
     )
@@ -415,7 +419,7 @@ def main():
             )
             with open(cache_path, "rb") as pkl:
                 mod = pickle.load(pkl)
-        dump_split_tir(mod)
+        dump_split_tir(mod, ARGS)
         if not ARGS.reuse_lib:
             build(mod, ARGS)
         else:
