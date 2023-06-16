@@ -23,6 +23,7 @@ def _parse_args():
         action="store_true",
         help="create a publicly shareable link for the interface",
     )
+    args.add_argument("--port", type=int, default=8000)
     parsed = args.parse_args()
     return parsed
 
@@ -183,7 +184,7 @@ def launch_gradio(chat_mod, share_link=False):
             chat_mod.ask, [text_input, chatbot], [text_input, chatbot]
         ).then(chat_mod.answer, [chatbot, stream_interval], [chatbot])
 
-    demo.launch(share=share_link, enable_queue=True)
+    demo.launch(share=share_link, enable_queue=True, server_port=ARGS.port)
 
 
 def first_idx_mismatch(str1, str2):
