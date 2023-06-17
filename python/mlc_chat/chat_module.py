@@ -28,7 +28,21 @@ def quantization_keys():
 
 
 class ChatModule:
-    def __init__(self, target="cuda", device_id=0):
+    """
+    A Python interface for the llm chat module.
+
+    Attributes
+    ----------
+    target : str
+        The device target for the chat module (default `cuda`)
+    device_id : str
+        The device id for the chat module (default `0`)
+    """
+    def __init__(
+        self,
+        target: str = "cuda",
+        device_id: int = 0
+    ):
         fcreate = tvm.get_global_func("mlc.llm_chat_create")
         assert fcreate is not None
         if target == "cuda":
@@ -55,32 +69,109 @@ class ChatModule:
         self.get_role0 = chat_mod["get_role0"]
         self.get_role1 = chat_mod["get_role1"]
 
-    def reload(self, lib, model_path):
+    def reload(
+        self,
+        lib: str,
+        model_path: str
+    ):
+        """
+        Reloads the compiled model and parameters specified at the input paths.
+
+        Parameters
+        ----------
+        lib : str
+            The path to the compiled model library
+        model_path: str
+            The path to the model parameters
+        """
         self.reload_func(lib, model_path)
 
-    def embed(self, input):
+    def embed(
+        self,
+        input: str
+    ):
+        """
+        Get the embeddings for a specified input prompt.
+
+        Parameters
+        ----------
+        input : str
+            The input prompt for which to generate embeddings
+
+        Returns
+        -------
+        List[float]
+            The embedding for the specified input prompt
+        """
         return self.embed_func(input)
 
-    def prefill(self, input):
+    def prefill(
+        self,
+        input: str
+    ):
+        """
+        Encode and prefill the model using the specified input prompt.
+
+        Parameters
+        ----------
+        input : str
+            The input prompt which should be used to encode and prefill the model
+        """
         self.prefill_func(input)
 
     def decode(self):
+        """
+        Decode the model output.
+        """
         self.decode_func()
 
     def stopped(self):
+        """
+        Check if the model has stopped output.
+
+        Returns
+        -------
+        bool
+            A boolean indicating whether the model output has stopped
+        """
         return self.stopped_func() != 0
 
     def get_message(self):
+        """
+        Get the latest output from the model. Should be called after `decode`.
+
+        Returns
+        -------
+        str
+            The latest output of the model
+        """
         return self.get_message_func()
 
     def reset_chat(self):
+        """
+        Reset the state of the model. This will remove all history.
+        """
         self.reset_chat_func()
 
     def runtime_stats_text(self):
+        """
+        Get some runtime statistics of the model, including encode and decode speed.
+
+        Returns
+        -------
+        str
+            The runtime statistics of the model
+        """
         return self.runtime_stats_text_func()
 
     def reset_runtime_stats(self):
+        """
+        Reset the runtime statistics of the model.
+        """
         self.reset_runtime_stats_func()
 
     def evaluate(self):
+        """
+        Run an evaluation of the model pipeline.
+        """
         self.evaluate_func()
