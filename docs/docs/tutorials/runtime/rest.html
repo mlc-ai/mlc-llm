@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Use MLC-Chat with REST APIs &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Rest APIs &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -46,8 +46,8 @@
     <script type="text/javascript" src="../../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Getting Vicuna Weights" href="../compilation/get-vicuna-weight.html" />
-    <link rel="prev" title="Use MLC-Chat with Javascript APIs" href="javascript.html" /> 
+    <link rel="next" title="Build MLCChat-CLI" href="../../install/cli.html" />
+    <link rel="prev" title="WebLLM Javascript APIs" href="javascript.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -166,14 +166,14 @@
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../get_started/index.html">Get Started with MLC LLM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="mlc_chat_config.html">Configure MLCChat in JSON</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Run models with MLC-Chat APIs</span></p>
+<p class="caption" role="heading"><span class="caption-text">Build Apps</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="cpp.html">Use MLC-Chat with C++ APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="javascript.html">Use MLC-Chat with Javascript APIs</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Use MLC-Chat with REST APIs</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="terminologies.html">Terminologies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cpp.html">C++ APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="javascript.html">WebLLM Javascript APIs</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Rest APIs</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#install-mlc-chat-package">Install MLC-Chat Package</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#verify-installation">Verify Installation</a></li>
 </ul>
@@ -183,6 +183,9 @@
 <li class="toctree-l2"><a class="reference internal" href="#use-rest-api-in-your-own-program">Use REST API in your own program</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../../install/cli.html">Build MLCChat-CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install/ios.html">Build iOS Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install/android.html">Build Android Package</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
@@ -205,9 +208,6 @@
 <li class="toctree-l1"><a class="reference internal" href="../../install/tvm.html">Install TVM Unity</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../install/conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../install/gpu.html">GPU Drivers and SDKs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../install/cli.html">Install MLCChat-CLI</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../install/ios.html">Build iOS Package</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../install/android.html">Build Android Package</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
@@ -275,7 +275,7 @@
     
       <li><a href="../../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Use MLC-Chat with REST APIs</li>
+      <li>Rest APIs</li>
     
     
       
@@ -300,8 +300,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="use-mlc-chat-with-rest-apis">
-<h1>Use MLC-Chat with REST APIs<a class="headerlink" href="#use-mlc-chat-with-rest-apis" title="Permalink to this heading">¶</a></h1>
+  <section id="rest-apis">
+<h1>Rest APIs<a class="headerlink" href="#rest-apis" title="Permalink to this heading">¶</a></h1>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
@@ -344,7 +344,7 @@ following the instructions in <a class="reference external" href="https://mlc.ai
 <dd><p>The device id to run the model. The default value is <code class="docutils literal notranslate"><span class="pre">0</span></code>.</p>
 </dd>
 <dt><kbd><span class="option">--quantization-mode</span></kbd></dt>
-<dd><p>The code indicating the quantization mode to run the model. See <a class="reference internal" href="../quantization.html#quantization-mode"><span class="std std-ref">🚧 Quantization Mode (Not Stable)</span></a> for more details.</p>
+<dd><p>The code indicating the quantization mode to run the model. See <a class="reference internal" href="../compilation/configure_quantization.html#quantization-mode"><span class="std std-ref">🚧 Quantization Mode (Not Stable)</span></a> for more details.</p>
 </dd>
 <dt><kbd><span class="option">--artifact-path</span></kbd></dt>
 <dd><p>The path to the artifact folder where models are stored. The default value is <code class="docutils literal notranslate"><span class="pre">dist</span></code>.</p>
@@ -433,10 +433,10 @@ print<span class="o">(</span>f<span class="s2">&quot;Runtime stats: {r.json()}\n
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../compilation/get-vicuna-weight.html" class="btn btn-neutral float-right" title="Getting Vicuna Weights" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../../install/cli.html" class="btn btn-neutral float-right" title="Build MLCChat-CLI" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="javascript.html" class="btn btn-neutral float-left" title="Use MLC-Chat with Javascript APIs" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="javascript.html" class="btn btn-neutral float-left" title="WebLLM Javascript APIs" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

@@ -166,14 +166,17 @@
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../get_started/index.html">Get Started with MLC LLM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Run models with MLC-Chat APIs</span></p>
+<p class="caption" role="heading"><span class="caption-text">Build Apps</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">Use MLC-Chat with C++ APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">Use MLC-Chat with Javascript APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/rest.html">Use MLC-Chat with REST APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/terminologies.html">Terminologies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">C++ APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">WebLLM Javascript APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/rest.html">Rest APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/cli.html">Build MLCChat-CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/ios.html">Build iOS Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/android.html">Build Android Package</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
@@ -196,9 +199,6 @@
 <li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/gpu.html">GPU Drivers and SDKs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../install/cli.html">Install MLCChat-CLI</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../install/ios.html">Build iOS Package</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../install/android.html">Build Android Package</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul class="current">
@@ -297,7 +297,7 @@
 <dl class="simple">
 <dt>… How can I customize the temperature, repetition penalty of models?</dt><dd><p>Please check our <a class="reference internal" href="../tutorials/runtime/mlc_chat_config.html"><span class="doc">Configure MLCChat in JSON</span></a> tutorial.</p>
 </dd>
-<dt>… What’s the quantization algorithm MLC-LLM using?</dt><dd><p>Please check our <a class="reference internal" href="../tutorials/quantization.html"><span class="doc">Quantization in MLC LLM</span></a> tutorial.</p>
+<dt>… What’s the quantization algorithm MLC-LLM using?</dt><dd><p>Please check our <span class="xref std std-doc">/tutorials/quantization</span> tutorial.</p>
 </dd>
 <dt>… Why do I encounter an error <code class="docutils literal notranslate"><span class="pre">free():</span> <span class="pre">invalid</span> <span class="pre">pointer,</span> <span class="pre">Aborted</span> <span class="pre">(core</span> <span class="pre">dumped)</span></code> at the end of model compilation?</dt><dd><p>This happens if you compiled TVM-Unity from source and didn’t hide LLVM symbols in cmake configurations.
 Please follow our instructions in <a class="reference internal" href="../install/tvm.html#tvm-unity-build-from-source"><span class="std std-ref">Building TVM Unity from Source</span></a> tutorial to compile TVM-Unity which hides LLVM symbols,

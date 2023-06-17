@@ -1,5 +1,5 @@
-Use MLC-Chat with C++ APIs
-==========================
+C++ APIs
+========
 
 .. contents:: Table of Contents
    :local:

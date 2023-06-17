@@ -47,7 +47,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Build Android Package" href="android.html" />
-    <link rel="prev" title="Install MLCChat-CLI" href="cli.html" /> 
+    <link rel="prev" title="Build MLCChat-CLI" href="cli.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -166,14 +166,29 @@
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../get_started/index.html">Get Started with MLC LLM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Run models with MLC-Chat APIs</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">Use MLC-Chat with C++ APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">Use MLC-Chat with Javascript APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/rest.html">Use MLC-Chat with REST APIs</a></li>
+<p class="caption" role="heading"><span class="caption-text">Build Apps</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/terminologies.html">Terminologies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">C++ APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">WebLLM Javascript APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/rest.html">Rest APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">Build MLCChat-CLI</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Build iOS Package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#use-pre-built-ios-package">Use Pre-built iOS Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#build-ios-package-from-source">Build iOS Package from Source</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#step-1-install-tvm-unity">Step 1. Install TVM Unity</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-2-download-llm-weights">Step 2. Download LLM weights</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-3-quantize-and-cross-compile-llms-with-tvm-unity">Step 3. Quantize and cross-compile LLMs with TVM Unity</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-4-build-auxiliary-components">Step 4. Build auxiliary components</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-5-build-ios-app">Step 5. Build iOS App</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#build-your-own-app-with-mlc-swift-api">Build your own App with MLC Swift API</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="android.html">Build Android Package</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
@@ -192,25 +207,10 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/prebuilts/prebuilt_models.html">🚧 Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Installation and Dependency</span></p>
-<ul class="current">
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Unity</a></li>
 <li class="toctree-l1"><a class="reference internal" href="conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="gpu.html">GPU Drivers and SDKs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cli.html">Install MLCChat-CLI</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Build iOS Package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#use-pre-built-ios-package">Use Pre-built iOS Package</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#build-ios-package-from-source">Build iOS Package from Source</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#step-1-install-tvm-unity">Step 1. Install TVM Unity</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#step-2-download-llm-weights">Step 2. Download LLM weights</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#step-3-quantize-and-cross-compile-llms-with-tvm-unity">Step 3. Quantize and cross-compile LLMs with TVM Unity</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#step-4-build-auxiliary-components">Step 4. Build auxiliary components</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#step-5-build-ios-app">Step 5. Build iOS App</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#build-your-own-app-with-mlc-swift-api">Build your own App with MLC Swift API</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="android.html">Build Android Package</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
@@ -499,7 +499,7 @@ the MLCChat app for a complete example.</p>
         <a href="android.html" class="btn btn-neutral float-right" title="Build Android Package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="cli.html" class="btn btn-neutral float-left" title="Install MLCChat-CLI" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="cli.html" class="btn btn-neutral float-left" title="Build MLCChat-CLI" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Install MLCChat-CLI &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Build MLCChat-CLI &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -48,7 +48,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Build iOS Package" href="ios.html" />
-    <link rel="prev" title="GPU Drivers and SDKs" href="gpu.html" /> 
+    <link rel="prev" title="Rest APIs" href="../tutorials/runtime/rest.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -167,14 +167,24 @@
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../get_started/index.html">Get Started with MLC LLM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Run models with MLC-Chat APIs</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">Use MLC-Chat with C++ APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">Use MLC-Chat with Javascript APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/rest.html">Use MLC-Chat with REST APIs</a></li>
+<p class="caption" role="heading"><span class="caption-text">Build Apps</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/terminologies.html">Terminologies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">C++ APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">WebLLM Javascript APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/rest.html">Rest APIs</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Build MLCChat-CLI</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#option-1-conda-prebuilt">Option 1. Conda Prebuilt</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#option-2-build-from-source">Option 2. Build from Source</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#run-models-through-mlcchat-cli">Run Models through MLCChat CLI</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ios.html">Build iOS Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="android.html">Build Android Package</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
@@ -193,20 +203,10 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/prebuilts/prebuilt_models.html">🚧 Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Installation and Dependency</span></p>
-<ul class="current">
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Unity</a></li>
 <li class="toctree-l1"><a class="reference internal" href="conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="gpu.html">GPU Drivers and SDKs</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Install MLCChat-CLI</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#option-1-conda-prebuilt">Option 1. Conda Prebuilt</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#option-2-build-from-source">Option 2. Build from Source</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#run-models-through-mlcchat-cli">Run Models through MLCChat CLI</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="ios.html">Build iOS Package</a></li>
-<li class="toctree-l1"><a class="reference internal" href="android.html">Build Android Package</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
@@ -274,7 +274,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Install MLCChat-CLI</li>
+      <li>Build MLCChat-CLI</li>
     
     
       
@@ -299,13 +299,13 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="install-mlcchat-cli">
-<h1><a class="toc-backref" href="#id4" role="doc-backlink">Install MLCChat-CLI</a><a class="headerlink" href="#install-mlcchat-cli" title="Permalink to this heading">¶</a></h1>
+  <section id="build-mlcchat-cli">
+<h1><a class="toc-backref" href="#id4" role="doc-backlink">Build MLCChat-CLI</a><a class="headerlink" href="#build-mlcchat-cli" title="Permalink to this heading">¶</a></h1>
 <p>MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box. You may install it from the prebuilt package we provide, or compile it from source.</p>
 <nav class="contents" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#install-mlcchat-cli" id="id4">Install MLCChat-CLI</a></p>
+<li><p><a class="reference internal" href="#build-mlcchat-cli" id="id4">Build MLCChat-CLI</a></p>
 <ul>
 <li><p><a class="reference internal" href="#option-1-conda-prebuilt" id="id5">Option 1. Conda Prebuilt</a></p></li>
 <li><p><a class="reference internal" href="#option-2-build-from-source" id="id6">Option 2. Build from Source</a></p>
@@ -401,7 +401,7 @@ ls<span class="w"> </span>-l<span class="w"> </span>./build/
 <p>Once <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> is installed, you are able to run any MLC-compiled model on comamnd line.</p>
 <p><strong>Ensure Model Exists.</strong> As the input to <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, it is always good to double check if the compiled model exists.</p>
 <details class="summary-details">
-<summary>Details</summary><p>The input consists of three parts: <a class="reference internal" href="../get_started/index.html#model-lib"><span class="std std-ref">model lib</span></a> of optimized tensor computation, shards of quantized <a class="reference internal" href="../get_started/index.html#model-weights"><span class="std std-ref">model weights</span></a>, as well as a JSON configuration file <a class="reference internal" href="../get_started/index.html#chat-config"><span class="std std-ref">chat config</span></a>. They should be located under a directory uniquely specified by the model’s <code class="docutils literal notranslate"><span class="pre">local_id</span></code>, which is <code class="docutils literal notranslate"><span class="pre">$(model_name)-$(quantize_mode)</span></code>, for example, “vicuna-v1-7b-q3f16_0” for int3-quantized Vicuna-7B, “RedPajama-INCITE-Chat-3B-v1-q4f16_0” for int4-quantized RedPajama-3B.</p>
+<summary>Details</summary><p>The input consists of three parts: <a class="reference internal" href="../tutorials/runtime/terminologies.html#model-lib"><span class="std std-ref">model lib</span></a> of optimized tensor computation, shards of quantized <a class="reference internal" href="../tutorials/runtime/terminologies.html#model-weights"><span class="std std-ref">model weights</span></a>, as well as a JSON configuration file <a class="reference internal" href="../tutorials/runtime/terminologies.html#chat-config"><span class="std std-ref">chat config</span></a>. They should be located under a directory uniquely specified by the model’s <code class="docutils literal notranslate"><span class="pre">local_id</span></code>, which is <code class="docutils literal notranslate"><span class="pre">$(model_name)-$(quantize_mode)</span></code>, for example, “vicuna-v1-7b-q3f16_0” for int3-quantized Vicuna-7B, “RedPajama-INCITE-Chat-3B-v1-q4f16_0” for int4-quantized RedPajama-3B.</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Check prebuilt models</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Check compiled models</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>If you downloaded prebuilt models from MLC LLM, by default:</p>
 <ul class="simple">
@@ -469,7 +469,7 @@ Use<span class="w"> </span>model<span class="w"> </span>library:<span class="w">
         <a href="ios.html" class="btn btn-neutral float-right" title="Build iOS Package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="gpu.html" class="btn btn-neutral float-left" title="GPU Drivers and SDKs" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="../tutorials/runtime/rest.html" class="btn btn-neutral float-left" title="Rest APIs" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

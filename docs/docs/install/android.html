@@ -46,7 +46,7 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Community Guideline" href="../community/guideline.html" />
+    <link rel="next" title="Getting Vicuna Weights" href="../tutorials/compilation/get-vicuna-weight.html" />
     <link rel="prev" title="Build iOS Package" href="ios.html" /> 
 </head>
 
@@ -166,14 +166,25 @@
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../get_started/index.html">Get Started with MLC LLM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Run models with MLC-Chat APIs</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">Use MLC-Chat with C++ APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">Use MLC-Chat with Javascript APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/rest.html">Use MLC-Chat with REST APIs</a></li>
+<p class="caption" role="heading"><span class="caption-text">Build Apps</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/terminologies.html">Terminologies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">C++ APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">WebLLM Javascript APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/rest.html">Rest APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">Build MLCChat-CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ios.html">Build iOS Package</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Build Android Package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#use-pre-built-android-package">Use Pre-built Android Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#build-android-package-from-source">Build Android Package from Source</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#app-build-instructions">App Build Instructions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#use-your-own-model-weights">Use Your Own Model Weights</a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
@@ -192,21 +203,10 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/prebuilts/prebuilt_models.html">🚧 Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Installation and Dependency</span></p>
-<ul class="current">
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Unity</a></li>
 <li class="toctree-l1"><a class="reference internal" href="conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="gpu.html">GPU Drivers and SDKs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cli.html">Install MLCChat-CLI</a></li>
-<li class="toctree-l1"><a class="reference internal" href="ios.html">Build iOS Package</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Build Android Package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#use-pre-built-android-package">Use Pre-built Android Package</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#build-android-package-from-source">Build Android Package from Source</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#app-build-instructions">App Build Instructions</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#use-your-own-model-weights">Use Your Own Model Weights</a></li>
-</ul>
-</li>
-</ul>
-</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
@@ -464,7 +464,7 @@ that no weight download is needed.</p></li>
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../community/guideline.html" class="btn btn-neutral float-right" title="Community Guideline" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../tutorials/compilation/get-vicuna-weight.html" class="btn btn-neutral float-right" title="Getting Vicuna Weights" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="ios.html" class="btn btn-neutral float-left" title="Build iOS Package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
