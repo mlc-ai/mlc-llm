@@ -46,8 +46,8 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Project Overview" href="proj_overview.html" />
-    <link rel="prev" title="Try out MLC Chat" href="try_out.html" /> 
+    <link rel="next" title="WebLLM and Javascript API" href="../deploy/javascript.html" />
+    <link rel="prev" title="Project Overview" href="project_overview.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -167,6 +167,7 @@
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="try_out.html">Try out MLC Chat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_overview.html">Project Overview</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Configure MLCChat in JSON</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#structure-of-mlcchat-configuration">Structure of MLCChat Configuration</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#conversation-structure">Conversation Structure</a></li>
@@ -181,7 +182,6 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="proj_overview.html">Project Overview</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
 <ul>
@@ -304,9 +304,11 @@
             
   <section id="configure-mlcchat-in-json">
 <h1>Configure MLCChat in JSON<a class="headerlink" href="#configure-mlcchat-in-json" title="Permalink to this heading">¶</a></h1>
-<p>This tutorials explains the components of a chat configuration and how to customize them for your own purposes.</p>
-<p>There is a <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file under the directory of each compiled model (e.g.
-<a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/blob/main/mlc-chat-config.json">RedPajama chat config</a> ) which contains the chat configuration. You can customize the chat configuration by modifying this file.</p>
+<p>This page explains the components of a chat configuration and how to customize them for your own purposes.</p>
+<p>Each mlc chat runtime can be configured via a <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file under the directory of each compiled model (e.g.
+<a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/blob/main/mlc-chat-config.json">RedPajama chat config</a> )
+which contains the chat configuration. You can customize the chat configuration by modifying this file.
+Additionally, the runtimes also provide APIs to optionally override some of the configurations.</p>
 <section id="structure-of-mlcchat-configuration">
 <span id="struct-mlc-chat-conv"></span><h2>Structure of MLCChat Configuration<a class="headerlink" href="#structure-of-mlcchat-configuration" title="Permalink to this heading">¶</a></h2>
 <p>Below is the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file corresponding to Vicuna model:</p>
@@ -326,6 +328,17 @@
 <span class="p">}</span>
 </pre></div>
 </div>
+<p>The following fields contains meta-data that affects system behaviors.</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">model_lib</span></code></dt><dd><p>The necessary model library to launch this model architecture. We recommend reuse model lib when possible.
+For example, all llama-7b models can use <cite>vicuna-v1-7b-q4f32_0</cite>. So you can distribute llama-7b
+weight variants and still use them in prebuilt MLC chat apps</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">local_id</span></code></dt><dd><p>A key that uniquely identifies the model within an app. This is also used by command line flags to specify which model to run.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">tokenizer_files</span></code></dt><dd><p>List of files needed by tokenizer.</p>
+</dd>
+</dl>
 <p>The following parameters can be customized to change the behavior of the model:</p>
 <dl>
 <dt><code class="docutils literal notranslate"><span class="pre">conv_template</span></code></dt><dd><p>The name of the conversation template that this chat uses. For more information, refer to the section on conversation structure (<a class="reference internal" href="#struct-conv"><span class="std std-ref">Conversation Structure</span></a>).</p>
@@ -479,10 +492,10 @@
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="proj_overview.html" class="btn btn-neutral float-right" title="Project Overview" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../deploy/javascript.html" class="btn btn-neutral float-right" title="WebLLM and Javascript API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="try_out.html" class="btn btn-neutral float-left" title="Try out MLC Chat" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="project_overview.html" class="btn btn-neutral float-left" title="Project Overview" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

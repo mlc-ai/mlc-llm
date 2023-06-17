@@ -168,8 +168,8 @@
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../get_started/try_out.html">Try out MLC Chat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/project_overview.html">Project Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../get_started/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../get_started/proj_overview.html">Project Overview</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
 <ul class="current">
@@ -408,8 +408,7 @@ ls<span class="w"> </span>-l<span class="w"> </span>./build/
 <p>Once <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> is installed, you are able to run any MLC-compiled model on comamnd line.</p>
 <p><strong>Ensure Model Exists.</strong> As the input to <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, it is always good to double check if the compiled model exists.</p>
 <details class="summary-details">
-<summary>Details</summary><p>The input consists of three parts: <a class="reference internal" href="../get_started/proj_overview.html#model-lib"><span class="std std-ref">model lib</span></a> of optimized tensor computation, shards of quantized <a class="reference internal" href="../get_started/proj_overview.html#model-weights"><span class="std std-ref">model weights</span></a>, as well as a JSON configuration file <a class="reference internal" href="../get_started/proj_overview.html#chat-config"><span class="std std-ref">chat config</span></a>. They should be located under a directory uniquely specified by the model’s <code class="docutils literal notranslate"><span class="pre">local_id</span></code>, which is <code class="docutils literal notranslate"><span class="pre">$(model_name)-$(quantize_mode)</span></code>, for example, “vicuna-v1-7b-q3f16_0” for int3-quantized Vicuna-7B, “RedPajama-INCITE-Chat-3B-v1-q4f16_0” for int4-quantized RedPajama-3B.</p>
-<div class="sphinx-tabs docutils container">
+<summary>Details</summary><div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Check prebuilt models</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Check compiled models</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>If you downloaded prebuilt models from MLC LLM, by default:</p>
 <ul class="simple">
 <li><p>model lib should be placed under <code class="docutils literal notranslate"><span class="pre">./dist/prebuilt/lib/$(local_id)-$(arch).$(suffix)</span></code></p></li>

@@ -47,7 +47,7 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Configure MLCChat in JSON" href="mlc_chat_config.html" />
+    <link rel="next" title="Project Overview" href="project_overview.html" />
     <link rel="prev" title="👋 Welcome to MLC LLM" href="../index.html" /> 
 </head>
 
@@ -168,8 +168,8 @@
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Try out MLC Chat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_overview.html">Project Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="mlc_chat_config.html">Configure MLCChat in JSON</a></li>
-<li class="toctree-l1"><a class="reference internal" href="proj_overview.html">Project Overview</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
 <ul>
@@ -296,47 +296,76 @@
 for you to try out MLC Chat app built with MLC LLM,
 and you can try out prebuilt models on the following platforms:</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">iOS</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Android</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">CLI (Linux/MacOS/Windows)</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">Web Browser</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>The MLC Chat app is now accessible on the App Store at no cost. You can download and explore it by simply clicking the button below:</p>
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">CLI (Linux/MacOS/Windows)</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>To utilize the models on your PC, we highly recommend trying out the CLI version of MLC LLM.</p>
+<p>We have prepared Conda packages for MLC Chat CLI. If you haven’t installed Conda yet,
+please refer to <a class="reference internal" href="../install/conda.html"><span class="doc">this tutorial</span></a> to install Conda.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a new conda environment and activate the environment.</span>
+conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat
+conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat
+
+<span class="c1"># Install Git and Git-LFS if you haven&#39;t already.</span>
+<span class="c1"># They are used for downloading the model weights from HuggingFace.</span>
+conda<span class="w"> </span>install<span class="w"> </span>git<span class="w"> </span>git-lfs
+git<span class="w"> </span>lfs<span class="w"> </span>install
+
+<span class="c1"># Install the chat CLI app from Conda.</span>
+conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-nightly<span class="w"> </span>--force-reinstall
+
+<span class="c1"># Create a directory, download the model weights from HuggingFace, and download the binary libraries</span>
+<span class="c1"># from GitHub. Select one of the following `LOCAL_ID` for a prebuilt LLM.</span>
+
+mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt/lib
+
+<span class="c1"># Download prebuilt weights of Vicuna-7B</span>
+<span class="nb">cd</span><span class="w"> </span>dist/prebuilt
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0
+<span class="nb">cd</span><span class="w"> </span>../..
+mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>vicuna-v1-7b-q3f16_0
+
+<span class="c1"># Download prebuilt weights of RedPajama-3B</span>
+<span class="nb">cd</span><span class="w"> </span>dist/prebuilt
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
+<span class="nb">cd</span><span class="w"> </span>../..
+mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0
+</pre></div>
+</div>
+<p>If you are using Windows or Linux. Make sure you have the latest vulkan driver installed.
+Please follow the instructions in <a class="reference internal" href="../install/gpu.html"><span class="doc">GPU Drivers and SDKs</span></a> tutorial to prepare the environment.</p>
+<p>You can also checkout <a class="reference internal" href="../tutorials/prebuilts/prebuilt_models.html#off-the-shelf-models"><span class="std std-ref">Off-the-Shelf Models</span></a> for other models.</p>
+<figure class="align-center" id="id1">
+<a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/cli.gif"><img alt="https://mlc.ai/blog/img/redpajama/cli.gif" src="https://mlc.ai/blog/img/redpajama/cli.gif" style="width: 500px;" /></a>
+<figcaption>
+<p><span class="caption-text">MLC LLM on CLI</span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p>With the advancements of WebGPU, we can now run LLM directly on web browsers. You have the opportunity to experience the web version of MLC LLM through <a class="reference external" href="https://mlc.ai/webllm">WebLLM</a>.</p>
+<p>Once the parameters have been fetched and stored in the local cache, you can begin interacting with the model without the need for an internet connection.</p>
+<p>A WebGPU-compatible browser and a local GPU are needed to run WebLLM. You can download the latest Google Chrome and use <a class="reference external" href="https://webgpureport.org/">WebGPU Report</a> to verify the functionality of WebGPU on your browser.</p>
+<figure class="align-center" id="id2">
+<a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/web.gif"><img alt="https://mlc.ai/blog/img/redpajama/web.gif" src="https://mlc.ai/blog/img/redpajama/web.gif" style="width: 300px;" /></a>
+<figcaption>
+<p><span class="caption-text">MLC LLM on Web</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><p>The MLC Chat app is now accessible on the App Store at no cost. You can download and explore it by simply clicking the button below:</p>
 <a class="reference external image-reference" href="https://apps.apple.com/us/app/mlc-chat/id6448482937"><img alt="https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg" src="https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg" width="135" /></a>
 <p>Once the app is installed, you can download the models and then engage in chat with the model without requiring an internet connection.</p>
 <p>Memory requirements vary across different models. The Vicuna-7B model necessitates an iPhone device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an iPhone with at least 4GB RAM.</p>
-<figure class="align-center" id="id1">
+<figure class="align-center" id="id3">
 <a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/ios.gif"><img alt="https://mlc.ai/blog/img/redpajama/ios.gif" src="https://mlc.ai/blog/img/redpajama/ios.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC Chat on iOS</span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC Chat on iOS</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
-</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p>The MLC Chat Android app is free and available for download and can be tried out by simply clicking the button below:</p>
+</div><div aria-labelledby="tab-0-0-3" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-3" name="0-3" role="tabpanel" tabindex="0"><p>The MLC Chat Android app is free and available for download and can be tried out by simply clicking the button below:</p>
 <a class="reference external image-reference" href="https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk"><img alt="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" src="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" style="width: 135px;" /></a>
 <p>Once the app is installed, you can engage in a chat with the model without the need for an internet connection:</p>
 <p>Memory requirements vary across different models. The Vicuna-7B model necessitates an Android device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an Android device with at least 4GB RAM.</p>
-<figure class="align-center" id="id2">
+<figure class="align-center" id="id4">
 <a class="reference internal image-reference" href="https://mlc.ai/blog/img/android/android-recording.gif"><img alt="https://mlc.ai/blog/img/android/android-recording.gif" src="https://mlc.ai/blog/img/android/android-recording.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on Android</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
-</figcaption>
-</figure>
-</div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><p>To utilize the models on your PC, we highly recommend trying out the CLI version of MLC LLM.</p>
-<p>We have prepared Conda packages for MLC Chat CLI. If you haven’t installed Conda yet, please refer to <a class="reference internal" href="../install/conda.html"><span class="doc">this tutorial</span></a> to install Conda.
-To install MLC Chat CLI, simply run the following command:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-nightly
-conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
-</pre></div>
-</div>
-<p>If you are using Windows or Linux and want to use your native GPU, please follow the instructions in <a class="reference internal" href="../install/gpu.html"><span class="doc">GPU Drivers and SDKs</span></a> tutorial to prepare the environment.</p>
-<figure class="align-center" id="id3">
-<a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/cli.gif"><img alt="https://mlc.ai/blog/img/redpajama/cli.gif" src="https://mlc.ai/blog/img/redpajama/cli.gif" style="width: 300px;" /></a>
-<figcaption>
-<p><span class="caption-text">MLC LLM on CLI</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
-</figcaption>
-</figure>
-</div><div aria-labelledby="tab-0-0-3" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-3" name="0-3" role="tabpanel" tabindex="0"><p>With the advancements of WebGPU, we can now run LLM directly on web browsers. You have the opportunity to experience the web version of MLC LLM through <a class="reference external" href="https://mlc.ai/webllm">WebLLM</a>.</p>
-<p>Once the parameters have been fetched and stored in the local cache, you can begin interacting with the model without the need for an internet connection.</p>
-<p>A WebGPU-compatible browser and a local GPU are needed to run WebLLM. You can download the latest Google Chrome and use <a class="reference external" href="https://webgpureport.org/">WebGPU Report</a> to verify the functionality of WebGPU on your browser.</p>
-<figure class="align-center" id="id4">
-<a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/web.gif"><img alt="https://mlc.ai/blog/img/redpajama/web.gif" src="https://mlc.ai/blog/img/redpajama/web.gif" style="width: 300px;" /></a>
-<figcaption>
-<p><span class="caption-text">MLC LLM on Web</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on Android</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div></div>
@@ -352,7 +381,7 @@ conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="mlc_chat_config.html" class="btn btn-neutral float-right" title="Configure MLCChat in JSON" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="project_overview.html" class="btn btn-neutral float-right" title="Project Overview" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="../index.html" class="btn btn-neutral float-left" title="👋 Welcome to MLC LLM" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

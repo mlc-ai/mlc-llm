@@ -99,8 +99,6 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
 
 .. collapse:: Details
 
-  The input consists of three parts: :ref:`model lib <model_lib>` of optimized tensor computation, shards of quantized :ref:`model weights <model_weights>`, as well as a JSON configuration file :ref:`chat config <chat_config>`. They should be located under a directory uniquely specified by the model's ``local_id``, which is ``$(model_name)-$(quantize_mode)``, for example, "vicuna-v1-7b-q3f16_0" for int3-quantized Vicuna-7B, "RedPajama-INCITE-Chat-3B-v1-q4f16_0" for int4-quantized RedPajama-3B.
-
   .. tabs ::
 
      .. tab :: Check prebuilt models

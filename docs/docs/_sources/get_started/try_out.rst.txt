@@ -9,6 +9,70 @@ and you can try out prebuilt models on the following platforms:
 
 .. tabs::
 
+  .. tab:: CLI (Linux/MacOS/Windows)
+
+    To utilize the models on your PC, we highly recommend trying out the CLI version of MLC LLM.
+
+    We have prepared Conda packages for MLC Chat CLI. If you haven't installed Conda yet,
+    please refer to :doc:`this tutorial </install/conda>` to install Conda.
+
+    .. code:: bash
+
+      # Create a new conda environment and activate the environment.
+      conda create -n mlc-chat
+      conda activate mlc-chat
+
+      # Install Git and Git-LFS if you haven't already.
+      # They are used for downloading the model weights from HuggingFace.
+      conda install git git-lfs
+      git lfs install
+
+      # Install the chat CLI app from Conda.
+      conda install -c mlc-ai -c conda-forge mlc-chat-nightly --force-reinstall
+
+      # Create a directory, download the model weights from HuggingFace, and download the binary libraries
+      # from GitHub. Select one of the following `LOCAL_ID` for a prebuilt LLM.
+
+      mkdir -p dist/prebuilt
+      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
+
+      # Download prebuilt weights of Vicuna-7B
+      cd dist/prebuilt
+      git clone https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0
+      cd ../..
+      mlc_chat_cli --local-id vicuna-v1-7b-q3f16_0
+
+      # Download prebuilt weights of RedPajama-3B
+      cd dist/prebuilt
+      git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
+      cd ../..
+      mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
+
+    If you are using Windows or Linux. Make sure you have the latest vulkan driver installed.
+    Please follow the instructions in :doc:`/install/gpu` tutorial to prepare the environment.
+
+    You can also checkout :ref:`off-the-shelf-models` for other models.
+
+    .. figure:: https://mlc.ai/blog/img/redpajama/cli.gif
+      :width: 500
+      :align: center
+
+      MLC LLM on CLI
+
+  .. tab:: Web Browser
+
+    With the advancements of WebGPU, we can now run LLM directly on web browsers. You have the opportunity to experience the web version of MLC LLM through `WebLLM <https://mlc.ai/webllm>`__.
+
+    Once the parameters have been fetched and stored in the local cache, you can begin interacting with the model without the need for an internet connection.
+
+    A WebGPU-compatible browser and a local GPU are needed to run WebLLM. You can download the latest Google Chrome and use `WebGPU Report <https://webgpureport.org/>`__ to verify the functionality of WebGPU on your browser.
+
+    .. figure:: https://mlc.ai/blog/img/redpajama/web.gif
+      :width: 300
+      :align: center
+
+      MLC LLM on Web
+
   .. tab:: iOS
 
     The MLC Chat app is now accessible on the App Store at no cost. You can download and explore it by simply clicking the button below:
@@ -44,40 +108,3 @@ and you can try out prebuilt models on the following platforms:
       :align: center
 
       MLC LLM on Android
-
-  .. tab:: CLI (Linux/MacOS/Windows)
-
-    To utilize the models on your PC, we highly recommend trying out the CLI version of MLC LLM.
-
-    We have prepared Conda packages for MLC Chat CLI. If you haven't installed Conda yet, please refer to :doc:`this tutorial </install/conda>` to install Conda.
-    To install MLC Chat CLI, simply run the following command:
-
-    .. code:: bash
-
-      conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-nightly
-      conda activate mlc-chat-venv
-
-    If you are using Windows or Linux and want to use your native GPU, please follow the instructions in :doc:`/install/gpu` tutorial to prepare the environment.
-
-    .. figure:: https://mlc.ai/blog/img/redpajama/cli.gif
-      :width: 300
-      :align: center
-
-      MLC LLM on CLI
-
-  .. tab:: Web Browser
-
-    With the advancements of WebGPU, we can now run LLM directly on web browsers. You have the opportunity to experience the web version of MLC LLM through `WebLLM <https://mlc.ai/webllm>`__.
-
-    Once the parameters have been fetched and stored in the local cache, you can begin interacting with the model without the need for an internet connection.
-
-    A WebGPU-compatible browser and a local GPU are needed to run WebLLM. You can download the latest Google Chrome and use `WebGPU Report <https://webgpureport.org/>`__ to verify the functionality of WebGPU on your browser.
-
-    .. figure:: https://mlc.ai/blog/img/redpajama/web.gif
-      :width: 300
-      :align: center
-
-      MLC LLM on Web
-
-
-
