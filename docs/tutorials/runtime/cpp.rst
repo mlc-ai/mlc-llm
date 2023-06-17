@@ -219,7 +219,6 @@ MLC-compiled models can be integrated into any C++ project using TVM's C/C++ API
         device_id,
       );
       // Step 2. Obtain all available functions in `mlc_llm`
-      PackedFunc embed = mlc_llm->GetFunction("embed");
       PackedFunc prefill = mlc_llm->GetFunction("prefill");
       PackedFunc decode = mlc_llm->GetFunction("decode");
       PackedFunc stopped = mlc_llm->GetFunction("stopped");
