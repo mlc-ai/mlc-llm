@@ -47,7 +47,7 @@
     <script type="text/javascript" src="_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="🚧 Terminologies" href="get_started/mlcchat_terminologies.html" /> 
+    <link rel="next" title="Get Started with MLC LLM" href="get_started/index.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -166,19 +166,18 @@
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="get_started/mlcchat_terminologies.html">🚧 Terminologies</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Use Compiled Models</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/cpp.html">Run Models in C++</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/javascript.html">🚧 Run Models in JavaScript</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/android.html">🚧 Run Models in Android</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/ios.html">🚧 Run Models in iOS</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/python.html">🚧 Run Models with Python</a></li>
+<li class="toctree-l1"><a class="reference internal" href="get_started/index.html">Get Started with MLC LLM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Run models with MLC-Chat APIs</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/cpp.html">Use MLC-Chat with C++ APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/javascript.html">Use MLC-Chat with Javascript APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/rest.html">Use MLC-Chat with REST APIs</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/get-vicuna-weight.html">Getting Vicuna Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/model_compilation_walkthrough.html">🚧 Compile a Model in MLC LLM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/compiler_artifacts.html">🚧 Compiler Artifact Spec</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/configure_targets.html">🚧 Configure Targets</a></li>
@@ -197,6 +196,9 @@
 <li class="toctree-l1"><a class="reference internal" href="install/tvm.html">Install TVM Unity</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install/conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install/gpu.html">GPU Drivers and SDKs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install/cli.html">Install MLCChat-CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install/ios.html">Build iOS Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install/android.html">Build Android Package</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
@@ -208,7 +210,6 @@
 <li class="toctree-l1"><a class="reference internal" href="tutorials/deploy-models.html">How to Deploy Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/bring-your-own-models.html">Add New Model Architectures</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/customize.html">Customize Model Compilation and Optimization</a></li>
 </ul>
 
             
@@ -295,8 +296,8 @@
 <p><a class="reference external" href="https://discord.gg/9Xpy2HGBuD">Discord</a> | <a class="reference external" href="https://mlc.ai/mlc-llm">Demo</a> | <a class="reference external" href="https://github.com/mlc-ai/mlc-llm">GitHub</a></p>
 <p>🚧 This document is currently undergoing heavy construction.</p>
 <p>Machine Learning Compilation for LLM (MLC LLM) is a universal deployment solution that enables LLMs to run efficiently on consumer devices, leveraging native hardware acceleration like GPUs.</p>
-<table class="docutils align-center" id="id1">
-<caption><span class="caption-text">MLC LLM: A universal deployment solution for large language models</span><a class="headerlink" href="#id1" title="Permalink to this table">¶</a></caption>
+<table class="docutils align-center" id="id3">
+<caption><span class="caption-text">MLC LLM: A universal deployment solution for large language models</span><a class="headerlink" href="#id3" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 17%" />
 <col style="width: 21%" />
@@ -341,56 +342,120 @@
 </tbody>
 </table>
 <section id="get-started">
-<h2>Get Started<a class="headerlink" href="#get-started" title="Permalink to this heading">¶</a></h2>
-<p><a class="reference internal" href="get_started/mlcchat_terminologies.html"><span class="doc">🚧 Terminologies</span></a></p>
-</section>
-<section id="project-structure">
-<h2>Project Structure<a class="headerlink" href="#project-structure" title="Permalink to this heading">¶</a></h2>
-<p>The project comprises three independent submodules: model definition, model compilation, and runtimes.</p>
-<figure class="align-center" id="id2">
-<a class="reference internal image-reference" href="_images/project-structure.svg"><img alt="Project Structure" src="_images/project-structure.svg" width="600" /></a>
-<figcaption>
-<p><span class="caption-text">Three independent submodules in MLC LLM</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
-</figcaption>
-</figure>
-<p><strong>➀ Model definition in Python.</strong> MLC offers a variety of pre-defined architectures, such as Llama (e.g., Vicuna, OpenLlama, Llama, Wizard), GPT-NeoX (e.g., RedPajama, Dolly), RNNs (e.g., RWKV), and GPT-J (e.g., MOSS). Model developers could solely define the model in pure Python, without having to touch code generation and runtime.</p>
-<p><strong>➁ Model compilation in Python.</strong> <a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a> compiler are configured in pure python, and it quantizes and exports the Python-based model to <a class="reference internal" href="get_started/mlcchat_terminologies.html#model-lib"><span class="std std-ref">model lib</span></a> and quantized <a class="reference internal" href="get_started/mlcchat_terminologies.html#model-weights"><span class="std std-ref">model weights</span></a>. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.</p>
-<p><strong>➂ Platform-native runtimes.</strong> Variants of MLCChat are provided on each platform: <strong>C++</strong> for command line, <strong>Javascript</strong> for web, <strong>Swift</strong> for iOS, and <strong>Java</strong> for Android, configurable with a JSON <a class="reference internal" href="get_started/mlcchat_terminologies.html#chat-config"><span class="std std-ref">chat config</span></a>. App developers only need to familiarize with the platform-naive runtimes to integrate MLC-compiled LLMs into their projects.</p>
-</section>
-<section id="tutorials">
-<h2>Tutorials<a class="headerlink" href="#tutorials" title="Permalink to this heading">¶</a></h2>
-<div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">➂ Use Compiled Models</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">➁ Compile Models</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">➀ Define Model Architectures</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">MLC-Prebuilt LLMs</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>The following tutorials introduce how to run MLC-compiled models with MLCChat or in platform-native projects.</p>
+<span id="id1"></span><h2>Get Started<a class="headerlink" href="#get-started" title="Permalink to this heading">¶</a></h2>
+<p>We have prepared a comprehensive tutorial to assist you in getting started with MLC LLM. This tutorial aims to familiarize you with the terminologies commonly used in MLC LLM and provide you with a clear understanding of the overall workflow, and help you navigate through the documentation.</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="tutorials/runtime/cpp.html"><span class="doc">Run Models in C++</span></a> for command line</p></li>
-<li><p><a class="reference internal" href="tutorials/runtime/javascript.html"><span class="doc">🚧 Run Models in JavaScript</span></a> for WebLLM</p></li>
-<li><p><a class="reference internal" href="tutorials/runtime/android.html"><span class="doc">🚧 Run Models in Android</span></a> for Android</p></li>
-<li><p><a class="reference internal" href="tutorials/runtime/ios.html"><span class="doc">🚧 Run Models in iOS</span></a> for iOS</p></li>
-<li><p><a class="reference internal" href="tutorials/runtime/python.html"><span class="doc">🚧 Run Models with Python</span></a> for running models in Python</p></li>
+<li><p><a class="reference internal" href="get_started/index.html"><span class="doc">Get Started with MLC LLM</span></a></p></li>
 </ul>
-<p>MLCChat can be configured with <a class="reference internal" href="tutorials/runtime/mlc_chat_config.html"><span class="doc">JSON</span></a>.</p>
-<p><strong>Note.</strong> <a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a> compiler is not a dependency to running any MLC-compiled model.</p>
-</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p><a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a> is required to compile models.</p>
+</section>
+<section id="run-models-with-mlc-chat-apis">
+<span id="runtime-apis"></span><h2>Run models with MLC-Chat APIs<a class="headerlink" href="#run-models-with-mlc-chat-apis" title="Permalink to this heading">¶</a></h2>
+<p>The following tutorials will guide you on running MLC-compiled models using MLCChat APIs in various programming languages.
+These tutorials aim to help you create your own applications based on these models.</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">C++</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Javascript</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">REST</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><ul class="simple">
+<li><p><a class="reference internal" href="tutorials/runtime/cpp.html"><span class="doc">Use MLC-Chat with C++ APIs</span></a></p></li>
+</ul>
+</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><ul class="simple">
+<li><p><a class="reference internal" href="tutorials/runtime/javascript.html"><span class="doc">Use MLC-Chat with Javascript APIs</span></a></p></li>
+</ul>
+</div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><ul class="simple">
+<li><p><a class="reference internal" href="tutorials/runtime/rest.html"><span class="doc">Use MLC-Chat with REST APIs</span></a></p></li>
+</ul>
+</div></div>
+</section>
+<section id="compile-models">
+<span id="id2"></span><h2>Compile Models<a class="headerlink" href="#compile-models" title="Permalink to this heading">¶</a></h2>
+<p><a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a> is required to compile models.</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="tutorials/compilation/model_compilation_walkthrough.html"><span class="doc">🚧 Compile a Model in MLC LLM</span></a></p></li>
 <li><p><a class="reference internal" href="tutorials/compilation/compiler_artifacts.html"><span class="doc">🚧 Compiler Artifact Spec</span></a></p></li>
 <li><p><a class="reference internal" href="tutorials/compilation/configure_targets.html"><span class="doc">🚧 Configure Targets</span></a></p></li>
 <li><p><a class="reference internal" href="tutorials/compilation/configure_quantization.html"><span class="doc">🚧 Configure Quantization</span></a></p></li>
 </ul>
-</div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><p><a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a> is required to define new model architectures.</p>
+</section>
+<section id="define-new-model-architectures">
+<span id="define-new-models"></span><h2>Define New Model Architectures<a class="headerlink" href="#define-new-model-architectures" title="Permalink to this heading">¶</a></h2>
+<p><a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a> is required to define new model architectures.</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="tutorials/customize/define_new_models.html"><span class="doc">🚧 Define New Model Architectures</span></a></p></li>
+<li><p><a class="reference internal" href="tutorials/bring-your-own-models.html"><span class="doc">Add New Model Architectures</span></a></p></li>
 </ul>
-</div><div aria-labelledby="tab-0-0-3" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-3" name="0-3" role="tabpanel" tabindex="0"><ul class="simple">
+</section>
+<section id="mlc-prebuilt-llms">
+<h2>MLC-Prebuilt LLMs<a class="headerlink" href="#mlc-prebuilt-llms" title="Permalink to this heading">¶</a></h2>
+<ul class="simple">
 <li><p><a class="reference internal" href="tutorials/prebuilts/prebuilt_models.html"><span class="doc">🚧 Model Prebuilts</span></a></p></li>
 </ul>
-</div></div>
 </section>
 <section id="community">
 <h2>Community<a class="headerlink" href="#community" title="Permalink to this heading">¶</a></h2>
 <ul class="simple">
 <li><p><a class="reference internal" href="community/guideline.html"><span class="doc">Community guideline</span></a></p></li>
 <li><p><a class="reference internal" href="community/faq.html"><span class="doc">FAQs</span></a></p></li>
+</ul>
+</section>
+<section id="misc">
+<h2>Misc<a class="headerlink" href="#misc" title="Permalink to this heading">¶</a></h2>
+<p>If you find MLC LLM useful in your work, please consider citing the project using the following format:</p>
+<div class="highlight-bibtex notranslate"><div class="highlight"><pre><span></span><span class="nc">@software</span><span class="p">{</span><span class="nl">mlc-llm</span><span class="p">,</span>
+<span class="w">   </span><span class="na">author</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{MLC team}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">title</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{{MLC-LLM}}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">url</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{https://github.com/mlc-ai/mlc-llm}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">year</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{2023}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The underlying compiler techniques employed by MLC LLM are outlined in the following papers:</p>
+<details class="summary-references-click-to-expand">
+<summary>References (Click to expand)</summary><div class="highlight-bibtex notranslate"><div class="highlight"><pre><span></span><span class="nc">@inproceedings</span><span class="p">{</span><span class="nl">tensorir</span><span class="p">,</span>
+<span class="w">   </span><span class="na">author</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Feng, Siyuan and Hou, Bohan and Jin, Hongyi and Lin, Wuwei and Shao, Junru and Lai, Ruihang and Ye, Zihao and Zheng, Lianmin and Yu, Cody Hao and Yu, Yong and Chen, Tianqi}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">title</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{TensorIR: An Abstraction for Automatic Tensorized Program Optimization}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">year</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{2023}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">isbn</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{9781450399166}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">publisher</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Association for Computing Machinery}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">address</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{New York, NY, USA}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">url</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{https://doi.org/10.1145/3575693.3576933}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">doi</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{10.1145/3575693.3576933}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">booktitle</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Proceedings of the 28th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">pages</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{804–817}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">numpages</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{14}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">keywords</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Tensor Computation, Machine Learning Compiler, Deep Neural Network}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">location</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Vancouver, BC, Canada}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">series</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{ASPLOS 2023}</span>
+<span class="p">}</span>
+
+<span class="nc">@inproceedings</span><span class="p">{</span><span class="nl">metaschedule</span><span class="p">,</span>
+<span class="w">   </span><span class="na">author</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Shao, Junru and Zhou, Xiyou and Feng, Siyuan and Hou, Bohan and Lai, Ruihang and Jin, Hongyi and Lin, Wuwei and Masuda, Masahiro and Yu, Cody Hao and Chen, Tianqi}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">booktitle</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Advances in Neural Information Processing Systems}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">editor</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{S. Koyejo and S. Mohamed and A. Agarwal and D. Belgrave and K. Cho and A. Oh}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">pages</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{35783--35796}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">publisher</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Curran Associates, Inc.}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">title</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Tensor Program Optimization with Probabilistic Programs}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">url</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{https://proceedings.neurips.cc/paper_files/paper/2022/file/e894eafae43e68b4c8dfdacf742bcbf3-Paper-Conference.pdf}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">volume</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{35}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">year</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{2022}</span>
+<span class="p">}</span>
+
+<span class="nc">@inproceedings</span><span class="p">{</span><span class="nl">tvm</span><span class="p">,</span>
+<span class="w">   </span><span class="na">author</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Tianqi Chen and Thierry Moreau and Ziheng Jiang and Lianmin Zheng and Eddie Yan and Haichen Shen and Meghan Cowan and Leyuan Wang and Yuwei Hu and Luis Ceze and Carlos Guestrin and Arvind Krishnamurthy}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">title</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{{TVM}: An Automated {End-to-End} Optimizing Compiler for Deep Learning}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">booktitle</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{13th USENIX Symposium on Operating Systems Design and Implementation (OSDI 18)}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">year</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{2018}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">isbn</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{978-1-939133-08-3}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">address</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Carlsbad, CA}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">pages</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{578--594}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">url</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{https://www.usenix.org/conference/osdi18/presentation/chen}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">publisher</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{USENIX Association}</span><span class="p">,</span>
+<span class="w">   </span><span class="na">month</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nv">oct</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</details><div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>If you are interested in using Machine Learning Compilation in practice, we highly recommend the following course:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://mlc.ai/">Machine Learning Compilation</a></p></li>
 </ul>
 <div class="toctree-wrapper compound">
 </div>
@@ -412,7 +477,6 @@
 <li class="toctree-l1"><a class="reference internal" href="tutorials/deploy-models.html">How to Deploy Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/bring-your-own-models.html">Add New Model Architectures</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/customize.html">Customize Model Compilation and Optimization</a></li>
 </ul>
 </div>
 </section>
@@ -428,7 +492,7 @@
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="get_started/mlcchat_terminologies.html" class="btn btn-neutral float-right" title="🚧 Terminologies" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="get_started/index.html" class="btn btn-neutral float-right" title="Get Started with MLC LLM" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
     </div>

@@ -1,0 +1,498 @@
+
+
+
+
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Get Started with MLC LLM &mdash; mlc-llm 0.1.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/tlcpack_theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+  
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script src="../_static/tabs.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Configure MLCChat in JSON" href="../tutorials/runtime/mlc_chat_config.html" />
+    <link rel="prev" title="👋 Welcome to MLC LLM" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    
+<header class="header">
+    <div class="innercontainer">
+      <div class="headerInner d-flex justify-content-between align-items-center">
+          <div class="headerLogo">
+          </div>
+
+          <div id="headMenu" class="headerNav">
+            <button type="button" id="closeHeadMenu" class="navCloseBtn"><img src="../_static/img/close-icon.svg" alt="Close"></button>
+             <ul class="nav">
+                <li class="nav-item">
+                   <a class="nav-link" href=https://mlc.ai/mlc-llm>Home</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://github.com/mlc-ai/mlc-llm>Github</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://discord.gg/9Xpy2HGBuD>Discord Server</a>
+                </li>
+             </ul>
+               <div class="responsivetlcdropdown">
+                 <button type="button" class="btn-link">
+                   Other Resources
+                 </button>
+                 <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/blog>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/web-llm>Web LLM</a>
+                     </li>
+                 </ul>
+               </div>
+          </div>
+            <div class="responsiveMenuIcon">
+              <button type="button" id="menuBtn" class="btn-menu"><img src="../_static/img/menu-icon.svg" alt="Menu Icon"></button>
+            </div>
+
+            <div class="tlcDropdown">
+              <div class="dropdown">
+                <button type="button" class="btn-link dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Other Resources
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                  <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/blog>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/web-llm>Web LLM</a>
+                     </li>
+                  </ul>
+                </div>
+              </div>
+          </div>
+       </div>
+    </div>
+ </header>
+ 
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side fixed">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html">
+          
+
+          
+            
+            <img src="../_static/mlc-logo-with-text-landscape.svg" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+                <div class="version">
+                  0.1.0
+                </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Get Started with MLC LLM</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#try-out-mlc-llm-on-your-device">Try out MLC LLM on your device</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#terminologies">Terminologies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#model-weights">Model Weights</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#model-library">Model Library</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#chat-config">Chat Config</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#runtime-workflow">Runtime Workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#overview-of-mlc-llm">Overview of MLC LLM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#further-exploration">Further Exploration</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Run models with MLC-Chat APIs</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">Use MLC-Chat with C++ APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">Use MLC-Chat with Javascript APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/rest.html">Use MLC-Chat with REST APIs</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/get-vicuna-weight.html">Getting Vicuna Weights</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/model_compilation_walkthrough.html">🚧 Compile a Model in MLC LLM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/compiler_artifacts.html">🚧 Compiler Artifact Spec</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/configure_targets.html">🚧 Configure Targets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/customize/define_new_models.html">🚧 Define New Model Architectures</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/prebuilts/prebuilt_models.html">🚧 Model Prebuilts</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Installation and Dependency</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/conda.html">Install Conda</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/gpu.html">GPU Drivers and SDKs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/cli.html">Install MLCChat-CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/ios.html">Build iOS Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/android.html">Build Android Package</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Community</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../community/guideline.html">Community Guideline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../community/faq.html">Frequently Asked Questions (FAQ)</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Other tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/deploy-models.html">How to Deploy Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compile-models.html">How to Compile Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/bring-your-own-models.html">Add New Model Architectures</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      
+      <nav class="wy-nav-top" aria-label="top navigation" data-toggle="wy-nav-top">
+        
+            <div class="togglemenu">
+
+            </div>
+            <div class="nav-content">
+              <!-- mlc-llm -->
+              Table of Contents
+            </div>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
+        
+      <li>Get Started with MLC LLM</li>
+    
+    
+      
+      
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/get_started/index.rst" class="fa fa-github"> Edit on GitHub</a>
+            
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <section id="get-started-with-mlc-llm">
+<h1>Get Started with MLC LLM<a class="headerlink" href="#get-started-with-mlc-llm" title="Permalink to this heading">¶</a></h1>
+<nav class="contents local" id="table-of-contents">
+<p class="topic-title">Table of Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#try-out-mlc-llm-on-your-device" id="id9">Try out MLC LLM on your device</a></p></li>
+<li><p><a class="reference internal" href="#terminologies" id="id10">Terminologies</a></p>
+<ul>
+<li><p><a class="reference internal" href="#model-weights" id="id11">Model Weights</a></p></li>
+<li><p><a class="reference internal" href="#model-library" id="id12">Model Library</a></p></li>
+<li><p><a class="reference internal" href="#chat-config" id="id13">Chat Config</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#runtime-workflow" id="id14">Runtime Workflow</a></p></li>
+<li><p><a class="reference internal" href="#overview-of-mlc-llm" id="id15">Overview of MLC LLM</a></p></li>
+<li><p><a class="reference internal" href="#further-exploration" id="id16">Further Exploration</a></p></li>
+</ul>
+</nav>
+<p>Welcome to the MLC LLM! Here, you will find everything you need to begin exploring and utilizing our powerful framework that deploys large language models on any device. Whether you’re an experienced developer or just starting out, this documentation is designed to provide a seamless learning experience. Discover how to try out MLC LLM on your own device, familiarize yourself with key terminologies, delve into the runtime workflow, and gain an overview of the compilation process and runtime functionality. Our aim is to help you quickly grasp the core ideas and easily navigate through the tutorial, enabling you to leverage the full potential of MLC LLM. Let’s get started!</p>
+<section id="try-out-mlc-llm-on-your-device">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Try out MLC LLM on your device</a><a class="headerlink" href="#try-out-mlc-llm-on-your-device" title="Permalink to this heading">¶</a></h2>
+<p>We have prepared packages for you to try out MLC LLM locally, and you can try out <a class="reference internal" href="../tutorials/prebuilts/prebuilt_models.html"><span class="doc">a list of prebuilt models</span></a> on your device:</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">iOS</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Android</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">PC(CLI)</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">PC(Web Browser)</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>The MLC LLM app is now accessible on the App Store at no cost. You can download and explore it by simply clicking the button below:</p>
+<a class="reference external image-reference" href="https://apps.apple.com/us/app/mlc-chat/id6448482937"><img alt="https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg" src="https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg" width="135" /></a>
+<p>Once the app is installed, you can download the models and then engage in chat with the model without requiring an internet connection.</p>
+<p>Memory requirements vary across different models. The Vicuna-7B model necessitates an iPhone device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an iPhone with at least 4GB RAM.</p>
+<figure class="align-center" id="id4">
+<a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/ios.gif"><img alt="https://mlc.ai/blog/img/redpajama/ios.gif" src="https://mlc.ai/blog/img/redpajama/ios.gif" style="width: 300px;" /></a>
+<figcaption>
+<p><span class="caption-text">MLC LLM on iOS</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p>The MLC LLM Android app is free and available for download and can be tried out by simply clicking the button below:</p>
+<a class="reference external image-reference" href="https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk"><img alt="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" src="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" style="width: 135px;" /></a>
+<p>Once the app is installed, you can engage in a chat with the model without the need for an internet connection:</p>
+<p>Memory requirements vary across different models. The Vicuna-7B model necessitates an Android device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an Android device with at least 4GB RAM.</p>
+<figure class="align-center" id="id5">
+<a class="reference internal image-reference" href="https://mlc.ai/blog/img/android/android-recording.gif"><img alt="https://mlc.ai/blog/img/android/android-recording.gif" src="https://mlc.ai/blog/img/android/android-recording.gif" style="width: 300px;" /></a>
+<figcaption>
+<p><span class="caption-text">MLC LLM on Android</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><p>To utilize the models on your PC, we highly recommend trying out the CLI version of MLC LLM. Installing the CLI version of MLC LLM is made easy by following the tutorial in the <a class="reference internal" href="../install/cli.html"><span class="doc">Install MLCChat-CLI</span></a> documentation.</p>
+<figure class="align-center" id="id6">
+<a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/cli.gif"><img alt="https://mlc.ai/blog/img/redpajama/cli.gif" src="https://mlc.ai/blog/img/redpajama/cli.gif" style="width: 300px;" /></a>
+<figcaption>
+<p><span class="caption-text">MLC LLM on CLI</span><a class="headerlink" href="#id6" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</div><div aria-labelledby="tab-0-0-3" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-3" name="0-3" role="tabpanel" tabindex="0"><p>With the advancements of WebGPU, we can now run LLM directly on web browsers. You have the opportunity to experience the web version of MLC LLM through <a class="reference external" href="https://mlc.ai/webllm">WebLLM</a>.</p>
+<p>Once the parameters have been fetched and stored in the local cache, you can begin interacting with the model without the need for an internet connection.</p>
+<p>You can use <a class="reference external" href="https://webgpureport.org/">WebGPU Report</a> to verify the functionality of WebGPU on your browser.</p>
+<figure class="align-center" id="id7">
+<a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/web.gif"><img alt="https://mlc.ai/blog/img/redpajama/web.gif" src="https://mlc.ai/blog/img/redpajama/web.gif" style="width: 300px;" /></a>
+<figcaption>
+<p><span class="caption-text">MLC LLM on Web</span><a class="headerlink" href="#id7" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</div></div>
+</section>
+<section id="terminologies">
+<span id="id1"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">Terminologies</a><a class="headerlink" href="#terminologies" title="Permalink to this heading">¶</a></h2>
+<p>To gain a comprehensive understanding of MLC LLM, it is essential to familiarize ourselves with key terminologies that represent fundamental components within the MLC LLM Chat application. When operating a chat application, three pivotal elements are involved:</p>
+<section id="model-weights">
+<span id="id2"></span><h3><a class="toc-backref" href="#id11" role="doc-backlink">Model Weights</a><a class="headerlink" href="#model-weights" title="Permalink to this heading">¶</a></h3>
+<p>The models weights include</p>
+<ul>
+<li><p><strong>Neural Network Weights</strong>: which are sharded and stored in a list of binary files with name: <code class="docutils literal notranslate"><span class="pre">params_shard_ID.bin</span></code> where <code class="docutils literal notranslate"><span class="pre">ID</span></code> is the shard index.</p></li>
+<li><p><strong>Tokenizer files</strong>: which are stored in a list of files under the current directory. The number of files depends on the tokenizer type.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>For SentencePiece tokenizer, the tokenizer files would be a single <code class="docutils literal notranslate"><span class="pre">tokenizer.model</span></code> file.</p></li>
+<li><p>For HuggingFace-style tokenizer, the tokenizer files would be a single <code class="docutils literal notranslate"><span class="pre">tokenizer.json</span></code> file.</p></li>
+<li><p>For Byte-Level BPE tokenizer, the tokenizer files would be a <code class="docutils literal notranslate"><span class="pre">vocab.json</span></code> file, a <code class="docutils literal notranslate"><span class="pre">merges.txt</span></code> and a <code class="docutils literal notranslate"><span class="pre">added_tokens.json</span></code> file.</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</section>
+<section id="model-library">
+<span id="model-lib"></span><h3><a class="toc-backref" href="#id12" role="doc-backlink">Model Library</a><a class="headerlink" href="#model-library" title="Permalink to this heading">¶</a></h3>
+<p>The model library refers to the executable libraries that enable the execution of a specific model architecture. On Linux, these libraries have the suffix <code class="docutils literal notranslate"><span class="pre">.so</span></code>, on macOS, the suffix is <code class="docutils literal notranslate"><span class="pre">.dylib</span></code>, and on Windows, the library file ends with <code class="docutils literal notranslate"><span class="pre">.dll</span></code>.</p>
+</section>
+<section id="chat-config">
+<span id="id3"></span><h3><a class="toc-backref" href="#id13" role="doc-backlink">Chat Config</a><a class="headerlink" href="#chat-config" title="Permalink to this heading">¶</a></h3>
+<p>The chat configuration includes settings that allow customization of parameters such as temperature and system prompt. For detailed instructions on how to customize conversations in the chat app, please refer to our documentation: <a class="reference internal" href="../tutorials/runtime/mlc_chat_config.html"><span class="doc">Configure MLCChat in JSON</span></a>.</p>
+<p>Additionally, the chat configuration contains metadata that is essential for the application to locate and execute the model and tokenizers:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">local_id</span></code></dt><dd><p>The key uniquely identifies the model within an app.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">model_lib</span></code></dt><dd><p>This key specifies which model library to use.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">tokenizer_files</span></code></dt><dd><p>This field specifies the list of tokenizer files.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="runtime-workflow">
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">Runtime Workflow</a><a class="headerlink" href="#runtime-workflow" title="Permalink to this heading">¶</a></h2>
+<p>Once the model weights, model library, and chat configuration are prepared, the MLC-LLM can be employed as an engine to drive a chat application. The diagram below depicts a typical workflow for an application that utilizes the MLC-LLM’s capabilities.</p>
+<a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg" class="align-center" src="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg" width="100%" /></a>
+<p>On the right side of the figure, you can see pseudo code illustrating the structure of an MLC chat API during the execution of a chat app. Typically, there is a <code class="docutils literal notranslate"><span class="pre">ChatModule</span></code> that manages the model. The chat app includes a reload function that takes a <code class="docutils literal notranslate"><span class="pre">local_id</span></code> as well as an optional chat configuration override, which allows for overriding settings such as the system prompt and temperature. The MLC Chat runtime utilizes the <code class="docutils literal notranslate"><span class="pre">local_id</span></code> and <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> to locate the model and initialize its internal state.</p>
+<p>All MLC Chat runtimes, including iOS, Web, CLI, and others, make use of these key elements. They are capable of reading the same model weights, although the packaging of the model libraries may vary. For the CLI, the model libraries are stored in a DLL directory. iOS and Android include pre-packaged model libraries within the app itself due to restrictions on dynamic loading. WebLLM, on the other hand, utilizes a <code class="docutils literal notranslate"><span class="pre">model_lib_map</span></code> that maps the library name to URLs of WebAssembly (Wasm) files. Thanks to the shared model weights, we can create the weights once and run them across different platforms.</p>
+</section>
+<section id="overview-of-mlc-llm">
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">Overview of MLC LLM</a><a class="headerlink" href="#overview-of-mlc-llm" title="Permalink to this heading">¶</a></h2>
+<p>To prepare model weights, libraries, and chat configurations, we can utilize the compiler component of MLC LLM. The project consists of three distinct submodules: model definition, model compilation, and runtimes.</p>
+<figure class="align-center" id="id8">
+<a class="reference internal image-reference" href="../_images/project-structure.svg"><img alt="Project Structure" src="../_images/project-structure.svg" width="600" /></a>
+<figcaption>
+<p><span class="caption-text">Three independent submodules in MLC LLM</span><a class="headerlink" href="#id8" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<p><strong>➀ Model definition in Python.</strong> MLC offers a variety of pre-defined architectures, such as Llama (e.g., Vicuna, OpenLlama, Llama, Wizard), GPT-NeoX (e.g., RedPajama, Dolly), RNNs (e.g., RWKV), and GPT-J (e.g., MOSS). Model developers could solely define the model in pure Python, without having to touch code generation and runtime.</p>
+<p><strong>➁ Model compilation in Python.</strong> <a class="reference internal" href="../install/tvm.html"><span class="doc">TVM Unity</span></a> compiler are configured in pure python, and it quantizes and exports the Python-based model to <a class="reference internal" href="#model-lib"><span class="std std-ref">model lib</span></a> and quantized <a class="reference internal" href="#model-weights"><span class="std std-ref">model weights</span></a>. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.</p>
+<p><strong>➂ Platform-native runtimes.</strong> Variants of MLCChat are provided on each platform: <strong>C++</strong> for command line, <strong>Javascript</strong> for web, <strong>Swift</strong> for iOS, and <strong>Java</strong> for Android, configurable with a JSON <a class="reference internal" href="#chat-config"><span class="std std-ref">chat config</span></a>. App developers only need to familiarize with the platform-naive runtimes to integrate MLC-compiled LLMs into their projects.</p>
+</section>
+<section id="further-exploration">
+<h2><a class="toc-backref" href="#id16" role="doc-backlink">Further Exploration</a><a class="headerlink" href="#further-exploration" title="Permalink to this heading">¶</a></h2>
+<p>In addition to the information provided in this page, we offer detailed tutorials on specific topics to help you dive deeper into MLC LLM. If you’re interested in trying out advanced features, such as compile your own models, we have dedicated tutorials to guide you through the process. To learn more about each topic mentioned in this documentation, simply click on the corresponding links below. We encourage you to explore these tutorials to expand your knowledge and make the most of MLC LLM. Happy learning!</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../tutorials/prebuilts/prebuilt_models.html"><span class="doc">🚧 Model Prebuilts</span></a>: Check out the prebuilt models available with MLC LLM.</p></li>
+<li><p><a class="reference internal" href="../index.html#runtime-apis"><span class="std std-ref">Run models with MLC-Chat APIs</span></a>: Explore how to use MLC-LLM APIs in your own projects.</p></li>
+<li><p><a class="reference internal" href="../index.html#compile-models"><span class="std std-ref">Compile Models</span></a>: Learn how to compile your own language models using MLC LLM.</p></li>
+<li><p><a class="reference internal" href="../index.html#define-new-models"><span class="std std-ref">Define New Model Architectures</span></a>: Learn how to incorporate new model architectures.</p></li>
+<li><p>Blog Posts on bringing LLM to the edge
+- <a class="reference external" href="https://mlc.ai/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware">Bringing Hardware Accelerated Language Models to Consumer Devices</a>
+- <a class="reference external" href="https://mlc.ai/blog/2023/05/08/bringing-hardware-accelerated-language-models-to-android-devices">Bringing Hardware Accelerated Language Models to Android Devices</a></p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+           
+          </div>
+          
+
+<footer>
+
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../tutorials/runtime/mlc_chat_config.html" class="btn btn-neutral float-right" title="Configure MLCChat in JSON" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="../index.html" class="btn btn-neutral float-left" title="👋 Welcome to MLC LLM" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+
+<div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
+<section class="footerSec">
+    <div class="footerHeader">
+      <div class="d-flex align-md-items-center justify-content-between flex-column flex-md-row">
+        <div class="copywrite d-flex align-items-center">
+          <h5 id="copy-right-info">© 2022 MLC LLM</h5>
+        </div>
+      </div>
+
+    </div>
+
+    <div>
+      <div class="footernote"> </div>
+    </div>
+
+</section>
+</footer>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+  </body>
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

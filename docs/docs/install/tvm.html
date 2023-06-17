@@ -167,19 +167,18 @@
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../get_started/mlcchat_terminologies.html">🚧 Terminologies</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Use Compiled Models</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">Run Models in C++</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">🚧 Run Models in JavaScript</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/android.html">🚧 Run Models in Android</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/ios.html">🚧 Run Models in iOS</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/python.html">🚧 Run Models with Python</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/index.html">Get Started with MLC LLM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Run models with MLC-Chat APIs</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/cpp.html">Use MLC-Chat with C++ APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/javascript.html">Use MLC-Chat with Javascript APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/runtime/rest.html">Use MLC-Chat with REST APIs</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/get-vicuna-weight.html">Getting Vicuna Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/model_compilation_walkthrough.html">🚧 Compile a Model in MLC LLM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/compiler_artifacts.html">🚧 Compiler Artifact Spec</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/configure_targets.html">🚧 Configure Targets</a></li>
@@ -203,6 +202,9 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="gpu.html">GPU Drivers and SDKs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">Install MLCChat-CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ios.html">Build iOS Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="android.html">Build Android Package</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
@@ -214,7 +216,6 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/deploy-models.html">How to Deploy Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/bring-your-own-models.html">Add New Model Architectures</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/customize.html">Customize Model Compilation and Optimization</a></li>
 </ul>
 
             
@@ -297,17 +298,13 @@
            <div itemprop="articleBody">
             
   <section id="install-tvm-unity">
-<h1><a class="toc-backref" href="#id5" role="doc-backlink">Install TVM Unity</a><a class="headerlink" href="#install-tvm-unity" title="Permalink to this heading">¶</a></h1>
-<nav class="contents" id="table-of-contents">
+<h1>Install TVM Unity<a class="headerlink" href="#install-tvm-unity" title="Permalink to this heading">¶</a></h1>
+<nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#install-tvm-unity" id="id5">Install TVM Unity</a></p>
-<ul>
-<li><p><a class="reference internal" href="#option-1-prebuilt-package" id="id6">Option 1. Prebuilt Package</a></p></li>
-<li><p><a class="reference internal" href="#option-2-build-from-source" id="id7">Option 2. Build from Source</a></p></li>
-<li><p><a class="reference internal" href="#validate-installation" id="id8">Validate Installation</a></p></li>
-</ul>
-</li>
+<li><p><a class="reference internal" href="#option-1-prebuilt-package" id="id5">Option 1. Prebuilt Package</a></p></li>
+<li><p><a class="reference internal" href="#option-2-build-from-source" id="id6">Option 2. Build from Source</a></p></li>
+<li><p><a class="reference internal" href="#validate-installation" id="id7">Validate Installation</a></p></li>
 </ul>
 </nav>
 <p><a class="reference external" href="https://discuss.tvm.apache.org/t/establish-tvm-unity-connection-a-technical-strategy/13344">TVM Unity</a>, the latest development in Apache TVM, is required to build MLC LLM. Its features include:</p>
@@ -319,12 +316,12 @@
 </ul>
 <p>TVM Unity can be installed directly from a prebuilt developer package, or built from source.</p>
 <section id="option-1-prebuilt-package">
-<h2><a class="toc-backref" href="#id6" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading">¶</a></h2>
 <p>To help our community to use Apache TVM Unity, a nightly prebuilt developer package is provided with everything packaged.</p>
 <p>Please visit the installation page for installation instructions: <a class="reference external" href="https://mlc.ai/package/">https://mlc.ai/package/</a>.</p>
 </section>
 <section id="option-2-build-from-source">
-<span id="tvm-unity-build-from-source"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
+<span id="tvm-unity-build-from-source"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
 <p>While it is generally recommended to always use the prebuilt TVM Unity, if you require more customization, you may need to build it from source. <strong>NOTE.</strong> this should only be attempted if you are familiar with the intricacies of C++, CMake, LLVM, Python, and other related systems.</p>
 <details class="summary-details">
 <summary>Details</summary><p><strong>Step 1. Set up build dependency.</strong> To build from source, you need to ensure that the following build dependencies are met:</p>
@@ -428,7 +425,7 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 </div>
 </section>
 <section id="validate-installation">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h2>
 <p>Using a compiler infrastructure with multiple language bindings could be error-prone.
 Therefore, it is highly recommended to validate TVM Unity installation before use.</p>
 <p><strong>Step 1. Locate TVM Python package.</strong> The following command can help confirm that TVM is properly installed as a python package and provide the location of the TVM python package:</p>
