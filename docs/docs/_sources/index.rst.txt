@@ -1,11 +1,11 @@
 👋 Welcome to MLC LLM
-===================================
+=====================
 
-`Discord <https://discord.gg/9Xpy2HGBuD>`_ | `Demo <https://mlc.ai/mlc-llm>`_ | `GitHub <https://github.com/mlc-ai/mlc-llm>`_
+`Discord <https://discord.gg/9Xpy2HGBuD>`_ | `GitHub <https://github.com/mlc-ai/mlc-llm>`_
 
 🚧 This document is currently undergoing heavy construction.
 
-👉 👉 :doc:`Try out MLC LLM on your devices. </get_started/try_out_mlc_llm>`
+👉 👉 :doc:`Get started by try out the MLC Chat. </get_started/try_out>`
 
 Machine Learning Compilation for LLM (MLC LLM) is a universal deployment solution that enables LLMs to run efficiently on consumer devices, leveraging native hardware acceleration like GPUs.
 
@@ -88,7 +88,6 @@ The underlying compiler techniques employed by MLC LLM are outlined in the follo
          month = oct,
       }
 ..
-|
 
 
 If you are interested in using Machine Learning Compilation in practice, we highly recommend the following course:
@@ -100,21 +99,20 @@ If you are interested in using Machine Learning Compilation in practice, we high
    :caption: Get Started
    :hidden:
 
-   get_started/try_out_mlc_llm.rst
+   get_started/try_out.rst
    get_started/mlc_chat_config.rst
+   get_started/proj_overview.rst
 
 .. toctree::
    :maxdepth: 1
-   :caption: Build Apps
+   :caption: Build and Deploy Apps
    :hidden:
 
-   tutorials/proj_overview.rst
-   tutorials/runtime/cpp.rst
-   tutorials/runtime/javascript.rst
-   tutorials/runtime/rest.rst
-   tutorials/app_build/cli.rst
-   tutorials/app_build/ios.rst
-   tutorials/app_build/android.rst
+   deploy/javascript.rst
+   deploy/rest.rst
+   deploy/cli.rst
+   deploy/ios.rst
+   deploy/android.rst
 
 .. toctree::
    :maxdepth: 1

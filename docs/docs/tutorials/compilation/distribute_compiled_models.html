@@ -166,18 +166,17 @@
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../get_started/try_out_mlc_llm.html">Try out MLC LLM on your device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../get_started/try_out.html">Try out MLC Chat</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../get_started/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../get_started/proj_overview.html">Project Overview</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Build Apps</span></p>
+<p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../proj_overview.html">Project Overview</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../runtime/cpp.html">C++ APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../runtime/javascript.html">WebLLM Javascript APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../runtime/rest.html">Rest APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../app_build/cli.html">Build MLCChat-CLI</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../app_build/ios.html">Build iOS Package</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../app_build/android.html">Build Android Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../deploy/javascript.html">WebLLM and Javascript API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../deploy/rest.html">Rest API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../deploy/cli.html">CLI and C++ API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../deploy/ios.html">iOS App and Swift API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../deploy/android.html">Android App</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul class="current">
@@ -299,8 +298,8 @@
 <p>Before proceeding, you should first have the model compiled manually.
 At this moment, the iOS/Android/web app released by MLC LLM only support <strong>specific model architectures with specific quantization modes</strong>. Particularly,</p>
 <ul class="simple">
-<li><p>the <a class="reference internal" href="../../get_started/try_out_mlc_llm.html#get-started"><span class="std std-ref">released iOS/iPadOS app</span></a> supports models structured by LLaMA-7B and quantized by <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>, and models structured by GPT-NeoX-3B and quantized by <code class="docutils literal notranslate"><span class="pre">q4f16_0</span></code>.</p></li>
-<li><p>the <a class="reference internal" href="../../get_started/try_out_mlc_llm.html#get-started"><span class="std std-ref">released Android app</span></a> supports models structured by LLaMA-7B/GPT-NeoX-3B and quantized by <code class="docutils literal notranslate"><span class="pre">q4f16_0</span></code>.</p></li>
+<li><p>the <a class="reference internal" href="../../get_started/try_out.html#get-started"><span class="std std-ref">released iOS/iPadOS app</span></a> supports models structured by LLaMA-7B and quantized by <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>, and models structured by GPT-NeoX-3B and quantized by <code class="docutils literal notranslate"><span class="pre">q4f16_0</span></code>.</p></li>
+<li><p>the <a class="reference internal" href="../../get_started/try_out.html#get-started"><span class="std std-ref">released Android app</span></a> supports models structured by LLaMA-7B/GPT-NeoX-3B and quantized by <code class="docutils literal notranslate"><span class="pre">q4f16_0</span></code>.</p></li>
 <li><p>the <a class="reference external" href="https://mlc.ai/web-llm/">Web LLM demo page</a> supports models structured by LLaMA-7B and quantized by <code class="docutils literal notranslate"><span class="pre">q4f32_0</span></code>, and models structured by GPT-NeoX-3B and quantized by both <code class="docutils literal notranslate"><span class="pre">q4f16_0</span></code> and <code class="docutils literal notranslate"><span class="pre">q4f32_0</span></code>.</p></li>
 </ul>
 <p>If you have not compiled the model with supported quantization mode(s), please refer to <a class="reference internal" href="compile_models.html"><span class="doc">the model compile tutorial</span></a> to compile the model with supported quantization modes and then come back to this page. You also need to build the iOS/Android app manually when the quantization mode you used is not supported by the iOS/Android app prebuilt by MLC LLM.</p>

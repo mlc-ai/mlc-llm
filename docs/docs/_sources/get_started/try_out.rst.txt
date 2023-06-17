@@ -1,15 +1,17 @@
 .. _get_started:
 
-Try out MLC LLM on your device
-==============================
+Try out MLC Chat
+================
 
-We have prepared packages for you to try out MLC LLM locally, and you can try out prebuilt models on your device:
+Welcome to MLC LLM, to get started, we have prepared prebuilt packages
+for you to try out MLC Chat app built with MLC LLM,
+and you can try out prebuilt models on the following platforms:
 
 .. tabs::
 
   .. tab:: iOS
 
-    The MLC LLM app is now accessible on the App Store at no cost. You can download and explore it by simply clicking the button below:
+    The MLC Chat app is now accessible on the App Store at no cost. You can download and explore it by simply clicking the button below:
 
     .. image:: https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg
       :width: 135
@@ -23,11 +25,11 @@ We have prepared packages for you to try out MLC LLM locally, and you can try ou
       :width: 300
       :align: center
 
-      MLC LLM on iOS
+      MLC Chat on iOS
 
   .. tab:: Android
 
-    The MLC LLM Android app is free and available for download and can be tried out by simply clicking the button below:
+    The MLC Chat Android app is free and available for download and can be tried out by simply clicking the button below:
 
     .. image:: https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png
       :width: 135
@@ -69,7 +71,7 @@ We have prepared packages for you to try out MLC LLM locally, and you can try ou
 
     Once the parameters have been fetched and stored in the local cache, you can begin interacting with the model without the need for an internet connection.
 
-    You can use `WebGPU Report <https://webgpureport.org/>`__ to verify the functionality of WebGPU on your browser.
+    A WebGPU-compatible browser and a local GPU are needed to run WebLLM. You can download the latest Google Chrome and use `WebGPU Report <https://webgpureport.org/>`__ to verify the functionality of WebGPU on your browser.
 
     .. figure:: https://mlc.ai/blog/img/redpajama/web.gif
       :width: 300
@@ -78,16 +80,4 @@ We have prepared packages for you to try out MLC LLM locally, and you can try ou
       MLC LLM on Web
 
 
-Customize MLC-Chat Configuration
---------------------------------
 
-The behavior of the chat can be customized by modifying the chat configuration file. To learn more about customizing the chat configuration JSON, you can refer to the following tutorials which provide a detailed walkthrough:
-
-- :doc:`/get_started/mlc_chat_config`
-
-Model Prebuilts
----------------
-
-To use different pre-built models, you can refer to the following tutorials:
-
-- :doc:`/tutorials/prebuilts/prebuilt_models`
