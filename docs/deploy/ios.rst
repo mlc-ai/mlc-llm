@@ -31,7 +31,7 @@ Please follow :doc:`/install/tvm` to install TVM Unity.
 Step 2. Download LLM weights
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For our tutorial :doc:`/tutorials/compilation/get-vicuna-weight` to get Vicuna weights. The contents of the folder should include the following files:
+For our tutorial :doc:`/compilation/get-vicuna-weight` to get Vicuna weights. The contents of the folder should include the following files:
 
 .. code:: bash
 

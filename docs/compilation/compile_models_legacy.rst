@@ -5,7 +5,7 @@ How to Compile Models
 
 In this tutorial, we will guide you on how to build an LLM with architectures that are already supported by MLC LLM for different backends. Before proceeding with this tutorial, make sure you have completed the :doc:`/install/index` tutorial. In the following content, we assume that you have already installed the necessary components and will not cover the installation steps.
 
-We have provided a list of off-the-shelf prebuilt models (:doc:`/tutorials/prebuilt_models`) that you can directly use without the need for building. To learn how to deploy these models, refer to the tutorial :doc:deploy-models.
+We have provided a list of off-the-shelf prebuilt models (:doc:`/prebuilt_models`) that you can directly use without the need for building. To learn how to deploy these models, refer to the tutorial :doc:deploy-models.
 
 If your model is not included in the list of off-the-shelf models, but its architecture falls within the supported model architectures (see the :ref:`supported-model-architectures` section), you can follow this tutorial to build your model for different backends.
 

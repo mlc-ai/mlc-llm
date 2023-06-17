@@ -49,9 +49,9 @@ App Build Instructions
 
       cd jvm; mvn install -pl core -DskipTests -Dcheckstyle.skip=true
 
-5. Follow the instructions in :doc:`/tutorials/compilation/compile_models` to
+5. Follow the instructions in :doc:`/compilation/compile_models` to
    either build the model using a Hugging Face URL, or a local
-   directory. For Vicuna weights, please follow our :doc:`/tutorials/compilation/get-vicuna-weight` tutorial.
+   directory. For Vicuna weights, please follow our :doc:`/compilation/get-vicuna-weight` tutorial.
 
    .. code:: shell
 
