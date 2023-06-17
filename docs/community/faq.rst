@@ -6,7 +6,7 @@ Frequently Asked Questions (FAQ)
 This is a list of Frequently Asked Questions (FAQ) about the MLC-LLM. Feel free to suggest new entries!
 
 ... How can I customize the temperature, repetition penalty of models?
-   Please check our :doc:`/tutorials/runtime/mlc_chat_config` tutorial.
+   Please check our :doc:`/get_started/mlc_chat_config` tutorial.
 
 ... What's the quantization algorithm MLC-LLM using?
    Please check our :doc:`/tutorials/quantization` tutorial.

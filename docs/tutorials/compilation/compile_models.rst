@@ -94,7 +94,7 @@ By executing the compile command above, we generate three parts that are needed 
 - the model library,
 - and chat config.
 
-We have detailed introduction of these three parts in :doc:`the terminology page </tutorials/runtime/terminologies>`.
+We have detailed introduction of these three parts in :doc:`the project overview page </tutorials/proj_overview>`.
 Before proceeding, you can check and identify each part using the commands below:
 
 .. tabs::
