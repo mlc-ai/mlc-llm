@@ -27,11 +27,8 @@ Machine Learning Compilation for LLM (MLC LLM) is a universal deployment solutio
 
 .. _get_started:
 
-Get Started
------------
-
-Try out MLC LLM on your device
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Get Started --- Try out MLC LLM on your device
+----------------------------------------------
 
 We have prepared packages for you to try out MLC LLM locally, and you can try out prebuilt models on your device:
 
@@ -48,13 +45,13 @@ We have prepared packages for you to try out MLC LLM locally, and you can try ou
     Once the app is installed, you can download the models and then engage in chat with the model without requiring an internet connection.
 
     Memory requirements vary across different models. The Vicuna-7B model necessitates an iPhone device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an iPhone with at least 4GB RAM.
-    
+
     .. figure:: https://mlc.ai/blog/img/redpajama/ios.gif
       :width: 300
       :align: center
-      
+
       MLC LLM on iOS
-    
+
   .. tab:: Android
 
     The MLC LLM Android app is free and available for download and can be tried out by simply clicking the button below:
@@ -62,7 +59,7 @@ We have prepared packages for you to try out MLC LLM locally, and you can try ou
     .. image:: https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png
       :width: 135
       :target: https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk
-    
+
     Once the app is installed, you can engage in a chat with the model without the need for an internet connection:
 
     Memory requirements vary across different models. The Vicuna-7B model necessitates an Android device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an Android device with at least 4GB RAM.
@@ -70,10 +67,10 @@ We have prepared packages for you to try out MLC LLM locally, and you can try ou
     .. figure:: https://mlc.ai/blog/img/android/android-recording.gif
       :width: 300
       :align: center
-      
+
       MLC LLM on Android
 
-  .. tab:: CLI(Linux/MacOS/Windows)
+  .. tab:: CLI (Linux/MacOS/Windows)
 
     To utilize the models on your PC, we highly recommend trying out the CLI version of MLC LLM.
 
@@ -84,17 +81,17 @@ We have prepared packages for you to try out MLC LLM locally, and you can try ou
 
       conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-nightly
       conda activate mlc-chat-venv
-   
-    If you are using Windows or Linux, and you want to use GPU, please follow the instructions in :doc:`/install/gpu` tutorial to prepare the environment.
+
+    If you are using Windows or Linux and want to use your native GPU, please follow the instructions in :doc:`/install/gpu` tutorial to prepare the environment.
 
     .. figure:: https://mlc.ai/blog/img/redpajama/cli.gif
       :width: 300
       :align: center
-      
+
       MLC LLM on CLI
 
   .. tab:: Web Browser
-    
+
     With the advancements of WebGPU, we can now run LLM directly on web browsers. You have the opportunity to experience the web version of MLC LLM through `WebLLM <https://mlc.ai/webllm>`__.
 
     Once the parameters have been fetched and stored in the local cache, you can begin interacting with the model without the need for an internet connection.
@@ -104,7 +101,7 @@ We have prepared packages for you to try out MLC LLM locally, and you can try ou
     .. figure:: https://mlc.ai/blog/img/redpajama/web.gif
       :width: 300
       :align: center
-      
+
       MLC LLM on Web
 
 Project Overview
@@ -227,18 +224,17 @@ If you are interested in using Machine Learning Compilation in practice, we high
    tutorials/runtime/cpp.rst
    tutorials/runtime/javascript.rst
    tutorials/runtime/rest.rst
-   install/cli.rst
-   install/ios.rst
-   install/android.rst
+   tutorials/app_build/cli.rst
+   tutorials/app_build/ios.rst
+   tutorials/app_build/android.rst
 
 .. toctree::
    :maxdepth: 1
    :caption: Compile Models
    :hidden:
 
-   tutorials/compilation/get-vicuna-weight.rst
-   tutorials/compilation/model_compilation_walkthrough.rst
-   tutorials/compilation/compiler_artifacts.rst
+   tutorials/compilation/compile_models.rst
+   tutorials/compilation/distribute_compiled_models.rst
    tutorials/compilation/configure_targets.rst
    tutorials/compilation/configure_quantization.rst
 
@@ -279,5 +275,4 @@ If you are interested in using Machine Learning Compilation in practice, we high
    :hidden:
 
    tutorials/deploy-models.rst
-   tutorials/compile-models.rst
    tutorials/bring-your-own-models.rst

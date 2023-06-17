@@ -10,14 +10,14 @@ To gain a comprehensive understanding of MLC LLM runtime, it is essential to fam
 Model Weights
 -------------
 
-The models weights include 
+The models weights include
 
 - **Neural Network Weights**: which are sharded and stored in a list of binary files with name: ``params_shard_ID.bin`` where ``ID`` is the shard index.
 - **Tokenizer files**: which are stored in a list of files under the current directory. The number of files depends on the tokenizer type.
 
    - For SentencePiece tokenizer, the tokenizer files would be a single ``tokenizer.model`` file.
    - For HuggingFace-style tokenizer, the tokenizer files would be a single ``tokenizer.json`` file.
-   - For Byte-Level BPE tokenizer, the tokenizer files would be a ``vocab.json`` file, a ``merges.txt`` and a ``added_tokens.json`` file. 
+   - For Byte-Level BPE tokenizer, the tokenizer files would be a ``vocab.json`` file, a ``merges.txt`` and a ``added_tokens.json`` file.
 
 .. _model_lib:
 

@@ -32,11 +32,11 @@ App Build Instructions
 
 1. Install TVM Unity by following :ref:`Build TVM Unity from Source <tvm-unity-build-from-source>` tutorial.
 
-   Note that our pre-built wheels do not support OpenCL, and you need to built TVM-Unity 
+   Note that our pre-built wheels do not support OpenCL, and you need to built TVM-Unity
    from source and set ``USE_OPENCL`` as ``ON``.
 
 2. Setup ``TVM_NDK_CC`` environment variable to NDK compiler path:
-   
+
    .. code:: bash
 
       # replace the /path/to/android/ndk/clang to your NDK compiler path
@@ -53,7 +53,7 @@ App Build Instructions
 
       cd jvm; mvn install -pl core -DskipTests -Dcheckstyle.skip=true
 
-5. Follow the instructions in :doc:`/tutorials/compilation/model_compilation_walkthrough` to
+5. Follow the instructions in :doc:`/tutorials/compilation/compile_models` to
    either build the model using a Hugging Face URL, or a local
    directory. For Vicuna weights, please follow our :doc:`/tutorials/compilation/get-vicuna-weight` tutorial.
 
@@ -156,7 +156,7 @@ weights you build, please follow the steps below.
 
 -  Step 14. Push the tokenizer and model weights to your phone through
    ADB.
-   
+
     .. code:: bash
 
       adb push dist/models/vicuna-v1-7b/tokenizer.model /data/local/tmp/vicuna-v1-7b/tokenizer.model
