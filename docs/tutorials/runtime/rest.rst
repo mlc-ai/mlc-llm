@@ -1,5 +1,5 @@
-Use MLC-Chat with REST APIs
-===========================
+Rest APIs
+=========
 
 .. contents:: Table of Contents
    :local:
