@@ -25,74 +25,57 @@ Machine Learning Compilation for LLM (MLC LLM) is a universal deployment solutio
    |   Android         | ✅ OpenCL on Adreno GPU               | 🚧  OpenCL on Mali GPU                  |
    +-------------------+-------------------+-------------------+-------------------+---------------------+
 
+.. _get_started:
 
 Get Started
 -----------
 
-:doc:`get_started/mlcchat_terminologies`
+We have prepared a comprehensive tutorial to assist you in getting started with MLC LLM. This tutorial aims to familiarize you with the terminologies commonly used in MLC LLM and provide you with a clear understanding of the overall workflow, and help you navigate through the documentation.
 
+- :doc:`get_started/index`
 
-Project Structure
------------------
+.. _runtime_apis:
 
-The project comprises three independent submodules: model definition, model compilation, and runtimes.
+Run models with MLC-Chat APIs
+-----------------------------
 
-.. figure:: _static/img/project-structure.svg
-   :width: 600
-   :align: center
-   :alt: Project Structure
-
-   Three independent submodules in MLC LLM
-
-.. ➀➁➂➃➄➅➆➇➈➉
-.. ➊➋➌➍➎➏➐➑➒➓
-
-**➀ Model definition in Python.** MLC offers a variety of pre-defined architectures, such as Llama (e.g., Vicuna, OpenLlama, Llama, Wizard), GPT-NeoX (e.g., RedPajama, Dolly), RNNs (e.g., RWKV), and GPT-J (e.g., MOSS). Model developers could solely define the model in pure Python, without having to touch code generation and runtime.
-
-**➁ Model compilation in Python.** :doc:`TVM Unity </install/tvm>` compiler are configured in pure python, and it quantizes and exports the Python-based model to :ref:`model lib <model_lib>` and quantized :ref:`model weights <model_weights>`. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.
-
-**➂ Platform-native runtimes.** Variants of MLCChat are provided on each platform: **C++** for command line, **Javascript** for web, **Swift** for iOS, and **Java** for Android, configurable with a JSON :ref:`chat config <chat_config>`. App developers only need to familiarize with the platform-naive runtimes to integrate MLC-compiled LLMs into their projects.
-
-Tutorials
----------
+The following tutorials will guide you on running MLC-compiled models using MLCChat APIs in various programming languages.
+These tutorials aim to help you create your own applications based on these models.
 
 .. tabs ::
 
-   .. tab :: ➂ Use Compiled Models
+   .. tab :: C++
+      - :doc:`tutorials/runtime/cpp`
+   .. tab :: Javascript
+      - :doc:`tutorials/runtime/javascript`
+   .. tab :: REST
+      - :doc:`tutorials/runtime/rest`
 
-      The following tutorials introduce how to run MLC-compiled models with MLCChat or in platform-native projects.
+.. _compile_models:
 
-      - :doc:`tutorials/runtime/cpp` for command line
-      - :doc:`tutorials/runtime/javascript` for WebLLM
-      - :doc:`tutorials/runtime/android` for Android
-      - :doc:`tutorials/runtime/ios` for iOS
-      - :doc:`tutorials/runtime/python` for running models in Python
+Compile Models
+--------------
 
-      MLCChat can be configured with :doc:`JSON <tutorials/runtime/mlc_chat_config>`.
+:doc:`TVM Unity </install/tvm>` is required to compile models.
 
-      **Note.** :doc:`TVM Unity </install/tvm>` compiler is not a dependency to running any MLC-compiled model.
+- :doc:`tutorials/compilation/model_compilation_walkthrough`
+- :doc:`tutorials/compilation/compiler_artifacts`
+- :doc:`tutorials/compilation/configure_targets`
+- :doc:`tutorials/compilation/configure_quantization`
 
-   .. tab :: ➁ Compile Models
+.. _define_new_models:
 
-      :doc:`TVM Unity </install/tvm>` is required to compile models.
+Define New Model Architectures
+------------------------------
 
-      - :doc:`tutorials/compilation/model_compilation_walkthrough`
-      - :doc:`tutorials/compilation/compiler_artifacts`
-      - :doc:`tutorials/compilation/configure_targets`
-      - :doc:`tutorials/compilation/configure_quantization`
+:doc:`TVM Unity </install/tvm>` is required to define new model architectures.
 
-   .. tab :: ➀ Define Model Architectures
+- :doc:`tutorials/bring-your-own-models`
 
-      :doc:`TVM Unity </install/tvm>` is required to define new model architectures.
+MLC-Prebuilt LLMs
+-----------------
 
-      - :doc:`tutorials/customize/define_new_models`
-
-   .. tab :: MLC-Prebuilt LLMs
-
-      - :doc:`tutorials/prebuilts/prebuilt_models`
-
-.. - Machine Learning Compilation Basics: `Machine Learning Compilation <https://mlc.ai/>`__
-
+- :doc:`tutorials/prebuilts/prebuilt_models`
 
 Community
 ---------
@@ -100,30 +83,98 @@ Community
 - :doc:`Community guideline <community/guideline>` 
 - :doc:`FAQs <community/faq>` 
 
+Misc
+----
+
+If you find MLC LLM useful in your work, please consider citing the project using the following format:
+
+.. code:: bibtex
+
+   @software{mlc-llm,
+      author = {MLC team},
+      title = {{MLC-LLM}},
+      url = {https://github.com/mlc-ai/mlc-llm},
+      year = {2023}
+   }
+
+The underlying compiler techniques employed by MLC LLM are outlined in the following papers:
+
+.. collapse:: References (Click to expand)
+
+   .. code:: bibtex
+
+      @inproceedings{tensorir,
+         author = {Feng, Siyuan and Hou, Bohan and Jin, Hongyi and Lin, Wuwei and Shao, Junru and Lai, Ruihang and Ye, Zihao and Zheng, Lianmin and Yu, Cody Hao and Yu, Yong and Chen, Tianqi},
+         title = {TensorIR: An Abstraction for Automatic Tensorized Program Optimization},
+         year = {2023},
+         isbn = {9781450399166},
+         publisher = {Association for Computing Machinery},
+         address = {New York, NY, USA},
+         url = {https://doi.org/10.1145/3575693.3576933},
+         doi = {10.1145/3575693.3576933},
+         booktitle = {Proceedings of the 28th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2},
+         pages = {804–817},
+         numpages = {14},
+         keywords = {Tensor Computation, Machine Learning Compiler, Deep Neural Network},
+         location = {Vancouver, BC, Canada},
+         series = {ASPLOS 2023}
+      }
+
+      @inproceedings{metaschedule,
+         author = {Shao, Junru and Zhou, Xiyou and Feng, Siyuan and Hou, Bohan and Lai, Ruihang and Jin, Hongyi and Lin, Wuwei and Masuda, Masahiro and Yu, Cody Hao and Chen, Tianqi},
+         booktitle = {Advances in Neural Information Processing Systems},
+         editor = {S. Koyejo and S. Mohamed and A. Agarwal and D. Belgrave and K. Cho and A. Oh},
+         pages = {35783--35796},
+         publisher = {Curran Associates, Inc.},
+         title = {Tensor Program Optimization with Probabilistic Programs},
+         url = {https://proceedings.neurips.cc/paper_files/paper/2022/file/e894eafae43e68b4c8dfdacf742bcbf3-Paper-Conference.pdf},
+         volume = {35},
+         year = {2022}
+      }
+
+      @inproceedings{tvm,
+         author = {Tianqi Chen and Thierry Moreau and Ziheng Jiang and Lianmin Zheng and Eddie Yan and Haichen Shen and Meghan Cowan and Leyuan Wang and Yuwei Hu and Luis Ceze and Carlos Guestrin and Arvind Krishnamurthy},
+         title = {{TVM}: An Automated {End-to-End} Optimizing Compiler for Deep Learning},
+         booktitle = {13th USENIX Symposium on Operating Systems Design and Implementation (OSDI 18)},
+         year = {2018},
+         isbn = {978-1-939133-08-3},
+         address = {Carlsbad, CA},
+         pages = {578--594},
+         url = {https://www.usenix.org/conference/osdi18/presentation/chen},
+         publisher = {USENIX Association},
+         month = oct,
+      }
+..
+|
+
+
+If you are interested in using Machine Learning Compilation in practice, we highly recommend the following course:
+
+- `Machine Learning Compilation <https://mlc.ai/>`__
+
 .. toctree::
    :maxdepth: 1
    :caption: Get Started
    :hidden:
 
-   get_started/mlcchat_terminologies.rst
+   get_started/index.rst
+   tutorials/runtime/mlc_chat_config.rst
 
 .. toctree::
    :maxdepth: 1
-   :caption: Use Compiled Models
+   :caption: Run models with MLC-Chat APIs
    :hidden:
 
    tutorials/runtime/cpp.rst
    tutorials/runtime/javascript.rst
-   tutorials/runtime/android.rst
-   tutorials/runtime/ios.rst
-   tutorials/runtime/python.rst
-   tutorials/runtime/mlc_chat_config.rst
+   tutorials/runtime/rest.rst
 
 .. toctree::
    :maxdepth: 1
    :caption: Compile Models
    :hidden:
 
+   tutorials/compilation/get-vicuna-weight.rst
    tutorials/compilation/model_compilation_walkthrough.rst
    tutorials/compilation/compiler_artifacts.rst
    tutorials/compilation/configure_targets.rst
@@ -151,6 +202,9 @@ Community
    install/tvm.rst
    install/conda.rst
    install/gpu.rst
+   install/cli.rst
+   install/ios.rst
+   install/android.rst
 
 .. toctree::
    :maxdepth: 1
@@ -167,4 +221,3 @@ Community
    tutorials/deploy-models.rst
    tutorials/compile-models.rst
    tutorials/bring-your-own-models.rst
-   tutorials/customize.rst

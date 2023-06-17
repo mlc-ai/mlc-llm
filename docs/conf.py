@@ -13,7 +13,7 @@ copyright = "2023, %s" % author
 version = "0.1.0"
 release = "0.1.0"
 
-extensions = ['sphinx_tabs.tabs', 'sphinx_toolbox.collapse']
+extensions = ['sphinx_tabs.tabs', 'sphinx_toolbox.collapse', 'sphinxcontrib.httpdomain']
 
 source_suffix = [".rst"]
 

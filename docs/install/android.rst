@@ -1,22 +1,36 @@
-🚧 Run Models in Android
-========================
+Build Android Package
+=====================
+
+.. contents:: Table of Contents
+   :local:
+   :depth: 2
 
 .. image:: https://github.com/mlc-ai/mlc-llm/raw/main/site/gif/android-demo.gif
   :width: 400
   :align: center
 
-We are excited to share that we have enabled the Android support for
-MLC-LLM. Checkout `the instruction
-page <https://mlc.ai/mlc-llm/#android>`__ for instructions to download
-and install our Android app. Checkout the `announcing blog
-post <https://mlc.ai/blog/2023/05/08/bringing-hardware-accelerated-language-models-to-android-devices>`__
-for the technical details throughout our process of making MLC-LLM
-possible for Android.
+
+The MLC LLM Android package can be installed in two ways: either from the pre-built package or by building it from source. If you're an Android user interested in trying out models, the pre-built package is the way to go. On the other hand, if you're a developer aiming to incorporate new features into the package, building the Android package from source is necessary.
+
+Use Pre-built Android Package
+-----------------------------
+
+The MLC LLM Android app is free and available for download and can be tried out by simply clicking the button below:
+
+.. image:: https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png
+   :width: 135
+   :target: https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk
+
+
+Build Android Package from Source
+---------------------------------
+
+If you're a developer looking to integrate new functionality or support different model architectures in the Android Package, you may need to build it from source. To do so, please follow the instructions provided below on building the Android package from source.
 
 App Build Instructions
-----------------------
+^^^^^^^^^^^^^^^^^^^^^^
 
-1. Install TVM Unity by following :ref:`tvm-unity-build-from-source`.
+1. Install TVM Unity by following :ref:`Build TVM Unity from Source <tvm-unity-build-from-source>` tutorial.
 
    Note that our pre-built wheels do not support OpenCL, and you need to built TVM-Unity 
    from source and set ``USE_OPENCL`` as ``ON``.
@@ -39,15 +53,9 @@ App Build Instructions
 
       cd jvm; mvn install -pl core -DskipTests -Dcheckstyle.skip=true
 
-5. Follow the instructions
-   `here <https://github.com/mlc-ai/mlc-llm#building-from-source>`__ to
+5. Follow the instructions in :doc:`/tutorials/compilation/model_compilation_walkthrough` to
    either build the model using a Hugging Face URL, or a local
-   directory. If opting for a local directory, you can follow the
-   instructions
-   `here <https://huggingface.co/docs/transformers/main/model_doc/llama>`__
-   to get the original LLaMA weights in the HuggingFace format, and
-   `here <https://github.com/lm-sys/FastChat#vicuna-weights>`__ to get
-   Vicuna weights.
+   directory. For Vicuna weights, please follow our :doc:`/tutorials/compilation/get-vicuna-weight` tutorial.
 
    .. code:: shell
 
@@ -98,7 +106,7 @@ App Build Instructions
 .. image:: https://github.com/mlc-ai/mlc-llm/raw/main/site/img/android/android-studio.png
 
 Use Your Own Model Weights
---------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 By following the instructions above, the installed app will download
 weights from our pre-uploaded HuggingFace repository. If you do not want

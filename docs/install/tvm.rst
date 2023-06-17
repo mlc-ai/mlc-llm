@@ -2,6 +2,7 @@ Install TVM Unity
 =================
 
 .. contents:: Table of Contents
+    :local:
     :depth: 2
 
 `TVM Unity <https://discuss.tvm.apache.org/t/establish-tvm-unity-connection-a-technical-strategy/13344>`__, the latest development in Apache TVM, is required to build MLC LLM. Its features include:
