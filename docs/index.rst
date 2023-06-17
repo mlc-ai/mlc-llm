@@ -100,8 +100,8 @@ If you are interested in using Machine Learning Compilation in practice, we high
    :hidden:
 
    get_started/try_out.rst
+   get_started/project_overview.rst
    get_started/mlc_chat_config.rst
-   get_started/proj_overview.rst
 
 .. toctree::
    :maxdepth: 1

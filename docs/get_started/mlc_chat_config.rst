@@ -1,10 +1,12 @@
 Configure MLCChat in JSON
 =========================
 
-This tutorials explains the components of a chat configuration and how to customize them for your own purposes.
+This page explains the components of a chat configuration and how to customize them for your own purposes.
 
-There is a ``mlc-chat-config.json`` file under the directory of each compiled model (e.g.
-`RedPajama chat config <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/blob/main/mlc-chat-config.json>`__ ) which contains the chat configuration. You can customize the chat configuration by modifying this file.
+Each mlc chat runtime can be configured via a ``mlc-chat-config.json`` file under the directory of each compiled model (e.g.
+`RedPajama chat config <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/blob/main/mlc-chat-config.json>`__ )
+which contains the chat configuration. You can customize the chat configuration by modifying this file.
+Additionally, the runtimes also provide APIs to optionally override some of the configurations.
 
 .. _struct-mlc-chat-conv:
 
@@ -29,6 +31,19 @@ Below is the ``mlc-chat-config.json`` file corresponding to Vicuna model:
         "tokenizer.model"
     ]
   }
+
+The following fields contains meta-data that affects system behaviors.
+
+``model_lib``
+  The necessary model library to launch this model architecture. We recommend reuse model lib when possible.
+  For example, all llama-7b models can use `vicuna-v1-7b-q4f32_0`. So you can distribute llama-7b
+  weight variants and still use them in prebuilt MLC chat apps
+
+``local_id``
+  A key that uniquely identifies the model within an app. This is also used by command line flags to specify which model to run.
+
+``tokenizer_files``
+  List of files needed by tokenizer.
 
 
 The following parameters can be customized to change the behavior of the model:
