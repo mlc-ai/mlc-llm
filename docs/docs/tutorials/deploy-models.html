@@ -181,10 +181,10 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="compilation/compile_models.html">Compile Models in MLC LLM</a></li>
-<li class="toctree-l1"><a class="reference internal" href="compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="compilation/configure_targets.html">🚧 Configure Targets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Models in MLC LLM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/configure_targets.html">🚧 Configure Targets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
 <ul>
@@ -192,7 +192,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="prebuilt_models.html">Model Prebuilts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Installation and Dependency</span></p>
 <ul>
@@ -390,7 +390,7 @@ This allows you to use the prebuilt models in the application.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>To build the iOS/iPadOS/Android app from source, you need first build the model manually.
-Please refer to <a class="reference internal" href="compile-models.html#how-to-compile-models"><span class="std std-ref">the model build tutorial</span></a>, build the model, and then come back to this page.</p>
+Please refer to <a class="reference internal" href="../compilation/compile_models_legacy.html#how-to-compile-models"><span class="std std-ref">the model build tutorial</span></a>, build the model, and then come back to this page.</p>
 </div>
 </div><div aria-labelledby="tab-2-2-1" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-1" name="2-1" role="tabpanel" tabindex="0"><p>If you want to deploy the model you built on mobile devices via the released iOS/Android app, please go through the section about <a class="reference internal" href="#upload-model"><span class="std std-ref">uploading your model to the Internet</span></a>.</p>
 <p>If you want to build the iOS/Android app on your own, the upload action is optional.
@@ -418,7 +418,7 @@ At this moment, the iOS/Android/web app released by MLC LLM only support <strong
 <li><p>the <a class="reference internal" href="#android-download-app"><span class="std std-ref">released Android app</span></a> supports models structured by LLaMA-7B and quantized by <code class="docutils literal notranslate"><span class="pre">q4f16_0</span></code>.</p></li>
 <li><p>the <a class="reference external" href="https://mlc.ai/web-llm/">Web LLM demo page</a> supports models structured by LLaMA-7B and quantized by <code class="docutils literal notranslate"><span class="pre">q4f32_0</span></code>, and models structured by GPT-NeoX-3B and quantized by both <code class="docutils literal notranslate"><span class="pre">q4f16_0</span></code> and <code class="docutils literal notranslate"><span class="pre">q4f32_0</span></code>.</p></li>
 </ul>
-<p>If you have not built the model with supported quantization mode(s), please refer to <a class="reference internal" href="compile-models.html#how-to-compile-models"><span class="std std-ref">the model build tutorial</span></a>, build the model with supported quantization modes, and then come back to this page.</p>
+<p>If you have not built the model with supported quantization mode(s), please refer to <a class="reference internal" href="../compilation/compile_models_legacy.html#how-to-compile-models"><span class="std std-ref">the model build tutorial</span></a>, build the model with supported quantization modes, and then come back to this page.</p>
 </div>
 <p>Assume you have built the model with <a class="reference internal" href="#knowing-local-id"><span class="std std-ref">local id</span></a> <code class="docutils literal notranslate"><span class="pre">MODELNAME-QUANTMODE</span></code>, the directory you need to upload finally will be <code class="docutils literal notranslate"><span class="pre">dist/MODELNAME-QUANTMODE/params</span></code>.
 Before uploading, we need to update <code class="docutils literal notranslate"><span class="pre">dist/MODELNAME-QUANTMODE/params/mlc-chat-config.json</span></code>.</p>
@@ -527,7 +527,7 @@ The link is valid for the first 9000 users.</p>
 <section id="option-2-build-application-from-source">
 <span id="iphone-build-xcode-app"></span><h3>Option 2. Build Application from Source<a class="headerlink" href="#option-2-build-application-from-source" title="Permalink to this heading">¶</a></h3>
 <p>To start building the iOS/iPadOS application, you need first build the model manually.
-If you have not built the model, please refer to <a class="reference internal" href="compile-models.html#how-to-compile-models"><span class="std std-ref">the model build tutorial</span></a>, build the model, and then come back to this page.
+If you have not built the model, please refer to <a class="reference internal" href="../compilation/compile_models_legacy.html#how-to-compile-models"><span class="std std-ref">the model build tutorial</span></a>, build the model, and then come back to this page.
 The following part of this subsection assumes you have built the model successfully and will not cover the model build part.</p>
 <section id="update-ios-app-config">
 <span id="id2"></span><h4>Update iOS App Config<a class="headerlink" href="#update-ios-app-config" title="Permalink to this heading">¶</a></h4>

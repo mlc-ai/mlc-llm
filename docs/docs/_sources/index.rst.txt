@@ -119,10 +119,10 @@ If you are interested in using Machine Learning Compilation in practice, we high
    :caption: Compile Models
    :hidden:
 
-   tutorials/compilation/compile_models.rst
-   tutorials/compilation/distribute_compiled_models.rst
-   tutorials/compilation/configure_targets.rst
-   tutorials/compilation/configure_quantization.rst
+   compilation/compile_models.rst
+   compilation/distribute_compiled_models.rst
+   compilation/configure_targets.rst
+   compilation/configure_quantization.rst
 
 .. toctree::
    :maxdepth: 1
@@ -136,7 +136,7 @@ If you are interested in using Machine Learning Compilation in practice, we high
    :caption: Prebuilt Models
    :hidden:
 
-   tutorials/prebuilt_models.rst
+   prebuilt_models.rst
 
 .. toctree::
    :maxdepth: 1

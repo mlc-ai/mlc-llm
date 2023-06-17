@@ -180,10 +180,10 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/compile_models.html">Compile Models in MLC LLM</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/configure_targets.html">🚧 Configure Targets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Models in MLC LLM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/configure_targets.html">🚧 Configure Targets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
 <ul>
@@ -191,7 +191,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/prebuilt_models.html">Model Prebuilts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Installation and Dependency</span></p>
 <ul>
@@ -295,7 +295,7 @@
 <dl class="simple">
 <dt>… How can I customize the temperature, repetition penalty of models?</dt><dd><p>Please check our <a class="reference internal" href="../get_started/mlc_chat_config.html"><span class="doc">Configure MLCChat in JSON</span></a> tutorial.</p>
 </dd>
-<dt>… What’s the quantization algorithm MLC-LLM using?</dt><dd><p>Please check our <span class="xref std std-doc">/tutorials/quantization</span> tutorial.</p>
+<dt>… What’s the quantization algorithm MLC-LLM using?</dt><dd><p>Please check our <a class="reference internal" href="../compilation/configure_quantization.html"><span class="doc">🚧 Configure Quantization</span></a> tutorial.</p>
 </dd>
 <dt>… Why do I encounter an error <code class="docutils literal notranslate"><span class="pre">free():</span> <span class="pre">invalid</span> <span class="pre">pointer,</span> <span class="pre">Aborted</span> <span class="pre">(core</span> <span class="pre">dumped)</span></code> at the end of model compilation?</dt><dd><p>This happens if you compiled TVM-Unity from source and didn’t hide LLVM symbols in cmake configurations.
 Please follow our instructions in <a class="reference internal" href="../install/tvm.html#tvm-unity-build-from-source"><span class="std std-ref">Building TVM Unity from Source</span></a> tutorial to compile TVM-Unity which hides LLVM symbols,

@@ -51,7 +51,7 @@ and you can try out prebuilt models on the following platforms:
     If you are using Windows or Linux. Make sure you have the latest vulkan driver installed.
     Please follow the instructions in :doc:`/install/gpu` tutorial to prepare the environment.
 
-    You can also checkout :doc:`/tutorials/prebuilt_models` page for other models.
+    You can also checkout :doc:`/prebuilt_models` page for other models.
 
     .. figure:: https://mlc.ai/blog/img/redpajama/cli.gif
       :width: 500

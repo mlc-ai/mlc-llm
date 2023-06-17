@@ -158,7 +158,7 @@ To add a model to the iOS app, follow the steps below:
 |
 
 The iOS has integrated with the following model libraries, which can be directly reused when you want to run a model you compiled in iOS, as long as the model is in the supported model family and is compiled with supported quantization mode.
-For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/open_llama>`_ with quantization mode ``q3f16_0``, then you can run the compiled OpenLLaMA model on iPhone without rebuilding the iOS app by reusing the `vicuna-v1-7b-q3f16_0` model library. Please check the :doc:`model distribution page </tutorials/compilation/distribute_compiled_models>` for detailed instructions.
+For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/open_llama>`_ with quantization mode ``q3f16_0``, then you can run the compiled OpenLLaMA model on iPhone without rebuilding the iOS app by reusing the `vicuna-v1-7b-q3f16_0` model library. Please check the :doc:`model distribution page </compilation/distribute_compiled_models>` for detailed instructions.
 
 .. list-table:: Prebuilt model libraries which are integrated in the iOS app
   :widths: 15 15 15
@@ -246,7 +246,7 @@ MLC-LLM supports the following model architectures:
     - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py>`__
     - * `RWKV-raven <https://github.com/BlinkDL/RWKV-LM>`__
 
-For models structured in these model architectures, you can check the :doc:`model compilation page </tutorials/compilation/compile_models>` on how to compile models.
+For models structured in these model architectures, you can check the :doc:`model compilation page </compilation/compile_models>` on how to compile models.
 Please `create a new issue <https://github.com/mlc-ai/mlc-llm/issues/new/choose>`_ if you want to request a new model architecture.
 Our tutorial :doc:`/tutorials/bring-your-own-models` introduces how to bring a new model architecture to MLC-LLM.
 

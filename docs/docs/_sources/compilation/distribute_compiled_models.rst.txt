@@ -13,7 +13,7 @@ This section introduces how to distribute the model you compiled.
     - the :ref:`released Android app <get_started>` supports models structured by LLaMA-7B/GPT-NeoX-3B and quantized by ``q4f16_0``.
     - the `Web LLM demo page <https://mlc.ai/web-llm/>`_ supports models structured by LLaMA-7B and quantized by ``q4f32_0``, and models structured by GPT-NeoX-3B and quantized by both ``q4f16_0`` and ``q4f32_0``.
 
-    If you have not compiled the model with supported quantization mode(s), please refer to :doc:`the model compile tutorial </tutorials/compilation/compile_models>` to compile the model with supported quantization modes and then come back to this page. You also need to build the iOS/Android app manually when the quantization mode you used is not supported by the iOS/Android app prebuilt by MLC LLM.
+    If you have not compiled the model with supported quantization mode(s), please refer to :doc:`the model compile tutorial </compilation/compile_models>` to compile the model with supported quantization modes and then come back to this page. You also need to build the iOS/Android app manually when the quantization mode you used is not supported by the iOS/Android app prebuilt by MLC LLM.
 
 Assume you have compiled the model ``vicuna-v1-7b`` with quantization mode ``q4f32_0``.
 
