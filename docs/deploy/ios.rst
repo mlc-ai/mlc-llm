@@ -1,18 +1,14 @@
-Build iOS Package
-=================
+iOS App and Swift API
+=====================
 
 .. contents:: Table of Contents
    :local:
    :depth: 2
 
-.. image:: https://mlc.ai/blog/img/redpajama/ios.gif
-  :width: 400
-  :align: center
+The MLC LLM iOS app can be installed in two ways: through the pre-built package or by building it from source. If you're an iOS user looking to try out the models, the pre-built package is recommended. However, if you're a developer seeking to integrate new features into the package, building the iOS package from source is required.
 
-The MLC LLM iOS package can be installed in two ways: through the pre-built package or by building it from source. If you're an iOS user looking to try out the models, the pre-built package is recommended. However, if you're a developer seeking to integrate new features into the package, building the iOS package from source is required.
-
-Use Pre-built iOS Package
--------------------------
+Use Pre-built iOS App
+---------------------
 The MLC LLM app is accessible on the App Store at no cost. You can download and explore it by simply clicking the button below:
 
     .. image:: https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg
@@ -137,8 +133,9 @@ Make sure to select a target device or simulator for the build.
 After a successful build, you can run the iOS app on your device or
 simulator to use the LLM model for text generation and processing.
 
+
 Build your own App with MLC Swift API
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-------------------------------------
 
 We also provide an swift package that you can use to build
 your own app. The package is located under `ios/MLCSwift`.
