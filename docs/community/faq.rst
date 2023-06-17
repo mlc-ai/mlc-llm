@@ -9,7 +9,7 @@ This is a list of Frequently Asked Questions (FAQ) about the MLC-LLM. Feel free 
    Please check our :doc:`/get_started/mlc_chat_config` tutorial.
 
 ... What's the quantization algorithm MLC-LLM using?
-   Please check our :doc:`/tutorials/quantization` tutorial.
+   Please check our :doc:`/compilation/configure_quantization` tutorial.
 
 ... Why do I encounter an error ``free(): invalid pointer, Aborted (core dumped)`` at the end of model compilation?
    This happens if you compiled TVM-Unity from source and didn't hide LLVM symbols in cmake configurations.

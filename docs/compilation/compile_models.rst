@@ -94,7 +94,7 @@ By executing the compile command above, we generate three parts that are needed 
 - the model library,
 - and chat config.
 
-We have detailed introduction of these three parts in :doc:`the project overview page </get_started/proj_overview>`.
+We have detailed introduction of these three parts in :doc:`the project overview page </get_started/project_overview>`.
 Before proceeding, you can check and identify each part using the commands below:
 
 .. tabs::
@@ -209,7 +209,7 @@ Before proceeding, you can check and identify each part using the commands below
 
 Congratulations! You have now completed compiling the model on your own.
 In general, if you are **not** wanting to run the model on your machine using command line interface (CLI), you might need to distribute the model you compiled to Internet as the next step.
-Please refer to the :doc:`model distribution page </tutorials/compilation/distribute_compiled_models>` for more detailed instructions.
+Please refer to the :doc:`model distribution page </compilation/distribute_compiled_models>` for more detailed instructions.
 
 You can now direct to the "run model" page to run the model you just built on your devices, or proceed reading this page for more details about compiling models.
 
@@ -285,7 +285,7 @@ This section lists compile commands for more models that you can try out.
 
     .. tab:: Model: vicuna-v1-7b
 
-        Please check this page on :doc:`how to get the Vicuna model weights </tutorials/compilation/get-vicuna-weight>`.
+        Please check this page on :doc:`how to get the Vicuna model weights </compilation/get-vicuna-weight>`.
 
         .. tabs::
 
@@ -543,6 +543,6 @@ For each model and each backend, the above only provides the most recommended bu
 
 You have now completed compiling the model.
 In general, if you are **not** wanting to run the model on your machine using command line interface (CLI), you might need to distribute the model you compiled to Internet next.
-Please refer to the :doc:`model distribution page </tutorials/compilation/distribute_compiled_models>` for more detailed instructions.
+Please refer to the :doc:`model distribution page </compilation/distribute_compiled_models>` for more detailed instructions.
 
 Now you can proceed to the "run model" page to run the model you just built on your devices.
