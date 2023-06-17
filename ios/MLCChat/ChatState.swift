@@ -3,7 +3,7 @@
 //  LLMChat
 //
 import Foundation
-
+import MLCSwift
 
 enum MessageRole {
     case user
@@ -37,7 +37,7 @@ class ChatState : ObservableObject {
         threadWorker.qualityOfService = QualityOfService.userInteractive;
         threadWorker.start()
     }
-
+    
     // reset all chat state
     func mainResetChat() {
         self.messages = [MessageData]()
