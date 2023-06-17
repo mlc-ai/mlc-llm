@@ -1,5 +1,5 @@
-Install MLCChat-CLI
-===================
+Build MLCChat-CLI
+=================
 
 MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box. You may install it from the prebuilt package we provide, or compile it from source.
 
@@ -161,6 +161,3 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
   ...
 
 Have fun chatting with MLC-compiled LLM!
-
-
-

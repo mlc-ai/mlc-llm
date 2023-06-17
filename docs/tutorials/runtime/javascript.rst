@@ -1,5 +1,5 @@
-Use MLC-Chat with Javascript APIs
-=================================
+WebLLM Javascript APIs
+======================
 
 .. contents:: Table of Contents
    :local:
