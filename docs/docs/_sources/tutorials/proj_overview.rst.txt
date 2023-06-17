@@ -1,14 +1,36 @@
+Project Overview
+================
+
+The MLC-LLM project consists of three distinct submodules: model definition, model compilation, and runtimes.
+
+.. figure:: /_static/img/project-structure.svg
+   :width: 600
+   :align: center
+   :alt: Project Structure
+
+   Three independent submodules in MLC LLM
+
+.. ➀➁➂➃➄➅➆➇➈➉
+.. ➊➋➌➍➎➏➐➑➒➓
+
+**➀ Model definition in Python.** MLC offers a variety of pre-defined architectures, such as Llama (e.g., Vicuna, OpenLlama, Llama, Wizard), GPT-NeoX (e.g., RedPajama, Dolly), RNNs (e.g., RWKV), and GPT-J (e.g., MOSS). Model developers could solely define the model in pure Python, without having to touch code generation and runtime.
+
+**➁ Model compilation in Python.** :doc:`TVM Unity </install/tvm>` compiler are configured in pure python, and it quantizes and exports the Python-based model to :ref:`model lib <model_lib>` and quantized :ref:`model weights <model_weights>`. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.
+
+**➂ Platform-native runtimes.** Variants of MLCChat are provided on each platform: **C++** for command line, **Javascript** for web, **Swift** for iOS, and **Java** for Android, configurable with a JSON :ref:`chat config <chat_config>`. App developers only need to familiarize with the platform-naive runtimes to integrate MLC-compiled LLMs into their projects.
+
+
 .. _terminologies:
 
 Terminologies
-=============
+-------------
 
 To gain a comprehensive understanding of MLC LLM runtime, it is essential to familiarize ourselves with key terminologies that represent fundamental components within the MLC LLM Chat application. When operating a chat application, three pivotal elements are involved:
 
 .. _model_weights:
 
 Model Weights
--------------
+~~~~~~~~~~~~~
 
 The models weights include
 
@@ -22,16 +44,16 @@ The models weights include
 .. _model_lib:
 
 Model Library
--------------
+~~~~~~~~~~~~~
 
 The model library refers to the executable libraries that enable the execution of a specific model architecture. On Linux, these libraries have the suffix ``.so``, on macOS, the suffix is ``.dylib``, and on Windows, the library file ends with ``.dll``.
 
 .. _chat_config:
 
 Chat Config
------------
+~~~~~~~~~~~
 
-The chat configuration includes settings that allow customization of parameters such as temperature and system prompt. For detailed instructions on how to customize conversations in the chat app, please refer to our documentation: :doc:`/tutorials/runtime/mlc_chat_config`.
+The chat configuration includes settings that allow customization of parameters such as temperature and system prompt. For detailed instructions on how to customize conversations in the chat app, please refer to our documentation: :doc:`/get_started/mlc_chat_config`.
 
 Additionally, the chat configuration contains metadata that is essential for the application to locate and execute the model and tokenizers:
 
@@ -43,7 +65,7 @@ Additionally, the chat configuration contains metadata that is essential for the
   This field specifies the list of tokenizer files.
 
 Runtime Workflow
-----------------
+~~~~~~~~~~~~~~~~
 
 Once the model weights, model library, and chat configuration are prepared, the MLC-LLM can be employed as an engine to drive a chat application. The diagram below depicts a typical workflow for an application that utilizes the MLC-LLM's capabilities.
 
