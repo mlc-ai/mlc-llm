@@ -1,5 +1,5 @@
-Rest APIs
-=========
+Rest API
+========
 
 .. contents:: Table of Contents
    :local:

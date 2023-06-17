@@ -1,28 +1,30 @@
-WebLLM Javascript APIs
-======================
+WebLLM and Javascript API
+=========================
 
 .. contents:: Table of Contents
    :local:
    :depth: 2
 
-MLC-Chat also provide its Javascript bindings (`WebLLM <https://www.npmjs.com/package/@mlc-ai/web-llm>`_) to allow user to use MLC-Chat in your web application.
+WebLLM is a MLC chat webruntime (`WebLLM <https://www.npmjs.com/package/@mlc-ai/web-llm>`_)
+that allows you to build chat applications directly in browser.
 
-Install WebLLM NPM Package
---------------------------
+Try out Prebuilt Webpage
+------------------------
 
-.. code:: bash
+To get started, you can try out `WebLLM prebuilt webpage <https://mlc.ai/webllm>`__.
 
-  npm i @mlc-ai/web-llm
+A WebGPU-compatible browser and a local GPU are needed to run WebLLM.
+You can download the latest Google Chrome and use `WebGPU Report <https://webgpureport.org/>`__
+to verify the functionality of WebGPU on your browser.
 
-🚧 API References
------------------
 
-Please refer to the source code of the ChatModule at `this link <https://github.com/mlc-ai/web-llm/blob/main/src/chat_module.ts>`_ to examine the function interface.
+Use WebLLM NPM Package
+----------------------
 
-Use WebLLM API in your own program
-----------------------------------
-
+WebLLM is available as a npm package.
 Below is a simple example to use WebLLM API in your own Typescript program.
+You can follow the instructions in  `get-started <https://github.com/mlc-ai/web-llm/tree/main/examples/get-started>`__
+to run the example.
 
 .. code:: typescript
 
@@ -63,3 +65,7 @@ Below is a simple example to use WebLLM API in your own Typescript program.
   }
 
   main();
+
+Build a Chat App
+----------------
+You can find a complete a complete chat app example in `simple-chat <https://github.com/mlc-ai/web-llm/tree/main/examples/simple-chat>`__.

@@ -1,13 +1,9 @@
-Build Android Package
-=====================
+Android App
+===========
 
 .. contents:: Table of Contents
    :local:
    :depth: 2
-
-.. image:: https://github.com/mlc-ai/mlc-llm/raw/main/site/gif/android-demo.gif
-  :width: 400
-  :align: center
 
 
 The MLC LLM Android package can be installed in two ways: either from the pre-built package or by building it from source. If you're an Android user interested in trying out models, the pre-built package is the way to go. On the other hand, if you're a developer aiming to incorporate new features into the package, building the Android package from source is necessary.
