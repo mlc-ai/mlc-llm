@@ -40,7 +40,7 @@ templates_path = []
 
 html_static_path = []
 
-footer_copyright = "© 2022 MLC LLM"
+footer_copyright = "© 2022-2023 MLC LLM"
 footer_note = " "
 
 html_logo = "_static/img/mlc-logo-with-text-landscape.svg"

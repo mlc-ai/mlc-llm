@@ -3,7 +3,7 @@ Configure MLCChat in JSON
 
 This tutorials explains the components of a chat configuration and how to customize them for your own purposes.
 
-There is a ``mlc-chat-config.json`` file under the directory of each compiled model (e.g. 
+There is a ``mlc-chat-config.json`` file under the directory of each compiled model (e.g.
 `RedPajama chat config <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/blob/main/mlc-chat-config.json>`__ ) which contains the chat configuration. You can customize the chat configuration by modifying this file.
 
 .. _struct-mlc-chat-conv:
@@ -86,7 +86,7 @@ Below is a generic structure of a JSON conversation configuration (we use vicuna
 .. code:: json
 
   // mlc-chat-config.json
-  {  
+  {
     // ...
     "conv_config": {
       "seps": [
