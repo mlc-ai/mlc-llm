@@ -2,7 +2,7 @@
 name: "\U0001F4DA Documentation"
 about: Report an issue related to https://mlc.ai/mlc-llm/docs
 title: '[Doc] '
-labels: ['type: documentation']
+labels: ['documentation']
 assignees: ''
 
 ---

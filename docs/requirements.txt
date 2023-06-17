@@ -3,3 +3,4 @@ sphinx-rtd-theme
 sphinx == 5.2.3
 sphinx-toolbox == 3.4.0
 tlcpack-sphinx-addon==0.2.2
+sphinxcontrib_httpdomain==1.8.1

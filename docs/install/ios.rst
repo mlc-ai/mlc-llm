@@ -1,9 +1,26 @@
-🚧 Run Models in iOS
-====================
+Build iOS Package
+=================
+
+.. contents:: Table of Contents
+   :local:
+   :depth: 2
 
 .. image:: https://mlc.ai/blog/img/redpajama/ios.gif
   :width: 400
   :align: center
+
+The MLC LLM iOS package can be installed in two ways: through the pre-built package or by building it from source. If you're an iOS user looking to try out the models, the pre-built package is recommended. However, if you're a developer seeking to integrate new features into the package, building the iOS package from source is required.
+
+Use Pre-built iOS Package
+-------------------------
+The MLC LLM app is accessible on the App Store at no cost. You can download and explore it by simply clicking the button below:
+
+    .. image:: https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg
+      :width: 135
+      :target: https://apps.apple.com/us/app/mlc-chat/id6448482937
+
+Build iOS Package from Source
+-----------------------------
 
 We will use ``vicuna-v1-7b`` as an example to demonstrate the
 quantization and cross-compilation workflow for LLM on iOS devices. The
@@ -11,18 +28,14 @@ same procedure can be applied to other models as well, such as Dolly and
 RedPajama.
 
 Step 1. Install TVM Unity
--------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Please follow :doc:`/install/tvm` to install TVM Unity.
 
 Step 2. Download LLM weights
-----------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Download the LLM weights for Vicuna-7b by following the instructions
-from `LMSys <https://github.com/lm-sys/FastChat#vicuna-weights>`__.
-Place the downloaded weights under the ``./dist/models/vicuna-v1-7b``
-directory within the ``mlc-llm`` folder. The contents of the folder
-should include the following files:
+For our tutorial :doc:`/tutorials/compilation/get-vicuna-weight` to get Vicuna weights. The contents of the folder should include the following files:
 
 .. code:: bash
 
@@ -36,7 +49,7 @@ should include the following files:
    special_tokens_map.json
 
 Step 3. Quantize and cross-compile LLMs with TVM Unity
-------------------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To quantize and cross-compile the LLMs to iPhone/iPad targets, use the
 provided ``build.py`` script:
@@ -64,7 +77,7 @@ library for LLM computation: ``vicuna-v1-7b-q3f16_0-iphone.a`` - Assets,
 including weight shards under ``params/`` - Tokenizer metadata
 
 Step 4. Build auxiliary components
-----------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Tokenizer and runtime**
 
@@ -109,7 +122,7 @@ The outcome should be as follows:
    tokenizer.json       # Tokenizer metadata
 
 Step 5. Build iOS App
----------------------
+^^^^^^^^^^^^^^^^^^^^^
 
 Open ``./ios/MLCChat.xcodeproj`` using Xcode. Note that you will need an
 Apple Developer Account to use Xcode, and you may be prompted to use
@@ -125,7 +138,7 @@ After a successful build, you can run the iOS app on your device or
 simulator to use the LLM model for text generation and processing.
 
 Build your own App with MLC Swift API
--------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We also provide an swift package that you can use to build
 your own app. The package is located under `ios/MLCSwift`.
