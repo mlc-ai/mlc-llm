@@ -46,9 +46,7 @@
     
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Add New Model Architectures" href="bring-your-own-models.html" />
-    <link rel="prev" title="How to Deploy Models" href="deploy-models.html" /> 
+    <link rel="search" title="Search" href="../search.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -175,15 +173,14 @@
 <li class="toctree-l1"><a class="reference internal" href="runtime/cpp.html">C++ APIs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="runtime/javascript.html">WebLLM Javascript APIs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="runtime/rest.html">Rest APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../install/cli.html">Build MLCChat-CLI</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../install/ios.html">Build iOS Package</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../install/android.html">Build Android Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="app_build/cli.html">Build MLCChat-CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="app_build/ios.html">Build iOS Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="app_build/android.html">Build Android Package</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="compilation/get-vicuna-weight.html">Getting Vicuna Weights</a></li>
-<li class="toctree-l1"><a class="reference internal" href="compilation/model_compilation_walkthrough.html">🚧 Compile a Model in MLC LLM</a></li>
-<li class="toctree-l1"><a class="reference internal" href="compilation/compiler_artifacts.html">🚧 Compiler Artifact Spec</a></li>
+<li class="toctree-l1"><a class="reference internal" href="compilation/compile_models.html">Compile Models in MLC LLM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="compilation/configure_targets.html">🚧 Configure Targets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
 </ul>
@@ -207,23 +204,8 @@
 <li class="toctree-l1"><a class="reference internal" href="../community/faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Other tutorials</span></p>
-<ul class="current">
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="deploy-models.html">How to Deploy Models</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">How to Compile Models</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#dependencies">Dependencies</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#prepare-model-weight">Prepare Model Weight</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#models-with-full-weight">Models with Full Weight</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#models-with-base-weight-and-delta-weight">Models with Base Weight and Delta Weight</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#run-build-script">Run Build Script</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#model-building-examples">Model Building Examples</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#why-need-build">Why Need Build?</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#troubleshooting-faq">Troubleshooting FAQ</a></li>
-</ul>
-</li>
 <li class="toctree-l1"><a class="reference internal" href="bring-your-own-models.html">Add New Model Architectures</a></li>
 </ul>
 
@@ -612,21 +594,12 @@ This separation enables us to build LLM to different backends using a single com
 
 <footer>
 
-    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-      
-        <a href="bring-your-own-models.html" class="btn btn-neutral float-right" title="Add New Model Architectures" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
-      
-      
-        <a href="deploy-models.html" class="btn btn-neutral float-left" title="How to Deploy Models" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
-      
-    </div>
-
 <div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
 <section class="footerSec">
     <div class="footerHeader">
       <div class="d-flex align-md-items-center justify-content-between flex-column flex-md-row">
         <div class="copywrite d-flex align-items-center">
-          <h5 id="copy-right-info">© 2022 MLC LLM</h5>
+          <h5 id="copy-right-info">© 2022-2023 MLC LLM</h5>
         </div>
       </div>
 

@@ -17,7 +17,7 @@ Install WebLLM NPM Package
 🚧 API References
 -----------------
 
-Please refer to the source code of the ChatModule at `this link <https://github.com/mlc-ai/web-llm/blob/main/src/chat_module.ts>` to examine the function interface.
+Please refer to the source code of the ChatModule at `this link <https://github.com/mlc-ai/web-llm/blob/main/src/chat_module.ts>`_ to examine the function interface.
 
 Use WebLLM API in your own program
 ----------------------------------

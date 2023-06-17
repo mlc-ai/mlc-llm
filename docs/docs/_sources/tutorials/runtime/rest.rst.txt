@@ -103,5 +103,5 @@ Once you have launched the REST server, you can use the REST API in your own pro
 
 Please check `example folder <https://github.com/mlc-ai/mlc-llm/examples/rest>`__ for more examples using REST API.
 
-.. note:: 
+.. note::
    The REST API is a uniform interface that supports multiple languages. You can also utilize the REST API in languages other than Python.

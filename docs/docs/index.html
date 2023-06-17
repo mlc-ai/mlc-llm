@@ -174,15 +174,14 @@
 <li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/cpp.html">C++ APIs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/javascript.html">WebLLM Javascript APIs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/runtime/rest.html">Rest APIs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="install/cli.html">Build MLCChat-CLI</a></li>
-<li class="toctree-l1"><a class="reference internal" href="install/ios.html">Build iOS Package</a></li>
-<li class="toctree-l1"><a class="reference internal" href="install/android.html">Build Android Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/app_build/cli.html">Build MLCChat-CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/app_build/ios.html">Build iOS Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/app_build/android.html">Build Android Package</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/get-vicuna-weight.html">Getting Vicuna Weights</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/model_compilation_walkthrough.html">🚧 Compile a Model in MLC LLM</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/compiler_artifacts.html">🚧 Compiler Artifact Spec</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/compile_models.html">Compile Models in MLC LLM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/configure_targets.html">🚧 Configure Targets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
 </ul>
@@ -208,7 +207,6 @@
 <p class="caption" role="heading"><span class="caption-text">Other tutorials</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/deploy-models.html">How to Deploy Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/compile-models.html">How to Compile Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/bring-your-own-models.html">Add New Model Architectures</a></li>
 </ul>
 
@@ -296,8 +294,8 @@
 <p><a class="reference external" href="https://discord.gg/9Xpy2HGBuD">Discord</a> | <a class="reference external" href="https://mlc.ai/mlc-llm">Demo</a> | <a class="reference external" href="https://github.com/mlc-ai/mlc-llm">GitHub</a></p>
 <p>🚧 This document is currently undergoing heavy construction.</p>
 <p>Machine Learning Compilation for LLM (MLC LLM) is a universal deployment solution that enables LLMs to run efficiently on consumer devices, leveraging native hardware acceleration like GPUs.</p>
-<table class="docutils align-center" id="id2">
-<caption><span class="caption-text">MLC LLM: A universal deployment solution for large language models</span><a class="headerlink" href="#id2" title="Permalink to this table">¶</a></caption>
+<table class="docutils align-center" id="id1">
+<caption><span class="caption-text">MLC LLM: A universal deployment solution for large language models</span><a class="headerlink" href="#id1" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 17%" />
 <col style="width: 21%" />
@@ -341,30 +339,28 @@
 </tr>
 </tbody>
 </table>
-<section id="get-started">
-<span id="id1"></span><h2>Get Started<a class="headerlink" href="#get-started" title="Permalink to this heading">¶</a></h2>
-<section id="try-out-mlc-llm-on-your-device">
-<h3>Try out MLC LLM on your device<a class="headerlink" href="#try-out-mlc-llm-on-your-device" title="Permalink to this heading">¶</a></h3>
+<section id="get-started-try-out-mlc-llm-on-your-device">
+<span id="get-started"></span><h2>Get Started — Try out MLC LLM on your device<a class="headerlink" href="#get-started-try-out-mlc-llm-on-your-device" title="Permalink to this heading">¶</a></h2>
 <p>We have prepared packages for you to try out MLC LLM locally, and you can try out prebuilt models on your device:</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">iOS</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Android</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">CLI(Linux/MacOS/Windows)</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">Web Browser</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>The MLC LLM app is now accessible on the App Store at no cost. You can download and explore it by simply clicking the button below:</p>
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">iOS</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Android</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">CLI (Linux/MacOS/Windows)</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">Web Browser</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>The MLC LLM app is now accessible on the App Store at no cost. You can download and explore it by simply clicking the button below:</p>
 <a class="reference external image-reference" href="https://apps.apple.com/us/app/mlc-chat/id6448482937"><img alt="https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg" src="https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg" width="135" /></a>
 <p>Once the app is installed, you can download the models and then engage in chat with the model without requiring an internet connection.</p>
 <p>Memory requirements vary across different models. The Vicuna-7B model necessitates an iPhone device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an iPhone with at least 4GB RAM.</p>
-<figure class="align-center" id="id3">
+<figure class="align-center" id="id2">
 <a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/ios.gif"><img alt="https://mlc.ai/blog/img/redpajama/ios.gif" src="https://mlc.ai/blog/img/redpajama/ios.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on iOS</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on iOS</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p>The MLC LLM Android app is free and available for download and can be tried out by simply clicking the button below:</p>
 <a class="reference external image-reference" href="https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk"><img alt="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" src="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" style="width: 135px;" /></a>
 <p>Once the app is installed, you can engage in a chat with the model without the need for an internet connection:</p>
 <p>Memory requirements vary across different models. The Vicuna-7B model necessitates an Android device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an Android device with at least 4GB RAM.</p>
-<figure class="align-center" id="id4">
+<figure class="align-center" id="id3">
 <a class="reference internal image-reference" href="https://mlc.ai/blog/img/android/android-recording.gif"><img alt="https://mlc.ai/blog/img/android/android-recording.gif" src="https://mlc.ai/blog/img/android/android-recording.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on Android</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on Android</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><p>To utilize the models on your PC, we highly recommend trying out the CLI version of MLC LLM.</p>
@@ -374,32 +370,31 @@ To install MLC Chat CLI, simply run the following command:</p>
 conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 </pre></div>
 </div>
-<p>If you are using Windows or Linux, and you want to use GPU, please follow the instructions in <a class="reference internal" href="install/gpu.html"><span class="doc">GPU Drivers and SDKs</span></a> tutorial to prepare the environment.</p>
-<figure class="align-center" id="id5">
+<p>If you are using Windows or Linux and want to use your native GPU, please follow the instructions in <a class="reference internal" href="install/gpu.html"><span class="doc">GPU Drivers and SDKs</span></a> tutorial to prepare the environment.</p>
+<figure class="align-center" id="id4">
 <a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/cli.gif"><img alt="https://mlc.ai/blog/img/redpajama/cli.gif" src="https://mlc.ai/blog/img/redpajama/cli.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on CLI</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on CLI</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div><div aria-labelledby="tab-0-0-3" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-3" name="0-3" role="tabpanel" tabindex="0"><p>With the advancements of WebGPU, we can now run LLM directly on web browsers. You have the opportunity to experience the web version of MLC LLM through <a class="reference external" href="https://mlc.ai/webllm">WebLLM</a>.</p>
 <p>Once the parameters have been fetched and stored in the local cache, you can begin interacting with the model without the need for an internet connection.</p>
 <p>You can use <a class="reference external" href="https://webgpureport.org/">WebGPU Report</a> to verify the functionality of WebGPU on your browser.</p>
-<figure class="align-center" id="id6">
+<figure class="align-center" id="id5">
 <a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/web.gif"><img alt="https://mlc.ai/blog/img/redpajama/web.gif" src="https://mlc.ai/blog/img/redpajama/web.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on Web</span><a class="headerlink" href="#id6" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on Web</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div></div>
 </section>
-</section>
 <section id="project-overview">
 <h2>Project Overview<a class="headerlink" href="#project-overview" title="Permalink to this heading">¶</a></h2>
 <p>The project consists of three distinct submodules: model definition, model compilation, and runtimes.</p>
-<figure class="align-center" id="id7">
+<figure class="align-center" id="id6">
 <a class="reference internal image-reference" href="_images/project-structure.svg"><img alt="Project Structure" src="_images/project-structure.svg" width="600" /></a>
 <figcaption>
-<p><span class="caption-text">Three independent submodules in MLC LLM</span><a class="headerlink" href="#id7" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">Three independent submodules in MLC LLM</span><a class="headerlink" href="#id6" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 <p><strong>➀ Model definition in Python.</strong> MLC offers a variety of pre-defined architectures, such as Llama (e.g., Vicuna, OpenLlama, Llama, Wizard), GPT-NeoX (e.g., RedPajama, Dolly), RNNs (e.g., RWKV), and GPT-J (e.g., MOSS). Model developers could solely define the model in pure Python, without having to touch code generation and runtime.</p>
@@ -522,7 +517,7 @@ conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
     <div class="footerHeader">
       <div class="d-flex align-md-items-center justify-content-between flex-column flex-md-row">
         <div class="copywrite d-flex align-items-center">
-          <h5 id="copy-right-info">© 2022 MLC LLM</h5>
+          <h5 id="copy-right-info">© 2022-2023 MLC LLM</h5>
         </div>
       </div>
 

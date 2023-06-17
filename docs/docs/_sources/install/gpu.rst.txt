@@ -41,7 +41,7 @@ Validate Installation
 To verify whether Vulkan installation is successful or not, you are encouraged to install ``vulkaninfo``, below are the instructions to install ``vulkaninfo`` on different platforms:
 
 .. tabs ::
-   
+
    .. code-tab :: bash Ubuntu/Debian
 
       sudo apt-get update
@@ -54,12 +54,12 @@ To verify whether Vulkan installation is successful or not, you are encouraged t
    .. code-tab :: bash Fedora
 
       sudo dnf install vulkan-tools
-   
+
    .. code-tab :: bash Arch Linux
 
       sudo pacman -S vulkan-tools
       # Arch Linux has maintained an awesome wiki page for Vulkan which you can refer to for troubleshooting: https://wiki.archlinux.org/title/Vulkan
-   
+
    .. code-tab :: bash Other Distributions
 
       # Please install Vulkan SDK for your platform
@@ -83,15 +83,15 @@ Check Vulkan SDK installation guide according to your platform:
    .. tab :: Windows
 
       `Getting Started with the Windows Tarball Vulkan SDK <https://vulkan.lunarg.com/doc/sdk/latest/windows/getting_started.html>`__
-   
+
    .. tab :: Linux
 
-      For Ubuntu user, please check 
+      For Ubuntu user, please check
       `Getting Started with the Ubuntu Vulkan SDK <https://vulkan.lunarg.com/doc/sdk/latest/linux/getting_started_ubuntu.html>`__
 
       For other Linux distributions, please check
       `Getting Started with the Linux Tarball Vulkan SDK <https://vulkan.lunarg.com/doc/sdk/latest/linux/getting_started.html>`__
-   
+
    .. tab :: Mac
 
       `Getting Started with the macOS Vulkan SDK <https://vulkan.lunarg.com/doc/sdk/latest/mac/getting_started.html>`__
