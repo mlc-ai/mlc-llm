@@ -5,7 +5,9 @@ iOS App and Swift API
    :local:
    :depth: 2
 
-The MLC LLM iOS app can be installed in two ways: through the pre-built package or by building it from source. If you're an iOS user looking to try out the models, the pre-built package is recommended. However, if you're a developer seeking to integrate new features into the package, building the iOS package from source is required.
+The MLC LLM iOS app can be installed in two ways: through the pre-built package or by building it from source.
+If you're an iOS user looking to try out the models, the pre-built package is recommended. However, if you're a
+developer seeking to integrate new features into the package, building the iOS package from source is required.
 
 Use Pre-built iOS App
 ---------------------
@@ -15,64 +17,61 @@ The MLC LLM app is accessible on the App Store at no cost. You can download and 
       :width: 135
       :target: https://apps.apple.com/us/app/mlc-chat/id6448482937
 
-Build iOS Package from Source
------------------------------
 
-We will use ``vicuna-v1-7b`` as an example to demonstrate the
-quantization and cross-compilation workflow for LLM on iOS devices. The
-same procedure can be applied to other models as well, such as Dolly and
-RedPajama.
+Build iOS App from Source
+-------------------------
 
-Step 1. Install TVM Unity
-^^^^^^^^^^^^^^^^^^^^^^^^^
+This section shows how can we build the app from source.
+
+Step 1. Install Build Dependencies
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Please follow :doc:`/install/tvm` to install TVM Unity.
+Note that we do not need to call build.py since we are using prebuilt weights.
+We only need tvm unity's utility to combine the libraries (local-id-iphone.tar) into a single library.
 
-Step 2. Download LLM weights
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+We also need to have the following build dependencies
 
-For our tutorial :doc:`/compilation/get-vicuna-weight` to get Vicuna weights. The contents of the folder should include the following files:
+* CMake >= 3.24
+* Git
+* Rust and Cargo, required by Huggingface's tokenizer
 
-.. code:: bash
 
-   >>> ls ./dist/models/vicuna-v1-7b
-   config.json
-   pytorch_model.bin.index.json
-   pytorch_model-00001-of-00002.bin
-   pytorch_model-00002-of-00002.bin
-   tokenizer.model
-   tokenizer_config.json
-   special_tokens_map.json
+Step 2. Download Prebuilt Weights and Library
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Step 3. Quantize and cross-compile LLMs with TVM Unity
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To quantize and cross-compile the LLMs to iPhone/iPad targets, use the
-provided ``build.py`` script:
+You also need to obtain a copy of the mlc-llm source code.
+To simplify the build, we will use prebuilt model
+weights and libraries here. Run the following command
+in the root of the mlm-llm
 
 .. code:: bash
 
+   mkdir -p dist/prebuilt
+   git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 
-   python3 build.py                    \
-       --model /path/to/vicuna-v1-7b   \
-       --quantization q3f16_0          \
-       --target iphone                 \
-       --max-seq-len 768
+   git lfs install
+   git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
+   cd ../..
 
-   # If the model path is `./dist/models/vicuna-v1-7b`,
-   # we can simplify the build command to
-   python3 build.py            \
-       --model vicuna-v1-7b    \
-       --quantization q3f16_0  \
-       --target iphone         \
-       --max-seq-len 768
+Validate that the files and directories exists
 
-By default, the compiled artifact will be located under
-``./dist/vicuna-v1-7b-q3f16_0``. The folder includes: - The static
-library for LLM computation: ``vicuna-v1-7b-q3f16_0-iphone.a`` - Assets,
-including weight shards under ``params/`` - Tokenizer metadata
+.. code:: bash
 
-Step 4. Build auxiliary components
+   >>> ls -l ./dist/prebuilt/lib/*-iphone.tar
+   ./dist/prebuilt/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_0-iphone.tar
+   ./dist/prebuilt/lib/vicuna-v1-7b-q3f16_0-iphone.tar
+
+   >>> ls -l ./dist/prebuilt/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
+   # chat config:
+   mlc-chat-config.json
+   # model weights:
+   ndarray-cache.json
+   params_shard_*.bin
+   ...
+
+
+Step 3. Build auxiliary components
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Tokenizer and runtime**
@@ -84,7 +83,6 @@ components by following these steps:
 .. code:: bash
 
    cd ./ios
-   vim ./prepare_libs.sh # Update MODEL, QUANTIZATION, and other variables
    ./prepare_libs.sh
 
 This will create a ``./build`` folder that contains the following files:
@@ -92,21 +90,21 @@ This will create a ``./build`` folder that contains the following files:
 .. code:: bash
 
    >>> ls ./build/lib/
-   libmlc_llm.a         # The lightweight interface to interact with LLM, tokenizer, and TVM Unity runtime
-   libmodel_iphone.a    # The compiled LLM
+   libmlc_llm.a         # A lightweight interface to interact with LLM, tokenizer, and TVM Unity runtime
+   libmodel_iphone.a    # The compiled model lib
    libsentencepiece.a   # SentencePiece tokenizer
    libtokenizers_cpp.a  # Huggingface tokenizer
    libtvm_runtime.a     # TVM Unity runtime
 
-**Collect assets**
+**Add prepackage model**
 
-To organize the assets, execute the following script within the
-``./ios`` directory:
+We can also optionally add prepackage weights into the app,
+run the following command under the ``./ios`` directory:
 
 .. code:: bash
 
    cd ./ios
-   vim ./prepare_params.sh # Update MODEL, QUANTIZATION, TOKENIZER, and other variables
+   open ./prepare_params.sh # make sure builtin_list only contains "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
    ./prepare_params.sh
 
 The outcome should be as follows:
@@ -114,10 +112,9 @@ The outcome should be as follows:
 .. code:: bash
 
    >>> ls ./dist/
-   params/              # Parameter shards
-   tokenizer.json       # Tokenizer metadata
+   RedPajama-INCITE-Chat-3B-v1-q4f16_0
 
-Step 5. Build iOS App
+Step 4. Build iOS App
 ^^^^^^^^^^^^^^^^^^^^^
 
 Open ``./ios/MLCChat.xcodeproj`` using Xcode. Note that you will need an
@@ -128,10 +125,28 @@ Ensure that all the necessary dependencies and configurations are
 correctly set up in the Xcode project.
 
 Once you have made the necessary changes, build the iOS app using Xcode.
-Make sure to select a target device or simulator for the build.
+If you have an apple silicon macbook, you can select target `My Mac (designed for ipad)`
+to run on your macbook. You can also directly run it on your ipad or iphone.
 
-After a successful build, you can run the iOS app on your device or
-simulator to use the LLM model for text generation and processing.
+
+Customize the App
+-----------------
+
+We can customize the iOS app in several ways.
+`MLCChat/app-config.json <https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/app-config.json>`_.
+controls the list of model URLs and model libs to be packaged into the app.
+
+``model_libs`` controls the model libraries to be packaged into the app
+   `./prepare_libs.sh` script will look at this field, find compiled or prebuilt model lib and package them into `libmodel_iphone.a`.
+
+``model_list`` controls a list of models that can be downloaded from the internet, these models
+   must use the model lib packaged in the app.
+
+``add_model_samples`` controls a list of example URLs to show up in add model button.
+
+Additionally, the app prepackages the models under `./ios/dist`.
+This built-in list can be controlled by editing `prepare_params.sh`
+You can package new prebuilt models or compiled models by changing the above fields and rerunning the steps.
 
 
 Build your own App with MLC Swift API
@@ -141,7 +156,7 @@ We also provide an swift package that you can use to build
 your own app. The package is located under `ios/MLCSwift`.
 
 - First make sure you have run the same steps listed
-  this this document. This will give us the necessary libraries
+  in the previous section. This will give us the necessary libraries
   under `/path/to/ios/build/lib`.
 - Then you can add `ios/MLCSwift` package to your app in xcode.
   Under frameworks libraries embedded content, click add package dependencies
