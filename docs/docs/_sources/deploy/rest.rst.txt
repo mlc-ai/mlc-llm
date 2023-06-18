@@ -23,6 +23,23 @@ Verify Installation
 
 You are expected to see the help information of the REST API.
 
+Optional: Build from Source
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If the prebuilt is unavailable on your platform, or you would like to build a runtime
+that supports other GPU runtime than the prebuilt version. We can build a customized version
+of mlc chat runtime. You only need to do this if you choose not to use the prebuilt.
+
+First, make sure you install TVM unity (following the instruction in :ref:`install-tvm-unity`).
+You can choose to only pip install `mlc-ai-nightly` that comes with the tvm unity but skip `mlc-chat-nightly`.
+Then please follow the instruction in :ref:`mlcchat_build_from_source` to build the necessary libraries.
+
+You can now use ``mlc_chat`` package by including the `python` directory to ``PYTHONPATH`` environment variable.
+
+.. code:: bash
+
+   PYTHONPATH=python python -m mlc_chat.rest --help
+
 Launch the Server
 -----------------
 

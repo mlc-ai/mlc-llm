@@ -177,7 +177,7 @@
 <li class="toctree-l1"><a class="reference internal" href="rest.html">Rest API</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">CLI and C++ API</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#option-1-conda-prebuilt">Option 1. Conda Prebuilt</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#option-2-build-from-source">Option 2. Build from Source</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#option-2-build-mlc-runtime-from-source">Option 2. Build MLC Runtime from Source</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#run-models-through-mlcchat-cli">Run Models through MLCChat CLI</a></li>
 </ul>
 </li>
@@ -301,7 +301,7 @@
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="#option-1-conda-prebuilt" id="id4">Option 1. Conda Prebuilt</a></p></li>
-<li><p><a class="reference internal" href="#option-2-build-from-source" id="id5">Option 2. Build from Source</a></p>
+<li><p><a class="reference internal" href="#option-2-build-mlc-runtime-from-source" id="id5">Option 2. Build MLC Runtime from Source</a></p>
 <ul>
 <li><p><a class="reference internal" href="#run-models-through-mlcchat-cli" id="id6">Run Models through MLCChat CLI</a></p></li>
 </ul>
@@ -328,9 +328,11 @@ mlc_chat_cli<span class="w"> </span>--help
 <p>The prebuilt package supports <strong>Metal</strong> on macOS and <strong>Vulkan</strong> on Linux and Windows. It is possible to use other GPU runtimes such as <strong>CUDA</strong> by compiling MLCChat CLI from source.</p>
 </div>
 </section>
-<section id="option-2-build-from-source">
-<span id="mlcchat-build-from-source"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
-<p>While it is always recommended to use prebuilt MLCChat, for more customization, one needs to build <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> from source in the following steps:</p>
+<section id="option-2-build-mlc-runtime-from-source">
+<span id="mlcchat-build-from-source"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Option 2. Build MLC Runtime from Source</a><a class="headerlink" href="#option-2-build-mlc-runtime-from-source" title="Permalink to this heading">¶</a></h2>
+<p>We also provid options to build mlc runtime libraries and <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> from source.
+This step is useful when you want to directly obtain a version of mlc runtime library
+and the cli. Please click the details below to see the instruction.</p>
 <details class="summary-details">
 <summary>Details</summary><p><strong>Step 1. Set up build dependency.</strong> To build from source, you need to ensure that the following build dependencies are satisfied:</p>
 <ul class="simple">
@@ -365,7 +367,7 @@ conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 </div>
 <p><strong>Step 2. Configure and build.</strong> A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:</p>
 <div class="literal-block-wrapper docutils container" id="id2">
-<div class="code-block-caption"><span class="caption-text">Configure and build <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code></span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
+<div class="code-block-caption"><span class="caption-text">Configure and build</span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># clone from GitHub</span>
 git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/mlc-ai/mlc-llm.git<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>mlc-llm/
 <span class="c1"># create build directory</span>
