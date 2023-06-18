@@ -5,13 +5,13 @@ iOS App and Swift API
    :local:
    :depth: 2
 
-The MLC LLM iOS app can be installed in two ways: through the pre-built package or by building it from source.
-If you're an iOS user looking to try out the models, the pre-built package is recommended. However, if you're a
+The MLC LLM iOS app can be installed in two ways: through the pre-built package or by building from source.
+If you are an iOS user looking to try out the models, the pre-built package is recommended. If you are a
 developer seeking to integrate new features into the package, building the iOS package from source is required.
 
 Use Pre-built iOS App
 ---------------------
-The MLC LLM app is accessible on the App Store at no cost. You can download and explore it by simply clicking the button below:
+The MLC Chat app is now available in App Store at no cost. You can download and explore it by simply clicking the button below:
 
     .. image:: https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg
       :width: 135
@@ -21,40 +21,41 @@ The MLC LLM app is accessible on the App Store at no cost. You can download and 
 Build iOS App from Source
 -------------------------
 
-This section shows how can we build the app from source.
+This section shows how we can build the app from source.
 
 Step 1. Install Build Dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Please follow :doc:`/install/tvm` to install TVM Unity.
-Note that we do not need to call build.py since we are using prebuilt weights.
-We only need tvm unity's utility to combine the libraries (local-id-iphone.tar) into a single library.
+Note that we **do not** have to run `build.py` since we can use prebuilt weights.
+We only need TVM Unity's utility to combine the libraries (`local-id-iphone.tar`) into a single library.
 
-We also need to have the following build dependencies
+We also need to have the following build dependencies:
 
-* CMake >= 3.24
-* Git and git lfs
-* `Rust and Cargo <https://www.rust-lang.org/tools/install>`_, required by Huggingface's tokenizer
+* CMake >= 3.24,
+* Git and Git-LFS,
+* `Rust and Cargo <https://www.rust-lang.org/tools/install>`_, which are required by Hugging Face's tokenizer.
 
 
 Step 2. Download Prebuilt Weights and Library
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You also need to obtain a copy of the mlc-llm source code.
+You also need to obtain a copy of the MLC-LLM source code.
 To simplify the build, we will use prebuilt model
 weights and libraries here. Run the following command
-in the root of the mlm-llm
+in the root of the MLC-LLM.
 
 .. code:: bash
 
    mkdir -p dist/prebuilt
    git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 
+   cd dist/prebuilt
    git lfs install
    git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
    cd ../..
 
-Validate that the files and directories exists
+Validate that the files and directories exist:
 
 .. code:: bash
 
@@ -71,7 +72,7 @@ Validate that the files and directories exists
    ...
 
 
-Step 3. Build auxiliary components
+Step 3. Build Auxiliary Components
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Tokenizer and runtime**
@@ -125,8 +126,8 @@ Ensure that all the necessary dependencies and configurations are
 correctly set up in the Xcode project.
 
 Once you have made the necessary changes, build the iOS app using Xcode.
-If you have an apple silicon macbook, you can select target `My Mac (designed for ipad)`
-to run on your macbook. You can also directly run it on your ipad or iphone.
+If you have an Apple Silicon Mac, you can select target "My Mac (designed for ipad)"
+to run on your Mac. You can also directly run it on your iPad or iPhone.
 
 Customize the App
 -----------------
@@ -137,36 +138,36 @@ controls the list of model URLs and model libs to be packaged into the app.
 
 ``model_libs``
   List of model libraries to be packaged into the app. ``./prepare_libs.sh``
-   will look at this field, find compiled or prebuilt model lib, and package them into ``libmodel_iphone.a``.
+  will look at this field, find compiled or prebuilt model libraries, and package them into ``libmodel_iphone.a``.
 
 ``model_list``
-  List of models that can be downloaded from the internet. These models
-  must use the model lib packaged in the app.
+  List of models that can be downloaded from the Internet. These models
+  **must** use the model lib packaged in the app.
 
 ``add_model_samples``
   A list of example URLs that show up when the user clicks add model.
 
-Additionally, the app prepackages the models under `./ios/dist`.
-This built-in list can be controlled by editing `prepare_params.sh`
-You can package new prebuilt models or compiled models by changing the above fields and rerunning the steps.
+Additionally, the app prepackages the models under ``./ios/dist``.
+This built-in list can be controlled by editing ``prepare_params.sh``.
+You can package new prebuilt models or compiled models by changing the above fields and then repeat the steps above.
 
 
 Build Apps with MLC Swift API
 -----------------------------
 
-We also provide an swift package that you can use to build
+We also provide a Swift package that you can use to build
 your own app. The package is located under `ios/MLCSwift`.
 
 - First make sure you have run the same steps listed
   in the previous section. This will give us the necessary libraries
-  under `/path/to/ios/build/lib`.
-- Then you can add `ios/MLCSwift` package to your app in xcode.
-  Under frameworks libraries embedded content, click add package dependencies
-  and add local package that points to ios/MLCSwift
+  under ``/path/to/ios/build/lib``.
+- Then you can add ``ios/MLCSwift`` package to your app in Xcode.
+  Under "Frameworks, Libraries, and Embedded Content", click add package dependencies
+  and add local package that points to ``ios/MLCSwift``.
 - Finally, we need to add the libraries dependencies. Under build settings:
 
-  - Add library search path `/path/to/ios/build/lib`
-  - Add the following items to "other linker flags"
+  - Add library search path ``/path/to/ios/build/lib``.
+  - Add the following items to "other linker flags".
 
    .. code::
 
@@ -202,10 +203,12 @@ The following code shows an illustrative example about how to use the chat modul
       }
    }
 
-Because the chat module makes heavy use of GPU and thread-local
-resources, it needs to run on a dedicated background thread.
-Do not use DispatchQueue, as that can cause context switching to
-different threads and segfaults due to thread-safety issue.
-Use the ThreadWorker class to launch all the jobs related
-to the chat module. You can checkot the source code of
-the MLCChat app for a complete example.
+.. note::
+
+   Because the chat module makes heavy use of GPU and thread-local
+   resources, it needs to run on a dedicated background thread.
+   Therefore, **avoid using** `DispatchQueue`, which can cause context switching to
+   different threads and segfaults due to thread-safety issue.
+   Use the `ThreadWorker` class to launch all the jobs related
+   to the chat module. You can check out the source code of
+   the MLCChat app for a complete example.

@@ -4,14 +4,15 @@ CLI and C++ API
 MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box. You may install it from the prebuilt package we provide, or compile it from source.
 
 .. contents:: Table of Contents
-   :depth: 3
+  :local:
+  :depth: 2
 
 Option 1. Conda Prebuilt
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 The prebuilt package supports Metal on macOS and Vulkan on Linux and Windows, and can be installed via Conda one-liner.
 
-To use other GPU runtimes, e.g. CUDA, please instead build it from source.
+To use other GPU runtimes, e.g. CUDA, please instead :ref:`build it from source <mlcchat_build_from_source>`.
 
 .. code:: shell
 
@@ -29,15 +30,15 @@ After installation, activating ``mlc-chat-venv`` environment in Conda will give 
 Option 2. Build from Source
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-While it is always recommended to use prebuilt MLCChat, for more customization, one has to build ``mlc_chat_cli`` from source in the following steps:
+While it is always recommended to use prebuilt MLCChat, for more customization, one needs to build ``mlc_chat_cli`` from source in the following steps:
 
 .. collapse:: Details
 
-    **Step 1. Set up build dependency.** To build from source, you need to ensure that the following build dependencies are met:
+    **Step 1. Set up build dependency.** To build from source, you need to ensure that the following build dependencies are satisfied:
 
     * CMake >= 3.24
     * Git
-    * Rust and Cargo, required by Huggingface's tokenizer
+    * `Rust and Cargo <https://www.rust-lang.org/tools/install>`_, required by Hugging Face's tokenizer
     * One of the GPU runtimes:
 
       * CUDA >= 11.8 (NVIDIA GPUs)
@@ -45,7 +46,7 @@ While it is always recommended to use prebuilt MLCChat, for more customization, 
       * Vulkan (NVIDIA, AMD, Intel GPUs)
 
     .. code-block:: bash
-        :caption: Set up build dependencies in conda
+        :caption: Set up build dependencies in Conda
 
         # make sure to start with a fresh environment
         conda env remove -n mlc-chat-venv
@@ -60,7 +61,7 @@ While it is always recommended to use prebuilt MLCChat, for more customization, 
     .. note::
         :doc:`TVM Unity </install/tvm>` compiler is not a dependency to MLCChat CLI. Only its runtime is required, which is automatically included in `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`_.
 
-    **Step 2. Configure and build.** Standard git-based workflow are recommended to download MLC LLM, and then specify build requirements with our small config generation tool:
+    **Step 2. Configure and build.** A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:
 
     .. code-block:: bash
         :caption: Configure and build ``mlc_chat_cli``
@@ -105,8 +106,8 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
 
         If you downloaded prebuilt models from MLC LLM, by default:
 
-        - model lib should be placed under ``./dist/prebuilt/lib/$(local_id)-$(arch).$(suffix)``
-        - model weights and chat config are located under ``./dist/prebuilt/mlc-chat-$(local_id)/``
+        - Model lib should be placed at ``./dist/prebuilt/lib/$(local_id)-$(arch).$(suffix)``.
+        - Model weights and chat config are located under ``./dist/prebuilt/mlc-chat-$(local_id)/``.
 
         .. collapse:: Example
 
@@ -128,8 +129,8 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
 
         If you have compiled models using MLC LLM, by default:
 
-        - model lib should be placed under ``./dist/$(local_id)/$(local_id)-$(arch).$(suffix)``
-        - model weights and chat config are located under ``./dist/$(local_id)/params/``
+        - Model libraries should be placed at ``./dist/$(local_id)/$(local_id)-$(arch).$(suffix)``.
+        - Model weights and chat config are located under ``./dist/$(local_id)/params/``.
 
         .. collapse:: Example
 
@@ -145,6 +146,8 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
             ndarray-cache.json
             params_shard_*.bin
             ...
+
+|
 
 **Run the Model.** Next run ``mlc_chat_cli`` in command line:
 
@@ -163,9 +166,9 @@ Have fun chatting with MLC-compiled LLM!
 Advanced: Build Apps with C++ API
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-MLC-compiled models can be integrated into any C++ project using TVM's C/C++ API without going through the command line.
+MLC-compiled models can be integrated into **any C++ project** using TVM's C/C++ API without going through the command line.
 
-**Step 1. Create libmlc_llm.** Both static and shared libraries are available via the :ref:`CMake instructions <mlcchat_build_from_source>`, and the downstream developer may include either one into the C++ project depending on needs.
+**Step 1. Create libmlc_llm.** Both static and shared libraries are available via the :ref:`CMake instructions <mlcchat_build_from_source>`, and the downstream developer may include either one into the C++ project according to needs.
 
 **Step 2. Calling into the model in your C++ Project.** Use ``tvm::runtime::Module`` API from TVM runtime to interact with MLC LLM without MLCChat.
 
@@ -177,7 +180,7 @@ MLC-compiled models can be integrated into any C++ project using TVM's C/C++ API
     `TensorFlow <https://www.tensorflow.org/api_docs/python/tf/experimental/dlpack/>`_,
     etc.
 
-Using MLCChat APIs in your own programs
+Using MLCChat APIs in Your Own Programs
 ---------------------------------------
 
 Below is a minimal example of using MLCChat C++ APIs.
@@ -240,8 +243,8 @@ Below is a minimal example of using MLCChat C++ APIs.
 
 - Make sure the following directories are included where ``TVM_HOME`` is ``/path/to/mlc-llm/3rdparty/tvm``:
 
-  - TVM runtime: ``${TVM_HOME}/include``
-  - Header-only DLPack: ``${TVM_HOME}/3rdparty/dlpack/include``
-  - Header-only DMLC core: ``${TVM_HOME}/3rdparty/dmlc-core/include``
+  - TVM runtime: ``${TVM_HOME}/include``,
+  - Header-only DLPack: ``${TVM_HOME}/3rdparty/dlpack/include``,
+  - Header-only DMLC core: ``${TVM_HOME}/3rdparty/dmlc-core/include``.
 
 - Make sure to link either the static or the shared ``libtvm_runtime`` library, which is provided via :ref:`CMake <mlcchat_build_from_source>`.
