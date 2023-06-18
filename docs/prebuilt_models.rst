@@ -157,7 +157,7 @@ To add a model to the iOS app, follow the steps below:
 
 |
 
-The iOS has integrated with the following model libraries, which can be directly reused when you want to run a model you compiled in iOS, as long as the model is in the supported model family and is compiled with supported quantization mode.
+The iOS app has integrated with the following model libraries, which can be directly reused when you want to run a model you compiled in iOS, as long as the model is in the supported model family and is compiled with supported quantization mode.
 For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/open_llama>`_ with quantization mode ``q3f16_0``, then you can run the compiled OpenLLaMA model on iPhone without rebuilding the iOS app by reusing the `vicuna-v1-7b-q3f16_0` model library. Please check the :doc:`model distribution page </compilation/distribute_compiled_models>` for detailed instructions.
 
 .. list-table:: Prebuilt model libraries which are integrated in the iOS app
