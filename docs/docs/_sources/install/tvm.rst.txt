@@ -1,3 +1,5 @@
+.. _install-tvm-unity:
+
 Install TVM Unity
 =================
 

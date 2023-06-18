@@ -48,7 +48,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="🚧 Define New Model Architectures" href="../tutorials/customize/define_new_models.html" />
-    <link rel="prev" title="Compile Models in MLC LLM" href="compile_models.html" /> 
+    <link rel="prev" title="Compile Models via MLC" href="compile_models.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -181,12 +181,12 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Models in MLC LLM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Models via MLC</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Distribute Compiled Models</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#step-1-check-the-build-artifact">Step 1. Check the build artifact</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#step-2-update-mlc-chat-configuration-json">Step 2. Update MLC Chat Configuration JSON</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#step-3-host-the-model-library">Step 3. Host the Model Library</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#step-4-host-the-compiled-model-weights">Step 4. Host the Compiled Model Weights</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-3-specify-the-model-lib">Step 3. Specify the Model Lib</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-4-upload-the-compiled-model-weights">Step 4. Upload the Compiled Model Weights</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#download-the-distributed-models-and-run-in-cli">Download the Distributed Models and Run in CLI</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#download-the-distributed-models-and-run-in-ios-app">Download the Distributed Models and Run in iOS App</a></li>
 </ul>
@@ -292,10 +292,10 @@
            <div itemprop="articleBody">
             
   <section id="distribute-compiled-models">
-<h1>Distribute Compiled Models<a class="headerlink" href="#distribute-compiled-models" title="Permalink to this heading">¶</a></h1>
-<p>When you want to run the model compiled by yourself on mobile devices and/or web browser, you need to distribute the model you compiled to the Internet (for example, as a repository in Hugging Face), so that the applications released by MLC LLM can download your model from the Internet location.</p>
-<p>This page introduces how to distribute the model you compiled.
-For demonstration purpose, here we want to distribute the compiled <a class="reference external" href="https://huggingface.co/openlm-research/open_llama_7b">OpenLLaMA-7B</a> model.
+<span id="id1"></span><h1>Distribute Compiled Models<a class="headerlink" href="#distribute-compiled-models" title="Permalink to this heading">¶</a></h1>
+<p>This page describes how to distribute the model you compiled so others can use the model in MLC chat runtime.
+For demonstration purposes, we show how to compile a llama-7b variant
+<a class="reference external" href="https://huggingface.co/openlm-research/open_llama_7b">OpenLLaMA-7B</a> model.
 We assume the model is already compiled.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -304,16 +304,16 @@ We assume the model is already compiled.</p>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#step-1-check-the-build-artifact" id="id1">Step 1. Check the build artifact</a></p></li>
-<li><p><a class="reference internal" href="#step-2-update-mlc-chat-configuration-json" id="id2">Step 2. Update MLC Chat Configuration JSON</a></p></li>
-<li><p><a class="reference internal" href="#step-3-host-the-model-library" id="id3">Step 3. Host the Model Library</a></p></li>
-<li><p><a class="reference internal" href="#step-4-host-the-compiled-model-weights" id="id4">Step 4. Host the Compiled Model Weights</a></p></li>
-<li><p><a class="reference internal" href="#download-the-distributed-models-and-run-in-cli" id="id5">Download the Distributed Models and Run in CLI</a></p></li>
-<li><p><a class="reference internal" href="#download-the-distributed-models-and-run-in-ios-app" id="id6">Download the Distributed Models and Run in iOS App</a></p></li>
+<li><p><a class="reference internal" href="#step-1-check-the-build-artifact" id="id2">Step 1. Check the build artifact</a></p></li>
+<li><p><a class="reference internal" href="#step-2-update-mlc-chat-configuration-json" id="id3">Step 2. Update MLC Chat Configuration JSON</a></p></li>
+<li><p><a class="reference internal" href="#step-3-specify-the-model-lib" id="id4">Step 3. Specify the Model Lib</a></p></li>
+<li><p><a class="reference internal" href="#step-4-upload-the-compiled-model-weights" id="id5">Step 4. Upload the Compiled Model Weights</a></p></li>
+<li><p><a class="reference internal" href="#download-the-distributed-models-and-run-in-cli" id="id6">Download the Distributed Models and Run in CLI</a></p></li>
+<li><p><a class="reference internal" href="#download-the-distributed-models-and-run-in-ios-app" id="id7">Download the Distributed Models and Run in iOS App</a></p></li>
 </ul>
 </nav>
 <section id="step-1-check-the-build-artifact">
-<h2><a class="toc-backref" href="#id1" role="doc-backlink">Step 1. Check the build artifact</a><a class="headerlink" href="#step-1-check-the-build-artifact" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Step 1. Check the build artifact</a><a class="headerlink" href="#step-1-check-the-build-artifact" title="Permalink to this heading">¶</a></h2>
 <p>To begin with, we can check that we have the compilation artifact ready on the disk.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/open-llama-7b-q3f16_0
 <span class="w">    </span>open-llama-7b-q3f16_0-metal.so<span class="w">                   </span><span class="c1"># ===&gt; the model library</span>
@@ -333,34 +333,33 @@ We assume the model is already compiled.</p>
 <p>You are expected to see the same folder structure for the model you compiled.</p>
 </section>
 <section id="step-2-update-mlc-chat-configuration-json">
-<h2><a class="toc-backref" href="#id2" role="doc-backlink">Step 2. Update MLC Chat Configuration JSON</a><a class="headerlink" href="#step-2-update-mlc-chat-configuration-json" title="Permalink to this heading">¶</a></h2>
-<p>You can <strong>optionally</strong> <a class="reference internal" href="../get_started/mlc_chat_config.html"><span class="doc">update the MLCChat configuration JSON</span></a> file <code class="docutils literal notranslate"><span class="pre">dist/open-llama-7b-q3f16_0/params/mlc-chat-config.json</span></code>. Open and update the JSON file and customize it according to your needs.</p>
-<p>You can also use the default configuration, in which case no action is needed in this step.</p>
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Step 2. Update MLC Chat Configuration JSON</a><a class="headerlink" href="#step-2-update-mlc-chat-configuration-json" title="Permalink to this heading">¶</a></h2>
+<p>You can <strong>optionally</strong> customize the chat config file
+<code class="docutils literal notranslate"><span class="pre">dist/open-llama-7b-q3f16_0/params/mlc-chat-config.json</span></code> (checkout <a class="reference internal" href="../get_started/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Configure MLCChat in JSON</span></a> for more detailed instructions).
+Youc an also simply use the default configuration and skip this step.</p>
 </section>
-<section id="step-3-host-the-model-library">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">Step 3. Host the Model Library</a><a class="headerlink" href="#step-3-host-the-model-library" title="Permalink to this heading">¶</a></h2>
-<p>Now we upload the model library to an Internet location.
-That is to say, for our OpenLLaMA example here, we need to host <code class="docutils literal notranslate"><span class="pre">dist/open-llama-7b-q3f16_0/open-llama-7b-q3f16_0-metal.so</span></code> on the Internet.</p>
-<p>Any publicly available Internet location is good to host the model library.
-The prebuilt model libraries are hosted in <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">a GitHub repo</a>.
-If you also want to host your model library on GitHub, you can follow the instructions below:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># First, please create a repository on GitHub.</span>
-<span class="c1"># With the repository created, run</span>
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/my-github-account/my-model-library-github-repo.git
-<span class="nb">cd</span><span class="w"> </span>my-model-library-github-repo
-cp<span class="w"> </span>path/to/mlc-llm/dist/open-llama-7b-q3f16_0/open-llama-7b-q3f16_0-metal.so<span class="w"> </span>.
-git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Add open-llama-7b Metal library&quot;</span>
-git<span class="w"> </span>push
-</pre></div>
+<section id="step-3-specify-the-model-lib">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Step 3. Specify the Model Lib</a><a class="headerlink" href="#step-3-specify-the-model-lib" title="Permalink to this heading">¶</a></h2>
+<p>An MLC chat app needs to look for the model library to run the model.
+In the case of llama-7b, we already have a prebuilt model lib for vicuna that shares the
+same model architecture and quantization mode.
+We can edit <code class="docutils literal notranslate"><span class="pre">dist/open-llama-7b-q3f16_0/params/mlc-chat-config.json</span></code> and update the value of field <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> to <code class="docutils literal notranslate"><span class="pre">&quot;vicuna-v1-7b-q3f16_0&quot;</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We recommend reusing the model lib for the same architecture with different weight variants.
+You can leverage the <code class="docutils literal notranslate"><span class="pre">--reuse-lib</span></code> in the build to specify the library you want to reuse or edit the chat config afterward.
+Reusing model lib allows us to run the model on existing MLC apps (e.g. iOS) that requires static packaging.</p>
 </div>
+<p>We should distribute the generated model lib if we want to build a new model architecture or try out customized compilation optimizations.
+In this case, we should keep the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field as <code class="docutils literal notranslate"><span class="pre">&quot;open-llama-7b-q3f16_0&quot;</span></code>.
+You can upload the model library <code class="docutils literal notranslate"><span class="pre">dist/open-llama-7b-q3f16_0/open-llama-7b-q3f16_0-metal.so</span></code>
+and ask others to download it to  <cite>dist/prebuilt/lib</cite> directory so the CLI app can pick it up.</p>
 </section>
-<section id="step-4-host-the-compiled-model-weights">
-<h2><a class="toc-backref" href="#id4" role="doc-backlink">Step 4. Host the Compiled Model Weights</a><a class="headerlink" href="#step-4-host-the-compiled-model-weights" title="Permalink to this heading">¶</a></h2>
-<p>Now we upload the compiled model weights to Internet.
-That is to say, for our OpenLLaMA example here, we need to host <code class="docutils literal notranslate"><span class="pre">dist/open-llama-7b-q3f16_0/params</span></code> on the Internet.</p>
-<p>Any publicly available Internet location is good to host the compiled model weights.
-MLC LLM uses Hugging Face repositories to host the prebuilt model weights.
-If you also want to host your model library on Hugging Face, you can follow the instructions below:</p>
+<section id="step-4-upload-the-compiled-model-weights">
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Step 4. Upload the Compiled Model Weights</a><a class="headerlink" href="#step-4-upload-the-compiled-model-weights" title="Permalink to this heading">¶</a></h2>
+<p>As a next step, we need to upload the model weights.
+We only need to upload the files in <code class="docutils literal notranslate"><span class="pre">dist/open-llama-7b-q3f16_0/params</span></code>.
+If you also want to host the compiled models on Hugging Face, you can follow the instructions below:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># First, please create a repository on Hugging Face.</span>
 <span class="c1"># With the repository created, run</span>
 git<span class="w"> </span>lfs<span class="w"> </span>install
@@ -373,15 +372,20 @@ git<span class="w"> </span>push
 </div>
 <hr class="docutils" />
 <p>Good job, you have successfully distributed the model you compiled.
-Next, we will talk about how to download and run models with the distributed library and weights.</p>
+Next, we will talk about how to we can consume the model weights</p>
 </section>
 <section id="download-the-distributed-models-and-run-in-cli">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">Download the Distributed Models and Run in CLI</a><a class="headerlink" href="#download-the-distributed-models-and-run-in-cli" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Download the Distributed Models and Run in CLI</a><a class="headerlink" href="#download-the-distributed-models-and-run-in-cli" title="Permalink to this heading">¶</a></h2>
 <p>The steps needed to run models in CLI are similar to the steps to download the prebuilt model weights and libraries.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt/lib
-<span class="c1"># Download the model library</span>
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/my-github-account/my-model-library-github-repo.git
-cp<span class="w"> </span>my-model-library-github-repo/*<span class="w"> </span>dist/prebuilt/lib/
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># clone prebuilt libs so we can reuse them</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt/lib
+
+<span class="c1"># Download the model library (only needed if we are not reusing the model lib)</span>
+<span class="nb">cd</span><span class="w"> </span>dist/prebuilt/lib
+wget<span class="w"> </span>url-to-my-model-lib
+<span class="nb">cd</span><span class="w"> </span>../../..
+
 <span class="c1"># Download the model weights</span>
 <span class="nb">cd</span><span class="w"> </span>dist/prebuilt
 git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/my-huggingface-account/my-openllama7b-weight-huggingface-repo<span class="w"> </span>open-llama-7b-q3f16_0
@@ -392,13 +396,15 @@ mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>open-llama
 </div>
 </section>
 <section id="download-the-distributed-models-and-run-in-ios-app">
-<h2><a class="toc-backref" href="#id6" role="doc-backlink">Download the Distributed Models and Run in iOS App</a><a class="headerlink" href="#download-the-distributed-models-and-run-in-ios-app" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Download the Distributed Models and Run in iOS App</a><a class="headerlink" href="#download-the-distributed-models-and-run-in-ios-app" title="Permalink to this heading">¶</a></h2>
 <p>For iOS app, model libraries are packed into the app at the time of app building.
 Therefore, the iOS app supports running any models whose model libraries are integrated into the app.
 You can check the <a class="reference internal" href="../prebuilt_models.html#prebuilt-models-ios"><span class="std std-ref">list of supported model libraries</span></a>.</p>
 <p>To download and run the compiled OpenLLaMA model on iPhone, we need to reuse the integrated <cite>vicuna-v1-7b-q3f16_0</cite> model library, because both OpenLLaMA and Vicuna are LLaMA-family models.</p>
-<p>To reuse the <cite>vicuna-v1-7b-q3f16_0</cite> model library, we need to update the MLC Chat config: open <code class="docutils literal notranslate"><span class="pre">dist/open-llama-7b-q3f16_0/params/mlc-chat-config.json</span></code>, replace the value of field <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> to <code class="docutils literal notranslate"><span class="pre">&quot;vicuna-v1-7b-q3f16_0&quot;</span></code>.</p>
-<p>After replacing the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> value, upload the updated <cite>mlc-chat-config.json</cite> to the location where you host your model weights. For our example here, we use git to push the change to <cite>my-openllama7b-weight-huggingface-repo</cite>.</p>
+<p>To reuse the <cite>vicuna-v1-7b-q3f16_0</cite> model library, we make sure we already updated the MLC Chat config: open <code class="docutils literal notranslate"><span class="pre">dist/open-llama-7b-q3f16_0/params/mlc-chat-config.json</span></code>,
+update the value of field <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> to <code class="docutils literal notranslate"><span class="pre">&quot;vicuna-v1-7b-q3f16_0&quot;</span></code>.</p>
+<p>After replacing the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> value, upload the updated <cite>mlc-chat-config.json</cite> to the location where you host your model weights.
+For our example here, we use git to push the change to <cite>my-openllama7b-weight-huggingface-repo</cite>.</p>
 <p>Now we can download the model weights in iOS app and run the model by following the steps below:</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Step 1</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Step 2</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Step 3</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">Step 4</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>Open “MLCChat” app, click “Add model variant”.</p>
@@ -430,7 +436,7 @@ You can check the <a class="reference internal" href="../prebuilt_models.html#pr
         <a href="../tutorials/customize/define_new_models.html" class="btn btn-neutral float-right" title="🚧 Define New Model Architectures" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="compile_models.html" class="btn btn-neutral float-left" title="Compile Models in MLC LLM" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="compile_models.html" class="btn btn-neutral float-left" title="Compile Models via MLC" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

@@ -1,3 +1,5 @@
+.. _deploy-cli:
+
 CLI and C++ API
 ===============
 
