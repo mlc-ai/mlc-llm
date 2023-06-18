@@ -1,12 +1,18 @@
-Compile Models in MLC LLM
-=========================
+Compile Models via MLC
+======================
 
-In any case you want to try out a new quantization mode, use your own model weights, or do any customization in MLC LLM's model compilation flow, you will need to **compile the model** using MLC LLM on your own.
-This page guides you on how to compile a model in MLC LLM, providing sections and instructions on quickly getting started as well as detailed configuration.
+This page describes how to compile a model with MLC LLM. Model compilation takes model inputs, produces quantized model weights,
+and optimized model lib for a given platform. It enables users to bring their own new model weights, try different quantization modes,
+and customize the overall model optimization flow.
+
 
 .. note::
-    Before trying out, please make sure that you have :doc:`TVM-Unity </install/tvm>` correctly installed on your machine.
+    Before you proceed, please make sure that you have :ref:`install-tvm-unity` correctly installed on your machine.
     TVM-Unity is the necessary foundation for us to compile models with MLC LLM.
+    Please also follow the instruction in :ref:`deploy-cli` to obtain the CLI app that can be used to chat with the compiled model.
+    Finally, we strongly recommend you read :ref:`project-overview` first to get familiarized with the high-level terminologies.
+
+
 
 .. contents:: Table of Contents
     :depth: 1
@@ -16,14 +22,11 @@ This page guides you on how to compile a model in MLC LLM, providing sections an
 Get Started
 -----------
 
-This section provides compile instructions that you can quickly try out on your own machine.
-We take the `RedPajama-v1-3B <https://www.together.xyz/blog/redpajama>`_ model as the model to compile in this section for demonstration purpose.
-
-You can select the platform where you want to **run** your model from the tabs below, and directly run the command.
-
-.. note::
-
-    We strongly recommend you to **start with Metal/CUDA/Vulkan** as it is easier to validate the compilation result on these platforms.
+This section provides a step by step instructions to guide you through the compilation process of one specific model.
+We take the RedPajama-v1-3B as an example.
+You can select the platform where you want to **run** your model from the tabs below and run the corresponding command.
+We strongly recommend you **start with Metal/CUDA/Vulkan** as it is easier to validate the compilation result on
+your personal computer.
 
 .. tabs::
 
@@ -91,14 +94,8 @@ You can select the platform where you want to **run** your model from the tabs b
 
             python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target webgpu --quantization q4f16_0
 
-By executing the compile command above, we generate three parts that are needed to run the model:
-
-- the quantized model weights and tokenizer,
-- the model library,
-- and chat config.
-
-We have detailed introduction of these three parts in :doc:`the project overview page </get_started/project_overview>`.
-You can check and identify each part using the commands below:
+By executing the compile command above, we generate the model weights, model lib, and a chat config.
+We can check the output with the commands below:
 
 .. tabs::
 
@@ -120,18 +117,15 @@ You can check and identify each part using the commands below:
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
-        We can further quickly run and validate the model compilation using the command line interface (CLI) app.
+        We now chat with the model using the command line interface (CLI) app.
 
         .. code:: shell
-
-            # Install CLI if you have not installed or built on your own.
-            conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-nightly
-            conda activate mlc-chat-venv
 
             # Run CLI
             mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
 
-        You are expected to see the CLI app using config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json`` and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-metal.so``, and you are expected to be able to chat with the model using CLI.
+       The CLI will use the config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json``
+       and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-metal.so``.
 
     .. group-tab:: Linux - CUDA
 
@@ -151,18 +145,16 @@ You can check and identify each part using the commands below:
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
-        We can further quickly run and validate the model compilation using the command line interface (CLI) app.
+        We now chat with the model using the command line interface (CLI) app.
+        Follow the build from source instruction
 
         .. code:: shell
-
-            # Install CLI if you have not installed or built on your own.
-            conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-nightly
-            conda activate mlc-chat-venv
 
             # Run CLI
             mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
 
-        You are expected to see the CLI app using config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json`` and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-cuda.so``, and you are expected to be able to chat with the model using CLI.
+        The CLI app using config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json``
+        and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-cuda.so``.
 
     .. group-tab:: Vulkan
 
@@ -186,14 +178,11 @@ You can check and identify each part using the commands below:
 
         .. code:: shell
 
-            # Install CLI if you have not installed or built on your own.
-            conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-nightly
-            conda activate mlc-chat-venv
-
             # Run CLI
             mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
 
-        You are expected to see the CLI app using config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json`` and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-vulkan.so`` (or ``.dll``), and you are expected to be able to chat with the model using CLI.
+        CLI app will use config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json``
+        and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-vulkan.so`` (or ``.dll``).
 
     .. group-tab:: iOS/iPadOS
 
@@ -213,6 +202,9 @@ You can check and identify each part using the commands below:
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
+        The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-iphone.tar``
+        will be packaged as a static library into the iOS app. Checkout :ref:`deploy-ios` for more details.
+
     .. group-tab:: Android
 
         .. code:: shell
@@ -230,6 +222,9 @@ You can check and identify each part using the commands below:
               ...
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
+
+        The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-android.tar``
+        will be packaged as a static library into the android app. Checkout :ref:`deploy-android` for more details.
 
     .. group-tab:: WebGPU
 
@@ -249,21 +244,18 @@ You can check and identify each part using the commands below:
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
+        The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-webgpu.wasm``
+        can be uploaded to internet. You can pass a ``model_lib_map`` field to WebLLM app config to use this library.
 
-If everything goes well -- congratulations! You have now completed compiling the model on your own.
 
-In general, if you are **not** wanting to run the model on your machine using command line interface (CLI), you might need to distribute the model you compiled to Internet as the next step.
-Please refer to the :doc:`model distribution page </compilation/distribute_compiled_models>` for more detailed instructions.
-
-You can now go back to other pages (:doc:`/get_started/try_out`, "build app" pages, etc.) to run the model you just built on your devices, or proceed to read this page for more details about compiling models.
-
+Each compilation target produces a specific model library for the given platform. The model weight is shared across
+different targets. If you are interested in distributing the model besides local execution, please checkout :ref:`distribute-compiled-models`.
+You are also more than welcome to read the following sections for more details about the compilation.
 
 Compile Command Specification
 -----------------------------
 
-We saw and used the example compile command in the section above.
-This section provides brief specification on the model compile command.
-
+This section describes the list of options that can be used during compilation.
 Generally, the model compile command is specified by a sequence of arguments and in the following pattern:
 
 .. code:: shell
@@ -582,11 +574,9 @@ This section lists compile commands for more models that you can try out.
 
 For each model and each backend, the above only provides the most recommended build command (which is the most optimized). You can also try with different argument values (e.g., different quantization modes), whose build results may not run as fast and robustly as the provided one when running the model.
 
-.. warning::
-    In certain cases, using 3-bit quantization for compiling can be overly aggressive and may result in the compiled model generating meaningless text. If you encounter issues where the compiled model does not perform as expected, consider utilizing a higher number of bits for quantization (e.g., 4-bit quantization).
+.. note::
+    Uing 3-bit quantization usually can be overly aggressive and only works for limited settings.
+    If you encounter issues where the compiled model does not perform as expected,
+    consider utilizing a higher number of bits for quantization (e.g., 4-bit quantization).
 
-You have now completed compiling the model.
-In general, if you are **not** wanting to run the model on your machine using command line interface (CLI), you might need to distribute the model you compiled to Internet next.
-Please refer to the :doc:`model distribution page </compilation/distribute_compiled_models>` for more detailed instructions.
-
-You can now go back to other pages (:doc:`/get_started/try_out`, "build app" pages, etc.) to run the model you just built on your devices.
+If you are interested in distributing the model besides local execution, please checkout :ref:`distribute-compiled-models`.

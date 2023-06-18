@@ -1,3 +1,5 @@
+.. _deploy-android:
+
 Android App
 ===========
 
