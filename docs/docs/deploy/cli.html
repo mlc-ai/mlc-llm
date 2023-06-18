@@ -181,7 +181,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#run-models-through-mlcchat-cli">Run Models through MLCChat CLI</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#advanced-topic-integrate-models-in-c">Advanced Topic: Integrate Models in C++</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#advanced-build-apps-with-c-api">Advanced: Build Apps with C++ API</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#using-mlcchat-apis-in-your-own-programs">Using MLCChat APIs in your own programs</a></li>
 </ul>
 </li>
@@ -214,7 +214,7 @@
 <p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../community/guideline.html">Community Guideline</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../community/faq.html">Frequently Asked Questions (FAQ)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../community/faq.html">Frequently Asked Questions</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Other tutorials</span></p>
 <ul>
@@ -315,7 +315,7 @@
 <li><p><a class="reference internal" href="#run-models-through-mlcchat-cli" id="id7">Run Models through MLCChat CLI</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#advanced-topic-integrate-models-in-c" id="id8">Advanced Topic: Integrate Models in C++</a></p>
+<li><p><a class="reference internal" href="#advanced-build-apps-with-c-api" id="id8">Advanced: Build Apps with C++ API</a></p>
 <ul>
 <li><p><a class="reference internal" href="#using-mlcchat-apis-in-your-own-programs" id="id9">Using MLCChat APIs in your own programs</a></p></li>
 </ul>
@@ -460,8 +460,8 @@ Use<span class="w"> </span>model<span class="w"> </span>library:<span class="w">
 <p>Have fun chatting with MLC-compiled LLM!</p>
 </section>
 </section>
-<section id="advanced-topic-integrate-models-in-c">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Advanced Topic: Integrate Models in C++</a><a class="headerlink" href="#advanced-topic-integrate-models-in-c" title="Permalink to this heading">¶</a></h2>
+<section id="advanced-build-apps-with-c-api">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Advanced: Build Apps with C++ API</a><a class="headerlink" href="#advanced-build-apps-with-c-api" title="Permalink to this heading">¶</a></h2>
 <p>MLC-compiled models can be integrated into any C++ project using TVM’s C/C++ API without going through the command line.</p>
 <p><strong>Step 1. Create libmlc_llm.</strong> Both static and shared libraries are available via the <a class="reference internal" href="#mlcchat-build-from-source"><span class="std std-ref">CMake instructions</span></a>, and the downstream developer may include either one into the C++ project depending on needs.</p>
 <p><strong>Step 2. Calling into the model in your C++ Project.</strong> Use <code class="docutils literal notranslate"><span class="pre">tvm::runtime::Module</span></code> API from TVM runtime to interact with MLC LLM without MLCChat.</p>

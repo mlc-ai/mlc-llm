@@ -11,7 +11,7 @@ that allows you to build chat applications directly in browser.
 Try out Prebuilt Webpage
 ------------------------
 
-To get started, you can try out `WebLLM prebuilt webpage <https://mlc.ai/webllm>`__.
+To get started, you can try out `WebLLM prebuilt webpage <https://mlc.ai/web-llm#chat-demo>`__.
 
 A WebGPU-compatible browser and a local GPU are needed to run WebLLM.
 You can download the latest Google Chrome and use `WebGPU Report <https://webgpureport.org/>`__

@@ -1,7 +1,7 @@
 .. _FAQ:
 
-Frequently Asked Questions (FAQ)
-================================
+Frequently Asked Questions
+==========================
 
 This is a list of Frequently Asked Questions (FAQ) about the MLC-LLM. Feel free to suggest new entries!
 
