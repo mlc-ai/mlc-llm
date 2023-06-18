@@ -188,8 +188,6 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="configure_targets.html">🚧 Configure Targets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="configure_quantization.html">🚧 Configure Quantization</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
 <ul>
@@ -209,11 +207,6 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../community/guideline.html">Community Guideline</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../community/faq.html">Frequently Asked Questions</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Other tutorials</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/deploy-models.html">How to Deploy Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/bring-your-own-models.html">Add New Model Architectures</a></li>
 </ul>
 
             
@@ -302,8 +295,7 @@ This page guides you on how to compile a model in MLC LLM, providing sections an
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Before trying out, please make sure that you have <a class="reference internal" href="../install/tvm.html"><span class="doc">TVM-Unity</span></a> correctly installed on your machine.
-TVM-Unity is the necessary foundation for us to compile models with MLC LLM.
-You also need to have <a class="reference external" href="https://git-lfs.com">Git LFS</a> installed.</p>
+TVM-Unity is the necessary foundation for us to compile models with MLC LLM.</p>
 </div>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
@@ -391,9 +383,6 @@ You can check and identify each part using the commands below:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install CLI if you have not installed or built on your own.</span>
 conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-nightly
 conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
-<span class="c1"># Install Git-LFS if you have not done yet.</span>
-conda<span class="w"> </span>install<span class="w"> </span>git<span class="w"> </span>git-lfs
-git<span class="w"> </span>lfs<span class="w"> </span>install
 
 <span class="c1"># Run CLI</span>
 mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0
@@ -419,9 +408,6 @@ mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install CLI if you have not installed or built on your own.</span>
 conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-nightly
 conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
-<span class="c1"># Install Git-LFS if you have not done yet.</span>
-conda<span class="w"> </span>install<span class="w"> </span>git<span class="w"> </span>git-lfs
-git<span class="w"> </span>lfs<span class="w"> </span>install
 
 <span class="c1"># Run CLI</span>
 mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0
@@ -447,9 +433,6 @@ mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install CLI if you have not installed or built on your own.</span>
 conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-nightly
 conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
-<span class="c1"># Install Git-LFS if you have not done yet.</span>
-conda<span class="w"> </span>install<span class="w"> </span>git<span class="w"> </span>git-lfs
-git<span class="w"> </span>lfs<span class="w"> </span>install
 
 <span class="c1"># Run CLI</span>
 mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0
@@ -554,7 +537,7 @@ Besides <code class="docutils literal notranslate"><span class="pre">auto</span>
 <dd><p>The quantization mode we use to compile.
 The format of the code is <code class="docutils literal notranslate"><span class="pre">qAfB(_0)</span></code>, where <code class="docutils literal notranslate"><span class="pre">A</span></code> represents the number of bits for storing weights and <code class="docutils literal notranslate"><span class="pre">B</span></code> represents the number of bits for storing activations.
 Available options are: <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f16_0</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f32_0</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f16</span></code>, and <code class="docutils literal notranslate"><span class="pre">q8f16_0</span></code>.
-The default value is <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>.</p>
+We encourage you to use 4-bit quantization, as the text generated by 3-bit quantized models may have bad quality depending on the model.</p>
 </dd>
 </dl>
 <p>The following arguments are optional:</p>
@@ -745,7 +728,7 @@ python3<span class="w"> </span>build.py<span class="w"> </span>--model<span clas
 <p>You have now completed compiling the model.
 In general, if you are <strong>not</strong> wanting to run the model on your machine using command line interface (CLI), you might need to distribute the model you compiled to Internet next.
 Please refer to the <a class="reference internal" href="distribute_compiled_models.html"><span class="doc">model distribution page</span></a> for more detailed instructions.</p>
-<p>Now you can proceed to the “run model” page to run the model you just built on your devices.</p>
+<p>You can now go back to other pages (<a class="reference internal" href="../get_started/try_out.html"><span class="doc">Try out MLC Chat</span></a>, “build app” pages, etc.) to run the model you just built on your devices.</p>
 </section>
 </section>
 

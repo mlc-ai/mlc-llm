@@ -181,8 +181,6 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Models in MLC LLM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="configure_targets.html">🚧 Configure Targets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="configure_quantization.html">🚧 Configure Quantization</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
 <ul>
@@ -202,11 +200,6 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../community/guideline.html">Community Guideline</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../community/faq.html">Frequently Asked Questions</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Other tutorials</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/deploy-models.html">How to Deploy Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/bring-your-own-models.html">Add New Model Architectures</a></li>
 </ul>
 
             
@@ -556,7 +549,7 @@ python3<span class="w"> </span>build.py<span class="w"> </span>--model<span clas
 <li><p>After a successful build, the build script outputs some cache files for quicker future builds. If you want to ignore the cached files and want to build from the very beginning, please append <code class="docutils literal notranslate"><span class="pre">--use-cache=0</span></code> to the end of the build command.</p></li>
 <li><p>You can add <code class="docutils literal notranslate"><span class="pre">--debug-dump</span></code> to the build command to  optionally specifies if we will write some dump files for debugging.</p></li>
 </ul>
-<p>After running the build script successfully, you deploy the model by following tutorial <a class="reference internal" href="../tutorials/deploy-models.html"><span class="doc">How to Deploy Models</span></a>.</p>
+<p>After running the build script successfully, you deploy the model by following tutorial <span class="xref std std-doc">/tutorials/deploy-models</span>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>In certain cases, using 3-bit quantization for compiling can be overly aggressive and may result in the compiled model generating meaningless text. If you encounter issues where the compiled model does not perform as expected, consider utilizing a higher number of bits for quantization (e.g., 4-bit quantization).</p>

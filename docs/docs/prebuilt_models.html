@@ -183,8 +183,6 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="compilation/compile_models.html">Compile Models in MLC LLM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="compilation/configure_targets.html">🚧 Configure Targets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
 <ul>
@@ -211,11 +209,6 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="community/guideline.html">Community Guideline</a></li>
 <li class="toctree-l1"><a class="reference internal" href="community/faq.html">Frequently Asked Questions</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Other tutorials</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/deploy-models.html">How to Deploy Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/bring-your-own-models.html">Add New Model Architectures</a></li>
 </ul>
 
             
@@ -465,7 +458,7 @@ To add a model to the iOS app, follow the steps below:</p>
 </details><div class="line-block">
 <div class="line"><br /></div>
 </div>
-<p>The iOS has integrated with the following model libraries, which can be directly reused when you want to run a model you compiled in iOS, as long as the model is in the supported model family and is compiled with supported quantization mode.
+<p>The iOS app has integrated with the following model libraries, which can be directly reused when you want to run a model you compiled in iOS, as long as the model is in the supported model family and is compiled with supported quantization mode.
 For example, if you compile <a class="reference external" href="https://github.com/openlm-research/open_llama">OpenLLaMA-7B</a> with quantization mode <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>, then you can run the compiled OpenLLaMA model on iPhone without rebuilding the iOS app by reusing the <cite>vicuna-v1-7b-q3f16_0</cite> model library. Please check the <a class="reference internal" href="compilation/distribute_compiled_models.html"><span class="doc">model distribution page</span></a> for detailed instructions.</p>
 <table class="docutils align-default" id="id4">
 <caption><span class="caption-text">Prebuilt model libraries which are integrated in the iOS app</span><a class="headerlink" href="#id4" title="Permalink to this table">¶</a></caption>
