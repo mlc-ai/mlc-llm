@@ -10,6 +10,7 @@ import SwiftUI
 struct StartView: View {
     @EnvironmentObject var state: StartState
     @State private var isAdding: Bool = false
+    @State private var isRemoving: Bool = false
     @State private var inputModelUrl: String = ""
 
     var body: some View {
@@ -17,70 +18,60 @@ struct StartView: View {
             List{
                 Section(header: Text("Models")){
                     ForEach(state.models) { modelState in
-                        ModelView().environmentObject(modelState)
+                        ModelView(isRemoving: $isRemoving).environmentObject(modelState).environmentObject(state.chatState)
+                    }
+                    if !isRemoving {
+                        Button("Edit model") {
+                            isRemoving = true
+                        }.buttonStyle(.borderless)
+                    } else {
+                        Button("Cancel edit model") {
+                            isRemoving = false
+                        }.buttonStyle(.borderless)
                     }
                     if !isAdding {
                         Button("Add model variant") {
                             isAdding = true
                         }.buttonStyle(.borderless)
+                    } else {
+                        Button("Cancel add model variant") {
+                            isAdding = false
+                            inputModelUrl = ""
+                        }.buttonStyle(.borderless)
                     }
                 }
                 if isAdding {
-                    Section(header: Text("MLC Chat Model URL")) {
-                        TextField("Input model url here", text: $inputModelUrl, axis: .vertical)
-                    }
                     Section(header: Text(
-                        "Click below to input example URLs, " +
-                        "these URLs may contain same weights as builtin ones"
+                        "Click below to import sample model variants, " +
+                        "these variants may contain same weights as builtin ones"
                     )) {
                         ForEach(state.exampleModelUrls) { record in
                             Button(record.local_id) {
-                                inputModelUrl = record.model_url
+                                state.requestAddModel(url: record.model_url, localId: record.local_id)
                             }.buttonStyle(.borderless)
                         }
+                    }
+                    Section(header: Text("Add model by URL, sample URL: \"https://huggingface.co/mlc-ai/demo-vicuna-v1-7b-int4/\"")) {
+                        TextField("Input model url here", text: $inputModelUrl, axis: .vertical)
                         Button("Clear URL") {
                             inputModelUrl = ""
+                        }.buttonStyle(.borderless)
+                        Button("Add model") {
+                            state.requestAddModel(url: inputModelUrl, localId: nil)
+                            isAdding = false
+                            inputModelUrl = ""
                         }
+                        .buttonStyle(.borderless)
                     }
                 }
             }
             .navigationTitle("MLC Chat")
-            .toolbar{
-                if isAdding {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Cancel") {
-                            isAdding = false
-                            inputModelUrl = ""
-                        }
-                        .opacity(0.9)
-                        .padding()
-                    }
-                    if !inputModelUrl.isEmpty {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Add") {
-                                state.addModel(modelRemoteBaseUrl: inputModelUrl)
-                                isAdding = false
-                                inputModelUrl = ""
-                            }
-                            .opacity(0.9)
-                            .bold()
-                            .padding()
-                        }
-                    }
-                }
-            }.alert("Error", isPresented: $state.alertDisplayed, actions: {
+            .alert("Error", isPresented: $state.alertDisplayed, actions: {
                 Button("OK") {}
             }, message: {
                 Text(state.alertMessage)
             })
 
         }
-    }
-}
-
-
-struct StartView_Previews: PreviewProvider {
-    static var previews: some View {
-        StartView().environmentObject(StartState())
     }
 }
