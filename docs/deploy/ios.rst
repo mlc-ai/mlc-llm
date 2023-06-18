@@ -1,3 +1,5 @@
+.. _deploy-ios:
+
 iOS App and Swift API
 =====================
 

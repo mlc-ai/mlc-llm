@@ -1,10 +1,12 @@
+.. _distribute-compiled-models:
+
 Distribute Compiled Models
 ==========================
 
-When you want to run the model compiled by yourself on mobile devices and/or web browser, you need to distribute the model you compiled to the Internet (for example, as a repository in Hugging Face), so that the applications released by MLC LLM can download your model from the Internet location.
 
-This page introduces how to distribute the model you compiled.
-For demonstration purpose, here we want to distribute the compiled `OpenLLaMA-7B <https://huggingface.co/openlm-research/open_llama_7b>`_ model.
+This page describes how to distribute the model you compiled so others can use the model in MLC chat runtime.
+For demonstration purposes, we show how to compile a llama-7b variant
+`OpenLLaMA-7B <https://huggingface.co/openlm-research/open_llama_7b>`_ model.
 We assume the model is already compiled.
 
 .. note::
@@ -41,39 +43,37 @@ You are expected to see the same folder structure for the model you compiled.
 Step 2. Update MLC Chat Configuration JSON
 ------------------------------------------
 
-You can **optionally** :doc:`update the MLCChat configuration JSON </get_started/mlc_chat_config>` file ``dist/open-llama-7b-q3f16_0/params/mlc-chat-config.json``. Open and update the JSON file and customize it according to your needs.
+You can **optionally** customize the chat config file
+``dist/open-llama-7b-q3f16_0/params/mlc-chat-config.json`` (checkout :ref:`configure-mlc-chat-json` for more detailed instructions).
+Youc an also simply use the default configuration and skip this step.
 
-You can also use the default configuration, in which case no action is needed in this step.
+Step 3. Specify the Model Lib
+-----------------------------
 
-Step 3. Host the Model Library
-------------------------------
+An MLC chat app needs to look for the model library to run the model.
+In the case of llama-7b, we already have a prebuilt model lib for vicuna that shares the
+same model architecture and quantization mode.
+We can edit ``dist/open-llama-7b-q3f16_0/params/mlc-chat-config.json`` and update the value of field ``model_lib`` to ``"vicuna-v1-7b-q3f16_0"``.
 
-Now we upload the model library to an Internet location.
-That is to say, for our OpenLLaMA example here, we need to host ``dist/open-llama-7b-q3f16_0/open-llama-7b-q3f16_0-metal.so`` on the Internet.
+.. note::
 
-Any publicly available Internet location is good to host the model library.
-The prebuilt model libraries are hosted in `a GitHub repo <https://github.com/mlc-ai/binary-mlc-llm-libs>`_.
-If you also want to host your model library on GitHub, you can follow the instructions below:
+    We recommend reusing the model lib for the same architecture with different weight variants.
+    You can leverage the ``--reuse-lib`` in the build to specify the library you want to reuse or edit the chat config afterward.
+    Reusing model lib allows us to run the model on existing MLC apps (e.g. iOS) that requires static packaging.
 
-.. code:: shell
 
-    # First, please create a repository on GitHub.
-    # With the repository created, run
-    git clone https://github.com/my-github-account/my-model-library-github-repo.git
-    cd my-model-library-github-repo
-    cp path/to/mlc-llm/dist/open-llama-7b-q3f16_0/open-llama-7b-q3f16_0-metal.so .
-    git commit -m "Add open-llama-7b Metal library"
-    git push
+We should distribute the generated model lib if we want to build a new model architecture or try out customized compilation optimizations.
+In this case, we should keep the ``model_lib`` field as ``"open-llama-7b-q3f16_0"``.
+You can upload the model library ``dist/open-llama-7b-q3f16_0/open-llama-7b-q3f16_0-metal.so``
+and ask others to download it to  `dist/prebuilt/lib` directory so the CLI app can pick it up.
 
-Step 4. Host the Compiled Model Weights
----------------------------------------
 
-Now we upload the compiled model weights to Internet.
-That is to say, for our OpenLLaMA example here, we need to host ``dist/open-llama-7b-q3f16_0/params`` on the Internet.
+Step 4. Upload the Compiled Model Weights
+-----------------------------------------
 
-Any publicly available Internet location is good to host the compiled model weights.
-MLC LLM uses Hugging Face repositories to host the prebuilt model weights.
-If you also want to host your model library on Hugging Face, you can follow the instructions below:
+As a next step, we need to upload the model weights.
+We only need to upload the files in ``dist/open-llama-7b-q3f16_0/params``.
+If you also want to host the compiled models on Hugging Face, you can follow the instructions below:
 
 .. code:: shell
 
@@ -90,7 +90,7 @@ If you also want to host your model library on Hugging Face, you can follow the 
 ---------------------------------
 
 Good job, you have successfully distributed the model you compiled.
-Next, we will talk about how to download and run models with the distributed library and weights.
+Next, we will talk about how to we can consume the model weights
 
 Download the Distributed Models and Run in CLI
 ----------------------------------------------
@@ -99,10 +99,15 @@ The steps needed to run models in CLI are similar to the steps to download the p
 
 .. code:: shell
 
-    mkdir -p dist/prebuilt/lib
-    # Download the model library
-    git clone https://github.com/my-github-account/my-model-library-github-repo.git
-    cp my-model-library-github-repo/* dist/prebuilt/lib/
+    # clone prebuilt libs so we can reuse them
+    mkdir -p dist/prebuilt
+    git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
+
+    # Download the model library (only needed if we are not reusing the model lib)
+    cd dist/prebuilt/lib
+    wget url-to-my-model-lib
+    cd ../../..
+
     # Download the model weights
     cd dist/prebuilt
     git clone https://huggingface.co/my-huggingface-account/my-openllama7b-weight-huggingface-repo open-llama-7b-q3f16_0
@@ -120,9 +125,11 @@ You can check the :ref:`list of supported model libraries <prebuilt-models-ios>`
 
 To download and run the compiled OpenLLaMA model on iPhone, we need to reuse the integrated `vicuna-v1-7b-q3f16_0` model library, because both OpenLLaMA and Vicuna are LLaMA-family models.
 
-To reuse the `vicuna-v1-7b-q3f16_0` model library, we need to update the MLC Chat config: open ``dist/open-llama-7b-q3f16_0/params/mlc-chat-config.json``, replace the value of field ``model_lib`` to ``"vicuna-v1-7b-q3f16_0"``.
+To reuse the `vicuna-v1-7b-q3f16_0` model library, we make sure we already updated the MLC Chat config: open ``dist/open-llama-7b-q3f16_0/params/mlc-chat-config.json``,
+update the value of field ``model_lib`` to ``"vicuna-v1-7b-q3f16_0"``.
 
-After replacing the ``model_lib`` value, upload the updated `mlc-chat-config.json` to the location where you host your model weights. For our example here, we use git to push the change to `my-openllama7b-weight-huggingface-repo`.
+After replacing the ``model_lib`` value, upload the updated `mlc-chat-config.json` to the location where you host your model weights.
+For our example here, we use git to push the change to `my-openllama7b-weight-huggingface-repo`.
 
 Now we can download the model weights in iOS app and run the model by following the steps below:
 

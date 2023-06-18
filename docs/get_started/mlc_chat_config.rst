@@ -1,3 +1,5 @@
+.. _configure-mlc-chat-json:
+
 Configure MLCChat in JSON
 =========================
 
