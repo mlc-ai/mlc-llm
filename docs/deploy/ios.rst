@@ -33,8 +33,8 @@ We only need tvm unity's utility to combine the libraries (local-id-iphone.tar) 
 We also need to have the following build dependencies
 
 * CMake >= 3.24
-* Git
-* Rust and Cargo, required by Huggingface's tokenizer
+* Git and git lfs
+* `Rust and Cargo <https://www.rust-lang.org/tools/install>`_, required by Huggingface's tokenizer
 
 
 Step 2. Download Prebuilt Weights and Library
@@ -128,29 +128,31 @@ Once you have made the necessary changes, build the iOS app using Xcode.
 If you have an apple silicon macbook, you can select target `My Mac (designed for ipad)`
 to run on your macbook. You can also directly run it on your ipad or iphone.
 
-
 Customize the App
 -----------------
 
 We can customize the iOS app in several ways.
-`MLCChat/app-config.json <https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/app-config.json>`_.
+`MLCChat/app-config.json <https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/app-config.json>`_
 controls the list of model URLs and model libs to be packaged into the app.
 
-``model_libs`` controls the model libraries to be packaged into the app
-   `./prepare_libs.sh` script will look at this field, find compiled or prebuilt model lib and package them into `libmodel_iphone.a`.
+``model_libs``
+  List of model libraries to be packaged into the app. ``./prepare_libs.sh``
+   will look at this field, find compiled or prebuilt model lib, and package them into ``libmodel_iphone.a``.
 
-``model_list`` controls a list of models that can be downloaded from the internet, these models
-   must use the model lib packaged in the app.
+``model_list``
+  List of models that can be downloaded from the internet. These models
+  must use the model lib packaged in the app.
 
-``add_model_samples`` controls a list of example URLs to show up in add model button.
+``add_model_samples``
+  A list of example URLs that show up when the user clicks add model.
 
 Additionally, the app prepackages the models under `./ios/dist`.
 This built-in list can be controlled by editing `prepare_params.sh`
 You can package new prebuilt models or compiled models by changing the above fields and rerunning the steps.
 
 
-Build your own App with MLC Swift API
--------------------------------------
+Build Apps with MLC Swift API
+-----------------------------
 
 We also provide an swift package that you can use to build
 your own app. The package is located under `ios/MLCSwift`.
