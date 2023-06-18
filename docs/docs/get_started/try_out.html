@@ -299,9 +299,9 @@ and you can try out prebuilt models on the following platforms:</p>
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">CLI (Linux/MacOS/Windows)</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>To utilize the models on your PC, we highly recommend trying out the CLI version of MLC LLM.</p>
 <p>We have prepared Conda packages for MLC Chat CLI. If you haven’t installed Conda yet,
 please refer to <a class="reference internal" href="../install/conda.html"><span class="doc">this tutorial</span></a> to install Conda.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a new conda environment and activate the environment.</span>
-conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat
-conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a new conda environment, install CLI app, and activate the environment.</span>
+conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-nightly
+conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 
 <span class="c1"># Install Git and Git-LFS if you haven&#39;t already.</span>
 <span class="c1"># They are used for downloading the model weights from HuggingFace.</span>
@@ -312,7 +312,7 @@ git<span class="w"> </span>lfs<span class="w"> </span>install
 conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-nightly<span class="w"> </span>--force-reinstall
 
 <span class="c1"># Create a directory, download the model weights from HuggingFace, and download the binary libraries</span>
-<span class="c1"># from GitHub. Select one of the following `LOCAL_ID` for a prebuilt LLM.</span>
+<span class="c1"># from GitHub.</span>
 
 mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt
 git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt/lib

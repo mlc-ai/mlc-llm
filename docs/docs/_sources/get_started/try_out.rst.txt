@@ -18,9 +18,9 @@ and you can try out prebuilt models on the following platforms:
 
     .. code:: bash
 
-      # Create a new conda environment and activate the environment.
-      conda create -n mlc-chat
-      conda activate mlc-chat
+      # Create a new conda environment, install CLI app, and activate the environment.
+      conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-nightly
+      conda activate mlc-chat-venv
 
       # Install Git and Git-LFS if you haven't already.
       # They are used for downloading the model weights from HuggingFace.
@@ -31,7 +31,7 @@ and you can try out prebuilt models on the following platforms:
       conda install -c mlc-ai -c conda-forge mlc-chat-nightly --force-reinstall
 
       # Create a directory, download the model weights from HuggingFace, and download the binary libraries
-      # from GitHub. Select one of the following `LOCAL_ID` for a prebuilt LLM.
+      # from GitHub.
 
       mkdir -p dist/prebuilt
       git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib

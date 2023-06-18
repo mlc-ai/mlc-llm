@@ -22,6 +22,10 @@ We take the `RedPajama-v1-3B <https://www.together.xyz/blog/redpajama>`_ model a
 
 You can select the platform where you want to **run** your model from the tabs below, and directly run the command.
 
+.. note::
+
+    We strongly recommend you to **start with Metal/CUDA/Vulkan** as it is easier to validate the compilation result on these platforms.
+
 .. tabs::
 
     .. group-tab:: Metal
@@ -95,7 +99,7 @@ By executing the compile command above, we generate three parts that are needed 
 - and chat config.
 
 We have detailed introduction of these three parts in :doc:`the project overview page </get_started/project_overview>`.
-Before proceeding, you can check and identify each part using the commands below:
+You can check and identify each part using the commands below:
 
 .. tabs::
 
@@ -117,6 +121,22 @@ Before proceeding, you can check and identify each part using the commands below
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
+        We can further quickly run and validate the model compilation using the command line interface (CLI) app.
+
+        .. code:: shell
+
+            # Install CLI if you have not installed or built on your own.
+            conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-nightly
+            conda activate mlc-chat-venv
+            # Install Git-LFS if you have not done yet.
+            conda install git git-lfs
+            git lfs install
+
+            # Run CLI
+            mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
+
+        You are expected to see the CLI app using config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json`` and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-metal.so``, and you are expected to be able to chat with the model using CLI.
+
     .. group-tab:: Linux - CUDA
 
         .. code:: shell
@@ -135,6 +155,22 @@ Before proceeding, you can check and identify each part using the commands below
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
+        We can further quickly run and validate the model compilation using the command line interface (CLI) app.
+
+        .. code:: shell
+
+            # Install CLI if you have not installed or built on your own.
+            conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-nightly
+            conda activate mlc-chat-venv
+            # Install Git-LFS if you have not done yet.
+            conda install git git-lfs
+            git lfs install
+
+            # Run CLI
+            mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
+
+        You are expected to see the CLI app using config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json`` and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-cuda.so``, and you are expected to be able to chat with the model using CLI.
+
     .. group-tab:: Vulkan
 
         .. code:: shell
@@ -152,6 +188,22 @@ Before proceeding, you can check and identify each part using the commands below
               ...
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
+
+        We can further quickly run and validate the model compilation using the command line interface (CLI) app.
+
+        .. code:: shell
+
+            # Install CLI if you have not installed or built on your own.
+            conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-nightly
+            conda activate mlc-chat-venv
+            # Install Git-LFS if you have not done yet.
+            conda install git git-lfs
+            git lfs install
+
+            # Run CLI
+            mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
+
+        You are expected to see the CLI app using config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json`` and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-vulkan.so`` (or ``.dll``), and you are expected to be able to chat with the model using CLI.
 
     .. group-tab:: iOS/iPadOS
 
@@ -207,11 +259,13 @@ Before proceeding, you can check and identify each part using the commands below
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
-Congratulations! You have now completed compiling the model on your own.
+
+If everything goes well -- congratulations! You have now completed compiling the model on your own.
+
 In general, if you are **not** wanting to run the model on your machine using command line interface (CLI), you might need to distribute the model you compiled to Internet as the next step.
 Please refer to the :doc:`model distribution page </compilation/distribute_compiled_models>` for more detailed instructions.
 
-You can now direct to the "run model" page to run the model you just built on your devices, or proceed reading this page for more details about compiling models.
+You can now go back to other pages (:doc:`/get_started/try_out`, "build app" pages, etc.) to run the model you just built on your devices, or proceed to read this page for more details about compiling models.
 
 
 Compile Command Specification
