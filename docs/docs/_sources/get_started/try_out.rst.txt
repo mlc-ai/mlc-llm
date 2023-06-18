@@ -59,7 +59,7 @@ and you can try out prebuilt models on the following platforms:
   .. tab:: Web Browser
 
     With the advancements of WebGPU, we can now run LLM completely in the web browser environment.
-    You can try out the web version of MLC LLM in `WebLLM <https://mlc.ai/web-llm>`__.
+    You can try out the web version of MLC LLM in `WebLLM <https://mlc.ai/web-llm#chat-demo>`__.
 
     In WebLLM, once the model weights are fetched and stored in the local cache in the first run, you can start to interact with the model without Internet connection.
 

@@ -1,4 +1,4 @@
-.. _Model Prebulits:
+.. _Model Prebuilts:
 
 Model Prebuilts
 ==================

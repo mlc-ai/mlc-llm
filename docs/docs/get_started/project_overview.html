@@ -299,13 +299,13 @@ The MLC-LLM project consists of three distinct submodules: model definition, mod
 </figcaption>
 </figure>
 <p><strong>➀ Model definition in Python.</strong> MLC offers a variety of pre-defined architectures, such as Llama (e.g., Vicuna, OpenLlama, Llama, Wizard), GPT-NeoX (e.g., RedPajama, Dolly), RNNs (e.g., RWKV), and GPT-J (e.g., MOSS). Model developers could solely define the model in pure Python, without having to touch code generation and runtime.</p>
-<p><strong>➁ Model compilation in Python.</strong> <a class="reference internal" href="../install/tvm.html"><span class="doc">TVM Unity</span></a> compiler are configured in pure python, and it quantizes and exports the Python-based model to a model lib and quantized model weights. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.</p>
+<p><strong>➁ Model compilation in Python.</strong> Models are compiled by <a class="reference internal" href="../install/tvm.html"><span class="doc">TVM Unity</span></a> compiler, where the compilation is configured in pure Python. MLC LLM quantizes and exports the Python-based model to a model library and quantized model weights. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.</p>
 <p><strong>➂ Platform-native runtimes.</strong> Variants of MLCChat are provided on each platform: <strong>C++</strong> for command line, <strong>Javascript</strong> for web, <strong>Swift</strong> for iOS, and <strong>Java</strong> for Android, configurable with a JSON chat config. App developers only need to familiarize with the platform-naive runtimes to integrate MLC-compiled LLMs into their projects.</p>
 <section id="terminologies">
 <span id="id2"></span><h2>Terminologies<a class="headerlink" href="#terminologies" title="Permalink to this heading">¶</a></h2>
 <p>It is helpful for us to familiarize the basic terminologies used in the MLC chat applications.</p>
 <ul class="simple">
-<li><p><strong>model weights</strong>: the model weight is a folder that contains the quantized neural network weights
+<li><p><strong>model weights</strong>: The model weight is a folder that contains the quantized neural network weights
 of the language models as well as the tokenizer configurations.</p></li>
 <li><p><strong>model lib</strong>: The model library refers to the executable libraries that enable
 the execution of a specific model architecture.   On Linux, these libraries have the suffix
@@ -313,10 +313,10 @@ the execution of a specific model architecture.   On Linux, these libraries have
 On web browser, the library suffix is <code class="docutils literal notranslate"><span class="pre">.wasm</span></code></p></li>
 <li><p><strong>chat config</strong>: The chat configuration includes settings that allow customization of parameters such as temperature and system prompt.
 The default chat config usually resides in the same directory as model weights.
-A chat config also contains the following two meta-data fields that are used in</p>
+A chat config also contains the following two meta-data fields that are used in multi-model support settings.</p>
 <ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">local_id</span></code> The key uniquely identifies the model within an app.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">model_lib</span></code> This key specifies which model library to use.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">local_id</span></code>, which uniquely identifies the model within an app, and</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">model_lib</span></code>, which specifies which model library to use.</p></li>
 </ul>
 </li>
 </ul>
@@ -325,8 +325,8 @@ A chat config also contains the following two meta-data fields that are used in<
 <h2>Model Preparation<a class="headerlink" href="#model-preparation" title="Permalink to this heading">¶</a></h2>
 <p>There are several ways to prepare the model weights and model lib.</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="../prebuilt_models.html#model-prebulits"><span class="std std-ref">Model Prebuilts</span></a> contains models that can be directly used.</p></li>
-<li><p>You can also run model compilation for model weight variants for given supported architectures.</p></li>
+<li><p><a class="reference internal" href="../prebuilt_models.html#model-prebuilts"><span class="std std-ref">Model Prebuilts</span></a> contains models that can be directly used.</p></li>
+<li><p>You can also <a class="reference internal" href="../compilation/compile_models.html"><span class="doc">run model compilation</span></a> for model weight variants for given supported architectures.</p></li>
 <li><p>Finally, we can enhance the overall model definition flow to incorporate new model architectures.</p></li>
 </ul>
 <p>A default chat config usually comes with the model weight directory. You can further customize
@@ -337,7 +337,7 @@ Please refer to <a class="reference internal" href="mlc_chat_config.html"><span 
 <section id="runtime-flow-overview">
 <h2>Runtime Flow Overview<a class="headerlink" href="#runtime-flow-overview" title="Permalink to this heading">¶</a></h2>
 <p>Once the model weights, model library, and chat configuration are prepared, an MLC chat runtime can consume them as an engine to drive a chat application.
-The diagram below show a typical workflow for a MLC chat application.</p>
+The diagram below shows a typical workflow for a MLC chat application.</p>
 <a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg" class="align-center" src="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg" width="90%" /></a>
 <p>On the right side of the figure, you can see pseudo-code illustrating the structure of an MLC chat API during the execution of a chat app.
 Typically, there is a <code class="docutils literal notranslate"><span class="pre">ChatModule</span></code> that manages the model. The chat app includes a reload function that takes a <code class="docutils literal notranslate"><span class="pre">local_id</span></code>
@@ -347,7 +347,7 @@ The runtime utilizes the <code class="docutils literal notranslate"><span class=
 All the runtime can read the same model weight folder. The packaging of the model libraries may vary depending on the runtime.
 For the CLI, the model libraries are stored in a DLL directory.
 iOS and Android include pre-packaged model libraries within the app due to dynamic loading restrictions.
-WebLLM utilizes a <code class="docutils literal notranslate"><span class="pre">model_lib_map</span></code> that maps the library name to URLs of WebAssembly (Wasm) files.</p>
+WebLLM utilizes URLs of local or Internet-hosted WebAssembly (Wasm) files.</p>
 </section>
 <section id="what-to-do-next">
 <h2>What to Do Next<a class="headerlink" href="#what-to-do-next" title="Permalink to this heading">¶</a></h2>

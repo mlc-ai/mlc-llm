@@ -182,7 +182,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#advanced-build-apps-with-c-api">Advanced: Build Apps with C++ API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#using-mlcchat-apis-in-your-own-programs">Using MLCChat APIs in your own programs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#using-mlcchat-apis-in-your-own-programs">Using MLCChat APIs in Your Own Programs</a></li>
 </ul>
 </li>
 </ul>
@@ -295,32 +295,28 @@
            <div itemprop="articleBody">
             
   <section id="cli-and-c-api">
-<h1><a class="toc-backref" href="#id4" role="doc-backlink">CLI and C++ API</a><a class="headerlink" href="#cli-and-c-api" title="Permalink to this heading">¶</a></h1>
+<h1>CLI and C++ API<a class="headerlink" href="#cli-and-c-api" title="Permalink to this heading">¶</a></h1>
 <p>MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box. You may install it from the prebuilt package we provide, or compile it from source.</p>
-<nav class="contents" id="table-of-contents">
+<nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#cli-and-c-api" id="id4">CLI and C++ API</a></p>
+<li><p><a class="reference internal" href="#option-1-conda-prebuilt" id="id4">Option 1. Conda Prebuilt</a></p></li>
+<li><p><a class="reference internal" href="#option-2-build-from-source" id="id5">Option 2. Build from Source</a></p>
 <ul>
-<li><p><a class="reference internal" href="#option-1-conda-prebuilt" id="id5">Option 1. Conda Prebuilt</a></p></li>
-<li><p><a class="reference internal" href="#option-2-build-from-source" id="id6">Option 2. Build from Source</a></p>
-<ul>
-<li><p><a class="reference internal" href="#run-models-through-mlcchat-cli" id="id7">Run Models through MLCChat CLI</a></p></li>
+<li><p><a class="reference internal" href="#run-models-through-mlcchat-cli" id="id6">Run Models through MLCChat CLI</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#advanced-build-apps-with-c-api" id="id8">Advanced: Build Apps with C++ API</a></p>
+<li><p><a class="reference internal" href="#advanced-build-apps-with-c-api" id="id7">Advanced: Build Apps with C++ API</a></p>
 <ul>
-<li><p><a class="reference internal" href="#using-mlcchat-apis-in-your-own-programs" id="id9">Using MLCChat APIs in your own programs</a></p></li>
-</ul>
-</li>
+<li><p><a class="reference internal" href="#using-mlcchat-apis-in-your-own-programs" id="id8">Using MLCChat APIs in Your Own Programs</a></p></li>
 </ul>
 </li>
 </ul>
 </nav>
 <section id="option-1-conda-prebuilt">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">Option 1. Conda Prebuilt</a><a class="headerlink" href="#option-1-conda-prebuilt" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Option 1. Conda Prebuilt</a><a class="headerlink" href="#option-1-conda-prebuilt" title="Permalink to this heading">¶</a></h2>
 <p>The prebuilt package supports Metal on macOS and Vulkan on Linux and Windows, and can be installed via Conda one-liner.</p>
-<p>To use other GPU runtimes, e.g. CUDA, please instead build it from source.</p>
+<p>To use other GPU runtimes, e.g. CUDA, please instead <a class="reference internal" href="#mlcchat-build-from-source"><span class="std std-ref">build it from source</span></a>.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-nightly
 conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 mlc_chat_cli<span class="w"> </span>--help
@@ -333,14 +329,14 @@ mlc_chat_cli<span class="w"> </span>--help
 </div>
 </section>
 <section id="option-2-build-from-source">
-<span id="mlcchat-build-from-source"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
-<p>While it is always recommended to use prebuilt MLCChat, for more customization, one has to build <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> from source in the following steps:</p>
+<span id="mlcchat-build-from-source"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
+<p>While it is always recommended to use prebuilt MLCChat, for more customization, one needs to build <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> from source in the following steps:</p>
 <details class="summary-details">
-<summary>Details</summary><p><strong>Step 1. Set up build dependency.</strong> To build from source, you need to ensure that the following build dependencies are met:</p>
+<summary>Details</summary><p><strong>Step 1. Set up build dependency.</strong> To build from source, you need to ensure that the following build dependencies are satisfied:</p>
 <ul class="simple">
 <li><p>CMake &gt;= 3.24</p></li>
 <li><p>Git</p></li>
-<li><p>Rust and Cargo, required by Huggingface’s tokenizer</p></li>
+<li><p><a class="reference external" href="https://www.rust-lang.org/tools/install">Rust and Cargo</a>, required by Hugging Face’s tokenizer</p></li>
 <li><p>One of the GPU runtimes:</p>
 <ul>
 <li><p>CUDA &gt;= 11.8 (NVIDIA GPUs)</p></li>
@@ -350,7 +346,7 @@ mlc_chat_cli<span class="w"> </span>--help
 </li>
 </ul>
 <div class="literal-block-wrapper docutils container" id="id1">
-<div class="code-block-caption"><span class="caption-text">Set up build dependencies in conda</span><a class="headerlink" href="#id1" title="Permalink to this code">¶</a></div>
+<div class="code-block-caption"><span class="caption-text">Set up build dependencies in Conda</span><a class="headerlink" href="#id1" title="Permalink to this code">¶</a></div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># make sure to start with a fresh environment</span>
 conda<span class="w"> </span>env<span class="w"> </span>remove<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv
 <span class="c1"># create the conda environment with build dependency</span>
@@ -367,7 +363,7 @@ conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 <p class="admonition-title">Note</p>
 <p><a class="reference internal" href="../install/tvm.html"><span class="doc">TVM Unity</span></a> compiler is not a dependency to MLCChat CLI. Only its runtime is required, which is automatically included in <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a>.</p>
 </div>
-<p><strong>Step 2. Configure and build.</strong> Standard git-based workflow are recommended to download MLC LLM, and then specify build requirements with our small config generation tool:</p>
+<p><strong>Step 2. Configure and build.</strong> A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:</p>
 <div class="literal-block-wrapper docutils container" id="id2">
 <div class="code-block-caption"><span class="caption-text">Configure and build <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code></span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># clone from GitHub</span>
@@ -397,15 +393,15 @@ ls<span class="w"> </span>-l<span class="w"> </span>./build/
 <div class="line"><br /></div>
 </div>
 <section id="run-models-through-mlcchat-cli">
-<h3><a class="toc-backref" href="#id7" role="doc-backlink">Run Models through MLCChat CLI</a><a class="headerlink" href="#run-models-through-mlcchat-cli" title="Permalink to this heading">¶</a></h3>
+<h3><a class="toc-backref" href="#id6" role="doc-backlink">Run Models through MLCChat CLI</a><a class="headerlink" href="#run-models-through-mlcchat-cli" title="Permalink to this heading">¶</a></h3>
 <p>Once <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> is installed, you are able to run any MLC-compiled model on comamnd line.</p>
 <p><strong>Ensure Model Exists.</strong> As the input to <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, it is always good to double check if the compiled model exists.</p>
 <details class="summary-details">
 <summary>Details</summary><div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Check prebuilt models</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Check compiled models</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>If you downloaded prebuilt models from MLC LLM, by default:</p>
 <ul class="simple">
-<li><p>model lib should be placed under <code class="docutils literal notranslate"><span class="pre">./dist/prebuilt/lib/$(local_id)-$(arch).$(suffix)</span></code></p></li>
-<li><p>model weights and chat config are located under <code class="docutils literal notranslate"><span class="pre">./dist/prebuilt/mlc-chat-$(local_id)/</span></code></p></li>
+<li><p>Model lib should be placed at <code class="docutils literal notranslate"><span class="pre">./dist/prebuilt/lib/$(local_id)-$(arch).$(suffix)</span></code>.</p></li>
+<li><p>Model weights and chat config are located under <code class="docutils literal notranslate"><span class="pre">./dist/prebuilt/mlc-chat-$(local_id)/</span></code>.</p></li>
 </ul>
 <details class="summary-example">
 <summary>Example</summary><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/prebuilt/lib
@@ -423,8 +419,8 @@ params_shard_*.bin
 </div>
 </details></div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p>If you have compiled models using MLC LLM, by default:</p>
 <ul class="simple">
-<li><p>model lib should be placed under <code class="docutils literal notranslate"><span class="pre">./dist/$(local_id)/$(local_id)-$(arch).$(suffix)</span></code></p></li>
-<li><p>model weights and chat config are located under <code class="docutils literal notranslate"><span class="pre">./dist/$(local_id)/params/</span></code></p></li>
+<li><p>Model libraries should be placed at <code class="docutils literal notranslate"><span class="pre">./dist/$(local_id)/$(local_id)-$(arch).$(suffix)</span></code>.</p></li>
+<li><p>Model weights and chat config are located under <code class="docutils literal notranslate"><span class="pre">./dist/$(local_id)/params/</span></code>.</p></li>
 </ul>
 <details class="summary-example">
 <summary>Example</summary><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/vicuna-v1-7b-q3f16_0/<span class="w"> </span><span class="c1"># Format: ./dist/$(local_id)/</span>
@@ -440,7 +436,10 @@ params_shard_*.bin
 </pre></div>
 </div>
 </details></div></div>
-</details><p><strong>Run the Model.</strong> Next run <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> in command line:</p>
+</details><div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p><strong>Run the Model.</strong> Next run <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> in command line:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># `local_id` is `$(model_name)-$(quantize_mode)`</span>
 <span class="c1"># In this example, `model_name` is `vicuna-v1-7b`, and `quantize_mode` is `q3f16_0`</span>
 &gt;&gt;&gt;<span class="w"> </span>mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>vicuna-v1-7b-q3f16_0
@@ -454,9 +453,9 @@ Use<span class="w"> </span>model<span class="w"> </span>library:<span class="w">
 </section>
 </section>
 <section id="advanced-build-apps-with-c-api">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Advanced: Build Apps with C++ API</a><a class="headerlink" href="#advanced-build-apps-with-c-api" title="Permalink to this heading">¶</a></h2>
-<p>MLC-compiled models can be integrated into any C++ project using TVM’s C/C++ API without going through the command line.</p>
-<p><strong>Step 1. Create libmlc_llm.</strong> Both static and shared libraries are available via the <a class="reference internal" href="#mlcchat-build-from-source"><span class="std std-ref">CMake instructions</span></a>, and the downstream developer may include either one into the C++ project depending on needs.</p>
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Advanced: Build Apps with C++ API</a><a class="headerlink" href="#advanced-build-apps-with-c-api" title="Permalink to this heading">¶</a></h2>
+<p>MLC-compiled models can be integrated into <strong>any C++ project</strong> using TVM’s C/C++ API without going through the command line.</p>
+<p><strong>Step 1. Create libmlc_llm.</strong> Both static and shared libraries are available via the <a class="reference internal" href="#mlcchat-build-from-source"><span class="std std-ref">CMake instructions</span></a>, and the downstream developer may include either one into the C++ project according to needs.</p>
 <p><strong>Step 2. Calling into the model in your C++ Project.</strong> Use <code class="docutils literal notranslate"><span class="pre">tvm::runtime::Module</span></code> API from TVM runtime to interact with MLC LLM without MLCChat.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -468,7 +467,7 @@ Use<span class="w"> </span>model<span class="w"> </span>library:<span class="w">
 etc.</p>
 </div>
 <section id="using-mlcchat-apis-in-your-own-programs">
-<h3><a class="toc-backref" href="#id9" role="doc-backlink">Using MLCChat APIs in your own programs</a><a class="headerlink" href="#using-mlcchat-apis-in-your-own-programs" title="Permalink to this heading">¶</a></h3>
+<h3><a class="toc-backref" href="#id8" role="doc-backlink">Using MLCChat APIs in Your Own Programs</a><a class="headerlink" href="#using-mlcchat-apis-in-your-own-programs" title="Permalink to this heading">¶</a></h3>
 <p>Below is a minimal example of using MLCChat C++ APIs.</p>
 <div class="highlight-c++ notranslate"><div class="highlight"><pre><span></span><span class="cp">#define TVM_USE_LIBBACKTRACE 0</span>
 <span class="cp">#define DMLC_USE_LOGGING_LIBRARY &lt;tvm/runtime/logging.h&gt;</span>
@@ -526,9 +525,9 @@ etc.</p>
 <ul class="simple">
 <li><p>Make sure the following directories are included where <code class="docutils literal notranslate"><span class="pre">TVM_HOME</span></code> is <code class="docutils literal notranslate"><span class="pre">/path/to/mlc-llm/3rdparty/tvm</span></code>:</p>
 <ul>
-<li><p>TVM runtime: <code class="docutils literal notranslate"><span class="pre">${TVM_HOME}/include</span></code></p></li>
-<li><p>Header-only DLPack: <code class="docutils literal notranslate"><span class="pre">${TVM_HOME}/3rdparty/dlpack/include</span></code></p></li>
-<li><p>Header-only DMLC core: <code class="docutils literal notranslate"><span class="pre">${TVM_HOME}/3rdparty/dmlc-core/include</span></code></p></li>
+<li><p>TVM runtime: <code class="docutils literal notranslate"><span class="pre">${TVM_HOME}/include</span></code>,</p></li>
+<li><p>Header-only DLPack: <code class="docutils literal notranslate"><span class="pre">${TVM_HOME}/3rdparty/dlpack/include</span></code>,</p></li>
+<li><p>Header-only DMLC core: <code class="docutils literal notranslate"><span class="pre">${TVM_HOME}/3rdparty/dmlc-core/include</span></code>.</p></li>
 </ul>
 </li>
 <li><p>Make sure to link either the static or the shared <code class="docutils literal notranslate"><span class="pre">libtvm_runtime</span></code> library, which is provided via <a class="reference internal" href="#mlcchat-build-from-source"><span class="std std-ref">CMake</span></a>.</p></li>

@@ -5,7 +5,7 @@ WebLLM and Javascript API
    :local:
    :depth: 2
 
-WebLLM is a MLC chat webruntime (`WebLLM <https://www.npmjs.com/package/@mlc-ai/web-llm>`_)
+WebLLM is a MLC chat web runtime (`WebLLM <https://www.npmjs.com/package/@mlc-ai/web-llm>`_)
 that allows you to build chat applications directly in browser.
 
 Try out Prebuilt Webpage
@@ -22,7 +22,7 @@ Use WebLLM NPM Package
 ----------------------
 
 WebLLM is available as a npm package.
-Below is a simple example to use WebLLM API in your own Typescript program.
+Below is a simple example to use WebLLM API in your own TypeScript program.
 You can follow the instructions in  `get-started <https://github.com/mlc-ai/web-llm/tree/main/examples/get-started>`__
 to run the example.
 
