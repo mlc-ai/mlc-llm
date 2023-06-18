@@ -15,7 +15,7 @@ The MLC-LLM project consists of three distinct submodules: model definition, mod
 
 **➀ Model definition in Python.** MLC offers a variety of pre-defined architectures, such as Llama (e.g., Vicuna, OpenLlama, Llama, Wizard), GPT-NeoX (e.g., RedPajama, Dolly), RNNs (e.g., RWKV), and GPT-J (e.g., MOSS). Model developers could solely define the model in pure Python, without having to touch code generation and runtime.
 
-**➁ Model compilation in Python.** :doc:`TVM Unity </install/tvm>` compiler are configured in pure python, and it quantizes and exports the Python-based model to a model lib and quantized model weights. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.
+**➁ Model compilation in Python.** Models are compiled by :doc:`TVM Unity </install/tvm>` compiler, where the compilation is configured in pure Python. MLC LLM quantizes and exports the Python-based model to a model library and quantized model weights. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.
 
 **➂ Platform-native runtimes.** Variants of MLCChat are provided on each platform: **C++** for command line, **Javascript** for web, **Swift** for iOS, and **Java** for Android, configurable with a JSON chat config. App developers only need to familiarize with the platform-naive runtimes to integrate MLC-compiled LLMs into their projects.
 
@@ -26,7 +26,7 @@ Terminologies
 
 It is helpful for us to familiarize the basic terminologies used in the MLC chat applications.
 
-- **model weights**: the model weight is a folder that contains the quantized neural network weights
+- **model weights**: The model weight is a folder that contains the quantized neural network weights
   of the language models as well as the tokenizer configurations.
 
 - **model lib**: The model library refers to the executable libraries that enable
@@ -36,10 +36,10 @@ It is helpful for us to familiarize the basic terminologies used in the MLC chat
 
 - **chat config**: The chat configuration includes settings that allow customization of parameters such as temperature and system prompt.
   The default chat config usually resides in the same directory as model weights.
-  A chat config also contains the following two meta-data fields that are used in
+  A chat config also contains the following two meta-data fields that are used in multi-model support settings.
 
-  - ``local_id`` The key uniquely identifies the model within an app.
-  - ``model_lib`` This key specifies which model library to use.
+  - ``local_id``, which uniquely identifies the model within an app, and
+  - ``model_lib``, which specifies which model library to use.
 
 Model Preparation
 -----------------
@@ -47,8 +47,8 @@ Model Preparation
 
 There are several ways to prepare the model weights and model lib.
 
-- :ref:`Model Prebulits` contains models that can be directly used.
-- You can also run model compilation for model weight variants for given supported architectures.
+- :ref:`Model Prebuilts` contains models that can be directly used.
+- You can also :doc:`run model compilation </compilation/compile_models>` for model weight variants for given supported architectures.
 - Finally, we can enhance the overall model definition flow to incorporate new model architectures.
 
 A default chat config usually comes with the model weight directory. You can further customize
@@ -61,7 +61,7 @@ Runtime Flow Overview
 ---------------------
 
 Once the model weights, model library, and chat configuration are prepared, an MLC chat runtime can consume them as an engine to drive a chat application.
-The diagram below show a typical workflow for a MLC chat application.
+The diagram below shows a typical workflow for a MLC chat application.
 
 .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg
   :width: 90%
@@ -76,7 +76,7 @@ All MLC runtimes, including iOS, Web, CLI, and others, use these three elements.
 All the runtime can read the same model weight folder. The packaging of the model libraries may vary depending on the runtime.
 For the CLI, the model libraries are stored in a DLL directory.
 iOS and Android include pre-packaged model libraries within the app due to dynamic loading restrictions.
-WebLLM utilizes a ``model_lib_map`` that maps the library name to URLs of WebAssembly (Wasm) files.
+WebLLM utilizes URLs of local or Internet-hosted WebAssembly (Wasm) files.
 
 What to Do Next
 ---------------

@@ -3,8 +3,6 @@
 
 `Discord <https://discord.gg/9Xpy2HGBuD>`_ | `GitHub <https://github.com/mlc-ai/mlc-llm>`_
 
-🚧 This document is currently undergoing heavy construction.
-
 👉 👉 :doc:`Get started by trying out the MLC Chat. </get_started/try_out>`
 
 Machine Learning Compilation for LLM (MLC LLM) is a universal deployment solution that enables LLMs to run efficiently on consumer devices, leveraging native hardware acceleration like GPUs.
@@ -87,7 +85,8 @@ The underlying compiler techniques employed by MLC LLM are outlined in the follo
          publisher = {USENIX Association},
          month = oct,
       }
-..
+
+|
 
 
 If you are interested in using Machine Learning Compilation in practice, we highly recommend the following course:

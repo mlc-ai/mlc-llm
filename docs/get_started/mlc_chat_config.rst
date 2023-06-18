@@ -3,8 +3,8 @@ Configure MLCChat in JSON
 
 This page explains the components of a chat configuration and how to customize them for your own purposes.
 
-Each mlc chat runtime can be configured via a ``mlc-chat-config.json`` file under the directory of each compiled model (e.g.
-`RedPajama chat config <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/blob/main/mlc-chat-config.json>`__ )
+Each MLC Chat runtime can be configured via an ``mlc-chat-config.json`` file under the directory of each compiled model (e.g.
+`RedPajama chat config <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/blob/main/mlc-chat-config.json>`__)
 which contains the chat configuration. You can customize the chat configuration by modifying this file.
 Additionally, the runtimes also provide APIs to optionally override some of the configurations.
 
@@ -32,35 +32,35 @@ Below is the ``mlc-chat-config.json`` file corresponding to Vicuna model:
     ]
   }
 
-The following fields contains meta-data that affects system behaviors.
+The following fields contain the meta-data which affect system behaviors.
 
 ``model_lib``
-  The necessary model library to launch this model architecture. We recommend reuse model lib when possible.
-  For example, all llama-7b models can use `vicuna-v1-7b-q4f32_0`. So you can distribute llama-7b
-  weight variants and still use them in prebuilt MLC chat apps
+  The necessary model library to launch this model architecture. We recommend reuse model library when possible.
+  For example, all LLaMA-7B models can use `vicuna-v1-7b-q4f32_0`. So you can distribute LLaMA-7B
+  weight variants and still use them in prebuilt MLC chat apps.
 
 ``local_id``
-  A key that uniquely identifies the model within an app. This is also used by command line flags to specify which model to run.
+  Uniquely identifying the model in application. This is also used by command line interface app to specify which model to run.
 
 ``tokenizer_files``
-  List of files needed by tokenizer.
+  List of tokenizer files of the model.
 
 
-The following parameters can be customized to change the behavior of the model:
+The following fields can be customized to change the behavior of the model:
 
 ``conv_template``
-  The name of the conversation template that this chat uses. For more information, refer to the section on conversation structure (:ref:`struct-conv`).
+  The name of the conversation template that this chat uses. For more information, please refer to :ref:`conversation structure <struct-conv>`.
 
 ``temperature``
   The temperature applied to logits before sampling. The default value is ``0.7``. A higher temperature encourages more diverse outputs, while a lower temperature produces more deterministic outputs.
 
 ``repetition_penalty``
-  This parameter controls the likelihood of the model generating repeated texts. The default value is set to ``1.0``, indicating that no repetition penalty is applied. Increasing the value reduces the likelihood of repeat text generation. However, setting a high ``repetition_penalty`` may result in the model generating meaningless text. The ideal choice of repetition penalty depends on the specific model.
+  The repetition penalty controls the likelihood of the model generating repeated texts. The default value is set to ``1.0``, indicating that no repetition penalty is applied. Increasing the value reduces the likelihood of repeat text generation. However, setting a high ``repetition_penalty`` may result in the model generating meaningless texts. The ideal choice of repetition penalty may vary among models.
 
-  For more details on how repetition penalty controls text generation, please consult the `CTRL paper <https://arxiv.org/pdf/1909.05858.pdf>`_.
+  For more details on how repetition penalty controls text generation, please check out the `CTRL paper <https://arxiv.org/pdf/1909.05858.pdf>`_.
 
 ``top_p``
-  This parameter determines the set of tokens from which we sample during decoding. The default value is set to 0.95. At each step, we select tokens from the minimal set that has a cumulative probability exceeding the ``top_p`` parameter.
+  This parameter determines the set of tokens from which we sample during decoding. The default value is set to ``0.95``. At each step, we select tokens from the minimal set that has a cumulative probability exceeding the ``top_p`` parameter.
 
   For additional information on top-p sampling, please refer to this `blog post <https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling>`_.
 
