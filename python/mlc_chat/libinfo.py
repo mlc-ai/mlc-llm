@@ -36,7 +36,7 @@ def get_dll_directories():
     elif sys.platform.startswith("win32"):
         dll_path.extend(get_env_paths("PATH", ";"))
 
-    return dll_path
+    return [p for p in dll_path if os.path.isdir(p)]
 
 
 def find_lib_path(name, optional=False):
