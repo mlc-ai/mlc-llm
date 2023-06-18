@@ -3,7 +3,7 @@
 Try out MLC Chat
 ================
 
-Welcome to MLC LLM, to get started, we have prepared prebuilt packages
+Welcome to MLC LLM. To get started, we have prepared prebuilt packages
 for you to try out MLC Chat app built with MLC LLM,
 and you can try out prebuilt models on the following platforms:
 
@@ -11,7 +11,7 @@ and you can try out prebuilt models on the following platforms:
 
   .. tab:: CLI (Linux/MacOS/Windows)
 
-    To utilize the models on your PC, we highly recommend trying out the CLI version of MLC LLM.
+    To run the models on your PC, you can try out the CLI version of MLC LLM.
 
     We have prepared Conda packages for MLC Chat CLI. If you haven't installed Conda yet,
     please refer to :doc:`this tutorial </install/conda>` to install Conda.
@@ -27,12 +27,8 @@ and you can try out prebuilt models on the following platforms:
       conda install git git-lfs
       git lfs install
 
-      # Install the chat CLI app from Conda.
-      conda install -c mlc-ai -c conda-forge mlc-chat-nightly --force-reinstall
-
       # Create a directory, download the model weights from HuggingFace, and download the binary libraries
       # from GitHub.
-
       mkdir -p dist/prebuilt
       git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 
@@ -48,10 +44,11 @@ and you can try out prebuilt models on the following platforms:
       cd ../..
       mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
 
-    If you are using Windows or Linux. Make sure you have the latest vulkan driver installed.
-    Please follow the instructions in :doc:`/install/gpu` tutorial to prepare the environment.
+    .. note::
+      If you are using Windows or Linux. Make sure you have the latest Vulkan driver installed.
+      Please follow the instructions in :doc:`/install/gpu` tutorial to prepare the environment.
 
-    You can also checkout :doc:`/prebuilt_models` page for other models.
+    You can also checkout the :doc:`/prebuilt_models` page to run other models.
 
     .. figure:: https://mlc.ai/blog/img/redpajama/cli.gif
       :width: 500
@@ -61,9 +58,10 @@ and you can try out prebuilt models on the following platforms:
 
   .. tab:: Web Browser
 
-    With the advancements of WebGPU, we can now run LLM directly on web browsers. You have the opportunity to experience the web version of MLC LLM through `WebLLM <https://mlc.ai/webllm>`__.
+    With the advancements of WebGPU, we can now run LLM completely in the web browser environment.
+    You can try out the web version of MLC LLM in `WebLLM <https://mlc.ai/web-llm>`__.
 
-    Once the parameters have been fetched and stored in the local cache, you can begin interacting with the model without the need for an internet connection.
+    In WebLLM, once the model weights are fetched and stored in the local cache in the first run, you can start to interact with the model without Internet connection.
 
     A WebGPU-compatible browser and a local GPU are needed to run WebLLM. You can download the latest Google Chrome and use `WebGPU Report <https://webgpureport.org/>`__ to verify the functionality of WebGPU on your browser.
 
@@ -75,11 +73,13 @@ and you can try out prebuilt models on the following platforms:
 
   .. tab:: iOS
 
-    The MLC Chat app is now accessible on the App Store at no cost. You can download and explore it by simply clicking the button below:
+    The MLC Chat app is now available in App Store at no cost. You can download and explore it by simply clicking the button below:
 
     .. image:: https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg
       :width: 135
       :target: https://apps.apple.com/us/app/mlc-chat/id6448482937
+    
+    |
 
     Once the app is installed, you can download the models and then engage in chat with the model without requiring an internet connection.
 
@@ -93,12 +93,14 @@ and you can try out prebuilt models on the following platforms:
 
   .. tab:: Android
 
-    The MLC Chat Android app is free and available for download and can be tried out by simply clicking the button below:
+    The MLC Chat Android app is free and available for download, and you can try out by simply clicking the button below:
 
     .. image:: https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png
       :width: 135
       :target: https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk
 
+    |
+    
     Once the app is installed, you can engage in a chat with the model without the need for an internet connection:
 
     Memory requirements vary across different models. The Vicuna-7B model necessitates an Android device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an Android device with at least 4GB RAM.
