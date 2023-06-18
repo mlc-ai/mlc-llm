@@ -29,10 +29,12 @@ After installation, activating ``mlc-chat-venv`` environment in Conda will give 
 
 .. _mlcchat_build_from_source:
 
-Option 2. Build from Source
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Option 2. Build MLC Runtime from Source
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-While it is always recommended to use prebuilt MLCChat, for more customization, one needs to build ``mlc_chat_cli`` from source in the following steps:
+We also provid options to build mlc runtime libraries and ``mlc_chat_cli`` from source.
+This step is useful when you want to directly obtain a version of mlc runtime library
+and the cli. Please click the details below to see the instruction.
 
 .. collapse:: Details
 
@@ -66,7 +68,7 @@ While it is always recommended to use prebuilt MLCChat, for more customization, 
     **Step 2. Configure and build.** A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:
 
     .. code-block:: bash
-        :caption: Configure and build ``mlc_chat_cli``
+        :caption: Configure and build
 
         # clone from GitHub
         git clone --recursive https://github.com/mlc-ai/mlc-llm.git && cd mlc-llm/
