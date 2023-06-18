@@ -171,6 +171,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#terminologies">Terminologies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#model-preparation">Model Preparation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#runtime-flow-overview">Runtime Flow Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#what-to-do-next">What to Do Next</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="mlc_chat_config.html">Configure MLCChat in JSON</a></li>
@@ -198,7 +199,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Installation and Dependency</span></p>
+<p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/conda.html">Install Conda</a></li>
@@ -353,7 +354,19 @@ The runtime utilizes the <code class="docutils literal notranslate"><span class=
 All the runtime can read the same model weight folder. The packaging of the model libraries may vary depending on the runtime.
 For the CLI, the model libraries are stored in a DLL directory.
 iOS and Android include pre-packaged model libraries within the app due to dynamic loading restrictions.
-WebLLM, on the other hand, utilizes a <code class="docutils literal notranslate"><span class="pre">model_lib_map</span></code> that maps the library name to URLs of WebAssembly (Wasm) files.</p>
+WebLLM utilizes a <code class="docutils literal notranslate"><span class="pre">model_lib_map</span></code> that maps the library name to URLs of WebAssembly (Wasm) files.</p>
+</section>
+<section id="what-to-do-next">
+<h2>What to Do Next<a class="headerlink" href="#what-to-do-next" title="Permalink to this heading">¶</a></h2>
+<p>Thank you for reading and learning the high-level concepts.
+Moving next, feel free to check out documents on the left navigation panel and
+learn about topics you are interested in.</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="mlc_chat_config.html"><span class="doc">Configure MLCChat in JSON</span></a> shows how to configure specific chat behavior.</p></li>
+<li><p>Build and Deploy App section contains guides to build apps
+and platform-specific MLC chat runtimes.</p></li>
+<li><p>Compile models section provides guidelines to convert model weights and produce model libs.</p></li>
+</ul>
 </section>
 </section>
 

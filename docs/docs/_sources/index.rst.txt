@@ -140,7 +140,7 @@ If you are interested in using Machine Learning Compilation in practice, we high
 
 .. toctree::
    :maxdepth: 1
-   :caption: Installation and Dependency
+   :caption: Dependency Installation
    :hidden:
 
    install/tvm.rst
