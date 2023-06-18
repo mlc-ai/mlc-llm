@@ -7,43 +7,35 @@ import SwiftUI
 struct ChatView: View {
     @State var inputMessage: String = ""
     @FocusState private var inputIsFocused: Bool;
-    @EnvironmentObject var state: ChatState
-    @Namespace var bottomID;
-    @Namespace var infoID;
+    @EnvironmentObject var chatState: ChatState
     @Environment(\.dismiss) private var dismiss
-        
+    
     init() {}
-
+    
     var body: some View {
         VStack {
-            Text(state.infoText)
+            Text(chatState.infoText)
                 .multilineTextAlignment(.center)
                 .opacity(0.5)
                 .listRowSeparator(.hidden)
-            ScrollViewReader { proxy in
+            ScrollViewReader { scrollView in
                 ScrollView {
-                    // Hack:rotate and reverse the inner view
-                    // then rotate inverse the scroll
-                    // so the result auto-scrolls
-                    //
-                    // This works more smoothly than scrollTo
-                    // when there are a lot of text
-                    if (state.unfinishedRespondMessage != "") {
-                        MessageView(
-                            role: state.unfinishedRespondRole,
-                            message: state.unfinishedRespondMessage
-                        ).rotationEffect(.radians(.pi))
-                        .scaleEffect(x: -1, y: 1, anchor: .center)
-                    }
-                    ForEach(state.messages.reversed()) { msg in
-                        MessageView(role: msg.role, message: msg.message)
-                            .rotationEffect(.radians(.pi))
-                            .scaleEffect(x: -1, y: 1, anchor: .center)
+                    VStack {
+                        ForEach(chatState.messages.reversed()) {
+                            message in
+                            MessageView(role: message.role, message: message.message).rotationEffect(.radians(.pi))
+                                .scaleEffect(x: -1, y: 1, anchor: .center)
+                        }
+                    }.id("MessageHistory")
+                    
+                }.onChange(of: chatState.messages) { _ in
+                    withAnimation{
+                        scrollView.scrollTo("MessageHistory", anchor: .top)
                     }
                 }.rotationEffect(.radians(.pi))
-                 .scaleEffect(x: -1, y: 1, anchor: .center)
+                    .scaleEffect(x: -1, y: 1, anchor: .center)
             }
-
+            
             HStack {
                 TextField("Inputs...", text: $inputMessage, axis: .vertical)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -51,11 +43,12 @@ struct ChatView: View {
                     .focused($inputIsFocused)
                 Button("Send") {
                     self.inputIsFocused = false
-                    generateMessage()
-                }.bold().opacity(state.inProgress ? 0.5 : 1)
+                    chatState.requestGenerate(prompt: inputMessage)
+                    inputMessage = ""
+                }.bold().disabled(!(chatState.chattable() && inputMessage != ""))
             }.frame(minHeight: CGFloat(70)).padding()
         }
-        .navigationBarTitle("MLC Chat: " + state.modelName, displayMode: .inline)
+        .navigationBarTitle("MLC Chat: " + chatState.displayName, displayMode: .inline)
         .navigationBarBackButtonHidden()
         .toolbar{
             ToolbarItem(placement: .navigationBarLeading) {
@@ -64,36 +57,15 @@ struct ChatView: View {
                 } label: {
                     Image(systemName: "chevron.backward")
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.borderless).disabled(!chatState.interruptable())
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Reset") {
-                    resetChat()
+                    chatState.requestResetChat()
                 }
-                .opacity(0.9)
                 .padding()
+                .disabled(!chatState.resettable())
             }
         }
-    }
-
-    func generateMessage()  {
-        if (inputMessage == "") {
-            return
-        }
-        if (!state.inProgress) {
-            state.generate(prompt: inputMessage)
-            inputMessage = ""
-        }
-    }
-
-    func resetChat()  {
-        state.resetChat()
-    }
-}
-
-struct ChatView_Previews: PreviewProvider {
-    static var previews: some View {
-        ChatView()
-            .environmentObject(ChatState())
     }
 }

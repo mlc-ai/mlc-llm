@@ -16,62 +16,167 @@ struct MessageData: Hashable, Identifiable {
     var message: String
 }
 
+enum ModelChatState {
+    case Generating
+    case Resetting
+    case Reloading
+    case Terminating
+    case Ready
+    case Failed
+}
+
 class ChatState : ObservableObject {
-    @Published var messages = [MessageData]();
-    @Published var infoText = "";
-    @Published var modelName = "";
-    @Published var inProgress = false;
-    @Published var unfinishedRespondRole = MessageRole.bot;
-    @Published var unfinishedRespondMessage = "";
-    private var threadWorker = ThreadWorker();
-    private var backend = ChatModule();
-
-    private var stopLock = NSLock();
-    private var requestedReset = false;
-    private var stopRequested = false;
-    private var reloadReady = false;
-    private var modelLib = "";
-    private var modelPath = "";
-
+    @Published var messages = [MessageData]()
+    @Published var infoText = ""
+    @Published var displayName = ""
+    @Published var modelChatState = ModelChatState.Ready
+    
+    private let modelChatStateLock = NSLock()
+    
+    private var threadWorker = ThreadWorker()
+    private var backend = ChatModule()
+    private var modelLib = ""
+    private var modelPath = ""
+    var localId = ""
+    
     init() {
-        threadWorker.qualityOfService = QualityOfService.userInteractive;
+        threadWorker.qualityOfService = QualityOfService.userInteractive
         threadWorker.start()
     }
     
-    // reset all chat state
-    func mainResetChat() {
-        self.messages = [MessageData]()
-        self.infoText = ""
-        self.unfinishedRespondMessage = ""
-        self.inProgress = false;
-        self.requestedReset = false;
+    func getModelChatState() -> ModelChatState {
+        modelChatStateLock.lock()
+        let currentModelChatState = modelChatState
+        modelChatStateLock.unlock()
+        return currentModelChatState
     }
-
-    func mainReload(modelName: String, modelLib: String, modelPath: String, estimatedVRAMReq : Int64) {
-        if (self.reloadReady &&
-            self.modelLib == modelLib &&
-            self.modelPath == modelPath &&
-            self.modelName == modelName) {
-            return;
+    
+    func setModelChatState(newModelChatState: ModelChatState) {
+        modelChatStateLock.lock()
+        modelChatState = newModelChatState
+        modelChatStateLock.unlock()
+    }
+    
+    private func appendMessage(role: MessageRole, message: String) {
+        messages.append(MessageData(role: role, message: message))
+    }
+    
+    private func updateMessage(role: MessageRole, message: String) {
+        messages[messages.count - 1] = MessageData(role: role, message: message)
+    }
+    
+    private func clearHistory() {
+        messages.removeAll()
+        infoText = ""
+    }
+    
+    private func switchToResetting() {
+        setModelChatState(newModelChatState: .Resetting)
+    }
+    
+    private func switchToGenerating() {
+        setModelChatState(newModelChatState: .Generating)
+    }
+    
+    private func switchToReloading() {
+        setModelChatState(newModelChatState: .Reloading)
+    }
+    
+    private func switchToReady() {
+        setModelChatState(newModelChatState: .Ready)
+    }
+    
+    private func switchToTerminating() {
+        setModelChatState(newModelChatState: .Terminating)
+    }
+    
+    private func switchToFailed() {
+        setModelChatState(newModelChatState: .Failed)
+    }
+    
+    func interruptable() -> Bool {
+        return getModelChatState() == .Ready || getModelChatState() == .Generating || getModelChatState() == .Failed
+    }
+    
+    func resettable() -> Bool {
+        return getModelChatState() == .Ready || getModelChatState() == .Generating
+    }
+    
+    func chattable() -> Bool {
+        return getModelChatState() == .Ready
+    }
+    
+    private func interruptChat(prologue: () -> Void, epilogue: @escaping () -> Void) {
+        assert(interruptable())
+        if getModelChatState() == .Ready || getModelChatState() == .Failed {
+            prologue()
+            epilogue()
+        } else if getModelChatState() == .Generating {
+            prologue()
+            threadWorker.push {
+                DispatchQueue.main.async {
+                    epilogue()
+                }
+            }
+        } else {
+            assert(false)
         }
-        // request stop regardless of the state
-        // to previous action can finish soon
-        if (self.inProgress) {
-            self.stopLock.lock()
-            self.stopRequested = true;
-            self.stopLock.unlock()
-        }
-        self.mainResetChat();
-        // we are not reload ready
-        self.reloadReady = false;
-        self.inProgress = true;
-        self.modelName = modelName;
-        self.modelLib = modelLib;
-        self.modelPath = modelPath;
-
+    }
+    
+    private func mainResetChat() {
         threadWorker.push {[self] in
-            self.updateReply(role: MessageRole.bot, message: "[System] Initalize...")
-            backend.unload();
+            backend.resetChat()
+            DispatchQueue.main.async { [self] in
+                clearHistory()
+                switchToReady()
+            }
+        }
+    }
+    
+    func requestResetChat() {
+        assert(resettable())
+        interruptChat(prologue: {
+            switchToResetting()
+        }, epilogue: { [self] in
+            mainResetChat()
+        })
+    }
+    
+    private func mainTerminateChat(callback: @escaping () -> Void) {
+        threadWorker.push { [self] in
+            backend.unload()
+            DispatchQueue.main.async { [self] in
+                clearHistory()
+                self.localId = ""
+                self.modelLib = ""
+                self.modelPath = ""
+                self.displayName = ""
+                switchToReady()
+                callback()
+            }
+        }
+    }
+    
+    func requestTerminateChat(callback: @escaping () -> Void) {
+        assert(interruptable())
+        interruptChat(prologue: {
+            switchToTerminating()
+        }, epilogue: { [self] in
+            mainTerminateChat(callback: callback)
+        })
+    }
+    
+    private func mainReloadChat(localId: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int64, displayName: String) {
+        clearHistory()
+        self.localId = localId
+        self.modelLib = modelLib
+        self.modelPath = modelPath
+        self.displayName = displayName
+        threadWorker.push {[self] in
+            DispatchQueue.main.async { [self] in
+                appendMessage(role: .bot, message: "[System] Initalize...")
+            }
+            backend.unload()
             let vram = os_proc_available_memory()
             if (vram < estimatedVRAMReq) {
                 let reqMem = String (
@@ -83,152 +188,58 @@ class ChatState : ObservableObject {
                 )
                 DispatchQueue.main.sync {
                     self.messages.append(MessageData(role: MessageRole.bot, message: errMsg))
-                    self.reloadReady = false
-                    self.inProgress = true
+                    self.switchToFailed()
                 }
                 return
             }
             backend.reload(modelLib, modelPath: modelPath)
-            self.reloadReady = true
-            self.updateReply(role: MessageRole.bot, message: "[System] Ready to chat")
-            self.commitReply()
-            self.markFinish()
-        }
-    }
-
-    func dummyGenerate(prompt: String)  {
-        threadWorker.push {
-            Task {
-                self.appendMessage(role: MessageRole.user, message: prompt)
-                let testMessage = "I am a friendly bot. Please ask questions."
-                var msg = ""
-                for _ in stride(from: 0, to: 20, by: 1) {
-                    for item in testMessage.split(separator: " ") {
-                        do {
-                            try await Task.sleep(nanoseconds: 100_000_000)
-                        } catch {}
-                        msg += " " + item
-                        self.updateReply(role: MessageRole.bot, message: msg)
-                    }
-                    msg += "\n"
-                }
-                self.commitReply()
-                self.reportSpeed(encodingSpeed: 1000, decodingSpeed: 1000)
-
-                self.markFinish()
+            DispatchQueue.main.async { [self] in
+                updateMessage(role: .bot, message: "[System] Ready to chat")
+                switchToReady()
             }
         }
     }
-
-    func backendGenerate(prompt: String) {
-        assert(self.inProgress);
-        // generation needs to run on thread worker
+    
+    func requestReloadChat(localId: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int64, displayName: String) {
+        if (isCurrentModel(localId: localId)) {
+            return
+        }
+        assert(interruptable())
+        interruptChat(prologue: {
+            switchToReloading()
+        }, epilogue: { [self] in
+            mainReloadChat(localId: localId, modelLib: modelLib, modelPath: modelPath, estimatedVRAMReq: estimatedVRAMReq, displayName: displayName)
+        })
+    }
+    
+    func requestGenerate(prompt: String) {
+        assert(chattable())
+        switchToGenerating()
+        appendMessage(role: .user, message: prompt)
+        appendMessage(role: .bot, message: "")
         threadWorker.push {[self] in
-            self.appendMessage(role: MessageRole.user, message: prompt)
-
-            backend.prefill(prompt);
-            while (!backend.stopped()) {
-                assert(self.inProgress);
-                backend.decode();
-                self.updateReply(role: MessageRole.bot, message: backend.getMessage())
-                // use lock to pass in signal
-                self.stopLock.lock()
-                let needStop = self.stopRequested;
-                self.stopLock.unlock()
-                if (needStop) {
-                    let forceStop = !self.reloadReady;
-                    // if we are not reload ready
-                    // this means we are forced stoped during reload
-                    // do not do anything to refresh UX
-                    if (forceStop) {
-                        return
-                    }
-                    break;
+            backend.prefill(prompt)
+            while !backend.stopped() {
+                backend.decode()
+                let newText = backend.getMessage()
+                DispatchQueue.main.async { [self] in
+                    updateMessage(role: .bot, message: newText!)
+                }
+                if getModelChatState() != .Generating {
+                    break
                 }
             }
-
-            self.commitReply()
-            let runtimeText: String = self.backend.runtimeStatsText()
-            DispatchQueue.main.sync { [runtimeText] in
-                self.infoText = runtimeText;
-            }
-
-            self.markFinish()
-        };
-    }
-
-    func generate(prompt: String) {
-        if (!self.reloadReady) {
-            return
-        }
-        self.inProgress = true
-        self.stopRequested = false
-        self.backendGenerate(prompt: prompt)
-    }
-
-    func requestStop() {
-        if (!self.reloadReady) {
-            return
-        }
-        if (self.inProgress) {
-            self.stopLock.lock()
-            self.stopRequested = true;
-            self.stopLock.unlock()
-        }
-    }
-
-    func resetChat() {
-        if (!self.reloadReady) {
-            return
-        }
-        if (self.inProgress) {
-            self.requestStop()
-        }
-        if (self.requestedReset) {
-            return;
-        }
-        self.requestedReset = true;
-
-        threadWorker.push {
-            self.backend.resetChat();
-            DispatchQueue.main.sync {
-                self.mainResetChat();
+            if getModelChatState() == .Generating {
+                let runtimeStats = backend.runtimeStatsText()
+                DispatchQueue.main.async { [self] in
+                    infoText = runtimeStats!
+                    switchToReady()
+                }
             }
         }
     }
-
-    func reportSpeed(encodingSpeed: Float, decodingSpeed: Float) {
-        DispatchQueue.main.sync { [self, encodingSpeed, decodingSpeed] in
-            self.infoText = String(
-                format: "prefill: %.1f tok/s, decode: %.1f tok/s", encodingSpeed, decodingSpeed
-            )
-        }
-    }
-
-    func markFinish() {
-        DispatchQueue.main.sync { [self] in
-            self.inProgress = false
-        }
-    }
-
-    func commitReply() {
-        DispatchQueue.main.sync { [self] in
-            self.messages.append(MessageData(
-                role: unfinishedRespondRole, message: unfinishedRespondMessage))
-            self.unfinishedRespondMessage = ""
-        }
-    }
-
-    func updateReply(role: MessageRole, message: String) {
-        DispatchQueue.main.sync { [self, role, message] in
-            self.unfinishedRespondRole = role
-            self.unfinishedRespondMessage = message;
-        }
-    }
-
-    func appendMessage(role: MessageRole, message: String) {
-        DispatchQueue.main.sync { [self, role, message] in
-            self.messages.append(MessageData(role: role, message: message))
-        }
+    
+    func isCurrentModel(localId: String) -> Bool {
+        return self.localId == localId
     }
 }
