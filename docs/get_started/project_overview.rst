@@ -76,5 +76,16 @@ All MLC runtimes, including iOS, Web, CLI, and others, use these three elements.
 All the runtime can read the same model weight folder. The packaging of the model libraries may vary depending on the runtime.
 For the CLI, the model libraries are stored in a DLL directory.
 iOS and Android include pre-packaged model libraries within the app due to dynamic loading restrictions.
-WebLLM, on the other hand, utilizes a ``model_lib_map`` that maps the library name to URLs of WebAssembly (Wasm) files.
+WebLLM utilizes a ``model_lib_map`` that maps the library name to URLs of WebAssembly (Wasm) files.
 
+What to Do Next
+---------------
+
+Thank you for reading and learning the high-level concepts.
+Moving next, feel free to check out documents on the left navigation panel and
+learn about topics you are interested in.
+
+- :doc:`/get_started/mlc_chat_config` shows how to configure specific chat behavior.
+- Build and Deploy App section contains guides to build apps
+  and platform-specific MLC chat runtimes.
+- Compile models section provides guidelines to convert model weights and produce model libs.
