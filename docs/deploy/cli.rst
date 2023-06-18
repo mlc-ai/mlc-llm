@@ -160,8 +160,8 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
 
 Have fun chatting with MLC-compiled LLM!
 
-Advanced Topic: Integrate Models in C++
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Advanced: Build Apps with C++ API
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 MLC-compiled models can be integrated into any C++ project using TVM's C/C++ API without going through the command line.
 
