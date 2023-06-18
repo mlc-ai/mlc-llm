@@ -68,4 +68,4 @@ to run the example.
 
 Build a Chat App
 ----------------
-You can find a complete a complete chat app example in `simple-chat <https://github.com/mlc-ai/web-llm/tree/main/examples/simple-chat>`__.
+You can find a complete chat app example in `simple-chat <https://github.com/mlc-ai/web-llm/tree/main/examples/simple-chat>`__.
