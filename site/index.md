@@ -25,7 +25,7 @@ This section contains the instructions to run large-language models and chatbot 
 
 ### iPhone
 
-Try out this [TestFlight page](https://testflight.apple.com/join/57zd7oxa) (limited to the first 9000 users) to install and use our example iOS chat app built for iPhone.
+The MLC-Chat app is available on App Store, try it out [here](https://apps.apple.com/us/app/mlc-chat/id6448482937) to install and use it for iOS devices (iPhone/iPad).
 Vicuna-7B takes 4GB of RAM and RedPajama-3B takes 2.2GB to run. Considering the iOS and other running applications, we will need a recent iPhone with 6GB for Vicuna-7B or 4GB for RedPajama-3B to run the app. The application is only tested on iPhone 14 Pro Max, iPhone 14 Pro and iPhone 12 Pro.
 
 To build the iOS app from source, You can also check out our [GitHub repo](https://github.com/mlc-ai/mlc-llm).
@@ -66,7 +66,7 @@ conda install git git-lfs
 git lfs install
 
 # Install the chat CLI app from Conda.
-conda install -c mlc-ai -c conda-forge mlc-chat-nightly --force-reinstall
+conda install -c mlc-ai -c conda-forge mlc-chat-cli-nightly --force-reinstall
 
 # Create a directory, download the model weights from HuggingFace, and download the binary libraries
 # from GitHub. Select one of the following `LOCAL_ID` for a prebuilt LLM.
