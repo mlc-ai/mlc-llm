@@ -395,7 +395,7 @@ class LLMChat {
   }
 
   /**
-   * Get prompt based on history
+   * \brief Get prompt based on history
    */
   std::vector<std::string> GetPrompt() {
     if (this->total_seq_len_ == 0) {
@@ -405,7 +405,7 @@ class LLMChat {
   }
 
   /**
-   * Get input tokens based on history. Can pass in string prompt optionally.
+   * \brief Get input tokens based on history. Can pass in string prompt optionally.
    */
   std::vector<int32_t> GetInputTokens(std::optional<std::string> prompt_str = std::nullopt,
                                       bool add_bos_token = false) {
@@ -418,21 +418,13 @@ class LLMChat {
       prompts = GetPrompt();
       all_prompt = GetConcatPrompt(prompts, 0, 0);
     }
-    std::cout << "all prompt: " << all_prompt << std::endl;
     if ((this->total_seq_len_ == 0 || add_bos_token) && this->conversation_.add_bos) {
       tokens.insert(tokens.begin(), bos_token_id_);
     }
     // first try to encode all
     std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
-    std::cout << "tokens: ";
-    for (auto i : tokens) {
-      std::cout << i << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "tokens length: " << tokens.size() << std::endl;
     if (this->total_seq_len_ + tokens.size() + this->mean_gen_len_ < this->max_window_size_) {
-      std::cout << "return directly" << std::endl;
       return tokens;
     }
     // need shift window and re-encode
@@ -594,7 +586,6 @@ class LLMChat {
     this->prefill_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
     this->prefill_total_tokens += token_len;
     this->ProcessNextToken(next_token);
-    std::cout << "------------" << std::endl;
   }
 
   /*!
