@@ -2,7 +2,7 @@
 
 # MLC LLM
 
-| [Project Page](https://mlc.ai/mlc-llm/) | [Blog](https://mlc.ai/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [WebLLM](https://mlc.ai/web-llm/) | [WebStableDiffusion](https://mlc.ai/web-stable-diffusion/) | [Discord][discord-url]
+[Project Page](https://mlc.ai/mlc-llm/) | [Documentation](https://mlc.ai/mlc-llm/docs/) | [Blog](https://mlc.ai/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [WebLLM](https://mlc.ai/web-llm/) | [WebStableDiffusion](https://mlc.ai/web-stable-diffusion/) | [Discord][discord-url]
 
 MLC LLM is a **universal solution** that allows **any language models** to be **deployed natively** on a diverse set of hardware backends and native applications, plus a **productive framework** for everyone to further optimize model performance for their own use cases.
 
@@ -19,7 +19,7 @@ Everything runs locally  with no server support and accelerated with local GPUs 
 
 **[Click here to join our Discord server!][discord-url]**
 
-**[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/)**
+<ins>**[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/docs/get_started/try_out.html)**</ins>
 
 <p align="center">
   <img src="site/gif/ios-demo.gif" height="700">
@@ -56,7 +56,7 @@ We heavily rely on open-source ecosystem, more specifically, [TVM Unity](https:/
 
 ## Get Started with MLC-LLM
 
-Please check our [documentation](https://mlc.ai/mlc-llm/docs/) to start the journey with MLC-LLM.
+Please check our [documentation](https://mlc.ai/mlc-llm/docs/get_started/try_out.html) to start the journey with MLC-LLM.
 
 ## Links
 
