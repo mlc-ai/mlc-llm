@@ -682,7 +682,7 @@ def get_model(args, hf_config):
     if (
         model_name.startswith("vicuna-")
         or model_name.startswith("llama-")
-        or model_name.startswith("open-llama-")
+        or model_name.startswith("open_llama")
         or model_name.startswith("gorilla-")
     ):
         config = LlamaConfig(**hf_config, dtype=dtype)
