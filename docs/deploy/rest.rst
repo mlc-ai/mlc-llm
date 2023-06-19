@@ -118,7 +118,7 @@ Once you have launched the REST server, you can use the REST API in your own pro
    r = requests.get("http://127.0.0.1:8000/stats")
    print(f"Runtime stats: {r.json()}\n")
 
-Please check `example folder <https://github.com/mlc-ai/mlc-llm/examples/rest>`__ for more examples using REST API.
+Please check `example folder <https://github.com/mlc-ai/mlc-llm/tree/main/examples/rest>`__ for more examples using REST API.
 
 .. note::
    The REST API is a uniform interface that supports multiple languages. You can also utilize the REST API in languages other than Python.
