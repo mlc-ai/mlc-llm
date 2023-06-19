@@ -18,7 +18,7 @@ To use other GPU runtimes, e.g. CUDA, please instead :ref:`build it from source 
 
 .. code:: shell
 
-    conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-nightly
+    conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-cli-nightly
     conda activate mlc-chat-venv
     mlc_chat_cli --help
 

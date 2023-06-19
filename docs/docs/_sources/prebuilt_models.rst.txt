@@ -64,7 +64,7 @@ To download and run one model with CLI, follow the instructions below:
 .. code:: shell
 
   # Create conda environment and install CLI if you have not installed.
-  conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-nightly
+  conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-cli-nightly
   conda activate mlc-chat-venv
   conda install git git-lfs
   git lfs install

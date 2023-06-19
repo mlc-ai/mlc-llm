@@ -19,7 +19,7 @@ and you can try out prebuilt models on the following platforms:
     .. code:: bash
 
       # Create a new conda environment, install CLI app, and activate the environment.
-      conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-nightly
+      conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-cli-nightly
       conda activate mlc-chat-venv
 
       # Install Git and Git-LFS if you haven't already.
