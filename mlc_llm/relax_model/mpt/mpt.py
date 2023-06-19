@@ -1004,9 +1004,9 @@ def get_model(args, hf_config):
   )
 
   def f_convert_param_bkwd(torch_pname: str, raw_param):
-    if "attn" in pname:
+    if "attn" in torch_pname:
       pname = torch_pname.replace("attn", "self_attn")
-    elif "ffn" in pname:
+    elif "ffn" in torch_pname:
       pname = torch_pname.replace("ffn", "mlp")
     else:
       pname = torch_pname
