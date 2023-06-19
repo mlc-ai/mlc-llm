@@ -1,2 +1,2 @@
 from . import llama
-from . import mpt
+from .mpt import mpt

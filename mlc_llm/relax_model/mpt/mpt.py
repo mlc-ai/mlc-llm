@@ -9,9 +9,9 @@ from tvm.relax.testing import nn
 from tvm.script import relax as R
 
 from .mpt_config import MPTConfig, attn_config_defaults
-from ..utils import load_torch_pname2binname_map
-from .commons import create_metadata_func
-from .modules import (
+from ...utils import load_torch_pname2binname_map
+from ..commons import create_metadata_func
+from ..modules import (
     Embedding,
     LayerNorm,
     Linear,
