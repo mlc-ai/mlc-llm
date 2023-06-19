@@ -129,7 +129,7 @@ To add a model to the iOS app, follow the steps below:
 
       .. tab:: Step 2
 
-          Paste the repository URL of the model built on your own, and click Add.
+          Paste the repository URL of the model built on your own, and click "Add".
 
           You can refer to the link in the image as an example.
 

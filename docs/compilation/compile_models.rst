@@ -266,9 +266,9 @@ Generally, the model compile command is specified by a sequence of arguments and
         --target TARGET_NAME \
         --quantization QUANTIZATION_MODE \
         [--max-seq-len MAX_ALLOWED_SEQUENCE_LENGTH] \
+        [--reuse-lib LIB_NAME] \
         [--use-cache=0] \
-        [--debug-dump] \
-        [--reuse-lib]
+        [--debug-dump]
 
 This command first goes with ``--model`` or ``--hf-path``.
 **Only one of them needs to be specified**: when the model is publicly available on Hugging Face, you can use ``--hf-path`` to specify the model.
@@ -303,13 +303,14 @@ The following arguments are optional:
 --max-seq-len MAX_ALLOWED_SEQUENCE_LENGTH   The maximum allowed sequence length for the model.
                                             When it is not specified,
                                             we will use the maximum sequence length from the ``config.json`` in the model directory.
+--reuse-lib LIB_NAME                        Specifies the previously generated library to reuse.
+                                            This is useful when building the same model architecture with different weights.
+                                            You can refer to the :ref:`model distribution <distribute-model-step3-specify-model-lib>` page for detail of this argument.
 --use-cache                                 When ``--use-cache=0`` is specified,
                                             the model compilation will not use cached file from previous builds,
                                             and will compile the model from the very start.
                                             Using cache can help reduce the time needed to compile.
 --debug-dump                                Specifies whether to dump debugging files during compilation.
---reuse-lib                                 Specifies whether to reuse a previously generated library.
-                                            This is useful when building the same model architecture with different weights.
 
 
 More Model Compile Commands
