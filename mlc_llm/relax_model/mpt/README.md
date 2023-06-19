@@ -2,6 +2,13 @@
 
 There is brief description of mpt-7b-instruct model. It is needed for correct Relax implementation of the model and weights mapping.
 MPT-7b-instruct is decoder-like kv_cache free model using flash attention.
+Data type is brain float16 by default. But numpy used inside scripts and TVM do not support this type. Due to this to compile MPT-like model use following script:
+```bash
+python3 bfloat16_to_float16.py
+```
+It is saved converted model in `dist/models/<model-name>-float16` directory.
+**Note:** After conversion to float16, only weights and config will be saved. Transfer other files (like tokenizer vocab) from the original directory.
+
 The list of Tensor name - tensor size for the original (pytorch) model can be found in mpt_topology.txt file.
 The original config for the model:
 {

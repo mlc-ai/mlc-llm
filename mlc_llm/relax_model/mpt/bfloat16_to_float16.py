@@ -1,4 +1,3 @@
-# The procedure is based on https://huggingface.co/transformers/v1.2.0/serialization.html#serialization-best-practices
 from pathlib import Path
 import argparse
 
@@ -17,26 +16,33 @@ def load_bf16_model(dir_path, tokenizer_name):
   return model, tokenizer
 
 
-def save_fp16_model(dir_path, model, tokenizer):
-  model_to_save = model.module if hasattr(model, 'module') else model
+def save_fp16_model(dir_path, model, tokenizer, manually=False):
+  new_name = dir_path.name + "-float16"
+  out_path = dir_path.parent.joinpath(new_name)
 
-  output_model_file = Path.joinpath(dir_path, WEIGHTS_NAME)
-  output_config_file = Path.joinpath(dir_path, CONFIG_NAME)
+  if manually:
+    # Manual saving
+    output_model_file = Path.joinpath(out_path, WEIGHTS_NAME)
+    output_config_file = Path.joinpath(out_path, CONFIG_NAME)
 
-  torch.save(model_to_save.state_dict(), output_model_file)
-  model_to_save.config.to_json_file(output_config_file)
-  tokenizer.save_vocabulary(dir_path)
+    model_to_save = model.module if hasattr(model, 'module') else model
+    torch.save(model_to_save.state_dict(), output_model_file)
+    model_to_save.config.to_json_file(output_config_file)
+    tokenizer.save_vocabulary(out_path)
+  else:
+    # Use transformer API
+    model.save_pretrained(out_path, from_pt=True)
 
 
 def main(args):
   model_root_dir = Path(args.model_path)
-  new_name = model_root_dir.name + "-float16"
-  out_path = model_root_dir.parent.joinpath(new_name)
 
+  # Load original model (bfloat16)
   model, tokenizer = load_bf16_model(model_root_dir, args.tokenizer)
+  # Convert data type to float 16
   model.to(dtype=torch.float16)
-  model.save_pretrained(out_path, from_pt=True)
-  # save_fp16_model(out_path, model, tokenizer)
+  # Save converted model
+  save_fp16_model(model_root_dir, model, tokenizer)
 
 
 if __name__ == "__main__":
