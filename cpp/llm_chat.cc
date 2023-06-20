@@ -538,7 +538,7 @@ class LLMChat {
     std::string placeholder = "<ImageHere>";
     std::vector<std::string> prompt = this->GetPrompt();
     std::string all_prompt = GetConcatPrompt(prompt, 0, 0);
-    std::vector<std::string> prompt_segs = customSplit(all_prompt, placeholder);
+    std::vector<std::string> prompt_segs = CustomSplit(all_prompt, placeholder);
     ICHECK_LE(prompt_segs.size(), 2);
     for (int i = 0; i < prompt_segs.size(); i++) {
       bool add_bos_token = i == 0 && prompt_segs.size() == 2;
@@ -892,7 +892,7 @@ class LLMChat {
   }
 
   /* Create custom string.split() function. */
-  std::vector<std::string> customSplit(std::string str, std::string separator) {
+  std::vector<std::string> CustomSplit(std::string str, std::string separator) {
     std::vector<std::string> res;
     int startIndex = 0, endIndex = 0;
     for (int i = 0; i <= str.size(); i++) {
