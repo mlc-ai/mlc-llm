@@ -430,6 +430,7 @@ def main():
                 mod = pickle.load(pkl)
         dump_split_tir(mod, ARGS)
         if not ARGS.reuse_lib:
+            print("MOD before BUILD:", mod)
             build(mod, ARGS)
         else:
             print("Reuse existing prebuilt lib {ARGS.reuse_lib}...")
