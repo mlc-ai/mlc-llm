@@ -277,6 +277,8 @@ def mod_transform_before_build(
     elif ARGS.model.startswith("mpt-"):
         model_names = [
             "decode",
+            "create_kv_cache",
+            "softmax_with_temperature",
             "get_metadata",
         ]
     else:
