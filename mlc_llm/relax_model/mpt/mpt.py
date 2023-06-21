@@ -966,28 +966,6 @@ def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int,
   return pidx2pname
 
 
-# Dummy func to support mlc_chat_cli
-def create_kv_cache_func(bb: relax.BlockBuilder, config: MPTConfig) -> None:
-  init_shape = relax.ShapeExpr((1,))
-  with bb.function("create_kv_cache", []):
-    with bb.dataflow():
-      zeros = bb.emit(relax.op.zeros(init_shape, config.dtype))
-      caches = []
-      f_kv_cache_create = relax.extern("vm.builtin.attention_kv_cache_create")
-      for _ in range(config.n_layers * 2):
-        caches.append(
-          bb.emit(
-            relax.Call(
-              f_kv_cache_create,
-              args=[zeros, init_shape, relax.PrimValue(0)],
-              sinfo_args=[relax.ObjectStructInfo()],
-            )
-          )
-        )
-      gv = bb.emit_output(caches)
-    bb.emit_func_output(gv)
-
-
 def create_softmax_func(bb: relax.BlockBuilder, config: MPTConfig) -> None:
   with bb.function("softmax_with_temperature"):
     logits = nn.Placeholder(
@@ -1017,7 +995,6 @@ def get_model(args, hf_config):
 
   bb = relax.BlockBuilder()
   pidx2pname = create_decoding_func(bb, config)
-  create_kv_cache_func(bb, config)
   create_softmax_func(bb, config)
   create_metadata_func(
       bb,
