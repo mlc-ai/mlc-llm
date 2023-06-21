@@ -886,6 +886,9 @@ class MPTForCausalLM(nn.Module):
     )
     logits = nn.emit(relax.op.linear(outputs[0], self.transformer.wte.weight))
 
+    if logits.struct_info.dtype != "float32":
+      logits = nn.emit(relax.op.astype(logits, "float32"))
+
     return logits, outputs[1]
 
   def fsdp_wrap_fn(self, module):
