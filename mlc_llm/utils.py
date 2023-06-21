@@ -229,6 +229,8 @@ def transform_params(
                     raw_param = torch_params[torch_param_name].detach().cpu().numpy()
                 del torch_params[torch_param_name]
 
+                if not raw_param.flags['C_CONTIGUOUS']:
+                    print("NON_CONTIGUOUS TENSOR WAS FOUND:", torch_param_name)
                 for param_name, param in f_convert_param_bkwd(
                     torch_param_name, raw_param
                 ):
