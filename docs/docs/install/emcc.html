@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Getting Vicuna Weights &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Install Wasm Build Environment &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -45,7 +45,9 @@
     
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" /> 
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Community Guideline" href="../community/guideline.html" />
+    <link rel="prev" title="GPU Drivers and SDKs" href="gpu.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -178,8 +180,8 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Models via MLC</a></li>
-<li class="toctree-l1"><a class="reference internal" href="distribute_compiled_models.html">Distribute Compiled Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Models via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
 <ul>
@@ -190,11 +192,16 @@
 <li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../install/conda.html">Install Conda</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../install/gpu.html">GPU Drivers and SDKs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../install/emcc.html">Install Wasm Build Environment</a></li>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Unity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conda.html">Install Conda</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gpu.html">GPU Drivers and SDKs</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Install Wasm Build Environment</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#step-1-install-emsdk">Step 1: Install EMSDK</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-2-set-tvm-home">Step 2: Set TVM_HOME</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-3-prepare-wasm-runtime">Step 3: Prepare Wasm Runtime</a></li>
+</ul>
+</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
@@ -256,7 +263,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Getting Vicuna Weights</li>
+      <li>Install Wasm Build Environment</li>
     
     
       
@@ -267,7 +274,7 @@
         
             
             
-              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/compilation/get-vicuna-weight.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/install/emcc.rst" class="fa fa-github"> Edit on GitHub</a>
             
           
         
@@ -281,57 +288,48 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="getting-vicuna-weights">
-<h1>Getting Vicuna Weights<a class="headerlink" href="#getting-vicuna-weights" title="Permalink to this heading">¶</a></h1>
-<nav class="contents local" id="table-of-contents">
-<p class="topic-title">Table of Contents</p>
+  <section id="install-wasm-build-environment">
+<span id="install-web-build"></span><h1>Install Wasm Build Environment<a class="headerlink" href="#install-wasm-build-environment" title="Permalink to this heading">¶</a></h1>
+<p>This page describes the steps to setup build environment for WebAssembly and WebGPU builds.</p>
+<section id="step-1-install-emsdk">
+<h2>Step 1: Install EMSDK<a class="headerlink" href="#step-1-install-emsdk" title="Permalink to this heading">¶</a></h2>
+<p>Emscripten is an LLVM-based compiler that compiles C/C++ source code to WebAssembly.
+We need to install emscripten for webgpu build.</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#install-fastchat" id="id1">Install FastChat</a></p></li>
-<li><p><a class="reference internal" href="#download-huggingface-llama-weights" id="id2">Download HuggingFace LLaMA Weights</a></p></li>
-<li><p><a class="reference internal" href="#optional-move-vicuna-weights-to-dist-folder" id="id3">(Optional) Move Vicuna Weights to dist folder</a></p></li>
+<li><p>Please follow the installation instruction <a class="reference external" href="https://emscripten.org/docs/getting_started/downloads.html#installation-instructions-using-the-emsdk-recommended">here</a>
+to install the latest emsdk.</p></li>
+<li><p>Source path/to/emsdk_env.sh so emcc is reachable from PATH and the command emcc works.</p></li>
 </ul>
-</nav>
-<p><a class="reference external" href="https://lmsys.org/blog/2023-03-30-vicuna/">Vicuna</a> is a open-source chatbot trained by fine-tuning <a class="reference external" href="https://ai.facebook.com/blog/large-language-model-llama-meta-ai/">LLaMA</a> on <a class="reference external" href="https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered">ShartGPT</a> data.</p>
-<p>Please note that the official Vicuna weights are delta weights applied to the LLaMA weights in order to comply with the LLaMA license. Users are responsible for applying these delta weights themselves.</p>
-<p>In this tutorial, we will show how to apply the delta weights to LLaMA weights to get Vicuna weights.</p>
-<section id="install-fastchat">
-<h2><a class="toc-backref" href="#id1" role="doc-backlink">Install FastChat</a><a class="headerlink" href="#install-fastchat" title="Permalink to this heading">¶</a></h2>
-<p>FastChat offers convenient utility functions for applying delta to LLaMA weights. You can easily install it using pip.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>fschat
+<p>Validate that emcc is accessible in shell</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>emcc<span class="w"> </span>--version
 </pre></div>
 </div>
 </section>
-<section id="download-huggingface-llama-weights">
-<h2><a class="toc-backref" href="#id2" role="doc-backlink">Download HuggingFace LLaMA Weights</a><a class="headerlink" href="#download-huggingface-llama-weights" title="Permalink to this heading">¶</a></h2>
-<p>The HuggingFace LLaMA weights are hosted using Git-LFS. Therefore, it is necessary to install Git-LFS first (you can ignore this step if git-lfs is already installed).</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>git-lfs
-git<span class="w"> </span>lfs<span class="w"> </span>install
+<section id="step-2-set-tvm-home">
+<h2>Step 2: Set TVM_HOME<a class="headerlink" href="#step-2-set-tvm-home" title="Permalink to this heading">¶</a></h2>
+<p>We need to set a path to a tvm source in order to build tvm runtime.
+Note that you do not need to build tvm unity from the source. The source here is only used to build the web runtime component.
+Set environment variable in your shell startup profile in to point to <code class="docutils literal notranslate"><span class="pre">3rdparty/tvm</span></code></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">TVM_HOME</span><span class="o">=</span>/path/to/3rdparty/tvm
 </pre></div>
 </div>
-<p>Then download the weights (both the LLaMA weight and Vicuna delta weight):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/decapoda-research/llama-7b-hf
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/lmsys/vicuna-7b-delta-v1.1
-</pre></div>
-</div>
-<p>There is a name mis-alignment issue in the LLaMA weights and Vicuna delta weights.
-Please follow these steps to modify the content of the “config.json” file:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s/LLaMAForCausalLM/LlamaForCausalLM/g&#39;</span><span class="w"> </span>llama-7b-hf/config.json
-</pre></div>
-</div>
-<p>Then use <code class="docutils literal notranslate"><span class="pre">fschat</span></code> to apply delta to LLaMA weights</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>fastchat.model.apply_delta<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--base-model-path<span class="w"> </span>llama-7b-hf<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--target-model-path<span class="w"> </span>vicuna-7b-v1.1<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--delta-path<span class="w"> </span>vicuna-7b-delta-v1.1
-</pre></div>
-</div>
-<p>You will get the Vicuna weights in <code class="docutils literal notranslate"><span class="pre">vicuna-7b-v1.1</span></code> folder, which can be used as input of MLC-LLM to further compile models.</p>
 </section>
-<section id="optional-move-vicuna-weights-to-dist-folder">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">(Optional) Move Vicuna Weights to dist folder</a><a class="headerlink" href="#optional-move-vicuna-weights-to-dist-folder" title="Permalink to this heading">¶</a></h2>
-<p>The default model path of MLC-LLM is <code class="docutils literal notranslate"><span class="pre">dist</span></code> folder. Therefore, it is recommended to move the Vicuna weights to <code class="docutils literal notranslate"><span class="pre">dist</span></code> folder.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/models
-mv<span class="w"> </span>vicuna-7b-v1.1<span class="w"> </span>dist/models/vicuna-7b-v1.1
+<section id="step-3-prepare-wasm-runtime">
+<h2>Step 3: Prepare Wasm Runtime<a class="headerlink" href="#step-3-prepare-wasm-runtime" title="Permalink to this heading">¶</a></h2>
+<p>Now we can prepare wasm runtime</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./scripts/prep_emcc_deps.sh
+</pre></div>
+</div>
+<p>We cna then validate the outcome</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="si">${</span><span class="nv">TVM_HOME</span><span class="si">}</span>
+
+/path/set/in/step2
+
+&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span><span class="si">${</span><span class="nv">TVM_HOME</span><span class="si">}</span>/web/dist/wasm/*.bc
+
+tvmjs_support.bc
+wasm_runtime.bc
+webgpu_runtime.bc
 </pre></div>
 </div>
 </section>
@@ -344,6 +342,15 @@ mv<span class="w"> </span>vicuna-7b-v1.1<span class="w"> </span>dist/models/vicu
           
 
 <footer>
+
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../community/guideline.html" class="btn btn-neutral float-right" title="Community Guideline" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="gpu.html" class="btn btn-neutral float-left" title="GPU Drivers and SDKs" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
 
 <div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
 <section class="footerSec">
