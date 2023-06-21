@@ -566,6 +566,8 @@ def parse_target(args: argparse.Namespace) -> None:
         args.target_kind = "webgpu"
         args.lib_format = "wasm"
         args.system_lib = True
+        if os.environ.get("TVM_HOME", "") == "":
+            raise RuntimeError("Please set TVM_HOME for webgpu build following scripts/prep_emcc_deps.sh")
     elif args.target in ["android", "android-dylib"]:  # android-opencl
         from tvm.contrib import ndk, tar
 
