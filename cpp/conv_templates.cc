@@ -276,6 +276,25 @@ Conversation VanillaLM() {
   return conv;
 }
 
+Conversation CodeGPT() {
+  Conversation conv;
+  conv.name = "code_gpt";
+  conv.system = "";
+  conv.roles = {"Prompt", "Code"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"\n\n", "### End\n"};
+  conv.role_msg_sep = ":\n";
+  conv.role_empty_sep = ":\n";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {0};
+  conv.stop_str = "### End";
+  conv.add_bos = true;
+  return conv;
+}
+
 }  // namespace
 
 using ConvFactory = Conversation (*)();
@@ -292,6 +311,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"stablelm", StableLM},
       {"moss", MOSS},
       {"LM", VanillaLM},
+      {"code_gpt", CodeGPT},
   };
   auto it = factory.find(name);
   if (it == factory.end()) {
