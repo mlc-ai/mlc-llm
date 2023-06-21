@@ -8,7 +8,8 @@ notitle: true
 
 MLC LLM is a universal solution that allows any language model to be deployed natively on a diverse set of hardware backends and native applications, plus a productive framework for everyone to further optimize model performance for their own use cases.
 **Everything runs locally  with no server support and accelerated with local GPUs on your phone and laptop**.
-Check out our [GitHub repository](https://github.com/mlc-ai/mlc-llm) to see how we did it. You can also read through instructions below for trying out demos.
+Check out our [GitHub repository](https://github.com/mlc-ai/mlc-llm) to see how we did it.
+Check out [documentation](https://mlc.ai/mlc-llm/docs/index.html) if you are interested in exploring more possibilities of MLC LLM.
 
 <p align="center">
 <img src="gif/ios-demo.gif" height="700">
@@ -16,7 +17,10 @@ Check out our [GitHub repository](https://github.com/mlc-ai/mlc-llm) to see how 
 
 ## Try it out
 
-This section contains the instructions to run large-language models and chatbot natively on your environment.
+**[Visit our instruction page to try out MLC LLM!](https://mlc.ai/mlc-llm/docs/get_started/try_out.html)**
+
+This section also contains some brief instructions to run large-language models and chatbot natively on your environment.
+For more information, please visit our [instruction page](https://mlc.ai/mlc-llm/docs/get_started/try_out.html).
 
 - [iPhone](#iphone)
 - [Android](#android)
@@ -56,21 +60,17 @@ Vulkan driver, as the CUDA driver may not be good.
 After installing all the dependencies, just follow the instructions below the install the CLI app:
 
 ```shell
-# Create a new conda environment and activate the environment.
-conda create -n mlc-chat
-conda activate mlc-chat
+# Create a new conda environment, install CLI app, and activate the environment.
+conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-cli-nightly
+conda activate mlc-chat-venv
 
 # Install Git and Git-LFS if you haven't already.
 # They are used for downloading the model weights from HuggingFace.
 conda install git git-lfs
 git lfs install
 
-# Install the chat CLI app from Conda.
-conda install -c mlc-ai -c conda-forge mlc-chat-cli-nightly --force-reinstall
-
 # Create a directory, download the model weights from HuggingFace, and download the binary libraries
-# from GitHub. Select one of the following `LOCAL_ID` for a prebuilt LLM.
-
+# from GitHub.
 mkdir -p dist/prebuilt
 git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 
@@ -89,10 +89,10 @@ mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
 # Download prebuilt weights of RWKV-raven-1.5B/3B/7B
 cd dist/prebuilt
 git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0
-# or git clone  https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0
-# or git clone  https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0
+# or git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0
+# or git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0
 cd ../..
-mlc_chat_cli --local-id rwkv-raven-1b5-q8f16_0 # Replace your local id if you use 3b or 7b model.
+mlc_chat_cli --local-id rwkv-raven-1b5-q8f16_0  # Replace your local id if you use 3b or 7b model.
 ```
 
 <p align="center">
