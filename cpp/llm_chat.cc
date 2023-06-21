@@ -705,7 +705,11 @@ class LLMChat {
       for (int i = 0; i < input_tokens.size(); ++i) {
         NDArray input_data = this->GetInputTokenNDArray({input_tokens[i]});
         int64_t pos = cur_pos + i + 1 - input_tokens.size();
-        ret = decode_func_(input_data, ShapeTuple({pos}), kv_cache_, params_);
+        if (kv_cache_.empty()){
+          ret = decode_func_(input_data, params_);
+        } else {
+          ret = decode_func_(input_data, ShapeTuple({pos}), kv_cache_, params_);
+        }
       }
     }
     return Downcast<NDArray>(ret[0]);
