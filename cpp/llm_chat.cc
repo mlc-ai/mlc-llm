@@ -783,6 +783,18 @@ class LLMChat {
     ICHECK(logits_on_cpu_.defined()) << "logits_on_cpu_ is not defined";
     ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
     ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
+
+    for (int i = 0; i < logits_on_cpu_->ndim; ++i) {
+      std::cout << "LOGITS SHAPE[" << i << "] = " << logits_on_cpu_->shape[i] << "   ";
+    }
+    std::cout << std::endl;
+    int64_t ndata = logits_on_cpu_->shape[logits_on_cpu_->ndim - 1];
+    const float* p_prob = static_cast<float*>(logits_on_cpu_->data);
+    std::cout << "Logits data: ";
+    for (int i = 0; i < ndata; ++i) {
+      std::cout << p_prob[i] << " ";
+    }
+    std::cout << std::endl;
     return fsample_topp_from_prob_(logits_on_cpu_, top_p_, GetRandomNumber());
   }
 
