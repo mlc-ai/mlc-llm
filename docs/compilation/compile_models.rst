@@ -9,10 +9,9 @@ and customize the overall model optimization flow.
 .. note::
     Before you proceed, please make sure that you have :ref:`install-tvm-unity` correctly installed on your machine.
     TVM-Unity is the necessary foundation for us to compile models with MLC LLM.
+    If you want to build webgpu, please also complete :ref:`install-web-build`.
     Please also follow the instruction in :ref:`deploy-cli` to obtain the CLI app that can be used to chat with the compiled model.
     Finally, we strongly recommend you read :ref:`project-overview` first to get familiarized with the high-level terminologies.
-
-
 
 .. contents:: Table of Contents
     :depth: 1
