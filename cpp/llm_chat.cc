@@ -290,8 +290,11 @@ class LLMChat {
         << "Cannot find env function vm.builtin.attention_kv_cache_array_popn";
     fkvcache_array_popn_ = *fkvcache_array_popn;
 
-    // Step 4. KV cache creation.
-    kv_cache_ = vm_->GetFunction("create_kv_cache")();
+    // Step 4. KV cache creation if need.
+    auto kv_cache_func = vm_->GetFunction("create_kv_cache");
+    if (kv_cache_func.defined()) {
+      kv_cache_ = kv_cache_func();
+    }
 
     // Step 5. KV cache reset.
     reset_kv_cache_func_ = vm_->GetFunction("reset_kv_cache");
