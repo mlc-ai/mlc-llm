@@ -143,6 +143,7 @@ If you are interested in using Machine Learning Compilation in practice, we high
    install/tvm.rst
    install/conda.rst
    install/gpu.rst
+   install/emcc.rst
 
 .. toctree::
    :maxdepth: 1
