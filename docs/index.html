@@ -93,7 +93,8 @@
 
 <p>MLC LLM is a universal solution that allows any language model to be deployed natively on a diverse set of hardware backends and native applications, plus a productive framework for everyone to further optimize model performance for their own use cases.
 <strong>Everything runs locally  with no server support and accelerated with local GPUs on your phone and laptop</strong>.
-Check out our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repository</a> to see how we did it. You can also read through instructions below for trying out demos.</p>
+Check out our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repository</a> to see how we did it.
+Check out <a href="https://mlc.ai/mlc-llm/docs/index.html">documentation</a> if you are interested in exploring more possibilities of MLC LLM.</p>
 
 <p align="center">
 <img src="gif/ios-demo.gif" height="700" />
@@ -101,7 +102,10 @@ Check out our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repository</a> 
 
 <h2 id="try-it-out">Try it out</h2>
 
-<p>This section contains the instructions to run large-language models and chatbot natively on your environment.</p>
+<p><strong><a href="https://mlc.ai/mlc-llm/docs/get_started/try_out.html">Visit our instruction page to try out MLC LLM!</a></strong></p>
+
+<p>This section also contains some brief instructions to run large-language models and chatbot natively on your environment.
+For more information, please visit our <a href="https://mlc.ai/mlc-llm/docs/get_started/try_out.html">instruction page</a>.</p>
 
 <ul>
   <li><a href="#iphone">iPhone</a></li>
@@ -144,21 +148,17 @@ Vulkan driver, as the CUDA driver may not be good.</li>
 
 <p>After installing all the dependencies, just follow the instructions below the install the CLI app:</p>
 
-<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Create a new conda environment and activate the environment.</span>
-conda create <span class="nt">-n</span> mlc-chat
-conda activate mlc-chat
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Create a new conda environment, install CLI app, and activate the environment.</span>
+conda create <span class="nt">-n</span> mlc-chat-venv <span class="nt">-c</span> mlc-ai <span class="nt">-c</span> conda-forge mlc-chat-cli-nightly
+conda activate mlc-chat-venv
 
 <span class="c"># Install Git and Git-LFS if you haven't already.</span>
 <span class="c"># They are used for downloading the model weights from HuggingFace.</span>
 conda <span class="nb">install </span>git git-lfs
 git lfs <span class="nb">install</span>
 
-<span class="c"># Install the chat CLI app from Conda.</span>
-conda <span class="nb">install</span> <span class="nt">-c</span> mlc-ai <span class="nt">-c</span> conda-forge mlc-chat-cli-nightly <span class="nt">--force-reinstall</span>
-
 <span class="c"># Create a directory, download the model weights from HuggingFace, and download the binary libraries</span>
-<span class="c"># from GitHub. Select one of the following `LOCAL_ID` for a prebuilt LLM.</span>
-
+<span class="c"># from GitHub.</span>
 <span class="nb">mkdir</span> <span class="nt">-p</span> dist/prebuilt
 git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 
@@ -177,10 +177,10 @@ mlc_chat_cli <span class="nt">--local-id</span> RedPajama-INCITE-Chat-3B-v1-q4f1
 <span class="c"># Download prebuilt weights of RWKV-raven-1.5B/3B/7B</span>
 <span class="nb">cd </span>dist/prebuilt
 git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0
-<span class="c"># or git clone  https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0</span>
-<span class="c"># or git clone  https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0</span>
+<span class="c"># or git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0</span>
+<span class="c"># or git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0</span>
 <span class="nb">cd</span> ../..
-mlc_chat_cli <span class="nt">--local-id</span> rwkv-raven-1b5-q8f16_0 <span class="c"># Replace your local id if you use 3b or 7b model.</span>
+mlc_chat_cli <span class="nt">--local-id</span> rwkv-raven-1b5-q8f16_0  <span class="c"># Replace your local id if you use 3b or 7b model.</span>
 </code></pre></div></div>
 
 <p align="center">
