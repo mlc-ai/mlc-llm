@@ -43,10 +43,7 @@ class ChatModule:
         chat_mod = fcreate(device_type, device_id)
 
         self.reload_func = chat_mod["reload"]
-        self.has_embed_func = chat_mod["has_embed"]
-        self.embed_func = chat_mod["embed"]
         self.prefill_func = chat_mod["prefill"]
-        self.prefill_with_embed_func = chat_mod["prefill_with_embed"]
         self.decode_func = chat_mod["decode"]
         self.stopped_func = chat_mod["stopped"]
         self.get_message_func = chat_mod["get_message"]
@@ -56,22 +53,12 @@ class ChatModule:
         self.evaluate_func = chat_mod["evaluate"]
         self.get_role0 = chat_mod["get_role0"]
         self.get_role1 = chat_mod["get_role1"]
-        self.process_system_prompts_func = chat_mod["process_system_prompts"]
 
-    def reload(self, lib, model_path, app_config_json=""):
-        self.reload_func(lib, model_path, app_config_json)
-
-    def has_embed(self):
-        return self.has_embed_func()
-
-    def embed(self, text_input):
-        return self.embed_func(text_input)
+    def reload(self, lib, model_path):
+        self.reload_func(lib, model_path)
 
     def prefill(self, input):
         self.prefill_func(input)
-
-    def prefill_with_embed(self, embedding):
-        self.prefill_with_embed_func(embedding)
 
     def decode(self):
         self.decode_func()
@@ -93,6 +80,3 @@ class ChatModule:
 
     def evaluate(self):
         self.evaluate_func()
-
-    def process_system_prompts(self):
-        self.process_system_prompts_func()

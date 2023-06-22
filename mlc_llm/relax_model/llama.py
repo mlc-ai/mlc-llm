@@ -428,29 +428,14 @@ def _make_causal_mask(input_ids_shape, dtype, src_len):
     return nn.emit_te(extend_te, diag_mask, tgt_len, src_len)
 
 
-class LlamaEmbedTokens(nn.Module):
-    def __init__(self, config: LlamaConfig):
-        self.embed_tokens = Embedding(
-            config.vocab_size, config.hidden_size, dtype=config.dtype
-        )
-
-    def forward(self, input_ids: relax.Expr):
-        inputs_embeds = self.embed_tokens(input_ids)
-        return inputs_embeds
-
-
 class LlamaModel(nn.Module):
-    def __init__(self, config: LlamaConfig, separate_embedding_layer: bool = False):
+    def __init__(self, config: LlamaConfig):
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
 
-        if not separate_embedding_layer:
-            self.embed_tokens = Embedding(
-                config.vocab_size, config.hidden_size, dtype=config.dtype
-            )
-        else:
-            self.embed_tokens = None
-
+        self.embed_tokens = Embedding(
+            config.vocab_size, config.hidden_size, dtype=config.dtype
+        )
         self.layers = ModuleList(
             [LlamaDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
@@ -479,19 +464,16 @@ class LlamaModel(nn.Module):
 
     def forward(
         self,
-        inputs: relax.Expr,
+        input_ids: relax.Expr,
         cos_cached: relax.Expr,
         sin_cached: relax.Expr,
         all_seq_len_shape: relax.Expr,
         past_key_values: relax.Expr,
     ):
-        if self.embed_tokens:
-            inputs_embeds = self.embed_tokens(inputs)
-        else:
-            inputs_embeds = inputs
         # retrieve input_ids
-        batch_size, seq_length, _ = inputs_embeds.struct_info.shape
+        batch_size, seq_length = input_ids.struct_info.shape
         seq_length_with_past = all_seq_len_shape.struct_info.values[0]
+        inputs_embeds = self.embed_tokens(input_ids)
         # embed positions
         attention_mask = self._prepare_decoder_attention_mask(
             (batch_size, seq_length),
@@ -525,8 +507,8 @@ class LlamaModel(nn.Module):
 
 
 class LlamaForCausalLM(nn.Module):
-    def __init__(self, config: LlamaConfig, separate_embedding_layer: bool = False):
-        self.model = LlamaModel(config, separate_embedding_layer)
+    def __init__(self, config: LlamaConfig):
+        self.model = LlamaModel(config)
         self.lm_head = Linear(
             config.hidden_size, config.vocab_size, dtype=config.dtype, bias=False
         )
@@ -547,12 +529,12 @@ class LlamaForCausalLM(nn.Module):
 
     def forward(
         self,
-        inputs: relax.Expr,
+        input_ids: relax.Expr,
         all_seq_len_shape: relax.Expr,
         past_key_values: relax.Expr,
     ):
         hidden_states, key_value_cache = self.model(
-            inputs=inputs,
+            input_ids=input_ids,
             cos_cached=self.cos_cached,
             sin_cached=self.sin_cached,
             all_seq_len_shape=all_seq_len_shape,
@@ -575,42 +557,14 @@ class LlamaForCausalLM(nn.Module):
         return logits, key_value_cache
 
 
-def create_embed_func(bb: relax.BlockBuilder, config: LlamaConfig) -> Dict[int, str]:
-    bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")
-    pidx2pname: Dict[int, str] = {}
-    with bb.function("embed"):
-        model = LlamaEmbedTokens(config)
-        input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
-        with bb.dataflow():
-            inputs_embeds = model(input_ids)
-            params = [input_ids] + model.parameters()
-            # there should be just one parameter, with the same prefix as below
-            named_params = named_parameters(model)
-            for i, (name, _) in enumerate(list(named_params.items())):
-                pidx2pname[i] = "model." + name
-            gv = bb.emit_output(inputs_embeds)
-        bb.emit_func_output(gv, params)
-
-    mod = bb.get()
-    gv = mod.get_global_var("embed")
-    bb.update_func(gv, mod[gv].with_attr("num_input", 1))
-
-    return pidx2pname
-
-
-def create_encoding_func(
-    bb: relax.BlockBuilder, config: LlamaConfig, pidx2pname: Dict[int, str]
-) -> Dict[int, str]:
+def create_encoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> Dict[int, str]:
     bsz = 1
     seq_len = tvm.tir.Var("n", "int64")
     all_seq_len = tvm.tir.Var("m", "int64")
-    hidden_size = config.hidden_size
+    pidx2pname: Dict[int, str] = {}
     with bb.function("prefill"):
-        model = LlamaForCausalLM(config, separate_embedding_layer=True)
-        inputs_embeds = nn.Placeholder(
-            (bsz, seq_len, hidden_size), dtype=config.dtype, name="inputs_embeds"
-        )
+        model = LlamaForCausalLM(config)
+        input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
         all_seq_len_shape = relax.Var(
             "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
         )
@@ -622,18 +576,17 @@ def create_encoding_func(
         )
         with bb.dataflow():
             logits, key_value_cache = model(
-                inputs_embeds, all_seq_len_shape, past_key_values=past_key_values
+                input_ids, all_seq_len_shape, past_key_values=past_key_values
             )
             params = [
-                inputs_embeds,
+                input_ids,
                 all_seq_len_shape,
                 past_key_values,
             ] + model.parameters()
 
             named_params = named_parameters(model)
-            start_idx = len(pidx2pname)
             for i, (name, param) in enumerate(list(named_params.items())[:-2]):
-                pidx2pname[i + start_idx] = name
+                pidx2pname[i] = name
                 assert param.same_as(params[i + 3])
                 assert not name.startswith("sin") and not name.startswith("cos")
 
@@ -652,7 +605,7 @@ def create_decoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     all_seq_len = tvm.tir.Var("n", "int64")
 
     with bb.function("decode"):
-        model = LlamaForCausalLM(config, separate_embedding_layer=False)
+        model = LlamaForCausalLM(config)
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
         all_seq_len_shape = relax.Var(
             "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
@@ -737,8 +690,7 @@ def get_model(args, hf_config):
             config.max_sequence_length = max_seq_len
 
         bb = relax.BlockBuilder()
-        pidx2pname = create_embed_func(bb, config)
-        pidx2pname = create_encoding_func(bb, config, pidx2pname)
+        pidx2pname = create_encoding_func(bb, config)
         create_decoding_func(bb, config)
         create_kv_cache_func(bb, config)
         create_softmax_func(bb, config)
