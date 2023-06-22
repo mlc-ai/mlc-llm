@@ -898,28 +898,16 @@ class MPTForCausalLM(nn.Module):
     return isinstance(module, MPTBlock)
 
   def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
-    if inputs_embeds is not None:
-      raise NotImplementedError('inputs_embeds is not implemented for MPT yet')
     attention_mask = kwargs['attention_mask'].bool()
     if attention_mask[:, -1].sum() != attention_mask.shape[0]:
       raise NotImplementedError('MPT does not support generation with right padding.')
-    if self.transformer.attn_uses_sequence_id and self.training:
-      # slicing input_ids[:1]
-      input_ids_slice = nn.emit(relax.op.strided_slice(input_ids, [0], [relax.const(0)], [relax.const(1)]))
-      sequence_id = nn.emit(relax.op.zeros_like(input_ids_slice))
-    else:
-      sequence_id = None
+    sequence_id = None
     if past_key_values is not None:
       # slicing input_ids[:, -1]
       dim1_len = input_ids.struct_info.shape[1]
       input_ids_slice = nn.emit(relax.op.strided_slice(input_ids, [1], [dim1_len - 1], [dim1_len]))
       input_ids = nn.emit(relax.op.expand_dims(input_ids_slice, axis=-1))
-    if self.transformer.prefix_lm:
-      prefix_mask = nn.emit(relax.op.ones_like(attention_mask, self.dtype))
-      if kwargs.get('use_cache') == False:
-        raise NotImplementedError('MPT with prefix_lm=True does not support use_cache=False.')
-    else:
-      prefix_mask = None
+    prefix_mask = None
     return {
         'input_ids': input_ids,
         'attention_mask': attention_mask,
