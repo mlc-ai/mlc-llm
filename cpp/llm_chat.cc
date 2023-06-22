@@ -192,13 +192,13 @@ class LLMChat {
       CHECK(partial_update) << "Key \"shift_fill_factor\" not found.";
     }
     if (config.count("conv_template")) {
-      ICHECK(config["conv_template"].is<std::string>());
-      std::string conv_template = config["conv_template"].get<std::string>();
-      this->conversation_ = Conversation::FromTemplate(conv_template);
-      if (config.count("conv_config")) {
-        // conv_config can override conv_template
-        this->conversation_.LoadJSONOverride(config["conv_config"], true);
-      }
+        ICHECK(config["conv_template"].is<std::string>());
+        std::string conv_template = config["conv_template"].get<std::string>();
+        this->conversation_ = Conversation::FromTemplate(conv_template);
+        if (config.count("conv_config")) {
+          // conv_config can override conv_template
+          this->conversation_.LoadJSONOverride(config["conv_config"], true);
+        }
     } else if (config.count("conv_config")) {
       // without conv template, conv_config needs to be a complete config
       this->conversation_.LoadJSONOverride(config["conv_config"], false);
@@ -250,7 +250,6 @@ class LLMChat {
                                           static_cast<int>(kDLCPU), 0,
                                           static_cast<int>(relax_vm::AllocatorType::kPooled));
 
-    embed_func_ = vm_->GetFunction("embed");
     prefill_func_ = vm_->GetFunction("prefill");
     decode_func_ = vm_->GetFunction("decode");
     encoding_without_cache_func_ = vm_->GetFunction("encoding_without_cache");
@@ -395,33 +394,22 @@ class LLMChat {
   }
 
   /**
-   * \brief Get prompt based on history
+   * Get input tokens based on history
    */
-  std::vector<std::string> GetPrompt() {
-    if (this->total_seq_len_ == 0) {
-      return this->conversation_.GetPromptArray();
-    }
-    return this->conversation_.GetPromptArrayLastRound();
-  }
-
-  /**
-   * \brief Get input tokens based on history. Can pass in string prompt optionally.
-   */
-  std::vector<int32_t> GetInputTokens(std::optional<std::string> prompt_str = std::nullopt,
-                                      bool add_bos_token = false) {
+  std::vector<int32_t> GetInputTokens() {
     std::vector<int32_t> tokens;
     std::vector<std::string> prompts;
-    std::string all_prompt;
-    if (prompt_str.has_value()) {
-      all_prompt = prompt_str.value();
+
+    if (this->total_seq_len_ == 0) {
+      prompts = this->conversation_.GetPromptArray();
+      if (this->conversation_.add_bos) {
+        tokens.insert(tokens.begin(), bos_token_id_);
+      }
     } else {
-      prompts = GetPrompt();
-      all_prompt = GetConcatPrompt(prompts, 0, 0);
-    }
-    if ((this->total_seq_len_ == 0 || add_bos_token) && this->conversation_.add_bos) {
-      tokens.insert(tokens.begin(), bos_token_id_);
+      prompts = this->conversation_.GetPromptArrayLastRound();
     }
     // first try to encode all
+    std::string all_prompt = GetConcatPrompt(prompts, 0, 0);
     std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
     if (this->total_seq_len_ + tokens.size() + this->mean_gen_len_ < this->max_window_size_) {
@@ -446,7 +434,6 @@ class LLMChat {
         break;
       }
     }
-    ICHECK(prompts.size()) << "User pass in string prompt, cannot reuse prompts from GetPrompt().";
     // keep system
     if (this->conversation_.system.empty()) {
       all_prompt = GetConcatPrompt(prompts, 0, start_re_encode_pos);
@@ -503,54 +490,6 @@ class LLMChat {
   }
 
   /*!
-   * \brief Check if embed function exists.
-   */
-  bool HasEmbedFunc() { return embed_func_.defined(); }
-
-  /*!
-   * \brief Given the text input, separate the prompt by placeholder such as <ImageHere>, and
-   * generate an array of embeddings based on the separated prompt. Currently, this step is only
-   * applied if embed function exists. If not, input text will directly go to PrefillStep.
-   * \TODO: Currently, it only supports llama model, and the parameter index is hardcoded.
-   */
-  Array<NDArray> EmbedStep(std::string inp, bool append_conversation = true) {
-    if (conversation_.name == "LM") {
-      this->ResetChat();
-    }
-    if (reset_stats_per_prefill_) {
-      this->ResetRuntimeStats();
-    }
-    output_ids_.clear();
-    appeared_token_ids_.clear();
-    output_message_.clear();
-    stop_triggered_ = false;
-    if (append_conversation) {
-      conversation_.AppendMessage(conversation_.roles[0], inp);
-      conversation_.AppendReplyHeader(conversation_.roles[1]);
-    }
-    ICHECK(this->HasEmbedFunc());
-
-    Array<NDArray> emb_params_;
-    emb_params_.push_back(params_[67]);
-    emb_params_.push_back(params_[68]);
-
-    Array<NDArray> embed_array;
-    std::string placeholder = "<ImageHere>";
-    std::vector<std::string> prompt = this->GetPrompt();
-    std::string all_prompt = GetConcatPrompt(prompt, 0, 0);
-    std::vector<std::string> prompt_segs = CustomSplit(all_prompt, placeholder);
-    ICHECK_LE(prompt_segs.size(), 2);
-    for (int i = 0; i < prompt_segs.size(); i++) {
-      bool add_bos_token = i == 0 && prompt_segs.size() == 2;
-      std::vector<int32_t> tokens = this->GetInputTokens(prompt_segs[i], add_bos_token);
-      NDArray input_tokens = this->GetInputTokenNDArray(tokens);
-      NDArray embed = embed_func_(input_tokens, emb_params_);
-      embed_array.push_back(embed);
-    }
-    return embed_array;
-  }
-
-  /*!
    * \brief Generate the next token given a prompt.
    */
   void PrefillStep(std::string inp, bool append_conversation = true) {
@@ -577,28 +516,6 @@ class LLMChat {
 
     int32_t new_seq_len = total_seq_len_ + token_len;
     NDArray logits_on_device = this->Forward(prompt_tokens, new_seq_len);
-    total_seq_len_ = new_seq_len;
-
-    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
-
-    auto tend = std::chrono::high_resolution_clock::now();
-
-    this->prefill_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
-    this->prefill_total_tokens += token_len;
-    this->ProcessNextToken(next_token);
-  }
-
-  /*!
-   * \brief Generate the next token given input embeddings.
-   */
-  void PrefillWithEmbedStep(NDArray embeddings) {
-    int64_t token_len = embeddings.Shape()[1];
-    if (token_len == 0) return;
-
-    auto tstart = std::chrono::high_resolution_clock::now();
-
-    int32_t new_seq_len = total_seq_len_ + token_len;
-    NDArray logits_on_device = this->Forward(embeddings, new_seq_len);
     total_seq_len_ = new_seq_len;
 
     int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
@@ -775,7 +692,7 @@ class LLMChat {
     }
   }
 
-  // run forward compute with tokenized input
+  // run forward compute
   NDArray Forward(std::vector<int32_t> input_tokens, int64_t cur_pos) {
     Array<ObjectRef> ret;
     if (input_tokens.size() > 1 && prefill_func_.defined()) {
@@ -789,19 +706,6 @@ class LLMChat {
         ret = decode_func_(input_data, ShapeTuple({pos}), kv_cache_, params_);
       }
     }
-    return Downcast<NDArray>(ret[0]);
-  }
-
-  // run forward compute with embeddings
-  // TODO: params indexing is hardcoded for llama model.
-  NDArray Forward(NDArray embeddings, int64_t cur_pos) {
-    Array<ObjectRef> ret;
-    NDArray erase_param_1 = params_[67];
-    NDArray erase_param_2 = params_[68];
-    params_.erase(params_.begin() + 67, params_.begin() + 69);
-    ret = prefill_func_(embeddings, ShapeTuple({cur_pos}), kv_cache_, params_);
-    params_.insert(params_.begin() + 67, erase_param_1);
-    params_.insert(params_.begin() + 68, erase_param_2);
     return Downcast<NDArray>(ret[0]);
   }
 
@@ -860,15 +764,7 @@ class LLMChat {
   // Clear kv cache
   void ResetKVCache() { reset_kv_cache_func_(kv_cache_); }
 
-  void ProcessSystemPrompts() {
-    if (this->HasEmbedFunc()) {
-      Array<NDArray> embed_array = this->EmbedStep(/*inp=*/"", /*append_conversation=*/false);
-      ICHECK(embed_array.size() == 1);
-      this->PrefillWithEmbedStep(embed_array[0]);
-    } else {
-      this->PrefillStep(/*inp=*/"", /*append_conversation=*/false);
-    }
-  }
+  void ProcessSystemPrompts() { this->PrefillStep(/*inp=*/"", /*append_conversation=*/false); }
 
   // Utils
   static double GetRandomNumber() {
@@ -889,33 +785,6 @@ class LLMChat {
     ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
     ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
     return fsample_topp_from_prob_(logits_on_cpu_, top_p_, GetRandomNumber());
-  }
-
-  /* Create custom string.split() function. */
-  std::vector<std::string> CustomSplit(std::string str, std::string separator) {
-    std::vector<std::string> res;
-    int startIndex = 0, endIndex = 0;
-    for (int i = 0; i <= str.size(); i++) {
-      if (str[i] == separator[0] || i == str.size()) {
-        /* check the substring */
-        bool match = true;
-        for (int j = 0; j < separator.size(); j++) {
-          if (i + j >= str.size() || str[i + j] != separator[j]) {
-            match = false;
-            break;
-          }
-        }
-        if (match || i == str.size()) {
-          endIndex = i;
-          std::string temp = str.substr(startIndex, endIndex - startIndex);
-          res.push_back(temp);
-          if (match) {
-            startIndex = endIndex + separator.size();
-          }
-        }
-      }
-    }
-    return res;
   }
 
   //----------------------------
@@ -972,8 +841,6 @@ class LLMChat {
   Device device_;
   // The vm module
   Module vm_;
-  // an optional embed tokens function
-  PackedFunc embed_func_;
   // encoding function
   PackedFunc prefill_func_;
   // decoding function
@@ -1043,23 +910,10 @@ class LLMChatModule : public ModuleNode {
     } else if (name == "evaluate") {
       return PackedFunc(
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->Evaluate(); });
-    } else if (name == "has_embed") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = GetChat()->HasEmbedFunc(); });
-    } else if (name == "embed") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 1);
-        *rv = GetChat()->EmbedStep(args[0]);
-      });
     } else if (name == "prefill") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 1);
         GetChat()->PrefillStep(args[0]);
-      });
-    } else if (name == "prefill_with_embed") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 1);
-        GetChat()->PrefillWithEmbedStep(args[0]);
       });
     } else if (name == "decode") {
       return PackedFunc(
@@ -1142,7 +996,6 @@ class LLMChatModule : public ModuleNode {
         static_cast<int>(relax_vm::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
         static_cast<int>(relax_vm::AllocatorType::kPooled));
 
-    chat_->embed_func_ = chat_->vm_->GetFunction("embed");
     chat_->prefill_func_ = chat_->vm_->GetFunction("prefill");
     chat_->decode_func_ = chat_->vm_->GetFunction("decode");
     chat_->encoding_without_cache_func_ = chat_->vm_->GetFunction("encoding_without_cache");

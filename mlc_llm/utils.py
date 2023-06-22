@@ -48,7 +48,7 @@ quantization_dict = {
     ),
 }
 
-supported_model_types = set(["llama", "gpt_neox", "moss", "minigpt", "rwkv"])
+supported_model_types = set(["llama", "gpt_neox", "moss", "rwkv"])
 
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
@@ -72,7 +72,6 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "moss-": ("moss", "moss"),
         "open_llama": ("LM", "llama"),
         "rwkv-": ("rwkv", "rwkv"),
-        "minigpt4-": ("minigpt", "minigpt"),
         "gorilla-": ("gorilla", "llama"),
     }
     model = args.model.lower()
