@@ -65,13 +65,12 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
       std::filesystem::path merges_path = path / "merges.txt";
       std::filesystem::path vocab_path = path / "vocab.json";
       std::filesystem::path added_tokens_path = path / "added_tokens.json";
-      if (std::filesystem::exists(merges_path) && std::filesystem::exists(vocab_path)) {
+      if (std::filesystem::exists(merges_path) &&
+          std::filesystem::exists(vocab_path)  &&
+          std::filesystem::exists(added_tokens_path)) {
         std::string vocab = LoadBytesFromFile(vocab_path.string());
         std::string merges = LoadBytesFromFile(merges_path.string());
-        std::string added_tokens = "";
-        if (std::filesystem::exists(added_tokens_path)) {
-          added_tokens = LoadBytesFromFile(added_tokens_path.string());
-        }
+        std::string added_tokens = LoadBytesFromFile(added_tokens_path.string());
         return Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens);
       }
     }
