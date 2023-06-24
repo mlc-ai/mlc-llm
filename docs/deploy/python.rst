@@ -1,12 +1,12 @@
-Python API and Gradio Interface
-===============================
+Python API and Gradio Frontend
+==============================
 
 .. contents:: Table of Contents
    :local:
    :depth: 2
 
 We expose Python API for the MLC-Chat for easy integration into other Python projects,
-we also provide `gradio <https://gradio.app/>`_ interface to interact with the MLC-Chat building upon the Python API.
+we also provide a web demo based on `gradio <https://gradio.app/>`_ as an example of using Python API to interact with MLC-Chat.
 
 Python API
 ----------
@@ -42,11 +42,11 @@ The :class:`ChatModule` class provides the following methods:
 
    .. automethod:: __init__
 
-Gradio Interface
-----------------
+Gradio Frontend
+---------------
 
-The gradio interface provides a web interface for the MLC-Chat model, which allows user to interact with the model in a more user-friendly way.
-To use gradio interface, you need to install gradio first:
+The gradio frontend provides a web interface for the MLC-Chat model, which allows user to interact with the model in a more user-friendly way.
+To use gradio frontend, you need to install gradio first:
 
 .. code-block:: bash
 
