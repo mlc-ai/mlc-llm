@@ -5,3 +5,5 @@ sphinx-toolbox == 3.4.0
 tlcpack-sphinx-addon==0.2.2
 sphinxcontrib_httpdomain==1.8.1
 sphinxcontrib-napoleon==0.7
+--find-links https://mlc.ai/wheels
+mlc-ai-nightly
