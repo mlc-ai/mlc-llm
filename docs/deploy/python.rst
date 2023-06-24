@@ -6,7 +6,7 @@ Python API and Gradio Interface
    :depth: 2
 
 We expose python API for the MLC-Chat for easy integration into other Python projects,
-we also provide `gradio <https://gradio.app/>`_ interface to interact with the MLC-Chat through Python APIs.
+we also provide `gradio <https://gradio.app/>`_ interface to interact with the MLC-Chat building upon the Python API.
 
 Python API
 ----------
@@ -22,6 +22,9 @@ Verify Installation
    python -c "from mlc_chat import ChatModule; print(ChatModule)"
 
 You are expected to see the information about the :class:`ChatModule` class.
+
+If the prebuild is unavailable on your platform, or you would like to build a runtime
+that supports other GPU runtime than the prebuilt version. Please refer our :ref:`Build MLC-Chat Package From Source<mlcchat_build_from_source>` tutorial.
 
 API Reference
 -------------
@@ -62,8 +65,8 @@ Then you can run the following code to start the interface:
 --port                 The port number to run gradio. The default value is ``7860``.   
 --share                Whether to create a publicly shareable link for the interface.
 
-And you are expected to see the following interface in your browser:
+After setting up properly, you are expected to see the following interface in your browser:
 
-.. image:: ../_static/gradio_interface.png
+.. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/gradio-interface.png
    :width: 100%
    :align: center
