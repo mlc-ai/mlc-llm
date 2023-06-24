@@ -5,7 +5,7 @@ Python API and Gradio Interface
    :local:
    :depth: 2
 
-We expose python API for the MLC-Chat for easy integration into other Python projects,
+We expose Python API for the MLC-Chat for easy integration into other Python projects,
 we also provide `gradio <https://gradio.app/>`_ interface to interact with the MLC-Chat building upon the Python API.
 
 Python API
