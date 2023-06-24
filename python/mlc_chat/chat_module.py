@@ -28,7 +28,16 @@ def quantization_keys():
 
 
 class ChatModule:
-    def __init__(self, target="cuda", device_id=0):
+    def __init__(self, target: str = "cuda", device_id: int = 0):
+        r"""Initialize a chat module.
+
+        Parameters
+        ----------
+        target : str
+            The target device type.
+        device_id : int
+            The device id.
+        """
         fcreate = tvm.get_global_func("mlc.llm_chat_create")
         assert fcreate is not None
         if target == "cuda":
@@ -54,28 +63,79 @@ class ChatModule:
         self.get_role0 = chat_mod["get_role0"]
         self.get_role1 = chat_mod["get_role1"]
 
-    def reload(self, lib, model_path):
+    def reload(self, lib: str, model_path: str):
+        r"""Reload the chat module from the given library and model path.
+
+        Parameters
+        ----------
+        lib : str
+            The library path.
+        model_path : str
+            The model path.
+        """
         self.reload_func(lib, model_path)
 
-    def prefill(self, input):
+    def prefill(self, input: str):
+        r"""Run prefill stage for a given input and decode the first output token.
+
+        Parameters
+        ----------
+        input : str
+            The user input string.
+        """
         self.prefill_func(input)
 
     def decode(self):
+        r"""Decode the next token, the decoding result is stored in a buffer and
+        can be retrieved by :func:`get_message`.
+        """
         self.decode_func()
 
-    def stopped(self):
+    def stopped(self) -> bool:
+        r"""Check if the stop condition is met for the current round.
+
+        Returns
+        -------
+        stopped : bool
+        """
         return self.stopped_func() != 0
 
-    def get_message(self):
+    def get_message(self) -> str:
+        r"""Get the output message in the current round.
+
+        Returns
+        -------
+        message : str
+
+        Note
+        ----
+        This function returns the message that corresponds to
+        all the tokens decoded so far.
+        """
         return self.get_message_func()
 
     def reset_chat(self):
+        r"""Reset the chat session and clear all chat history.
+
+        Note
+        ----
+        The model remains the same after :func:`reset_chat`.
+        To reload module, please use :func:`reload` instead.
+        """
         self.reset_chat_func()
 
-    def runtime_stats_text(self):
+    def runtime_stats_text(self) -> str:
+        r"""Get the runtime stats text (encoding speed and decoding speed).
+
+        Returns
+        -------
+        stats : str
+            The runtime stats text.
+        """
         return self.runtime_stats_text_func()
 
     def reset_runtime_stats(self):
+        r"""Reset the runtime stats."""
         self.reset_runtime_stats_func()
 
     def evaluate(self):

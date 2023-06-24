@@ -1,0 +1,69 @@
+Python API and Gradio Interface
+===============================
+
+.. contents:: Table of Contents
+   :local:
+   :depth: 2
+
+We expose python API for the MLC-Chat for easy integration into other Python projects,
+we also provide `gradio <https://gradio.app/>`_ interface to interact with the MLC-Chat through Python APIs.
+
+Python API
+----------
+
+The Python API is a part of the MLC-Chat package, which we have prepared pre-built pip wheels and you can install it by
+following the instructions in `<https://mlc.ai/package/>`_.
+
+Verify Installation
+^^^^^^^^^^^^^^^^^^^
+
+.. code:: bash
+
+   python -c "from mlc_chat import ChatModule; print(ChatModule)"
+
+You are expected to see the information about the :class:`ChatModule` class.
+
+API Reference
+-------------
+
+User can initiate a chat module by creating :class:`ChatModule` class, which is a wrapper of the MLC-Chat model.
+The :class:`ChatModule` class provides the following methods:
+
+.. currentmodule:: mlc_chat
+
+.. autoclass:: ChatModule
+   :members:
+   :exclude-members: evaluate
+   :undoc-members:
+   :show-inheritance:
+
+   .. automethod:: __init__
+
+Gradio Interface
+----------------
+
+The gradio interface provides a web interface for the MLC-Chat model, which allows user to interact with the model in a more user-friendly way.
+To use gradio interface, you need to install gradio first:
+
+.. code-block:: bash
+
+   pip install gradio
+
+Then you can run the following code to start the interface:
+
+.. code:: bash
+
+   python -m mlc_chat.gradio --artifact-path ARTIFACT_PATH --device-name DEVICE_NAME --device-id DEVICE_ID [--port PORT_NUMBER] [--share]
+
+--artifact-path        The path to the artifact folder where models are stored. The default value is ``dist``.
+--device-name          The device name to run the model. Available options are:
+                       ``metal``, ``cuda``, ``vulkan``, ``cpu``. The default value is ``cuda``.
+--device-id            The device id to run the model. The default value is ``0``.
+--port                 The port number to run gradio. The default value is ``7860``.   
+--share                Whether to create a publicly shareable link for the interface.
+
+And you are expected to see the following interface in your browser:
+
+.. image:: ../_static/gradio_interface.png
+   :width: 100%
+   :align: center

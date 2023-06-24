@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 import tlcpack_sphinx_addon
+import os
+import sys
 
 # -- General configuration ------------------------------------------------
+
+sys.path.insert(0, os.path.abspath("../python"))
 
 # General information about the project.
 project = "mlc-llm"
@@ -13,13 +17,19 @@ copyright = "2023, %s" % author
 version = "0.1.0"
 release = "0.1.0"
 
-extensions = ['sphinx_tabs.tabs', 'sphinx_toolbox.collapse', 'sphinxcontrib.httpdomain']
+extensions = [
+    "sphinx_tabs.tabs",
+    "sphinx_toolbox.collapse",
+    "sphinxcontrib.httpdomain",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+]
 
 source_suffix = [".rst"]
 
 language = "en"
 
-exclude_patterns = ["_build", "Thumbs.db", '.DS_Store']
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "sphinx"

@@ -23,7 +23,7 @@ def _parse_args():
         action="store_true",
         help="create a publicly shareable link for the interface",
     )
-    args.add_argument("--port", type=int, default=8000)
+    args.add_argument("--port", type=int, default=7860)
     parsed = args.parse_args()
     return parsed
 
