@@ -110,6 +110,7 @@ If you are interested in using Machine Learning Compilation in practice, we high
    deploy/javascript.rst
    deploy/rest.rst
    deploy/cli.rst
+   deploy/python.rst
    deploy/ios.rst
    deploy/android.rst
 

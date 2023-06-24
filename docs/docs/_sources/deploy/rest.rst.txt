@@ -23,6 +23,8 @@ Verify Installation
 
 You are expected to see the help information of the REST API.
 
+.. _mlcchat_build_from_source:
+
 Optional: Build from Source
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

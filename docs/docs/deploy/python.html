@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Getting Vicuna Weights &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Python API and Gradio Frontend &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -45,7 +45,9 @@
     
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" /> 
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="iOS App and Swift API" href="ios.html" />
+    <link rel="prev" title="CLI and C++ API" href="cli.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -169,18 +171,26 @@
 <li class="toctree-l1"><a class="reference internal" href="../get_started/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/javascript.html">WebLLM and Javascript API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">Rest API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI and C++ API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/python.html">Python API and Gradio Frontend</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS App and Swift API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="javascript.html">WebLLM and Javascript API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rest.html">Rest API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">CLI and C++ API</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Python API and Gradio Frontend</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#python-api">Python API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#verify-installation">Verify Installation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#api-reference">API Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#gradio-frontend">Gradio Frontend</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ios.html">iOS App and Swift API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="android.html">Android App</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Models via MLC</a></li>
-<li class="toctree-l1"><a class="reference internal" href="distribute_compiled_models.html">Distribute Compiled Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Models via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
 <ul>
@@ -257,7 +267,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Getting Vicuna Weights</li>
+      <li>Python API and Gradio Frontend</li>
     
     
       
@@ -268,7 +278,7 @@
         
             
             
-              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/compilation/get-vicuna-weight.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/deploy/python.rst" class="fa fa-github"> Edit on GitHub</a>
             
           
         
@@ -282,59 +292,72 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="getting-vicuna-weights">
-<h1>Getting Vicuna Weights<a class="headerlink" href="#getting-vicuna-weights" title="Permalink to this heading">¶</a></h1>
+  <section id="python-api-and-gradio-frontend">
+<h1>Python API and Gradio Frontend<a class="headerlink" href="#python-api-and-gradio-frontend" title="Permalink to this heading">¶</a></h1>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#install-fastchat" id="id1">Install FastChat</a></p></li>
-<li><p><a class="reference internal" href="#download-huggingface-llama-weights" id="id2">Download HuggingFace LLaMA Weights</a></p></li>
-<li><p><a class="reference internal" href="#optional-move-vicuna-weights-to-dist-folder" id="id3">(Optional) Move Vicuna Weights to dist folder</a></p></li>
+<li><p><a class="reference internal" href="#python-api" id="id1">Python API</a></p>
+<ul>
+<li><p><a class="reference internal" href="#verify-installation" id="id2">Verify Installation</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#api-reference" id="id3">API Reference</a></p></li>
+<li><p><a class="reference internal" href="#gradio-frontend" id="id4">Gradio Frontend</a></p></li>
 </ul>
 </nav>
-<p><a class="reference external" href="https://lmsys.org/blog/2023-03-30-vicuna/">Vicuna</a> is a open-source chatbot trained by fine-tuning <a class="reference external" href="https://ai.facebook.com/blog/large-language-model-llama-meta-ai/">LLaMA</a> on <a class="reference external" href="https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered">ShartGPT</a> data.</p>
-<p>Please note that the official Vicuna weights are delta weights applied to the LLaMA weights in order to comply with the LLaMA license. Users are responsible for applying these delta weights themselves.</p>
-<p>In this tutorial, we will show how to apply the delta weights to LLaMA weights to get Vicuna weights.</p>
-<section id="install-fastchat">
-<h2><a class="toc-backref" href="#id1" role="doc-backlink">Install FastChat</a><a class="headerlink" href="#install-fastchat" title="Permalink to this heading">¶</a></h2>
-<p>FastChat offers convenient utility functions for applying delta to LLaMA weights. You can easily install it using pip.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>fschat
+<p>We expose Python API for the MLC-Chat for easy integration into other Python projects,
+we also provide a web demo based on <a class="reference external" href="https://gradio.app/">gradio</a> as an example of using Python API to interact with MLC-Chat.</p>
+<section id="python-api">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Python API</a><a class="headerlink" href="#python-api" title="Permalink to this heading">¶</a></h2>
+<p>The Python API is a part of the MLC-Chat package, which we have prepared pre-built pip wheels and you can install it by
+following the instructions in <a class="reference external" href="https://mlc.ai/package/">https://mlc.ai/package/</a>.</p>
+<section id="verify-installation">
+<h3><a class="toc-backref" href="#id2" role="doc-backlink">Verify Installation</a><a class="headerlink" href="#verify-installation" title="Permalink to this heading">¶</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from mlc_chat import ChatModule; print(ChatModule)&quot;</span>
 </pre></div>
 </div>
+<p>You are expected to see the information about the <code class="xref py py-class docutils literal notranslate"><span class="pre">ChatModule</span></code> class.</p>
+<p>If the prebuild is unavailable on your platform, or you would like to build a runtime
+that supports other GPU runtime than the prebuilt version. Please refer our <a class="reference internal" href="rest.html#mlcchat-build-from-source"><span class="std std-ref">Build MLC-Chat Package From Source</span></a> tutorial.</p>
 </section>
-<section id="download-huggingface-llama-weights">
-<h2><a class="toc-backref" href="#id2" role="doc-backlink">Download HuggingFace LLaMA Weights</a><a class="headerlink" href="#download-huggingface-llama-weights" title="Permalink to this heading">¶</a></h2>
-<p>The HuggingFace LLaMA weights are hosted using Git-LFS. Therefore, it is necessary to install Git-LFS first (you can ignore this step if git-lfs is already installed).</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>git-lfs
-git<span class="w"> </span>lfs<span class="w"> </span>install
-</pre></div>
-</div>
-<p>Then download the weights (both the LLaMA weight and Vicuna delta weight):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/decapoda-research/llama-7b-hf
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/lmsys/vicuna-7b-delta-v1.1
-</pre></div>
-</div>
-<p>There is a name mis-alignment issue in the LLaMA weights and Vicuna delta weights.
-Please follow these steps to modify the content of the “config.json” file:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s/LLaMAForCausalLM/LlamaForCausalLM/g&#39;</span><span class="w"> </span>llama-7b-hf/config.json
-</pre></div>
-</div>
-<p>Then use <code class="docutils literal notranslate"><span class="pre">fschat</span></code> to apply delta to LLaMA weights</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>fastchat.model.apply_delta<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--base-model-path<span class="w"> </span>llama-7b-hf<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--target-model-path<span class="w"> </span>vicuna-7b-v1.1<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--delta-path<span class="w"> </span>vicuna-7b-delta-v1.1
-</pre></div>
-</div>
-<p>You will get the Vicuna weights in <code class="docutils literal notranslate"><span class="pre">vicuna-7b-v1.1</span></code> folder, which can be used as input of MLC-LLM to further compile models.</p>
 </section>
-<section id="optional-move-vicuna-weights-to-dist-folder">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">(Optional) Move Vicuna Weights to dist folder</a><a class="headerlink" href="#optional-move-vicuna-weights-to-dist-folder" title="Permalink to this heading">¶</a></h2>
-<p>The default model path of MLC-LLM is <code class="docutils literal notranslate"><span class="pre">dist</span></code> folder. Therefore, it is recommended to move the Vicuna weights to <code class="docutils literal notranslate"><span class="pre">dist</span></code> folder.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/models
-mv<span class="w"> </span>vicuna-7b-v1.1<span class="w"> </span>dist/models/vicuna-7b-v1.1
+<section id="api-reference">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">API Reference</a><a class="headerlink" href="#api-reference" title="Permalink to this heading">¶</a></h2>
+<p>User can initiate a chat module by creating <code class="xref py py-class docutils literal notranslate"><span class="pre">ChatModule</span></code> class, which is a wrapper of the MLC-Chat model.
+The <code class="xref py py-class docutils literal notranslate"><span class="pre">ChatModule</span></code> class provides the following methods:</p>
+</section>
+<section id="gradio-frontend">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Gradio Frontend</a><a class="headerlink" href="#gradio-frontend" title="Permalink to this heading">¶</a></h2>
+<p>The gradio frontend provides a web interface for the MLC-Chat model, which allows user to interact with the model in a more user-friendly way.
+To use gradio frontend, you need to install gradio first:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>gradio
 </pre></div>
 </div>
+<p>Then you can run the following code to start the interface:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>mlc_chat.gradio<span class="w"> </span>--artifact-path<span class="w"> </span>ARTIFACT_PATH<span class="w"> </span>--device-name<span class="w"> </span>DEVICE_NAME<span class="w"> </span>--device-id<span class="w"> </span>DEVICE_ID<span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT_NUMBER<span class="o">]</span><span class="w"> </span><span class="o">[</span>--share<span class="o">]</span>
+</pre></div>
+</div>
+<dl class="option-list">
+<dt><kbd><span class="option">--artifact-path</span></kbd></dt>
+<dd><p>The path to the artifact folder where models are stored. The default value is <code class="docutils literal notranslate"><span class="pre">dist</span></code>.</p>
+</dd>
+<dt><kbd><span class="option">--device-name</span></kbd></dt>
+<dd><p>The device name to run the model. Available options are:
+<code class="docutils literal notranslate"><span class="pre">metal</span></code>, <code class="docutils literal notranslate"><span class="pre">cuda</span></code>, <code class="docutils literal notranslate"><span class="pre">vulkan</span></code>, <code class="docutils literal notranslate"><span class="pre">cpu</span></code>. The default value is <code class="docutils literal notranslate"><span class="pre">cuda</span></code>.</p>
+</dd>
+<dt><kbd><span class="option">--device-id</span></kbd></dt>
+<dd><p>The device id to run the model. The default value is <code class="docutils literal notranslate"><span class="pre">0</span></code>.</p>
+</dd>
+<dt><kbd><span class="option">--port</span></kbd></dt>
+<dd><p>The port number to run gradio. The default value is <code class="docutils literal notranslate"><span class="pre">7860</span></code>.</p>
+</dd>
+<dt><kbd><span class="option">--share</span></kbd></dt>
+<dd><p>Whether to create a publicly shareable link for the interface.</p>
+</dd>
+</dl>
+<p>After setting up properly, you are expected to see the following interface in your browser:</p>
+<a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/gradio-interface.png"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/gradio-interface.png" class="align-center" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/gradio-interface.png" style="width: 100%;" /></a>
 </section>
 </section>
 
@@ -345,6 +368,15 @@ mv<span class="w"> </span>vicuna-7b-v1.1<span class="w"> </span>dist/models/vicu
           
 
 <footer>
+
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="ios.html" class="btn btn-neutral float-right" title="iOS App and Swift API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="cli.html" class="btn btn-neutral float-left" title="CLI and C++ API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
 
 <div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
 <section class="footerSec">
