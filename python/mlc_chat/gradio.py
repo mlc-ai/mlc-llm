@@ -23,7 +23,7 @@ def _parse_args():
         action="store_true",
         help="create a publicly shareable link for the interface",
     )
-    args.add_argument("--port", type=int, default=8000)
+    args.add_argument("--port", type=int, default=7860)
     parsed = args.parse_args()
     return parsed
 
@@ -61,7 +61,7 @@ class GradioChatModule(ChatModule):
                 model_lib = path
                 break
         assert model_lib is not None
-        lib = tvm.runtime.load_module(os.path.join(model_dir, model_lib))
+        lib = tvm.runtime.load_module(model_lib)
         assert lib is not None
         chat_mod.reload_func(lib, os.path.join(model_dir, "params"))
         self.reset_runtime_stats_func()
