@@ -24,7 +24,7 @@ Verify Installation
 You are expected to see the information about the :class:`ChatModule` class.
 
 If the prebuild is unavailable on your platform, or you would like to build a runtime
-that supports other GPU runtime than the prebuilt version. Please refer our :ref:`Build MLC-Chat Package From Source<mlcchat_build_from_source>` tutorial.
+that supports other GPU runtime than the prebuilt version. Please refer our :ref:`Build MLC-Chat Package From Source<mlcchat_package_build_from_source>` tutorial.
 
 API Reference
 -------------
