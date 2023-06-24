@@ -318,7 +318,7 @@
 <section id="option-1-conda-prebuilt">
 <h2><a class="toc-backref" href="#id4" role="doc-backlink">Option 1. Conda Prebuilt</a><a class="headerlink" href="#option-1-conda-prebuilt" title="Permalink to this heading">¶</a></h2>
 <p>The prebuilt package supports Metal on macOS and Vulkan on Linux and Windows, and can be installed via Conda one-liner.</p>
-<p>To use other GPU runtimes, e.g. CUDA, please instead <a class="reference internal" href="rest.html#mlcchat-build-from-source"><span class="std std-ref">build it from source</span></a>.</p>
+<p>To use other GPU runtimes, e.g. CUDA, please instead <a class="reference internal" href="#mlcchat-build-from-source"><span class="std std-ref">build it from source</span></a>.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-cli-nightly
 conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 mlc_chat_cli<span class="w"> </span>--help
@@ -459,7 +459,7 @@ Use<span class="w"> </span>model<span class="w"> </span>library:<span class="w">
 <section id="advanced-build-apps-with-c-api">
 <h2><a class="toc-backref" href="#id7" role="doc-backlink">Advanced: Build Apps with C++ API</a><a class="headerlink" href="#advanced-build-apps-with-c-api" title="Permalink to this heading">¶</a></h2>
 <p>MLC-compiled models can be integrated into <strong>any C++ project</strong> using TVM’s C/C++ API without going through the command line.</p>
-<p><strong>Step 1. Create libmlc_llm.</strong> Both static and shared libraries are available via the <a class="reference internal" href="rest.html#mlcchat-build-from-source"><span class="std std-ref">CMake instructions</span></a>, and the downstream developer may include either one into the C++ project according to needs.</p>
+<p><strong>Step 1. Create libmlc_llm.</strong> Both static and shared libraries are available via the <a class="reference internal" href="#mlcchat-build-from-source"><span class="std std-ref">CMake instructions</span></a>, and the downstream developer may include either one into the C++ project according to needs.</p>
 <p><strong>Step 2. Calling into the model in your C++ Project.</strong> Use <code class="docutils literal notranslate"><span class="pre">tvm::runtime::Module</span></code> API from TVM runtime to interact with MLC LLM without MLCChat.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -534,7 +534,7 @@ etc.</p>
 <li><p>Header-only DMLC core: <code class="docutils literal notranslate"><span class="pre">${TVM_HOME}/3rdparty/dmlc-core/include</span></code>.</p></li>
 </ul>
 </li>
-<li><p>Make sure to link either the static or the shared <code class="docutils literal notranslate"><span class="pre">libtvm_runtime</span></code> library, which is provided via <a class="reference internal" href="rest.html#mlcchat-build-from-source"><span class="std std-ref">CMake</span></a>.</p></li>
+<li><p>Make sure to link either the static or the shared <code class="docutils literal notranslate"><span class="pre">libtvm_runtime</span></code> library, which is provided via <a class="reference internal" href="#mlcchat-build-from-source"><span class="std std-ref">CMake</span></a>.</p></li>
 </ul>
 </section>
 </section>
