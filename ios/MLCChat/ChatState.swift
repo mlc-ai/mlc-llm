@@ -180,7 +180,7 @@ class ChatState : ObservableObject {
             let vram = os_proc_available_memory()
             if (vram < estimatedVRAMReq) {
                 let reqMem = String (
-                    format: "%.1fGB", Double(estimatedVRAMReq) / Double(1 << 20)
+                    format: "%.1fMB", Double(estimatedVRAMReq) / Double(1 << 20)
                 )
                 let errMsg = (
                     "Sorry, the system cannot provide " + reqMem + " VRAM as requested to the app, " +
