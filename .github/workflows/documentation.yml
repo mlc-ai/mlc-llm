@@ -28,8 +28,6 @@ jobs:
     - name: Installing dependencies
       run: |
         python -m pip install -r docs/requirements.txt
-        mkdir -p build/
-        ln -s $(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")/mlc_chat/*.so build/
         gem install jekyll jekyll-remote-theme
 
     - name: Deploying on GitHub Pages
