@@ -77,22 +77,22 @@ class AsyncChatCompletionStream:
     def __aiter__(self):
         return self
 
-    def get_next_msg(self):
+    async def get_next_msg(self):
         session["chat_mod"].decode()
         msg = session["chat_mod"].get_message()
         return msg
 
     async def __anext__(self):
         if not session["chat_mod"].stopped():
-            loop = asyncio.get_event_loop()
-            msg = await loop.run_in_executor(None, self.get_next_msg)
+            task = asyncio.create_task(self.get_next_msg())
+            msg = await task
             return msg
         else:
             raise StopAsyncIteration
 
 
 @app.post("/v1/chat/completions")
-def request_completion(request: ChatCompletionRequest):
+async def request_completion(request: ChatCompletionRequest):
     """
     Creates model response for the given chat conversation.
     """
@@ -138,7 +138,7 @@ def request_completion(request: ChatCompletionRequest):
 
 
 @app.post("/chat/reset")
-def reset():
+async def reset():
     """
     Reset the chat for the currently initialized model.
     """
@@ -146,7 +146,7 @@ def reset():
 
 
 @app.get("/stats")
-def read_stats():
+async def read_stats():
     """
     Get the runtime stats.
     """
@@ -155,4 +155,4 @@ def read_stats():
 
 ARGS = _parse_args()
 if __name__ == "__main__":
-    uvicorn.run("mlc_chat.rest:app", port=ARGS.port, reload=True, access_log=False)
+    uvicorn.run("mlc_chat.rest:app", port=ARGS.port, reload=False, access_log=False)
