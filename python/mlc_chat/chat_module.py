@@ -24,7 +24,15 @@ _LIB, _LIB_PATH = _load_mlc_llm_lib()
 
 
 def quantization_keys():
-    return ["q3f16_0", "q4f16_0", "q4f32_0", "q0f32", "q0f16"]
+    return [
+        "q3f16_0",
+        "q4f16_0",
+        "q4f32_0",
+        "q8f16_0",
+        "q8f32_0",
+        "q0f16",
+        "q0f32",
+    ]
 
 
 class ChatModule:
