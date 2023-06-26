@@ -31,6 +31,5 @@ jobs:
         gem install jekyll jekyll-remote-theme
 
     - name: Test building site
-      if: github.ref == 'refs/heads/main'
       run: |
         ./scripts/build_site.sh
