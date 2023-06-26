@@ -77,10 +77,19 @@ class AsyncChatCompletionStream:
     def __aiter__(self):
         return self
 
+    async def get_next_msg(self):
+        session["chat_mod"].decode()
+        msg = session["chat_mod"].get_message()
+        return msg
+
     async def __anext__(self):
         if not session["chat_mod"].stopped():
-            session["chat_mod"].decode()
-            msg = session["chat_mod"].get_message()
+            # loop = asyncio.get_event_loop()
+            # msg = await loop.run_in_executor(None, self.get_next_msg)
+            # msg = asyncio.create_task(self.get_next_msg())
+
+            task = asyncio.create_task(self.get_next_msg())
+            msg = await task
             return msg
         else:
             raise StopAsyncIteration
