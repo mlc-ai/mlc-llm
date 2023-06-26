@@ -180,7 +180,21 @@
 <li class="toctree-l3"><a class="reference internal" href="#verify-installation">Verify Installation</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#api-reference">API Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#api-reference">API Reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#mlc_chat.ChatModule"><code class="docutils literal notranslate"><span class="pre">ChatModule</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.__init__"><code class="docutils literal notranslate"><span class="pre">ChatModule.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.decode"><code class="docutils literal notranslate"><span class="pre">ChatModule.decode()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.get_message"><code class="docutils literal notranslate"><span class="pre">ChatModule.get_message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.prefill"><code class="docutils literal notranslate"><span class="pre">ChatModule.prefill()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reload"><code class="docutils literal notranslate"><span class="pre">ChatModule.reload()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reset_chat"><code class="docutils literal notranslate"><span class="pre">ChatModule.reset_chat()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reset_runtime_stats"><code class="docutils literal notranslate"><span class="pre">ChatModule.reset_runtime_stats()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.runtime_stats_text"><code class="docutils literal notranslate"><span class="pre">ChatModule.runtime_stats_text()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.stopped"><code class="docutils literal notranslate"><span class="pre">ChatModule.stopped()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#gradio-frontend">Gradio Frontend</a></li>
 </ul>
 </li>
@@ -326,6 +340,122 @@ that supports other GPU runtime than the prebuilt version. Please refer our <a c
 <h2><a class="toc-backref" href="#id3" role="doc-backlink">API Reference</a><a class="headerlink" href="#api-reference" title="Permalink to this heading">¶</a></h2>
 <p>User can initiate a chat module by creating <code class="xref py py-class docutils literal notranslate"><span class="pre">ChatModule</span></code> class, which is a wrapper of the MLC-Chat model.
 The <code class="xref py py-class docutils literal notranslate"><span class="pre">ChatModule</span></code> class provides the following methods:</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlc_chat.</span></span><span class="sig-name descname"><span class="pre">ChatModule</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'cuda'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'cuda'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize a chat module.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>target</strong> (<em>str</em>) – The target device type.</p></li>
+<li><p><strong>device_id</strong> (<em>int</em>) – The device id.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.decode">
+<span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.decode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Decode the next token, the decoding result is stored in a buffer and
+can be retrieved by <a class="reference internal" href="#mlc_chat.ChatModule.get_message" title="mlc_chat.ChatModule.get_message"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_message()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.get_message">
+<span class="sig-name descname"><span class="pre">get_message</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#mlc_chat.ChatModule.get_message" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the output message in the current round.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>message</strong></p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function returns the message that corresponds to
+all the tokens decoded so far.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.prefill">
+<span class="sig-name descname"><span class="pre">prefill</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.prefill" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run prefill stage for a given input and decode the first output token.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>input</strong> (<em>str</em>) – The user input string.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.reload">
+<span class="sig-name descname"><span class="pre">reload</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lib</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.reload" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reload the chat module from the given library and model path.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>lib</strong> (<em>str</em>) – The library path.</p></li>
+<li><p><strong>model_path</strong> (<em>str</em>) – The model path.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.reset_chat">
+<span class="sig-name descname"><span class="pre">reset_chat</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.reset_chat" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reset the chat session and clear all chat history.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The model remains the same after <a class="reference internal" href="#mlc_chat.ChatModule.reset_chat" title="mlc_chat.ChatModule.reset_chat"><code class="xref py py-func docutils literal notranslate"><span class="pre">reset_chat()</span></code></a>.
+To reload module, please use <a class="reference internal" href="#mlc_chat.ChatModule.reload" title="mlc_chat.ChatModule.reload"><code class="xref py py-func docutils literal notranslate"><span class="pre">reload()</span></code></a> instead.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.reset_runtime_stats">
+<span class="sig-name descname"><span class="pre">reset_runtime_stats</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.reset_runtime_stats" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reset the runtime stats.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.runtime_stats_text">
+<span class="sig-name descname"><span class="pre">runtime_stats_text</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#mlc_chat.ChatModule.runtime_stats_text" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the runtime stats text (encoding speed and decoding speed).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>stats</strong> – The runtime stats text.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.stopped">
+<span class="sig-name descname"><span class="pre">stopped</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#mlc_chat.ChatModule.stopped" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check if the stop condition is met for the current round.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>stopped</strong></p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
 </section>
 <section id="gradio-frontend">
 <h2><a class="toc-backref" href="#id4" role="doc-backlink">Gradio Frontend</a><a class="headerlink" href="#gradio-frontend" title="Permalink to this heading">¶</a></h2>
