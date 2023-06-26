@@ -20,7 +20,8 @@ def _load_mlc_llm_lib():
     return ctypes.CDLL(lib_path[0]), lib_path[0]
 
 
-_LIB, _LIB_PATH = _load_mlc_llm_lib()
+if os.environ.get("SKIP_LOADING_MLCLLM_SO", "0") == "0":
+    _LIB, _LIB_PATH = _load_mlc_llm_lib()
 
 
 def quantization_keys():
