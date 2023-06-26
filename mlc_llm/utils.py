@@ -37,14 +37,17 @@ quantization_dict = {
     "q4f32_0": Quantization(
         name="q4f32_0", mode="int4", sym=False, storage_nbit=32, model_dtype="float32"
     ),
-    "q0f32": Quantization(
-        name="q0f32", mode="no", sym=False, storage_nbit=-1, model_dtype="float32"
+    "q8f16_0": Quantization(
+        name="q8f16_0", mode="uint8", sym=False, storage_nbit=-1, model_dtype="float16"
+    ),
+    "q8f32_0": Quantization(
+        name="q8f32_0", mode="uint8", sym=False, storage_nbit=-1, model_dtype="float32"
     ),
     "q0f16": Quantization(
         name="q0f16", mode="no", sym=False, storage_nbit=-1, model_dtype="float16"
     ),
-    "q8f16_0": Quantization(
-        name="q8f16_0", mode="uint8", sym=False, storage_nbit=-1, model_dtype="float16"
+    "q0f32": Quantization(
+        name="q0f32", mode="no", sym=False, storage_nbit=-1, model_dtype="float32"
     ),
 }
 
