@@ -89,7 +89,7 @@ The necessary arguments for the build script are listed in the table below:
 --quantization      The code indicating the quantization mode to use. The format of the code is ``qAfB(_0)``, where ``A`` represents the number
                     of bits for storing weights and ``B`` represents the number of bits for storing activations. The ``_0`` suffix indicates
                     symmetric quantization is used (if not presented, asymmetric quantization is used). Available options are: ``q3f16_0``, ``q4f16_0``,
-                    ``q4f32_0``, ``q0f32``, ``q0f16``, and ``q8f16_0``. The default value is ``q3f16_0``.
+                    ``q4f32_0``, ``q0f32``, ``q0f16``, ``q8f16_0``, and ``q8f32_0``. The default value is ``q3f16_0``.
 
 The following arguments are optional:
 
