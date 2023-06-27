@@ -81,6 +81,10 @@ and you can try out prebuilt models on the following platforms:
     
     |
 
+    .. note::
+      If the app is not available in your country or region on App Store, please try the beta version of MLC-Chat on
+      `TestFlight <https://testflight.apple.com/join/57zd7oxa>`__.
+
     Once the app is installed, you can download the models and then engage in chat with the model without requiring an internet connection.
 
     Memory requirements vary across different models. The Vicuna-7B model necessitates an iPhone device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an iPhone with at least 4GB RAM.
