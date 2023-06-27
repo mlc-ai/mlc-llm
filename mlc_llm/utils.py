@@ -10,6 +10,7 @@ import tvm
 from tvm import meta_schedule as ms
 from tvm import relax
 
+from .quantization import quantization_schemes
 from .transform import ReorderTransformFunc
 
 
@@ -90,7 +91,11 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
             f'Cannot recognize model "{args.model}". '
             f'Supported ones: {", ".join(supported_model_prefix.keys())}'
         )
-    args.quantization = quantization_dict[args.quantization]
+    args.quantization = (
+        quantization_schemes[args.quantization]
+        if args.quantization in quantization_schemes
+        else quantization_dict[args.quantization]
+    )
 
 
 def split_transform_deploy_mod(
@@ -104,6 +109,8 @@ def split_transform_deploy_mod(
     for name in model_names:
         if name + "_transform_params" in gv_names:
             transform_func_name = name + "_transform_params"
+    if "transform_params" in gv_names:
+        transform_func_name = "transform_params"
     assert transform_func_name is not None
 
     for gv in mod.functions:
@@ -128,6 +135,7 @@ def load_torch_pname2binname_map(
     model_path: str,
     pnames: Set[str],
     f_convert_pname_fwd: Callable[[str], str] = lambda pname: pname,
+    excluded_params: List[str] = [],
 ) -> Dict[str, str]:
     bin_idx_path = os.path.join(model_path, "pytorch_model.bin.index.json")
     if os.path.isfile(bin_idx_path):
@@ -144,7 +152,8 @@ def load_torch_pname2binname_map(
         }
 
     for pname in pnames:
-        assert f_convert_pname_fwd(pname) in pname2binname
+        if pname not in excluded_params:
+            assert f_convert_pname_fwd(pname) in pname2binname
     return pname2binname
 
 
@@ -198,7 +207,6 @@ def transform_params(
         # If the weight is already provided by `model_params`, directly use it
         # and no need to load from binary file.
         if model_params[i] is not None:
-            assert i not in pidx2pname
             assert i not in loaded_params_dict
             return tvm.nd.array(model_params[i], device=device)
 
@@ -572,7 +580,9 @@ def parse_target(args: argparse.Namespace) -> None:
         args.lib_format = "wasm"
         args.system_lib = True
         if os.environ.get("TVM_HOME", "") == "":
-            raise RuntimeError("Please set TVM_HOME for webgpu build following scripts/prep_emcc_deps.sh")
+            raise RuntimeError(
+                "Please set TVM_HOME for webgpu build following scripts/prep_emcc_deps.sh"
+            )
     elif args.target in ["android", "android-dylib"]:  # android-opencl
         from tvm.contrib import ndk, tar
 

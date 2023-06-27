@@ -283,6 +283,9 @@ def mod_transform_before_build(
             "get_metadata",
         ]
 
+    # Reassign `args.quantization` for compatibility of the old/new quantization framework.
+    # This will be cleaned after all model architecture transitioning to the new framework.
+    args.quantization = utils.quantization_dict[args.quantization.name]
     if args.quantization.mode != "no":
         if ARGS.model.startswith("rwkv-"):
             mod = mlc_llm.transform.RWKVQuantize(  # pylint: disable=not-callable
@@ -298,11 +301,20 @@ def mod_transform_before_build(
                 dtype=args.quantization.model_dtype,
             )(mod)
     mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
+    mod = mlc_llm.transform.FuseDecodeTranspose()(mod)  # pylint: disable=not-callable
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
     mod = mlc_llm.transform.FuseDecodeMatmulEwise(  # pylint: disable=not-callable
         args.quantization.model_dtype, args.target_kind
     )(mod)
-    mod = relax.transform.DeadCodeElimination(model_names)(mod)
+    mod = mlc_llm.transform.FuseDecodeTake()(mod)
+    # Apply DCE differently for compatibility of the old/new quantization framework.
+    # This will be cleaned after all model architecture transitioning to the new framework.
+    if "transform_params" in [gv.name_hint for gv in mod.functions]:
+        mod = relax.transform.DeadCodeElimination(model_names + ["transform_params"])(
+            mod
+        )
+    else:
+        mod = relax.transform.DeadCodeElimination(model_names)(mod)
     mod = relax.transform.LiftTransformParams()(mod)
     mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
 

@@ -17,7 +17,22 @@ class TransposeMatmulCodeGenerator(relax.PyExprMutator):
         annotations = {"o": o, "w": w, "x": x, "wT": wT}
 
         def _check(context: relax.transform.PatternCheckContext) -> bool:
+            x = context.annotated_expr["x"]
             transpose_call = context.annotated_expr["wT"]
+
+            # Do not fuse transpose with static-shape GeMV.
+            if (
+                isinstance(x.struct_info.shape[-2], tir.IntImm)
+                and x.struct_info.shape[-2].value == 1
+                and all(
+                    [
+                        isinstance(l, tir.IntImm)
+                        for l in transpose_call.struct_info.shape.values
+                    ]
+                )
+            ):
+                return False
+
             ndim = transpose_call.args[0].struct_info.ndim
             if ndim == -1:
                 return False

@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import tvm
@@ -8,9 +8,11 @@ from tvm import relax, te
 from tvm.relax.testing import nn
 from tvm.script import relax as R
 
+from ..quantization import ParamQuantKind, QuantizationScheme
 from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
-from .modules import ModuleList, named_parameters
+from .modules import ModuleList
+from .param_manager import ParamManager
 
 
 @dataclass
@@ -557,13 +559,36 @@ class LlamaForCausalLM(nn.Module):
         return logits, key_value_cache
 
 
-def create_encoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> Dict[int, str]:
+def get_param_quant_kind(
+    name: str, param_info: relax.TensorStructInfo
+) -> ParamQuantKind:
+    if "embed_tokens" in name:
+        return ParamQuantKind.embedding_table
+    elif "lm_head.weight" in name:
+        return ParamQuantKind.final_fc_weight
+    elif param_info.ndim == 2 and name.endswith(".weight"):
+        return ParamQuantKind.linear_weight
+    else:
+        return ParamQuantKind.others
+
+
+def create_encoding_func(
+    bb: relax.BlockBuilder,
+    param_manager: ParamManager,
+    config: LlamaConfig,
+    quant_scheme: QuantizationScheme,
+) -> None:
+    func_name = "prefill"
+
     bsz = 1
     seq_len = tvm.tir.Var("n", "int64")
     all_seq_len = tvm.tir.Var("m", "int64")
-    pidx2pname: Dict[int, str] = {}
-    with bb.function("prefill"):
+    with bb.function(func_name):
         model = LlamaForCausalLM(config)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
         input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
         all_seq_len_shape = relax.Var(
             "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
@@ -583,29 +608,31 @@ def create_encoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> Dict[in
                 all_seq_len_shape,
                 past_key_values,
             ] + model.parameters()
-
-            named_params = named_parameters(model)
-            for i, (name, param) in enumerate(list(named_params.items())[:-2]):
-                pidx2pname[i] = name
-                assert param.same_as(params[i + 3])
-                assert not name.startswith("sin") and not name.startswith("cos")
-
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
         bb.emit_func_output(gv, params)
 
     mod = bb.get()
-    gv = mod.get_global_var("prefill")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
-    return pidx2pname
 
+def create_decoding_func(
+    bb: relax.BlockBuilder,
+    param_manager: ParamManager,
+    config: LlamaConfig,
+    quant_scheme: QuantizationScheme,
+) -> None:
+    func_name = "decode"
 
-def create_decoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     bsz = 1
     all_seq_len = tvm.tir.Var("n", "int64")
 
-    with bb.function("decode"):
+    with bb.function(func_name):
         model = LlamaForCausalLM(config)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
         all_seq_len_shape = relax.Var(
             "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
@@ -629,7 +656,7 @@ def create_decoding_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
         bb.emit_func_output(gv, params)
 
     mod = bb.get()
-    gv = mod.get_global_var("decode")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
 
@@ -689,9 +716,10 @@ def get_model(args, hf_config):
         if max_seq_len != -1:
             config.max_sequence_length = max_seq_len
 
+        param_manager = ParamManager()
         bb = relax.BlockBuilder()
-        pidx2pname = create_encoding_func(bb, config)
-        create_decoding_func(bb, config)
+        create_encoding_func(bb, param_manager, config, args.quantization)
+        create_decoding_func(bb, param_manager, config, args.quantization)
         create_kv_cache_func(bb, config)
         create_softmax_func(bb, config)
         create_metadata_func(
@@ -714,8 +742,11 @@ def get_model(args, hf_config):
                     },
                 )
 
+        mod, pidx2pname = param_manager.quantization_transform(mod)
         pname2binname = load_torch_pname2binname_map(
-            model_path, set(pidx2pname.values())
+            model_path,
+            set(pidx2pname.values()),
+            excluded_params=["cos_cached", "sin_cached"],
         )
 
         device = tvm.cpu()
@@ -734,8 +765,8 @@ def get_model(args, hf_config):
         t = np.arange(2048, dtype=inv_freq.dtype)
         freqs = np.einsum("i,j->ij", t, inv_freq)
         emb = np.concatenate((freqs, freqs), axis=-1)
-        param_list.append(tvm.nd.array(np.cos(emb).astype(config.dtype), device))
-        param_list.append(tvm.nd.array(np.sin(emb).astype(config.dtype), device))
+        param_list[-2] = tvm.nd.array(np.cos(emb).astype(config.dtype), device)
+        param_list[-1] = tvm.nd.array(np.sin(emb).astype(config.dtype), device)
 
         args.pidx2pname = pidx2pname
         args.pname2binname = pname2binname

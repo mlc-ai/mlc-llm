@@ -18,7 +18,7 @@ def check_decoding(ctx: relax.transform.PatternCheckContext) -> bool:
     gv = call.args[0]
     if not isinstance(gv, relax.GlobalVar):
         return False
-    return gv.name_hint.startswith("decode")
+    return gv.name_hint.startswith("decode") or gv.name_hint.startswith("fused_decode")
 
 
 def check_matmul(ctx: relax.transform.PatternCheckContext, target_kind: str) -> bool:
