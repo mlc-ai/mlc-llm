@@ -3,43 +3,6 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
-task generateJniHeaders(type: Exec, description: 'Generate JNI Headers') {
-    def headerPath = "${project.projectDir}/src/main/jni"
-    def classPath = "${project.projectDir}/../../build/tvm_home/jvm/core/target/*"
-    def filePath = "${project.projectDir}/../../build/tvm_home/jvm/core/src/main/java/org/apache/tvm/LibInfo.java"
-    commandLine "javac", "-h", headerPath, "-classpath", classPath, filePath
-    doLast {
-        file("${headerPath}/org_apache_tvm_LibInfo.h").renameTo(file("${headerPath}/org_apache_tvm_native_c_api.h"))
-    }
-}
-
-task copyFiles(type: Copy, description: 'Copy Sources for ndk-build') {
-    dependsOn "generateJniHeaders"
-    def ndkFilesPath = "${project.projectDir}/../../build/tvm_home/jvm/native/src/main/native"
-    def srcPath = "${project.projectDir}/src/main/jni/"
-
-    from "${ndkFilesPath}/org_apache_tvm_native_c_api.cc", "${ndkFilesPath}/jni_helper_func.h"
-    into srcPath
-}
-
-task deleteLibs(type: Delete, description: "Delete Compiled Libraries") {
-    dependsOn "copyFiles"
-    def libsPath = "${project.projectDir}/src/main/libs"
-    delete libsPath
-}
-
-task buildJni(type: Exec, description: 'Build JNI libs') {
-    dependsOn "deleteLibs"
-    def buildPath = "${project.projectDir}/src/main/jni"
-    Properties properties = new Properties()
-    properties.load(project.rootProject.file('local.properties').newDataInputStream())
-    commandLine "${properties.getProperty('ndk.dir')}/ndk-build", "--directory", buildPath
-}
-
-tasks.withType(JavaCompile) {
-    compileTask -> compileTask.dependsOn buildJni
-}
-
 android {
     namespace 'ai.mlc.mlcchat'
     compileSdk 33
@@ -104,6 +67,7 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.navigation:navigation-compose:2.5.3'
     implementation 'com.google.code.gson:gson:2.10.1'
+    implementation fileTree(dir: 'src/main/libs', include: ['*.aar', '*.jar'], exclude: [])
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
@@ -112,5 +76,4 @@ dependencies {
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
 
-    implementation files("${project.projectDir}/../../build/tvm_home/jvm/core/target/tvm4j-core-0.0.1-SNAPSHOT.jar")
 }

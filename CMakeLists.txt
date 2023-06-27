@@ -135,11 +135,11 @@ if (MLC_LLM_INSTALL_STATIC_LIB)
     )
   # tokenizers need special handling as it builds from rust
   if(MSVC)
-    install(FILES ${CMAKE_BINARY_DIR}/tokenizers/libtokenizers_c.lib
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/tokenizers/libtokenizers_c.lib
       DESTINATION lib${LIB_SUFFIX}
       )
   else()
-    install(FILES ${CMAKE_BINARY_DIR}/tokenizers/libtokenizers_c.a
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/tokenizers/libtokenizers_c.a
       DESTINATION lib${LIB_SUFFIX}
       )
   endif()
