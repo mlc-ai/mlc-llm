@@ -78,9 +78,12 @@ class AsyncChatCompletionStream:
         return self
 
     async def get_next_msg(self):
-        session["chat_mod"].decode()
-        msg = session["chat_mod"].get_message()
-        return msg
+        if not session["chat_mod"].stopped():
+            session["chat_mod"].decode()
+            msg = session["chat_mod"].get_message()
+            return msg
+        else:
+            raise StopAsyncIteration
 
     async def __anext__(self):
         if not session["chat_mod"].stopped():
@@ -116,7 +119,7 @@ async def request_completion(request: ChatCompletionRequest):
                         ]
                     )
                     prev_txt = content
-                    yield f"data: {chunk.json(exclude_unset=True, ensure_ascii=False)}\n\n"
+                    yield f"data: {chunk.json(exclude_unset=True)}\n\n"
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
     else:
