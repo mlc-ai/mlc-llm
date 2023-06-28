@@ -1,5 +1,6 @@
 package ai.mlc.mlcchat
 
+import ai.mlc.mlcllm.ChatModule
 import android.app.Application
 import android.os.Environment
 import android.widget.Toast
