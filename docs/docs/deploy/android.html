@@ -297,46 +297,27 @@
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#use-pre-built-android-package" id="id1">Use Pre-built Android Package</a></p></li>
-<li><p><a class="reference internal" href="#build-android-package-from-source" id="id2">Build Android Package from Source</a></p>
+<li><p><a class="reference internal" href="#use-pre-built-android-package" id="id2">Use Pre-built Android Package</a></p></li>
+<li><p><a class="reference internal" href="#build-android-package-from-source" id="id3">Build Android Package from Source</a></p>
 <ul>
-<li><p><a class="reference internal" href="#app-build-instructions" id="id3">App Build Instructions</a></p></li>
-<li><p><a class="reference internal" href="#use-your-own-model-weights" id="id4">Use Your Own Model Weights</a></p></li>
+<li><p><a class="reference internal" href="#app-build-instructions" id="id4">App Build Instructions</a></p></li>
+<li><p><a class="reference internal" href="#use-your-own-model-weights" id="id5">Use Your Own Model Weights</a></p></li>
 </ul>
 </li>
 </ul>
 </nav>
 <p>The MLC LLM Android package can be installed in two ways: either from the pre-built package or by building it from source. If you’re an Android user interested in trying out models, the pre-built package is the way to go. On the other hand, if you’re a developer aiming to incorporate new features into the package, building the Android package from source is necessary.</p>
 <section id="use-pre-built-android-package">
-<h2><a class="toc-backref" href="#id1" role="doc-backlink">Use Pre-built Android Package</a><a class="headerlink" href="#use-pre-built-android-package" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Use Pre-built Android Package</a><a class="headerlink" href="#use-pre-built-android-package" title="Permalink to this heading">¶</a></h2>
 <p>The MLC LLM Android app is free and available for download and can be tried out by simply clicking the button below:</p>
 <a class="reference external image-reference" href="https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk"><img alt="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" src="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" style="width: 135px;" /></a>
 </section>
 <section id="build-android-package-from-source">
-<h2><a class="toc-backref" href="#id2" role="doc-backlink">Build Android Package from Source</a><a class="headerlink" href="#build-android-package-from-source" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Build Android Package from Source</a><a class="headerlink" href="#build-android-package-from-source" title="Permalink to this heading">¶</a></h2>
 <p>If you’re a developer looking to integrate new functionality or support different model architectures in the Android Package, you may need to build it from source. To do so, please follow the instructions provided below on building the Android package from source.</p>
 <section id="app-build-instructions">
-<h3><a class="toc-backref" href="#id3" role="doc-backlink">App Build Instructions</a><a class="headerlink" href="#app-build-instructions" title="Permalink to this heading">¶</a></h3>
+<h3><a class="toc-backref" href="#id4" role="doc-backlink">App Build Instructions</a><a class="headerlink" href="#app-build-instructions" title="Permalink to this heading">¶</a></h3>
 <ol class="arabic">
-<li><p>Install TVM Unity by following <a class="reference internal" href="../install/tvm.html#tvm-unity-build-from-source"><span class="std std-ref">Build TVM Unity from Source</span></a> tutorial.</p>
-<p>Note that our pre-built wheels do not support OpenCL, and you need to built TVM-Unity
-from source and set <code class="docutils literal notranslate"><span class="pre">USE_OPENCL</span></code> as <code class="docutils literal notranslate"><span class="pre">ON</span></code>.</p>
-</li>
-<li><p>Setup <code class="docutils literal notranslate"><span class="pre">TVM_NDK_CC</span></code> environment variable to NDK compiler path:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># replace the /path/to/android/ndk/clang to your NDK compiler path</span>
-<span class="c1"># e.g. export TVM_NDK_CC=/Users/me/Library/Android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">TVM_NDK_CC</span><span class="o">=</span>/path/to/android/ndk/clang
-</pre></div>
-</div>
-</li>
-<li><p>Install <a class="reference external" href="https://maven.apache.org/download.cgi">Apache Maven</a> for
-our Java dependency management. Run command <code class="docutils literal notranslate"><span class="pre">mvn</span> <span class="pre">--version</span></code> to
-verify that Maven is correctly installed.</p></li>
-<li><p>Build TVM4j (Java Frontend for TVM Runtime) under the TVM Unity directory.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>jvm<span class="p">;</span><span class="w"> </span>mvn<span class="w"> </span>install<span class="w"> </span>-pl<span class="w"> </span>core<span class="w"> </span>-DskipTests<span class="w"> </span>-Dcheckstyle.skip<span class="o">=</span><span class="nb">true</span>
-</pre></div>
-</div>
-</li>
 <li><p>Follow the instructions in <a class="reference internal" href="../compilation/compile_models.html"><span class="doc">Compile Models via MLC</span></a> to
 either build the model using a Hugging Face URL, or a local
 directory. For Vicuna weights, please follow our <a class="reference internal" href="../compilation/get-vicuna-weight.html"><span class="doc">Getting Vicuna Weights</span></a> tutorial.</p>
@@ -349,51 +330,71 @@ python3<span class="w"> </span>build.py<span class="w"> </span>--model<span clas
 </pre></div>
 </div>
 </li>
-<li><p>Build libraries for Android app.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">ANDROID_NDK</span><span class="o">=</span>/path/to/android/ndk
-For<span class="w"> </span>example
-<span class="nb">export</span><span class="w"> </span><span class="nv">ANDROID_NDK</span><span class="o">=</span>/Users/me/Library/Android/sdk/ndk/25.2.9519653
-<span class="nb">cd</span><span class="w"> </span>android<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./prepare_libs.sh
+<li><p>Configure the <code class="docutils literal notranslate"><span class="pre">model_libs</span></code> in <code class="docutils literal notranslate"><span class="pre">android/MLCChat/app/src/main/assets/app-config.json</span></code>:</p>
+<p>If there is a <code class="docutils literal notranslate"><span class="pre">local_id</span></code> in <code class="docutils literal notranslate"><span class="pre">model_libs</span></code> list, then there should be a <code class="docutils literal notranslate"><span class="pre">local_id-target.tar</span></code> in <code class="docutils literal notranslate"><span class="pre">dist/local_id</span></code> compiled in Step 1.</p>
+<p>For example, if you have <code class="docutils literal notranslate"><span class="pre">vicuna-v1-7b-q4f16_0</span></code> in the <code class="docutils literal notranslate"><span class="pre">model_libs</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>android/MLCChat/app/src/main/assets/app-config.json
+<span class="c1"># &quot;model_libs&quot;: [</span>
+<span class="c1">#   ...</span>
+<span class="c1">#   &quot;vicuna-v1-7b-q4f16_0&quot;,</span>
+<span class="c1">#   ...</span>
+<span class="c1"># ],</span>
+</pre></div>
+</div>
+<p>then there should be a <code class="docutils literal notranslate"><span class="pre">dist/vicuna-v1-7b-q4f16_0/vicuna-v1-7b-q4f16_0-android.tar</span></code> file:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>dist/vicuna-v1-7b-q4f16_0
+<span class="c1"># ...</span>
+<span class="c1"># vicuna-v1-7b-q4f16_0-android.tar,</span>
+<span class="c1"># ...</span>
 </pre></div>
 </div>
 </li>
-<li><p>Download <a class="reference external" href="https://developer.android.com/studio">Android Studio</a>,
-and use Android Studio to open folder <code class="docutils literal notranslate"><span class="pre">android/MLCChat</span></code> as the
-project.</p>
-<ol class="arabic">
-<li><p>Install Android SDK and NDK either inside Android Studio
-(recommended) or separately.</p></li>
-<li><p>Specify the Android SDK and NDK path in file
-<code class="docutils literal notranslate"><span class="pre">android/MLCChat/local.properties</span></code> (if it does not exist, create
-one):</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>sdk.dir<span class="o">=</span>/path/to/android/sdk
-ndk.dir<span class="o">=</span>/path/to/android/ndk
-</pre></div>
-</div>
-<p>For example, a good <code class="docutils literal notranslate"><span class="pre">local.properties</span></code> can be:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>sdk.dir<span class="o">=</span>/Users/me/Library/Android/sdk
-ndk.dir<span class="o">=</span>/Users/me/Library/Android/sdk/ndk/25.2.9519653
+<li><p>Download <a class="reference external" href="https://developer.android.com/studio">Android Studio</a>, install the <code class="docutils literal notranslate"><span class="pre">NDK</span></code> and <code class="docutils literal notranslate"><span class="pre">CMake</span></code> via <a class="reference external" href="https://developer.android.com/studio/projects/install-ndk">SDK Manager</a>.</p></li>
+<li><p>Setup <code class="docutils literal notranslate"><span class="pre">ANDROID_NDK</span></code> and <code class="docutils literal notranslate"><span class="pre">TVM_NDK_CC</span></code> environment variable to the installed NDK compiler path:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># replace the /path/to/android/ndk to your NDK path</span>
+<span class="c1"># e.g. export ANDROID_NDK=/Users/me/Library/Android/sdk/ndk/25.2.9519653</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">ANDROID_NDK</span><span class="o">=</span>/path/to/android/ndk
+
+<span class="c1"># replace the /path/to/android/ndk/clang to your NDK compiler path</span>
+<span class="c1"># e.g. export TVM_NDK_CC=/Users/me/Library/Android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">TVM_NDK_CC</span><span class="o">=</span>/path/to/android/ndk/clang
 </pre></div>
 </div>
 </li>
-</ol>
+<li><p>Setup <code class="docutils literal notranslate"><span class="pre">JAVA_HOME</span></code> environment varh:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># replace the /path/to/jdk to your JDK path</span>
+<span class="c1"># e.g. export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">JAVA_HOME</span><span class="o">=</span>/path/to/jdk
+</pre></div>
+</div>
 </li>
-<li><p>Connect your Android device to your machine. In the menu bar of
-Android Studio, click <code class="docutils literal notranslate"><span class="pre">Build</span> <span class="pre">-</span> <span class="pre">Make</span> <span class="pre">Project</span></code>.</p></li>
+<li><p>Build the libs for Android app and then copy the built files to the <code class="docutils literal notranslate"><span class="pre">android/MLCChat/app/src/main/src/libs</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>android<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./prepare_libs.sh
+<span class="c1"># If building successfully, there should be a `tvm4j_core.jar` and `arm64-v8a/libtvm4j_runtime_packed.so` in `build/output` dir.</span>
+ls<span class="w"> </span>./build/output
+<span class="c1"># tvm4j_core.jar</span>
+<span class="c1"># arm64-v8a</span>
+ls<span class="w"> </span>./build/output/arm64-v8a
+<span class="c1"># libtvm4j_runtime_packed.so</span>
+cp<span class="w"> </span>-a<span class="w"> </span>build/output/.<span class="w"> </span>MLCChat/app/src/main/libs
+</pre></div>
+</div>
+</li>
+<li><p>Open folder <code class="docutils literal notranslate"><span class="pre">android/MLCChat</span></code> as the project with Android Studio. And connect your Android device to your machine. In the menu bar of Android Studio, click <code class="docutils literal notranslate"><span class="pre">Build</span> <span class="pre">-</span> <span class="pre">Make</span> <span class="pre">Project</span></code>.</p></li>
 <li><p>Once the build is finished, click <code class="docutils literal notranslate"><span class="pre">Run</span> <span class="pre">-</span> <span class="pre">Run</span> <span class="pre">'app'</span></code>, and you will see the app launched on your phone.</p></li>
 </ol>
 <img alt="https://github.com/mlc-ai/mlc-llm/raw/main/site/img/android/android-studio.png" src="https://github.com/mlc-ai/mlc-llm/raw/main/site/img/android/android-studio.png" />
 </section>
 <section id="use-your-own-model-weights">
-<h3><a class="toc-backref" href="#id4" role="doc-backlink">Use Your Own Model Weights</a><a class="headerlink" href="#use-your-own-model-weights" title="Permalink to this heading">¶</a></h3>
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">Use Your Own Model Weights</a><a class="headerlink" href="#use-your-own-model-weights" title="Permalink to this heading">¶</a></h3>
 <p>By following the instructions above, the installed app will download
 weights from our pre-uploaded HuggingFace repository. If you do not want
 to download the weights from Internet and instead wish to use the
 weights you build, please follow the steps below.</p>
 <ul class="simple">
-<li><p>Step 1 - step 9: same as <a class="reference external" href="#app-build-instructions">section ”App Build
+<li><p>Step 1 - step 8: same as <a class="reference external" href="#app-build-instructions">section ”App Build
 Instructions”</a>.</p></li>
-<li><p>Step 10. In <code class="docutils literal notranslate"><span class="pre">Build</span> <span class="pre">-</span> <span class="pre">Generate</span> <span class="pre">Signed</span> <span class="pre">Bundle</span> <span class="pre">/</span> <span class="pre">APK</span></code>, build the
+<li><p>Step 9. In <code class="docutils literal notranslate"><span class="pre">Build</span> <span class="pre">-</span> <span class="pre">Generate</span> <span class="pre">Signed</span> <span class="pre">Bundle</span> <span class="pre">/</span> <span class="pre">APK</span></code>, build the
 project to an APK for release. If it is the first time you generate
 an APK, you will need to create a key. Please follow <a class="reference external" href="https://developer.android.com/studio/publish/app-signing#generate-key">the official
 guide from
@@ -401,17 +402,17 @@ Android</a>
 for more instructions on this. After generating the release APK, you
 will get the APK file <code class="docutils literal notranslate"><span class="pre">app-release.apk</span></code> under
 <code class="docutils literal notranslate"><span class="pre">android/MLCChat/app/release/</span></code>.</p></li>
-<li><p>Step 11. Enable “USB debugging” in the developer options your phone
+<li><p>Step 10. Enable “USB debugging” in the developer options your phone
 settings.</p></li>
-<li><p>Step 12. Install <a class="reference external" href="https://developer.android.com/studio/releases/platform-tools">Android SDK
+<li><p>Step 11. Install <a class="reference external" href="https://developer.android.com/studio/releases/platform-tools">Android SDK
 Platform-Tools</a>
-for ADB (Android Debug Bridge). The platform tools will be already
+for ADB (Android Debug Bridge) via <a class="reference external" href="https://developer.android.com/studio/projects/install-ndk">SDK Manager</a>. The platform tools will be already
 available under your Android SDK path if you have installed SDK
 (e.g., at <code class="docutils literal notranslate"><span class="pre">/path/to/android-sdk/platform-tools/</span></code>). Add the
-platform-tool path to your PATH environment. Run <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">devices</span></code> to
+platform-tool path to your <code class="docutils literal notranslate"><span class="pre">PATH</span></code> environment. Run <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">devices</span></code> to
 verify that ADB is installed correctly your phone is listed as a
 device.</p></li>
-<li><p>Step 13. In command line, run the following command to install APK to your phone:</p></li>
+<li><p>Step 12. In command line, run the following command to install APK to your phone:</p></li>
 </ul>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>adb<span class="w"> </span>install<span class="w"> </span>android/MLCChat/app/release/app-release.apk
@@ -427,7 +428,7 @@ device.</p></li>
 </div>
 </div></blockquote>
 <ul>
-<li><p>Step 14. Push the tokenizer and model weights to your phone through
+<li><p>Step 13. Push the tokenizer and model weights to your phone through
 ADB.</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>adb<span class="w"> </span>push<span class="w"> </span>dist/models/vicuna-v1-7b/tokenizer.model<span class="w"> </span>/data/local/tmp/vicuna-v1-7b/tokenizer.model
@@ -438,7 +439,7 @@ adb<span class="w"> </span>shell<span class="w"> </span><span class="s2">&quot;m
 </div>
 </div></blockquote>
 </li>
-<li><p>Step 15. Everything is ready. Launch the MLCChat on your phone and
+<li><p>Step 14. Everything is ready. Launch the MLCChat on your phone and
 you will be able to use the app with your own weights. You will find
 that no weight download is needed.</p></li>
 </ul>
