@@ -214,6 +214,7 @@ class ReorderTransformFunc:
         self.pidx2binname: Dict[int, str] = {
             pidx: pname2binname[f_convert_pname_fwd(pname)]
             for pidx, pname in pidx2pname.items()
+            if f_convert_pname_fwd(pname) in pname2binname
         }
 
     def transform_module(
@@ -221,7 +222,7 @@ class ReorderTransformFunc:
     ) -> IRModule:
         for gv, func in list(mod.functions.items()):
             if isinstance(func, relax.Function):
-                assert gv.name_hint.endswith("_transform_params")
+                assert gv.name_hint.endswith("transform_params")
                 func_updated = reorder_func(func, self.pidx2binname)
                 mod[gv] = func_updated
         return mod

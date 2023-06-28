@@ -4235,7 +4235,7 @@ def NT_matmul1_fp16_sch_func():
 
 @T.prim_func
 def decode6(rxplaceholder: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), rxplaceholder_1: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float32")):
-    T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     decode = T.alloc_buffer((T.int64(4096), T.int64(4096)))
     for i, j in T.grid(T.int64(4096), T.int64(4096)):
@@ -4254,7 +4254,7 @@ def decode6(rxplaceholder: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), rx
 
 @T.prim_func
 def decode7(rxplaceholder: T.Buffer((T.int64(512), T.int64(11008)), "uint32"), rxplaceholder_1: T.Buffer((T.int64(128), T.int64(11008)), "uint32"), T_transpose: T.Buffer((T.int64(11008), T.int64(4096)), "float32")):
-    T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     decode = T.alloc_buffer((T.int64(4096), T.int64(11008)))
     for i, j in T.grid(T.int64(4096), T.int64(11008)):
@@ -4273,7 +4273,7 @@ def decode7(rxplaceholder: T.Buffer((T.int64(512), T.int64(11008)), "uint32"), r
 
 @T.prim_func
 def decode8(rxplaceholder: T.Buffer((T.int64(1376), T.int64(4096)), "uint32"), rxplaceholder_1: T.Buffer((T.int64(344), T.int64(4096)), "uint32"), T_transpose: T.Buffer((T.int64(4096), T.int64(11008)), "float32")):
-    T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     decode = T.alloc_buffer((T.int64(11008), T.int64(4096)))
     for i, j in T.grid(T.int64(11008), T.int64(4096)):
@@ -4292,7 +4292,7 @@ def decode8(rxplaceholder: T.Buffer((T.int64(1376), T.int64(4096)), "uint32"), r
 
 @T.prim_func
 def decode4_fp16(rxplaceholder: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), rxplaceholder_1: T.Buffer((T.int64(128), T.int64(4096)), "float16"), rxplaceholder_2: T.Buffer((T.int64(128), T.int64(4096)), "float16"), T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float16")):
-    T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     decode = T.alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
     for i, j in T.grid(T.int64(4096), T.int64(4096)):
@@ -4310,7 +4310,7 @@ def decode4_fp16(rxplaceholder: T.Buffer((T.int64(512), T.int64(4096)), "uint32"
 
 @T.prim_func
 def decode5_fp16(rxplaceholder: T.Buffer((T.int64(512), T.int64(11008)), "uint32"), rxplaceholder_1: T.Buffer((T.int64(128), T.int64(11008)), "float16"), rxplaceholder_2: T.Buffer((T.int64(128), T.int64(11008)), "float16"), T_transpose: T.Buffer((T.int64(11008), T.int64(4096)), "float16")):
-    T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     decode = T.alloc_buffer((T.int64(4096), T.int64(11008)), "float16")
     for i, j in T.grid(T.int64(4096), T.int64(11008)):
@@ -4328,7 +4328,7 @@ def decode5_fp16(rxplaceholder: T.Buffer((T.int64(512), T.int64(11008)), "uint32
 
 @T.prim_func
 def decode6_fp16(rxplaceholder: T.Buffer((T.int64(1376), T.int64(4096)), "uint32"), rxplaceholder_1: T.Buffer((T.int64(344), T.int64(4096)), "float16"), rxplaceholder_2: T.Buffer((T.int64(344), T.int64(4096)), "float16"), T_transpose: T.Buffer((T.int64(4096), T.int64(11008)), "float16")):
-    T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     decode = T.alloc_buffer((T.int64(11008), T.int64(4096)), "float16")
     for i, j in T.grid(T.int64(11008), T.int64(4096)):
@@ -4347,7 +4347,7 @@ def decode6_fp16(rxplaceholder: T.Buffer((T.int64(1376), T.int64(4096)), "uint32
 
 @T.prim_func
 def decode_int3_fp16(A: T.Buffer((T.int64(412), T.int64(4096)), "uint32"), B: T.Buffer((T.int64(103), T.int64(4096)), "float16"), T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float16")):
-    T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     decode_1 = T.alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
     for i, j in T.grid(T.int64(4096), T.int64(4096)):
@@ -4365,7 +4365,7 @@ def decode_int3_fp16(A: T.Buffer((T.int64(412), T.int64(4096)), "uint32"), B: T.
 
 @T.prim_func
 def decode1_int3_fp16(A: T.Buffer((T.int64(412), T.int64(11008)), "uint32"), B: T.Buffer((T.int64(103), T.int64(11008)), "float16"), T_transpose: T.Buffer((T.int64(11008), T.int64(4096)), "float16")):
-    T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     decode = T.alloc_buffer((T.int64(4096), T.int64(11008)), "float16")
     for i, j in T.grid(T.int64(4096), T.int64(11008)):
@@ -4383,7 +4383,7 @@ def decode1_int3_fp16(A: T.Buffer((T.int64(412), T.int64(11008)), "uint32"), B: 
 
 @T.prim_func
 def decode2_int3_fp16(A: T.Buffer((T.int64(1104), T.int64(4096)), "uint32"), B: T.Buffer((T.int64(276), T.int64(4096)), "float16"), T_transpose: T.Buffer((T.int64(4096), T.int64(11008)), "float16")):
-    T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     decode = T.alloc_buffer((T.int64(11008), T.int64(4096)), "float16")
     for i, j in T.grid(T.int64(11008), T.int64(4096)):
@@ -4402,7 +4402,7 @@ def decode2_int3_fp16(A: T.Buffer((T.int64(1104), T.int64(4096)), "uint32"), B: 
 
 @T.prim_func
 def decode_int3_int16_fp16(A: T.Buffer((T.int64(824), T.int64(4096)), "uint16"), B: T.Buffer((T.int64(103), T.int64(4096)), "float16"), T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float16")):
-    T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     decode_1 = T.alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
     for i, j in T.grid(T.int64(4096), T.int64(4096)):
@@ -4420,7 +4420,7 @@ def decode_int3_int16_fp16(A: T.Buffer((T.int64(824), T.int64(4096)), "uint16"),
 
 @T.prim_func
 def decode1_int3_int16_fp16(A: T.Buffer((T.int64(824), T.int64(11008)), "uint16"), B: T.Buffer((T.int64(103), T.int64(11008)), "float16"), T_transpose: T.Buffer((T.int64(11008), T.int64(4096)), "float16")):
-    T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     decode = T.alloc_buffer((T.int64(4096), T.int64(11008)), "float16")
     for i, j in T.grid(T.int64(4096), T.int64(11008)):
@@ -4438,7 +4438,7 @@ def decode1_int3_int16_fp16(A: T.Buffer((T.int64(824), T.int64(11008)), "uint16"
 
 @T.prim_func
 def decode2_int3_int16_fp16(A: T.Buffer((T.int64(2208), T.int64(4096)), "uint16"), B: T.Buffer((T.int64(276), T.int64(4096)), "float16"), T_transpose: T.Buffer((T.int64(4096), T.int64(11008)), "float16")):
-    T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     decode = T.alloc_buffer((T.int64(11008), T.int64(4096)), "float16")
     for i, j in T.grid(T.int64(11008), T.int64(4096)):

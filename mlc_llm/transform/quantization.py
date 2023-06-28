@@ -204,7 +204,7 @@ def decoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit
             w = data_float * scale_float + bias_float
             return w
 
-        shape = (dim_length, data.shape[1]) if data_transposed else (data.shape[0], data.shape[1] * n_float_per_u32)
+        shape = (dim_length, data.shape[1]) if data_transposed else (data.shape[0], dim_length)
         w = te.compute(shape=shape, fcompute=f_decode_asym, name="decode")
         if transpose_output:
             w = topi.transpose(w)
@@ -223,7 +223,7 @@ def decoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit
                 scale_float = scale[i, j // group_size]
             return data_float * scale_float
 
-        shape = (dim_length, data.shape[1]) if data_transposed else (data.shape[0], data.shape[1] * n_float_per_int)
+        shape = (dim_length, data.shape[1]) if data_transposed else (data.shape[0], dim_length)
         w = te.compute(shape=shape, fcompute=f_decode_sym, name="decode")
         if transpose_output:
             w = topi.transpose(w)
@@ -319,7 +319,7 @@ class GroupQuantize:
                 for global_var, func in self.mod.functions.items():
                     if not isinstance(func, relax.Function):
                         continue
-                    if not "num_input" in func.attrs:
+                    if func.attrs is None or not "num_input" in func.attrs:
                         continue
                     num_inputs = func.attrs["num_input"]
                     for i in range(int(num_inputs), len(func.params)):
