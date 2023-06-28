@@ -177,7 +177,7 @@ def flash_attn_fn(
     needs_weights=False,
     multiquery=False
 ):
-  from ..flash_attn import bert_padding_unpad_input, bert_padding_pad_input, flash_attn_unpadded_func
+  from ..mha_flash_attn import bert_padding_unpad_input, bert_padding_pad_input, flash_attn_unpadded_func
   check_valid_inputs(query, key, value)
   if past_key_value is not None:
     if len(past_key_value) != 0:
