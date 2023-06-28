@@ -11,7 +11,6 @@ import time
 class ChatMessage(BaseModel):
     role: str
     content: str
-    name: Optional[str]
 
 class ChatCompletionRequest(BaseModel):
     model: str
