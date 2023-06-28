@@ -62,6 +62,7 @@ class ChatModule:
 
         self.reload_func = chat_mod["reload"]
         self.prefill_func = chat_mod["prefill"]
+        self.embed_func = chat_mod["embed"]
         self.decode_func = chat_mod["decode"]
         self.stopped_func = chat_mod["stopped"]
         self.get_message_func = chat_mod["get_message"]
@@ -93,6 +94,16 @@ class ChatModule:
             The user input string.
         """
         self.prefill_func(input)
+
+    def embed(self, input: str):
+        r"""Given a text input, get the embedding of the tokenized prompt.
+
+        Parameters
+        ----------
+        input : str
+            The user input string.
+        """
+        return self.embed_func(input)
 
     def decode(self):
         r"""Decode the next token, the decoding result is stored in a buffer and

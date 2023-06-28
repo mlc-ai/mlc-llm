@@ -66,6 +66,14 @@ def _parse_args():
         help="/path/to/llvm-mingw-root, use llvm-mingw to cross compile to windows",
     )
     args.add_argument("--system-lib", action="store_true", default=False)
+    args.add_argument(
+        "--sep-embed",
+        action="store_true",
+        default=False,
+        help="Build with separated embedding layer, only applicable to LlaMa.\
+            This feature is in testing stage, and will be formally replaced after \
+                massive overhaul of embedding feature for all models and use cases",
+    )
 
     parsed = args.parse_args()
     assert parsed.max_seq_len == -1 or parsed.max_seq_len > 0
@@ -282,6 +290,8 @@ def mod_transform_before_build(
             "softmax_with_temperature",
             "get_metadata",
         ]
+        if ARGS.sep_embed:
+            model_names = ["embed", "prefill_with_embed"] + model_names[1:]
 
     # Reassign `args.quantization` for compatibility of the old/new quantization framework.
     # This will be cleaned after all model architecture transitioning to the new framework.
