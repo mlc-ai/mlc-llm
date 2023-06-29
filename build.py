@@ -300,11 +300,11 @@ def mod_transform_before_build(
                 storage_nbit=args.quantization.storage_nbit,
                 dtype=args.quantization.model_dtype,
             )(mod)
-    mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
     mod = mlc_llm.transform.FuseDecodeTranspose()(mod)  # pylint: disable=not-callable
+    mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
     mod = mlc_llm.transform.FuseDecodeMatmulEwise(  # pylint: disable=not-callable
-        args.quantization.model_dtype, args.target_kind
+        args.quantization.name, args.target_kind
     )(mod)
     mod = mlc_llm.transform.FuseDecodeTake()(mod)
     # Apply DCE differently for compatibility of the old/new quantization framework.

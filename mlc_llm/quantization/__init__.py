@@ -48,6 +48,19 @@ quantization_schemes = {
         ),
         final_fc_weight="same_as_linear_weight",
     ),
+    "q4f16_1": QuantizationScheme(
+        name="q4f16_1",
+        linear_weight=GroupQuantizationSpec(
+            dtype="float16",
+            mode="int4",
+            sym=True,
+            storage_nbit=32,
+            group_size=32,
+            transpose=False,
+        ),
+        embedding_table="same_as_linear_weight",
+        final_fc_weight="same_as_linear_weight",
+    ),
     "q4f32_0": QuantizationScheme(
         name="q4f32_0",
         linear_weight=GroupQuantizationSpec(
