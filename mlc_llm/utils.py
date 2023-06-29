@@ -35,6 +35,9 @@ quantization_dict = {
     "q4f16_0": Quantization(
         name="q4f16_0", mode="int4", sym=True, storage_nbit=32, model_dtype="float16"
     ),
+    "q4f16_1": Quantization(
+        name="q4f16_1", mode="int4", sym=True, storage_nbit=32, model_dtype="float16"
+    ),
     "q4f32_0": Quantization(
         name="q4f32_0", mode="int4", sym=False, storage_nbit=32, model_dtype="float32"
     ),

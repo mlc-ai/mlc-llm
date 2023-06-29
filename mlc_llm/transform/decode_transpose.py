@@ -31,14 +31,27 @@ class FuseDecodeTranspose:
             def visit_call_(self, call: relax.Call) -> relax.Expr:
                 call = self.visit_expr_post_order(call)
 
+                if call.op != tvm.ir.Op.get("relax.matmul"):
+                    return call
+
+                # Do not fuse decode-transpose for GeMM
                 if (
-                    call.op != tvm.ir.Op.get("relax.permute_dims")
-                    or call.args[0].struct_info.ndim != 2
-                    or call.attrs.axes is not None
+                    call.args[0].struct_info.ndim < 2
+                    or not isinstance(call.args[0].struct_info.shape[-2], tir.IntImm)
+                    or call.args[0].struct_info.shape[-2].value != 1
                 ):
                     return call
 
-                transpose_input = self.lookup_binding(call.args[0])
+                matmul_rhs = self.lookup_binding(call.args[1])
+                if (
+                    not isinstance(matmul_rhs, relax.Call)
+                    or matmul_rhs.op != tvm.ir.Op.get("relax.permute_dims")
+                    or matmul_rhs.args[0].struct_info.ndim != 2
+                    or matmul_rhs.attrs.axes is not None
+                ):
+                    return call
+
+                transpose_input = self.lookup_binding(matmul_rhs.args[0])
                 if (
                     not isinstance(transpose_input, relax.Call)
                     or transpose_input.op != tvm.ir.Op.get("relax.call_tir")
@@ -83,8 +96,13 @@ class FuseDecodeTranspose:
                     ),
                 )
                 gv = self.builder_.add_func(new_func, func_name="decode")
-                return relax.call_tir(
-                    gv, transpose_input.args[1], out_sinfo=call.struct_info
+                decoded_matmul_rhs = self.builder_.emit(
+                    relax.call_tir(
+                        gv, transpose_input.args[1], out_sinfo=matmul_rhs.struct_info
+                    )
+                )
+                return relax.op.matmul(
+                    call.args[0], decoded_matmul_rhs, out_dtype=call.attrs.out_dtype
                 )
 
         return DecodeTransposeFusor(mod).transform()
