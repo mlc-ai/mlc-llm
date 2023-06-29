@@ -996,6 +996,11 @@ class LLMChatModule : public ModuleNode {
         ICHECK_EQ(args.size(), 1);
         *rv = GetChat()->EmbedStep(args[0]);
       });
+    } else if (name == "prefill_with_embed") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 1);
+        GetChat()->PrefillWithEmbedStep(args[0]);
+      });
     } else if (name == "decode") {
       return PackedFunc(
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->DecodeStep(); });
