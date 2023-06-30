@@ -396,19 +396,20 @@ class LLMChat {
   }
 
   /**
-   * Get input tokens based on history
+   * \brief Get input tokens based on history
+   * \param place_in_prompt The place of the input message in the prompt.
    */
-  std::vector<int32_t> GetInputTokens() {
+  std::vector<int32_t> GetInputTokens(PlaceInPrompt place_in_prompt = Whole) {
     std::vector<int32_t> tokens;
     std::vector<std::string> prompts;
 
     if (this->total_seq_len_ == 0) {
-      prompts = this->conversation_.GetPromptArray();
+      prompts = this->conversation_.GetPromptArray(place_in_prompt);
       if (this->conversation_.add_bos) {
         tokens.insert(tokens.begin(), bos_token_id_);
       }
     } else {
-      prompts = this->conversation_.GetPromptArrayLastRound();
+      prompts = this->conversation_.GetPromptArrayLastRound(place_in_prompt);
     }
     // first try to encode all
     std::string all_prompt = GetConcatPrompt(prompts, 0, 0);
@@ -491,7 +492,8 @@ class LLMChat {
     return std::string(Downcast<String>(ret));
   }
 
-  std::vector<int32_t> PrepareBeforeEmbedding(std::string inp, bool append_conversation = true) {
+  std::vector<int32_t> PrepareBeforeEmbedding(std::string inp, bool append_conversation = true,
+                                              PlaceInPrompt place_in_prompt = Whole) {
     if (conversation_.name == "LM") {
       this->ResetChat();
     }
@@ -507,14 +509,16 @@ class LLMChat {
       conversation_.AppendReplyHeader(conversation_.roles[1]);
     }
 
-    return this->GetInputTokens();
+    return this->GetInputTokens(place_in_prompt);
   }
 
   /*!
    * \brief Given the text input, generate the embedding of the tokenized prompt.
    */
-  NDArray EmbedStep(std::string inp, bool append_conversation = true) {
-    std::vector<int32_t> prompt_tokens = PrepareBeforeEmbedding(inp, append_conversation);
+  NDArray EmbedStep(std::string inp, bool append_conversation = true,
+                    PlaceInPrompt place_in_prompt = Whole) {
+    std::vector<int32_t> prompt_tokens =
+        PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
     if (token_len == 0) {
       return NDArray::Empty({}, DataType::Float(32), device_);
@@ -534,9 +538,9 @@ class LLMChat {
   }
 
   /*!
-   * \brief Prefill given embeddings and generate the next token.
+   * \brief Prefill given embeddings. Can optionally decode the output next token.
    */
-  void PrefillWithEmbedStep(NDArray embedding) {
+  void PrefillWithEmbedStep(NDArray embedding, bool decode_next_token = true) {
     if (embedding.Shape().size() == 0) {
       return;
     }
@@ -548,6 +552,13 @@ class LLMChat {
     NDArray logits_on_device = this->ForwardEmbeddings(embedding, new_seq_len);
     total_seq_len_ = new_seq_len;
 
+    if (!decode_next_token) {
+      auto tend = std::chrono::high_resolution_clock::now();
+      this->prefill_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
+      this->prefill_total_tokens += token_len;
+      return;
+    }
+
     int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
 
     auto tend = std::chrono::high_resolution_clock::now();
@@ -558,18 +569,20 @@ class LLMChat {
   }
 
   /*!
-   * \brief Generate the next token given a prompt.
+   * \brief Generate the next token given a prompt. Can optionally decode the output next token.
    */
-  void PrefillStep(std::string inp, bool append_conversation = true) {
+  void PrefillStep(std::string inp, bool append_conversation = true, bool decode_next_token = true,
+                   PlaceInPrompt place_in_prompt = Whole) {
     if (embed_func_.defined() && prefill_with_embed_func_.defined()) {
       // Temporarily placed inside `PrefillStep` for compatibility in transition.
       // Will be separated out in the future.
-      NDArray embedding = EmbedStep(inp, append_conversation);
-      PrefillWithEmbedStep(embedding);
+      NDArray embedding = EmbedStep(inp, append_conversation, place_in_prompt);
+      PrefillWithEmbedStep(embedding, decode_next_token);
       return;
     }
 
-    std::vector<int32_t> prompt_tokens = this->PrepareBeforeEmbedding(inp, append_conversation);
+    std::vector<int32_t> prompt_tokens =
+        this->PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
     if (token_len == 0) return;
 
@@ -578,6 +591,13 @@ class LLMChat {
     int32_t new_seq_len = total_seq_len_ + token_len;
     NDArray logits_on_device = this->ForwardTokens(prompt_tokens, new_seq_len);
     total_seq_len_ = new_seq_len;
+
+    if (!decode_next_token) {
+      auto tend = std::chrono::high_resolution_clock::now();
+      this->prefill_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
+      this->prefill_total_tokens += token_len;
+      return;
+    }
 
     int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
 
@@ -986,18 +1006,34 @@ class LLMChatModule : public ModuleNode {
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->Evaluate(); });
     } else if (name == "prefill") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 1);
-        GetChat()->PrefillStep(args[0]);
+        ICHECK(1 <= args.size() && args.size() <= 3);
+        if (args.size() == 1) {
+          GetChat()->PrefillStep(args[0]);
+        } else if (args.size() == 2) {
+          GetChat()->PrefillStep(args[0], true, args[1]);
+        } else if (args.size() == 3) {
+          PlaceInPrompt place_in_prompt = static_cast<PlaceInPrompt>(static_cast<int>(args[2]));
+          GetChat()->PrefillStep(args[0], true, args[1], place_in_prompt);
+        }
       });
     } else if (name == "embed") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 1);
-        *rv = GetChat()->EmbedStep(args[0]);
+        ICHECK(1 <= args.size() && args.size() <= 2);
+        if (args.size() == 1) {
+          *rv = GetChat()->EmbedStep(args[0]);
+        } else if (args.size() == 2) {
+          PlaceInPrompt place_in_prompt = static_cast<PlaceInPrompt>(static_cast<int>(args[1]));
+          *rv = GetChat()->EmbedStep(args[0], true, place_in_prompt);
+        }
       });
     } else if (name == "prefill_with_embed") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 1);
-        GetChat()->PrefillWithEmbedStep(args[0]);
+        ICHECK(args.size() == 1 || args.size() == 2);
+        if (args.size() == 1) {
+          GetChat()->PrefillWithEmbedStep(args[0]);
+        } else if (args.size() == 2) {
+          GetChat()->PrefillWithEmbedStep(args[0], args[1]);
+        }
       });
     } else if (name == "decode") {
       return PackedFunc(
