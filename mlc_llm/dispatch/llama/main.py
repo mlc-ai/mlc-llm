@@ -33,7 +33,7 @@ def fused_min_max_triu_te_broadcast_to_sch_func():
 
 @T.prim_func
 def rms_norm_before(var_rxplaceholder: T.handle, rxplaceholder: T.Buffer((T.int64(4096),), "float32"), var_rms_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     rxplaceholder_1 = T.match_buffer(var_rxplaceholder, (T.int64(1), n, T.int64(4096)))
     rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)))
@@ -57,7 +57,7 @@ def rms_norm_before(var_rxplaceholder: T.handle, rxplaceholder: T.Buffer((T.int6
 
 @T.prim_func
 def rms_norm_after(var_A: T.handle, var_weight: T.Buffer((T.int64(4096),), "float32"), var_rms_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)))
     rms_norm = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)))
@@ -93,7 +93,7 @@ def rms_norm_after(var_A: T.handle, var_weight: T.Buffer((T.int64(4096),), "floa
 
 @T.prim_func
 def rms_norm_fp16_before(var_rxplaceholder: T.handle, rxplaceholder: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     rxplaceholder_1 = T.match_buffer(var_rxplaceholder, (T.int64(1), n, T.int64(4096)), "float16")
     rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), "float16")
@@ -117,7 +117,7 @@ def rms_norm_fp16_before(var_rxplaceholder: T.handle, rxplaceholder: T.Buffer((T
 
 @T.prim_func
 def rms_norm_fp16_after(var_A: T.handle, var_weight: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), dtype="float16")
     rms_norm = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), dtype="float16")
@@ -153,7 +153,7 @@ def rms_norm_fp16_after(var_A: T.handle, var_weight: T.Buffer((T.int64(4096),), 
 
 @T.prim_func
 def softmax_before(var_rxplaceholder: T.handle, var_T_softmax_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), n, n))
     T_softmax_norm = T.match_buffer(var_T_softmax_norm, (T.int64(1), T.int64(32), n, n))
@@ -194,7 +194,7 @@ def softmax_before(var_rxplaceholder: T.handle, var_T_softmax_norm: T.handle):
 
 @T.prim_func
 def softmax_after(var_A: T.handle, var_T_softmax_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     A = T.match_buffer(var_A, (T.int64(1), T.int64(32), n, n))
     T_softmax_norm = T.match_buffer(var_T_softmax_norm, (T.int64(1), T.int64(32), n, n))
@@ -268,7 +268,7 @@ def softmax_after(var_A: T.handle, var_T_softmax_norm: T.handle):
 
 @T.prim_func
 def softmax_mxn_before(var_rxplaceholder: T.handle, var_T_softmax_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     m = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), n, m))
@@ -310,7 +310,7 @@ def softmax_mxn_before(var_rxplaceholder: T.handle, var_T_softmax_norm: T.handle
 
 @T.prim_func
 def softmax_mxn_after(var_A: T.handle, var_T_softmax_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     m = T.int64()
     A = T.match_buffer(var_A, (T.int64(1), T.int64(32), n, m))
@@ -432,7 +432,7 @@ def softmax_cast_mxn_before(p_lv37: T.handle, p_output0: T.handle):
 
 @T.prim_func
 def softmax_cast_mxn_after(var_A: T.handle, var_T_softmax_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     m = T.int64()
     A = T.match_buffer(var_A, (T.int64(1), T.int64(32), n, m))
@@ -482,7 +482,7 @@ def softmax_cast_mxn_after(var_A: T.handle, var_T_softmax_norm: T.handle):
 
 @T.prim_func
 def softmax_mxn_fp16_before(var_rxplaceholder: T.handle, var_T_softmax_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     m = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), n, m), "float16")
@@ -523,7 +523,7 @@ def softmax_mxn_fp16_before(var_rxplaceholder: T.handle, var_T_softmax_norm: T.h
 
 @T.prim_func
 def softmax_mxn_fp16_after(var_A: T.handle, var_T_softmax_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     m = T.int64()
     A = T.match_buffer(var_A, (T.int64(1), T.int64(32), n, m), dtype="float16")
@@ -573,7 +573,7 @@ def softmax_mxn_fp16_after(var_A: T.handle, var_T_softmax_norm: T.handle):
 
 @T.prim_func
 def softmax_fp16_before(var_rxplaceholder: T.handle, var_T_softmax_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), n, n), "float16")
     T_softmax_norm = T.match_buffer(var_T_softmax_norm, (T.int64(1), T.int64(32), n, n), "float16")
@@ -614,7 +614,7 @@ def softmax_fp16_before(var_rxplaceholder: T.handle, var_T_softmax_norm: T.handl
 
 @T.prim_func
 def softmax_fp16_after(var_A: T.handle, var_T_softmax_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     A = T.match_buffer(var_A, (T.int64(1), T.int64(32), n, n), dtype="float16")
     T_softmax_norm = T.match_buffer(var_T_softmax_norm, (T.int64(1), T.int64(32), n, n), dtype="float16")
@@ -688,7 +688,7 @@ def softmax_fp16_after(var_A: T.handle, var_T_softmax_norm: T.handle):
 
 @T.prim_func
 def softmax_1xn_before(var_inp0: T.handle, var_T_softmax_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     inp0 = T.match_buffer(var_inp0, (T.int64(1), T.int64(32), T.int64(1), n))
     T_softmax_norm = T.match_buffer(var_T_softmax_norm, (T.int64(1), T.int64(32), T.int64(1), n))
@@ -777,7 +777,7 @@ def softmax_cast_1xn_before(p_lv1614: T.handle, p_output0: T.handle):
 
 @T.prim_func
 def softmax_1xn_fp16_before(var_rxplaceholder: T.handle, var_T_softmax_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
     T_softmax_norm = T.match_buffer(var_T_softmax_norm, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
@@ -847,7 +847,7 @@ def softmax_1xn_sch_func(f_softmax, cast_to_fp16: bool = False):
 
 @T.prim_func
 def matmul1_before(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), T.int64(1), n))
     rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (T.int64(1), T.int64(32), n, T.int64(128)))
@@ -864,7 +864,7 @@ def matmul1_before(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, m
 
 @T.prim_func
 def matmul1_after(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), T.int64(1), n))
     rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (T.int64(1), T.int64(32), n, T.int64(128)))
@@ -932,7 +932,7 @@ def matmul1_after(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, ma
 
 @T.prim_func
 def matmul2_before(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     inp0 = T.match_buffer(var_inp0, (T.int64(1), n, T.int64(4096)))
     matmul = T.match_buffer(var_matmul, (T.int64(1), n, T.int64(4096)))
@@ -1028,7 +1028,7 @@ def matmul2_sch_func():
 
 @T.prim_func
 def matmul5_before(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_matmul: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), n, n))
     rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (T.int64(1), T.int64(32), n, T.int64(128)))
@@ -1046,7 +1046,7 @@ def matmul5_before(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, v
 
 @T.prim_func
 def matmul5_after(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_matmul: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), n, n))
     rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (T.int64(1), T.int64(32), n, T.int64(128)))
@@ -1124,7 +1124,7 @@ def matmul5_after(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, va
 
 @T.prim_func
 def matmul5_with_m_before(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_matmul: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n, m = T.int64(), T.int64()
     A = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), n, m))
     B = T.match_buffer(var_rxplaceholder_1, (T.int64(1), T.int64(32), m, T.int64(128)))
@@ -1142,7 +1142,7 @@ def matmul5_with_m_before(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.ha
 
 @T.prim_func
 def matmul5_with_m_after(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_matmul: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     m = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), n, m))
@@ -1222,7 +1222,7 @@ def matmul5_with_m_after(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.han
 
 @T.prim_func
 def NT_matmul_before(var_rxplaceholder: T.handle, rxplaceholder: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_NT_matmul: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     rxplaceholder_1 = T.match_buffer(var_rxplaceholder, (T.int64(1), n, T.int64(4096)))
     NT_matmul = T.match_buffer(var_NT_matmul, (T.int64(1), n, T.int64(4096)))
@@ -1239,7 +1239,7 @@ def NT_matmul_before(var_rxplaceholder: T.handle, rxplaceholder: T.Buffer((T.int
 
 @T.prim_func
 def NT_matmul_after(var_rxplaceholder: T.handle, rxplaceholder: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_NT_matmul: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     rxplaceholder_1 = T.match_buffer(var_rxplaceholder, (T.int64(1), n, T.int64(4096)))
     NT_matmul_1 = T.match_buffer(var_NT_matmul, (T.int64(1), n, T.int64(4096)))
@@ -1307,7 +1307,7 @@ def NT_matmul_after(var_rxplaceholder: T.handle, rxplaceholder: T.Buffer((T.int6
 
 @T.prim_func
 def NT_matmul4_before(var_rxplaceholder: T.handle, rxplaceholder: T.Buffer((T.int64(32000), T.int64(4096)), "float32"), var_NT_matmul: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     rxplaceholder_1 = T.match_buffer(var_rxplaceholder, (T.int64(1), n, T.int64(4096)))
     NT_matmul = T.match_buffer(var_NT_matmul, (T.int64(1), n, T.int64(32000)))
@@ -1404,7 +1404,7 @@ def NT_matmul4_sch_func():
 
 @T.prim_func
 def NT_matmul9_before(rxplaceholder: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), rxplaceholder_1: T.Buffer((T.int64(32000), T.int64(4096)), "float32"), NT_matmul: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32")):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     # with T.block("root"):
     for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), T.int64(32000), T.int64(4096)):
         with T.block("NT_matmul"):
@@ -3914,7 +3914,7 @@ def fused_NT_matmul4_add3_sch_func():
 
 @T.prim_func
 def matmul1_fp16_before(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
     rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
@@ -4013,7 +4013,7 @@ def matmul1_fp16_sch_func():
 
 @T.prim_func
 def matmul8_fp16_before(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_matmul: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), n, n), "float16")
     rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
@@ -4030,7 +4030,7 @@ def matmul8_fp16_before(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.hand
 
 @T.prim_func
 def matmul8_with_m_fp16_before(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_matmul: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     m = T.int64()
     rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), T.int64(32), n, m), "float16")
@@ -4135,7 +4135,7 @@ def matmul8_fp16_sch_func(func):
 
 @T.prim_func
 def NT_matmul1_fp16_before(var_rxplaceholder: T.handle, rxplaceholder: T.Buffer((T.int64(4096), T.int64(4096)), "float16"), var_NT_matmul: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": T.bool(True)})
     n = T.int64()
     rxplaceholder_1 = T.match_buffer(var_rxplaceholder, (T.int64(1), n, T.int64(4096)), "float16")
     NT_matmul = T.match_buffer(var_NT_matmul, (T.int64(1), n, T.int64(4096)), "float16")

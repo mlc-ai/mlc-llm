@@ -8,7 +8,7 @@ from tvm.script import tir as T
 class Module:
     @T.prim_func
     def cast7(var_A: T.handle, var_compute: T.handle):
-        T.func_attr({"op_pattern": 0, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(2560)), "float16")
         compute = T.match_buffer(var_compute, (T.int64(1), n, T.int64(2560)))
@@ -22,7 +22,7 @@ class Module:
 
     @T.prim_func
     def extend_te(var_A: T.handle, var_concat_te: T.handle):
-        T.func_attr({"op_pattern": 8, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), T.int64(1), n, n), "float16")
         m = T.int64()
@@ -37,7 +37,7 @@ class Module:
 
     @T.prim_func
     def full(var_T_full: T.handle):
-        T.func_attr({"op_pattern": 0, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(1), T.int64(1), n), "float16")
         # with T.block("root"):
@@ -506,7 +506,7 @@ class Module:
 
     @T.prim_func
     def layer_norm1(var_A: T.handle, B: T.Buffer((T.int64(2560),), "float32"), C: T.Buffer((T.int64(2560),), "float32"), var_T_layer_norm: T.handle):
-        T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(2560)))
         T_layer_norm = T.match_buffer(var_T_layer_norm, (T.int64(1), n, T.int64(2560)))
@@ -534,7 +534,7 @@ class Module:
 
     @T.prim_func
     def matmul3(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(80)), "float16")):
-        T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
         B = T.match_buffer(var_B, (T.int64(1), T.int64(32), n, T.int64(80)), "float16")
@@ -550,7 +550,7 @@ class Module:
 
     @T.prim_func
     def matmul9(var_A: T.handle, var_B: T.handle, var_matmul: T.handle):
-        T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n, m = T.int64(), T.int64()
         A = T.match_buffer(var_A, (T.int64(1), T.int64(32), n, m), "float16")
         B = T.match_buffer(var_B, (T.int64(1), T.int64(32), m, T.int64(80)), "float16")
@@ -567,7 +567,7 @@ class Module:
 
     @T.prim_func
     def reshape3(var_A: T.handle, var_T_reshape: T.handle):
-        T.func_attr({"op_pattern": 8, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (n, T.int64(32), T.int64(80)), "float16")
         T_reshape = T.match_buffer(var_T_reshape, (T.int64(1), n, T.int64(32), T.int64(80)), "float16")
@@ -581,7 +581,7 @@ class Module:
 
     @T.prim_func
     def reshape5(var_A: T.handle, var_T_reshape: T.handle):
-        T.func_attr({"op_pattern": 8, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n), "int32")
         T_reshape = T.match_buffer(var_T_reshape, (n,), "int32")
@@ -595,7 +595,7 @@ class Module:
 
     @T.prim_func
     def reshape6(var_A: T.handle, var_T_reshape: T.handle):
-        T.func_attr({"op_pattern": 8, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (n, T.int64(2560)), "float16")
         T_reshape = T.match_buffer(var_T_reshape, (T.int64(1), n, T.int64(2560)), "float16")
@@ -609,7 +609,7 @@ class Module:
 
     @T.prim_func
     def reshape7(var_A: T.handle, var_T_reshape: T.handle):
-        T.func_attr({"op_pattern": 8, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(2560)), "float16")
         T_reshape = T.match_buffer(var_T_reshape, (T.int64(1), n, T.int64(32), T.int64(80)), "float16")
@@ -623,7 +623,7 @@ class Module:
 
     @T.prim_func
     def reshape8(var_A: T.handle, var_T_reshape: T.handle):
-        T.func_attr({"op_pattern": 8, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(32), T.int64(80)), "float16")
         T_reshape = T.match_buffer(var_T_reshape, (T.int64(1), n, T.int64(2560)), "float16")
@@ -637,7 +637,7 @@ class Module:
 
     @T.prim_func
     def rotary_embedding(var_A: T.handle, B: T.Buffer((T.int64(2048), T.int64(80)), "float16"), C: T.Buffer((T.int64(2048), T.int64(80)), "float16"), var_rotary: T.handle, m: T.int64):
-        T.func_attr({"op_pattern": 8, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(32), T.int64(80)), "float16")
         rotary = T.match_buffer(var_rotary, (T.int64(1), n, T.int64(32), T.int64(80)), "float16")
@@ -651,7 +651,7 @@ class Module:
 
     @T.prim_func
     def slice(var_A: T.handle, slice_1: T.Buffer((T.int64(1), T.int64(1), T.int64(2560)), "float32")):
-        T.func_attr({"op_pattern": 8, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(2560)))
         # with T.block("root"):
@@ -664,7 +664,7 @@ class Module:
 
     @T.prim_func
     def squeeze1(var_A: T.handle, var_T_squeeze: T.handle):
-        T.func_attr({"op_pattern": 1, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(32), T.int64(80)), "float16")
         T_squeeze = T.match_buffer(var_T_squeeze, (n, T.int64(32), T.int64(80)), "float16")
@@ -678,7 +678,7 @@ class Module:
 
     @T.prim_func
     def take_decode1(A: T.Buffer((T.int64(50432), T.int64(320)), "uint32"), B: T.Buffer((T.int64(50432), T.int64(80)), "float16"), var_C: T.handle, var_take_decode: T.handle):
-        T.func_attr({"op_pattern": 8, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         C = T.match_buffer(var_C, (n,), "int32")
         take_decode = T.match_buffer(var_take_decode, (n, T.int64(2560)), "float16")
@@ -692,7 +692,7 @@ class Module:
 
     @T.prim_func
     def transpose3(var_A: T.handle, var_T_transpose: T.handle):
-        T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(32), T.int64(80)), "float16")
         T_transpose = T.match_buffer(var_T_transpose, (T.int64(1), T.int64(32), n, T.int64(80)), "float16")
@@ -706,7 +706,7 @@ class Module:
 
     @T.prim_func
     def transpose6(var_A: T.handle, var_T_transpose: T.handle):
-        T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), T.int64(32), n, T.int64(80)), "float16")
         T_transpose = T.match_buffer(var_T_transpose, (T.int64(1), n, T.int64(32), T.int64(80)), "float16")

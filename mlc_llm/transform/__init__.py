@@ -1,3 +1,4 @@
+from .clean_up_tir_attrs import CleanUpTIRAttrs
 from .decode_matmul_ewise import FuseDecodeMatmulEwise
 from .decode_take import FuseDecodeTake
 from .decode_transpose import FuseDecodeTranspose

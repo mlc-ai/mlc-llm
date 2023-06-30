@@ -414,7 +414,7 @@ class Module:
 
     @T.prim_func
     def matmul1(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(80)), "float16")):
-        T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
         B = T.match_buffer(var_B, (T.int64(1), T.int64(32), n, T.int64(80)), "float16")
@@ -430,7 +430,7 @@ class Module:
 
     @T.prim_func
     def matmul8(var_A: T.handle, var_B: T.handle, var_matmul: T.handle):
-        T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n, m = T.int64(), T.int64()
         A = T.match_buffer(var_A, (T.int64(1), T.int64(32), n, m), "float16")
         B = T.match_buffer(var_B, (T.int64(1), T.int64(32), m, T.int64(80)), "float16")
@@ -447,7 +447,7 @@ class Module:
 
     @T.prim_func
     def layer_norm1(var_A: T.handle, B: T.Buffer((T.int64(2560),), "float32"), C: T.Buffer((T.int64(2560),), "float32"), var_T_layer_norm: T.handle):
-        T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(2560)))
         T_layer_norm = T.match_buffer(var_T_layer_norm, (T.int64(1), n, T.int64(2560)))

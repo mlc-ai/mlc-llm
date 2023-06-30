@@ -325,6 +325,7 @@ def mod_transform_before_build(
         )
     else:
         mod = relax.transform.DeadCodeElimination(model_names)(mod)
+    mod = mlc_llm.transform.CleanUpTIRAttrs()(mod)
     mod = relax.transform.LiftTransformParams()(mod)
     mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
 

@@ -934,7 +934,7 @@ def softmax_cast_mxn_before(p_lv37: T.handle, p_output0: T.handle):
 
 @T.prim_func
 def softmax_cast_mxn_after(var_A: T.handle, var_T_softmax_norm: T.handle):
-    T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+    T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
     n = T.int64()
     m = T.int64()
     A = T.match_buffer(var_A, (T.int64(1), T.int64(32), n, m))
