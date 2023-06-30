@@ -184,8 +184,10 @@
 <li class="toctree-l3"><a class="reference internal" href="#mlc_chat.ChatModule"><code class="docutils literal notranslate"><span class="pre">ChatModule</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.__init__"><code class="docutils literal notranslate"><span class="pre">ChatModule.__init__()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.decode"><code class="docutils literal notranslate"><span class="pre">ChatModule.decode()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.embed"><code class="docutils literal notranslate"><span class="pre">ChatModule.embed()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.get_message"><code class="docutils literal notranslate"><span class="pre">ChatModule.get_message()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.prefill"><code class="docutils literal notranslate"><span class="pre">ChatModule.prefill()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.prefill_with_embed"><code class="docutils literal notranslate"><span class="pre">ChatModule.prefill_with_embed()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reload"><code class="docutils literal notranslate"><span class="pre">ChatModule.reload()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reset_chat"><code class="docutils literal notranslate"><span class="pre">ChatModule.reset_chat()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reset_runtime_stats"><code class="docutils literal notranslate"><span class="pre">ChatModule.reset_runtime_stats()</span></code></a></li>
@@ -366,6 +368,17 @@ can be retrieved by <a class="reference internal" href="#mlc_chat.ChatModule.get
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.embed">
+<span class="sig-name descname"><span class="pre">embed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.embed" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given a text input, get the embedding of the tokenized prompt.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>input</strong> (<em>str</em>) – The user input string.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="mlc_chat.ChatModule.get_message">
 <span class="sig-name descname"><span class="pre">get_message</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#mlc_chat.ChatModule.get_message" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get the output message in the current round.</p>
@@ -391,6 +404,17 @@ all the tokens decoded so far.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>input</strong> (<em>str</em>) – The user input string.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.prefill_with_embed">
+<span class="sig-name descname"><span class="pre">prefill_with_embed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">embedding</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">NDArray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.prefill_with_embed" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given an embedding, run the prefill stage and decode the first output token.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>embedding</strong> (<em>tvm.runtime.NDArray</em>) – The embedding of user input.</p>
 </dd>
 </dl>
 </dd></dl>
