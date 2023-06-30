@@ -65,8 +65,7 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
       std::filesystem::path merges_path = path / "merges.txt";
       std::filesystem::path vocab_path = path / "vocab.json";
       std::filesystem::path added_tokens_path = path / "added_tokens.json";
-      if (std::filesystem::exists(merges_path) &&
-          std::filesystem::exists(vocab_path)  &&
+      if (std::filesystem::exists(merges_path) && std::filesystem::exists(vocab_path) &&
           std::filesystem::exists(added_tokens_path)) {
         std::string vocab = LoadBytesFromFile(vocab_path.string());
         std::string merges = LoadBytesFromFile(merges_path.string());
@@ -191,13 +190,13 @@ class LLMChat {
       CHECK(partial_update) << "Key \"shift_fill_factor\" not found.";
     }
     if (config.count("conv_template")) {
-        ICHECK(config["conv_template"].is<std::string>());
-        std::string conv_template = config["conv_template"].get<std::string>();
-        this->conversation_ = Conversation::FromTemplate(conv_template);
-        if (config.count("conv_config")) {
-          // conv_config can override conv_template
-          this->conversation_.LoadJSONOverride(config["conv_config"], true);
-        }
+      ICHECK(config["conv_template"].is<std::string>());
+      std::string conv_template = config["conv_template"].get<std::string>();
+      this->conversation_ = Conversation::FromTemplate(conv_template);
+      if (config.count("conv_config")) {
+        // conv_config can override conv_template
+        this->conversation_.LoadJSONOverride(config["conv_config"], true);
+      }
     } else if (config.count("conv_config")) {
       // without conv template, conv_config needs to be a complete config
       this->conversation_.LoadJSONOverride(config["conv_config"], false);
@@ -250,6 +249,8 @@ class LLMChat {
                                           static_cast<int>(relax_vm::AllocatorType::kPooled));
 
     prefill_func_ = vm_->GetFunction("prefill");
+    embed_func_ = vm_->GetFunction("embed");
+    prefill_with_embed_func_ = vm_->GetFunction("prefill_with_embed");
     decode_func_ = vm_->GetFunction("decode");
     encoding_without_cache_func_ = vm_->GetFunction("encoding_without_cache");
     softmax_func_ = vm_->GetFunction("softmax_with_temperature");
@@ -489,9 +490,66 @@ class LLMChat {
   }
 
   /*!
+   * \brief Given the text input, generate the embedding of the tokenized prompt.
+   */
+  NDArray EmbedStep(std::string inp, bool append_conversation = true) {
+    if (conversation_.name == "LM") {
+      this->ResetChat();
+    }
+    if (reset_stats_per_prefill_) {
+      this->ResetRuntimeStats();
+    }
+    output_ids_.clear();
+    appeared_token_ids_.clear();
+    output_message_.clear();
+    stop_triggered_ = false;
+    if (append_conversation) {
+      conversation_.AppendMessage(conversation_.roles[0], inp);
+      conversation_.AppendReplyHeader(conversation_.roles[1]);
+    }
+
+    std::vector<int32_t> prompt_tokens = this->GetInputTokens();
+    int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
+    if (token_len == 0) {
+      return NDArray::Empty({}, DataType::Float(32), device_);
+    }
+
+    int32_t new_seq_len = total_seq_len_ + token_len;
+    NDArray embedding = this->Forward(prompt_tokens, new_seq_len);
+
+    return embedding;
+  }
+
+  /*!
+   * \brief Prefill given embeddings and generate the next token.
+   */
+  void PrefillWithEmbedStep(NDArray embedding) {
+    auto tstart = std::chrono::high_resolution_clock::now();
+
+    int64_t token_len = embedding.Shape()[1];
+    int32_t new_seq_len = total_seq_len_ + token_len;
+    NDArray logits_on_device = this->Forward(embedding, new_seq_len);
+    total_seq_len_ = new_seq_len;
+
+    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
+
+    auto tend = std::chrono::high_resolution_clock::now();
+
+    this->prefill_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
+    this->prefill_total_tokens += token_len;
+    this->ProcessNextToken(next_token);
+  }
+
+  /*!
    * \brief Generate the next token given a prompt.
    */
   void PrefillStep(std::string inp, bool append_conversation = true) {
+    if (embed_func_.defined() && prefill_with_embed_func_.defined()) {
+      NDArray embedding = EmbedStep(inp);
+      PrefillWithEmbedStep(embedding);
+      return;
+    }
+
     if (conversation_.name == "LM") {
       this->ResetChat();
     }
@@ -697,14 +755,29 @@ class LLMChat {
     if (input_tokens.size() > 1 && prefill_func_.defined()) {
       NDArray input_data = this->GetInputTokenNDArray(input_tokens);
       ret = prefill_func_(input_data, ShapeTuple({cur_pos}), kv_cache_, params_);
-    } else {
-      // running decode function when prefill is not available
-      for (int i = 0; i < input_tokens.size(); ++i) {
-        NDArray input_data = this->GetInputTokenNDArray({input_tokens[i]});
-        int64_t pos = cur_pos + i + 1 - input_tokens.size();
-        ret = decode_func_(input_data, ShapeTuple({pos}), kv_cache_, params_);
-      }
+      return Downcast<NDArray>(ret[0]);
     }
+
+    // running embed function to generate embedding when prefill func does not exist
+    if (input_tokens.size() > 1 && embed_func_.defined()) {
+      NDArray input_data = this->GetInputTokenNDArray(input_tokens);
+      NDArray embedding = embed_func_(input_data, params_);
+      return embedding;
+    }
+
+    // running decode function when prefill is not available
+    for (int i = 0; i < input_tokens.size(); ++i) {
+      NDArray input_data = this->GetInputTokenNDArray({input_tokens[i]});
+      int64_t pos = cur_pos + i + 1 - input_tokens.size();
+      ret = decode_func_(input_data, ShapeTuple({pos}), kv_cache_, params_);
+    }
+    return Downcast<NDArray>(ret[0]);
+  }
+
+  // run forward compute with embeddings
+  NDArray Forward(NDArray embeddings, int64_t cur_pos) {
+    Array<ObjectRef> ret;
+    ret = prefill_with_embed_func_(embeddings, ShapeTuple({cur_pos}), kv_cache_, params_);
     return Downcast<NDArray>(ret[0]);
   }
 
@@ -842,6 +915,10 @@ class LLMChat {
   Module vm_;
   // encoding function
   PackedFunc prefill_func_;
+  // embedding function
+  PackedFunc embed_func_;
+  // encoding using embedding function
+  PackedFunc prefill_with_embed_func_;
   // decoding function
   PackedFunc decode_func_;
   // encoding without cache
@@ -913,6 +990,16 @@ class LLMChatModule : public ModuleNode {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 1);
         GetChat()->PrefillStep(args[0]);
+      });
+    } else if (name == "embed") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 1);
+        *rv = GetChat()->EmbedStep(args[0]);
+      });
+    } else if (name == "prefill_with_embed") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 1);
+        GetChat()->PrefillWithEmbedStep(args[0]);
       });
     } else if (name == "decode") {
       return PackedFunc(
