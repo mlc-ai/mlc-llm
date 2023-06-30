@@ -59,6 +59,9 @@ supported_model_types = set(["llama", "gpt_neox", "gpt_bigcode", "moss", "rwkv"]
 
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
+    with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
+        config = json.load(i_f)
+        args.model_category = config["model_type"]
     if hasattr(args, "device_name"):
         if args.device_name == "auto":
             if tvm.cuda().exist:
@@ -71,34 +74,31 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
                 args.device_name = "opencl"
             else:
                 raise ValueError("Cannot auto deduce device-name, please set it")
-    supported_model_prefix = {
-        "vicuna-": ("vicuna_v1.1", "llama"),
-        "dolly-": ("dolly", "gpt_neox"),
-        "stablelm-": ("stablelm", "gpt_neox"),
-        "redpajama-": ("redpajama_chat", "gpt_neox"),
-        "moss-": ("moss", "moss"),
-        "open_llama": ("LM", "llama"),
-        "rwkv-": ("rwkv", "rwkv"),
-        "gorilla-": ("gorilla", "llama"),
-        "starcoder": ("code_gpt", "gpt_bigcode"),
-        "wizardcoder-": ("code_gpt", "gpt_bigcode"),
+    model_conv_templates = {
+        "vicuna-": "vicuna_v1.1",
+        "dolly-": "dolly",
+        "stablelm-": "stablelm",
+        "redpajama-": "redpajama_chat",
+        "moss-": "moss",
+        "open_llama": "LM",
+        "rwkv-": "rwkv",
+        "gorilla-": "gorilla",
+        "starcoder": "code_gpt",
+        "wizardcoder-": "code_gpt",
     }
     model = args.model.lower()
-    for prefix, (conv_template, model_category) in supported_model_prefix.items():
+    for prefix, model_category in model_conv_templates.items():
         if model.startswith(prefix):
             args.conv_template = conv_template
-            args.model_category = model_category
             break
     else:
-        raise ValueError(
-            f'Cannot recognize model "{args.model}". '
-            f'Supported ones: {", ".join(supported_model_prefix.keys())}'
-        )
+        args.conv_template = f'{args.model_category}_default'
     args.quantization = (
         quantization_schemes[args.quantization]
         if args.quantization in quantization_schemes
         else quantization_dict[args.quantization]
     )
+    print(args.conv_template)
 
 
 def split_transform_deploy_mod(
