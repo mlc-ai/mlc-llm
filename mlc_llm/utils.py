@@ -55,7 +55,7 @@ quantization_dict = {
     ),
 }
 
-supported_model_types = set(["llama", "gpt_neox", "gpt_bigcode", "moss", "rwkv"])
+supported_model_types = set(["llama", "gpt_neox", "gpt_bigcode", "moss", "rwkv", "mpt"])
 
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
@@ -82,6 +82,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "gorilla-": ("gorilla", "llama"),
         "starcoder": ("code_gpt", "gpt_bigcode"),
         "wizardcoder-": ("code_gpt", "gpt_bigcode"),
+        "mpt-": ("mpt", "mpt"),
     }
     model = args.model.lower()
     for prefix, (conv_template, model_category) in supported_model_prefix.items():
@@ -239,6 +240,8 @@ def transform_params(
                     raw_param = torch_params[torch_param_name].detach().cpu().numpy()
                 del torch_params[torch_param_name]
 
+                if not raw_param.flags['C_CONTIGUOUS']:
+                    print("NON_CONTIGUOUS TENSOR WAS FOUND:", torch_param_name)
                 for param_name, param in f_convert_param_bkwd(
                     torch_param_name, raw_param
                 ):
