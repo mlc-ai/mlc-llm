@@ -775,6 +775,7 @@ def get_model(args, hf_config):
         or model_name.startswith("llama-")
         or model_name.startswith("open_llama")
         or model_name.startswith("gorilla-")
+        or model_name.startswith("wizardlm-")
     ):
         config = LlamaConfig(**hf_config, dtype=dtype)
         if max_seq_len != -1:
