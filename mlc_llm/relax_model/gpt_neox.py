@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring,too-few-public-methods,too-many-instance-attributes,invalid-name,too-many-locals,too-many-arguments
 import argparse
 import math
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import tvm
 from tvm import relax, te
@@ -19,6 +19,7 @@ from tvm.relax.op.nn import gelu, softmax
 from tvm.relax.testing import nn
 from tvm.script import relax as R
 
+from ..quantization import ParamQuantKind, QuantizationScheme
 from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
 from .modules import (
@@ -27,8 +28,8 @@ from .modules import (
     Linear,
     ModuleList,
     RotaryEmbedding,
-    named_parameters,
 )
+from .param_manager import ParamManager
 
 
 class GPTNeoXConfig:  # pylint: disable=too-many-instance-attributes
@@ -344,10 +345,32 @@ def _prepare_decoder_attention_mask(input_shape, src_len, dtype):
     return nn.emit(mask)
 
 
+class GPTNeoXEmbedTokens(nn.Module):
+    def __init__(self, config: GPTNeoXConfig):
+        self.embed_in = Embedding(
+            num_embeddings=config.vocab_size,
+            embedding_dim=config.hidden_size,
+            dtype=config.dtype,
+        )
+
+    def forward(self, input_ids: relax.Expr):
+        return self.embed_in(input_ids)
+
+
+class GPTNeoXEmbedTokensWrapper(nn.Module):
+    def __init__(self, config: GPTNeoXConfig):
+        # build a wrapper to ensure that the naming of the embed_in parameter is consistent
+        self.gpt_neox = GPTNeoXEmbedTokens(config)
+
+    def forward(self, input_ids: relax.Expr):
+        return self.gpt_neox(input_ids)
+
+
 class GPTNeoXModel(nn.Module):
     def __init__(
         self,
         config: GPTNeoXConfig,
+        sep_embed: bool = False,
     ):
         rotary_embedding = RotaryEmbedding(
             hidden_size=config.hidden_size,
@@ -357,11 +380,15 @@ class GPTNeoXModel(nn.Module):
             rotary_pct=config.rotary_pct,
             dtype=config.dtype,
         )
-        self.embed_in = Embedding(
-            num_embeddings=config.vocab_size,
-            embedding_dim=config.hidden_size,
-            dtype=config.dtype,
-        )
+
+        self.embed_in = None
+        if not sep_embed:
+            self.embed_in = Embedding(
+                num_embeddings=config.vocab_size,
+                embedding_dim=config.hidden_size,
+                dtype=config.dtype,
+            )
+
         self.layers = ModuleList(
             [
                 GPTNeoXLayer(
@@ -385,14 +412,15 @@ class GPTNeoXModel(nn.Module):
 
     def forward(
         self,
-        input_ids: relax.Expr,
+        inputs: relax.Expr,
         all_seq_len_shape: relax.Expr,
         past_key_values: Optional[Tuple[relax.Expr, relax.Expr]],
     ):
-        batch_size, seq_length = input_ids.struct_info.shape
-        seq_length_with_past = all_seq_len_shape.struct_info.values[0]
         # embed positions
-        hidden_states = self.embed_in(input_ids)
+        hidden_states = self.embed_in(inputs) if self.embed_in else inputs
+
+        batch_size, seq_length, _ = hidden_states.struct_info.shape
+        seq_length_with_past = all_seq_len_shape.struct_info.values[0]
         attention_mask = _prepare_decoder_attention_mask(
             (batch_size, seq_length),
             seq_length_with_past,
@@ -421,8 +449,9 @@ class GPTNeoXForCausalLM(nn.Module):
     def __init__(
         self,
         config: GPTNeoXConfig,
+        sep_embed: bool = False,
     ):
-        self.gpt_neox = GPTNeoXModel(config)
+        self.gpt_neox = GPTNeoXModel(config, sep_embed)
         self.embed_out = Linear(
             in_features=config.hidden_size,
             out_features=config.vocab_size,
@@ -432,12 +461,12 @@ class GPTNeoXForCausalLM(nn.Module):
 
     def forward(
         self,
-        input_ids: relax.Expr,
+        inputs: relax.Expr,
         all_seq_len_shape: relax.Expr,
         past_key_values: Optional[List[relax.Expr]],
     ):
         hidden_states, key_value_cache = self.gpt_neox(
-            input_ids=input_ids,
+            inputs=inputs,
             all_seq_len_shape=all_seq_len_shape,
             past_key_values=past_key_values,
         )
@@ -460,18 +489,74 @@ class GPTNeoXForCausalLM(nn.Module):
         return logits, key_value_cache
 
 
+def get_param_quant_kind(
+    name: str, param_info: relax.TensorStructInfo
+) -> ParamQuantKind:
+    if "embed_in.weight" in name:
+        return ParamQuantKind.embedding_table
+    elif "embed_out.weight" in name:
+        return ParamQuantKind.final_fc_weight
+    elif param_info.ndim == 2 and name.endswith(".weight"):
+        return ParamQuantKind.linear_weight
+    else:
+        return ParamQuantKind.others
+
+
+def create_embed_func(
+    bb: relax.BlockBuilder,
+    param_manager: ParamManager,
+    config: GPTNeoXConfig,
+    quant_scheme: QuantizationScheme,
+) -> None:
+    func_name = "embed"
+
+    bsz = 1
+    seq_len = tvm.tir.Var("n", "int64")
+    with bb.function(func_name):
+        model = GPTNeoXEmbedTokensWrapper(config)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
+        input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
+        with bb.dataflow():
+            inputs_embeds = model(input_ids)
+            params = [input_ids] + model.parameters()
+            gv = bb.emit_output(inputs_embeds)
+        bb.emit_func_output(gv, params)
+
+    mod = bb.get()
+    gv = mod.get_global_var("embed")
+    bb.update_func(gv, mod[gv].with_attr("num_input", 1))
+
+
 def create_encoding_func(
     bb: relax.BlockBuilder,
+    param_manager: ParamManager,
     config: GPTNeoXConfig,
-) -> Dict[int, str]:
+    quant_scheme: QuantizationScheme,
+    sep_embed: bool = False,
+) -> None:
+    func_name = "prefill_with_embed" if sep_embed else "prefill"
+
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.Var("n", "int64")
     all_seq_len = tvm.tir.Var("m", "int64")
-    pidx2pname: Dict[int, str] = {}
-    with bb.function("prefill"):
-        model = GPTNeoXForCausalLM(config)
-        input_ids = nn.Placeholder(
-            (batch_size, seq_len), dtype="int32", name="input_ids"
+    hidden_size = config.hidden_size
+    with bb.function(func_name):
+        model = GPTNeoXForCausalLM(config, sep_embed)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
+        inputs = (
+            nn.Placeholder(
+                (batch_size, seq_len, hidden_size),
+                dtype=config.dtype,
+                name="input_embeds",
+            )
+            if sep_embed
+            else nn.Placeholder((batch_size, seq_len), dtype="int32", name="input_ids")
         )
         all_seq_len_shape = relax.Var(
             "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
@@ -484,38 +569,39 @@ def create_encoding_func(
         )
         with bb.dataflow():
             logits, key_value_cache = model(
-                input_ids=input_ids,
+                inputs=inputs,
                 all_seq_len_shape=all_seq_len_shape,
                 past_key_values=past_key_values,
             )
             params = [
-                input_ids,
+                inputs,
                 all_seq_len_shape,
                 past_key_values,
             ] + model.parameters()
-            named_params = named_parameters(model)
-            for i, (name, param) in enumerate(named_params.items()):
-                pidx2pname[i] = name
-                assert param.same_as(params[i + 3])
-
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
         bb.emit_func_output(gv, params)
     mod = bb.get()
-    gv = mod.get_global_var("prefill")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
-
-    return pidx2pname
 
 
 def create_decoding_func(
     bb: relax.BlockBuilder,
+    param_manager: ParamManager,
     config: GPTNeoXConfig,
+    quant_scheme: QuantizationScheme,
 ) -> None:
+    func_name = "decode"
+
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.IntImm("int64", 1)
     all_seq_len = tvm.tir.Var("n", "int64")
-    with bb.function("decode"):
+    with bb.function(func_name):
         model = GPTNeoXForCausalLM(config)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
         input_ids = nn.Placeholder(
             (batch_size, seq_len), dtype="int32", name="input_ids"
         )
@@ -531,7 +617,7 @@ def create_decoding_func(
         )
         with bb.dataflow():
             logits, key_value_cache = model(
-                input_ids=input_ids,
+                inputs=input_ids,
                 all_seq_len_shape=all_seq_len_shape,
                 past_key_values=past_key_values,
             )
@@ -543,7 +629,7 @@ def create_decoding_func(
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
         bb.emit_func_output(gv, params)
     mod = bb.get()
-    gv = mod.get_global_var("decode")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
 
@@ -597,6 +683,7 @@ def get_model(
     model = args.model
     dtype = args.quantization.model_dtype
     ffn_out_dtype = "float32"
+    sep_embed = args.sep_embed
 
     if model.startswith("dolly-"):
         stop_tokens = [2]
@@ -616,9 +703,12 @@ def get_model(
         ffn_out_dtype=ffn_out_dtype,
     )
 
+    param_manager = ParamManager()
     bb = relax.BlockBuilder()
-    pidx2pname = create_encoding_func(bb, config)
-    create_decoding_func(bb, config)
+    if sep_embed:
+        create_embed_func(bb, param_manager, config, args.quantization)
+    create_encoding_func(bb, param_manager, config, args.quantization, sep_embed)
+    create_decoding_func(bb, param_manager, config, args.quantization)
     create_kv_cache_func(bb, config)
     create_softmax_func(bb, config)
     create_metadata_func(
@@ -649,6 +739,7 @@ def get_model(
         else:
             return pname
 
+    mod, pidx2pname = param_manager.quantization_transform(mod)
     pname2binname = load_torch_pname2binname_map(
         args.model_path, set(pidx2pname.values()), f_convert_pname_fwd
     )
