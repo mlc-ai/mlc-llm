@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import tvm
@@ -623,7 +623,7 @@ def create_embed_func(
         bb.emit_func_output(gv, params)
 
     mod = bb.get()
-    gv = mod.get_global_var("embed")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 1))
 
 

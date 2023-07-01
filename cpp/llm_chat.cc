@@ -135,7 +135,8 @@ class LLMChat {
   std::string RuntimeStatsText() {
     std::ostringstream os;
     os << "prefill: " << std::setprecision(1) << std::fixed
-       << this->prefill_total_tokens / this->prefill_total_time << " tok/s"
+       << this->prefill_total_tokens / (this->prefill_total_time + this->embed_total_time)
+       << " tok/s"
        << ", decode: " << std::setprecision(1) << std::fixed
        << this->decode_total_tokens / this->decode_total_time << " tok/s";
     return os.str();
@@ -376,6 +377,7 @@ class LLMChat {
   void ResetRuntimeStats() {
     this->prefill_total_tokens = 0;
     this->decode_total_tokens = 0;
+    this->embed_total_time = 0;
     this->prefill_total_time = 0;
     this->decode_total_time = 0;
     this->sample_total_time = 0;
@@ -489,10 +491,7 @@ class LLMChat {
     return std::string(Downcast<String>(ret));
   }
 
-  /*!
-   * \brief Given the text input, generate the embedding of the tokenized prompt.
-   */
-  NDArray EmbedStep(std::string inp, bool append_conversation = true) {
+  std::vector<int32_t> PrepareBeforeEmbedding(std::string inp, bool append_conversation = true) {
     if (conversation_.name == "LM") {
       this->ResetChat();
     }
@@ -508,14 +507,28 @@ class LLMChat {
       conversation_.AppendReplyHeader(conversation_.roles[1]);
     }
 
-    std::vector<int32_t> prompt_tokens = this->GetInputTokens();
+    return this->GetInputTokens();
+  }
+
+  /*!
+   * \brief Given the text input, generate the embedding of the tokenized prompt.
+   */
+  NDArray EmbedStep(std::string inp, bool append_conversation = true) {
+    std::vector<int32_t> prompt_tokens = PrepareBeforeEmbedding(inp, append_conversation);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
     if (token_len == 0) {
       return NDArray::Empty({}, DataType::Float(32), device_);
     }
 
-    int32_t new_seq_len = total_seq_len_ + token_len;
-    NDArray embedding = this->Forward(prompt_tokens, new_seq_len);
+    CHECK(embed_func_.defined());
+    auto tstart = std::chrono::high_resolution_clock::now();
+
+    NDArray input_data = this->GetInputTokenNDArray(prompt_tokens);
+    NDArray embedding = embed_func_(input_data, params_);
+
+    auto tend = std::chrono::high_resolution_clock::now();
+
+    this->embed_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
 
     return embedding;
   }
@@ -524,11 +537,15 @@ class LLMChat {
    * \brief Prefill given embeddings and generate the next token.
    */
   void PrefillWithEmbedStep(NDArray embedding) {
+    if (embedding.Shape().size() == 0) {
+      return;
+    }
+
     auto tstart = std::chrono::high_resolution_clock::now();
 
     int64_t token_len = embedding.Shape()[1];
     int32_t new_seq_len = total_seq_len_ + token_len;
-    NDArray logits_on_device = this->Forward(embedding, new_seq_len);
+    NDArray logits_on_device = this->ForwardEmbeddings(embedding, new_seq_len);
     total_seq_len_ = new_seq_len;
 
     int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
@@ -545,34 +562,21 @@ class LLMChat {
    */
   void PrefillStep(std::string inp, bool append_conversation = true) {
     if (embed_func_.defined() && prefill_with_embed_func_.defined()) {
-      NDArray embedding = EmbedStep(inp);
+      // Temporarily placed inside `PrefillStep` for compatibility in transition.
+      // Will be separated out in the future.
+      NDArray embedding = EmbedStep(inp, append_conversation);
       PrefillWithEmbedStep(embedding);
       return;
     }
 
-    if (conversation_.name == "LM") {
-      this->ResetChat();
-    }
-    if (reset_stats_per_prefill_) {
-      this->ResetRuntimeStats();
-    }
-    output_ids_.clear();
-    appeared_token_ids_.clear();
-    output_message_.clear();
-    stop_triggered_ = false;
-    if (append_conversation) {
-      conversation_.AppendMessage(conversation_.roles[0], inp);
-      conversation_.AppendReplyHeader(conversation_.roles[1]);
-    }
-
-    std::vector<int32_t> prompt_tokens = this->GetInputTokens();
+    std::vector<int32_t> prompt_tokens = this->PrepareBeforeEmbedding(inp, append_conversation);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
     if (token_len == 0) return;
 
     auto tstart = std::chrono::high_resolution_clock::now();
 
     int32_t new_seq_len = total_seq_len_ + token_len;
-    NDArray logits_on_device = this->Forward(prompt_tokens, new_seq_len);
+    NDArray logits_on_device = this->ForwardTokens(prompt_tokens, new_seq_len);
     total_seq_len_ = new_seq_len;
 
     int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
@@ -591,7 +595,7 @@ class LLMChat {
 
     auto tstart = std::chrono::high_resolution_clock::now();
 
-    NDArray logits_on_device = this->Forward({last_token}, total_seq_len_ + 1);
+    NDArray logits_on_device = this->ForwardTokens({last_token}, total_seq_len_ + 1);
     total_seq_len_ += 1;
 
     int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
@@ -630,18 +634,18 @@ class LLMChat {
     std::vector<int32_t> first_sample_data = {6234};
 
     // warm up: skip first run
-    this->Forward(tokens, token_len);
-    this->Forward(first_sample_data, token_len + 1);
+    this->ForwardTokens(tokens, token_len);
+    this->ForwardTokens(first_sample_data, token_len + 1);
     this->ResetKVCache();
 
     // start recording
     auto encoding_start = std::chrono::high_resolution_clock::now();
-    this->Forward(tokens, token_len);
+    this->ForwardTokens(tokens, token_len);
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
 
     auto decoding_start = std::chrono::high_resolution_clock::now();
 
-    this->UpdateLogitsOrProbOnCPUSync(this->Forward(first_sample_data, token_len + 1));
+    this->UpdateLogitsOrProbOnCPUSync(this->ForwardTokens(first_sample_data, token_len + 1));
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     auto decoding_end = std::chrono::high_resolution_clock::now();
 
@@ -750,33 +754,26 @@ class LLMChat {
   }
 
   // run forward compute
-  NDArray Forward(std::vector<int32_t> input_tokens, int64_t cur_pos) {
+  NDArray ForwardTokens(std::vector<int32_t> input_tokens, int64_t cur_pos) {
     Array<ObjectRef> ret;
     if (input_tokens.size() > 1 && prefill_func_.defined()) {
       NDArray input_data = this->GetInputTokenNDArray(input_tokens);
       ret = prefill_func_(input_data, ShapeTuple({cur_pos}), kv_cache_, params_);
-      return Downcast<NDArray>(ret[0]);
-    }
-
-    // running embed function to generate embedding when prefill func does not exist
-    if (input_tokens.size() > 1 && embed_func_.defined()) {
-      NDArray input_data = this->GetInputTokenNDArray(input_tokens);
-      NDArray embedding = embed_func_(input_data, params_);
-      return embedding;
-    }
-
-    // running decode function when prefill is not available
-    for (int i = 0; i < input_tokens.size(); ++i) {
-      NDArray input_data = this->GetInputTokenNDArray({input_tokens[i]});
-      int64_t pos = cur_pos + i + 1 - input_tokens.size();
-      ret = decode_func_(input_data, ShapeTuple({pos}), kv_cache_, params_);
+    } else {
+      // running decode function when prefill is not available
+      for (int i = 0; i < input_tokens.size(); ++i) {
+        NDArray input_data = this->GetInputTokenNDArray({input_tokens[i]});
+        int64_t pos = cur_pos + i + 1 - input_tokens.size();
+        ret = decode_func_(input_data, ShapeTuple({pos}), kv_cache_, params_);
+      }
     }
     return Downcast<NDArray>(ret[0]);
   }
 
   // run forward compute with embeddings
-  NDArray Forward(NDArray embeddings, int64_t cur_pos) {
+  NDArray ForwardEmbeddings(NDArray embeddings, int64_t cur_pos) {
     Array<ObjectRef> ret;
+    CHECK(prefill_with_embed_func_.defined());
     ret = prefill_with_embed_func_(embeddings, ShapeTuple({cur_pos}), kv_cache_, params_);
     return Downcast<NDArray>(ret[0]);
   }
@@ -863,6 +860,7 @@ class LLMChat {
   // Statistics
   //----------------------------
   bool reset_stats_per_prefill_ = true;
+  double embed_total_time = 0;
   double decode_total_time = 0;
   double sample_total_time = 0;
   double prefill_total_time = 0;
