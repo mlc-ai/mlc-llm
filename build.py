@@ -343,6 +343,10 @@ def dump_default_mlc_chat_config(args):
     config["shift_fill_factor"] = 0.3
     config["tokenizer_files"] = utils.get_tokenizer_files(params_path)
 
+    # TODO(vchernov): create mechanism which gets default config prepared for specific model and covers this one
+    if args.model_category == "mpt":
+        config["temperature"] = 0.0
+
     dump_path = os.path.join(params_path, "mlc-chat-config.json")
     with open(dump_path, "w", encoding="utf-8") as outfile:
         json.dump(config, outfile, indent=4)
