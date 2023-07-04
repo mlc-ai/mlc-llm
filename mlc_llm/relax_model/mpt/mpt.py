@@ -825,7 +825,7 @@ def get_model(args, hf_config):
   create_metadata_func(
       bb,
       model_name=model_name,
-      max_window_size=-1,     # TODO: check
+      max_window_size=128,     # TODO: temporal limit for max output length, change to -1 after tests
       stop_tokens=[0],        # TODO: check for mpt embeddings
       add_prefix_space=False, # TODO: what is it?
   )

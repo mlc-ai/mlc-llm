@@ -535,8 +535,7 @@ class LLMChat {
 
     auto tstart = std::chrono::high_resolution_clock::now();
 
-    NDArray logits_on_device = this->Forward({last_token}, total_seq_len_ + 1);
-    total_seq_len_ += 1;
+    NDArray logits_on_device = this->Forward({last_token}, ++total_seq_len_);
 
     int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
 
