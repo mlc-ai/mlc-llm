@@ -532,7 +532,6 @@ class LLMChat {
   void DecodeStep() {
     ICHECK(!output_ids_.empty());
     int32_t last_token = output_ids_.back();
-    tvm::runtime::NDArray input_data = GetInputTokenNDArray({last_token});
 
     auto tstart = std::chrono::high_resolution_clock::now();
 
