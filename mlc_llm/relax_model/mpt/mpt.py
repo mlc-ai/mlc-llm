@@ -737,24 +737,6 @@ class MPTForCausalLM(nn.Module):
     self.return_dict = config.return_dict
     self.use_cache = config.use_cache
 
-  def get_input_embeddings(self):
-    return self.transformer.wte
-
-  def set_input_embeddings(self, value):
-    self.transformer.wte = value
-
-  def get_output_embeddings(self):
-    return self.transformer.wte
-
-  def set_output_embeddings(self, new_embeddings):
-    self.transformer.wte = new_embeddings
-
-  def set_decoder(self, decoder):
-    self.transformer = decoder
-
-  def get_decoder(self):
-    return self.transformer
-
   def forward(
       self,
       input_ids: relax.Expr,
@@ -793,24 +775,6 @@ class MPTForCausalLM(nn.Module):
       logits = nn.emit(relax.op.astype(logits, "float32"))
 
     return logits, outputs[1]
-
-  def fsdp_wrap_fn(self, module):
-    return isinstance(module, MPTBlock)
-
-  def activation_checkpointing_fn(self, module):
-    return isinstance(module, MPTBlock)
-
-  @staticmethod
-  def _reorder_cache(past_key_values, beam_idx):
-      """Used by HuggingFace generate when using beam search with kv-caching.
-      See https://github.com/huggingface/transformers/blob/3ec7a47664ebe40c40f4b722f6bb1cd30c3821ec/src/transformers/models/gpt2/modeling_gpt2.py#L1122-L1133
-      for an example in transformers.
-      """
-      reordered_past = []
-      for layer_past in past_key_values:
-        reordered_past += [tuple((nn.emit(relax.op.take(past_state, beam_idx, 0)) for past_state in layer_past))]
-      return reordered_past
-
 
 def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int, str]:
   pidx2pname: Dict[int, str] = {}
