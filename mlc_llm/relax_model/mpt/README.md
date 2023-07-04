@@ -177,9 +177,25 @@ def greedy_search(...):
 
     # update generated ids, model inputs, and length for next step
     input_ids = torch.cat([input_ids, next_tokens[:, None]], dim=-1)
-    model_kwargs = self._update_model_kwargs_for_generation(
-        outputs, model_kwargs, is_encoder_decoder=False
-    )
+    # START model_kwargs = self._update_model_kwargs_for_generation(outputs, model_kwargs, is_encoder_decoder=False)
+    # update past
+    if "past_key_values" in outputs:
+      model_kwargs["past"] = outputs.past_key_values
+    else:
+      model_kwargs["past"] = None
+
+    # update token_type_ids with last value
+    if "token_type_ids" in model_kwargs:
+      token_type_ids = model_kwargs["token_type_ids"]
+      model_kwargs["token_type_ids"] = torch.cat([token_type_ids, token_type_ids[:, -1].unsqueeze(-1)], dim=-1)
+
+    # update attention mask
+    if "attention_mask" in model_kwargs:
+      attention_mask = model_kwargs["attention_mask"]
+      model_kwargs["attention_mask"] = torch.cat(
+          [attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1
+      )
+    # FINISH self._update_model_kwargs_for_generation(outputs, model_kwargs, is_encoder_decoder=False)
 
     # stop when each sentence is finished, or if we exceed the maximum length
     if unfinished_sequences.max() == 0 or stopping_criteria(input_ids, scores):
