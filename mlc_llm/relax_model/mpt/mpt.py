@@ -566,12 +566,6 @@ class MPTModel(nn.Module):
     self.blocks = ModuleList([MPTBlock(config) for _ in range(config.n_layers)])
     self.norm_f = norm_class(config.d_model, dtype=config.dtype)
 
-  def get_input_embeddings(self):
-    return self.wte
-
-  def set_input_embeddings(self, value):
-    self.wte = value
-
   def _attn_bias(self, dtype, attention_mask: Optional[relax.Expr]=None, prefix_mask: Optional[relax.Expr]=None, sequence_id: Optional[relax.Expr]=None):
     if not self._attn_bias_initialized:
       if self.attn_bias_shape:
@@ -719,12 +713,6 @@ class MPTModel(nn.Module):
       assert all_hidden_states is not None
       all_hidden_states = all_hidden_states + (x,)
     return x, past_key_values, all_hidden_states, all_self_attns
-
-  def fsdp_wrap_fn(self, module):
-    return isinstance(module, MPTBlock)
-
-  def activation_checkpointing_fn(self, module):
-    return isinstance(module, MPTBlock)
 
 
 class MPTForCausalLM(nn.Module):
