@@ -656,6 +656,13 @@ class MPTModel(nn.Module):
     use_cache = use_cache if use_cache is not None else self.use_cache
     if attention_mask is not None:
       attention_mask = nn.emit(relax.op.astype(attention_mask, "bool"))
+      # TODO(vchernov): I'm not sure we should calculate it and can compare in Relax
+      # it is part from prepare_inputs_for_generation
+      dim1_len = attention_mask.struct_info.shape[1]
+      if relax.op.sum(
+        relax.op.strided_slice(attention_mask, [1], [dim1_len - 1], [dim1_len])
+      ) != attention_mask.struct_info.shape[0]:
+        raise NotImplementedError('MPT does not support generation with right padding.')
     if prefix_mask is not None:
       prefix_mask = nn.emit(relax.op.astype(prefix_mask, "bool"))
     if not return_dict:
@@ -787,21 +794,13 @@ class MPTForCausalLM(nn.Module):
     return isinstance(module, MPTBlock)
 
   def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
-    attention_mask = kwargs['attention_mask'].bool()
-    if attention_mask[:, -1].sum() != attention_mask.shape[0]:
-      raise NotImplementedError('MPT does not support generation with right padding.')
-    sequence_id = None
     if past_key_values is not None:
       # slicing input_ids[:, -1]
       dim1_len = input_ids.struct_info.shape[1]
       input_ids_slice = nn.emit(relax.op.strided_slice(input_ids, [1], [dim1_len - 1], [dim1_len]))
       input_ids = nn.emit(relax.op.expand_dims(input_ids_slice, axis=-1))
-    prefix_mask = None
     return {
         'input_ids': input_ids,
-        'attention_mask': attention_mask,
-        'prefix_mask': prefix_mask,
-        'sequence_id': sequence_id,
         'past_key_values': past_key_values,
         'use_cache': kwargs.get('use_cache', True)
     }
