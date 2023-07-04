@@ -770,11 +770,13 @@ def get_model(args, hf_config):
     max_seq_len = args.max_seq_len
     sep_embed = args.sep_embed
 
+    supported_model_name = model_name.lower()
     if (
-        model_name.startswith("vicuna-")
-        or model_name.startswith("llama-")
-        or model_name.startswith("open_llama")
-        or model_name.startswith("gorilla-")
+        supported_model_name.startswith("vicuna-")
+        or supported_model_name.startswith("llama-")
+        or supported_model_name.startswith("open_llama")
+        or supported_model_name.startswith("gorilla-")
+        or supported_model_name.startswith("guanaco")
     ):
         config = LlamaConfig(**hf_config, dtype=dtype)
         if max_seq_len != -1:

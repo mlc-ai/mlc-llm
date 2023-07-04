@@ -80,6 +80,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "open_llama": ("LM", "llama"),
         "rwkv-": ("rwkv", "rwkv"),
         "gorilla-": ("gorilla", "llama"),
+        "guanaco": ("guanaco", "llama"),
         "starcoder": ("code_gpt", "gpt_bigcode"),
         "wizardcoder-": ("code_gpt", "gpt_bigcode"),
         "gpt_bigcode-santacoder": ("code_gpt", "gpt_bigcode")

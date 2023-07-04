@@ -154,6 +154,27 @@ Conversation Gorilla() {
   return conv;
 }
 
+Conversation Guanaco() {
+  Conversation conv;
+  conv.name = "guanaco_v0";
+  conv.system =
+      ("A chat between a curious user and an artificial intelligence assistant. "
+       "The assistant gives helpful, detailed, and polite answers to the user's questions.");
+  conv.roles = {"USER", "ASSISTANT"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"\n", "</s>"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2};
+  conv.stop_str = "</s>";
+  conv.add_bos = true;
+  return conv;
+}
+
 Conversation Dolly() {
   Conversation conv;
   conv.name = "dolly";
@@ -306,6 +327,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"redpajama_chat", RedPajamaChat},
       {"rwkv", RWKV},
       {"gorilla", Gorilla},
+      {"guanaco", Guanaco},
       {"dolly", Dolly},
       {"oasst", Oasst},
       {"stablelm", StableLM},
