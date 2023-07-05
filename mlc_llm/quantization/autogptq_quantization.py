@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from typing import List, Literal, Optional, Dict
-import math
 import tvm
 import numpy as np
 from tvm._ffi.runtime_ctypes import Device
@@ -37,7 +36,10 @@ def load_autogptq_params(
             continue
 
         np_array = param_dict[pname].numpy()
-        param_list[pidx] = tvm.nd.array(np_array, device)
+        if np_array.dtype == np.int32:
+            param_list[pidx] = tvm.nd.array(np_array.astype(np.uint32), device,)
+        else:
+            param_list[pidx] = tvm.nd.array(np_array, device)
 
     return param_list
 
@@ -71,26 +73,29 @@ class AutogptqQuantizationSpec(QuantizationSpec):
         assert param.struct_info.ndim == 2, "Only support 2D param currently"
         assert self.transpose == False, "Only support transpose=False currently"
 
+        # by default, torch stores weight in [outfeatures, infeatures]
         outfeatures, infeatures = param.struct_info.shape
-        self.group_size = self.group_size if self.group_size != -1 else infeatures
+        group_size = self.group_size if self.group_size != -1 else infeatures
         self.bits = self.get_bits()
         if "qweight" in name:
             _shape = (infeatures // self.storage_nbit * self.bits, outfeatures)
             _dtype = "uint32"
         elif "qzeros" in name:
             _shape = (
-                infeatures // self.group_size,
+                infeatures // group_size,
                 outfeatures // self.storage_nbit * self.bits,
             )
             _dtype = "uint32"
         elif "scales" in name:
-            _shape = (infeatures // self.group_size, outfeatures)
+            _shape = (infeatures // group_size, outfeatures)
             _dtype = "float16"
         elif "g_idx" in name:
             _shape = (infeatures,)
             _dtype = "uint32"
         else:
             raise ValueError(f"Unknown quantized param name {name}")
+        print(f"Convert {name} to shape {_shape} and dtype {_dtype}")
+        # print("raw param shape: ", param.struct_info.shape)
         new_param = relax.Var(name, relax.TensorStructInfo(_shape, _dtype))
         return new_param
 
@@ -104,9 +109,10 @@ class AutogptqQuantizationSpec(QuantizationSpec):
         param_info: relax.TensorStructInfo,
         qparam_info: List[relax.TensorStructInfo],
     ) -> Optional[FDequantize]:
+        infeatures = param_info.shape.struct_info # type: ignore
         return decoding_func(
             sym=self.sym,
-            group_size=self.group_size,
+            group_size=self.group_size if self.group_size != -1 else infeatures,
             nbit=int(self.mode[-1]),
             mode=self.mode,
             storage_nbit=self.storage_nbit,
@@ -130,6 +136,7 @@ def decoding_func(
 ) -> FDequantize:
     assert dtype in ["float16"], "Only support float16 currently"
     assert sym == False, "Only support sym=False currently"
+    assert storage_nbit == 32, "Only support storage_nbit=32 currently"
 
     def te_decode_asym(qweight, qzeros, scales, g_idx):
         n_float_per_u32 = 32 // nbit
