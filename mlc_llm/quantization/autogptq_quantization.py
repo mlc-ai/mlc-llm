@@ -71,30 +71,30 @@ class AutogptqQuantizationSpec(QuantizationSpec):
     def convert_param(self, name: str, param: relax.Var) -> relax.Var:
         assert self.storage_nbit == 32, "Only support 32bit storage currently"
         assert param.struct_info.ndim == 2, "Only support 2D param currently"
-        assert self.transpose == False, "Only support transpose=False currently"
+        # assert self.transpose == False, "Only support transpose=False currently"
 
         # by default, torch stores weight in [outfeatures, infeatures]
         outfeatures, infeatures = param.struct_info.shape
         group_size = self.group_size if self.group_size != -1 else infeatures
         self.bits = self.get_bits()
         if "qweight" in name:
-            _shape = (infeatures // self.storage_nbit * self.bits, outfeatures)
+            _shape = (infeatures // self.storage_nbit * self.bits, outfeatures) if self.transpose else (outfeatures, infeatures // self.storage_nbit * self.bits)
             _dtype = "uint32"
         elif "qzeros" in name:
             _shape = (
                 infeatures // group_size,
                 outfeatures // self.storage_nbit * self.bits,
-            )
+            ) if self.transpose else (outfeatures // self.storage_nbit * self.bits, infeatures // group_size)
             _dtype = "uint32"
         elif "scales" in name:
-            _shape = (infeatures // group_size, outfeatures)
+            _shape = (infeatures // group_size, outfeatures) if self.transpose else (outfeatures, infeatures // group_size)
             _dtype = "float16"
         elif "g_idx" in name:
             _shape = (infeatures,)
             _dtype = "uint32"
         else:
             raise ValueError(f"Unknown quantized param name {name}")
-        print(f"Convert {name} to shape {_shape} and dtype {_dtype}")
+        print(f"Convert {name} to shape {_shape} and dtype {_dtype} from {param.struct_info.shape}")
         # print("raw param shape: ", param.struct_info.shape)
         new_param = relax.Var(name, relax.TensorStructInfo(_shape, _dtype))
         return new_param
@@ -140,7 +140,6 @@ def decoding_func(
 
     def te_decode_asym(qweight, qzeros, scales, g_idx):
         n_float_per_u32 = 32 // nbit
-
         def f_decode_asym(i, j):
             if data_transposed:
                 zeros = tir_utils._tir_u32_to_int_to_float(
@@ -174,9 +173,9 @@ def decoding_func(
             return w
 
         shape = (
-            (dim_length, qweight.shape[0])
+            (dim_length, qweight.shape[1])
             if data_transposed
-            else (qweight.shape[1], dim_length)
+            else (qweight.shape[0], dim_length)
         )
         w = te.compute(shape=shape, fcompute=f_decode_asym, name="decode")
         if transpose_output:
