@@ -138,7 +138,8 @@ class ParamManager:
         # register the parameter with its name and quantization kind.
         for name, param in named_parameters(model).items():
             _base_model_prefix = quantization_scheme.get_base_model_prefix()
-            name = f"{_base_model_prefix}.{name}"
+            if _base_model_prefix:
+                name = f"{_base_model_prefix}.{name}"
             quant_kind = f_get_param_quant_kind(name, param.struct_info)
             if quantization_scheme.pre_quantized:
                 # if pre_quantized, register the quantized tensor based on the quant_kind
