@@ -107,7 +107,14 @@ class QuantizationScheme:
     embedding_table: QuantizationSpec
     final_fc_weight: QuantizationSpec
     others: QuantizationSpec
-
+    pre_quantized: bool
+    
+    _base_model_prefix: str
+    _layers_block_name: str
+    _outside_layer_modules: List[str]
+    _inside_layer_modules: List[List[str]]
+    _load_quantized_params_func: Optional[Callable] 
+    
     def __init__(
         self,
         name: str,
@@ -119,7 +126,13 @@ class QuantizationScheme:
         final_fc_weight: Optional[
             Union[QuantizationSpec, Literal["same_as_linear_weight"]]
         ] = None,
-        others: Optional[QuantizationSpec] = None
+        others: Optional[QuantizationSpec] = None,
+        pre_quantized: bool = False,
+        _base_model_prefix: str = "",
+        _layers_block_name: str = "",
+        _outside_layer_modules: List[str] = [],
+        _inside_layer_modules: List[List[str]] = [],
+        _load_quantized_params_func: Optional[Callable] = None,
     ) -> None:
         self.name = name
         self.linear_weight = linear_weight
@@ -140,6 +153,13 @@ class QuantizationScheme:
             self.final_fc_weight = self.linear_weight
         else:
             self.final_fc_weight = final_fc_weight
+        
+        self.pre_quantized = pre_quantized
+        self._base_model_prefix = _base_model_prefix
+        self._layers_block_name = _layers_block_name
+        self._outside_layer_modules = _outside_layer_modules
+        self._inside_layer_modules = _inside_layer_modules
+        self._load_quantized_params_func = _load_quantized_params_func
 
     @property
     def model_dtype(self) -> str:
@@ -147,3 +167,18 @@ class QuantizationScheme:
         the linear layers.
         """
         return self.linear_weight.dtype
+
+    def is_inside_layer_modules(self, name: str) -> bool:
+        return any(module in name for module in sum(self._inside_layer_modules, []))
+
+    def load_quantized_params(self, *args, **kwargs) -> Optional[List[relax.Var]]:
+        if self.pre_quantized:
+            return self._load_quantized_params_func(*args, **kwargs)
+        else:
+            raise RuntimeError("The model is not pre-quantized.")
+    
+    def get_layers_block_name(self) -> str:
+        return self._layers_block_name
+
+    def get_base_model_prefix(self) -> str:
+        return self._base_model_prefix
