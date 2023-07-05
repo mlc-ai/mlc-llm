@@ -91,7 +91,6 @@ class AutogptqQuantizationSpec(QuantizationSpec):
             _dtype = "uint32"
         else:
             raise ValueError(f"Unknown quantized param name {name}")
-        print(f"Convert {name} to shape {_shape}")
         new_param = relax.Var(name, relax.TensorStructInfo(_shape, _dtype))
         return new_param
 
@@ -105,8 +104,6 @@ class AutogptqQuantizationSpec(QuantizationSpec):
         param_info: relax.TensorStructInfo,
         qparam_info: List[relax.TensorStructInfo],
     ) -> Optional[FDequantize]:
-        print(f"Get dequantize func for {param_info}")
-        print(f"param_info.shape.values: {param_info.shape.values}")
         return decoding_func(
             sym=self.sym,
             group_size=self.group_size,

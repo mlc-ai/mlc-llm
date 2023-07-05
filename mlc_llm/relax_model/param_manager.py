@@ -210,8 +210,6 @@ class ParamManager:
         # Define a var replacement function for applying dequantization.
         def f_replace(var: relax.Var, bb: relax.BlockBuilder) -> relax.Var:
             if var in self.raw_quantized_name_map:
-                # it's a quantized parameter
-                print(f"var {var} in raw_quantized_name_map")
                 quantized_params = self.raw_quantized_name_map[var]
                 qparams:List[relax.Var] = []
                 for quantized_param in quantized_params:
@@ -220,14 +218,11 @@ class ParamManager:
                     for qparam_idx in self.param2qrange[param]:
                         qparams.append(bb.emit(relax.TupleGetItem(quantized_tuple, qparam_idx)))
                 de_quantize = self.dequantize(param, func2param_var[func_name], bb, qparams=qparams)
-                print(f"de_quantize {de_quantize} struct_info {de_quantize.struct_info}")
                 return de_quantize
             else:
                 assert var in self.func_raw_param_map, f"var {var} not in func_raw_param_map, {self.func_raw_param_map}"
-                print(f"var {var} in func_raw_param_map")
                 func_name, param = self.func_raw_param_map[var]
                 de_quantize = self.dequantize(param, func2param_var[func_name], bb)
-                print(f"de_quantize {de_quantize} struct_info {de_quantize.struct_info}")
                 return de_quantize
 
         # Create the function mutator for applying dequantization.
@@ -367,7 +362,6 @@ class ParamManager:
                     # Get the quantization function of this parameter.
                     f_quantize = param.quant_spec.get_quantize_func(param.param_info)
                     if f_quantize is None:
-                        print("Warning: no quantization function for parameter", name)
                         # If the parameter does not have a quantization function, either it
                         # does not need quantization or it is pre-quantized.
                         # if have pre_quantized
@@ -509,8 +503,6 @@ class ParamReplacer(PyExprMutator):
 
     def transform(self) -> tvm.IRModule:
         for gv, func in self.mod.functions.items():
-            print(f"gv: {gv}")
-            print(f"raw func: {func}")
             if not isinstance(func, relax.Function):
                 continue
             if func.attrs is None or not "num_input" in func.attrs:
@@ -518,7 +510,6 @@ class ParamReplacer(PyExprMutator):
 
             assert gv.name_hint in self.func2param_var, f"{gv.name_hint} not in {self.func2param_var}"
             updated_func = self.rewrite_func(func, self.func2param_var[gv.name_hint])
-            print(f"updated_func: {updated_func}")
             updated_func = remove_all_unused(updated_func)
             self.builder_.update_func(gv, updated_func)
         return self.builder_.get()
@@ -538,9 +529,6 @@ class ParamReplacer(PyExprMutator):
 
     def visit_var_(self, var: Var) -> Expr:
         if var not in self.param_set:
-            print(f"var: {var} not in {self.param_set}")
             return super().visit_var_(var)
-        print(f"var: {var} in {self.param_set}")
         new_var = self.f_replace(var, self.builder_)
-        print(f"new_var: {new_var}, struct_info: {new_var.struct_info}")
         return new_var
