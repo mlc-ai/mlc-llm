@@ -9,6 +9,7 @@ import tvm
 from tvm import dlight
 from tvm import meta_schedule as ms
 from tvm import relax
+from tvm import dlight as dl
 
 import mlc_llm
 from mlc_llm import utils
