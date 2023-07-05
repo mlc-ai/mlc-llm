@@ -589,12 +589,7 @@ class LLMChat {
     auto decoding_end = std::chrono::high_resolution_clock::now();
 
     // print first few logits for eyeballs
-    std::ostringstream os;
-    for (int i = 0; i < 10; ++i) {
-      if (i != 0) os << ", ";
-      os << static_cast<float*>(logits_on_cpu_->data)[i];
-    }
-    LOG(INFO) << "logits[:10] =[" << os.str() << "]";
+    PrintLogits(10);
 
     double encoding_ms = static_cast<double>((decoding_start - encoding_start).count()) / 1e6;
     double decoding_ms = static_cast<double>((decoding_end - decoding_start).count()) / 1e6;
@@ -602,6 +597,23 @@ class LLMChat {
     LOG(INFO) << "encoding-time=" << encoding_ms << "ms, "
               << "decoding-time=" << decoding_ms << "ms.";
   }
+
+void PrintLogits(int logits_num = -1) {
+  std::string logits_num_tag = std::to_string(logits_num);
+  if (logits_num == -1) {
+    logits_num = logits_on_cpu_->shape[logits_on_cpu_->ndim - 1];
+    logits_num_tag = "";
+  }
+  std::ostringstream os;
+  const float* p_data = static_cast<float*>(logits_on_cpu_->data);
+  for (int i = 0; i < logits_num; ++i) {
+    if (i != 0) os << ", ";
+    os << p_data[i];
+  }
+  // TODO(vchernov): after test return LOG(INFO)
+  std::cout << "LOGITS[:" << logits_num_tag << "] = [" << os.str() << "]" << std::endl;
+  // LOG(INFO) << "logits[:" << logits_num_tag << "] = [" << os.str() << "]";
+}
 
  private:
   picojson::value SerializeConfigToJSONValue() const {
@@ -789,17 +801,6 @@ class LLMChat {
     ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
     ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
 
-    for (int i = 0; i < logits_on_cpu_->ndim; ++i) {
-      std::cout << "LOGITS SHAPE[" << i << "] = " << logits_on_cpu_->shape[i] << "   ";
-    }
-    std::cout << std::endl;
-    int64_t ndata = logits_on_cpu_->shape[logits_on_cpu_->ndim - 1];
-    const float* p_prob = static_cast<float*>(logits_on_cpu_->data);
-    std::cout << "Logits data: ";
-    for (int i = 0; i < ndata; ++i) {
-      std::cout << p_prob[i] << " ";
-    }
-    std::cout << std::endl;
     return fsample_topp_from_prob_(logits_on_cpu_, top_p_, GetRandomNumber());
   }
 
