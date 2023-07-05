@@ -531,5 +531,4 @@ class ParamReplacer(PyExprMutator):
     def visit_var_(self, var: Var) -> Expr:
         if var not in self.param_set:
             return super().visit_var_(var)
-        new_var = self.f_replace(var, self.builder_)
-        return new_var
+        return self.f_replace(var, self.builder_)
