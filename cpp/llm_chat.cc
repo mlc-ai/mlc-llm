@@ -775,6 +775,7 @@ void PrintLogits(int logits_num = -1) {
       logits_on_cpu_.CopyFrom(logits_or_prob);
     }
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    this->PrintLogits();
   }
 
   // Clear kv cache
