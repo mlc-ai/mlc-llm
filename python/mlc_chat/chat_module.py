@@ -12,12 +12,15 @@ from . import libinfo
 
 
 class PlaceInPrompt(Enum):
-    """The place of an input message in a prompt, at the beginning / in the middle / in the end
-    or as a whole."""
+    """The place of an input message in a prompt."""
 
+    # The input message should have role and/or sep appended at both the beginning and in the end.
     Whole = 0
+    # The input message is only the beginning part of a prompt, no role and sep should be appended in the end.
     Begin = 1
+    # The input message is in the middle of a prompt, nothing should be appended before or after the message.
     Middle = 2
+    # The input message is the ending part of a prompt, no role and sep should be appended before that.
     End = 3
 
 
