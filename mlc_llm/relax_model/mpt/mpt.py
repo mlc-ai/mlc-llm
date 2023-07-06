@@ -715,7 +715,7 @@ class MPTModel(nn.Module):
       if output_attentions:
         assert all_self_attns is not None
         all_self_attns = all_self_attns + (attn_weights,)
-    x = self.norm_f(x)
+    # x = self.norm_f(x)
     if output_hidden_states:
       assert all_hidden_states is not None
       all_hidden_states = all_hidden_states + (x,)
