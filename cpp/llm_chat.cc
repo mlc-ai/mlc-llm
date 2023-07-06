@@ -533,6 +533,8 @@ class LLMChat {
     ICHECK(!output_ids_.empty());
     int32_t last_token = output_ids_.back();
 
+    std::cout << "LAST TOKEN TO DECODE: " << last_token << std::endl;
+
     auto tstart = std::chrono::high_resolution_clock::now();
 
     NDArray logits_on_device = this->Forward({last_token}, ++total_seq_len_);
