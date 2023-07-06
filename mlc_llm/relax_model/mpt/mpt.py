@@ -127,18 +127,18 @@ def scaled_multihead_dot_product_attention(
           attn_bias.struct_info.shape[-2] != s_q)): # dynamic condition?
       raise RuntimeError(f'attn_bias (shape: {attn_bias.struct_info.shape}) is expected to broadcast to shape: {attn_weight.struct_info.shape}.')
     attn_weight = attn_weight + attn_bias
-  min_val = tvm.tir.min_value(q.struct_info.dtype)
+  min_val = get_type_min_val(q)
   if key_padding_mask is not None:
     if attn_bias is not None:
       warnings.warn('Propogating key_padding_mask to the attention module ' + 'and applying it within the attention module can cause ' + 'unneccessary computation/memory usage. Consider integrating ' + 'into attn_bias once and passing that to each attention ' + 'module instead.')
-    key_mask = nn.emit(tvm.tir.bitwise_not(relax.op.reshape(key_padding_mask, (b, 1, 1, s_k))))
+    key_mask = nn.emit(relax.op.bitwise_not(relax.op.reshape(key_padding_mask, (b, 1, 1, s_k))))
     attn_weight = nn.emit(relax.op.masked_fill(attn_weight, key_mask, min_val))
   if is_causal and (not q.struct_info.shape[2] == 1):
       s = relax.op.maximum(s_q, s_k)
       causal_mask = nn.emit(relax.op.ones((s, s,), dtype="float16"))
       causal_mask = nn.emit(relax.op.tril(causal_mask))
       causal_mask = nn.emit(relax.op.astype(causal_mask, "bool"))
-      causal_mask = tvm.tir.bitwise_not(causal_mask)
+      causal_mask = nn.emit(relax.op.bitwise_not(causal_mask))
       # slicing causal_mask[-s_q:, -s_k:]
       s_q_end, s_k_end = causal_mask.struct_info.shape
       causal_mask = nn.emit(relax.op.strided_slice(causal_mask, [0, 1], [s_q_end - s_q, s_k_end - s_k], [s_q_end, s_k_end]))
@@ -283,8 +283,8 @@ def flash_attn_fn(
 #     (b_size, s_k) = key_padding_mask.struct_info.shape[:2]
 #     if attn_bias is None:
 #       attn_bias = nn.emit(relax.op.zeros((b_size, 1, 1, s_k), dtype=query.struct_info.dtype))
-#     key_mask = nn.emit(tvm.tir.bitwise_not(relax.op.reshape(key_padding_mask, (b_size, 1, 1, s_k))))
-#     attn_bias = nn.emit(relax.op.masked_fill(attn_bias, key_mask, tvm.tir.min_value(query.struct_info.dtype)))
+#     key_mask = nn.emit(relax.op.bitwise_not(relax.op.reshape(key_padding_mask, (b_size, 1, 1, s_k))))
+#     attn_bias = nn.emit(relax.op.masked_fill(attn_bias, key_mask, get_type_min_val(query)))
 
 #   batch_size, seq_len, _ = query.struct_info.shape
 #   query = nn.emit(relax.op.reshape(
@@ -524,6 +524,13 @@ def build_attn_bias(attn_impl, attn_bias, n_heads, seq_len, causal=False, alibi=
     raise ValueError(f'attn_impl={attn_impl!r} is an invalid setting.')
 
 
+def get_type_min_val(tensor):
+  return relax.const(
+      tvm.tir.min_value(tensor.struct_info.dtype).value,
+      tensor.struct_info.dtype,
+  )
+
+
 class MPTModel(nn.Module):
   def __init__(self, config: MPTConfig):
     config._validate_config()
@@ -597,8 +604,8 @@ class MPTModel(nn.Module):
         attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [3], [_s_k], [s_k_end]))
       if prefix_mask is not None and attention_mask.struct_info.shape != prefix_mask.struct_info.shape:
         raise ValueError(f'attention_mask shape={attention_mask.shape} ' + f'and prefix_mask shape={prefix_mask.shape} are not equal.')
-      min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
-      attn_mask = nn.emit(tvm.tir.bitwise_not(relax.op.reshape(attention_mask, (-1, 1, 1, s_k))))
+      min_val = get_type_min_val(attn_bias)
+      attn_mask = nn.emit(relax.op.bitwise_not(relax.op.reshape(attention_mask, (-1, 1, 1, s_k))))
       attn_bias = nn.emit(relax.op.masked_fill(attn_bias, attn_mask, min_val))
     return (attn_bias, None)
 
@@ -615,8 +622,8 @@ class MPTModel(nn.Module):
     attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [dims_len - 2, dims_len - 1], [relax.const(0), relax.const(0)], [seq_len, seq_len]))
     causal = nn.emit(relax.op.reshape(relax.op.tril(relax.op.ones((seq_len, seq_len), dtype="bool")), (1, 1, seq_len, seq_len)))
     prefix = nn.emit(relax.op.reshape(prefix_mask, (-1, 1, 1, seq_len)))
-    cannot_attend = nn.emit(tvm.tir.bitwise_not(relax.op.logical_or(causal, relax.op.astype(prefix, "bool"))))
-    min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
+    cannot_attend = nn.emit(relax.op.bitwise_not(relax.op.logical_or(causal, relax.op.astype(prefix, "bool"))))
+    min_val = get_type_min_val(attn_bias)
     attn_bias = nn.emit(relax.op.masked_fill(attn_bias, cannot_attend, min_val))
     return attn_bias
 
@@ -630,7 +637,7 @@ class MPTModel(nn.Module):
     seq_id_l = nn.emit(relax.op.reshape(sequence_id, (-1, seq_len, 1)))
     seq_id_r = nn.emit(relax.op.reshape(sequence_id, (-1, 1, seq_len)))
     cannot_attend = nn.emit(relax.op.expand_dims(relax.op.logical_not(relax.op.equal(seq_id_l, seq_id_r)), axis=1))
-    min_val = tvm.tir.min_value(attn_bias.struct_info.dtype)
+    min_val = get_type_min_val(attn_bias)
     attn_bias = nn.emit(relax.op.masked_fill(attn_bias, cannot_attend, min_val))
     return attn_bias
 
@@ -670,8 +677,7 @@ class MPTModel(nn.Module):
     S = input_ids.struct_info.shape[1]
     assert S <= self.max_seq_len, f'Cannot forward input with seq_len={S}, this model only supports seq_len<={self.max_seq_len}'
 
-    tok_emb = nn.emit(self.wte(input_ids))
-    tok_emb = tvm.tir.bitwise_not(tok_emb)
+    tok_emb = self.wte(input_ids)
     if self.alibi:
       x = tok_emb
     else:
@@ -686,7 +692,7 @@ class MPTModel(nn.Module):
         raise ValueError(f'Cannot forward input with past sequence length {past_position} and current sequence length {S + 1}, this model only supports total sequence length <= {self.max_seq_len}.')
       pos = nn.emit(relax.op.expand_dims(relax.op.arange(past_position, S + past_position, dtype="long"), axis=0))
       if attention_mask is not None:
-        pos_diff_to_slice = nn.emit(relax.op.cumsum(relax.op.astype(tvm.tir.bitwise_not(attention_mask), "int32"), axis=1))
+        pos_diff_to_slice = nn.emit(relax.op.cumsum(relax.op.astype(relax.op.bitwise_not(attention_mask), "int32"), axis=1))
         dim1_len = pos_diff_to_slice.struct_info.shape[1]
         # slicing [:, past_position:]
         pos_diff = nn.emit(relax.op.strided_slice(pos_diff_to_slice, [1], [past_position], [dim1_len]))
