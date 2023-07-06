@@ -399,7 +399,7 @@ class LLMChat {
    * \brief Get input tokens based on history
    * \param place_in_prompt The place of the input message in the prompt.
    */
-  std::vector<int32_t> GetInputTokens(PlaceInPrompt place_in_prompt = Whole) {
+  std::vector<int32_t> GetInputTokens(PlaceInPrompt place_in_prompt = PlaceInPrompt::kWhole) {
     std::vector<int32_t> tokens;
     std::vector<std::string> prompts;
 
@@ -492,8 +492,9 @@ class LLMChat {
     return std::string(Downcast<String>(ret));
   }
 
-  std::vector<int32_t> PrepareBeforeEmbedding(std::string inp, bool append_conversation = true,
-                                              PlaceInPrompt place_in_prompt = Whole) {
+  std::vector<int32_t> PrepareBeforeEmbedding(
+      std::string inp, bool append_conversation = true,
+      PlaceInPrompt place_in_prompt = PlaceInPrompt::kWhole) {
     if (conversation_.name == "LM") {
       this->ResetChat();
     }
@@ -516,7 +517,7 @@ class LLMChat {
    * \brief Given the text input, generate the embedding of the tokenized prompt.
    */
   NDArray EmbedStep(std::string inp, bool append_conversation = true,
-                    PlaceInPrompt place_in_prompt = Whole) {
+                    PlaceInPrompt place_in_prompt = PlaceInPrompt::kWhole) {
     std::vector<int32_t> prompt_tokens =
         PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
@@ -572,7 +573,7 @@ class LLMChat {
    * \brief Generate the next token given a prompt. Can optionally decode the output next token.
    */
   void PrefillStep(std::string inp, bool append_conversation = true, bool decode_next_token = true,
-                   PlaceInPrompt place_in_prompt = Whole) {
+                   PlaceInPrompt place_in_prompt = PlaceInPrompt::kWhole) {
     if (embed_func_.defined() && prefill_with_embed_func_.defined()) {
       // Temporarily placed inside `PrefillStep` for compatibility in transition.
       // Will be separated out in the future.
