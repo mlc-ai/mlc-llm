@@ -516,6 +516,10 @@ class LLMChat {
 
     auto tstart = std::chrono::high_resolution_clock::now();
 
+    for (int64_t i = 0; i < token_len; ++i) {
+      std::cout << "PROMPT TOKEN [" << i << "]: " << prompt_tokens[i] << std::endl;
+    }
+
     int32_t new_seq_len = total_seq_len_ + token_len;
     NDArray logits_on_device = this->Forward(prompt_tokens, new_seq_len);
     total_seq_len_ = new_seq_len;
