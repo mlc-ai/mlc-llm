@@ -363,7 +363,7 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 build.py --model vicuna-v1-7b --target llvm --quantization q4f32_0
+                    python3 build.py --model vicuna-v1-7b --target webgpu --quantization q4f32_0
 
             .. tab:: iPhone/iPad
 
@@ -419,7 +419,7 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 build.py --model RedPajama-INCITE-Chat-3B-v1 --target llvm --quantization q4f16_0
+                    python3 build.py --model RedPajama-INCITE-Chat-3B-v1 --target webgpu --quantization q4f16_0
 
             .. tab:: iPhone/iPad
 
@@ -555,7 +555,7 @@ This section lists compile commands for more models that you can try out.
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 build.py --model MODEL_NAME --target llvm --quantization q4f32_0
+                    python3 build.py --model MODEL_NAME --target webgpu --quantization q4f32_0
 
             .. tab:: iPhone/iPad
 
