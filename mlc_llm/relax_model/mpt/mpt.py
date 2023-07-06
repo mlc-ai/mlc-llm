@@ -712,7 +712,7 @@ class MPTModel(nn.Module):
     if output_hidden_states:
       assert all_hidden_states is not None
       all_hidden_states = all_hidden_states + (x,)
-    return tok_emb, past_key_values # x, past_key_values, all_hidden_states, all_self_attns
+    return x, past_key_values, attn_bias # x, past_key_values, all_hidden_states, all_self_attns
 
 
 class MPTForCausalLM(nn.Module):
@@ -764,7 +764,7 @@ class MPTForCausalLM(nn.Module):
     if logits.struct_info.dtype != "float32":
       logits = nn.emit(relax.op.astype(logits, "float32"))
 
-    return logits, outputs[1]
+    return logits, outputs[1], outputs[2]
 
 def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int, str]:
   pidx2pname: Dict[int, str] = {}
@@ -773,7 +773,7 @@ def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int,
     input_ids = nn.Placeholder((1, 1), dtype="int32", name="input_ids")
 
     with bb.dataflow():
-      logits, states = model(input_ids)
+      logits, states, debug_tensor = model(input_ids)
       params = [
           input_ids,
       ] + model.parameters()
@@ -784,7 +784,7 @@ def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int,
         assert param.same_as(params[i + 1])
       if states is None:
         states = ()
-      gv = bb.emit_output((logits, relax.Tuple(states)))
+      gv = bb.emit_output((debug_tensor, relax.Tuple(states)))
     bb.emit_func_output(gv, params)
 
   mod = bb.get()
