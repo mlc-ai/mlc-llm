@@ -719,7 +719,7 @@ class MPTModel(nn.Module):
     if output_hidden_states:
       assert all_hidden_states is not None
       all_hidden_states = all_hidden_states + (x,)
-    return tok_emb, past_key_values # x, past_key_values, all_hidden_states, all_self_attns
+    return x, past_key_values, all_hidden_states, all_self_attns
 
 
 class MPTForCausalLM(nn.Module):
