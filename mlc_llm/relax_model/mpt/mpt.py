@@ -670,7 +670,8 @@ class MPTModel(nn.Module):
     S = input_ids.struct_info.shape[1]
     assert S <= self.max_seq_len, f'Cannot forward input with seq_len={S}, this model only supports seq_len<={self.max_seq_len}'
 
-    tok_emb = self.wte(input_ids)
+    tok_emb = nn.emit(self.wte(input_ids))
+    tok_emb = tvm.tir.bitwise_not(tok_emb)
     if self.alibi:
       x = tok_emb
     else:
