@@ -757,7 +757,9 @@ class MPTForCausalLM(nn.Module):
         output_hidden_states=output_hidden_states,
         use_cache=use_cache
     )
-    logits = nn.emit(relax.op.linear(outputs[0], self.transformer.wte.weight))
+    # TODO: test workaround
+    logits = outputs[0]
+    # logits = nn.emit(relax.op.linear(outputs[0], self.transformer.wte.weight))
 
     if logits.struct_info.dtype != "float32":
       logits = nn.emit(relax.op.astype(logits, "float32"))
