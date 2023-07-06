@@ -98,8 +98,9 @@ def scaled_multihead_dot_product_attention(
     key_padding_mask=None,
     is_causal=False,
     needs_weights=False,
-    multiquery=False
+    multiquery=False,
 ):
+  dtype = query.struct_info.dtype
   q = reshape_and_permute(query, n_heads, d_model)
   kv_n_heads = 1 if multiquery else n_heads
   k = reshape_and_permute(key, kv_n_heads, d_model, [0, 2, 3, 1])
@@ -113,6 +114,10 @@ def scaled_multihead_dot_product_attention(
   s_k = k.struct_info.shape[-1]
   if softmax_scale is None:
     softmax_scale = 1 / math.sqrt(d)
+  # TODO(vchernov): matmul(q, k) generates inf when float16 is used. There is workaround
+  if dtype != "float32":
+    q = nn.emit(relax.op.astype(q, "float32"))
+    k = nn.emit(relax.op.astype(k, "float32"))
   softmax_scale = relax.op.astype(relax.const(softmax_scale), q.struct_info.dtype)
   attn_weight = nn.emit(relax.op.matmul(q, k) * softmax_scale)
   _, _, s_q_end, s_k_end = attn_bias.struct_info.shape
@@ -126,6 +131,9 @@ def scaled_multihead_dot_product_attention(
         (attn_bias.struct_info.shape[-2] != 1 and
           attn_bias.struct_info.shape[-2] != s_q)): # dynamic condition?
       raise RuntimeError(f'attn_bias (shape: {attn_bias.struct_info.shape}) is expected to broadcast to shape: {attn_weight.struct_info.shape}.')
+    # TODO(vchernov): matmul(q, k) generates inf when float16 is used.
+    if dtype != "float32":
+      attn_bias = nn.emit(relax.op.astype(attn_bias, "float32"))
     attn_weight = attn_weight + attn_bias
   min_val = get_type_min_val(q)
   if key_padding_mask is not None:
@@ -144,12 +152,15 @@ def scaled_multihead_dot_product_attention(
       causal_mask = nn.emit(relax.op.strided_slice(causal_mask, [0, 1], [s_q_end - s_q, s_k_end - s_k], [s_q_end, s_k_end]))
       causal_mask = nn.emit(relax.op.reshape(causal_mask, (1, 1, s_q, s_k)))
       attn_weight = nn.emit(relax.op.masked_fill(attn_weight, causal_mask, min_val))
+  # TODO(vchernov): matmul(q, k) generates inf when float16 is used.
+  # There is uncast after workaround with float calculation due to softmax range = [0, 1]
   attn_weight = nn.emit(relax.op.nn.softmax(attn_weight))
+  if dtype != "float32":
+    attn_weight = nn.emit(relax.op.astype(attn_weight, dtype))
   out = nn.emit(relax.op.matmul(attn_weight, v))
   out = reverse_reshape_and_permute(out)
-  if needs_weights:
-    return (out, attn_weight, past_key_value)
-  return (out, None, past_key_value)
+
+  return (out, past_key_value)
 
 ######################### FLASH ATTENTION IMPLEMENTATION TYPE TORCH (END) ##########################
 
@@ -331,8 +342,7 @@ class MultiheadAttention(nn.Module):
       attn_impl: str='triton',
       clip_qkv: Optional[float]=None,
       qk_ln: bool=False,
-      softmax_scale: Optional[float]=None,
-      low_precision_layernorm: bool=False
+      softmax_scale: Optional[float]=None
   ):
     # Init fields
     self.d_model = d_model
@@ -348,9 +358,8 @@ class MultiheadAttention(nn.Module):
     fuse_splits = (d_model, 2 * d_model)
     self.Wqkv._fused = (0, fuse_splits)
     if self.qk_ln:
-      layernorm_class = LPLayerNormWOBias if low_precision_layernorm else LayerNorm
-      self.q_ln = layernorm_class(self.d_model, dtype)
-      self.k_ln = layernorm_class(self.d_model, dtype)
+      self.q_ln = LayerNorm(self.d_model, dtype)
+      self.k_ln = LayerNorm(self.d_model, dtype)
     if self.attn_impl == 'flash':
       self.attn_fn = flash_attn_fn
     elif self.attn_impl == 'triton':
@@ -369,7 +378,7 @@ class MultiheadAttention(nn.Module):
     # TODO: Does field _is_residual exist?
     # self.out_proj._is_residual = True
 
-  def forward(self, x, past_key_value=None, attn_bias=None, attention_mask=None, is_causal=True, needs_weights=False):
+  def forward(self, x, past_key_value=None, attn_bias=None, attention_mask=None, is_causal=True):
     qkv = self.Wqkv(x)
     if self.clip_qkv:
       qkv = nn.emit(relax.op.clip(qkv, min=relax.const(-self.clip_qkv), max=relax.const(self.clip_qkv)))
@@ -393,9 +402,9 @@ class MultiheadAttention(nn.Module):
         attn_bias=attn_bias,
         key_padding_mask=key_padding_mask,
         is_causal=is_causal,
-        needs_weights=needs_weights
+        needs_weights=False,
     )
-    return (self.out_proj(attn_out[0]), attn_out[1], attn_out[2])
+    return (self.out_proj(attn_out[0]), attn_out[1])
 
 ATTN_CLASS_REGISTRY = {'multihead_attention': MultiheadAttention}
 
@@ -446,10 +455,10 @@ class MPTBlock(nn.Module):
       is_causal: bool=True,
   ) -> Tuple[relax.Expr, relax.Expr, Optional[Tuple[relax.Expr, relax.Expr]]]:
     residual = hidden_states
-    hidden_states = self.input_layernorm(hidden_states)
+    hidden_states = self.input_layernorm(hidden_states) # TODO: debug comment: not nan
 
     # Self Attention
-    (hidden_states, attn_weights, present_key_value) = self.self_attn(
+    (hidden_states, present_key_value) = self.self_attn(
       hidden_states,
       past_key_value=past_key_value,
       attn_bias=attn_bias,
@@ -463,7 +472,7 @@ class MPTBlock(nn.Module):
     hidden_states = self.mlp(hidden_states)
     hidden_states = nn.emit(residual + hidden_states)
 
-    return (hidden_states, attn_weights, present_key_value)
+    return (hidden_states, present_key_value)
 
 
 def attn_bias_shape(attn_impl, n_heads, seq_len, alibi, prefix_lm, causal, use_sequence_id):
@@ -649,8 +658,6 @@ class MPTModel(nn.Module):
       prefix_mask: Optional[relax.Expr]=None,
       sequence_id: Optional[relax.Expr]=None,
       return_dict: Optional[bool]=None,
-      output_attentions: Optional[bool]=None,
-      output_hidden_states: Optional[bool]=None,
       use_cache: Optional[bool]=None
   ):
     return_dict = return_dict if return_dict is not None else self.return_dict
@@ -668,9 +675,6 @@ class MPTModel(nn.Module):
       prefix_mask = nn.emit(relax.op.astype(prefix_mask, "bool"))
     if not return_dict:
       raise NotImplementedError('return_dict False is not implemented yet for MPT')
-    if output_attentions:
-      if self.attn_impl != 'torch':
-        raise NotImplementedError('output_attentions is not implemented for MPT when using attn_impl `flash` or `triton`.')
     if self.prefix_lm and prefix_mask is None:
       raise ValueError('prefix_mask is a required argument when MPT is configured with prefix_lm=True.')
 
@@ -702,24 +706,13 @@ class MPTModel(nn.Module):
     (attn_bias, attention_mask) = self._attn_bias(dtype=x.struct_info.dtype, attention_mask=attention_mask, prefix_mask=prefix_mask, sequence_id=sequence_id)
     if use_cache and past_key_values is None:
       past_key_values = [() for _ in range(self.n_layers)]
-    all_hidden_states = () if output_hidden_states else None
-    all_self_attns = () if output_attentions else None
     for (b_idx, block) in enumerate(self.blocks):
-      if output_hidden_states:
-        assert all_hidden_states is not None
-        all_hidden_states = all_hidden_states + (x,)
       past_key_value = past_key_values[b_idx] if past_key_values is not None else None
-      (x, attn_weights, past_key_value) = block(x, past_key_value=past_key_value, attn_bias=attn_bias, attention_mask=attention_mask, is_causal=self.is_causal)
+      (x, past_key_value) = block(x, past_key_value=past_key_value, attn_bias=attn_bias, attention_mask=attention_mask, is_causal=self.is_causal)
       if past_key_values is not None:
         past_key_values[b_idx] = past_key_value
-      if output_attentions:
-        assert all_self_attns is not None
-        all_self_attns = all_self_attns + (attn_weights,)
-    # x = self.norm_f(x)
-    if output_hidden_states:
-      assert all_hidden_states is not None
-      all_hidden_states = all_hidden_states + (x,)
-    return x, past_key_values, all_hidden_states, all_self_attns
+    x = self.norm_f(x)
+    return x, past_key_values
 
 
 class MPTForCausalLM(nn.Module):
@@ -740,8 +733,6 @@ class MPTForCausalLM(nn.Module):
       prefix_mask: Optional[relax.Expr]=None,
       sequence_id: Optional[relax.Expr]=None,
       return_dict: Optional[bool]=None,
-      output_attentions: Optional[bool]=None,
-      output_hidden_states: Optional[bool]=None,
       use_cache: Optional[bool]=None
   ):
     return_dict = return_dict if return_dict is not None else self.return_dict
@@ -760,8 +751,6 @@ class MPTForCausalLM(nn.Module):
         prefix_mask=prefix_mask,
         sequence_id=sequence_id,
         return_dict=return_dict,
-        output_attentions=output_attentions,
-        output_hidden_states=output_hidden_states,
         use_cache=use_cache
     )
 
@@ -834,7 +823,7 @@ def get_model(args, hf_config):
       bb,
       model_name=model_name,
       max_window_size=128,     # TODO: temporal limit for max output length, change to -1 after tests
-      stop_tokens=[0],        # TODO: check for mpt embeddings
+      stop_tokens=[0],
       add_prefix_space=False, # TODO: what is it?
   )
 

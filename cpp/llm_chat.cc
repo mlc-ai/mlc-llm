@@ -516,10 +516,6 @@ class LLMChat {
 
     auto tstart = std::chrono::high_resolution_clock::now();
 
-    for (int64_t i = 0; i < token_len; ++i) {
-      std::cout << "PROMPT TOKEN [" << i << "]: " << prompt_tokens[i] << std::endl;
-    }
-
     int32_t new_seq_len = total_seq_len_ + token_len;
     NDArray logits_on_device = this->Forward(prompt_tokens, new_seq_len);
     total_seq_len_ = new_seq_len;
@@ -536,8 +532,6 @@ class LLMChat {
   void DecodeStep() {
     ICHECK(!output_ids_.empty());
     int32_t last_token = output_ids_.back();
-
-    std::cout << "LAST TOKEN TO DECODE: " << last_token << std::endl;
 
     auto tstart = std::chrono::high_resolution_clock::now();
 
@@ -595,7 +589,7 @@ class LLMChat {
     auto decoding_end = std::chrono::high_resolution_clock::now();
 
     // print first few logits for eyeballs
-    PrintLogits(10);
+    PrintNDArray(logits_on_cpu_, 10, "Logits");
 
     double encoding_ms = static_cast<double>((decoding_start - encoding_start).count()) / 1e6;
     double decoding_ms = static_cast<double>((decoding_end - decoding_start).count()) / 1e6;
@@ -604,34 +598,52 @@ class LLMChat {
               << "decoding-time=" << decoding_ms << "ms.";
   }
 
-void PrintLogits(int logits_num = -1) {
-  size_t ndim = logits_on_cpu_->ndim;
-  std::string logits_num_tag = std::to_string(logits_num);
-  if (logits_num == -1) {
-    logits_num = logits_on_cpu_->shape[ndim - 1];
-    logits_num_tag = "";
+  NDArray getArrayToPrint(NDArray array) const {
+    ICHECK(array->data != nullptr) << "Array data is nullptr";
+    // Check that the data on CPU and copy if need
+    if (array->device.device_type != kDLCPU) {
+      NDArray array_cpu;
+      array_cpu = array.CopyTo(DLDevice{kDLCPU, 0});
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+      return array_cpu;
+    } else {
+      return array;
+    }
   }
-  // Print shape
-  std::ostringstream os_shape;
-  for (size_t i = 0; i < ndim; ++i) {
-    if (i != 0) os_shape << ", ";
-    os_shape << logits_on_cpu_->shape[i];
-  }
-  // TODO(vchernov): after test return LOG(INFO)
-  std::cout << "LOGITS SHAPE = [" << os_shape.str() << "]" << std::endl;
-  // LOG(INFO) << "logits shape = [" << os_shape.str() << "]";
 
-  // Print specified number of values from logits
-  std::ostringstream os;
-  const float* p_data = static_cast<float*>(logits_on_cpu_->data);
-  for (int i = 0; i < logits_num; ++i) {
-    if (i != 0) os << ", ";
-    os << p_data[i];
+  void PrintNDArray(NDArray array, int64_t num = -1, std::string tensor_tag = "Tensor") const {
+    NDArray array_cpu = getArrayToPrint(array);
+
+    size_t ndim = array_cpu->ndim;
+    int64_t numel = 1;
+    // Print shape and calculate numel
+    std::ostringstream os_shape;
+    for (size_t i = 0; i < ndim; ++i) {
+      if (i != 0) os_shape << ", ";
+      numel *= array_cpu->shape[i];
+      os_shape << array_cpu->shape[i];
+    }
+
+    std::string num_tag = std::to_string(num);
+    if (num == -1 || num >= numel) {
+      num = numel;
+      num_tag = "";
+    }
+    // TODO(vchernov): after test return LOG(INFO)
+    std::cout << tensor_tag << " shape = [" << os_shape.str() << "]" << std::endl;
+    // LOG(INFO) << tensor_tag << " shape = [" << os_shape.str() << "]";
+
+    // Print specified number of values from tensor
+    std::ostringstream os;
+    const float* p_data = static_cast<float*>(array_cpu->data);
+    for (int64_t i = 0; i < num; ++i) {
+      if (i != 0) os << ", ";
+      os << p_data[i];
+    }
+    // TODO(vchernov): after test return LOG(INFO)
+    std::cout << tensor_tag << "[:" << num_tag << "] = [" << os.str() << "]" << std::endl;
+    // LOG(INFO) << tensor_tag << "[:" << num_tag << "] = [" << os.str() << "]";
   }
-  // TODO(vchernov): after test return LOG(INFO)
-  std::cout << "LOGITS[:" << logits_num_tag << "] = [" << os.str() << "]" << std::endl;
-  // LOG(INFO) << "logits[:" << logits_num_tag << "] = [" << os.str() << "]";
-}
 
  private:
   picojson::value SerializeConfigToJSONValue() const {
@@ -793,6 +805,7 @@ void PrintLogits(int logits_num = -1) {
       logits_on_cpu_.CopyFrom(logits_or_prob);
     }
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    // PrintNDArray(logits_on_cpu_, 100, "Logits");
   }
 
   // Clear kv cache
