@@ -584,7 +584,7 @@ Using cache can help reduce the time needed to compile.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q3f16_0<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-3-3-3" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-3" name="3-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>llvm<span class="w"> </span>--quantization<span class="w"> </span>q4f32_0
+</div><div aria-labelledby="tab-3-3-3" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-3" name="3-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>webgpu<span class="w"> </span>--quantization<span class="w"> </span>q4f32_0
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-3-3-4" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-4" name="3-4" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q3f16_0
@@ -614,7 +614,7 @@ Using cache can help reduce the time needed to compile.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-4-4-3" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-3" name="4-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>llvm<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+</div><div aria-labelledby="tab-4-4-3" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-3" name="4-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>webgpu<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-4-4-4" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-4" name="4-4" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
@@ -704,7 +704,7 @@ python3<span class="w"> </span>build.py<span class="w"> </span>--model<span clas
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-6-6-3" class="sphinx-tabs-panel" hidden="true" id="panel-6-6-3" name="6-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>llvm<span class="w"> </span>--quantization<span class="w"> </span>q4f32_0
+python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>webgpu<span class="w"> </span>--quantization<span class="w"> </span>q4f32_0
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-6-6-4" class="sphinx-tabs-panel" hidden="true" id="panel-6-6-4" name="6-4" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
