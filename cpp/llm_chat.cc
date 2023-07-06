@@ -599,11 +599,23 @@ class LLMChat {
   }
 
 void PrintLogits(int logits_num = -1) {
+  size_t ndim = logits_on_cpu_->ndim;
   std::string logits_num_tag = std::to_string(logits_num);
   if (logits_num == -1) {
-    logits_num = logits_on_cpu_->shape[logits_on_cpu_->ndim - 1];
+    logits_num = logits_on_cpu_->shape[ndim - 1];
     logits_num_tag = "";
   }
+  // Print shape
+  std::ostringstream os_shape;
+  for (size_t i = 0; i < ndim; ++i) {
+    if (i != 0) os_shape << ", ";
+    os_shape << logits_on_cpu_->shape[i];
+  }
+  // TODO(vchernov): after test return LOG(INFO)
+  std::cout << "LOGITS SHAPE = [" << os_shape.str() << "]" << std::endl;
+  // LOG(INFO) << "logits shape = [" << os_shape.str() << "]";
+
+  // Print specified number of values from logits
   std::ostringstream os;
   const float* p_data = static_cast<float*>(logits_on_cpu_->data);
   for (int i = 0; i < logits_num; ++i) {
