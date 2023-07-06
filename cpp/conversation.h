@@ -21,14 +21,19 @@ enum class SeparatorStyle {
   kLM,
 };
 
-/*! \brief The place of an input message in a prompt, at the beginning / in the middle / in the end
- * or as a whole.
- */
-enum PlaceInPrompt {
-  Whole = 0,
-  Begin = 1,
-  Middle = 2,
-  End = 3,
+enum class PlaceInPrompt : int {
+  /*! \brief The input message should have role and/or sep appended at both the beginning and in the
+   * end. */
+  kWhole,
+  /*! \brief The input message is only the beginning part of a prompt, no role and sep should be
+     appended in the end. */
+  kBegin,
+  /*! \brief The input message is in the middle of a prompt, nothing should be appended before or
+     after the message. */
+  kMiddle,
+  /*! \brief The input message is the ending part of a prompt, no role and sep should be appended
+     before that. */
+  kEnd,
 };
 
 /*!
@@ -155,7 +160,7 @@ class Conversation {
    * \param place_in_prompt The place of the input message in the prompt.
    * \return A vector of strings storing the prompt array.
    */
-  std::vector<std::string> GetPromptArray(PlaceInPrompt place_in_prompt = Whole) {
+  std::vector<std::string> GetPromptArray(PlaceInPrompt place_in_prompt = PlaceInPrompt::kWhole) {
     return GetPromptArrayInternal(0, place_in_prompt);
   }
 
@@ -164,7 +169,8 @@ class Conversation {
    * The last round conversation is usually unprocessed by LM
    * \param place_in_prompt The place of the input message in the prompt.
    */
-  std::vector<std::string> GetPromptArrayLastRound(PlaceInPrompt place_in_prompt = Whole) {
+  std::vector<std::string> GetPromptArrayLastRound(
+      PlaceInPrompt place_in_prompt = PlaceInPrompt::kWhole) {
     ICHECK_GE(this->messages.size(), 2);
     return GetPromptArrayInternal(this->messages.size() - 2, place_in_prompt);
   }
@@ -195,18 +201,18 @@ class Conversation {
    * \param place_in_prompt The place of the input message in the prompt.
    */
   template <typename FProcMessage>
-  std::vector<std::string> GetPromptArrayInternal(std::string system_prefix, size_t start_pos,
-                                                  std::string role_msg_sep,
-                                                  std::string role_empty_sep,
-                                                  FProcMessage fproc_message,
-                                                  PlaceInPrompt place_in_prompt = Whole) const {
+  std::vector<std::string> GetPromptArrayInternal(
+      std::string system_prefix, size_t start_pos, std::string role_msg_sep,
+      std::string role_empty_sep, FProcMessage fproc_message,
+      PlaceInPrompt place_in_prompt = PlaceInPrompt::kWhole) const {
     std::vector<std::string> ret;
     ret.reserve(messages.size() - start_pos + 1);
     if (start_pos == 0) {
       if (system_prefix.length() != 0) {
         ret.push_back(system_prefix);
       }
-    } else if (place_in_prompt == Begin || place_in_prompt == Whole) {
+    } else if (place_in_prompt == PlaceInPrompt::kBegin ||
+               place_in_prompt == PlaceInPrompt::kWhole) {
       // need to add a sep of last response
       // which was not added in the processing step.
       ret.push_back(this->seps[1 % this->seps.size()]);
@@ -220,12 +226,14 @@ class Conversation {
       const auto& role = item[0];
       if (item.size() == 2) {
         const std::string message = fproc_message(item[1]);
-        if (i == this->messages.size() - 2 && i == start_pos && place_in_prompt == Middle) {
+        if (i == this->messages.size() - 2 && i == start_pos &&
+            place_in_prompt == PlaceInPrompt::kMiddle) {
           ret.push_back(message);
-        } else if (i == this->messages.size() - 2 &&
-                   (place_in_prompt == Begin || place_in_prompt == Middle)) {
+        } else if (i == this->messages.size() - 2 && (place_in_prompt == PlaceInPrompt::kBegin ||
+                                                      place_in_prompt == PlaceInPrompt::kMiddle)) {
           ret.push_back(role + role_msg_sep + message);
-        } else if (i == start_pos && (place_in_prompt == End || place_in_prompt == Middle)) {
+        } else if (i == start_pos && (place_in_prompt == PlaceInPrompt::kEnd ||
+                                      place_in_prompt == PlaceInPrompt::kMiddle)) {
           ret.push_back(message + end_sep);
         } else {
           ret.push_back(role + role_msg_sep + message + end_sep);
@@ -233,8 +241,8 @@ class Conversation {
 
       } else {
         ICHECK(item.size() == 1);
-        if (!(i == this->messages.size() - 1) || place_in_prompt == End ||
-            place_in_prompt == Whole) {
+        if (!(i == this->messages.size() - 1) || place_in_prompt == PlaceInPrompt::kEnd ||
+            place_in_prompt == PlaceInPrompt::kWhole) {
           ret.push_back(role + role_empty_sep);
         }
       }
@@ -245,8 +253,8 @@ class Conversation {
    * \brief dispatcher based on separator style
    * \param place_in_prompt The place of the input message in the prompt.
    */
-  std::vector<std::string> GetPromptArrayInternal(size_t start_pos,
-                                                  PlaceInPrompt place_in_prompt = Whole) {
+  std::vector<std::string> GetPromptArrayInternal(
+      size_t start_pos, PlaceInPrompt place_in_prompt = PlaceInPrompt::kWhole) {
     if (this->separator_style == SeparatorStyle::kSepRoleMsg) {
       std::string system_prefix;
       if (!this->system.empty()) {
