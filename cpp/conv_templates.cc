@@ -296,20 +296,21 @@ Conversation CodeGPT() {
 }
 
 Conversation WizardLM() {
+  // 7B version; does not support multi-round; similar to ConvOneShot
   Conversation conv;
   conv.name = "wizardlm";
-  conv.system = "{instruction}\n\n### Response:" ;
-  conv.roles = {"USER", "ASSISTANT"};
+  conv.system = "";
+  conv.roles = {"User", "Response"};
   conv.messages = {};
   conv.offset = 0;
   conv.separator_style = SeparatorStyle::kSepRoleMsg;
-  conv.seps = {"\n", "</s>"};
+  conv.seps = {"###"};
   conv.role_msg_sep = ": ";
   conv.role_empty_sep = ":";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
   conv.stop_tokens = {2};
-  conv.stop_str = "</s>";
+  conv.stop_str = "###";
   conv.add_bos = true;
   return conv;
 }
