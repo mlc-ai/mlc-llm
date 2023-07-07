@@ -997,12 +997,13 @@ class LLMChatModule : public ModuleNode {
         chat_ = nullptr;
         ClearGlobalMemoryManager();
         chat_ = std::make_unique<LLMChat>(LLMChat(device_));
+        ICHECK(2 <= args.size() && args.size() <= 3);
         if (args.size() == 2) {
+          // args: executable, model_path
           chat_->Reload(args[0], args[1]);
         } else if (args.size() == 3) {
+          // args: executable, model_path, app_config_json (used for overriding config)
           chat_->Reload(args[0], args[1], args[2]);
-        } else {
-          LOG(FATAL) << "Invalid number of arguments for reload function";
         }
       });
     } else if (name == "unload") {
@@ -1017,10 +1018,13 @@ class LLMChatModule : public ModuleNode {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK(1 <= args.size() && args.size() <= 3);
         if (args.size() == 1) {
+          // args: inp (with decode_next_token = true, place_in_prompt = kAll)
           GetChat()->PrefillStep(args[0]);
         } else if (args.size() == 2) {
+          // args: inp, decode_next_token (with place_in_prompt = kAll)
           GetChat()->PrefillStep(args[0], true, args[1]);
         } else if (args.size() == 3) {
+          // args: inp, decode_next_token, place_in_prompt
           PlaceInPrompt place_in_prompt = static_cast<PlaceInPrompt>(static_cast<int>(args[2]));
           GetChat()->PrefillStep(args[0], true, args[1], place_in_prompt);
         }
@@ -1029,18 +1033,22 @@ class LLMChatModule : public ModuleNode {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK(1 <= args.size() && args.size() <= 2);
         if (args.size() == 1) {
+          // args: inp (with place_in_prompt = kAll)
           *rv = GetChat()->EmbedStep(args[0]);
         } else if (args.size() == 2) {
+          // args: inp, place_in_prompt
           PlaceInPrompt place_in_prompt = static_cast<PlaceInPrompt>(static_cast<int>(args[1]));
           *rv = GetChat()->EmbedStep(args[0], true, place_in_prompt);
         }
       });
     } else if (name == "prefill_with_embed") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK(args.size() == 1 || args.size() == 2);
+        ICHECK(1 <= args.size() && args.size() <= 2);
         if (args.size() == 1) {
+          // args: embedding (with decode_next_token = true)
           GetChat()->PrefillWithEmbedStep(args[0]);
         } else if (args.size() == 2) {
+          // args: embedding, decode_next_token
           GetChat()->PrefillWithEmbedStep(args[0], args[1]);
         }
       });
