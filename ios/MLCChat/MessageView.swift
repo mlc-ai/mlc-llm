@@ -32,6 +32,25 @@ struct MessageView: View {
     }
 }
 
+struct ImageView: View {
+    var image: UIImage
+
+    var body: some View {
+        let background = Color.blue
+        HStack {
+            Spacer()
+            Image(uiImage: image)
+                .resizable()
+                .frame(width: 150, height: 150)
+                .padding(15)
+                .background(background)
+                .cornerRadius(20)
+        }
+        .padding()
+        .listRowSeparator(.hidden)
+    }
+}
+
 struct MessageView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {

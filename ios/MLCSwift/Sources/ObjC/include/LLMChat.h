@@ -1,12 +1,14 @@
 //
 //  Use this file to import your target's public headers that you would like to expose to Swift.
+//  LLM Chat Module
 //
 // Exposed interface of Object-C, enables swift binding.
 #import <Foundation/Foundation.h>
 #include <os/proc.h>
 
 /**
- * The chat module that can be used by  the swift app.
+ * The chat module that can be used by the swift app.
+ * It is a centralized interface that also provides multimodal support, i.e. vision modules.
  *
  * A chat flow can be implemented as follows, for each round of conversation
  *
@@ -37,8 +39,9 @@
  *
  * @param modelLib The name of the modelLib
  * @param modelPath The path to the model artifacts.
+ * @param appConfigJson The partial config that is used to partially override the model configuration.
  */
-- (void)reload:(NSString*)modelLib modelPath:(NSString*)modelPath;
+- (void)reload:(NSString*)modelLib modelPath:(NSString*)modelPath appConfigJson:(NSString*)appConfigJson;
 
 /**
  * Reset the current chat session.
@@ -73,6 +76,11 @@
 - (NSString*)runtimeStatsText;
 
 /**
+ * Pre-process by prefilling the system prompts, running prior to any user input.
+ */
+- (void)processSystemPrompts;
+
+/**
  * \brief Run one round of prefill and decode.
  *
  *  This function is not supposed to be used by apps.
@@ -80,4 +88,38 @@
  *  for debugging purposes.
  */
 - (void)evaluate;
+
+/**
+ * Unload the current image model and free all memory.
+ * @note This function is useful to get memory estimation before launch next model.
+ */
+- (void)unloadImageMod;
+
+/**
+ * Reload the image module to a new model.
+ *
+ * @param modelLib The name of the modelLib
+ * @param modelPath The path to the model artifacts.
+ */
+- (void)reloadImageMod:(NSString*)modelLib modelPath:(NSString*)modelPath;
+
+/**
+ * Reset the current image model.
+ */
+- (void)resetImageMod;
+
+/**
+ * @returns Runtime stats of the image encoding stage.
+ */
+- (NSString*)runtimeStatsTextImageMod;
+
+/**
+ * Prefill the LLM with the embedding of the input image.
+ * The image is set to shape (1, 3, 224, 224) with dtype float16 to be consistent with the image model currently supported.
+ *
+ * @param image The uploaded image.
+ * @param prevPlaceholder The previous placeholder in the prompt, i.e. <Img>.
+ * @param postPlaceholder The post placeholder in the prompt, i.e. </Img>.
+ */
+- (void)prefillImage:(void*)image prevPlaceholder:(NSString*)prevPlaceholder postPlaceholder:(NSString*)postPlaceholder;
 @end
