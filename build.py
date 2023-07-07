@@ -193,6 +193,7 @@ def validate_config(model_path: str):
             " format instead.".format(model_path)
         )
     if model_path.split("/")[-1].startswith("minigpt"):
+        # minigpt does not contain a config.json file so we skip the check
         return
     config_path = os.path.join(model_path, "config.json")
     assert os.path.exists(
