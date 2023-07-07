@@ -219,10 +219,13 @@ class GradioChatModule(ChatModule):
                 chatbot[-1][1] = res
                 yield chatbot
 
-    def upload_image(self, image):
+    def upload_image(self, image, image_size=224):
         """Process user image input."""
-        from PIL import Image
         from tvm import relax
+
+        from PIL import Image
+        from torchvision import transforms
+        from torchvision.transforms.functional import InterpolationMode
 
         img_list = []
         if image is None:
@@ -238,7 +241,12 @@ class GradioChatModule(ChatModule):
             return img_list, text_input
 
         # generate vision embedding
-        image = transform_image(image, self.vision_dtype)
+        transform_fn = transforms.Resize(
+            (image_size, image_size),
+            interpolation=InterpolationMode.BICUBIC,
+        )
+        image = transform_fn(image)
+        image = np.expand_dims(np.asarray(image), axis=0)
         image_param = tvm.nd.array(image, self.device)
         vm = relax.vm.VirtualMachine(self.vision_exec, self.device)["embed"]
         self.vision_embed = vm(image_param, self.vision_params)
@@ -431,33 +439,6 @@ def first_idx_mismatch(str1, str2):
         if char1 != char2:
             return i
     return min(len(str1), len(str2))
-
-
-def transform_image(image, dtype, image_size=224):
-    """Preprocess the user image"""
-    from torchvision import transforms
-    from torchvision.transforms.functional import InterpolationMode
-
-    mean = (0.48145466, 0.4578275, 0.40821073)
-    std = (0.26862954, 0.26130258, 0.27577711)
-    transform_fn = transforms.Compose(
-        [
-            transforms.Resize(
-                (image_size, image_size),
-                interpolation=InterpolationMode.BICUBIC,
-            ),
-            transforms.ToTensor(),
-            transforms.Normalize(mean, std),
-        ]
-    )
-    image = transform_fn(image).unsqueeze(0)
-    if dtype == "float16":
-        image = image.half()
-    elif dtype == "float32":
-        image = image.float()
-    else:
-        raise ValueError("image dtype not supported yet")
-    return image
 
 
 if __name__ == "__main__":

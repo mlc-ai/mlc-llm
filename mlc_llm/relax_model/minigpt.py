@@ -9,7 +9,7 @@ from tvm.relax.testing import nn
 
 
 from ..quantization import ParamQuantKind, QuantizationScheme
-from .modules import ModuleList
+from .modules import ModuleList, TransformImage
 from .param_manager import ParamManager
 
 
@@ -65,7 +65,7 @@ class MiniGPTPatchEmbed(nn.Module):
             self.bias = None
 
     def forward(self, input: relax.Expr) -> relax.Var:
-        bs = input.struct_info.shape[0]
+        bs = 1
         x = nn.emit(relax.op.nn.conv2d(input, self.weight, self.strides))
         if self.bias:
             bias = relax.op.reshape(self.bias, [1, self.embed_dim, 1, 1])
@@ -183,6 +183,7 @@ class MiniGPTVisualEncoder(nn.Module):
     def __init__(self, config: MiniGPTConfig):
         self.embed_dim = config.visual_encoder_embed_dim
         self.dtype = config.dtype
+        self.transform = TransformImage(config.dtype)
         self.patch_embed = MiniGPTPatchEmbed(
             config.image_size,
             config.patch_size,
@@ -202,7 +203,8 @@ class MiniGPTVisualEncoder(nn.Module):
         )
 
     def forward(self, input_image: relax.Expr):
-        res = self.patch_embed(input_image)
+        res = self.transform(input_image)
+        res = self.patch_embed(res)
         for block in self.blocks:
             res = block(res)
         res = relax.op.nn.layer_norm(
@@ -484,8 +486,8 @@ def create_embed_func(
         )
 
         input_image = nn.Placeholder(
-            (bs, img_chan, config.image_size, config.image_size),
-            dtype=config.dtype,
+            (bs, config.image_size, config.image_size, img_chan),
+            dtype="uint8",
             name="input_image",
         )
         with bb.dataflow():
