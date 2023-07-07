@@ -22,17 +22,18 @@ enum class SeparatorStyle {
 };
 
 enum class PlaceInPrompt : int {
-  /*! \brief The input message should have role and/or sep appended at both the beginning and in the
-   * end. */
+  /*! \brief The input message should have role names and corresponding seperators appended both
+     prior to it and after it, making it a complete prompt. */
   kAll,
-  /*! \brief The input message is only the beginning part of a prompt, no role and sep should be
-     appended in the end. */
+  /*! \brief The input message is only the beginning part of a prompt, no role name and separator
+     should be appended after the message since there will be future messages appended after the
+     message. */
   kBegin,
   /*! \brief The input message is in the middle of a prompt, nothing should be appended before or
      after the message. */
   kMiddle,
-  /*! \brief The input message is the ending part of a prompt, no role and sep should be appended
-     before that. */
+  /*! \brief The input message is the ending part of a prompt, no role name and separator should be
+     appended prior to it since the message is concatenated to some prior messages. */
   kEnd,
 };
 
