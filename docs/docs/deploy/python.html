@@ -188,6 +188,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.get_message"><code class="docutils literal notranslate"><span class="pre">ChatModule.get_message()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.prefill"><code class="docutils literal notranslate"><span class="pre">ChatModule.prefill()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.prefill_with_embed"><code class="docutils literal notranslate"><span class="pre">ChatModule.prefill_with_embed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.process_system_prompts"><code class="docutils literal notranslate"><span class="pre">ChatModule.process_system_prompts()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reload"><code class="docutils literal notranslate"><span class="pre">ChatModule.reload()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reset_chat"><code class="docutils literal notranslate"><span class="pre">ChatModule.reset_chat()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reset_runtime_stats"><code class="docutils literal notranslate"><span class="pre">ChatModule.reset_runtime_stats()</span></code></a></li>
@@ -369,11 +370,15 @@ can be retrieved by <a class="reference internal" href="#mlc_chat.ChatModule.get
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mlc_chat.ChatModule.embed">
-<span class="sig-name descname"><span class="pre">embed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.embed" title="Permalink to this definition">¶</a></dt>
-<dd><p>Given a text input, get the embedding of the tokenized prompt.</p>
+<span class="sig-name descname"><span class="pre">embed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">place_in_prompt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PlaceInPrompt</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">PlaceInPrompt.All</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.embed" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given a text input, get the embedding of the tokenized prompt.
+User can decide where to place the input in the prompt.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>input</strong> (<em>str</em>) – The user input string.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input</strong> (<em>str</em>) – The user input string.</p></li>
+<li><p><strong>place_in_prompt</strong> (<em>PlaceInPrompt</em>) – The place of the input message in the prompt.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
@@ -399,35 +404,50 @@ all the tokens decoded so far.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mlc_chat.ChatModule.prefill">
-<span class="sig-name descname"><span class="pre">prefill</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.prefill" title="Permalink to this definition">¶</a></dt>
-<dd><p>Run prefill stage for a given input and decode the first output token.</p>
+<span class="sig-name descname"><span class="pre">prefill</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decode_next_token</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">place_in_prompt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PlaceInPrompt</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">PlaceInPrompt.All</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.prefill" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run prefill stage for a given input and optionally decode the first output token.
+User can decide where to place the input in the prompt.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>input</strong> (<em>str</em>) – The user input string.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input</strong> (<em>str</em>) – The user input string.</p></li>
+<li><p><strong>decode_next_token</strong> (<em>bool</em>) – Whether to decode the next token after prefilling.</p></li>
+<li><p><strong>place_in_prompt</strong> (<em>PlaceInPrompt</em>) – The place of the input message in the prompt.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mlc_chat.ChatModule.prefill_with_embed">
-<span class="sig-name descname"><span class="pre">prefill_with_embed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">embedding</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">NDArray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.prefill_with_embed" title="Permalink to this definition">¶</a></dt>
-<dd><p>Given an embedding, run the prefill stage and decode the first output token.</p>
+<span class="sig-name descname"><span class="pre">prefill_with_embed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">embedding</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">NDArray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decode_next_token</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.prefill_with_embed" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given an embedding, run the prefill stage and optionally decode the first output token.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>embedding</strong> (<em>tvm.runtime.NDArray</em>) – The embedding of user input.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>embedding</strong> (<em>tvm.runtime.NDArray</em>) – The embedding of user input.</p></li>
+<li><p><strong>decode_next_token</strong> (<em>bool</em>) – Whether to decode the next token after prefilling.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.process_system_prompts">
+<span class="sig-name descname"><span class="pre">process_system_prompts</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.process_system_prompts" title="Permalink to this definition">¶</a></dt>
+<dd><p>Pre-process by prefilling the system prompts, running prior to any user input.</p>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="mlc_chat.ChatModule.reload">
-<span class="sig-name descname"><span class="pre">reload</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lib</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.reload" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">reload</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lib</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">app_config_json</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.reload" title="Permalink to this definition">¶</a></dt>
 <dd><p>Reload the chat module from the given library and model path.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>lib</strong> (<em>str</em>) – The library path.</p></li>
 <li><p><strong>model_path</strong> (<em>str</em>) – The model path.</p></li>
+<li><p><strong>app_config_json</strong> (<em>str</em>) – The partial config that is used to partially override the model configuration.</p></li>
 </ul>
 </dd>
 </dl>
