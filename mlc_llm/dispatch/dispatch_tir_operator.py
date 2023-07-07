@@ -16,6 +16,9 @@ class DispatchTIROperator:  # pylint: disable=too-few-public-methods
         elif model == "gpt_bigcode":
             lookup = None
 
+        elif model == "minigpt":
+            lookup = None
+
         elif model == "rwkv":
             lookup = None
 

@@ -620,6 +620,7 @@ def get_model(args: argparse.Namespace, hf_config):
     if (
        model.startswith("starcoder")
        or model.startswith("WizardCoder-")
+       or model.startswith("gpt_bigcode")
     ):
         config = GPTBigCodeConfig(
             **hf_config,

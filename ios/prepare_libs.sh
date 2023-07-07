@@ -25,4 +25,4 @@ cd ..
 rm -rf MLCSwift/tvm_home
 ln -s ../../3rdparty/tvm MLCSwift/tvm_home
 
-python prepare_model_lib.py
+python3 prepare_model_lib.py

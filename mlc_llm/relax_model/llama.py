@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import tvm
@@ -623,7 +623,7 @@ def create_embed_func(
         bb.emit_func_output(gv, params)
 
     mod = bb.get()
-    gv = mod.get_global_var("embed")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 1))
 
 
@@ -770,12 +770,14 @@ def get_model(args, hf_config):
     max_seq_len = args.max_seq_len
     sep_embed = args.sep_embed
 
+    supported_model_name = model_name.lower()
     if (
-        model_name.startswith("vicuna-")
-        or model_name.startswith("llama-")
-        or model_name.startswith("open_llama")
-        or model_name.startswith("gorilla-")
-        or model_name.startswith("wizardlm-")
+        supported_model_name.startswith("vicuna-")
+        or supported_model_name.startswith("llama-")
+        or supported_model_name.startswith("open_llama")
+        or supported_model_name.startswith("gorilla-")
+        or supported_model_name.startswith("guanaco")
+        or supported_model_name.startswith("wizardlm-")
     ):
         config = LlamaConfig(**hf_config, dtype=dtype)
         if max_seq_len != -1:
