@@ -15,7 +15,7 @@ class PlaceInPrompt(Enum):
     """The place of an input message in a prompt."""
 
     # The input message should have role and/or sep appended at both the beginning and in the end.
-    Whole = 0
+    All = 0
     # The input message is only the beginning part of a prompt, no role and sep should be appended in the end.
     Begin = 1
     # The input message is in the middle of a prompt, nothing should be appended before or after the message.
@@ -108,7 +108,7 @@ class ChatModule:
         self,
         input: str,
         decode_next_token: bool = True,
-        place_in_prompt: PlaceInPrompt = PlaceInPrompt.Whole,
+        place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
     ):
         r"""Run prefill stage for a given input and optionally decode the first output token.
         User can decide where to place the input in the prompt.
@@ -127,7 +127,7 @@ class ChatModule:
     def embed(
         self,
         input: str,
-        place_in_prompt: PlaceInPrompt = PlaceInPrompt.Whole,
+        place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
     ):
         r"""Given a text input, get the embedding of the tokenized prompt.
         User can decide where to place the input in the prompt.
