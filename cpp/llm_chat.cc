@@ -208,8 +208,7 @@ class LLMChat {
 
   /*!
    * \brief Load JSON config and override options.
-   * \param config_json A json config in picojson type that is partially specifies
-   *        some of the options.
+   * \param config_str A json config string that partially specifies some of the options.
    * \param partial_update Whether it's a partial update or full update, if set to true,
    *        we perform a partial update on some of the provided options; if set to false, all
    *        options must be provided.
@@ -514,6 +513,10 @@ class LLMChat {
 
   /*!
    * \brief Given the text input, generate the embedding of the tokenized prompt.
+   * \param inp The input text string.
+   * \param append_conversation Whether to append the input message to conversation.
+   * \param place_in_prompt The place of the input message in the prompt.
+   * \return the embedding of the tokenized prompt.
    */
   NDArray EmbedStep(std::string inp, bool append_conversation = true,
                     PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
@@ -539,6 +542,8 @@ class LLMChat {
 
   /*!
    * \brief Prefill given embeddings. Can optionally decode the output next token.
+   * \param embedding The embedding to prefill with.
+   * \param decode_next_token Whether to decode next token.
    */
   void PrefillWithEmbedStep(NDArray embedding, bool decode_next_token = true) {
     if (embedding.Shape().size() == 0) {
@@ -570,6 +575,10 @@ class LLMChat {
 
   /*!
    * \brief Generate the next token given a prompt. Can optionally decode the output next token.
+   * \param inp The input text string.
+   * \param append_conversation Whether to append the input message to conversation.
+   * \param decode_next_token Whether to decode next token.
+   * \param place_in_prompt The place of the input message in the prompt.
    */
   void PrefillStep(std::string inp, bool append_conversation = true, bool decode_next_token = true,
                    PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
