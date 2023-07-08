@@ -21,6 +21,8 @@ from tvm.relax.testing import nn
 from tvm.runtime import NDArray
 from tvm.script import relax as R
 
+from ..quantization import ParamQuantKind, QuantizationScheme
+from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
 from .gpt_neox import create_kv_cache_func
 from .modules import (
@@ -31,6 +33,7 @@ from .modules import (
     RotaryEmbedding,
     named_parameters,
 )
+from .param_manager import ParamManager
 
 
 def _min_value(dtype) -> relax.Expr:
@@ -83,9 +86,7 @@ class GPTJConfig:  # pylint: disable=too-many-instance-attributes
 
 
 class GPTJMLP(nn.Module):
-    def __init__(
-        self, hidden_size: int, intermediate_size: int, dtype: str
-    ):
+    def __init__(self, hidden_size: int, intermediate_size: int, dtype: str):
         super().__init__()
         self.fc_in = Linear(hidden_size, intermediate_size, dtype, bias=True)
         self.fc_out = Linear(intermediate_size, hidden_size, dtype, bias=True)
@@ -314,6 +315,27 @@ def _prepare_decoder_attention_mask(input_shape, src_len, dtype):
     return nn.emit(mask)
 
 
+class GPTJEmbedTokens(nn.Module):
+    def __init__(self, config: GPTJConfig):
+        self.wte = Embedding(
+            num_embeddings=config.vocab_size,
+            embedding_dim=config.hidden_size,
+            dtype=config.dtype,
+        )
+
+    def forward(self, input_ids: relax.Expr):
+        return self.wte(input_ids)
+
+
+class GPTJEmbedTokensWrapper(nn.Module):
+    def __init__(self, config: GPTJConfig):
+        # build a wrapper to ensure that the naming of the embed_in parameter is consistent
+        self.gptj = GPTJEmbedTokens(config)
+
+    def forward(self, input_ids: relax.Expr):
+        return self.gptj(input_ids)
+
+
 class GPTJModel(nn.Module):
     def __init__(
         self,
@@ -448,18 +470,74 @@ def check_parameters(param_dict, param_list):
         )
 
 
+def get_param_quant_kind(
+    name: str, param_info: relax.TensorStructInfo
+) -> ParamQuantKind:
+    if "wte.weight" in name:
+        return ParamQuantKind.embedding_table
+    elif "lm_head.weight" in name:
+        return ParamQuantKind.final_fc_weight
+    elif param_info.ndim == 2 and name.endswith(".weight"):
+        return ParamQuantKind.linear_weight
+    else:
+        return ParamQuantKind.others
+
+
+def create_embed_func(
+    bb: relax.BlockBuilder,
+    param_manager: ParamManager,
+    config: GPTJConfig,
+    quant_scheme: QuantizationScheme,
+) -> None:
+    func_name = "embed"
+
+    bsz = 1
+    seq_len = tvm.tir.Var("n", "int64")
+    with bb.function(func_name):
+        model = GPTJEmbedTokensWrapper(config)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
+        input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
+        with bb.dataflow():
+            inputs_embeds = model(input_ids)
+            params = [input_ids] + model.parameters()
+            gv = bb.emit_output(inputs_embeds)
+        bb.emit_func_output(gv, params)
+
+    mod = bb.get()
+    gv = mod.get_global_var("embed")
+    bb.update_func(gv, mod[gv].with_attr("num_input", 1))
+
+
 def create_encoding_func(
     bb: relax.BlockBuilder,
+    param_manager: ParamManager,
     config: GPTJConfig,
-    ordered_params: List,
+    quant_scheme: QuantizationScheme,
+    sep_embed: bool = False,
 ) -> None:
+    func_name = "prefill_with_embed" if sep_embed else "prefill"
+
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.Var("n", "int64")
     all_seq_len = tvm.tir.Var("m", "int64")
-    with bb.function("prefill"):
-        model = GPTJForCausalLM(config)
-        input_ids = nn.Placeholder(
-            (batch_size, seq_len), dtype="int32", name="input_ids"
+    hidden_size = config.hidden_size
+    with bb.function(func_name):
+        model = GPTJForCausalLM(config, sep_embed)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
+        inputs = (
+            nn.Placeholder(
+                (batch_size, seq_len, hidden_size),
+                dtype=config.dtype,
+                name="input_embeds",
+            )
+            if sep_embed
+            else nn.Placeholder((batch_size, seq_len), dtype="int32", name="input_ids")
         )
         all_seq_len_shape = relax.Var(
             "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
@@ -472,36 +550,39 @@ def create_encoding_func(
         )
         with bb.dataflow():
             logits, key_value_cache = model(
-                input_ids=input_ids,
+                inputs=inputs,
                 all_seq_len_shape=all_seq_len_shape,
                 past_key_values=past_key_values,
             )
             params = [
-                input_ids,
+                inputs,
                 all_seq_len_shape,
                 past_key_values,
-            ]
-            named_params = named_parameters(model)
-            check_parameters(named_params, ordered_params)
-            for name, _ in ordered_params:
-                params.append(named_params[name])
+            ] + model.parameters()
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
         bb.emit_func_output(gv, params)
     mod = bb.get()
-    gv = mod.get_global_var("prefill")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
 
 def create_decoding_func(
     bb: relax.BlockBuilder,
+    param_manager: ParamManager,
     config: GPTJConfig,
-    ordered_params: List,
+    quant_scheme: QuantizationScheme,
 ) -> None:
+    func_name = "decode"
+
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.IntImm("int64", 1)
     all_seq_len = tvm.tir.Var("n", "int64")
-    with bb.function("decode"):
+    with bb.function(func_name):
         model = GPTJForCausalLM(config)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
         input_ids = nn.Placeholder(
             (batch_size, seq_len), dtype="int32", name="input_ids"
         )
@@ -517,7 +598,7 @@ def create_decoding_func(
         )
         with bb.dataflow():
             logits, key_value_cache = model(
-                input_ids=input_ids,
+                inputs=input_ids,
                 all_seq_len_shape=all_seq_len_shape,
                 past_key_values=past_key_values,
             )
@@ -525,16 +606,25 @@ def create_decoding_func(
                 input_ids,
                 all_seq_len_shape,
                 past_key_values,
-            ]
-            named_params = named_parameters(model)
-            check_parameters(named_params, ordered_params)
-            for name, _ in ordered_params:
-                params.append(named_params[name])
+            ] + model.parameters()
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
         bb.emit_func_output(gv, params)
     mod = bb.get()
-    gv = mod.get_global_var("decode")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
+
+
+def create_softmax_func(bb: relax.BlockBuilder, config: GPTJConfig) -> None:
+    with bb.function("softmax_with_temperature"):
+        logits = nn.Placeholder(
+            (1, 1, config.vocab_size), dtype="float32", name="logits"
+        )
+        temperature = nn.Placeholder((), dtype="float32", name="temperature")
+        with bb.dataflow():
+            div = bb.emit(relax.op.divide(logits, temperature))
+            softmax = bb.emit(relax.op.nn.softmax(div, axis=-1))
+            gv = bb.emit_output(softmax)
+        bb.emit_func_output(gv, [logits, temperature])
 
 
 def get_model(args, hf_config):
@@ -544,46 +634,22 @@ def get_model(args, hf_config):
     model_path = args.model_path
     dtype = args.quantization.model_dtype
     max_seq_len = args.max_seq_len
+    sep_embed = args.sep_embed
 
-    print(hf_config)
     config = GPTJConfig(**hf_config, dtype=dtype)
     if max_seq_len != -1:
         config.max_sequence_length = max_seq_len
-    num_heads = config.num_attention_heads
-    hidden_size = config.hidden_size
-    head_dim = hidden_size // num_heads
-    param_list: List[Tuple[str, NDArray]] = []
-    hf_model = AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=True)
 
-    for name, param in hf_model.named_parameters():
-        param = param.detach().cpu().numpy()
-        if "ln_1" in name or "ln_f" in name:
-            param = param.astype("float32")
-        else:
-            param = param.astype(config.dtype)
-        if name.endswith("qkv_proj.weight"):
-            name = name.replace("qkv_proj.weight", "{}_proj.weight")
-            assert param.ndim == 2
-            mp_num = 4
-            param = param.reshape(mp_num, 3, -1, hidden_size)
-            q = param[:, 0, :, :].reshape(hidden_size, hidden_size)
-            k = param[:, 2, :, :].reshape(hidden_size, hidden_size)
-            v = param[:, 1, :, :].reshape(hidden_size, hidden_size)
-            param_list.append((name.format("q"), q))
-            param_list.append((name.format("k"), k))
-            param_list.append((name.format("v"), v))
-        else:
-            param_list.append((name, param))
+    print(hf_config)
 
-    del hf_model
-    param_list = [
-        (name, tvm.nd.array(param, tvm.cpu())) for name, param in param_list
-    ]
-
+    param_manager = ParamManager()
     bb = relax.BlockBuilder()
-    create_encoding_func(bb, config, param_list)
-    create_decoding_func(bb, config, param_list)
+    if sep_embed:
+        create_embed_func(bb, param_manager, config, args.quantization)
+    create_encoding_func(bb, param_manager, config, args.quantization, sep_embed)
+    create_decoding_func(bb, param_manager, config, args.quantization)
     create_kv_cache_func(bb, config)
+    create_softmax_func(bb, config)
     create_metadata_func(
         bb,
         model_name=model_name,
@@ -602,10 +668,42 @@ def get_model(args, hf_config):
                     "m": config.max_sequence_length,
                 },
             )
-    
+
+    def f_convert_pname_fwd(pname: str) -> str:
+        import re
+
+        str_pattern = re.compile(r"(q|k|v)_proj")
+        if re.search(str_pattern, pname) is not None:
+            return str_pattern.sub("qkv_proj", pname)
+        else:
+            return pname
+
+    mod, pidx2pname = param_manager.quantization_transform(mod)
     pname2binname = load_torch_pname2binname_map(
         args.model_path, set(pidx2pname.values()), f_convert_pname_fwd
     )
+
+    num_heads = config.num_attention_heads
+    hidden_size = config.hidden_size
+    head_dim = hidden_size // num_heads
+
+    def f_convert_param_bkwd(torch_pname: str, raw_param) -> str:
+        if torch_pname.endswith("qkv_proj.weight"):
+            assert raw_param.ndim == 2
+            mp_num = 4
+            raw_param = raw_param.astype(dtype).reshape(mp_num, 3, -1, hidden_size)
+            q_weight = raw_param[:, 0, :, :].reshape(hidden_size, hidden_size)
+            k_weight = raw_param[:, 2, :, :].reshape(hidden_size, hidden_size)
+            v_weight = raw_param[:, 1, :, :].reshape(hidden_size, hidden_size)
+            return [
+                (torch_pname.replace("qkv_proj.weight", "q_proj.weight"), q_weight),
+                (torch_pname.replace("qkv_proj.weight", "k_proj.weight"), k_weight),
+                (torch_pname.replace("qkv_proj.weight", "v_proj.weight"), v_weight),
+            ]
+        if "ln_1" in torch_pname or "ln_f" in torch_pname:
+            return [(torch_pname), raw_param.astype("float32")]
+        else:
+            return [(torch_pname, raw_param.astype(dtype))]
 
     args.pidx2pname = pidx2pname
     args.pname2binname = pname2binname
