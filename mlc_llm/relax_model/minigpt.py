@@ -8,6 +8,11 @@ from tvm import relax
 from tvm.relax.testing import nn
 
 
+from ..quantization import ParamQuantKind, QuantizationScheme
+from ..utils import load_torch_pname2binname_map
+from .param_manager import ParamManager
+
+
 @dataclass
 class MiniGPTConfig:
     dtype: str = "float16"
@@ -443,32 +448,54 @@ class MiniGPTLLaMAProj(nn.Module):
         return relax.op.linear(embedding, self.weight, self.bias)
 
 
-def create_encoding_func(bb: relax.BlockBuilder, config: MiniGPTConfig) -> None:
+class MiniGPTModel(nn.Module):
+    def __init__(self, config: MiniGPTConfig):
+        self.visual_encoder = MiniGPTVisualEncoder(config)
+        self.q_former = MiniGPTQFormer(config)
+        self.llama_proj = MiniGPTLLaMAProj(config)
+
+    def forward(self, input_image: relax.Expr):
+        output = self.visual_encoder(input_image)
+        output = self.q_former(output)
+        output = self.llama_proj(output)
+        return output
+
+
+def get_param_quant_kind(
+    name: str, param_info: relax.TensorStructInfo
+) -> ParamQuantKind:
+    """No quantization for MiniGPT. Use q0f16 or q0f32 when building it."""
+    return ParamQuantKind.others
+
+
+def create_embed_func(
+    bb: relax.BlockBuilder,
+    param_manager: ParamManager,
+    config: MiniGPTConfig,
+    quant_scheme: QuantizationScheme,
+) -> None:
+    func_name = "embed"
+
     bs, img_chan = 1, 3
-    with bb.function("embed"):
-        visual_encoder = MiniGPTVisualEncoder(config)
-        q_former = MiniGPTQFormer(config)
-        llama_proj = MiniGPTLLaMAProj(config)
+    with bb.function(func_name):
+        model = MiniGPTModel(config)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
         input_image = nn.Placeholder(
             (bs, img_chan, config.image_size, config.image_size),
             dtype=config.dtype,
             name="input_image",
         )
         with bb.dataflow():
-            output = visual_encoder(input_image)
-            output = q_former(output)
-            output = llama_proj(output)
-            params = (
-                [input_image]
-                + visual_encoder.parameters()
-                + q_former.parameters()
-                + llama_proj.parameters()
-            )
+            output = model(input_image)
+            params = [input_image] + model.parameters()
             gv = bb.emit_output(output)
         bb.emit_func_output(gv, params)
 
     mod = bb.get()
-    gv = mod.get_global_var("embed")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 1))
 
 
@@ -480,8 +507,9 @@ def get_model(args):
         config = MiniGPTConfig(**MODEL_CONFIG[model_name])
         config.dtype = args.quantization.model_dtype
         # build the relax model
+        param_manager = ParamManager()
         bb = relax.BlockBuilder()
-        create_encoding_func(bb, config)
+        create_embed_func(bb, param_manager, config, args.quantization)
         mod = bb.get()
 
         # load visual encoder weights
