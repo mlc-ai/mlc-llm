@@ -1,7 +1,7 @@
 import math
 import argparse
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
 from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
@@ -23,12 +23,9 @@ from tvm.relax.op import (
     matmul,
 )
 
-from .modules import (
-    named_parameters,
-    ModuleList,
-    Embedding,
-    Linear
-)
+from ..quantization import ParamQuantKind, QuantizationScheme
+from .modules import ModuleList, Embedding, Linear
+from .param_manager import ParamManager
 
 
 @dataclass
@@ -48,7 +45,7 @@ class GPTBigCodeConfig:
         scale_attn_weights: bool = True,
         vocab_size: int = 49152,
         dtype: str = "float32",
-        **kwargs
+        **kwargs,
     ):
         self.bos_token_id = bos_token_id
         self.eos_token_id = eos_token_id
@@ -120,7 +117,11 @@ def apply_position_embedding(t_embd, weight, offset: int = 0):
         return tvm.te.compute(tensor.shape, position_compute, name="position")
 
     hidden_states = nn.emit_te(
-        f_position_embedding, t_embd, weight, offset, primfunc_name_hint="position_embedding"
+        f_position_embedding,
+        t_embd,
+        weight,
+        offset,
+        primfunc_name_hint="position_embedding",
     )
     return hidden_states
 
@@ -167,7 +168,9 @@ class GPTBigCodeAttention(nn.Module):
         self.n_head = config.n_head
         self.head_dim = config.n_embd // config.n_head
 
-        self.c_attn = Linear(self.n_embd, self.n_embd + 2*self.head_dim, config.dtype, bias=True)
+        self.c_attn = Linear(
+            self.n_embd, self.n_embd + 2 * self.head_dim, config.dtype, bias=True
+        )
         self.c_proj = Linear(self.n_embd, self.n_embd, config.dtype, bias=True)
 
         self.dtype = config.dtype
@@ -177,7 +180,7 @@ class GPTBigCodeAttention(nn.Module):
         hidden_states: relax.Expr,
         all_seq_len_shape: relax.Expr,
         past_key_value: Optional[Tuple[relax.Expr, relax.Expr]] = None,
-        attention_mask: Optional[relax.Expr] = None
+        attention_mask: Optional[relax.Expr] = None,
     ) -> Tuple[relax.Expr, Union[Tuple[None, None], Tuple[relax.Expr, relax.Expr]]]:
         # hidden_states: [batch_size, seq_len, n_embd]
         if hidden_states.struct_info.dtype != self.dtype:
@@ -189,19 +192,15 @@ class GPTBigCodeAttention(nn.Module):
         def te_slice(x: te.Tensor, start: int, end: int):
             batch_size, seq_len, _ = x.shape
             return te.compute(
-                shape=(batch_size, seq_len, end-start),
-                fcompute=lambda i, j, k: x[i, j, start+k],
-                name="slice"
+                shape=(batch_size, seq_len, end - start),
+                fcompute=lambda i, j, k: x[i, j, start + k],
+                name="slice",
             )
 
         query_key_value = self.c_attn(hidden_states)
         # queries: [batch_size, seq_len, n_embd]
         q = nn.emit_te(
-            te_slice,
-            query_key_value,
-            0,
-            self.n_embd,
-            primfunc_name_hint="slice"
+            te_slice, query_key_value, 0, self.n_embd, primfunc_name_hint="slice"
         )
         # keys: [batch_size, seq_len, head_dim]
         k = nn.emit_te(
@@ -209,20 +208,20 @@ class GPTBigCodeAttention(nn.Module):
             query_key_value,
             self.n_embd,
             self.n_embd + self.head_dim,
-            primfunc_name_hint="slice"
+            primfunc_name_hint="slice",
         )
         # values: [batch_size, seq_len, head_dim]
         v = nn.emit_te(
             te_slice,
             query_key_value,
             self.n_embd + self.head_dim,
-            self.n_embd + 2*self.head_dim,
-            primfunc_name_hint="slice"
+            self.n_embd + 2 * self.head_dim,
+            primfunc_name_hint="slice",
         )
 
         squeezed_k = nn.emit(squeeze(k, axis=0))
         squeezed_v = nn.emit(squeeze(v, axis=0))
-        
+
         assert k.struct_info.shape[0] == 1 and v.struct_info.shape[0] == 1
 
         k_cache, v_cache = past_key_value
@@ -271,10 +270,7 @@ class GPTBigCodeAttention(nn.Module):
         # Calculate Q.K
         attn_weights = nn.emit(
             matmul(q, permute_dims(k, [0, 2, 1]))
-            / relax.const(
-                math.sqrt(self.head_dim),
-                q.struct_info.dtype
-            )
+            / relax.const(math.sqrt(self.head_dim), q.struct_info.dtype)
         )
 
         # Apply attention mask
@@ -283,8 +279,8 @@ class GPTBigCodeAttention(nn.Module):
                 attn_weights,
                 relax.const(
                     tvm.tir.min_value(attn_weights.struct_info.dtype).value,
-                    attn_weights.struct_info.dtype
-                )
+                    attn_weights.struct_info.dtype,
+                ),
             )
         )
         attn_shape = R.shape([batch_size, seq_len, self.n_head, kv_seq_len])
@@ -329,7 +325,7 @@ class GPTBigCodeMLP(nn.Module):
         hidden_states = self.c_fc(hidden_states)
         hidden_states = nn.emit(gelu(hidden_states))
         hidden_states = self.c_proj(hidden_states)
-        
+
         return hidden_states
 
 
@@ -338,14 +334,10 @@ class GPTBigCodeBlock(nn.Module):
         self.dtype = config.dtype
 
         self.ln_1 = LayerNorm(
-            hidden_size=config.n_embd,
-            dtype=config.dtype,
-            eps=config.layer_norm_epsilon
+            hidden_size=config.n_embd, dtype=config.dtype, eps=config.layer_norm_epsilon
         )
         self.ln_2 = LayerNorm(
-            hidden_size=config.n_embd,
-            dtype=config.dtype,
-            eps=config.layer_norm_epsilon
+            hidden_size=config.n_embd, dtype=config.dtype, eps=config.layer_norm_epsilon
         )
 
         self.attn = GPTBigCodeAttention(config)
@@ -356,14 +348,11 @@ class GPTBigCodeBlock(nn.Module):
         hidden_states,
         all_seq_len_shape: relax.Expr,
         past_key_value: Tuple[relax.Expr],
-        attention_mask: Optional[relax.Expr] = None
+        attention_mask: Optional[relax.Expr] = None,
     ):
         attn_input = self.ln_1(hidden_states)
         attn_output, present_key_value = self.attn(
-            attn_input,
-            all_seq_len_shape,
-            past_key_value,
-            attention_mask
+            attn_input, all_seq_len_shape, past_key_value, attention_mask
         )
 
         # residual connection
@@ -383,28 +372,24 @@ class GPTBigCodeModel(nn.Module):
         self.wte = Embedding(
             num_embeddings=config.vocab_size,
             embedding_dim=config.n_embd,
-            dtype=config.dtype
+            dtype=config.dtype,
         )
         self.wpe = Embedding(
             num_embeddings=config.n_positions,
             embedding_dim=config.n_embd,
-            dtype=config.dtype
+            dtype=config.dtype,
         )
 
-        self.h = ModuleList(
-            [GPTBigCodeBlock(config) for _ in range(config.n_layer)]
-        )
+        self.h = ModuleList([GPTBigCodeBlock(config) for _ in range(config.n_layer)])
         self.ln_f = LayerNorm(
-            hidden_size=config.n_embd,
-            dtype=config.dtype,
-            eps=config.layer_norm_epsilon
+            hidden_size=config.n_embd, dtype=config.dtype, eps=config.layer_norm_epsilon
         )
 
     def forward(
         self,
         input_ids: relax.Expr,
         all_seq_len_shape: relax.Expr,
-        past_key_values: relax.Expr
+        past_key_values: relax.Expr,
     ):
         batch_size, seq_length = input_ids.struct_info.shape
         seq_length_with_past = all_seq_len_shape.struct_info.values[0]
@@ -414,9 +399,7 @@ class GPTBigCodeModel(nn.Module):
 
         # Position Embeddings
         offset = seq_length_with_past - seq_length
-        hidden_states = apply_position_embedding(
-            t_embd, self.wpe.weight, offset=offset
-        )
+        hidden_states = apply_position_embedding(t_embd, self.wpe.weight, offset=offset)
 
         attention_mask = _prepare_decoder_attention_mask(
             (batch_size, seq_length),
@@ -459,7 +442,7 @@ class GPTBigCodeForCausalLM(nn.Module):
         self,
         input_ids: relax.Expr,
         all_seq_len_shape: relax.Expr,
-        past_key_values: relax.Expr
+        past_key_values: relax.Expr,
     ):
         hidden_states, key_value_cache = self.transformer(
             input_ids=input_ids,
@@ -491,14 +474,36 @@ class GPTBigCodeForCausalLM(nn.Module):
         return logits, key_value_cache
 
 
-def create_encoding_func(bb: relax.BlockBuilder, config: GPTBigCodeConfig) -> Dict[int, str]:
+def get_param_quant_kind(
+    name: str, param_info: relax.TensorStructInfo
+) -> ParamQuantKind:
+    if "wte.weight" in name:
+        return ParamQuantKind.embedding_table
+    elif "lm_head.weight" in name:
+        return ParamQuantKind.final_fc_weight
+    elif "wpe" not in name and param_info.ndim == 2 and name.endswith(".weight"):
+        return ParamQuantKind.linear_weight
+    else:
+        return ParamQuantKind.others
+
+
+def create_encoding_func(
+    bb: relax.BlockBuilder,
+    param_manager: ParamManager,
+    config: GPTBigCodeConfig,
+    quant_scheme: QuantizationScheme,
+) -> None:
+    func_name = "prefill"
+
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.Var("n", "int64")
     all_seq_len = tvm.tir.Var("m", "int64")
-    pidx2pname: Dict[int, str] = {}
-
-    with bb.function("prefill"):
+    with bb.function(func_name):
         model = GPTBigCodeForCausalLM(config)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
         input_ids = nn.Placeholder(
             (batch_size, seq_len), dtype="int32", name="input_ids"
         )
@@ -509,7 +514,7 @@ def create_encoding_func(bb: relax.BlockBuilder, config: GPTBigCodeConfig) -> Di
             "kv_cache",
             relax.TupleStructInfo(
                 [relax.ObjectStructInfo() for _ in range(config.n_layer * 2)]
-            )
+            ),
         )
 
         with bb.dataflow():
@@ -523,27 +528,32 @@ def create_encoding_func(bb: relax.BlockBuilder, config: GPTBigCodeConfig) -> Di
                 all_seq_len_shape,
                 past_key_values,
             ] + model.parameters()
-            named_params = named_parameters(model)
-            for i, (name, param) in enumerate(named_params.items()):
-                pidx2pname[i] = name
-                assert param.same_as(params[i + 3])
 
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
         bb.emit_func_output(gv, params)
     mod = bb.get()
-    gv = mod.get_global_var("prefill")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
-    return pidx2pname
 
+def create_decoding_func(
+    bb: relax.BlockBuilder,
+    param_manager: ParamManager,
+    config: GPTBigCodeConfig,
+    quant_scheme: QuantizationScheme,
+) -> None:
+    func_name = "decode"
 
-def create_decoding_func(bb: relax.BlockBuilder, config: GPTBigCodeConfig) -> None:
     bsz = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.IntImm("int64", 1)
     all_seq_len = tvm.tir.Var("n", "int64")
 
-    with bb.function("decode"):
+    with bb.function(func_name):
         model = GPTBigCodeForCausalLM(config)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
         input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
         all_seq_len_shape = relax.Var(
             "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
@@ -569,7 +579,7 @@ def create_decoding_func(bb: relax.BlockBuilder, config: GPTBigCodeConfig) -> No
         bb.emit_func_output(gv, params)
 
     mod = bb.get()
-    gv = mod.get_global_var("decode")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
 
@@ -618,9 +628,9 @@ def get_model(args: argparse.Namespace, hf_config):
     max_seq_len = args.max_seq_len
 
     if (
-       model.startswith("starcoder")
-       or model.startswith("WizardCoder-")
-       or model.startswith("gpt_bigcode")
+        model.startswith("starcoder")
+        or model.startswith("WizardCoder-")
+        or model.startswith("gpt_bigcode")
     ):
         config = GPTBigCodeConfig(
             **hf_config,
@@ -631,16 +641,17 @@ def get_model(args: argparse.Namespace, hf_config):
         elif config.max_sequence_length is None:
             config.max_sequence_length = 2048
 
+        param_manager = ParamManager()
         bb = relax.BlockBuilder()
-        pidx2pname = create_encoding_func(bb, config)
-        create_decoding_func(bb, config)
+        create_encoding_func(bb, param_manager, config, args.quantization)
+        create_decoding_func(bb, param_manager, config, args.quantization)
         create_kv_cache_func(bb, config)
         create_softmax_func(bb, config)
         create_metadata_func(
             bb,
             model_name=model,
             max_window_size=config.max_sequence_length,
-            stop_tokens=[0,],
+            stop_tokens=[0],
             add_prefix_space=False,
         )
 
@@ -652,10 +663,11 @@ def get_model(args: argparse.Namespace, hf_config):
                     "tir_var_upper_bound",
                     {
                         "n": config.max_sequence_length,
-                        "m": config.max_sequence_length
-                    }
+                        "m": config.max_sequence_length,
+                    },
                 )
 
+        mod, pidx2pname = param_manager.quantization_transform(mod)
         pname2binname = load_torch_pname2binname_map(
             args.model_path, set(pidx2pname.values())
         )
