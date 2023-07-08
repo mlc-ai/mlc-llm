@@ -438,7 +438,7 @@ def main():
             mod, params = gpt_bigcode.get_model(ARGS, config)
         elif ARGS.model_category == "minigpt":
             mod, params = minigpt.get_model(ARGS)
-        elif ARGS.model_category == "moss":
+        elif ARGS.model_category == "gptj":
             mod, params = gptj.get_model(ARGS, config)
         elif ARGS.model_category == "rwkv":
             mod, params = rwkv.get_model(ARGS, config)

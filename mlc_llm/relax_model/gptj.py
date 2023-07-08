@@ -96,7 +96,7 @@ class GPTJMLP(nn.Module):
         if hidden_states.struct_info.dtype != self.dtype:
             hidden_states = nn.emit(astype(hidden_states, self.dtype))
         hidden_states = self.fc_in(hidden_states)
-        hidden_states = gelu(hidden_states)
+        hidden_states = nn.emit(gelu(hidden_states))
         if hidden_states.struct_info.dtype != self.dtype:
             hidden_states = nn.emit(astype(hidden_states, self.dtype))
         hidden_states = self.fc_out(hidden_states)
@@ -340,6 +340,7 @@ class GPTJModel(nn.Module):
     def __init__(
         self,
         config: GPTJConfig,
+        sep_embed: bool = False,
     ):
         rotary_embedding = RotaryEmbedding(
             hidden_size=config.hidden_size,
@@ -350,11 +351,13 @@ class GPTJModel(nn.Module):
             swizzle_style="gptj",
             dtype=config.dtype,
         )
-        self.wte = Embedding(
-            num_embeddings=config.vocab_size,
-            embedding_dim=config.hidden_size,
-            dtype=config.dtype,
-        )
+        self.wte = None
+        if not sep_embed:
+            self.wte = Embedding(
+                num_embeddings=config.vocab_size,
+                embedding_dim=config.hidden_size,
+                dtype=config.dtype,
+            )
         self.h = ModuleList(
             [
                 GPTJLayer(
@@ -376,14 +379,14 @@ class GPTJModel(nn.Module):
 
     def forward(
         self,
-        input_ids: relax.Expr,
+        inputs: relax.Expr,
         all_seq_len_shape: relax.Expr,
         past_key_values: Optional[Tuple[relax.Expr, relax.Expr]],
     ):
-        batch_size, seq_length = input_ids.struct_info.shape
+        batch_size, seq_length = inputs.struct_info.shape
         seq_length_with_past = all_seq_len_shape.struct_info.values[0]
         # embed positions
-        hidden_states = self.wte(input_ids)
+        hidden_states = self.wte(inputs) if self.wte is not None else inputs
         attention_mask = _prepare_decoder_attention_mask(
             (batch_size, seq_length),
             seq_length_with_past,
@@ -412,8 +415,9 @@ class GPTJForCausalLM(nn.Module):
     def __init__(
         self,
         config: GPTJConfig,
+        sep_embed: bool = False,
     ):
-        self.transformer = GPTJModel(config)
+        self.transformer = GPTJModel(config, sep_embed)
         self.lm_head = Linear(
             in_features=config.hidden_size,
             out_features=config.vocab_size,
@@ -424,12 +428,12 @@ class GPTJForCausalLM(nn.Module):
 
     def forward(
         self,
-        input_ids: relax.Expr,
+        inputs: relax.Expr,
         all_seq_len_shape: relax.Expr,
         past_key_values: Optional[List[relax.Expr]],
     ):
         hidden_states, key_value_cache = self.transformer(
-            input_ids=input_ids,
+            inputs=inputs,
             all_seq_len_shape=all_seq_len_shape,
             past_key_values=past_key_values,
         )
@@ -640,8 +644,6 @@ def get_model(args, hf_config):
     if max_seq_len != -1:
         config.max_sequence_length = max_seq_len
 
-    print(hf_config)
-
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
     if sep_embed:
@@ -688,6 +690,7 @@ def get_model(args, hf_config):
     head_dim = hidden_size // num_heads
 
     def f_convert_param_bkwd(torch_pname: str, raw_param) -> str:
+        print(torch_pname)
         if torch_pname.endswith("qkv_proj.weight"):
             assert raw_param.ndim == 2
             mp_num = 4
