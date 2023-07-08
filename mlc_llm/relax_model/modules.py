@@ -1,5 +1,5 @@
 # pylint: disable=missing-docstring,invalid-name
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 from tvm import relax, te, tir
@@ -117,13 +117,17 @@ class RotaryEmbedding(nn.Module):
         num_attention_heads: int,
         position_embedding_base: int,
         max_sequence_length: int,
-        rotary_pct: float,
+        rotary_pct: Optional[float] = None,
+        rotary_dim: Optional[int] = None,
         swizzle_style: str = "neox",
         dtype: str = "float32",
     ):
         super().__init__()
         head_dim = hidden_size // num_attention_heads
-        rotary_ndim = int(head_dim * rotary_pct)
+        if rotary_dim is not None:
+            rotary_ndim = rotary_dim
+        else:
+            rotary_ndim = int(head_dim * rotary_pct)
         inv_freq = 1.0 / (
             position_embedding_base
             ** (np.arange(0, rotary_ndim, 2).astype("float32") / rotary_ndim)

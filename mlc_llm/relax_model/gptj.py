@@ -16,7 +16,7 @@ from tvm.relax.op import (
     squeeze,
     triu,
 )
-from tvm.relax.op.nn import gelu, relu, silu, softmax
+from tvm.relax.op.nn import gelu, softmax
 from tvm.relax.testing import nn
 from tvm.runtime import NDArray
 from tvm.script import relax as R
@@ -48,20 +48,18 @@ def _max_value(dtype) -> relax.Expr:
 
 
 @dataclass
-class MossConfig:  # pylint: disable=too-many-instance-attributes
+class GPTJConfig:  # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
         vocab_size,
-        hidden_size,
-        intermediate_size,
-        num_attention_heads,
-        num_hidden_layers,
+        n_embd,
+        n_inner,
+        n_head,
+        n_layer,
         bos_token_id,
         eos_token_id,
-        rotary_pct,
+        rotary_dim,
         tie_word_embeddings,
-        hidden_act,
-        swizzle_style,
         dtype="float32",
         layer_norm_eps=1e-5,
         max_sequence_length=2048,
@@ -69,16 +67,14 @@ class MossConfig:  # pylint: disable=too-many-instance-attributes
         **kwargs,
     ):
         self.vocab_size = vocab_size
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.num_attention_heads = num_attention_heads
-        self.num_hidden_layers = num_hidden_layers
+        self.hidden_size = n_embd
+        self.intermediate_size = n_inner if n_inner is not None else 4 * n_embd
+        self.num_attention_heads = n_head
+        self.num_hidden_layers = n_layer
         self.bos_token_id = bos_token_id
         self.eos_token_id = eos_token_id
-        self.rotary_pct = rotary_pct
+        self.rotary_dim = rotary_dim
         self.tie_word_embeddings = tie_word_embeddings
-        self.hidden_act = hidden_act
-        self.swizzle_style = swizzle_style
         self.dtype = dtype
         self.layer_norm_eps = layer_norm_eps
         self.max_sequence_length = max_sequence_length
@@ -86,64 +82,27 @@ class MossConfig:  # pylint: disable=too-many-instance-attributes
         self.kwargs = kwargs
 
 
-def gelu_new(x):
-    def _gelu_new(x: te.Tensor):
-        return te.compute(
-            shape=x.shape,
-            fcompute=lambda i, j, k: 0.5
-            * x[i, j, k]
-            * (
-                1.0
-                + te.tanh(
-                    math.sqrt(2.0 / math.pi)
-                    * (x[i, j, k] + 0.044715 * te.power(x[i, j, k], 3.0))
-                )
-            ),
-            name="gelu_new",
-        )
-
-    return nn.emit_te(
-        _gelu_new,
-        x,
-        primfunc_name_hint="gelu_new",
-    )
-
-
-def act2fn(act_name: str):
-    if act_name == "relu":
-        return relu
-    elif act_name == "gelu":
-        return gelu
-    elif act_name == "gelu_new":
-        return gelu_new
-    elif act_name == "silu":
-        return silu
-    else:
-        raise KeyError("Unregonized activation func: {act_name}")
-
-
-class MossMLP(nn.Module):
+class GPTJMLP(nn.Module):
     def __init__(
-        self, hidden_size: int, intermediate_size: int, hidden_act: str, dtype: str
+        self, hidden_size: int, intermediate_size: int, dtype: str
     ):
         super().__init__()
         self.fc_in = Linear(hidden_size, intermediate_size, dtype, bias=True)
         self.fc_out = Linear(intermediate_size, hidden_size, dtype, bias=True)
-        self.act = act2fn(hidden_act)
         self.dtype = dtype
 
     def forward(self, hidden_states):
         if hidden_states.struct_info.dtype != self.dtype:
             hidden_states = nn.emit(astype(hidden_states, self.dtype))
         hidden_states = self.fc_in(hidden_states)
-        hidden_states = self.act(hidden_states)
+        hidden_states = gelu(hidden_states)
         if hidden_states.struct_info.dtype != self.dtype:
             hidden_states = nn.emit(astype(hidden_states, self.dtype))
         hidden_states = self.fc_out(hidden_states)
         return nn.emit(hidden_states)
 
 
-class MossAttention(nn.Module):
+class GPTJAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
     def __init__(
@@ -279,7 +238,7 @@ class MossAttention(nn.Module):
         return attn_output, past_key_value
 
 
-class MossLayer(nn.Module):
+class GPTJLayer(nn.Module):
     def __init__(
         self,
         hidden_size: int,
@@ -287,7 +246,6 @@ class MossLayer(nn.Module):
         layer_norm_eps: float,
         num_heads: int,
         rotary_embedding: RotaryEmbedding,
-        hidden_act: str,
         dtype: str,
     ):
         self.ln_1 = LayerNorm(
@@ -295,16 +253,15 @@ class MossLayer(nn.Module):
             eps=layer_norm_eps,
             dtype=dtype,
         )
-        self.attn = MossAttention(
+        self.attn = GPTJAttention(
             hidden_size,
             num_heads=num_heads,
             rotary_embedding=rotary_embedding,
             dtype=dtype,
         )
-        self.mlp = MossMLP(
+        self.mlp = GPTJMLP(
             hidden_size,
             intermediate_size=intermediate_size,
-            hidden_act=hidden_act,
             dtype=dtype,
         )
         self.dtype = dtype
@@ -357,18 +314,18 @@ def _prepare_decoder_attention_mask(input_shape, src_len, dtype):
     return nn.emit(mask)
 
 
-class MossModel(nn.Module):
+class GPTJModel(nn.Module):
     def __init__(
         self,
-        config: MossConfig,
+        config: GPTJConfig,
     ):
         rotary_embedding = RotaryEmbedding(
             hidden_size=config.hidden_size,
             num_attention_heads=config.num_attention_heads,
             position_embedding_base=config.rotary_emb_base,
             max_sequence_length=config.max_sequence_length,
-            rotary_pct=config.rotary_pct,
-            swizzle_style=config.swizzle_style,
+            rotary_dim=config.rotary_dim,
+            swizzle_style="gptj",
             dtype=config.dtype,
         )
         self.wte = Embedding(
@@ -378,13 +335,12 @@ class MossModel(nn.Module):
         )
         self.h = ModuleList(
             [
-                MossLayer(
+                GPTJLayer(
                     hidden_size=config.hidden_size,
                     intermediate_size=config.intermediate_size,
                     layer_norm_eps=config.layer_norm_eps,
                     num_heads=config.num_attention_heads,
                     rotary_embedding=rotary_embedding,
-                    hidden_act=config.hidden_act,
                     dtype=config.dtype,
                 )
                 for _ in range(config.num_hidden_layers)
@@ -430,12 +386,12 @@ class MossModel(nn.Module):
         return hidden_states, present_kv_cache
 
 
-class MossForCausalLM(nn.Module):
+class GPTJForCausalLM(nn.Module):
     def __init__(
         self,
-        config: MossConfig,
+        config: GPTJConfig,
     ):
-        self.transformer = MossModel(config)
+        self.transformer = GPTJModel(config)
         self.lm_head = Linear(
             in_features=config.hidden_size,
             out_features=config.vocab_size,
@@ -494,14 +450,14 @@ def check_parameters(param_dict, param_list):
 
 def create_encoding_func(
     bb: relax.BlockBuilder,
-    config: MossConfig,
+    config: GPTJConfig,
     ordered_params: List,
 ) -> None:
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.Var("n", "int64")
     all_seq_len = tvm.tir.Var("m", "int64")
     with bb.function("prefill"):
-        model = MossForCausalLM(config)
+        model = GPTJForCausalLM(config)
         input_ids = nn.Placeholder(
             (batch_size, seq_len), dtype="int32", name="input_ids"
         )
@@ -538,14 +494,14 @@ def create_encoding_func(
 
 def create_decoding_func(
     bb: relax.BlockBuilder,
-    config: MossConfig,
+    config: GPTJConfig,
     ordered_params: List,
 ) -> None:
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.IntImm("int64", 1)
     all_seq_len = tvm.tir.Var("n", "int64")
     with bb.function("decode"):
-        model = MossForCausalLM(config)
+        model = GPTJForCausalLM(config)
         input_ids = nn.Placeholder(
             (batch_size, seq_len), dtype="int32", name="input_ids"
         )
@@ -586,10 +542,11 @@ def get_model(args, hf_config):
 
     model_name = args.model
     model_path = args.model_path
-    dtype = args.quantization.dtype
+    dtype = args.quantization.model_dtype
     max_seq_len = args.max_seq_len
 
-    config = MossConfig(**hf_config, dtype=dtype)
+    print(hf_config)
+    config = GPTJConfig(**hf_config, dtype=dtype)
     if max_seq_len != -1:
         config.max_sequence_length = max_seq_len
     num_heads = config.num_attention_heads
@@ -618,10 +575,10 @@ def get_model(args, hf_config):
         else:
             param_list.append((name, param))
 
-        del hf_model
-        param_list = [
-            (name, tvm.nd.array(param, tvm.cpu())) for name, param in param_list
-        ]
+    del hf_model
+    param_list = [
+        (name, tvm.nd.array(param, tvm.cpu())) for name, param in param_list
+    ]
 
     bb = relax.BlockBuilder()
     create_encoding_func(bb, config, param_list)
@@ -645,5 +602,14 @@ def get_model(args, hf_config):
                     "m": config.max_sequence_length,
                 },
             )
+    
+    pname2binname = load_torch_pname2binname_map(
+        args.model_path, set(pidx2pname.values()), f_convert_pname_fwd
+    )
 
-    return mod, [v for _, v in param_list]
+    args.pidx2pname = pidx2pname
+    args.pname2binname = pname2binname
+    args.f_convert_pname_fwd = f_convert_pname_fwd
+    args.f_convert_param_bkwd = f_convert_param_bkwd
+
+    return mod, [None] * len(pidx2pname)

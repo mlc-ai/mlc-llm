@@ -79,7 +79,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "stablelm-": ("stablelm", "gpt_neox"),
         "redpajama-": ("redpajama_chat", "gpt_neox"),
         "minigpt": ("minigpt", "minigpt"),
-        "moss-": ("moss", "moss"),
+        "moss-": ("moss", "gptj"),
         "open_llama": ("LM", "llama"),
         "rwkv-": ("rwkv", "rwkv"),
         "gorilla-": ("gorilla", "llama"),
