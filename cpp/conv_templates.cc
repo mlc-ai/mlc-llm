@@ -337,6 +337,26 @@ Conversation CodeGPT() {
   return conv;
 }
 
+Conversation WizardLM() {
+  // 7B version; does not support multi-round; similar to ConvOneShot
+  Conversation conv;
+  conv.name = "wizardlm";
+  conv.system = "";
+  conv.roles = {"User", "Response"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"###"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2};
+  conv.stop_str = "###";
+  conv.add_bos = true;
+  return conv;
+}
+
 }  // namespace
 
 using ConvFactory = Conversation (*)();
@@ -356,6 +376,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"moss", MOSS},
       {"LM", VanillaLM},
       {"code_gpt", CodeGPT},
+      {"wizardlm", WizardLM},
   };
   auto it = factory.find(name);
   if (it == factory.end()) {

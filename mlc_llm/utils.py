@@ -86,6 +86,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "guanaco": ("guanaco", "llama"),
         "starcoder": ("code_gpt", "gpt_bigcode"),
         "wizardcoder-": ("code_gpt", "gpt_bigcode"),
+        "wizardlm-": ("wizardlm", "llama"),
         "gpt_bigcode-santacoder": ("code_gpt", "gpt_bigcode")
     }
     model = args.model.lower()
