@@ -238,7 +238,7 @@ MLC-LLM supports the following model architectures:
       * `Dolly <https://github.com/databrickslabs/dolly>`__
       * `Pythia <https://huggingface.co/EleutherAI/pythia-1.4b>`__
   * - ``gptj``
-    - `GPT-J <https://github.com/kingoflolz/mesh-transformer-jax>`__
+    - `GPT-J <https://huggingface.co/EleutherAI/gpt-j-6b>`__
     - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gptj.py>`__
     - * `MOSS <https://github.com/OpenLMLab/MOSS>`__
   * - ``rwkv``

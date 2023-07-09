@@ -637,6 +637,11 @@ def get_model(args, hf_config):
     max_seq_len = args.max_seq_len
     sep_embed = args.sep_embed
 
+    if model_name.startswith("gpt-j-"):
+        stop_tokens = [50256]
+    elif model_name.startswith("moss-"):
+        stop_tokens = [106068]
+
     config = GPTJConfig(**hf_config, dtype=dtype)
     if max_seq_len != -1:
         config.max_sequence_length = max_seq_len
@@ -653,7 +658,7 @@ def get_model(args, hf_config):
         bb,
         model_name=model_name,
         max_window_size=config.max_sequence_length,
-        stop_tokens=[106068],
+        stop_tokens=stop_tokens,
         add_prefix_space=True,
     )
     mod = bb.get()
