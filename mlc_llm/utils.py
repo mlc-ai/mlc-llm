@@ -61,9 +61,6 @@ supported_model_types = set(
 
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
-    with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
-        config = json.load(i_f)
-        args.model_category = config["model_type"]
     if hasattr(args, "device_name"):
         if args.device_name == "auto":
             if tvm.cuda().exist:
@@ -76,6 +73,26 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
                 args.device_name = "opencl"
             else:
                 raise ValueError("Cannot auto deduce device-name, please set it")
+
+    model_category_override = {
+        "moss-moon-003-sft": "gptj",
+        "moss-moon-003-base": "gptj",
+        "rwkv-": "rwkv",
+        "minigpt": "minigpt",
+    }
+    try:
+        with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
+            config = json.load(i_f)
+            args.model_category = config["model_type"]
+    except IOError as error:
+        pass
+    model = args.model.lower()
+    for prefix, override_category in model_category_override:
+        if model.startswith(prefix):
+            args.model_category = override_category
+            break
+    assert args.model_category is not None
+
     model_conv_templates = {
         "vicuna-": "vicuna_v1.1",
         "dolly-": "dolly",
@@ -83,7 +100,6 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "redpajama-": "redpajama_chat",
         "minigpt": "minigpt",
         "moss-moon-003-sft": "moss",
-        "moss-": "moss",
         "moss-moon-003-base": "LM",
         "gpt-j-": "LM",
         "open_llama": "LM",
@@ -95,7 +111,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "wizardlm-": "wizardlm",
         "gpt_bigcode-santacoder": "code_gpt",
     }
-    model = args.model.lower()
+
     for prefix, model_category in model_conv_templates.items():
         if model.startswith(prefix):
             args.conv_template = conv_template
