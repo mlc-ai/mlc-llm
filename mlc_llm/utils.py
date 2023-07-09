@@ -55,7 +55,9 @@ quantization_dict = {
     ),
 }
 
-supported_model_types = set(["llama", "gpt_neox", "gpt_bigcode", "moss", "rwkv"])
+supported_model_types = set(
+    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj"]
+)
 
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
@@ -79,12 +81,19 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "dolly-": "dolly",
         "stablelm-": "stablelm",
         "redpajama-": "redpajama_chat",
+        "minigpt": "minigpt",
+        "moss-moon-003-sft": "moss",
         "moss-": "moss",
+        "moss-moon-003-base": "LM",
+        "gpt-j-": "LM",
         "open_llama": "LM",
         "rwkv-": "rwkv",
         "gorilla-": "gorilla",
+        "guanaco": "guanaco",
         "starcoder": "code_gpt",
         "wizardcoder-": "code_gpt",
+        "wizardlm-": "wizardlm",
+        "gpt_bigcode-santacoder": "code_gpt",
     }
     model = args.model.lower()
     for prefix, model_category in model_conv_templates.items():
@@ -98,7 +107,6 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         if args.quantization in quantization_schemes
         else quantization_dict[args.quantization]
     )
-    print(args.conv_template)
 
 
 def split_transform_deploy_mod(

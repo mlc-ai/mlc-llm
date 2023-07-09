@@ -131,6 +131,12 @@ Once you have made the necessary changes, build the iOS app using Xcode.
 If you have an Apple Silicon Mac, you can select target "My Mac (designed for ipad)"
 to run on your Mac. You can also directly run it on your iPad or iPhone.
 
+.. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/xcode-build.jpg
+   :align: center
+   :width: 60%
+
+|
+
 Customize the App
 -----------------
 

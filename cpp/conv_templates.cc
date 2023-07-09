@@ -175,6 +175,27 @@ Conversation Gorilla() {
   return conv;
 }
 
+Conversation Guanaco() {
+  Conversation conv;
+  conv.name = "guanaco_v0";
+  conv.system =
+      ("A chat between a curious user and an artificial intelligence assistant. "
+       "The assistant gives helpful, detailed, and polite answers to the user's questions.");
+  conv.roles = {"USER", "ASSISTANT"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"\n", "</s>"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2};
+  conv.stop_str = "</s>";
+  conv.add_bos = true;
+  return conv;
+}
+
 Conversation Dolly() {
   Conversation conv;
   conv.name = "dolly";
@@ -238,6 +259,27 @@ Conversation StableLM() {
   // and remove eos from stop token setting.
   conv.stop_tokens = {50278, 50279, 50277, 1, 0};
   conv.stop_str = "";
+  conv.add_bos = true;
+  return conv;
+}
+
+Conversation MiniGPT() {
+  Conversation conv;
+  conv.name = "minigpt";
+  conv.system =
+      ("Give the following image: <Img>ImageContent</Img>. "
+       "You will be able to see the image once I provide it to you. Please answer my questions.");
+  conv.roles = {"Human", "Assistant"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"###"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {835, 2277, 29937};
+  conv.stop_str = "</s>";
   conv.add_bos = true;
   return conv;
 }
@@ -316,6 +358,26 @@ Conversation CodeGPT() {
   return conv;
 }
 
+Conversation WizardLM() {
+  // 7B version; does not support multi-round; similar to ConvOneShot
+  Conversation conv;
+  conv.name = "wizardlm";
+  conv.system = "";
+  conv.roles = {"User", "Response"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"###"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2};
+  conv.stop_str = "###";
+  conv.add_bos = true;
+  return conv;
+}
+
 }  // namespace
 
 using ConvFactory = Conversation (*)();
@@ -328,12 +390,15 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"redpajama_chat", RedPajamaChat},
       {"rwkv", RWKV},
       {"gorilla", Gorilla},
+      {"guanaco", Guanaco},
       {"dolly", Dolly},
       {"oasst", Oasst},
       {"stablelm", StableLM},
+      {"minigpt", MiniGPT},
       {"moss", MOSS},
       {"LM", VanillaLM},
       {"code_gpt", CodeGPT},
+      {"wizardlm", WizardLM},
   };
   auto it = factory.find(name);
   if (it == factory.end()) {
