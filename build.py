@@ -11,7 +11,7 @@ from tvm import relax
 
 import mlc_llm
 from mlc_llm import utils
-from mlc_llm.relax_model import gpt_bigcode, gpt_neox, llama, minigpt, moss, rwkv
+from mlc_llm.relax_model import gpt_bigcode, gpt_neox, llama, minigpt, gptj, rwkv
 
 
 def _parse_args():
@@ -438,8 +438,8 @@ def main():
             mod, params = gpt_bigcode.get_model(ARGS, config)
         elif ARGS.model_category == "minigpt":
             mod, params = minigpt.get_model(ARGS)
-        elif ARGS.model_category == "moss":
-            mod, params = moss.get_model(ARGS, config)
+        elif ARGS.model_category == "gptj":
+            mod, params = gptj.get_model(ARGS, config)
         elif ARGS.model_category == "rwkv":
             mod, params = rwkv.get_model(ARGS, config)
         else:

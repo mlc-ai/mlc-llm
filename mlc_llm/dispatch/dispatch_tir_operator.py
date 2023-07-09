@@ -21,6 +21,9 @@ class DispatchTIROperator:  # pylint: disable=too-few-public-methods
 
         elif model == "rwkv":
             lookup = None
+        
+        elif model == "gptj":
+            lookup = None
 
         else:
             raise ValueError(f"Model {model} not supported")

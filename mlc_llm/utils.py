@@ -56,7 +56,7 @@ quantization_dict = {
 }
 
 supported_model_types = set(
-    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv"]
+    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj"]
 )
 
 
@@ -79,7 +79,9 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "stablelm-": ("stablelm", "gpt_neox"),
         "redpajama-": ("redpajama_chat", "gpt_neox"),
         "minigpt": ("minigpt", "minigpt"),
-        "moss-": ("moss", "moss"),
+        "moss-moon-003-sft": ("moss", "gptj"),
+        "moss-moon-003-base": ("LM", "gptj"),
+        "gpt-j-": ("LM", "gptj"),
         "open_llama": ("LM", "llama"),
         "rwkv-": ("rwkv", "rwkv"),
         "gorilla-": ("gorilla", "llama"),
