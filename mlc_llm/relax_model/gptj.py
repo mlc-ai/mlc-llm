@@ -632,10 +632,7 @@ def create_softmax_func(bb: relax.BlockBuilder, config: GPTJConfig) -> None:
 
 
 def get_model(args, hf_config):
-    from transformers import AutoModelForCausalLM  # type: ignore[import]
-
     model_name = args.model
-    model_path = args.model_path
     dtype = args.quantization.model_dtype
     max_seq_len = args.max_seq_len
     sep_embed = args.sep_embed
@@ -699,12 +696,12 @@ def get_model(args, hf_config):
             k_weight = raw_param[:, 2, :, :].reshape(hidden_size, hidden_size)
             v_weight = raw_param[:, 1, :, :].reshape(hidden_size, hidden_size)
             return [
-                (torch_pname.replace("qkv_proj.weight", "q_proj.weight"), q_weight),
-                (torch_pname.replace("qkv_proj.weight", "k_proj.weight"), k_weight),
-                (torch_pname.replace("qkv_proj.weight", "v_proj.weight"), v_weight),
+                (torch_pname.replace("qkv_proj", "q_proj"), q_weight),
+                (torch_pname.replace("qkv_proj", "k_proj"), k_weight),
+                (torch_pname.replace("qkv_proj", "v_proj"), v_weight),
             ]
         if "ln_1" in torch_pname or "ln_f" in torch_pname:
-            return [(torch_pname), raw_param.astype("float32")]
+            return [(torch_pname, raw_param.astype("float32"))]
         else:
             return [(torch_pname, raw_param.astype(dtype))]
 
