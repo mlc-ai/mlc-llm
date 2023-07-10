@@ -87,7 +87,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
     except IOError as error:
         pass
     model = args.model.lower()
-    for prefix, override_category in model_category_override:
+    for prefix, override_category in model_category_override.items():
         if model.startswith(prefix):
             args.model_category = override_category
             break
@@ -112,7 +112,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "gpt_bigcode-santacoder": "code_gpt",
     }
 
-    for prefix, model_category in model_conv_templates.items():
+    for prefix, conv_template in model_conv_templates.items():
         if model.startswith(prefix):
             args.conv_template = conv_template
             break
