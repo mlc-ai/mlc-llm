@@ -29,7 +29,6 @@ const std::vector<std::string> quantization_presets = {"q3f16_0",  //
                                                        "q4f16_0",  //
                                                        "q4f32_0",  //
                                                        "q8f16_0",  //
-                                                       "q8f32_0",  //
                                                        "q0f16",    //
                                                        "q0f32"};
 

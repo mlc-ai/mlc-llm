@@ -48,7 +48,6 @@ def quantization_keys():
         "q4f16_1",
         "q4f32_0",
         "q8f16_0",
-        "q8f32_0",
         "q0f16",
         "q0f32",
     ]
