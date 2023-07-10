@@ -145,14 +145,12 @@ async def request_completion(request: CompletionRequest):
     """
     session["chat_mod"].reset_chat()
     prompt = request.prompt[0]
-    print(f"Got prompt {prompt}")
     session["chat_mod"].prefill(input=prompt)
 
     msg = None
     while not session["chat_mod"].stopped():
         session["chat_mod"].decode()
         msg = session["chat_mod"].get_message()
-    print(msg)
     return CompletionResponse(
         choices=[
             CompletionResponseChoice(
