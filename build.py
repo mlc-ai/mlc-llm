@@ -6,6 +6,7 @@ import pickle
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import tvm
+from tvm import dlight
 from tvm import meta_schedule as ms
 from tvm import relax
 
@@ -381,7 +382,12 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     debug_dump_script(mod_deploy, "mod_before_build.py", args)
     if target_kind != "cpu":
         db = utils.get_database(args.db_path)  # pylint: disable=invalid-name
-        with db, tvm.target.Target("apple/m1-gpu-restricted"):
+        dispatch_target = (
+            args.target
+            if args.target_kind != "webgpu"
+            else tvm.target.Target("apple/m1-gpu-restricted")
+        )
+        with db, dispatch_target:
             if args.target_kind == "android":
                 mod_deploy = mlc_llm.dispatch.DispatchTIROperatorAdreno()(  # pylint: disable=not-callable
                     mod_deploy
@@ -392,7 +398,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
                     args.model_category
                 )(mod_deploy)
             )
-            mod_deploy = tvm.tir.transform.DefaultGPUSchedule()(mod_deploy)
+            mod_deploy = dlight.ApplyDefaultSchedule(dlight.gpu.Fallback())(mod_deploy)
             mod_deploy = mlc_llm.transform.LiftTIRGlobalBufferAlloc()(mod_deploy)
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 
