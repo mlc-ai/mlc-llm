@@ -34,8 +34,8 @@ def _parse_args():
     args.add_argument(
         "--quantization",
         type=str,
-        choices=[*utils.quantization_dict.keys()],
-        default=list(utils.quantization_dict.keys())[0],
+        choices=[*utils.quantization_schemes.keys()],
+        default=list(utils.quantization_schemes.keys())[0],
     )
     args.add_argument("--max-seq-len", type=int, default=-1)
     args.add_argument("--target", type=str, default="auto")
@@ -298,24 +298,8 @@ def mod_transform_before_build(
         ]
         if ARGS.sep_embed:
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
+    assert "transform_params" in [gv.name_hint for gv in mod.get_global_vars()]
 
-    # Reassign `args.quantization` for compatibility of the old/new quantization framework.
-    # This will be cleaned after all model architecture transitioning to the new framework.
-    args.quantization = utils.quantization_dict[args.quantization.name]
-    if args.quantization.mode != "no":
-        if ARGS.model.startswith("rwkv-"):
-            mod = mlc_llm.transform.RWKVQuantize(  # pylint: disable=not-callable
-                mode=args.quantization.mode,
-                dtype=args.quantization.model_dtype,
-            )(mod)
-        else:
-            mod = mlc_llm.transform.GroupQuantize(  # pylint: disable=not-callable
-                group_size=40 if args.quantization.mode.endswith("3") else 32,
-                sym=args.quantization.sym,
-                mode=args.quantization.mode,
-                storage_nbit=args.quantization.storage_nbit,
-                dtype=args.quantization.model_dtype,
-            )(mod)
     mod = mlc_llm.transform.FuseDecodeTranspose()(mod)  # pylint: disable=not-callable
     mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
@@ -323,16 +307,8 @@ def mod_transform_before_build(
         args.quantization.name, args.target_kind
     )(mod)
     mod = mlc_llm.transform.FuseDecodeTake()(mod)
-    # Apply DCE differently for compatibility of the old/new quantization framework.
-    # This will be cleaned after all model architecture transitioning to the new framework.
-    if "transform_params" in [gv.name_hint for gv in mod.functions]:
-        mod = relax.transform.DeadCodeElimination(model_names + ["transform_params"])(
-            mod
-        )
-    else:
-        mod = relax.transform.DeadCodeElimination(model_names)(mod)
+    mod = relax.transform.DeadCodeElimination(model_names + ["transform_params"])(mod)
     mod = mlc_llm.transform.CleanUpTIRAttrs()(mod)
-    mod = relax.transform.LiftTransformParams()(mod)
     mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
 
     debug_dump_script(mod_transform, "mod_lift_params.py", args)

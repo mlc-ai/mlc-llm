@@ -3,7 +3,6 @@ import argparse
 import json
 import os
 import shutil
-from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import tvm
@@ -13,47 +12,6 @@ from tvm import relax
 from .quantization import quantization_schemes
 from .transform import ReorderTransformFunc
 
-
-@dataclass
-class Quantization:
-    """Class denoting the quantization options"""
-
-    name: str
-    mode: str
-    sym: bool
-    storage_nbit: int
-    model_dtype: str
-
-
-# Preset compilation modes (configuring quantization and model dtype).
-# The value tuple denotes
-# (quantization_mode, quantization_sym, quantization_storage_nbit, model_dtype)
-quantization_dict = {
-    "q3f16_0": Quantization(
-        name="q3f16_0", mode="int3", sym=True, storage_nbit=16, model_dtype="float16"
-    ),
-    "q4f16_0": Quantization(
-        name="q4f16_0", mode="int4", sym=True, storage_nbit=32, model_dtype="float16"
-    ),
-    "q4f16_1": Quantization(
-        name="q4f16_1", mode="int4", sym=True, storage_nbit=32, model_dtype="float16"
-    ),
-    "q4f32_0": Quantization(
-        name="q4f32_0", mode="int4", sym=False, storage_nbit=32, model_dtype="float32"
-    ),
-    "q8f16_0": Quantization(
-        name="q8f16_0", mode="uint8", sym=False, storage_nbit=-1, model_dtype="float16"
-    ),
-    "q8f32_0": Quantization(
-        name="q8f32_0", mode="uint8", sym=False, storage_nbit=-1, model_dtype="float32"
-    ),
-    "q0f16": Quantization(
-        name="q0f16", mode="no", sym=False, storage_nbit=-1, model_dtype="float16"
-    ),
-    "q0f32": Quantization(
-        name="q0f32", mode="no", sym=False, storage_nbit=-1, model_dtype="float32"
-    ),
-}
 
 supported_model_types = set(
     ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj"]
@@ -120,11 +78,10 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
             break
     else:
         args.conv_template = f"{args.model_category}_default"
-    args.quantization = (
-        quantization_schemes[args.quantization]
-        if args.quantization in quantization_schemes
-        else quantization_dict[args.quantization]
-    )
+
+    if args.quantization not in quantization_schemes:
+        raise ValueError(f'Quantization "{args.quantization}" is not supported.')
+    args.quantization = quantization_schemes[args.quantization]
 
 
 def split_transform_deploy_mod(
@@ -132,15 +89,7 @@ def split_transform_deploy_mod(
 ) -> Tuple[tvm.IRModule, tvm.IRModule]:
     mod_transform = tvm.IRModule()
     mod_deploy = tvm.IRModule()
-
-    transform_func_name = None
-    gv_names = [gv.name_hint for gv in mod.get_global_vars()]
-    for name in model_names:
-        if name + "_transform_params" in gv_names:
-            transform_func_name = name + "_transform_params"
-    if "transform_params" in gv_names:
-        transform_func_name = "transform_params"
-    assert transform_func_name is not None
+    transform_func_name = "transform_params"
 
     for gv in mod.functions:
         func = mod[gv]

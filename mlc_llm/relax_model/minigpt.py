@@ -9,6 +9,7 @@ from tvm.relax.testing import nn
 
 
 from ..quantization import ParamQuantKind, QuantizationScheme
+from .modules import ModuleList
 from .param_manager import ParamManager
 
 
@@ -189,9 +190,9 @@ class MiniGPTVisualEncoder(nn.Module):
             config.dtype,
         )
         self.num_blocks = config.visual_encoder_num_blocks
-        self.blocks = [
-            MiniGPTVisualEncoderBlock(config) for _ in range(self.num_blocks)
-        ]
+        self.blocks = ModuleList(
+            [MiniGPTVisualEncoderBlock(config) for _ in range(self.num_blocks)]
+        )
 
         self.ln_vision_weight = nn.Parameter(
             (self.embed_dim,), dtype=self.dtype, name="ln_vision_weight"
@@ -403,9 +404,9 @@ class MiniGPTQFormer(nn.Module):
             name="query_tokens",
         )
         self.embedding = MiniGPTEmbedding(config)
-        self.bert_layers = [
-            MiniGPTBertLayer(config, i % 2 == 0) for i in range(self.num_layers)
-        ]
+        self.bert_layers = ModuleList(
+            [MiniGPTBertLayer(config, i % 2 == 0) for i in range(self.num_layers)]
+        )
 
     def forward(self, image_embeds: relax.Expr):
         from tvm.relax.op import expand_dims, ones
@@ -510,6 +511,7 @@ def get_model(args):
         bb = relax.BlockBuilder()
         create_embed_func(bb, param_manager, config, args.quantization)
         mod = bb.get()
+        mod, _ = param_manager.quantization_transform(mod)
 
         # load visual encoder weights
         visual_encoder_url = "https://storage.googleapis.com/sfr-vision-language-research/LAVIS/models/BLIP2/eva_vit_g.pth"
