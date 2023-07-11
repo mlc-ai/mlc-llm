@@ -95,6 +95,9 @@ class FuseDecodeTranspose:
                         ),
                     ),
                 )
+                # Call `renew_defs` for deep-copy to avoid IR node duplication in
+                # different PrimFuncs of an IRModule.
+                new_func = tir.stmt_functor.renew_defs(new_func)
                 gv = self.builder_.add_func(new_func, func_name="decode")
                 decoded_matmul_rhs = self.builder_.emit(
                     relax.call_tir(
