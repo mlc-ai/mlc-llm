@@ -206,13 +206,13 @@ def validate_config(model_path: str):
         ), f"Model type {config['model_type']} not supported."
 
 
-def debug_dump_script(mod, name, args):
+def debug_dump_script(mod, name, args, show_meta=True):
     """Debug dump mode"""
     if not args.debug_dump:
         return
     dump_path = os.path.join(args.artifact_path, "debug", name)
     with open(dump_path, "w", encoding="utf-8") as outfile:
-        outfile.write(mod.script(show_meta=True))
+        outfile.write(mod.script(show_meta=show_meta))
     print(f"Dump mod to {dump_path}")
 
 
@@ -311,12 +311,17 @@ def mod_transform_before_build(
                     storage_nbit=args.quantization.storage_nbit,
                     dtype=args.quantization.model_dtype,
                 )(mod)
+    debug_dump_script(mod, "0.mod_quantized.py", args, False)
     mod = mlc_llm.transform.FuseDecodeTranspose()(mod)  # pylint: disable=not-callable
+    debug_dump_script(mod, "1.mod_FuseDecodeTranspose.py", args, False)
     mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
+    debug_dump_script(mod, "2.mod_FuseTransposeMatmul.py", args, False)
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
-    mod = mlc_llm.transform.FuseDecodeMatmulEwise(  # pylint: disable=not-callable
-        args.quantization.name, args.target_kind
-    )(mod)
+    debug_dump_script(mod, "3.get_pipeline.py", args, False)
+    # mod = mlc_llm.transform.FuseDecodeMatmulEwise(  # pylint: disable=not-callable
+    #     args.quantization.name, args.target_kind
+    # )(mod)
+    debug_dump_script(mod, "4.mod_FuseDecodeMatmulEwise.py", args, False)
     mod = mlc_llm.transform.FuseDecodeTake()(mod)
     # Apply DCE differently for compatibility of the old/new quantization framework.
     # This will be cleaned after all model architecture transitioning to the new framework.
@@ -330,8 +335,8 @@ def mod_transform_before_build(
     mod = relax.transform.LiftTransformParams()(mod)
     mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
 
-    debug_dump_script(mod_transform, "mod_lift_params.py", args)
-    debug_dump_script(mod_deploy, "mod_deploy.py", args)
+    debug_dump_script(mod_transform, "mod_lift_params.py", args, False)
+    debug_dump_script(mod_deploy, "mod_deploy.py", args, False)
 
     new_params = utils.transform_params(mod_transform, model_params, args)
     utils.save_params(new_params, args.artifact_path)
@@ -376,6 +381,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
 
     debug_dump_script(mod_deploy, "mod_before_build.py", args)
     if target_kind != "cpu":
+        print("Building for GPU, ", args.db_path)
         db = utils.get_database(args.db_path)  # pylint: disable=invalid-name
         with db, tvm.target.Target("apple/m1-gpu-restricted"):
             if args.target_kind == "android":
@@ -388,7 +394,9 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
                     args.model_category
                 )(mod_deploy)
             )
+            debug_dump_script(mod_deploy, "mod_MetaScheduleApplyDatabase.py", args, False)
             mod_deploy = tvm.tir.transform.DefaultGPUSchedule()(mod_deploy)
+            debug_dump_script(mod_deploy, "mod_DefaultGPUSchedule.py", args, False)
             mod_deploy = mlc_llm.transform.LiftTIRGlobalBufferAlloc()(mod_deploy)
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 

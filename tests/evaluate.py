@@ -91,15 +91,17 @@ def deploy_to_pipeline(args) -> None:
     )
     vm = relax.VirtualMachine(ex, device)
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        os.path.join(args.artifact_path, "params"), trust_remote_code=True
-    )
+    # tokenizer = AutoTokenizer.from_pretrained(
+    #     os.path.join(args.artifact_path, "params"), trust_remote_code=True
+    # )
 
-    print("Tokenizing...")
-    inputs = tvm.nd.array(
-        tokenizer(args.prompt, return_tensors="pt").input_ids.to(torch.int32).numpy(),
-        device,
-    )
+    # print("Tokenizing...")
+    # inputs = tvm.nd.array(
+    #     tokenizer(args.prompt, return_tensors="pt").input_ids.to(torch.int32).numpy(),
+    #     device,
+    # )
+    # fake inputs
+    inputs = tvm.nd.array(np.array([[6234, 6234, 6234, 6234, 6234, 6234, 6234]]).astype("int32"), device)
     first_sampled_token = tvm.nd.array(np.array([[6234]]).astype("int32"), device)
     seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1]])
     second_seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1] + 1])
