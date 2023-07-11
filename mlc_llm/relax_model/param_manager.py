@@ -184,11 +184,19 @@ class ParamManager:
                 "params", mod_transform["transform_params"].struct_info.ret
             )
 
+        # Cache mapping to avoid duplicate dequantization.
+        dequantized_cache: Dict[relax.Var, relax.Var] = {}
+
         # Define a var replacement function for applying dequantization.
         def f_replace(var: relax.Var, bb: relax.BlockBuilder) -> relax.Var:
+            if var in dequantized_cache:
+                return dequantized_cache[var]
+
             assert var in self.func_raw_param_map
             func_name, param = self.func_raw_param_map[var]
-            return self.dequantize(param, func2param_var[func_name], bb)
+            dequantized = self.dequantize(param, func2param_var[func_name], bb)
+            dequantized_cache[var] = dequantized
+            return dequantized
 
         # Create the function mutator for applying dequantization.
         replacer = ParamReplacer(mod, func2param_var, f_replace)
