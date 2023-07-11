@@ -365,6 +365,8 @@ def dump_default_mlc_chat_config(args):
     config["max_gen_len"] = 512
     config["shift_fill_factor"] = 0.3
     config["tokenizer_files"] = utils.get_tokenizer_files(params_path)
+    config["model_category"] = args.model_category
+    config["model_name"] = args.model
 
     dump_path = os.path.join(params_path, "mlc-chat-config.json")
     with open(dump_path, "w", encoding="utf-8") as outfile:

@@ -6,6 +6,28 @@
 namespace mlc {
 namespace llm {
 namespace {
+
+Conversation LlamaDefault() {
+  Conversation conv;
+  conv.name = "llama_default";
+  conv.system =
+      ("A chat between a curious user and an artificial intelligence assistant. "
+       "The assistant gives helpful, detailed, and polite answers to the user's questions.");
+  conv.roles = {"USER", "ASSISTANT"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"\n", "</s>"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2};
+  conv.stop_str = "</s>";
+  conv.add_bos = true;
+  return conv;
+}
+
 Conversation VicunaV11() {
   Conversation conv;
   conv.name = "vicuna_v1.1";
@@ -363,6 +385,7 @@ using ConvFactory = Conversation (*)();
 
 Conversation Conversation::FromTemplate(const std::string& name) {
   static std::unordered_map<std::string, ConvFactory> factory = {
+      {"llama_default", LlamaDefault},
       {"vicuna_v1.1", VicunaV11},
       {"conv_one_shot", ConvOneShot},
       {"redpajama_chat", RedPajamaChat},

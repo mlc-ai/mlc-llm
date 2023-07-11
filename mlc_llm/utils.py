@@ -73,35 +73,51 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
                 args.device_name = "opencl"
             else:
                 raise ValueError("Cannot auto deduce device-name, please set it")
-    supported_model_prefix = {
-        "vicuna-": ("vicuna_v1.1", "llama"),
-        "dolly-": ("dolly", "gpt_neox"),
-        "stablelm-": ("stablelm", "gpt_neox"),
-        "redpajama-": ("redpajama_chat", "gpt_neox"),
-        "minigpt": ("minigpt", "minigpt"),
-        "moss-moon-003-sft": ("moss", "gptj"),
-        "moss-moon-003-base": ("LM", "gptj"),
-        "gpt-j-": ("LM", "gptj"),
-        "open_llama": ("LM", "llama"),
-        "rwkv-": ("rwkv", "rwkv"),
-        "gorilla-": ("gorilla", "llama"),
-        "guanaco": ("guanaco", "llama"),
-        "starcoder": ("code_gpt", "gpt_bigcode"),
-        "wizardcoder-": ("code_gpt", "gpt_bigcode"),
-        "wizardlm-": ("wizardlm", "llama"),
-        "gpt_bigcode-santacoder": ("code_gpt", "gpt_bigcode")
+
+    model_category_override = {
+        "moss-moon-003-sft": "gptj",
+        "moss-moon-003-base": "gptj",
+        "rwkv-": "rwkv",
+        "minigpt": "minigpt",
     }
+    try:
+        with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
+            config = json.load(i_f)
+            args.model_category = config["model_type"]
+    except IOError as error:
+        pass
     model = args.model.lower()
-    for prefix, (conv_template, model_category) in supported_model_prefix.items():
+    for prefix, override_category in model_category_override.items():
+        if model.startswith(prefix):
+            args.model_category = override_category
+            break
+    assert args.model_category is not None
+
+    model_conv_templates = {
+        "vicuna-": "vicuna_v1.1",
+        "dolly-": "dolly",
+        "stablelm-": "stablelm",
+        "redpajama-": "redpajama_chat",
+        "minigpt": "minigpt",
+        "moss-moon-003-sft": "moss",
+        "moss-moon-003-base": "LM",
+        "gpt-j-": "LM",
+        "open_llama": "LM",
+        "rwkv-": "rwkv",
+        "gorilla-": "gorilla",
+        "guanaco": "guanaco",
+        "starcoder": "code_gpt",
+        "wizardcoder-": "code_gpt",
+        "wizardlm-": "wizardlm",
+        "gpt_bigcode-santacoder": "code_gpt",
+    }
+
+    for prefix, conv_template in model_conv_templates.items():
         if model.startswith(prefix):
             args.conv_template = conv_template
-            args.model_category = model_category
             break
     else:
-        raise ValueError(
-            f'Cannot recognize model "{args.model}". '
-            f'Supported ones: {", ".join(supported_model_prefix.keys())}'
-        )
+        args.conv_template = f'{args.model_category}_default'
     args.quantization = (
         quantization_schemes[args.quantization]
         if args.quantization in quantization_schemes

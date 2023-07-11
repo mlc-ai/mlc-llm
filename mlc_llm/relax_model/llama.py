@@ -770,80 +770,69 @@ def get_model(args, hf_config):
     max_seq_len = args.max_seq_len
     sep_embed = args.sep_embed
 
-    supported_model_name = model_name.lower()
-    if (
-        supported_model_name.startswith("vicuna-")
-        or supported_model_name.startswith("llama-")
-        or supported_model_name.startswith("open_llama")
-        or supported_model_name.startswith("gorilla-")
-        or supported_model_name.startswith("guanaco")
-        or supported_model_name.startswith("wizardlm-")
-    ):
-        config = LlamaConfig(**hf_config, dtype=dtype)
-        if max_seq_len != -1:
-            config.max_sequence_length = max_seq_len
+    config = LlamaConfig(**hf_config, dtype=dtype)
+    if max_seq_len != -1:
+        config.max_sequence_length = max_seq_len
 
-        param_manager = ParamManager()
-        bb = relax.BlockBuilder()
-        if sep_embed:
-            create_embed_func(bb, param_manager, config, args.quantization)
-        create_encoding_func(bb, param_manager, config, args.quantization, sep_embed)
-        create_decoding_func(bb, param_manager, config, args.quantization)
-        create_kv_cache_func(bb, config)
-        create_softmax_func(bb, config)
-        create_metadata_func(
-            bb,
-            model_name=model_name,
-            max_window_size=config.max_sequence_length,
-            stop_tokens=[2],
-            add_prefix_space=False,
-        )
+    param_manager = ParamManager()
+    bb = relax.BlockBuilder()
+    if sep_embed:
+        create_embed_func(bb, param_manager, config, args.quantization)
+    create_encoding_func(bb, param_manager, config, args.quantization, sep_embed)
+    create_decoding_func(bb, param_manager, config, args.quantization)
+    create_kv_cache_func(bb, config)
+    create_softmax_func(bb, config)
+    create_metadata_func(
+        bb,
+        model_name=model_name,
+        max_window_size=config.max_sequence_length,
+        stop_tokens=[2],
+        add_prefix_space=False,
+    )
 
-        mod = bb.get()
-        for gv in mod.functions:
-            func = mod[gv]
-            if isinstance(func, relax.Function):
-                mod[gv] = func.with_attr(
-                    "tir_var_upper_bound",
-                    {
-                        "n": config.max_sequence_length,
-                        "m": config.max_sequence_length,
-                    },
-                )
+    mod = bb.get()
+    for gv in mod.functions:
+        func = mod[gv]
+        if isinstance(func, relax.Function):
+            mod[gv] = func.with_attr(
+                "tir_var_upper_bound",
+                {
+                    "n": config.max_sequence_length,
+                    "m": config.max_sequence_length,
+                },
+            )
 
-        mod, pidx2pname = param_manager.quantization_transform(mod)
-        pname2binname = load_torch_pname2binname_map(
-            model_path,
-            set(pidx2pname.values()),
-            excluded_params=["cos_cached", "sin_cached"],
-        )
+    mod, pidx2pname = param_manager.quantization_transform(mod)
+    pname2binname = load_torch_pname2binname_map(
+        model_path,
+        set(pidx2pname.values()),
+        excluded_params=["cos_cached", "sin_cached"],
+    )
 
-        device = tvm.cpu()
+    device = tvm.cpu()
 
-        param_list = [None] * len(pidx2pname)
-        assert len(param_list) == len(pidx2pname)
+    param_list = [None] * len(pidx2pname)
+    assert len(param_list) == len(pidx2pname)
 
-        head_dim = config.hidden_size / config.num_attention_heads
-        inv_freq = 1.0 / (
-            config.position_embedding_base
-            ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
-        )
+    head_dim = config.hidden_size / config.num_attention_heads
+    inv_freq = 1.0 / (
+        config.position_embedding_base
+        ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
+    )
 
-        # Hardcode the cached sin/cos for 2048.
-        # This will be eliminated further with online rotary embedding calculation.
-        t = np.arange(2048, dtype=inv_freq.dtype)
-        freqs = np.einsum("i,j->ij", t, inv_freq)
-        emb = np.concatenate((freqs, freqs), axis=-1)
-        param_list[-2] = tvm.nd.array(np.cos(emb).astype(config.dtype), device)
-        param_list[-1] = tvm.nd.array(np.sin(emb).astype(config.dtype), device)
+    # Hardcode the cached sin/cos for 2048.
+    # This will be eliminated further with online rotary embedding calculation.
+    t = np.arange(2048, dtype=inv_freq.dtype)
+    freqs = np.einsum("i,j->ij", t, inv_freq)
+    emb = np.concatenate((freqs, freqs), axis=-1)
+    param_list[-2] = tvm.nd.array(np.cos(emb).astype(config.dtype), device)
+    param_list[-1] = tvm.nd.array(np.sin(emb).astype(config.dtype), device)
 
-        args.pidx2pname = pidx2pname
-        args.pname2binname = pname2binname
-        args.f_convert_pname_fwd = lambda pname: pname
-        args.f_convert_param_bkwd = lambda torch_pname, raw_param: [
-            (torch_pname, raw_param.astype(dtype))
-        ]
+    args.pidx2pname = pidx2pname
+    args.pname2binname = pname2binname
+    args.f_convert_pname_fwd = lambda pname: pname
+    args.f_convert_param_bkwd = lambda torch_pname, raw_param: [
+        (torch_pname, raw_param.astype(dtype))
+    ]
 
-        return mod, param_list
-
-    raise ValueError(f"Unsupported model: {model_name}")
+    return mod, param_list
