@@ -27,10 +27,19 @@ if(NOT CMAKE_BUILD_TYPE)
   message(STATUS "Setting default build type to " ${CMAKE_BUILD_TYPE})
 endif(NOT CMAKE_BUILD_TYPE)
 
-option(MLC_LLM_INSTALL_STATIC_LIB "Install static lib instead of cli" OFF)
+option(MLC_HIDE_PRIVATE_SYMBOLS "Hide private symbols" ON)
 
 if (MLC_LLM_INSTALL_STATIC_LIB)
   set(BUILD_STATIC_RUNTIME ON)
+endif()
+
+set(MLC_VISIBILITY_FLAG "")
+if (MLC_HIDE_PRIVATE_SYMBOLS)
+  set(HIDE_PRIVATE_SYMBOLS ON)
+  if (NOT MSVC)
+    set(MLC_VISIBILITY_FLAG "-fvisibility=hidden")
+  endif()
+  message(STATUS "Hide private symbols")
 endif()
 
 option(BUILD_CPP_TEST "Build cpp unittests" OFF)
@@ -122,6 +131,10 @@ endif()
 add_library(mlc_llm_module SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
 target_link_libraries(mlc_llm_module PUBLIC tvm)
 target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp)
+
+
+set_property(TARGET mlc_llm_module APPEND PROPERTY LINK_OPTIONS "${MLC_VISIBILITY_FLAG}")
+set_property(TARGET mlc_llm APPEND PROPERTY LINK_OPTIONS "${MLC_VISIBILITY_FLAG}")
 
 # when this option is on,
 # we install all static lib deps into lib
