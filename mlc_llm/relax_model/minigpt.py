@@ -9,7 +9,6 @@ from tvm.relax.testing import nn
 
 
 from ..quantization import ParamQuantKind, QuantizationScheme
-from ..utils import load_torch_pname2binname_map
 from .param_manager import ParamManager
 
 
@@ -535,7 +534,7 @@ def get_model(args):
             raise ValueError(
                 "MiniGPT model path should be a single file instead of a directory."
             )
-        llama_state_dict = torch.load(model_path, map_location="cpu")["model"]
+        llama_state_dict = torch.load(model_path + ".pth", map_location="cpu")["model"]
 
         param_list = []
         device = tvm.cpu()
@@ -575,29 +574,26 @@ def get_model(args):
 # helper functions for distributed download of model weights from URL
 # source: https://github.com/Vision-CAIR/MiniGPT-4/blob/main/minigpt4/common/dist_utils.py (originally credit to Salesforce)
 
-import timm.models.hub as timm_hub
-import torch.distributed as dist
-
-
-def is_dist_avail_and_initialized():
-    if not dist.is_available():
-        return False
-    if not dist.is_initialized():
-        return False
-    return True
-
-
-def get_rank():
-    if not is_dist_avail_and_initialized():
-        return 0
-    return dist.get_rank()
-
-
-def is_main_process():
-    return get_rank() == 0
-
 
 def download_cached_file(url, check_hash=True, progress=False):
+    import timm.models.hub as timm_hub
+    import torch.distributed as dist
+
+    def is_dist_avail_and_initialized():
+        if not dist.is_available():
+            return False
+        if not dist.is_initialized():
+            return False
+        return True
+
+    def get_rank():
+        if not is_dist_avail_and_initialized():
+            return 0
+        return dist.get_rank()
+
+    def is_main_process():
+        return get_rank() == 0
+
     """
     Download a file from a URL and cache it locally. If the file already exists, it is not downloaded again.
     If distributed, only the main process downloads the file, and the other processes wait for the file to be downloaded.

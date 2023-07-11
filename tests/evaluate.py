@@ -3,12 +3,13 @@
 import argparse
 import os
 import time
+import json
 from typing import List, Tuple
 
 import numpy as np
 import torch
 import tvm
-from transformers import AutoTokenizer  # type: ignore[import]
+from transformers import AutoTokenizer, LlamaTokenizer  # type: ignore[import]
 from tvm import relax
 from tvm.relax.testing.lib_comparator import LibCompareVMInstrument
 from tvm.runtime import ShapeTuple
@@ -49,7 +50,9 @@ class LibCompare(LibCompareVMInstrument):
             return
         if name not in self.time_eval_results:
             super().compare(name, ref_args, new_args, ret_indices)
-            res = self.mod.time_evaluator(name, dev=self.device)(*new_args).mean
+            res = self.mod.time_evaluator(name, dev=self.device, number=100, repeat=3)(
+                *new_args
+            ).mean
             self.time_eval_results[name] = (res, 1)
         else:
             record = self.time_eval_results[name]
@@ -91,9 +94,19 @@ def deploy_to_pipeline(args) -> None:
     )
     vm = relax.VirtualMachine(ex, device)
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        os.path.join(args.artifact_path, "params"), trust_remote_code=True
-    )
+    with open(
+        os.path.join(args.artifact_path, "params", "mlc-chat-config.json"), "r"
+    ) as f:
+        config = json.load(f)
+
+    if config["model_category"] == "llama":
+        tokenizer = LlamaTokenizer.from_pretrained(
+            os.path.join(args.artifact_path, "params"), trust_remote_code=True
+        )
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(
+            os.path.join(args.artifact_path, "params"), trust_remote_code=True
+        )
 
     print("Tokenizing...")
     inputs = tvm.nd.array(
