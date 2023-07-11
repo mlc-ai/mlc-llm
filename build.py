@@ -6,12 +6,13 @@ import pickle
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import tvm
+from tvm import dlight
 from tvm import meta_schedule as ms
 from tvm import relax
 
 import mlc_llm
 from mlc_llm import utils
-from mlc_llm.relax_model import gpt_bigcode, gpt_neox, llama, moss, rwkv
+from mlc_llm.relax_model import gpt_bigcode, gpt_neox, llama, minigpt, gptj, rwkv
 
 
 def _parse_args():
@@ -33,8 +34,13 @@ def _parse_args():
     args.add_argument(
         "--quantization",
         type=str,
+<<<<<<< HEAD
         choices=[*utils.quantization_dict.keys(), *utils.quantization_schemes.keys()],
         default=list(utils.quantization_dict.keys())[0],
+=======
+        choices=[*utils.quantization_schemes.keys()],
+        default=list(utils.quantization_schemes.keys())[0],
+>>>>>>> 4efb4e9f8279089e777df714bed2329b5c8733f5
     )
     args.add_argument("--max-seq-len", type=int, default=-1)
     args.add_argument("--target", type=str, default="auto")
@@ -192,6 +198,9 @@ def validate_config(model_path: str):
             " directory (or hf-path) that contains the pre-compiled model in raw HuggingFace"
             " format instead.".format(model_path)
         )
+    if model_path.split("/")[-1].startswith("minigpt"):
+        # minigpt does not contain a config.json file so we skip the check
+        return
     config_path = os.path.join(model_path, "config.json")
     assert os.path.exists(
         config_path
@@ -282,6 +291,8 @@ def mod_transform_before_build(
             "get_metadata",
             "reset_kv_cache",
         ]
+    elif ARGS.model.startswith("minigpt"):
+        model_names = ["embed"]
     else:
         model_names = [
             "prefill",
@@ -292,7 +303,9 @@ def mod_transform_before_build(
         ]
         if ARGS.sep_embed:
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
+    assert "transform_params" in [gv.name_hint for gv in mod.get_global_vars()]
 
+<<<<<<< HEAD
     # Reassign `args.quantization` for compatibility of the old/new quantization framework.
     # This will be cleaned after all model architecture transitioning to the new framework.
     if not args.quantization.pre_quantized:
@@ -312,6 +325,8 @@ def mod_transform_before_build(
                     dtype=args.quantization.model_dtype,
                 )(mod)
     debug_dump_script(mod, "0.mod_quantized.py", args, False)
+=======
+>>>>>>> 4efb4e9f8279089e777df714bed2329b5c8733f5
     mod = mlc_llm.transform.FuseDecodeTranspose()(mod)  # pylint: disable=not-callable
     debug_dump_script(mod, "1.mod_FuseDecodeTranspose.py", args, False)
     mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
@@ -323,16 +338,8 @@ def mod_transform_before_build(
     # )(mod)
     debug_dump_script(mod, "4.mod_FuseDecodeMatmulEwise.py", args, False)
     mod = mlc_llm.transform.FuseDecodeTake()(mod)
-    # Apply DCE differently for compatibility of the old/new quantization framework.
-    # This will be cleaned after all model architecture transitioning to the new framework.
-    if "transform_params" in [gv.name_hint for gv in mod.functions]:
-        mod = relax.transform.DeadCodeElimination(model_names + ["transform_params"])(
-            mod
-        )
-    else:
-        mod = relax.transform.DeadCodeElimination(model_names)(mod)
+    mod = relax.transform.DeadCodeElimination(model_names + ["transform_params"])(mod)
     mod = mlc_llm.transform.CleanUpTIRAttrs()(mod)
-    mod = relax.transform.LiftTransformParams()(mod)
     mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
 
     debug_dump_script(mod_transform, "mod_lift_params.py", args, False)
@@ -365,6 +372,8 @@ def dump_default_mlc_chat_config(args):
     config["max_gen_len"] = 512
     config["shift_fill_factor"] = 0.3
     config["tokenizer_files"] = utils.get_tokenizer_files(params_path)
+    config["model_category"] = args.model_category
+    config["model_name"] = args.model
 
     dump_path = os.path.join(params_path, "mlc-chat-config.json")
     with open(dump_path, "w", encoding="utf-8") as outfile:
@@ -383,7 +392,12 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     if target_kind != "cpu":
         print("Building for GPU, ", args.db_path)
         db = utils.get_database(args.db_path)  # pylint: disable=invalid-name
-        with db, tvm.target.Target("apple/m1-gpu-restricted"):
+        dispatch_target = (
+            args.target
+            if args.target_kind != "webgpu"
+            else tvm.target.Target("apple/m1-gpu-restricted")
+        )
+        with db, dispatch_target:
             if args.target_kind == "android":
                 mod_deploy = mlc_llm.dispatch.DispatchTIROperatorAdreno()(  # pylint: disable=not-callable
                     mod_deploy
@@ -394,9 +408,13 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
                     args.model_category
                 )(mod_deploy)
             )
+<<<<<<< HEAD
             debug_dump_script(mod_deploy, "mod_MetaScheduleApplyDatabase.py", args, False)
             mod_deploy = tvm.tir.transform.DefaultGPUSchedule()(mod_deploy)
             debug_dump_script(mod_deploy, "mod_DefaultGPUSchedule.py", args, False)
+=======
+            mod_deploy = dlight.ApplyDefaultSchedule(dlight.gpu.Fallback())(mod_deploy)
+>>>>>>> 4efb4e9f8279089e777df714bed2329b5c8733f5
             mod_deploy = mlc_llm.transform.LiftTIRGlobalBufferAlloc()(mod_deploy)
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 
@@ -426,39 +444,47 @@ def main():
     )
     ARGS.raw_params_path = os.path.join(ARGS.artifact_path, "raw_params")
     use_cache = ARGS.use_cache and os.path.isfile(cache_path)
-    with open(os.path.join(ARGS.model_path, "config.json"), encoding="utf-8") as i_f:
-        config = json.load(i_f)
-        if not use_cache:
-            if ARGS.model_category == "llama":
-                mod, params = llama.get_model(ARGS, config)
-            elif ARGS.model_category == "gpt_neox":
-                mod, params = gpt_neox.get_model(ARGS, config)
-            elif ARGS.model_category == "gpt_bigcode":
-                mod, params = gpt_bigcode.get_model(ARGS, config)
-            elif ARGS.model_category == "moss":
-                mod, params = moss.get_model(ARGS, config)
-            elif ARGS.model_category == "rwkv":
-                mod, params = rwkv.get_model(ARGS, config)
-            else:
-                raise ValueError(f"Model {ARGS.model} not supported")
-            mod = mod_transform_before_build(mod, params, ARGS)
-            with open(cache_path, "wb") as outfile:
-                pickle.dump(mod, outfile)
-            print(f"Save a cached module to {cache_path}.")
+    if ARGS.sep_embed and ARGS.model_category != "llama":
+        raise ValueError(f"separate embedding not supported on {ARGS.model}")
+    if ARGS.model_category != "minigpt":
+        with open(
+            os.path.join(ARGS.model_path, "config.json"), encoding="utf-8"
+        ) as i_f:
+            config = json.load(i_f)
+    if not use_cache:
+        if ARGS.model_category == "llama":
+            mod, params = llama.get_model(ARGS, config)
+        elif ARGS.model_category == "gpt_neox":
+            mod, params = gpt_neox.get_model(ARGS, config)
+        elif ARGS.model_category == "gpt_bigcode":
+            mod, params = gpt_bigcode.get_model(ARGS, config)
+        elif ARGS.model_category == "minigpt":
+            mod, params = minigpt.get_model(ARGS)
+        elif ARGS.model_category == "gptj":
+            mod, params = gptj.get_model(ARGS, config)
+        elif ARGS.model_category == "rwkv":
+            mod, params = rwkv.get_model(ARGS, config)
+        else:
+            raise ValueError(f"Model {ARGS.model} not supported")
+        mod = mod_transform_before_build(mod, params, ARGS)
+        with open(cache_path, "wb") as outfile:
+            pickle.dump(mod, outfile)
+        print(f"Save a cached module to {cache_path}.")
+        if ARGS.model_category != "minigpt":
             utils.copy_tokenizer(ARGS)
-        else:
-            print(
-                f"Load cached module from {cache_path} and skip tracing. "
-                "You can use --use-cache=0 to retrace"
-            )
-            with open(cache_path, "rb") as pkl:
-                mod = pickle.load(pkl)
-        dump_split_tir(mod, ARGS)
-        if not ARGS.reuse_lib:
-            build(mod, ARGS)
-        else:
-            print("Reuse existing prebuilt lib {ARGS.reuse_lib}...")
-        dump_default_mlc_chat_config(ARGS)
+    else:
+        print(
+            f"Load cached module from {cache_path} and skip tracing. "
+            "You can use --use-cache=0 to retrace"
+        )
+        with open(cache_path, "rb") as pkl:
+            mod = pickle.load(pkl)
+    dump_split_tir(mod, ARGS)
+    if not ARGS.reuse_lib:
+        build(mod, ARGS)
+    else:
+        print("Reuse existing prebuilt lib {ARGS.reuse_lib}...")
+    dump_default_mlc_chat_config(ARGS)
 
 
 if __name__ == "__main__":

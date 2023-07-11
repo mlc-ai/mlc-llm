@@ -2,7 +2,7 @@
 set -euxo pipefail
 
 # NOTE: this is optional, prepackage weight into app
-rm -r dist
+rm -rf dist
 mkdir -p dist
 
 declare -a builtin_list=(

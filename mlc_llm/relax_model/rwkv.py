@@ -7,9 +7,11 @@ from tvm.relax import Expr, op
 from tvm.relax.testing import nn
 from tvm.script import relax as R
 
+from ..quantization import ParamQuantKind, QuantizationScheme
 from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
 from .modules import ModuleList, named_parameters
+from .param_manager import ParamManager
 
 # Reference: https://github.com/BlinkDL/RWKV-LM/blob/main/RWKV-v4/src/model_run.py
 
@@ -354,10 +356,33 @@ class RWKVForCausalLM(nn.Module):
         return logits, key_value_cache
 
 
-def create_decoding_func(bb: relax.BlockBuilder, config: RWKVConfig) -> Dict[int, str]:
-    pidx2pname: Dict[int, str] = {}
-    with bb.function("decode"):
+def get_param_quant_kind(
+    name: str, param_info: relax.TensorStructInfo
+) -> ParamQuantKind:
+    if name.endswith("embeddings.weight"):
+        return ParamQuantKind.embedding_table
+    elif name == "head_weight":
+        return ParamQuantKind.final_fc_weight
+    elif param_info.ndim == 2 and name.endswith("_weight"):
+        return ParamQuantKind.linear_weight
+    else:
+        return ParamQuantKind.others
+
+
+def create_decoding_func(
+    bb: relax.BlockBuilder,
+    param_manager: ParamManager,
+    config: RWKVConfig,
+    quant_scheme: QuantizationScheme,
+):
+    func_name = "decode"
+
+    with bb.function(func_name):
         model = RWKVForCausalLM(config)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
         input_ids = nn.Placeholder((1, 1), dtype="int32", name="input_ids")
         # Placeholder for compatibility to LLAMA
         all_seq_len_shape = relax.Var("place_holder", R.Object())
@@ -370,19 +395,12 @@ def create_decoding_func(bb: relax.BlockBuilder, config: RWKVConfig) -> Dict[int
                 state,
             ] + model.parameters()
 
-            named_params = named_parameters(model)
-            for i, (name, param) in enumerate(named_params.items()):
-                pidx2pname[i] = name
-                assert param.same_as(params[i + 3])
-
             gv = bb.emit_output((logits, relax.Tuple(states)))
         bb.emit_func_output(gv, params)
 
     mod = bb.get()
-    gv = mod.get_global_var("decode")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
-
-    return pidx2pname
 
 
 def create_kv_cache_func(bb: relax.BlockBuilder, config: RWKVConfig) -> None:
@@ -455,8 +473,6 @@ def create_softmax_func(bb: relax.BlockBuilder, config: RWKVConfig) -> None:
 
 
 def get_model(args, hf_config):
-    from transformers import AutoModelForCausalLM  # type: ignore[import]
-
     model_name = args.model
     max_seq_len = args.max_seq_len
     dtype = args.quantization.model_dtype
@@ -468,8 +484,9 @@ def get_model(args, hf_config):
     if max_seq_len != -1:
         config.context_length = max_seq_len
 
+    param_manager = ParamManager()
     bb = relax.BlockBuilder()
-    pidx2pname = create_decoding_func(bb, config)
+    create_decoding_func(bb, param_manager, config, args.quantization)
     create_kv_cache_func(bb, config)
     create_softmax_func(bb, config)
     create_metadata_func(
@@ -495,6 +512,7 @@ def get_model(args, hf_config):
         else:
             return pname
 
+    mod, pidx2pname = param_manager.quantization_transform(mod)
     pname2binname = load_torch_pname2binname_map(
         args.model_path, set(pidx2pname.values()), f_convert_pname_fwd
     )

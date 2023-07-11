@@ -7,4 +7,3 @@ sphinxcontrib_httpdomain==1.8.1
 sphinxcontrib-napoleon==0.7
 --find-links https://mlc.ai/wheels
 mlc-ai-nightly
-mlc-chat-nightly

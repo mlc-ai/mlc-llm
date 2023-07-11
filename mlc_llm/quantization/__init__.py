@@ -3,6 +3,8 @@ from .quantization import QuantizationScheme
 from .quantization import QuantizationSpec, NoQuantizationSpec, ParamQuantKind
 from .group_quantization import GroupQuantizationSpec
 from .autogptq_quantization import AutogptqQuantizationSpec, load_autogptq_params
+from .rwkv_quantization import RWKVQuantizationSpec
+
 
 # The predefined quantization schemes.
 quantization_schemes = {
@@ -110,5 +112,9 @@ quantization_schemes = {
         ),
         final_fc_weight="same_as_linear_weight",
     ),
-    # NOTE: `q8f16_0` and `q8f32_0` are not yet supported in the new quantization framework.
+    "q8f16_0": QuantizationScheme(
+        name="q8f16_0",
+        linear_weight=RWKVQuantizationSpec(dtype="float16", mode="uint8", nbit=8),
+        final_fc_weight="same_as_linear_weight",
+    ),
 }

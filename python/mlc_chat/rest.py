@@ -12,9 +12,7 @@ import argparse
 import os
 import asyncio
 
-
 session = {}
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -138,6 +136,42 @@ async def request_completion(request: ChatCompletionRequest):
             # TODO: Fill in correct usage info
             usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
         )
+
+
+@app.post("/v1/completions")
+async def request_completion(request: CompletionRequest):
+    """
+    Creates a completion for a given prompt.
+    """
+    session["chat_mod"].reset_chat()
+    prompt = request.prompt[0]
+    session["chat_mod"].prefill(input=prompt)
+
+    msg = None
+    while not session["chat_mod"].stopped():
+        session["chat_mod"].decode()
+        msg = session["chat_mod"].get_message()
+    return CompletionResponse(
+        choices=[
+            CompletionResponseChoice(
+                index=0,
+                text=msg
+            )
+        ],
+        # TODO: Fill in correct usage info
+        usage=UsageInfo(
+            prompt_tokens=0,
+            completion_tokens=0,
+            total_tokens=0
+        )
+    )
+
+@app.post("/v1/embeddings")
+async def request_embeddings(request: EmbeddingsRequest):
+    """
+    Gets embedding for some text.
+    """
+    assert("Endpoint not implemented.")
 
 
 @app.post("/chat/reset")

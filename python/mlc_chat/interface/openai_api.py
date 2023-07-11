@@ -58,3 +58,31 @@ class ChatCompletionStreamResponse(BaseModel):
     object: str = "chat.completion.chunk"
     created: int = Field(default_factory=lambda: int(time.time()))
     choices: List[ChatCompletionResponseStreamChoice]
+
+class CompletionRequest(BaseModel):
+    model: str
+    prompt: Union[str, List[Any]]
+
+class CompletionResponseChoice(BaseModel):
+    index: int
+    text: str
+    logprobs: Optional[int] = None
+    finish_reason: Optional[Literal["stop", "length"]]
+
+class CompletionResponse(BaseModel):
+    id: str = Field(default_factory=lambda: f"cmpl-{shortuuid.random()}")
+    object: str = "text_completion"
+    created: int = Field(default_factory=lambda: int(time.time()))
+    choices: List[CompletionResponseChoice]
+    usage: UsageInfo
+
+class EmbeddingsRequest(BaseModel):
+    model: Optional[str] = None
+    input: Union[str, List[Any]]
+    user: Optional[str] = None
+
+class EmbeddingsResponse(BaseModel):
+    object: str = "list"
+    data: List[Dict[str, Any]]
+    model: Optional[str] = None
+    usage: UsageInfo

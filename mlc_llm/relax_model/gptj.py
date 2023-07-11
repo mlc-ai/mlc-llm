@@ -16,11 +16,13 @@ from tvm.relax.op import (
     squeeze,
     triu,
 )
-from tvm.relax.op.nn import gelu, relu, silu, softmax
+from tvm.relax.op.nn import gelu, softmax
 from tvm.relax.testing import nn
 from tvm.runtime import NDArray
 from tvm.script import relax as R
 
+from ..quantization import ParamQuantKind, QuantizationScheme
+from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
 from .gpt_neox import create_kv_cache_func
 from .modules import (
@@ -31,6 +33,7 @@ from .modules import (
     RotaryEmbedding,
     named_parameters,
 )
+from .param_manager import ParamManager
 
 
 def _min_value(dtype) -> relax.Expr:
@@ -48,20 +51,18 @@ def _max_value(dtype) -> relax.Expr:
 
 
 @dataclass
-class MossConfig:  # pylint: disable=too-many-instance-attributes
+class GPTJConfig:  # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
         vocab_size,
-        hidden_size,
-        intermediate_size,
-        num_attention_heads,
-        num_hidden_layers,
+        n_embd,
+        n_inner,
+        n_head,
+        n_layer,
         bos_token_id,
         eos_token_id,
-        rotary_pct,
+        rotary_dim,
         tie_word_embeddings,
-        hidden_act,
-        swizzle_style,
         dtype="float32",
         layer_norm_eps=1e-5,
         max_sequence_length=2048,
@@ -69,16 +70,14 @@ class MossConfig:  # pylint: disable=too-many-instance-attributes
         **kwargs,
     ):
         self.vocab_size = vocab_size
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.num_attention_heads = num_attention_heads
-        self.num_hidden_layers = num_hidden_layers
+        self.hidden_size = n_embd
+        self.intermediate_size = n_inner if n_inner is not None else 4 * n_embd
+        self.num_attention_heads = n_head
+        self.num_hidden_layers = n_layer
         self.bos_token_id = bos_token_id
         self.eos_token_id = eos_token_id
-        self.rotary_pct = rotary_pct
+        self.rotary_dim = rotary_dim
         self.tie_word_embeddings = tie_word_embeddings
-        self.hidden_act = hidden_act
-        self.swizzle_style = swizzle_style
         self.dtype = dtype
         self.layer_norm_eps = layer_norm_eps
         self.max_sequence_length = max_sequence_length
@@ -86,64 +85,25 @@ class MossConfig:  # pylint: disable=too-many-instance-attributes
         self.kwargs = kwargs
 
 
-def gelu_new(x):
-    def _gelu_new(x: te.Tensor):
-        return te.compute(
-            shape=x.shape,
-            fcompute=lambda i, j, k: 0.5
-            * x[i, j, k]
-            * (
-                1.0
-                + te.tanh(
-                    math.sqrt(2.0 / math.pi)
-                    * (x[i, j, k] + 0.044715 * te.power(x[i, j, k], 3.0))
-                )
-            ),
-            name="gelu_new",
-        )
-
-    return nn.emit_te(
-        _gelu_new,
-        x,
-        primfunc_name_hint="gelu_new",
-    )
-
-
-def act2fn(act_name: str):
-    if act_name == "relu":
-        return relu
-    elif act_name == "gelu":
-        return gelu
-    elif act_name == "gelu_new":
-        return gelu_new
-    elif act_name == "silu":
-        return silu
-    else:
-        raise KeyError("Unregonized activation func: {act_name}")
-
-
-class MossMLP(nn.Module):
-    def __init__(
-        self, hidden_size: int, intermediate_size: int, hidden_act: str, dtype: str
-    ):
+class GPTJMLP(nn.Module):
+    def __init__(self, hidden_size: int, intermediate_size: int, dtype: str):
         super().__init__()
         self.fc_in = Linear(hidden_size, intermediate_size, dtype, bias=True)
         self.fc_out = Linear(intermediate_size, hidden_size, dtype, bias=True)
-        self.act = act2fn(hidden_act)
         self.dtype = dtype
 
     def forward(self, hidden_states):
         if hidden_states.struct_info.dtype != self.dtype:
             hidden_states = nn.emit(astype(hidden_states, self.dtype))
         hidden_states = self.fc_in(hidden_states)
-        hidden_states = self.act(hidden_states)
+        hidden_states = nn.emit(gelu(hidden_states))
         if hidden_states.struct_info.dtype != self.dtype:
             hidden_states = nn.emit(astype(hidden_states, self.dtype))
         hidden_states = self.fc_out(hidden_states)
         return nn.emit(hidden_states)
 
 
-class MossAttention(nn.Module):
+class GPTJAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
     def __init__(
@@ -279,7 +239,7 @@ class MossAttention(nn.Module):
         return attn_output, past_key_value
 
 
-class MossLayer(nn.Module):
+class GPTJLayer(nn.Module):
     def __init__(
         self,
         hidden_size: int,
@@ -287,7 +247,6 @@ class MossLayer(nn.Module):
         layer_norm_eps: float,
         num_heads: int,
         rotary_embedding: RotaryEmbedding,
-        hidden_act: str,
         dtype: str,
     ):
         self.ln_1 = LayerNorm(
@@ -295,16 +254,15 @@ class MossLayer(nn.Module):
             eps=layer_norm_eps,
             dtype=dtype,
         )
-        self.attn = MossAttention(
+        self.attn = GPTJAttention(
             hidden_size,
             num_heads=num_heads,
             rotary_embedding=rotary_embedding,
             dtype=dtype,
         )
-        self.mlp = MossMLP(
+        self.mlp = GPTJMLP(
             hidden_size,
             intermediate_size=intermediate_size,
-            hidden_act=hidden_act,
             dtype=dtype,
         )
         self.dtype = dtype
@@ -357,34 +315,57 @@ def _prepare_decoder_attention_mask(input_shape, src_len, dtype):
     return nn.emit(mask)
 
 
-class MossModel(nn.Module):
+class GPTJEmbedTokens(nn.Module):
+    def __init__(self, config: GPTJConfig):
+        self.wte = Embedding(
+            num_embeddings=config.vocab_size,
+            embedding_dim=config.hidden_size,
+            dtype=config.dtype,
+        )
+
+    def forward(self, input_ids: relax.Expr):
+        return self.wte(input_ids)
+
+
+class GPTJEmbedTokensWrapper(nn.Module):
+    def __init__(self, config: GPTJConfig):
+        # build a wrapper to ensure that the naming of the embed_in parameter is consistent
+        self.gptj = GPTJEmbedTokens(config)
+
+    def forward(self, input_ids: relax.Expr):
+        return self.gptj(input_ids)
+
+
+class GPTJModel(nn.Module):
     def __init__(
         self,
-        config: MossConfig,
+        config: GPTJConfig,
+        sep_embed: bool = False,
     ):
         rotary_embedding = RotaryEmbedding(
             hidden_size=config.hidden_size,
             num_attention_heads=config.num_attention_heads,
             position_embedding_base=config.rotary_emb_base,
             max_sequence_length=config.max_sequence_length,
-            rotary_pct=config.rotary_pct,
-            swizzle_style=config.swizzle_style,
+            rotary_dim=config.rotary_dim,
+            swizzle_style="gptj",
             dtype=config.dtype,
         )
-        self.wte = Embedding(
-            num_embeddings=config.vocab_size,
-            embedding_dim=config.hidden_size,
-            dtype=config.dtype,
-        )
+        self.wte = None
+        if not sep_embed:
+            self.wte = Embedding(
+                num_embeddings=config.vocab_size,
+                embedding_dim=config.hidden_size,
+                dtype=config.dtype,
+            )
         self.h = ModuleList(
             [
-                MossLayer(
+                GPTJLayer(
                     hidden_size=config.hidden_size,
                     intermediate_size=config.intermediate_size,
                     layer_norm_eps=config.layer_norm_eps,
                     num_heads=config.num_attention_heads,
                     rotary_embedding=rotary_embedding,
-                    hidden_act=config.hidden_act,
                     dtype=config.dtype,
                 )
                 for _ in range(config.num_hidden_layers)
@@ -398,14 +379,14 @@ class MossModel(nn.Module):
 
     def forward(
         self,
-        input_ids: relax.Expr,
+        inputs: relax.Expr,
         all_seq_len_shape: relax.Expr,
         past_key_values: Optional[Tuple[relax.Expr, relax.Expr]],
     ):
-        batch_size, seq_length = input_ids.struct_info.shape
+        batch_size, seq_length = inputs.struct_info.shape
         seq_length_with_past = all_seq_len_shape.struct_info.values[0]
         # embed positions
-        hidden_states = self.wte(input_ids)
+        hidden_states = self.wte(inputs) if self.wte is not None else inputs
         attention_mask = _prepare_decoder_attention_mask(
             (batch_size, seq_length),
             seq_length_with_past,
@@ -430,12 +411,13 @@ class MossModel(nn.Module):
         return hidden_states, present_kv_cache
 
 
-class MossForCausalLM(nn.Module):
+class GPTJForCausalLM(nn.Module):
     def __init__(
         self,
-        config: MossConfig,
+        config: GPTJConfig,
+        sep_embed: bool = False,
     ):
-        self.transformer = MossModel(config)
+        self.transformer = GPTJModel(config, sep_embed)
         self.lm_head = Linear(
             in_features=config.hidden_size,
             out_features=config.vocab_size,
@@ -446,12 +428,12 @@ class MossForCausalLM(nn.Module):
 
     def forward(
         self,
-        input_ids: relax.Expr,
+        inputs: relax.Expr,
         all_seq_len_shape: relax.Expr,
         past_key_values: Optional[List[relax.Expr]],
     ):
         hidden_states, key_value_cache = self.transformer(
-            input_ids=input_ids,
+            inputs=inputs,
             all_seq_len_shape=all_seq_len_shape,
             past_key_values=past_key_values,
         )
@@ -492,18 +474,74 @@ def check_parameters(param_dict, param_list):
         )
 
 
+def get_param_quant_kind(
+    name: str, param_info: relax.TensorStructInfo
+) -> ParamQuantKind:
+    if "wte.weight" in name:
+        return ParamQuantKind.embedding_table
+    elif "lm_head.weight" in name:
+        return ParamQuantKind.final_fc_weight
+    elif param_info.ndim == 2 and name.endswith(".weight"):
+        return ParamQuantKind.linear_weight
+    else:
+        return ParamQuantKind.others
+
+
+def create_embed_func(
+    bb: relax.BlockBuilder,
+    param_manager: ParamManager,
+    config: GPTJConfig,
+    quant_scheme: QuantizationScheme,
+) -> None:
+    func_name = "embed"
+
+    bsz = 1
+    seq_len = tvm.tir.Var("n", "int64")
+    with bb.function(func_name):
+        model = GPTJEmbedTokensWrapper(config)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
+        input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
+        with bb.dataflow():
+            inputs_embeds = model(input_ids)
+            params = [input_ids] + model.parameters()
+            gv = bb.emit_output(inputs_embeds)
+        bb.emit_func_output(gv, params)
+
+    mod = bb.get()
+    gv = mod.get_global_var("embed")
+    bb.update_func(gv, mod[gv].with_attr("num_input", 1))
+
+
 def create_encoding_func(
     bb: relax.BlockBuilder,
-    config: MossConfig,
-    ordered_params: List,
+    param_manager: ParamManager,
+    config: GPTJConfig,
+    quant_scheme: QuantizationScheme,
+    sep_embed: bool = False,
 ) -> None:
+    func_name = "prefill_with_embed" if sep_embed else "prefill"
+
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.Var("n", "int64")
     all_seq_len = tvm.tir.Var("m", "int64")
-    with bb.function("prefill"):
-        model = MossForCausalLM(config)
-        input_ids = nn.Placeholder(
-            (batch_size, seq_len), dtype="int32", name="input_ids"
+    hidden_size = config.hidden_size
+    with bb.function(func_name):
+        model = GPTJForCausalLM(config, sep_embed)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
+        inputs = (
+            nn.Placeholder(
+                (batch_size, seq_len, hidden_size),
+                dtype=config.dtype,
+                name="input_embeds",
+            )
+            if sep_embed
+            else nn.Placeholder((batch_size, seq_len), dtype="int32", name="input_ids")
         )
         all_seq_len_shape = relax.Var(
             "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
@@ -516,36 +554,39 @@ def create_encoding_func(
         )
         with bb.dataflow():
             logits, key_value_cache = model(
-                input_ids=input_ids,
+                inputs=inputs,
                 all_seq_len_shape=all_seq_len_shape,
                 past_key_values=past_key_values,
             )
             params = [
-                input_ids,
+                inputs,
                 all_seq_len_shape,
                 past_key_values,
-            ]
-            named_params = named_parameters(model)
-            check_parameters(named_params, ordered_params)
-            for name, _ in ordered_params:
-                params.append(named_params[name])
+            ] + model.parameters()
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
         bb.emit_func_output(gv, params)
     mod = bb.get()
-    gv = mod.get_global_var("prefill")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
 
 def create_decoding_func(
     bb: relax.BlockBuilder,
-    config: MossConfig,
-    ordered_params: List,
+    param_manager: ParamManager,
+    config: GPTJConfig,
+    quant_scheme: QuantizationScheme,
 ) -> None:
+    func_name = "decode"
+
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.IntImm("int64", 1)
     all_seq_len = tvm.tir.Var("n", "int64")
-    with bb.function("decode"):
-        model = MossForCausalLM(config)
+    with bb.function(func_name):
+        model = GPTJForCausalLM(config)
+        param_manager.register_params(
+            model, func_name, quant_scheme, get_param_quant_kind
+        )
+
         input_ids = nn.Placeholder(
             (batch_size, seq_len), dtype="int32", name="input_ids"
         )
@@ -561,7 +602,7 @@ def create_decoding_func(
         )
         with bb.dataflow():
             logits, key_value_cache = model(
-                input_ids=input_ids,
+                inputs=input_ids,
                 all_seq_len_shape=all_seq_len_shape,
                 past_key_values=past_key_values,
             )
@@ -569,69 +610,55 @@ def create_decoding_func(
                 input_ids,
                 all_seq_len_shape,
                 past_key_values,
-            ]
-            named_params = named_parameters(model)
-            check_parameters(named_params, ordered_params)
-            for name, _ in ordered_params:
-                params.append(named_params[name])
+            ] + model.parameters()
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
         bb.emit_func_output(gv, params)
     mod = bb.get()
-    gv = mod.get_global_var("decode")
+    gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
 
+def create_softmax_func(bb: relax.BlockBuilder, config: GPTJConfig) -> None:
+    with bb.function("softmax_with_temperature"):
+        logits = nn.Placeholder(
+            (1, 1, config.vocab_size), dtype="float32", name="logits"
+        )
+        temperature = nn.Placeholder((), dtype="float32", name="temperature")
+        with bb.dataflow():
+            div = bb.emit(relax.op.divide(logits, temperature))
+            softmax = bb.emit(relax.op.nn.softmax(div, axis=-1))
+            gv = bb.emit_output(softmax)
+        bb.emit_func_output(gv, [logits, temperature])
+
+
 def get_model(args, hf_config):
-    from transformers import AutoModelForCausalLM  # type: ignore[import]
-
     model_name = args.model
-    model_path = args.model_path
-    dtype = args.quantization.dtype
+    dtype = args.quantization.model_dtype
     max_seq_len = args.max_seq_len
+    sep_embed = args.sep_embed
 
-    config = MossConfig(**hf_config, dtype=dtype)
+    if model_name.startswith("gpt-j-"):
+        stop_tokens = [50256]
+    elif model_name.startswith("moss-"):
+        stop_tokens = [106068]
+
+    config = GPTJConfig(**hf_config, dtype=dtype)
     if max_seq_len != -1:
         config.max_sequence_length = max_seq_len
-    num_heads = config.num_attention_heads
-    hidden_size = config.hidden_size
-    head_dim = hidden_size // num_heads
-    param_list: List[Tuple[str, NDArray]] = []
-    hf_model = AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=True)
 
-    for name, param in hf_model.named_parameters():
-        param = param.detach().cpu().numpy()
-        if "ln_1" in name or "ln_f" in name:
-            param = param.astype("float32")
-        else:
-            param = param.astype(config.dtype)
-        if name.endswith("qkv_proj.weight"):
-            name = name.replace("qkv_proj.weight", "{}_proj.weight")
-            assert param.ndim == 2
-            mp_num = 4
-            param = param.reshape(mp_num, 3, -1, hidden_size)
-            q = param[:, 0, :, :].reshape(hidden_size, hidden_size)
-            k = param[:, 2, :, :].reshape(hidden_size, hidden_size)
-            v = param[:, 1, :, :].reshape(hidden_size, hidden_size)
-            param_list.append((name.format("q"), q))
-            param_list.append((name.format("k"), k))
-            param_list.append((name.format("v"), v))
-        else:
-            param_list.append((name, param))
-
-        del hf_model
-        param_list = [
-            (name, tvm.nd.array(param, tvm.cpu())) for name, param in param_list
-        ]
-
+    param_manager = ParamManager()
     bb = relax.BlockBuilder()
-    create_encoding_func(bb, config, param_list)
-    create_decoding_func(bb, config, param_list)
+    if sep_embed:
+        create_embed_func(bb, param_manager, config, args.quantization)
+    create_encoding_func(bb, param_manager, config, args.quantization, sep_embed)
+    create_decoding_func(bb, param_manager, config, args.quantization)
     create_kv_cache_func(bb, config)
+    create_softmax_func(bb, config)
     create_metadata_func(
         bb,
         model_name=model_name,
         max_window_size=config.max_sequence_length,
-        stop_tokens=[106068],
+        stop_tokens=stop_tokens,
         add_prefix_space=True,
     )
     mod = bb.get()
@@ -646,4 +673,46 @@ def get_model(args, hf_config):
                 },
             )
 
-    return mod, [v for _, v in param_list]
+    def f_convert_pname_fwd(pname: str) -> str:
+        import re
+
+        str_pattern = re.compile(r"(q|k|v)_proj")
+        if re.search(str_pattern, pname) is not None:
+            return str_pattern.sub("qkv_proj", pname)
+        else:
+            return pname
+
+    mod, pidx2pname = param_manager.quantization_transform(mod)
+    pname2binname = load_torch_pname2binname_map(
+        args.model_path, set(pidx2pname.values()), f_convert_pname_fwd
+    )
+
+    num_heads = config.num_attention_heads
+    hidden_size = config.hidden_size
+    head_dim = hidden_size // num_heads
+
+    def f_convert_param_bkwd(torch_pname: str, raw_param) -> str:
+        print(torch_pname)
+        if torch_pname.endswith("qkv_proj.weight"):
+            assert raw_param.ndim == 2
+            mp_num = 4
+            raw_param = raw_param.astype(dtype).reshape(mp_num, 3, -1, hidden_size)
+            q_weight = raw_param[:, 0, :, :].reshape(hidden_size, hidden_size)
+            k_weight = raw_param[:, 2, :, :].reshape(hidden_size, hidden_size)
+            v_weight = raw_param[:, 1, :, :].reshape(hidden_size, hidden_size)
+            return [
+                (torch_pname.replace("qkv_proj", "q_proj"), q_weight),
+                (torch_pname.replace("qkv_proj", "k_proj"), k_weight),
+                (torch_pname.replace("qkv_proj", "v_proj"), v_weight),
+            ]
+        if "ln_1" in torch_pname or "ln_f" in torch_pname:
+            return [(torch_pname, raw_param.astype("float32"))]
+        else:
+            return [(torch_pname, raw_param.astype(dtype))]
+
+    args.pidx2pname = pidx2pname
+    args.pname2binname = pname2binname
+    args.f_convert_pname_fwd = f_convert_pname_fwd
+    args.f_convert_param_bkwd = f_convert_param_bkwd
+
+    return mod, [None] * len(pidx2pname)

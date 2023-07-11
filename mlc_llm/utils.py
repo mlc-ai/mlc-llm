@@ -3,7 +3,6 @@ import argparse
 import json
 import os
 import shutil
-from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import tvm
@@ -14,48 +13,9 @@ from .quantization import quantization_schemes
 from .transform import ReorderTransformFunc
 
 
-@dataclass
-class Quantization:
-    """Class denoting the quantization options"""
-
-    name: str
-    mode: str
-    sym: bool
-    storage_nbit: int
-    model_dtype: str
-
-
-# Preset compilation modes (configuring quantization and model dtype).
-# The value tuple denotes
-# (quantization_mode, quantization_sym, quantization_storage_nbit, model_dtype)
-quantization_dict = {
-    "q3f16_0": Quantization(
-        name="q3f16_0", mode="int3", sym=True, storage_nbit=16, model_dtype="float16"
-    ),
-    "q4f16_0": Quantization(
-        name="q4f16_0", mode="int4", sym=True, storage_nbit=32, model_dtype="float16"
-    ),
-    "q4f16_1": Quantization(
-        name="q4f16_1", mode="int4", sym=True, storage_nbit=32, model_dtype="float16"
-    ),
-    "q4f32_0": Quantization(
-        name="q4f32_0", mode="int4", sym=False, storage_nbit=32, model_dtype="float32"
-    ),
-    "q8f16_0": Quantization(
-        name="q8f16_0", mode="uint8", sym=False, storage_nbit=-1, model_dtype="float16"
-    ),
-    "q8f32_0": Quantization(
-        name="q8f32_0", mode="uint8", sym=False, storage_nbit=-1, model_dtype="float32"
-    ),
-    "q0f16": Quantization(
-        name="q0f16", mode="no", sym=False, storage_nbit=-1, model_dtype="float16"
-    ),
-    "q0f32": Quantization(
-        name="q0f32", mode="no", sym=False, storage_nbit=-1, model_dtype="float32"
-    ),
-}
-
-supported_model_types = set(["llama", "gpt_neox", "gpt_bigcode", "moss", "rwkv"])
+supported_model_types = set(
+    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj"]
+)
 
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
@@ -71,34 +31,57 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
                 args.device_name = "opencl"
             else:
                 raise ValueError("Cannot auto deduce device-name, please set it")
-    supported_model_prefix = {
-        "vicuna-": ("vicuna_v1.1", "llama"),
-        "dolly-": ("dolly", "gpt_neox"),
-        "stablelm-": ("stablelm", "gpt_neox"),
-        "redpajama-": ("redpajama_chat", "gpt_neox"),
-        "moss-": ("moss", "moss"),
-        "open_llama": ("LM", "llama"),
-        "rwkv-": ("rwkv", "rwkv"),
-        "gorilla-": ("gorilla", "llama"),
-        "starcoder": ("code_gpt", "gpt_bigcode"),
-        "wizardcoder-": ("code_gpt", "gpt_bigcode"),
+
+    model_category_override = {
+        "moss-moon-003-sft": "gptj",
+        "moss-moon-003-base": "gptj",
+        "rwkv-": "rwkv",
+        "minigpt": "minigpt",
     }
+    try:
+        with open(
+            os.path.join(args.model_path, "config.json"), encoding="utf-8"
+        ) as i_f:
+            config = json.load(i_f)
+            args.model_category = config["model_type"]
+    except Exception:
+        args.model_category = ""
     model = args.model.lower()
-    for prefix, (conv_template, model_category) in supported_model_prefix.items():
+    for prefix, override_category in model_category_override.items():
+        if model.startswith(prefix):
+            args.model_category = override_category
+            break
+    assert args.model_category is not None
+
+    model_conv_templates = {
+        "vicuna-": "vicuna_v1.1",
+        "dolly-": "dolly",
+        "stablelm-": "stablelm",
+        "redpajama-": "redpajama_chat",
+        "minigpt": "minigpt",
+        "moss-moon-003-sft": "moss",
+        "moss-moon-003-base": "LM",
+        "gpt-j-": "LM",
+        "open_llama": "LM",
+        "rwkv-": "rwkv",
+        "gorilla-": "gorilla",
+        "guanaco": "guanaco",
+        "starcoder": "code_gpt",
+        "wizardcoder-": "code_gpt",
+        "wizardlm-": "wizardlm",
+        "gpt_bigcode-santacoder": "code_gpt",
+    }
+
+    for prefix, conv_template in model_conv_templates.items():
         if model.startswith(prefix):
             args.conv_template = conv_template
-            args.model_category = model_category
             break
     else:
-        raise ValueError(
-            f'Cannot recognize model "{args.model}". '
-            f'Supported ones: {", ".join(supported_model_prefix.keys())}'
-        )
-    args.quantization = (
-        quantization_schemes[args.quantization]
-        if args.quantization in quantization_schemes
-        else quantization_dict[args.quantization]
-    )
+        args.conv_template = f"{args.model_category}_default"
+
+    if args.quantization not in quantization_schemes:
+        raise ValueError(f'Quantization "{args.quantization}" is not supported.')
+    args.quantization = quantization_schemes[args.quantization]
 
 
 def split_transform_deploy_mod(
@@ -106,15 +89,7 @@ def split_transform_deploy_mod(
 ) -> Tuple[tvm.IRModule, tvm.IRModule]:
     mod_transform = tvm.IRModule()
     mod_deploy = tvm.IRModule()
-
-    transform_func_name = None
-    gv_names = [gv.name_hint for gv in mod.get_global_vars()]
-    for name in model_names:
-        if name + "_transform_params" in gv_names:
-            transform_func_name = name + "_transform_params"
-    if "transform_params" in gv_names:
-        transform_func_name = "transform_params"
-    assert transform_func_name is not None
+    transform_func_name = "transform_params"
 
     for gv in mod.functions:
         func = mod[gv]
