@@ -2,16 +2,16 @@ from typing import List
 
 import argparse
 import os
+import json
 
 import tvm
 from tvm import relax
-from tvm.runtime import ShapeTuple
 from tvm import rpc
 from tvm.relax.testing.lib_comparator import LibCompareVMInstrument
 import numpy as np
 
 import torch
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, LlamaTokenizer
 
 from mlc_llm import utils
 
@@ -52,7 +52,9 @@ class LibCompare(LibCompareVMInstrument):
         super().compare(name, ref_args, new_args, ret_indices)
 
         if self.time_eval and name not in self.time_eval_results:
-            res = self.mod.time_evaluator(name, self.device)(*new_args)
+            res = self.mod.time_evaluator(name, self.device, number=100, repeat=3)(
+                *new_args
+            )
             self.time_eval_results[name] = (res.mean, 1)
             print(f"Time-eval result {name} on {self.device}: {res}")
 
@@ -132,12 +134,23 @@ class TestState:
 
 
 def deploy_to_pipeline(args) -> None:
+    with open(
+        os.path.join(args.artifact_path, "params", "mlc-chat-config.json"), "r"
+    ) as f:
+        config = json.load(f)
+
     primary_device = tvm.device(args.primary_device)
     const_params = utils.load_params(args.artifact_path, primary_device)
     state = TestState(args)
-    tokenizer = AutoTokenizer.from_pretrained(
-        os.path.join(args.artifact_path, "params"), trust_remote_code=True
-    )
+
+    if config["model_category"] == "llama":
+        tokenizer = LlamaTokenizer.from_pretrained(
+            os.path.join(args.artifact_path, "params"), trust_remote_code=True
+        )
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(
+            os.path.join(args.artifact_path, "params"), trust_remote_code=True
+        )
 
     print("Tokenizing...")
     inputs = tvm.nd.array(

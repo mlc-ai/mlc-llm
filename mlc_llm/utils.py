@@ -81,11 +81,13 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "minigpt": "minigpt",
     }
     try:
-        with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
+        with open(
+            os.path.join(args.model_path, "config.json"), encoding="utf-8"
+        ) as i_f:
             config = json.load(i_f)
             args.model_category = config["model_type"]
-    except IOError as error:
-        pass
+    except Exception:
+        args.model_category = ""
     model = args.model.lower()
     for prefix, override_category in model_category_override.items():
         if model.startswith(prefix):
@@ -117,7 +119,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
             args.conv_template = conv_template
             break
     else:
-        args.conv_template = f'{args.model_category}_default'
+        args.conv_template = f"{args.model_category}_default"
     args.quantization = (
         quantization_schemes[args.quantization]
         if args.quantization in quantization_schemes
