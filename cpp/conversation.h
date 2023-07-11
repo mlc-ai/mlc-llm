@@ -208,14 +208,16 @@ class Conversation {
       PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) const {
     std::vector<std::string> ret;
     ret.reserve(messages.size() - start_pos + 1);
-    if (start_pos == 0) {
-      if (system_prefix.length() != 0) {
-        ret.push_back(system_prefix);
+    if (place_in_prompt == PlaceInPrompt::kBegin || place_in_prompt == PlaceInPrompt::kAll) {
+      if (start_pos == 0) {
+        if (system_prefix.length() != 0) {
+          ret.push_back(system_prefix);
+        }
+      } else {
+        // need to add a sep of last response
+        // which was not added in the processing step.
+        ret.push_back(this->seps[1 % this->seps.size()]);
       }
-    } else if (place_in_prompt == PlaceInPrompt::kBegin || place_in_prompt == PlaceInPrompt::kAll) {
-      // need to add a sep of last response
-      // which was not added in the processing step.
-      ret.push_back(this->seps[1 % this->seps.size()]);
     }
 
     ICHECK_EQ(start_pos % 2, 0);
