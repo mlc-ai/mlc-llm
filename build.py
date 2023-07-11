@@ -34,13 +34,8 @@ def _parse_args():
     args.add_argument(
         "--quantization",
         type=str,
-<<<<<<< HEAD
-        choices=[*utils.quantization_dict.keys(), *utils.quantization_schemes.keys()],
-        default=list(utils.quantization_dict.keys())[0],
-=======
         choices=[*utils.quantization_schemes.keys()],
         default=list(utils.quantization_schemes.keys())[0],
->>>>>>> 4efb4e9f8279089e777df714bed2329b5c8733f5
     )
     args.add_argument("--max-seq-len", type=int, default=-1)
     args.add_argument("--target", type=str, default="auto")
@@ -305,45 +300,19 @@ def mod_transform_before_build(
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
     assert "transform_params" in [gv.name_hint for gv in mod.get_global_vars()]
 
-<<<<<<< HEAD
-    # Reassign `args.quantization` for compatibility of the old/new quantization framework.
-    # This will be cleaned after all model architecture transitioning to the new framework.
-    if not args.quantization.pre_quantized:
-        args.quantization = utils.quantization_dict[args.quantization.name]
-        if args.quantization.mode != "no":
-            if ARGS.model.startswith("rwkv-"):
-                mod = mlc_llm.transform.RWKVQuantize(  # pylint: disable=not-callable
-                    mode=args.quantization.mode,
-                    dtype=args.quantization.model_dtype,
-                )(mod)
-            else:
-                mod = mlc_llm.transform.GroupQuantize(  # pylint: disable=not-callable
-                    group_size=40 if args.quantization.mode.endswith("3") else 32,
-                    sym=args.quantization.sym,
-                    mode=args.quantization.mode,
-                    storage_nbit=args.quantization.storage_nbit,
-                    dtype=args.quantization.model_dtype,
-                )(mod)
-    debug_dump_script(mod, "0.mod_quantized.py", args, False)
-=======
->>>>>>> 4efb4e9f8279089e777df714bed2329b5c8733f5
     mod = mlc_llm.transform.FuseDecodeTranspose()(mod)  # pylint: disable=not-callable
-    debug_dump_script(mod, "1.mod_FuseDecodeTranspose.py", args, False)
     mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
-    debug_dump_script(mod, "2.mod_FuseTransposeMatmul.py", args, False)
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
-    debug_dump_script(mod, "3.get_pipeline.py", args, False)
-    # mod = mlc_llm.transform.FuseDecodeMatmulEwise(  # pylint: disable=not-callable
-    #     args.quantization.name, args.target_kind
-    # )(mod)
-    debug_dump_script(mod, "4.mod_FuseDecodeMatmulEwise.py", args, False)
+    mod = mlc_llm.transform.FuseDecodeMatmulEwise(  # pylint: disable=not-callable
+        args.quantization.name, args.target_kind
+    )(mod)
     mod = mlc_llm.transform.FuseDecodeTake()(mod)
     mod = relax.transform.DeadCodeElimination(model_names + ["transform_params"])(mod)
     mod = mlc_llm.transform.CleanUpTIRAttrs()(mod)
     mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
 
-    debug_dump_script(mod_transform, "mod_lift_params.py", args, False)
-    debug_dump_script(mod_deploy, "mod_deploy.py", args, False)
+    debug_dump_script(mod_transform, "mod_lift_params.py", args)
+    debug_dump_script(mod_deploy, "mod_deploy.py", args)
 
     new_params = utils.transform_params(mod_transform, model_params, args)
     utils.save_params(new_params, args.artifact_path)
@@ -390,7 +359,6 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
 
     debug_dump_script(mod_deploy, "mod_before_build.py", args)
     if target_kind != "cpu":
-        print("Building for GPU, ", args.db_path)
         db = utils.get_database(args.db_path)  # pylint: disable=invalid-name
         dispatch_target = (
             args.target
@@ -408,13 +376,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
                     args.model_category
                 )(mod_deploy)
             )
-<<<<<<< HEAD
-            debug_dump_script(mod_deploy, "mod_MetaScheduleApplyDatabase.py", args, False)
-            mod_deploy = tvm.tir.transform.DefaultGPUSchedule()(mod_deploy)
-            debug_dump_script(mod_deploy, "mod_DefaultGPUSchedule.py", args, False)
-=======
             mod_deploy = dlight.ApplyDefaultSchedule(dlight.gpu.Fallback())(mod_deploy)
->>>>>>> 4efb4e9f8279089e777df714bed2329b5c8733f5
             mod_deploy = mlc_llm.transform.LiftTIRGlobalBufferAlloc()(mod_deploy)
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 

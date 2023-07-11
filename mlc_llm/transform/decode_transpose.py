@@ -76,9 +76,7 @@ class FuseDecodeTranspose:
                     != "T_transpose"
                 ):
                     return call
-                print(
-                    "====================== debug print for decode ======================"
-                )
+
                 sch = tvm.tir.Schedule(decode_tir_func)
                 br = sch.get_block("root")
                 bt = sch.get_child_blocks(br)[-1]
@@ -153,10 +151,6 @@ class FuseDecodeTranspose:
                         gv, transpose_input.args[1], out_sinfo=matmul_rhs.struct_info
                     )
                 )
-                print(sch.get_sref(bd[0]).parent.parent.parent.stmt)
-                print("parent scope", sch.get_sref(bd[0]).parent.parent.parent)
-                print("new func scope", new_func)
-
                 return relax.op.matmul(
                     call.args[0], decoded_matmul_rhs, out_dtype=call.attrs.out_dtype
                 )
