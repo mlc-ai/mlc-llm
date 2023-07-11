@@ -67,9 +67,13 @@ API Endpoints
 
 The REST API provides the following endpoints:
 
+.. http:get:: /v1/completions
+
+   Get a completion from MLC-Chat using a prompt.
+
 .. http:get:: /v1/chat/completions
 
-   Get a response from MLC-Chat using a prompt.
+   Get a response from MLC-Chat using a prompt, either with or without streaming.
 
 .. http:get:: /chat/reset
 
