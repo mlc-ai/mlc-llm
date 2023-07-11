@@ -1,9 +1,10 @@
+# pylint: disable=invalid-name,missing-docstring
 # Used as reference
 
 import argparse
+import json
 import os
 import time
-import json
 from typing import List, Tuple
 
 import numpy as np
@@ -50,13 +51,25 @@ class LibCompare(LibCompareVMInstrument):
             return
         if name not in self.time_eval_results:
             super().compare(name, ref_args, new_args, ret_indices)
-            res = self.mod.time_evaluator(name, dev=self.device, number=100, repeat=3)(
-                *new_args
-            ).mean
-            self.time_eval_results[name] = (res, 1)
+            res = self.mod.time_evaluator(
+                name,
+                dev=self.device,
+                number=100,
+                repeat=3,
+            )(*new_args).mean
+            shapes = [arg.shape for arg in new_args]
+            total_bytes = sum(
+                arg.numpy().size * arg.numpy().itemsize for arg in new_args
+            )
+            self.time_eval_results[name] = (res, 1, shapes, total_bytes)
         else:
             record = self.time_eval_results[name]
-            self.time_eval_results[name] = (record[0], record[1] + 1)
+            self.time_eval_results[name] = (
+                record[0],
+                record[1] + 1,
+                record[2],
+                record[3],
+            )
 
 
 def print_as_table(sorted_list: List[Tuple[str, Tuple[float, int]]]):
@@ -65,25 +78,34 @@ def print_as_table(sorted_list: List[Tuple[str, Tuple[float, int]]]):
         + "Time (ms)".ljust(12)
         + "Count".ljust(8)
         + "Total time (ms)".ljust(18)
-        + "Percentage (%)"
+        + "Pct (%)".ljust(10)
+        + "Memory (MB)".ljust(16)
+        + "Bandwidth (GB/s)".ljust(18)
+        + "Shape"
     )
-    total_time = sum([record[1][0] * record[1][1] for record in sorted_list]) * 1000
+    total_time = sum(record[1][0] * record[1][1] for record in sorted_list) * 1000
     for record in sorted_list:
-        time = record[1][0] * 1000
-        weighted_time = time * record[1][1]
+        time_used = record[1][0] * 1000
+        weighted_time = time_used * record[1][1]
         percentage = weighted_time / total_time * 100
+        total_bytes = record[1][3]
+        bandwidth = total_bytes / record[1][0] / (1024**3)
+
         print(
             record[0].ljust(50)
-            + "{:.4f}".format(time).ljust(12)
+            + f"{time_used:.4f}".ljust(12)
             + str(record[1][1]).ljust(8)
-            + "{:.4f}".format(weighted_time).ljust(18)
-            + "{:.2f}".format(percentage)
+            + f"{weighted_time:.4f}".ljust(18)
+            + f"{percentage:.2f}".ljust(10)
+            + f"{total_bytes / (1024 * 1024):.2f}".ljust(16)
+            + f"{bandwidth:.4f}".format(bandwidth).ljust(18)
+            + ", ".join(str(s) for s in record[1][2])
         )
-    print("Total time: {:.4f} ms".format(total_time))
+    print(f"Total time: {total_time:.4f} ms")
     print()
 
 
-def deploy_to_pipeline(args) -> None:
+def deploy_to_pipeline(args) -> None:  # pylint: disable=too-many-locals
     device = tvm.device(args.device_name)
     const_params = utils.load_params(args.artifact_path, device)
     ex = tvm.runtime.load_module(
@@ -95,7 +117,9 @@ def deploy_to_pipeline(args) -> None:
     vm = relax.VirtualMachine(ex, device)
 
     with open(
-        os.path.join(args.artifact_path, "params", "mlc-chat-config.json"), "r"
+        os.path.join(args.artifact_path, "params", "mlc-chat-config.json"),
+        "r",
+        encoding="utf-8",
     ) as f:
         config = json.load(f)
 
@@ -142,7 +166,8 @@ def deploy_to_pipeline(args) -> None:
         print(f"output kv_cache[0]:\n{first_k_cache.numpy().transpose(1, 0, 2)}")
         print(f"output logits:\n{logits.numpy()}")
     print(
-        f"Time elapsed: encoding {(encoding_end - start)} seconds, decoding {end - encoding_end} secs"
+        f"Time elapsed: encoding {(encoding_end - start)} seconds, "
+        f"decoding {end - encoding_end} secs"
     )
 
     if args.profile:
