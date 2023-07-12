@@ -820,11 +820,6 @@ def get_model(args, hf_config):
             set(pidx2pname.values()),
             excluded_params=["cos_cached", "sin_cached"],
         )
-        head_dim = config.hidden_size / config.num_attention_heads
-        inv_freq = 1.0 / (
-            config.position_embedding_base
-            ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
-        )
         args.pidx2pname = pidx2pname
         args.pname2binname = pname2binname
         args.f_convert_pname_fwd = lambda pname: pname
@@ -832,6 +827,11 @@ def get_model(args, hf_config):
             (torch_pname, raw_param.astype(dtype))
         ]
 
+    head_dim = config.hidden_size / config.num_attention_heads
+    inv_freq = 1.0 / (
+        config.position_embedding_base
+        ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
+    )
     # Hardcode the cached sin/cos for 2048.
     # This will be eliminated further with online rotary embedding calculation.
     t = np.arange(2048, dtype=inv_freq.dtype)

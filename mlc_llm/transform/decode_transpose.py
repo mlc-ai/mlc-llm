@@ -86,36 +86,6 @@ class FuseDecodeTranspose:
                 ]
                 new_func_buffers[-1] = decode_tir_func.body.block.alloc_buffers[0]
                 old_body = decode_tir_func.body.block.body[0]
-                # deep copy old_body to new_body
-                # new_body = 
-                
-                new_body = tir.For(
-                    loop_var=old_body.loop_var,
-                    min_val=old_body.min,
-                    extent=old_body.extent,
-                    kind=old_body.kind,
-                    thread_binding=old_body.thread_binding,
-                    annotations=old_body.annotations,
-                    body=tir.For(
-                        loop_var=old_body.body.loop_var,
-                        min_val=old_body.body.min,
-                        extent=old_body.body.extent,
-                        kind=old_body.body.kind,
-                        thread_binding=old_body.body.thread_binding,
-                        annotations=old_body.body.annotations,
-                        body=tir.BlockRealize(
-                            iter_values=old_body.body.body.iter_values,
-                            predicate=old_body.body.body.predicate,
-                            block=tir.Block(
-                                iter_vars=old_body.body.body.block.iter_vars,
-                                reads=old_body.body.body.block.reads,
-                                writes=old_body.body.body.block.writes,
-                                name_hint=old_body.body.body.block.name_hint,
-                                body=old_body.body.body.block.body,
-                            ),
-                        ),
-                    ),
-                )
 
                 new_func = tir.PrimFunc(
                     params=new_func_buffers,
@@ -127,24 +97,10 @@ class FuseDecodeTranspose:
                             reads=[],
                             writes=[],
                             name_hint="root",
-                            body=new_body,
+                            body=decode_tir_func.body.block.body[0],
                         ),
                     ),
                 )
-                # new_func = tir.PrimFunc(
-                #     params=new_func_buffers,
-                #     body=tir.BlockRealize(
-                #         iter_values=[],
-                #         predicate=True,
-                #         block=tir.Block(
-                #             iter_vars=[],
-                #             reads=[],
-                #             writes=[],
-                #             name_hint="root",
-                #             body=decode_tir_func.body.block.body[0],
-                #         ),
-                #     ),
-                # )
                 gv = self.builder_.add_func(new_func, func_name="decode")
                 decoded_matmul_rhs = self.builder_.emit(
                     relax.call_tir(
