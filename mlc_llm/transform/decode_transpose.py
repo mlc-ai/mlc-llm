@@ -77,16 +77,10 @@ class FuseDecodeTranspose:
                 ):
                     return call
 
-                sch = tvm.tir.Schedule(decode_tir_func)
-                br = sch.get_block("root")
-                bt = sch.get_child_blocks(br)[-1]
-                bd = sch.get_producers(bt)
                 new_func_buffers = [
                     decode_tir_func.buffer_map[var] for var in decode_tir_func.params
                 ]
                 new_func_buffers[-1] = decode_tir_func.body.block.alloc_buffers[0]
-                old_body = decode_tir_func.body.block.body[0]
-
                 new_func = tir.PrimFunc(
                     params=new_func_buffers,
                     body=tir.BlockRealize(
