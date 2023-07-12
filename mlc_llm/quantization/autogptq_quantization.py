@@ -8,9 +8,7 @@ from tvm.script import tir as T
 
 from . import tir_utils
 from .quantization import QuantizationSpec
-from .quantization import FQuantize, FDequantize
-from tvm.relax.testing import nn
-from transformers import AutoModelForCausalLM
+from .quantization import FDequantize
 
 
 def load_autogptq_params(
@@ -37,7 +35,10 @@ def load_autogptq_params(
 
         np_array = param_dict[pname].numpy()
         if np_array.dtype == np.int32:
-            param_list[pidx] = tvm.nd.array(np_array.astype(np.uint32), device,)
+            param_list[pidx] = tvm.nd.array(
+                np_array.astype(np.uint32),
+                device,
+            )
         else:
             param_list[pidx] = tvm.nd.array(np_array, device)
 
@@ -71,31 +72,61 @@ class AutogptqQuantizationSpec(QuantizationSpec):
     def convert_param(self, name: str, param: relax.Var) -> relax.Var:
         assert self.storage_nbit == 32, "Only support 32bit storage currently"
         assert param.struct_info.ndim == 2, "Only support 2D param currently"
-        # assert self.transpose == False, "Only support transpose=False currently"
+        assert (
+            self.transpose == True
+        ), "Auto-GPTQ Framework only support kxn layout currently"
 
         # by default, torch stores weight in [outfeatures, infeatures]
         outfeatures, infeatures = param.struct_info.shape
         group_size = self.group_size if self.group_size != -1 else infeatures
-        self.bits = self.get_bits()
-        if "qweight" in name:
-            _shape = (infeatures // self.storage_nbit * self.bits, outfeatures) if self.transpose else (outfeatures, infeatures // self.storage_nbit * self.bits)
-            _dtype = "uint32"
-        elif "qzeros" in name:
-            _shape = (
-                infeatures // group_size,
-                outfeatures // self.storage_nbit * self.bits,
-            ) if self.transpose else (outfeatures // self.storage_nbit * self.bits, infeatures // group_size)
-            _dtype = "uint32"
-        elif "scales" in name:
-            _shape = (infeatures // group_size, outfeatures) if self.transpose else (outfeatures, infeatures // group_size)
-            _dtype = "float16"
-        elif "g_idx" in name:
-            _shape = (infeatures,)
-            _dtype = "uint32"
-        else:
+        PARAM_CONFIGS = {
+            "qweight": {
+                "shape_fn": lambda self, infeatures, outfeatures: (
+                    (infeatures // self.storage_nbit * self.bits, outfeatures)
+                    if self.transpose
+                    else (outfeatures, infeatures // self.storage_nbit * self.bits)
+                ),
+                "dtype": "uint32",
+            },
+            "qzeros": {
+                "shape_fn": lambda self, infeatures, outfeatures: (
+                    (
+                        infeatures // group_size,
+                        outfeatures // self.storage_nbit * self.bits,
+                    )
+                    if self.transpose
+                    else (
+                        outfeatures // self.storage_nbit * self.bits,
+                        infeatures // group_size,
+                    )
+                ),
+                "dtype": "uint32",
+            },
+            "scales": {
+                "shape_fn": lambda self, infeatures, outfeatures: (
+                    (infeatures // group_size, outfeatures)
+                    if self.transpose
+                    else (outfeatures, infeatures // group_size)
+                ),
+                "dtype": "float16",
+            },
+            "g_idx": {
+                "shape_fn": lambda self, infeatures, outfeatures: (infeatures,),
+                "dtype": "uint32",
+            },
+        }
+
+        def get_param_config(self, name, infeatures, outfeatures):
+            for prefix, config in PARAM_CONFIGS.items():
+                if prefix in name:
+                    _shape = config["shape_fn"](self, infeatures, outfeatures)
+                    _dtype = config["dtype"]
+                    return _shape, _dtype
+
             raise ValueError(f"Unknown quantized param name {name}")
-        print(f"Convert {name} to shape {_shape} and dtype {_dtype} from {param.struct_info.shape}")
-        # print("raw param shape: ", param.struct_info.shape)
+
+        self.bits = self.get_bits()
+        _shape, _dtype = get_param_config(self, name, infeatures, outfeatures)
         new_param = relax.Var(name, relax.TensorStructInfo(_shape, _dtype))
         return new_param
 
@@ -109,7 +140,7 @@ class AutogptqQuantizationSpec(QuantizationSpec):
         param_info: relax.TensorStructInfo,
         qparam_info: List[relax.TensorStructInfo],
     ) -> Optional[FDequantize]:
-        infeatures = param_info.shape.struct_info # type: ignore
+        infeatures = param_info.shape.struct_info  # type: ignore
         return decoding_func(
             sym=self.sym,
             group_size=self.group_size if self.group_size != -1 else infeatures,
@@ -140,6 +171,7 @@ def decoding_func(
 
     def te_decode_asym(qweight, qzeros, scales, g_idx):
         n_float_per_u32 = 32 // nbit
+
         def f_decode_asym(i, j):
             if data_transposed:
                 zeros = tir_utils._tir_u32_to_int_to_float(
@@ -154,7 +186,7 @@ def decoding_func(
                     i % n_float_per_u32,
                     dtype=dtype,
                 )
-                scale_float, bias_float = scales[g_idx[i], j], zeros
+                scale_float, bias_float = scales[g_idx[i], j], zeros + 1
             else:
                 zeros = tir_utils._tir_u32_to_int_to_float(
                     nbit,
@@ -168,8 +200,8 @@ def decoding_func(
                     j % n_float_per_u32,
                     dtype=dtype,
                 )
-                scale_float, bias_float = scales[i, g_idx[j]], zeros
-            w = data_float * scale_float + bias_float
+                scale_float, bias_float = scales[i, g_idx[j]], zeros + 1
+            w = (data_float - bias_float) * scale_float
             return w
 
         shape = (
@@ -183,6 +215,3 @@ def decoding_func(
         return w
 
     return te_decode_asym
-
-
-# fmt: on
