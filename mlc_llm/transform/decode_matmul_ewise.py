@@ -46,7 +46,7 @@ def pattern_check(gemv_only: bool):
 
 
 def decode_matmul_pattern(match_ewise: int, n_aux_tensor: int, gemv_only: bool):
-    assert n_aux_tensor == 1 or n_aux_tensor == 2 or n_aux_tensor == 4
+    assert n_aux_tensor == 1 or n_aux_tensor == 2 or n_aux_tensor == 3 or n_aux_tensor == 4
 
     w_scaled = wildcard()
     aux_tensors = [wildcard(), wildcard(), wildcard(), wildcard()]
@@ -69,7 +69,6 @@ def decode_matmul_pattern(match_ewise: int, n_aux_tensor: int, gemv_only: bool):
         "x": x,
         "w_scaled": w_scaled,
     }
-
     return matmul, annotations, pattern_check(gemv_only)
 
 
@@ -81,7 +80,7 @@ class FuseDecodeMatmulEwise:
     def transform_module(
         self, mod: IRModule, ctx: tvm.transform.PassContext
     ) -> IRModule:
-        for n_aux_tensor in [1, 2, 4]:
+        for n_aux_tensor in [1, 2, 3, 4]:
             for match_ewise in [0, 1, 2, 6]:
                 if match_ewise == 6 and n_aux_tensor != 4:
                     continue
