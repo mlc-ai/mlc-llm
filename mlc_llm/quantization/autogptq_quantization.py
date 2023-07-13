@@ -49,7 +49,7 @@ def load_autogptq_params(
 class AutogptqQuantizationSpec(QuantizationSpec):
     """The quantization specification for group quantization algorithm."""
 
-    mode: Literal["int3", "int4"]
+    mode: Literal["int2", "int3", "int4", "int8"]
     sym: bool
     storage_nbit: int
     group_size: int
@@ -79,6 +79,7 @@ class AutogptqQuantizationSpec(QuantizationSpec):
         # by default, torch stores weight in [outfeatures, infeatures]
         outfeatures, infeatures = param.struct_info.shape
         group_size = self.group_size if self.group_size != -1 else infeatures
+        
         PARAM_CONFIGS = {
             "qweight": {
                 "shape_fn": lambda self, infeatures, outfeatures: (
