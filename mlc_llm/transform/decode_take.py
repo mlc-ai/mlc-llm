@@ -8,6 +8,8 @@ from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcar
 def pattern_check(ctx: relax.transform.PatternCheckContext) -> bool:
     take = ctx.annotated_expr["take"]
     decode = ctx.annotated_expr["decode"]
+    if not isinstance(decode, relax.expr.Call):
+        return False
     if not isinstance(take.args[0], relax.GlobalVar) or not isinstance(
         decode.args[0], relax.GlobalVar
     ):
