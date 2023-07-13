@@ -807,13 +807,13 @@ def get_model(args, hf_config):
     param_list = [None] * len(pidx2pname)
     assert len(param_list) == len(pidx2pname)
     if args.quantization.pre_quantized:
-            param_list = args.quantization.load_quantized_params(
-                model_path,
-                param_list,
-                pidx2pname,
-                device,
-                excluded_params=["cos_cached", "sin_cached"],
-            )
+        param_list = args.quantization.load_quantized_params(
+            model_path,
+            param_list,
+            pidx2pname,
+            device,
+            excluded_params=["cos_cached", "sin_cached"],
+        )
     else:
         pname2binname = load_torch_pname2binname_map(
             model_path,
