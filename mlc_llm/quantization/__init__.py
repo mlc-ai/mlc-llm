@@ -23,7 +23,6 @@ quantization_schemes = {
         final_fc_weight=NoQuantizationSpec("float16"),
         _base_model_prefix="model",
         _layers_block_name="model.layers",
-        _outside_layer_modules=["model.embed_tokens", "model.norm"],
         _inside_layer_modules=[
             ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
             ["self_attn.o_proj"],

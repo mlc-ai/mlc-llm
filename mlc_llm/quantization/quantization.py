@@ -109,11 +109,39 @@ class QuantizationScheme:
     others: QuantizationSpec
     pre_quantized: bool
     
-    _base_model_prefix: str
-    _layers_block_name: str
-    _outside_layer_modules: List[str]
-    _inside_layer_modules: List[List[str]]
-    _load_quantized_params_func: Optional[Callable] 
+    """_base_model_prefix is used to match the parameter names when loading from pre-quantized pytorch checkpoints.
+    Its value can vary depending on the transformer models used. For example, it can be "model" for Llama, "levit" for LeViT.
+    see more candidates in huggingchat [modeling](https://github.com/huggingface/transformers/blob/src/transformers/models/llama/modeling_llama.py#L344) 
+    """ 
+    _base_model_prefix: str 
+
+    """_layers_block_name is used to match the parameter names when loading from pre-quantized pytorch checkpoints.
+    the parameter names usually to be {_base_model_prefix}.{_layers_block_name}.{parameter_name}
+    
+    For example, the parameter names of the linear layers in Llama are "model.model.encoder.layers.0.linear1.weight", 
+    "model.model.encoder.layers.0.linear1.bias", etc.
+    """
+    _layers_block_name: str 
+
+    '''_inside_layer_modules defines the names of the layers that are inside the quantize process.
+    
+    For example, the autogptq scheme:
+        ```python
+            _inside_layer_modules=[
+                ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
+                ["self_attn.o_proj"],
+                ["mlp.gate_proj", "mlp.down_proj", "mlp.up_proj"],
+            ]
+        ```
+    represents the q, k, v projection layers, the output projection layer, and the mlp layers are quantized.
+    '''
+    _inside_layer_modules: List[List[str]] 
+
+    """This optional callable function is used to load quantized parameters from the checkpoints.
+    If the scheme is used for pre-quantized, this function must be provided.
+    """
+    _load_quantized_params_func: Optional[Callable]
+
     
     def __init__(
         self,
@@ -130,7 +158,6 @@ class QuantizationScheme:
         pre_quantized: bool = False,
         _base_model_prefix: str = "",
         _layers_block_name: str = "",
-        _outside_layer_modules: List[str] = [],
         _inside_layer_modules: List[List[str]] = [],
         _load_quantized_params_func: Optional[Callable] = None,
     ) -> None:
@@ -157,7 +184,6 @@ class QuantizationScheme:
         self.pre_quantized = pre_quantized
         self._base_model_prefix = _base_model_prefix
         self._layers_block_name = _layers_block_name
-        self._outside_layer_modules = _outside_layer_modules
         self._inside_layer_modules = _inside_layer_modules
         self._load_quantized_params_func = _load_quantized_params_func
 
