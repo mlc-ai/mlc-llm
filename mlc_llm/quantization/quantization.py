@@ -107,7 +107,42 @@ class QuantizationScheme:
     embedding_table: QuantizationSpec
     final_fc_weight: QuantizationSpec
     others: QuantizationSpec
+    pre_quantized: bool
+    
+    """_base_model_prefix is used to match the parameter names when loading from pre-quantized pytorch checkpoints.
+    Its value can vary depending on the transformer models used. For example, it can be "model" for Llama, "levit" for LeViT.
+    see more candidates in huggingchat [modeling](https://github.com/huggingface/transformers/blob/src/transformers/models/llama/modeling_llama.py#L344) 
+    """ 
+    _base_model_prefix: str 
 
+    """_layers_block_name is used to match the parameter names when loading from pre-quantized pytorch checkpoints.
+    the parameter names usually to be {_base_model_prefix}.{_layers_block_name}.{parameter_name}
+    
+    For example, the parameter names of the linear layers in Llama are "model.model.encoder.layers.0.linear1.weight", 
+    "model.model.encoder.layers.0.linear1.bias", etc.
+    """
+    _layers_block_name: str 
+
+    '''_inside_layer_modules defines the names of the layers that are inside the quantize process.
+    
+    For example, the autogptq scheme:
+        ```python
+            _inside_layer_modules=[
+                ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
+                ["self_attn.o_proj"],
+                ["mlp.gate_proj", "mlp.down_proj", "mlp.up_proj"],
+            ]
+        ```
+    represents the q, k, v projection layers, the output projection layer, and the mlp layers are quantized.
+    '''
+    _inside_layer_modules: List[List[str]] 
+
+    """This optional callable function is used to load quantized parameters from the checkpoints.
+    If the scheme is used for pre-quantized, this function must be provided.
+    """
+    _load_quantized_params_func: Optional[Callable]
+
+    
     def __init__(
         self,
         name: str,
@@ -119,7 +154,12 @@ class QuantizationScheme:
         final_fc_weight: Optional[
             Union[QuantizationSpec, Literal["same_as_linear_weight"]]
         ] = None,
-        others: Optional[QuantizationSpec] = None
+        others: Optional[QuantizationSpec] = None,
+        pre_quantized: bool = False,
+        _base_model_prefix: str = "",
+        _layers_block_name: str = "",
+        _inside_layer_modules: List[List[str]] = [],
+        _load_quantized_params_func: Optional[Callable] = None,
     ) -> None:
         self.name = name
         self.linear_weight = linear_weight
@@ -140,6 +180,12 @@ class QuantizationScheme:
             self.final_fc_weight = self.linear_weight
         else:
             self.final_fc_weight = final_fc_weight
+        
+        self.pre_quantized = pre_quantized
+        self._base_model_prefix = _base_model_prefix
+        self._layers_block_name = _layers_block_name
+        self._inside_layer_modules = _inside_layer_modules
+        self._load_quantized_params_func = _load_quantized_params_func
 
     @property
     def model_dtype(self) -> str:
@@ -147,3 +193,18 @@ class QuantizationScheme:
         the linear layers.
         """
         return self.linear_weight.dtype
+
+    def is_inside_layer_modules(self, name: str) -> bool:
+        return any(module in name for module in sum(self._inside_layer_modules, []))
+
+    def load_quantized_params(self, *args, **kwargs) -> Optional[List[relax.Var]]:
+        if self.pre_quantized:
+            return self._load_quantized_params_func(*args, **kwargs)
+        else:
+            raise RuntimeError("The model is not pre-quantized.")
+    
+    def get_layers_block_name(self) -> str:
+        return self._layers_block_name
+
+    def get_base_model_prefix(self) -> str:
+        return self._base_model_prefix

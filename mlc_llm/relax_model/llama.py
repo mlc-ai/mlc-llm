@@ -803,23 +803,35 @@ def get_model(args, hf_config):
             )
 
     mod, pidx2pname = param_manager.quantization_transform(mod)
-    pname2binname = load_torch_pname2binname_map(
-        model_path,
-        set(pidx2pname.values()),
-        excluded_params=["cos_cached", "sin_cached"],
-    )
-
     device = tvm.cpu()
-
     param_list = [None] * len(pidx2pname)
     assert len(param_list) == len(pidx2pname)
+    if args.quantization.pre_quantized:
+        param_list = args.quantization.load_quantized_params(
+            model_path,
+            param_list,
+            pidx2pname,
+            device,
+            excluded_params=["cos_cached", "sin_cached"],
+        )
+    else:
+        pname2binname = load_torch_pname2binname_map(
+            model_path,
+            set(pidx2pname.values()),
+            excluded_params=["cos_cached", "sin_cached"],
+        )
+        args.pidx2pname = pidx2pname
+        args.pname2binname = pname2binname
+        args.f_convert_pname_fwd = lambda pname: pname
+        args.f_convert_param_bkwd = lambda torch_pname, raw_param: [
+            (torch_pname, raw_param.astype(dtype))
+        ]
 
     head_dim = config.hidden_size / config.num_attention_heads
     inv_freq = 1.0 / (
         config.position_embedding_base
         ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
     )
-
     # Hardcode the cached sin/cos for 2048.
     # This will be eliminated further with online rotary embedding calculation.
     t = np.arange(2048, dtype=inv_freq.dtype)
@@ -827,12 +839,5 @@ def get_model(args, hf_config):
     emb = np.concatenate((freqs, freqs), axis=-1)
     param_list[-2] = tvm.nd.array(np.cos(emb).astype(config.dtype), device)
     param_list[-1] = tvm.nd.array(np.sin(emb).astype(config.dtype), device)
-
-    args.pidx2pname = pidx2pname
-    args.pname2binname = pname2binname
-    args.f_convert_pname_fwd = lambda pname: pname
-    args.f_convert_param_bkwd = lambda torch_pname, raw_param: [
-        (torch_pname, raw_param.astype(dtype))
-    ]
 
     return mod, param_list

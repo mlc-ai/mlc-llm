@@ -2,11 +2,34 @@ from .quantization import FQuantize, FDequantize
 from .quantization import QuantizationScheme
 from .quantization import QuantizationSpec, NoQuantizationSpec, ParamQuantKind
 from .group_quantization import GroupQuantizationSpec
+from .autogptq_quantization import AutogptqQuantizationSpec, load_autogptq_params
 from .rwkv_quantization import RWKVQuantizationSpec
 
 
 # The predefined quantization schemes.
 quantization_schemes = {
+    "autogptq_llama_q4f16_0": QuantizationScheme(
+        pre_quantized=True,
+        name="autogptq_llama_q4f16_0",
+        linear_weight=AutogptqQuantizationSpec(
+            dtype="float16",
+            mode="int4",
+            sym=False,
+            storage_nbit=32,
+            group_size=-1,
+            transpose=True,
+        ),
+        embedding_table=NoQuantizationSpec("float16"),
+        final_fc_weight=NoQuantizationSpec("float16"),
+        _base_model_prefix="model",
+        _layers_block_name="model.layers",
+        _inside_layer_modules=[
+            ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
+            ["self_attn.o_proj"],
+            ["mlp.gate_proj", "mlp.down_proj", "mlp.up_proj"],
+        ],
+        _load_quantized_params_func=load_autogptq_params
+    ),
     "q0f16": QuantizationScheme("q0f16", NoQuantizationSpec("float16")),
     "q0f32": QuantizationScheme("q0f32", NoQuantizationSpec("float32")),
     "q3f16_0": QuantizationScheme(

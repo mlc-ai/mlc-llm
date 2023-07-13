@@ -210,13 +210,13 @@ def validate_config(model_path: str):
         ), f"Model type {config['model_type']} not supported."
 
 
-def debug_dump_script(mod, name, args):
+def debug_dump_script(mod, name, args, show_meta=True):
     """Debug dump mode"""
     if not args.debug_dump:
         return
     dump_path = os.path.join(args.artifact_path, "debug", name)
     with open(dump_path, "w", encoding="utf-8") as outfile:
-        outfile.write(mod.script(show_meta=True))
+        outfile.write(mod.script(show_meta=show_meta))
     print(f"Dump mod to {dump_path}")
 
 
