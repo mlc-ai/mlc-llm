@@ -18,19 +18,19 @@ you can use the following command to compile it:
 
         .. code:: shell
 
-            python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --target metal --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --target metal --quantization q4f16_0
 
     .. group-tab:: Linux - CUDA
 
         .. code:: shell
 
-            python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --target cuda --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --target cuda --quantization q4f16_0
 
     .. group-tab:: Vulkan
 
         .. code:: shell
 
-            python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --target vulkan --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --target vulkan --quantization q4f16_0
 
 
 .. contents:: Table of Contents
@@ -93,9 +93,9 @@ and update the value of field ``model_lib`` to ``"RedPajama-INCITE-Chat-3B-v1-q4
 
     .. code:: shell
 
-        python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --reuse-lib RedPajama-INCITE-Chat-3B-v1-q4f16_0 --target [your target] --quantization q4f16_0
+        python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --reuse-lib RedPajama-INCITE-Chat-3B-v1-q4f16_0 --target [your target] --quantization q4f16_0
     
-    In this way, `build.py` does not produce the model library for the instruct model, and in `mlc-chat-config.json`
+    In this way, `mlc_llm.build` does not produce the model library for the instruct model, and in `mlc-chat-config.json`
     the ``model_lib`` field is set to ``RedPajama-INCITE-Chat-3B-v1-q4f16_0``.
 
     Please note that only models with same architecture and compiled with same quantization modes can reuse and share model library.
