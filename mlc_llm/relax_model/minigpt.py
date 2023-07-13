@@ -511,7 +511,9 @@ def get_model(args):
         bb = relax.BlockBuilder()
         create_embed_func(bb, param_manager, config, args.quantization)
         mod = bb.get()
-        mod, _ = param_manager.quantization_transform(mod)
+        mod = param_manager.transform_module(
+            mod, args.model_path, no_lazy_param_loading=True
+        )
 
         # load visual encoder weights
         visual_encoder_url = "https://storage.googleapis.com/sfr-vision-language-research/LAVIS/models/BLIP2/eva_vit_g.pth"
@@ -568,7 +570,7 @@ def get_model(args):
                 tvm.nd.array(llama_state_dict[key].numpy().astype(config.dtype), device)
             )
 
-        return mod, param_list
+        return mod, param_manager, param_list
 
     raise ValueError(f"Unsupported model: {model_name}")
 

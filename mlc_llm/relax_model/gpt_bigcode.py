@@ -3,7 +3,6 @@ import argparse
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
 
-from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
 
 import tvm
@@ -667,18 +666,13 @@ def get_model(args: argparse.Namespace, hf_config):
                     },
                 )
 
-        mod, pidx2pname = param_manager.quantization_transform(mod)
-        pname2binname = load_torch_pname2binname_map(
-            args.model_path, set(pidx2pname.values())
+        mod = param_manager.transform_module(
+            mod,
+            args.model_path,
+            f_convert_param_bkwd=lambda torch_pname, torch_param: [
+                (torch_pname, torch_param.astype(dtype))
+            ],
         )
-
-        args.pidx2pname = pidx2pname
-        args.pname2binname = pname2binname
-        args.f_convert_pname_fwd = lambda pname: pname
-        args.f_convert_param_bkwd = lambda torch_pname, raw_param: [
-            (torch_pname, raw_param.astype(dtype))
-        ]
-
-        return mod, [None] * len(pidx2pname)
+        return mod, param_manager, [None] * len(param_manager.param_names)
 
     raise ValueError(f"Unsupported model {model}")

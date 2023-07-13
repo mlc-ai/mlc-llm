@@ -1,6 +1,6 @@
 # pylint: disable=missing-docstring,invalid-name
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 from tvm import relax
 from tvm.relax import Expr, op
@@ -8,9 +8,7 @@ from tvm.relax.testing import nn
 from tvm.script import relax as R
 
 from ..quantization import ParamQuantKind, QuantizationScheme
-from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
-from .modules import ModuleList, named_parameters
 from .param_manager import ParamManager
 
 # Reference: https://github.com/BlinkDL/RWKV-LM/blob/main/RWKV-v4/src/model_run.py
@@ -500,7 +498,7 @@ def get_model(args, hf_config):
     create_kv_cache_reset_func(bb, config)
     mod = bb.get()
 
-    def f_convert_pname_fwd(pname: str) -> str:
+    def f_convert_pname_fwd(pname: str) -> List[str]:
         if (
             "key_weight" in pname
             or "value_weight" in pname
@@ -508,17 +506,12 @@ def get_model(args, hf_config):
             or "output_weight" in pname
             or "head_weight" in pname
         ):
-            return pname.replace("_weight", ".weight")
+            return [pname.replace("_weight", ".weight")]
         else:
-            return pname
+            return [pname]
 
-    mod, pidx2pname = param_manager.quantization_transform(mod)
-    pname2binname = load_torch_pname2binname_map(
-        args.model_path, set(pidx2pname.values()), f_convert_pname_fwd
-    )
-
-    def f_convert_param_bkwd(torch_pname: str, raw_param):
-        # raw_param: numpy.ndarray
+    def f_convert_param_bkwd(torch_pname: str, torch_param):
+        # torch_param: numpy.ndarray
         import numpy as np  # pylint: disable=import-outside-toplevel
 
         # rescale_every
@@ -529,11 +522,11 @@ def get_model(args, hf_config):
                 "attention.output.weight" in torch_pname
                 or "feed_forward.value.weight" in torch_pname
             ):
-                raw_param = raw_param / (2 ** (layer_id // config.rescale_every))
+                torch_param = torch_param / (2 ** (layer_id // config.rescale_every))
 
         # reshape
         if "time_" in torch_pname:
-            raw_param = raw_param.squeeze()
+            torch_param = torch_param.squeeze()
         if (
             "key.weight" in torch_pname
             or "value.weight" in torch_pname
@@ -542,21 +535,19 @@ def get_model(args, hf_config):
             or "head.weight" in torch_pname
         ):
             pname = torch_pname.replace(".weight", "_weight")
-            raw_param = raw_param.T
+            torch_param = torch_param.T
         else:
             pname = torch_pname
 
         # convert dtype
         if "time_decay" in torch_pname:  # need fp32 for this
-            return [(pname, -np.exp(raw_param.astype("float32")))]
+            return [(pname, -np.exp(torch_param.astype("float32")))]
         elif "time_first" in torch_pname:
-            return [(pname, raw_param.astype("float32"))]
+            return [(pname, torch_param.astype("float32"))]
         else:
-            return [(pname, raw_param.astype(config.dtype))]
+            return [(pname, torch_param.astype(config.dtype))]
 
-    args.pidx2pname = pidx2pname
-    args.pname2binname = pname2binname
-    args.f_convert_pname_fwd = f_convert_pname_fwd
-    args.f_convert_param_bkwd = f_convert_param_bkwd
-
-    return mod, [None] * len(pidx2pname)
+    mod = param_manager.transform_module(
+        mod, args.model_path, f_convert_pname_fwd, f_convert_param_bkwd
+    )
+    return mod, param_manager, [None] * len(param_manager.param_names)

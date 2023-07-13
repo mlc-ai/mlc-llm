@@ -20,7 +20,6 @@ from tvm.relax.testing import nn
 from tvm.script import relax as R
 
 from ..quantization import ParamQuantKind, QuantizationScheme
-from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
 from .modules import (
     Embedding,
@@ -730,45 +729,40 @@ def get_model(
                 },
             )
 
-    def f_convert_pname_fwd(pname: str) -> str:
+    def f_convert_pname_fwd(pname: str) -> List[str]:
         import re  # pylint: disable=import-outside-toplevel
 
         str_pattern = re.compile(r"(q|k|v)_proj")
         if re.search(str_pattern, pname) is not None:
-            return str_pattern.sub("query_key_value", pname)
+            return [str_pattern.sub("query_key_value", pname)]
         else:
-            return pname
-
-    mod, pidx2pname = param_manager.quantization_transform(mod)
-    pname2binname = load_torch_pname2binname_map(
-        args.model_path, set(pidx2pname.values()), f_convert_pname_fwd
-    )
+            return [pname]
 
     num_heads = config.num_attention_heads
     hidden_size = config.hidden_size
     head_dim = hidden_size // num_heads
 
-    def f_convert_param_bkwd(torch_pname: str, raw_param):
-        # raw_param: numpy.ndarray
+    def f_convert_param_bkwd(torch_pname: str, torch_param):
+        # torch_param: numpy.ndarray
         if torch_pname.endswith("query_key_value.weight"):
-            assert raw_param.ndim == 2
-            raw_param = raw_param.astype(dtype).reshape(
+            assert torch_param.ndim == 2
+            torch_param = torch_param.astype(dtype).reshape(
                 num_heads, 3, head_dim, hidden_size
             )
-            q_weight = raw_param[:, 0, :, :].reshape(hidden_size, hidden_size)
-            k_weight = raw_param[:, 1, :, :].reshape(hidden_size, hidden_size)
-            v_weight = raw_param[:, 2, :, :].reshape(hidden_size, hidden_size)
+            q_weight = torch_param[:, 0, :, :].reshape(hidden_size, hidden_size)
+            k_weight = torch_param[:, 1, :, :].reshape(hidden_size, hidden_size)
+            v_weight = torch_param[:, 2, :, :].reshape(hidden_size, hidden_size)
             return [
                 (torch_pname.replace("query_key_value", "q_proj"), q_weight),
                 (torch_pname.replace("query_key_value", "k_proj"), k_weight),
                 (torch_pname.replace("query_key_value", "v_proj"), v_weight),
             ]
         elif torch_pname.endswith("query_key_value.bias"):
-            assert raw_param.ndim == 1
-            raw_param = raw_param.astype(dtype).reshape(num_heads, 3, head_dim)
-            q_bias = raw_param[:, 0, :].reshape(hidden_size)
-            k_bias = raw_param[:, 1, :].reshape(hidden_size)
-            v_bias = raw_param[:, 2, :].reshape(hidden_size)
+            assert torch_param.ndim == 1
+            torch_param = torch_param.astype(dtype).reshape(num_heads, 3, head_dim)
+            q_bias = torch_param[:, 0, :].reshape(hidden_size)
+            k_bias = torch_param[:, 1, :].reshape(hidden_size)
+            v_bias = torch_param[:, 2, :].reshape(hidden_size)
             return [
                 (torch_pname.replace("query_key_value", "q_proj"), q_bias),
                 (torch_pname.replace("query_key_value", "k_proj"), k_bias),
@@ -779,17 +773,15 @@ def get_model(
             or "layer_norm" in torch_pname
             or "embed_out" in torch_pname
         ):
-            return [(torch_pname, raw_param.astype("float32"))]
+            return [(torch_pname, torch_param.astype("float32"))]
         elif (
             ".dense_h_to_4h.bias" in torch_pname or ".dense_4h_to_h.bias" in torch_pname
         ):
-            return [(torch_pname, raw_param.astype(ffn_out_dtype))]
+            return [(torch_pname, torch_param.astype(ffn_out_dtype))]
         else:
-            return [(torch_pname, raw_param.astype(dtype))]
+            return [(torch_pname, torch_param.astype(dtype))]
 
-    args.pidx2pname = pidx2pname
-    args.pname2binname = pname2binname
-    args.f_convert_pname_fwd = f_convert_pname_fwd
-    args.f_convert_param_bkwd = f_convert_param_bkwd
-
-    return mod, [None] * len(pidx2pname)
+    mod = param_manager.transform_module(
+        mod, args.model_path, f_convert_pname_fwd, f_convert_param_bkwd
+    )
+    return mod, param_manager, [None] * len(param_manager.param_names)

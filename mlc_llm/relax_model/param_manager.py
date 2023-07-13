@@ -1,14 +1,24 @@
-from typing import Callable, Dict, List, Set, Tuple
+import json
+import os
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import tvm
 from tvm import relax, tir
+from tvm._ffi.runtime_ctypes import Device
 from tvm.relax.expr import Expr, Function, Var
 from tvm.relax.testing import nn
 from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import PyExprMutator, mutator
 
-from .. import quantization
+from .. import quantization, transform
 from .modules import named_parameters
+
+
+def f_default_compute_relax_param(relax_pname: str, torch_params: List[Any]) -> Any:
+    """The defualt `f_compute_relax_param` for ParamManager.
+    See ParamManager for more details.
+    """
+    raise NotImplementedError()
 
 
 class Parameter:
@@ -84,14 +94,81 @@ class ParamManager:
         Then the list of all quantized tensors is `[t0_0, t0_1, t1_0, t2_0, t2_1, t2_2]`,
         and the dict `param2qrange` is
         `{p0: range(0, 2), p1: range(2, 3), p2: range(3, 6)}`.
+
+    f_convert_pname_fwd : Callable[[str], List[str]]
+        The function which converts Relax parameter name (ours) to torch's
+        parameter names, suggesting "to load this Relax parameter, which torch
+        parameter(s) are needed".
+        - Usually, the function maps a name to itself. For example, in LLaMA we
+        map `lm_head.weight` itself, as the parameter has the same name on both
+        Relax side and torch side.
+        - In some cases we map a name to multiple names. For example, if we
+        support combined QKV computing when the torch side separates them, on
+        Relax side we only have one QKV weight, while on torch side we have
+        one weight for each of Q, K, V. In this case, we map one name to three
+        names.
+        - In some cases we map a name to a single name which is other than
+        itself. This can happen either when the Relax nn.Module has different
+        param names than the torch's implementation so we need to map names
+        for connection, or when a Relax parameter is computed out from a torch
+        parameter. For example, if the torch implementation supports combined
+        QKV while the Relax one does not, we need compute the relax parameter
+        out from torch's parameter. In this case we map the relax parameter
+        name to the torch's parameter name.
+
+    f_convert_param_bkwd : Callable[[str, Any], Optional[List[Tuple[str, Any]]]]
+        The function which converts torch parameter and param name back to
+        Relax parameters with names. `Any` here stands for numpy.ndarray.
+        - Usually, the function just returns the input torch parameter and
+        the corresponding Relax parameter's name.
+        - In some cases, we return multiple Relax parameters. For example, if
+        the torch implementation supports combined QKV while the Relax one does
+        not, the function takes torch's combined QKV weight, and return the
+        separated Q K V weights with their corresponding names.
+        - In some cases we return `None`. This happens when the input torch
+        parameter itself does not determine any Relax parameter. For example,
+        if we support combined QKV computing when the torch side separates them,
+        we return `None` here for the single Q, K, V weights, as by only having
+        a Q (or K, V) weight we cannot compute the combined QKV weight.
+
+    f_compute_relax_param : Callable[[str, List[Any]], Any]
+        The function which computes a Relax parameter from a list of torch
+        parameters. `Any` here stands for numpy.ndarray. In the case when one
+        Relax parameter is computed from multiple torch parameters, this
+        functions is used.
+        For example, if we support combined QKV computing when the torch side
+        separates them, we use this function to combine the torch's Q, K, V
+        weights into one
+        In usual case, this function is not needed and by default it is
+        implemented by raising `NotImplementedError` (see f_default_compute_relax_param).
+
+    model_path : str
+        The path of the Hugging Face model on disk.
+
+    pidx2pname : Dict[int, str]
+        The dictionary from each Relax parameter's index in `param_names` to
+        the Relax parameter's name.
+
+    torch_pname2binname : Dict[str, str]
+        The dictionary from each torch parameter's name to the name of the
+        binary shard where the torch parameter is saved.
     """
 
     params: Dict[str, Parameter]
     param_names: List[str]
+
     raw_quantized_name_map: Dict[relax.Var, List[relax.Var]]
     func_raw_name_map: Dict[str, str]
     func_raw_param_map: Dict[relax.Var, Tuple[str, Parameter]]
     param2qrange: Dict[Parameter, range]
+
+    f_convert_pname_fwd: Callable[[str], List[str]]
+    f_convert_param_bkwd: Callable[[str, Any], Optional[List[Tuple[str, Any]]]]
+    f_compute_relax_param: Callable[[str, List[Any]], Any]
+
+    model_path: str
+    pidx2pname: Dict[int, str]
+    torch_pname2binname: Dict[str, str]
 
     def __init__(self) -> None:
         self.params = {}
@@ -145,28 +222,49 @@ class ParamManager:
                 # if pre_quantized, register the quantized tensor based on the quant_kind
                 if quantization_scheme.is_inside_layer_modules(name):
                     quantization_spec = getattr(quantization_scheme, quant_kind.name)
-                    quantized_params = quantization_spec.get_quantized_params(name, param)
+                    quantized_params = quantization_spec.get_quantized_params(
+                        name, param
+                    )
                     self.raw_quantized_name_map.setdefault(param, [])
                     for quantized_name, quantized_param in quantized_params.items():
-                        self.register_param(
-                            quantized_name, quantized_param, quantization_spec, func_name
+                        self._register_param(
+                            quantized_name,
+                            quantized_param,
+                            quantization_spec,
+                            func_name,
                         )
-                        self.raw_quantized_name_map[param].append(quantized_param) \
-                            if quantized_param not in self.raw_quantized_name_map[param] else None
+                        if quantized_param not in self.raw_quantized_name_map[param]:
+                            self.raw_quantized_name_map[param].append(quantized_param)
                 else:
                     # do not quantize the parameters outside the layer modules
-                    self.register_param(
-                        name, param, getattr(quantization_scheme, quant_kind.name), func_name
+                    self._register_param(
+                        name,
+                        param,
+                        getattr(quantization_scheme, quant_kind.name),
+                        func_name,
                     )
             else:
-                self.register_param(
-                    name, param, getattr(quantization_scheme, quant_kind.name), func_name
+                self._register_param(
+                    name,
+                    param,
+                    getattr(quantization_scheme, quant_kind.name),
+                    func_name,
                 )
-            
 
-    def quantization_transform(
-        self, mod: tvm.IRModule
-    ) -> Tuple[tvm.IRModule, Dict[int, str]]:
+    def transform_module(
+        self,
+        mod: tvm.IRModule,
+        model_path: str,
+        f_convert_pname_fwd: Callable[[str], List[str]] = lambda pname: [pname],
+        f_convert_param_bkwd: Callable[
+            [str, Any], Optional[List[Tuple[str, Any]]]
+        ] = lambda pname, torch_param: [(pname, torch_param)],
+        f_compute_relax_param: Callable[
+            [str, List[Any]], Any
+        ] = f_default_compute_relax_param,
+        *,
+        no_lazy_param_loading: bool = False,
+    ) -> tvm.IRModule:
         """The entrance function of all quantization-related transformation,
         including creating the function that computes quantization, and
         updating the input IRModule with quantized data as function input and
@@ -180,20 +278,71 @@ class ParamManager:
             (e.g., the "prefill"/"decode" functions) and is expected to
             have all of its parameters registered in the ParamManager.
 
+        model_path : str
+            The path of the Hugging Face model on disk.
+
+        f_convert_pname_fwd : Callable[[str], List[str]]
+            The function which converts Relax parameter name (ours) to torch's
+            parameter names. See the document of ParamManager for more details.
+
+        f_convert_param_bkwd : Callable[[str, Any], Optional[List[Tuple[str, Any]]]]
+            The function which converts torch parameter and param name back to
+            Relax parameters with names. `Any` here stands for numpy.ndarray.
+            See the document of ParamManager for more details.
+
+        f_compute_relax_param : Callable[[str, List[Any]], Any]
+            The function which computes a Relax parameter from a list of torch
+            parameters. `Any` here stands for numpy.ndarray.
+            See the document of ParamManager for more details.
+
+        no_lazy_param_loading : bool
+            A boolean indicating that no lazy parameter loading from torch is needed.
+            This needs to be set as True when all the model weights are loaded
+            at the time of constructing the model.
+
         Returns
         -------
         updated_mod : tvm.IRModule
             The IRModule updated with the quantization function and the
             dequantization computation.
-
-        pidx2pname : Dict[int, str]
-            The mapping from each parameter's index in the ParamManager
-            to the parameter' name.
-            This mapping is used for loading weight tensors from disk and
-            applying quantization at runtime.
         """
+        ######################### Part 1. Fields setup #########################
+
+        self.f_convert_pname_fwd = f_convert_pname_fwd
+        self.f_convert_param_bkwd = f_convert_param_bkwd
+        self.f_compute_relax_param = f_compute_relax_param
+
+        self.model_path = model_path
+        if not no_lazy_param_loading:
+            self.pidx2pname = {
+                pidx: pname for pidx, pname in enumerate(self.param_names)
+            }
+            self.torch_pname2binname = load_torch_pname2binname_map(
+                self.model_path,
+                set(self.pidx2pname.values()),
+                f_convert_pname_fwd=f_convert_pname_fwd,
+            )
+        else:
+            self.pidx2pname = dict()
+            self.torch_pname2binname = dict()
+
+        ################# Part 2. Create quantization function #################
+
         # Create the quantization function.
-        mod_transform = self.create_quantize_func()
+        # We first create an initial one, then reorder it according to each
+        # weight's location in the binary files, in the purpose of reducing
+        # memory usage when loading torch weights as well as acceleration.
+        mod_transform = self._create_quantize_func()
+        quantized_param_sinfo = mod_transform["transform_params"].struct_info.ret
+        mod_transform = transform.ReorderTransformFunc(
+            self.pidx2pname, self.torch_pname2binname, self.f_convert_pname_fwd
+        )(mod_transform)
+        # Remove the dataflow block inside the param transform function,
+        # so that the LazyTransformParams pass can be applied.
+        mod_transform = relax.transform.ToNonDataflow()(mod_transform)
+        mod_transform = relax.transform.LazyTransformParams()(mod_transform)
+
+        ############# Part 3. Update the model with dequantization #############
 
         # For each Relax function in the input IRModule (e.g., "prefill"),
         # we create its input relax.Var of all the quantized data, and
@@ -204,9 +353,7 @@ class ParamManager:
                 continue
             if func.attrs is None or not "num_input" in func.attrs:
                 continue
-            func2param_var[gv.name_hint] = relax.Var(
-                "params", mod_transform["transform_params"].struct_info.ret
-            )
+            func2param_var[gv.name_hint] = relax.Var("params", quantized_param_sinfo)
 
         # Cache mapping to avoid duplicate dequantization.
         dequantized_cache: Dict[relax.Var, relax.Var] = {}
@@ -215,40 +362,171 @@ class ParamManager:
         def f_replace(var: relax.Var, bb: relax.BlockBuilder) -> relax.Var:
             if var in self.raw_quantized_name_map:
                 quantized_params = self.raw_quantized_name_map[var]
-                qparams:List[relax.Var] = []
+                qparams: List[relax.Var] = []
                 for quantized_param in quantized_params:
                     func_name, param = self.func_raw_param_map[quantized_param]
                     quantized_tuple = func2param_var[func_name]
                     for qparam_idx in self.param2qrange[param]:
-                        qparams.append(bb.emit(relax.TupleGetItem(quantized_tuple, qparam_idx)))
-                de_quantize = self.dequantize(param, func2param_var[func_name], bb, qparams=qparams)
+                        qparams.append(
+                            bb.emit(relax.TupleGetItem(quantized_tuple, qparam_idx))
+                        )
+                de_quantize = self._dequantize(
+                    param, func2param_var[func_name], bb, qparams=qparams
+                )
                 return de_quantize
             else:
                 if var in dequantized_cache:
                     return dequantized_cache[var]
                 assert var in self.func_raw_param_map
                 func_name, param = self.func_raw_param_map[var]
-                dequantized = self.dequantize(param, func2param_var[func_name], bb)
+                dequantized = self._dequantize(param, func2param_var[func_name], bb)
                 dequantized_cache[var] = dequantized
                 return dequantized
-            
 
         # Create the function mutator for applying dequantization.
         replacer = ParamReplacer(mod, func2param_var, f_replace)
         # Update the input IRModule with dequantization.
         mod = replacer.transform()
 
+        ######################## Part 4. Merge IRModule ########################
+
         # Merge the quantization IRModule into the updated input IRModule.
         for gv, func in mod_transform.functions.items():
             mod[gv] = func
+        return mod
 
-        # Return the merged IRModule and the mapping from each parameter's
-        # index to the parameter' name.
-        return mod, {pidx: pname for pidx, pname in enumerate(self.param_names)}
+    def get_param_loading_functions(
+        self,
+        model_params: List[Optional[tvm.nd.NDArray]],
+        loaded_params: List[tvm.nd.NDArray],
+        loaded_idx_set: Set[int],
+        loaded_torch_bins: Set[str],
+        cached_relax_params: Dict[int, tvm.nd.NDArray],
+        cached_torch_params: Dict[str, Any],
+        device: Device,
+        device_cpu: Device,
+    ) -> Tuple[Callable, Callable]:
+        """A wrapper function which returns the `get_item` and `set_item`
+        functions for parameter lazy loading.
+
+        Parameters
+        ----------
+        model_params : List[Optional[tvm.nd.NDArray]]
+            The pre-loaded model parameters, for which we skip lazy loading.
+
+        loaded_params : List[tvm.nd.NDArray]
+            The parameter loading result, storing all the loaded parameters.
+
+        loaded_idx_set : Set[int]
+            The set of indices of loaded parameters, serving for robustness
+            guarantee to avoid one parameter being loaded for multiple times.
+
+        loaded_torch_bins : Set[str]
+            The set of torch binary filenames, serving for robustness guarantee
+            to avoid one torch binary file being loaded for multiple times.
+
+        cached_relax_params : Dict[int, tvm.nd.NDArray]
+            The set of cached Relax parameters.
+
+        cached_torch_params: Dict[str, Any]
+            The set of cached torch parameters. `Any` here stands for numpy.ndarray.
+
+        device : Device
+            The device which we load the parameters to.
+
+        device_cpu : Device
+            The CPU device.
+        """
+        import torch  # pylint: disable=import-outside-toplevel
+
+        assert self.f_convert_pname_fwd is not None
+        assert self.f_convert_param_bkwd is not None
+        assert self.f_compute_relax_param is not None
+        pname2pidx: Dict[str, int] = {
+            pname: pidx for pidx, pname in self.pidx2pname.items()
+        }
+
+        def fetch_torch_param(torch_param):
+            if str(torch_param.dtype) == "torch.bfloat16":
+                # Convert to float32 first.
+                return torch_param.detach().cpu().float().numpy()
+            else:
+                return torch_param.detach().cpu().numpy()
+
+        def load_torch_params_from_bin(torch_binname: str):
+            torch_params = torch.load(
+                os.path.join(self.model_path, torch_binname),
+                map_location=torch.device("cpu"),
+            )
+            torch_param_names = list(torch_params.keys())
+            for torch_param_name in torch_param_names:
+                torch_param = fetch_torch_param(torch_params[torch_param_name])
+                del torch_params[torch_param_name]
+
+                relax_params = self.f_convert_param_bkwd(torch_param_name, torch_param)
+                if relax_params is not None:
+                    for param_name, param in relax_params:
+                        if param_name not in pname2pidx.keys():
+                            continue
+                        pidx = pname2pidx[param_name]
+                        assert pidx not in cached_relax_params
+                        cached_relax_params[pidx] = tvm.nd.array(param, device_cpu)
+                else:
+                    assert torch_param_name not in cached_torch_params
+                    cached_torch_params[torch_param_name] = torch_param
+                del torch_param
+
+        def get_item(i):
+            # If the weight is already provided by `model_params`, directly use it
+            # and no need to load from binary file.
+            if model_params[i] is not None:
+                assert i not in cached_relax_params
+                return tvm.nd.array(model_params[i], device=device)
+
+            # Otherwise, we load the weight from its corresponding binary file.
+            assert i in self.pidx2pname
+            relax_pname = self.pidx2pname[i]
+            torch_pnames = self.f_convert_pname_fwd(relax_pname)
+
+            if i not in cached_relax_params:
+                for torch_binname in [
+                    self.torch_pname2binname[torch_pname]
+                    for torch_pname in torch_pnames
+                ]:
+                    if torch_binname in loaded_torch_bins:
+                        continue
+                    load_torch_params_from_bin(torch_binname)
+                    loaded_torch_bins.add(torch_binname)
+
+            if i not in cached_relax_params:
+                assert len(torch_pnames) > 1
+                assert all(
+                    [torch_pname in cached_torch_params] for torch_pname in torch_pnames
+                )
+                cached_relax_params[i] = self.f_compute_relax_param(
+                    relax_pname,
+                    [cached_torch_params[torch_pname] for torch_pname in torch_pnames],
+                )
+                for torch_pname in torch_pnames:
+                    del cached_torch_params[torch_pname]
+
+            assert i in cached_relax_params
+            assert i not in loaded_idx_set
+            param_on_device = tvm.nd.array(cached_relax_params[i], device=device)
+            loaded_idx_set.add(i)
+            del cached_relax_params[i]
+            return param_on_device
+
+        def set_item(i, computed_param):
+            if len(loaded_params) <= i:
+                loaded_params.extend([None for _ in range(i - len(loaded_params) + 1)])
+            loaded_params[i] = tvm.nd.array(computed_param, device=device_cpu)
+
+        return get_item, set_item
 
     #################### Below are internally called methods ####################
 
-    def register_param(
+    def _register_param(
         self,
         name: str,
         var: relax.Var,
@@ -321,9 +599,9 @@ class ParamManager:
         self.func_raw_name_map[var] = name
         self.func_raw_param_map[var] = (func_name, param)
 
-    def create_quantize_func(self) -> tvm.IRModule:
+    def _create_quantize_func(self) -> tvm.IRModule:
         """Construct the Relax function which computes quantization.
-        This method is called by `quantization_transform` below, and is not
+        This method is called by `transform_module` below, and is not
         directly invoked outside the class.
 
         Returns
@@ -373,7 +651,10 @@ class ParamManager:
                         # If the parameter does not have a quantization function, either it
                         # does not need quantization or it is pre-quantized.
                         # if have pre_quantized
-                        if hasattr(param.quant_spec, "pre_quantized") and param.quant_spec.pre_quantized:
+                        if (
+                            hasattr(param.quant_spec, "pre_quantized")
+                            and param.quant_spec.pre_quantized
+                        ):
                             self.param2qrange[param] = range(
                                 len(quantized_params),
                                 len(quantized_params) + len(param_vars),
@@ -427,11 +708,15 @@ class ParamManager:
         # Return the created IRModule.
         return bb.get()
 
-    def dequantize(
-        self, param: Parameter, quantized_tuple: relax.Var, bb: relax.BlockBuilder, qparams: List[relax.Var] = None
+    def _dequantize(
+        self,
+        param: Parameter,
+        quantized_tuple: relax.Var,
+        bb: relax.BlockBuilder,
+        qparams: List[relax.Var] = None,
     ) -> relax.Var:
         """Applying dequantization to the input parameter.
-        This method is called by `quantization_transform` below, and is not
+        This method is called by `transform_module` below, and is not
         directly invoked outside the class.
 
         Parameters
@@ -444,6 +729,11 @@ class ParamManager:
 
         bb : relax.BlockBuilder
             The Relax BlockBuilder used for inserting the dequantization computations.
+
+        qparams : List[relax.Var]
+            The quantized parts of the parameter.
+            By default it is `None`, in which case we will get the quantized parts
+            from `quantized_tuple`.
 
         Returns
         -------
@@ -516,7 +806,9 @@ class ParamReplacer(PyExprMutator):
             if func.attrs is None or not "num_input" in func.attrs:
                 continue
 
-            assert gv.name_hint in self.func2param_var, f"{gv.name_hint} not in {self.func2param_var}"
+            assert (
+                gv.name_hint in self.func2param_var
+            ), f"{gv.name_hint} not in {self.func2param_var}"
             updated_func = self.rewrite_func(func, self.func2param_var[gv.name_hint])
             updated_func = remove_all_unused(updated_func)
             self.builder_.update_func(gv, updated_func)
@@ -539,3 +831,44 @@ class ParamReplacer(PyExprMutator):
         if var not in self.param_set:
             return super().visit_var_(var)
         return self.f_replace(var, self.builder_)
+
+
+##################################################################
+
+
+def load_torch_pname2binname_map(
+    model_path: str,
+    relax_pnames: Set[str],
+    f_convert_pname_fwd: Callable[[str], List[str]] = lambda pname: [pname],
+) -> Dict[str, str]:
+    """Constructing the dictionary from each torch parameter's name to
+    the name of the binary shard where the torch parameter is saved.
+
+    Parameters
+    ----------
+    model_path : str
+        The path of the Hugging Face model on disk.
+
+    relax_pnames: Set[str]
+        The name of the Relax parameters.
+
+    f_convert_pname_fwd: Callable[[str], List[str]]
+        The function which converts Relax parameter name to torch's
+        parameter names. See ParamManager for more details.
+    """
+    bin_idx_path = os.path.join(model_path, "pytorch_model.bin.index.json")
+    if os.path.isfile(bin_idx_path):
+        # Multiple weight shards.
+        with open(bin_idx_path, "r") as f_torch_json:
+            torch_bin_json = json.load(f_torch_json)
+            torch_pname2binname = torch_bin_json["weight_map"]
+    else:
+        # Single weight shard.
+        single_shard_path = os.path.join(model_path, "pytorch_model.bin")
+        assert os.path.isfile(single_shard_path)
+        torch_pname2binname = {
+            torch_pname: "pytorch_model.bin"
+            for relax_pname in relax_pnames
+            for torch_pname in f_convert_pname_fwd(relax_pname)
+        }
+    return torch_pname2binname
