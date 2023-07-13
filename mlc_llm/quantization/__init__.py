@@ -76,12 +76,7 @@ quantization_schemes = {
             group_size=32,
             transpose=False,
         ),
-        embedding_table=NoQuantizationSpec("float16"),
-        final_fc_weight=NoQuantizationSpec("float16"),
-    ),
-    "q4f16_2": QuantizationScheme(
-        name="q4f16_2",
-        linear_weight=GroupQuantizationSpec(
+        embedding_table=GroupQuantizationSpec(
             dtype="float16",
             mode="int4",
             sym=True,
@@ -89,8 +84,7 @@ quantization_schemes = {
             group_size=32,
             transpose=False,
         ),
-        embedding_table=NoQuantizationSpec("float16"),
-        final_fc_weight=NoQuantizationSpec("float16"),
+        final_fc_weight="same_as_linear_weight",
     ),
     "q4f32_0": QuantizationScheme(
         name="q4f32_0",
