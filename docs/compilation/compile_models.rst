@@ -20,21 +20,24 @@ and customize the overall model optimization flow.
 Install MLC-LLM Package
 -----------------------
 
-Option 1: Use Prebuilt Package
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Option 1: Work with Source Code
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The building script to compile models is a part of MLC-LLM Package, which we have prepared pre-built pip wheels and you can install it by
-following the instructions in `<https://mlc.ai/package/>`_.
-
-Option 2: Build from Source
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If you are a developer and you need to change the code of building scripts, an eaiser way is to clone the repostiory,
-and include the ``mlc_llm`` directory to ``PYTHONPATH`` environment variable:
+The eaisest way is to use MLC-LLM is to clone the repostiory, and compile models under the root directory of the repository.
 
 .. code:: bash
 
-    export PYTHONPATH=mlc_llm:$PYTHONPATH
+    # clone the repository
+    git clone git@github.com:mlc-ai/mlc-llm.git --recursive
+    # enter to root directory of the repo
+    cd mlc-llm  
+
+Option 2: Use Prebuilt Package
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you need to compile models outside the MLC-LLM codebase, you can install the prebuilt pip wheels of MLC-LLM package by
+following the instructions in `<https://mlc.ai/package/>`_.
+
 
 Verify Installation
 ^^^^^^^^^^^^^^^^^^^
