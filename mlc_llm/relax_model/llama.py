@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import tvm
@@ -33,6 +33,7 @@ class LlamaConfig:
         eos_token_id=1,
         tie_word_embeddings=False,
         position_embedding_base=10000,
+        combine_matmul=True,
         **kwargs,
     ):
         self.dtype = dtype
@@ -50,6 +51,7 @@ class LlamaConfig:
         self.eos_token_id = eos_token_id
         self.tie_word_embeddings = tie_word_embeddings
         self.position_embedding_base = position_embedding_base
+        self.combine_matmul = combine_matmul
         self.kwargs = kwargs
 
 
@@ -142,13 +144,46 @@ class LlamaRMSNorm(nn.Module):
 
 
 class LlamaMLP(nn.Module):
-    def __init__(self, hidden_size: int, intermediate_size: int, dtype: str):
-        self.gate_proj = Linear(hidden_size, intermediate_size, dtype=dtype, bias=False)
-        self.down_proj = Linear(intermediate_size, hidden_size, dtype=dtype, bias=False)
-        self.up_proj = Linear(hidden_size, intermediate_size, dtype=dtype, bias=False)
+    def __init__(self, config: LlamaConfig):
+        hidden_size = config.hidden_size
+        intermediate_size = config.intermediate_size
+        dtype = config.dtype
+
+        self.combine_matmul = config.combine_matmul
+        if self.combine_matmul:
+            self.gate_up_proj = Linear(
+                hidden_size, 2 * intermediate_size, dtype=dtype, bias=False
+            )
+            self.down_proj = Linear(
+                intermediate_size, hidden_size, dtype=dtype, bias=False
+            )
+        else:
+            self.gate_proj = Linear(
+                hidden_size, intermediate_size, dtype=dtype, bias=False
+            )
+            self.down_proj = Linear(
+                intermediate_size, hidden_size, dtype=dtype, bias=False
+            )
+            self.up_proj = Linear(
+                hidden_size, intermediate_size, dtype=dtype, bias=False
+            )
 
     def forward(self, x):
-        return self.down_proj(relax.op.nn.silu(self.gate_proj(x)) * self.up_proj(x))
+        if self.combine_matmul:
+            gate_up_results = nn.emit(
+                relax.op.split(
+                    self.gate_up_proj(x),
+                    indices_or_sections=2,
+                    axis=-1,
+                )
+            )
+            gate_result = relax.TupleGetItem(gate_up_results, 0)
+            up_result = relax.TupleGetItem(gate_up_results, 1)
+        else:
+            gate_result = self.gate_proj(x)
+            up_result = self.up_proj(x)
+
+        return self.down_proj(relax.op.nn.silu(gate_result) * up_result)
 
 
 def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
@@ -179,9 +214,10 @@ def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
 class LlamaAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
-    def __init__(self, hidden_size: int, num_heads: int, dtype: str):
-        self.hidden_size = hidden_size
-        self.num_heads = num_heads
+    def __init__(self, config: LlamaConfig):
+        dtype = config.dtype
+        self.hidden_size = config.hidden_size
+        self.num_heads = config.num_attention_heads
         self.head_dim = self.hidden_size // self.num_heads
 
         if (self.head_dim * self.num_heads) != self.hidden_size:
@@ -189,15 +225,35 @@ class LlamaAttention(nn.Module):
                 f"hidden_size must be divisible by num_heads (got `hidden_size`: {self.hidden_size}"
                 f" and `num_heads`: {self.num_heads})."
             )
-        self.q_proj = Linear(
-            self.hidden_size, self.num_heads * self.head_dim, dtype=dtype, bias=False
-        )
-        self.k_proj = Linear(
-            self.hidden_size, self.num_heads * self.head_dim, dtype=dtype, bias=False
-        )
-        self.v_proj = Linear(
-            self.hidden_size, self.num_heads * self.head_dim, dtype=dtype, bias=False
-        )
+
+        self.combine_matmul = config.combine_matmul
+        if self.combine_matmul:
+            self.query_key_value_proj = Linear(
+                self.hidden_size,
+                3 * self.num_heads * self.head_dim,
+                dtype=dtype,
+                bias=False,
+            )
+        else:
+            self.q_proj = Linear(
+                self.hidden_size,
+                self.num_heads * self.head_dim,
+                dtype=dtype,
+                bias=False,
+            )
+            self.k_proj = Linear(
+                self.hidden_size,
+                self.num_heads * self.head_dim,
+                dtype=dtype,
+                bias=False,
+            )
+            self.v_proj = Linear(
+                self.hidden_size,
+                self.num_heads * self.head_dim,
+                dtype=dtype,
+                bias=False,
+            )
+
         self.o_proj = Linear(
             self.num_heads * self.head_dim, self.hidden_size, dtype=dtype, bias=False
         )
@@ -211,27 +267,52 @@ class LlamaAttention(nn.Module):
         past_key_value: Tuple[relax.Expr],
         attention_mask: Optional[relax.Expr] = None,
     ) -> Tuple[relax.Expr, Optional[relax.Expr], Optional[Tuple[relax.Expr]]]:
-        from tvm.relax.op import astype, matmul, maximum, permute_dims, reshape, squeeze
+        from tvm.relax.op import (
+            astype,
+            matmul,
+            maximum,
+            permute_dims,
+            reshape,
+            split,
+            squeeze,
+        )
         from tvm.relax.op.nn import softmax
 
         bsz, q_len, _ = hidden_states.struct_info.shape
         assert bsz == 1, "Only support batch size 1 at this moment."
 
+        if self.combine_matmul:
+            # (bsz * q_len, 3 * self.num_heads * self.head_dim)
+            qkv_states = nn.emit(
+                split(
+                    self.query_key_value_proj(hidden_states),
+                    indices_or_sections=3,
+                    axis=-1,
+                )
+            )
+            query_states = relax.TupleGetItem(qkv_states, 0)
+            key_states = relax.TupleGetItem(qkv_states, 1)
+            value_states = relax.TupleGetItem(qkv_states, 2)
+        else:
+            query_states = self.q_proj(hidden_states)
+            key_states = self.k_proj(hidden_states)
+            value_states = self.v_proj(hidden_states)
+
         query_states = nn.emit(
             reshape(
-                self.q_proj(hidden_states),
+                query_states,
                 (bsz, q_len, self.num_heads, self.head_dim),
             ),
         )
         key_states = nn.emit(
             reshape(
-                self.k_proj(hidden_states),
+                key_states,
                 (bsz, q_len, self.num_heads, self.head_dim),
             ),
         )
         value_states = nn.emit(
             reshape(
-                self.v_proj(hidden_states),
+                value_states,
                 (bsz, q_len, self.num_heads, self.head_dim),
             ),
         )
@@ -346,16 +427,8 @@ class LlamaAttention(nn.Module):
 class LlamaDecoderLayer(nn.Module):
     def __init__(self, config: LlamaConfig):
         self.hidden_size = config.hidden_size
-        self.self_attn = LlamaAttention(
-            hidden_size=self.hidden_size,
-            num_heads=config.num_attention_heads,
-            dtype=config.dtype,
-        )
-        self.mlp = LlamaMLP(
-            hidden_size=self.hidden_size,
-            intermediate_size=config.intermediate_size,
-            dtype=config.dtype,
-        )
+        self.self_attn = LlamaAttention(config)
+        self.mlp = LlamaMLP(config)
         self.input_layernorm = LlamaRMSNorm(
             config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps
         )
@@ -768,7 +841,11 @@ def get_model(args, hf_config):
     max_seq_len = args.max_seq_len
     sep_embed = args.sep_embed
 
-    config = LlamaConfig(**hf_config, dtype=dtype)
+    config = LlamaConfig(
+        **hf_config,
+        dtype=dtype,
+        combine_matmul=not args.quantization.name.startswith("autogptq"),
+    )
     if max_seq_len != -1:
         config.max_sequence_length = max_seq_len
 
@@ -800,12 +877,63 @@ def get_model(args, hf_config):
                 },
             )
 
+    def f_convert_pname_fwd(pname: str) -> List[str]:
+        if not config.combine_matmul:
+            return [pname]
+
+        qkv_str = "query_key_value_proj"
+        gate_up_str = "gate_up_proj"
+        if qkv_str in pname:
+            return [
+                pname.replace(qkv_str, "q_proj"),
+                pname.replace(qkv_str, "k_proj"),
+                pname.replace(qkv_str, "v_proj"),
+            ]
+        elif gate_up_str in pname:
+            return [
+                pname.replace(gate_up_str, "gate_proj"),
+                pname.replace(gate_up_str, "up_proj"),
+            ]
+        else:
+            return [pname]
+
+    def f_convert_param_bkwd(torch_pname: str, torch_param):
+        if not config.combine_matmul:
+            return [(torch_pname, torch_param.astype(dtype))]
+
+        combined_layers = ["q_proj", "k_proj", "v_proj", "gate_proj", "up_proj"]
+        if any([name in torch_pname for name in combined_layers]):
+            return None
+        return [(torch_pname, torch_param.astype(dtype))]
+
+    def f_compute_relax_param(relax_pname: str, torch_params: List[Any]):
+        # Expected to enter this function only for the combined linear matmul weights.
+        # Other weights are supposed to be loaded in `f_convert_param_bkwd` since
+        # each other relax param has a unique corresponding torch param.
+        if not config.combine_matmul:
+            # When matmul combination is not turned on, each relax param has a unique
+            # corresponding torch param, and this function is not expected to be entered.
+            raise NotImplementedError(
+                "Matmul combination is not turned on, and the function "
+                "is not expected to be entered"
+            )
+
+        import numpy as np
+
+        if "query_key_value_proj" in relax_pname:
+            assert len(torch_params) == 3
+        elif "gate_up_proj" in relax_pname:
+            assert len(torch_params) == 2
+        else:
+            raise ValueError("Unexpected param loading")
+        return np.concatenate(torch_params, axis=0)
+
     mod = param_manager.transform_module(
         mod,
         args.model_path,
-        f_convert_param_bkwd=lambda torch_pname, torch_param: [
-            (torch_pname, torch_param.astype(dtype))
-        ],
+        f_convert_pname_fwd,
+        f_convert_param_bkwd,
+        f_compute_relax_param,
     )
 
     device = tvm.cpu()
