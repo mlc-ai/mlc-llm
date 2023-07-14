@@ -209,12 +209,12 @@ class ReorderTransformFunc:
         self,
         pidx2pname: Dict[int, str],
         pname2binname: Dict[str, str],
-        f_convert_pname_fwd: Callable[[str], str],
+        f_convert_pname_fwd: Callable[[str], List[str]],
     ) -> None:
         self.pidx2binname: Dict[int, str] = {
-            pidx: pname2binname[f_convert_pname_fwd(pname)]
+            pidx: pname2binname[f_convert_pname_fwd(pname)[0]]
             for pidx, pname in pidx2pname.items()
-            if f_convert_pname_fwd(pname) in pname2binname
+            if f_convert_pname_fwd(pname)[0] in pname2binname
         }
 
     def transform_module(

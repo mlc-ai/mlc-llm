@@ -9,7 +9,6 @@ from tvm.relax.testing import nn
 from tvm.script import relax as R
 
 from ..quantization import ParamQuantKind, QuantizationScheme
-from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
 from .modules import ModuleList
 from .param_manager import ParamManager
@@ -765,7 +764,6 @@ def create_softmax_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
 
 def get_model(args, hf_config):
     model_name = args.model
-    model_path = args.model_path
     dtype = args.quantization.model_dtype
     max_seq_len = args.max_seq_len
     sep_embed = args.sep_embed
@@ -802,30 +800,24 @@ def get_model(args, hf_config):
                 },
             )
 
-    mod, pidx2pname = param_manager.quantization_transform(mod)
+    mod = param_manager.transform_module(
+        mod,
+        args.model_path,
+        f_convert_param_bkwd=lambda torch_pname, torch_param: [
+            (torch_pname, torch_param.astype(dtype))
+        ],
+    )
+
     device = tvm.cpu()
-    param_list = [None] * len(pidx2pname)
-    assert len(param_list) == len(pidx2pname)
+    param_list = [None] * len(param_manager.param_names)
     if args.quantization.pre_quantized:
         param_list = args.quantization.load_quantized_params(
-            model_path,
+            args.model_path,
             param_list,
-            pidx2pname,
+            param_manager.pidx2pname,
             device,
             excluded_params=["cos_cached", "sin_cached"],
         )
-    else:
-        pname2binname = load_torch_pname2binname_map(
-            model_path,
-            set(pidx2pname.values()),
-            excluded_params=["cos_cached", "sin_cached"],
-        )
-        args.pidx2pname = pidx2pname
-        args.pname2binname = pname2binname
-        args.f_convert_pname_fwd = lambda pname: pname
-        args.f_convert_param_bkwd = lambda torch_pname, raw_param: [
-            (torch_pname, raw_param.astype(dtype))
-        ]
 
     head_dim = config.hidden_size / config.num_attention_heads
     inv_freq = 1.0 / (
@@ -840,4 +832,4 @@ def get_model(args, hf_config):
     param_list[-2] = tvm.nd.array(np.cos(emb).astype(config.dtype), device)
     param_list[-1] = tvm.nd.array(np.sin(emb).astype(config.dtype), device)
 
-    return mod, param_list
+    return mod, param_manager, param_list

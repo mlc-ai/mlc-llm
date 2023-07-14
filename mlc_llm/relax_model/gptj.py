@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 import tvm
 from tvm import relax, te
@@ -18,11 +18,9 @@ from tvm.relax.op import (
 )
 from tvm.relax.op.nn import gelu, softmax
 from tvm.relax.testing import nn
-from tvm.runtime import NDArray
 from tvm.script import relax as R
 
 from ..quantization import ParamQuantKind, QuantizationScheme
-from ..utils import load_torch_pname2binname_map
 from .commons import create_metadata_func
 from .gpt_neox import create_kv_cache_func
 from .modules import (
@@ -31,7 +29,6 @@ from .modules import (
     Linear,
     ModuleList,
     RotaryEmbedding,
-    named_parameters,
 )
 from .param_manager import ParamManager
 
@@ -673,46 +670,39 @@ def get_model(args, hf_config):
                 },
             )
 
-    def f_convert_pname_fwd(pname: str) -> str:
+    def f_convert_pname_fwd(pname: str) -> List[str]:
         import re
 
         str_pattern = re.compile(r"(q|k|v)_proj")
         if re.search(str_pattern, pname) is not None:
-            return str_pattern.sub("qkv_proj", pname)
+            return [str_pattern.sub("qkv_proj", pname)]
         else:
-            return pname
+            return [pname]
 
-    mod, pidx2pname = param_manager.quantization_transform(mod)
-    pname2binname = load_torch_pname2binname_map(
-        args.model_path, set(pidx2pname.values()), f_convert_pname_fwd
-    )
-
-    num_heads = config.num_attention_heads
     hidden_size = config.hidden_size
-    head_dim = hidden_size // num_heads
 
-    def f_convert_param_bkwd(torch_pname: str, raw_param) -> str:
-        print(torch_pname)
+    def f_convert_param_bkwd(
+        torch_pname: str, torch_param
+    ) -> Optional[List[Tuple[str, Any]]]:
+        # torch_param: numpy.ndarray
         if torch_pname.endswith("qkv_proj.weight"):
-            assert raw_param.ndim == 2
+            assert torch_param.ndim == 2
             mp_num = 4
-            raw_param = raw_param.astype(dtype).reshape(mp_num, 3, -1, hidden_size)
-            q_weight = raw_param[:, 0, :, :].reshape(hidden_size, hidden_size)
-            k_weight = raw_param[:, 2, :, :].reshape(hidden_size, hidden_size)
-            v_weight = raw_param[:, 1, :, :].reshape(hidden_size, hidden_size)
+            torch_param = torch_param.astype(dtype).reshape(mp_num, 3, -1, hidden_size)
+            q_weight = torch_param[:, 0, :, :].reshape(hidden_size, hidden_size)
+            k_weight = torch_param[:, 2, :, :].reshape(hidden_size, hidden_size)
+            v_weight = torch_param[:, 1, :, :].reshape(hidden_size, hidden_size)
             return [
                 (torch_pname.replace("qkv_proj", "q_proj"), q_weight),
                 (torch_pname.replace("qkv_proj", "k_proj"), k_weight),
                 (torch_pname.replace("qkv_proj", "v_proj"), v_weight),
             ]
         if "ln_1" in torch_pname or "ln_f" in torch_pname:
-            return [(torch_pname, raw_param.astype("float32"))]
+            return [(torch_pname, torch_param.astype("float32"))]
         else:
-            return [(torch_pname, raw_param.astype(dtype))]
+            return [(torch_pname, torch_param.astype(dtype))]
 
-    args.pidx2pname = pidx2pname
-    args.pname2binname = pname2binname
-    args.f_convert_pname_fwd = f_convert_pname_fwd
-    args.f_convert_param_bkwd = f_convert_param_bkwd
-
-    return mod, [None] * len(pidx2pname)
+    mod = param_manager.transform_module(
+        mod, args.model_path, f_convert_pname_fwd, f_convert_param_bkwd
+    )
+    return mod, param_manager, [None] * len(param_manager.param_names)
