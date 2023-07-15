@@ -72,9 +72,11 @@
 - (bool)stopped;
 
 /**
- * @returns Runtime stats of last runs.
+ * Get the runtime statistics for the chat module, and optionally the image module.
+ *
+ *@param useVision Whether an image module is used.
  */
-- (NSString*)runtimeStatsText;
+- (NSString*)runtimeStatsText:(bool)useVision;
 
 /**
  * Pre-process by prefilling the system prompts, running prior to any user input.
@@ -108,11 +110,6 @@
  * Reset the current image model.
  */
 - (void)resetImageModule;
-
-/**
- * @returns Runtime stats of the image encoding stage.
- */
-- (NSString*)runtimeStatsTextImageModule;
 
 /**
  * Prefill the LLM with the embedding of the input image.

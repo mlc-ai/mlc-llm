@@ -148,9 +148,13 @@ enum PlaceInPrompt : int {
   return stopped_func_().operator bool();
 }
 
-- (NSString*)runtimeStatsText {
-  std::string ret = runtime_stats_text_func_();
-  return [NSString stringWithUTF8String:ret.c_str()];
+- (NSString*)runtimeStatsText:(bool)useVision {
+  std::string chat_mod_stats = runtime_stats_text_func_();
+  if (useVision) {
+    std::string image_mod_stats = image_mod_runtime_stats_text_func_();
+    chat_mod_stats += ", " + image_mod_stats;
+  }
+  return [NSString stringWithUTF8String:chat_mod_stats.c_str()];
 }
 
 - (void)processSystemPrompts {
@@ -181,11 +185,6 @@ enum PlaceInPrompt : int {
 - (void)resetImageModule {
   image_mod_reset_func_();
   first_input_after_image = false;
-}
-
-- (NSString*)runtimeStatsTextImageModule {
-  std::string ret = image_mod_runtime_stats_text_func_();
-  return [NSString stringWithUTF8String:ret.c_str()];
 }
 
 - (void)prefillImage:(UIImage*)image prevPlaceholder:(NSString*)prevPlaceholder postPlaceholder:(NSString*)postPlaceholder {

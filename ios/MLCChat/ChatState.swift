@@ -280,10 +280,9 @@ class ChatState : ObservableObject {
                 }
             }
             if getModelChatState() == .Generating {
-                let runtimeStats = (backend.runtimeStatsText())!
-                let runtimeStatsImageModule = useVision ? ", " + (backend.runtimeStatsTextImageModule())! : ""
+                let runtimeStats = (backend.runtimeStatsText(useVision))!
                 DispatchQueue.main.async { [self] in
-                    infoText = runtimeStats + runtimeStatsImageModule
+                    infoText = runtimeStats
                     switchToReady()
                 }
             }
