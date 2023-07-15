@@ -209,14 +209,14 @@ enum PlaceInPrompt : int {
   CGContextDrawImage(context, CGRectMake(0, 0, width, height), imageRef);
   CGContextRelease(context);
   // step 2. create rgb array from rgba
-  uint8_t *image_data = (uint8_t*) calloc(height * width * 3, sizeof(uint8_t));
+  uint8_t *imageData = (uint8_t*) calloc(height * width * 3, sizeof(uint8_t));
   int count = 0;
   for (int i = 0; i < height; i++) {
     for (int j = 0; j < width; j++) {
       NSUInteger byteIndex = bytesPerRow * i + bytesPerPixel * j;
-      image_data[count] = (uint8_t)rawData[byteIndex];
-      image_data[count + 1] = (uint8_t)rawData[byteIndex + 1];
-      image_data[count + 2] = (uint8_t)rawData[byteIndex + 2];
+      imageData[count] = (uint8_t)rawData[byteIndex];
+      imageData[count + 1] = (uint8_t)rawData[byteIndex + 1];
+      imageData[count + 2] = (uint8_t)rawData[byteIndex + 2];
       count += 3;
     }
   }
@@ -229,12 +229,12 @@ enum PlaceInPrompt : int {
     nbytes *= (size_t)s;
   }
   NDArray input_image = NDArray::Empty(shape, dtype, device);
-  input_image.CopyFromBytes(image_data, nbytes);
+  input_image.CopyFromBytes(imageData, nbytes);
   // step 3. prefill with image embedding
   NDArray embedding = image_mod_embed_func_(input_image);
   prefill_with_embed_func_(embedding, false);
   // step 4. free memory
-  free(image_data);
+  free(imageData);
   free(rawData);
 
   // prefill the post placeholder string
