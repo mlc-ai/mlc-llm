@@ -15,7 +15,7 @@ class ImageModule:
         device_id : int
             The device id.
         """
-        fcreate = tvm.get_global_func("mlc.llm_image_mod_create")
+        fcreate = tvm.get_global_func("mlc.llm_image_module_create")
         assert fcreate is not None
         if target == "cuda":
             self.device = tvm.cuda(device_id)
@@ -30,7 +30,7 @@ class ImageModule:
 
         self.reload_func = image_mod["reload"]
         self.embed_func = image_mod["embed"]
-        self.reset_image_mod_func = image_mod["reset_image_mod"]
+        self.reset_image_module_func = image_mod["reset_image_module"]
         self.runtime_stats_text_func = image_mod["runtime_stats_text"]
         self.reset_runtime_stats_func = image_mod["reset_runtime_stats"]
 
@@ -59,15 +59,15 @@ class ImageModule:
         """
         return self.embed_func(image)
 
-    def reset_image_mod(self):
+    def reset_image_module(self):
         r"""Reset the image module, clear its performance record.
 
         Note
         ----
-        The model remains the same after :func:`reset_image_mod`.
+        The model remains the same after :func:`reset_image_module`.
         To reload module, please use :func:`reload` instead.
         """
-        self.reset_chat_func()
+        self.reset_image_module_func()
 
     def runtime_stats_text(self) -> str:
         r"""Get the runtime stats text (image encoding speed).

@@ -82,10 +82,10 @@ class LLMImage {
     ICHECK(fclear_ndarray_cache) << "Cannot find env function vm.builtin.ndarray_cache.clear";
     (*fclear_ndarray_cache)();
 
-    this->ResetImageMod();
+    this->ResetImageModule();
   }
 
-  void ResetImageMod() { this->ResetRuntimeStats(); }
+  void ResetImageModule() { this->ResetRuntimeStats(); }
 
   /*! \brief reset the runtime stats. */
   void ResetRuntimeStats() { this->embed_total_time = 0; }
@@ -162,20 +162,20 @@ class LLMImageModule : public ModuleNode {
     } else if (name == "embed") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 1);
-        *rv = GetImageMod()->EmbedStep(args[0]);
+        *rv = GetImageModule()->EmbedStep(args[0]);
       });
-    } else if (name == "reset_image_mod") {
+    } else if (name == "reset_image_module") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 0);
-        GetImageMod()->ResetImageMod();
+        GetImageModule()->ResetImageModule();
       });
     } else if (name == "runtime_stats_text") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        *rv = GetImageMod()->RuntimeStatsText();
+        *rv = GetImageModule()->RuntimeStatsText();
       });
     } else if (name == "reset_runtime_stats") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        GetImageMod()->ResetRuntimeStats();
+        GetImageModule()->ResetRuntimeStats();
       });
     } else {
       return PackedFunc(nullptr);
@@ -184,7 +184,7 @@ class LLMImageModule : public ModuleNode {
 
   void Init(DLDevice device) { device_ = device; }
 
-  LLMImage* GetImageMod() {
+  LLMImage* GetImageModule() {
     ICHECK(image_mod_ != nullptr) << "Image embedding module is not initialized via reload";
     return image_mod_.get();
   }
@@ -203,9 +203,10 @@ tvm::runtime::Module CreateImageModule(DLDevice device) {
 }
 
 // register as a system function that can be queried
-TVM_REGISTER_GLOBAL("mlc.llm_image_mod_create").set_body_typed([](int device_type, int device_id) {
-  return CreateImageModule(DLDevice{static_cast<DLDeviceType>(device_type), device_id});
-});
+TVM_REGISTER_GLOBAL("mlc.llm_image_module_create")
+    .set_body_typed([](int device_type, int device_id) {
+      return CreateImageModule(DLDevice{static_cast<DLDeviceType>(device_type), device_id});
+    });
 
 }  // namespace llm
 }  // namespace mlc

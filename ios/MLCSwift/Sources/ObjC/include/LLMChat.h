@@ -94,7 +94,7 @@
  * Unload the current image model and free all memory.
  * @note This function is useful to get memory estimation before launch next model.
  */
-- (void)unloadImageMod;
+- (void)unloadImageModule;
 
 /**
  * Reload the image module to a new model.
@@ -102,17 +102,17 @@
  * @param modelLib The name of the modelLib
  * @param modelPath The path to the model artifacts.
  */
-- (void)reloadImageMod:(NSString*)modelLib modelPath:(NSString*)modelPath;
+- (void)reloadImageModule:(NSString*)modelLib modelPath:(NSString*)modelPath;
 
 /**
  * Reset the current image model.
  */
-- (void)resetImageMod;
+- (void)resetImageModule;
 
 /**
  * @returns Runtime stats of the image encoding stage.
  */
-- (NSString*)runtimeStatsTextImageMod;
+- (NSString*)runtimeStatsTextImageModule;
 
 /**
  * Prefill the LLM with the embedding of the input image.

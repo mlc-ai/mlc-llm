@@ -143,7 +143,7 @@ class ChatState : ObservableObject {
         threadWorker.push {[self] in
             backend.resetChat()
             if useVision {
-                backend.resetImageMod()
+                backend.resetImageModule()
             }
             DispatchQueue.main.async { [self] in
                 clearHistory()
@@ -169,7 +169,7 @@ class ChatState : ObservableObject {
     private func mainTerminateChat(callback: @escaping () -> Void) {
         threadWorker.push { [self] in
             if useVision {
-                backend.unloadImageMod()
+                backend.unloadImageModule()
             }
             backend.unload()
             DispatchQueue.main.async { [self] in
@@ -207,7 +207,7 @@ class ChatState : ObservableObject {
                 appendMessage(role: .bot, message: "[System] Initalize...")
             }
             if prevUseVision {
-                backend.unloadImageMod()
+                backend.unloadImageModule()
             }
             backend.unload()
             let vram = os_proc_available_memory()
@@ -234,7 +234,7 @@ class ChatState : ObservableObject {
                 let appConfigJson = String(data: appConfigJsonData!, encoding: .utf8)
                 backend.reload(vicunaModelLib, modelPath: vicunaModelPath, appConfigJson: appConfigJson)
                 // load image model
-                backend.reloadImageMod(modelLib, modelPath: modelPath)
+                backend.reloadImageModule(modelLib, modelPath: modelPath)
             } else {
                 backend.reload(modelLib, modelPath: modelPath, appConfigJson: "")
             }
@@ -281,9 +281,9 @@ class ChatState : ObservableObject {
             }
             if getModelChatState() == .Generating {
                 let runtimeStats = (backend.runtimeStatsText())!
-                let runtimeStatsImageMod = useVision ? ", " + (backend.runtimeStatsTextImageMod())! : ""
+                let runtimeStatsImageModule = useVision ? ", " + (backend.runtimeStatsTextImageModule())! : ""
                 DispatchQueue.main.async { [self] in
-                    infoText = runtimeStats + runtimeStatsImageMod
+                    infoText = runtimeStats + runtimeStatsImageModule
                     switchToReady()
                 }
             }

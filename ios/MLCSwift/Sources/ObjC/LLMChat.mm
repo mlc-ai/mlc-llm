@@ -63,8 +63,8 @@ enum PlaceInPrompt : int {
     ICHECK(f_chat_create) << "Cannot find mlc.llm_chat_create";
     llm_chat_ = (*f_chat_create)(static_cast<int>(kDLMetal), 0);
     // load image module
-    const PackedFunc* f_image_mod_create = Registry::Get("mlc.llm_image_mod_create");
-    ICHECK(f_image_mod_create) << "Cannot find mlc.llm_image_mod_create";
+    const PackedFunc* f_image_mod_create = Registry::Get("mlc.llm_image_module_create");
+    ICHECK(f_image_mod_create) << "Cannot find mlc.llm_image_module_create";
     llm_image_mod_ = (*f_image_mod_create)(static_cast<int>(kDLMetal), 0);
 
     // chat-related functions
@@ -83,7 +83,7 @@ enum PlaceInPrompt : int {
     image_mod_reload_func_ = llm_image_mod_->GetFunction("reload");
     image_mod_unload_func_ = llm_image_mod_->GetFunction("unload");
     image_mod_embed_func_ = llm_image_mod_->GetFunction("embed");
-    image_mod_reset_func_ = llm_image_mod_->GetFunction("reset_image_mod");
+    image_mod_reset_func_ = llm_image_mod_->GetFunction("reset_image_module");
     image_mod_runtime_stats_text_func_ = llm_image_mod_->GetFunction("runtime_stats_text");
     first_input_after_image = false;
 
@@ -163,12 +163,12 @@ enum PlaceInPrompt : int {
   LOG(INFO) << "Left-mem-budget=" << os_proc_available_memory() / (1 << 20) << "MB";
 }
 
-- (void)unloadImageMod {
+- (void)unloadImageModule {
   image_mod_unload_func_();
   first_input_after_image = false;
 }
 
-- (void)reloadImageMod:(NSString*)modelLib modelPath:(NSString*)modelPath {
+- (void)reloadImageModule:(NSString*)modelLib modelPath:(NSString*)modelPath {
   std::string lib_prefix = modelLib.UTF8String;
   std::string model_path = modelPath.UTF8String;
   std::replace(lib_prefix.begin(), lib_prefix.end(), '-', '_');
@@ -178,12 +178,12 @@ enum PlaceInPrompt : int {
   first_input_after_image = false;
 }
 
-- (void)resetImageMod {
+- (void)resetImageModule {
   image_mod_reset_func_();
   first_input_after_image = false;
 }
 
-- (NSString*)runtimeStatsTextImageMod {
+- (NSString*)runtimeStatsTextImageModule {
   std::string ret = image_mod_runtime_stats_text_func_();
   return [NSString stringWithUTF8String:ret.c_str()];
 }
