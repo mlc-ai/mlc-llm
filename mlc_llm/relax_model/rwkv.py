@@ -9,6 +9,7 @@ from tvm.script import relax as R
 
 from ..quantization import ParamQuantKind, QuantizationScheme
 from .commons import create_metadata_func
+from .modules import ModuleList
 from .param_manager import ParamManager
 
 # Reference: https://github.com/BlinkDL/RWKV-LM/blob/main/RWKV-v4/src/model_run.py
