@@ -101,13 +101,13 @@ mlc_chat_cli --local-id rwkv-raven-1b5-q8f16_0  # Replace your local id if you u
 
 ### Web Browser
 
-Please check out [WebLLM](https://mlc.ai/web-llm/), our companion project that deploys models natively to browsers. Everything here runs inside the browser with no server support and accelerated with WebGPU.
+Please check out [WebLLM](https://webllm.mlc.ai/), our companion project that deploys models natively to browsers. Everything here runs inside the browser with no server support and accelerated with WebGPU.
 
 ## Links
 
 * Check out our [GitHub repo](https://github.com/mlc-ai/mlc-llm) to see how we build, optimize and deploy the bring large-language models to various devices and backends.
-* Check out our companion project [WebLLM](https://mlc.ai/web-llm/) to run the chatbot purely in your browser.
-* You might also be interested in [Web Stable Diffusion](https://mlc.ai/web-stable-diffusion/), which runs the stable-diffusion model purely in the browser.
+* Check out our companion project [WebLLM](https://webllm.mlc.ai/) to run the chatbot purely in your browser.
+* You might also be interested in [Web Stable Diffusion](https://websd.mlc.ai/), which runs the stable-diffusion model purely in the browser.
 * You might want to check out our online public [Machine Learning Compilation course](https://mlc.ai) for a systematic
 walkthrough of our approaches.
 
