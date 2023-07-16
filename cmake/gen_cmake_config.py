@@ -12,6 +12,11 @@ if __name__ == "__main__":
             "USE_METAL",
             "Use Metal (Apple M1/M2 GPU) ? (y/n): ",
         ),
+        Backend(
+            "OpenCL",
+            "USE_OPENCL",
+            "Use OpenCL? (y/n) ",
+        ),
     ]
 
     for backend in backends:
