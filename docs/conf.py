@@ -72,7 +72,7 @@ header_dropdown = {
     "items": [
         ("MLC Course", "https://mlc.ai/"),
         ("MLC Blog", "https://mlc.ai/blog"),
-        ("Web LLM", "https://mlc.ai/web-llm"),
+        ("Web LLM", "https://webllm.mlc.ai/"),
     ],
 }
 
