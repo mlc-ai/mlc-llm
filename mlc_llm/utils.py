@@ -113,8 +113,8 @@ def transform_params(
     mod_transform: tvm.IRModule,
     param_manager: param_manager.ParamManager,
     model_params: List[Optional[tvm.nd.NDArray]],
+    target: tvm.target.target.Target
 ) -> List[tvm.nd.NDArray]:
-    target = detect_local_target()
     print(f"Automatically using target for weight quantization: {target}")
     device = tvm.device(target.kind.default_keys[0])
     device_cpu = tvm.cpu()
