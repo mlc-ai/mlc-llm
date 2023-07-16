@@ -1,16 +1,62 @@
-#!/bin/bash
+function help {
+    echo -e "OPTION:"
+    echo -e "  -s, --simulator                      Build for Simulator"
+    echo -e "  -a, --arch        x86_64 | arm64     Simulator arch "
+    echo -e "  -h,  --help                          Prints this help\n"
+}
+
+is_simulator="false"
+arch="arm64"
+
+# Args while-loop
+while [ "$1" != "" ];
+do
+   case $1 in
+   -s  | --simulator  )   is_simulator="true"
+                          ;;
+   -a  | --arch  )        shift
+                          arch=$1
+                          ;;
+   -h   | --help )        help
+                          exit
+                          ;;
+   *)                     
+                          echo "$script: illegal option $1"
+                          usage
+						                  exit 1 # error
+                          ;;
+    esac
+    shift
+done
+
 set -euxo pipefail
 
-rustup target add aarch64-apple-ios
+sysroot="iphoneos"
+type="Release"
+
+if [ "$is_simulator" = "true" ]; then
+  if [ "$arch" = "arm64" ]; then
+    # iOS simulator on Apple processors
+    rustup target add aarch64-apple-ios-sim
+  else
+    # iOS simulator on x86 processors
+    rustup target add x86_64-apple-ios
+  fi
+  sysroot="iphonesimulator"
+  type="Debug"
+else
+  # iOS devices
+  rustup target add aarch64-apple-ios
+fi
 
 mkdir -p build/ && cd build/
 
 cmake ../..\
-  -DCMAKE_BUILD_TYPE=Release\
+  -DCMAKE_BUILD_TYPE=$type\
   -DCMAKE_SYSTEM_NAME=iOS\
   -DCMAKE_SYSTEM_VERSION=14.0\
-  -DCMAKE_OSX_SYSROOT=iphoneos\
-  -DCMAKE_OSX_ARCHITECTURES=arm64\
+  -DCMAKE_OSX_SYSROOT=$sysroot\
+  -DCMAKE_OSX_ARCHITECTURES=$arch\
   -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0\
   -DCMAKE_BUILD_WITH_INSTALL_NAME_DIR=ON\
   -DCMAKE_SKIP_INSTALL_ALL_DEPENDENCY=ON\
