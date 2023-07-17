@@ -326,11 +326,19 @@ def _detect_local_vulkan():
     )
 
 
+def _detect_local_opencl():
+    dev = tvm.opencl()
+    if not dev.exist:
+        return None
+    return tvm.target.Target("opencl")
+
+
 def detect_local_target():
     for method in [
         _detect_local_metal,
         _detect_local_cuda,
         _detect_local_vulkan,
+        _detect_local_opencl,
     ]:
         target = method()
         if target is not None:
@@ -444,6 +452,13 @@ def parse_target(args: argparse.Namespace) -> None:
                     "supports_storage_buffer_storage_class": 1,
                 }
             ),
+            host="llvm",
+        )
+        args.target = target
+        args.target_kind = args.target.kind.default_keys[0]
+    elif args.target == "opencl":
+        target = tvm.target.Target(
+            "opencl",
             host="llvm",
         )
         args.target = target
