@@ -20,10 +20,10 @@ and customize the overall model optimization flow.
 Install MLC-LLM Package
 -----------------------
 
-Option 1: Work with Source Code
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Work with Source Code
+^^^^^^^^^^^^^^^^^^^^^
 
-The eaisest way is to use MLC-LLM is to clone the repostiory, and compile models under the root directory of the repository.
+The easiest way is to use MLC-LLM is to clone the repository, and compile models under the root directory of the repository.
 
 .. code:: bash
 
@@ -31,13 +31,6 @@ The eaisest way is to use MLC-LLM is to clone the repostiory, and compile models
     git clone git@github.com:mlc-ai/mlc-llm.git --recursive
     # enter to root directory of the repo
     cd mlc-llm  
-
-Option 2: Use Prebuilt Package
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If you need to compile models outside the MLC-LLM codebase, you can install the prebuilt pip wheels of MLC-LLM package by
-following the instructions in `<https://mlc.ai/package/>`_.
-
 
 Verify Installation
 ^^^^^^^^^^^^^^^^^^^
@@ -47,9 +40,6 @@ Verify Installation
    python3 -m mlc_llm.build --help
 
 You are expected to see the help information of the building script.
-
-.. note::
-    An alias of ``python3 -m mlc_llm.build`` is ``mlc_llm_build`` if you use pre-built pip wheels of ``mlc_llm`` package.
 
 Get Started
 -----------
@@ -344,10 +334,6 @@ The following arguments are optional:
                                             Using cache can help reduce the time needed to compile.
 --debug-dump                                Specifies whether to dump debugging files during compilation.
 
-
-.. note::
-    An alias of ``python3 -m mlc_llm.build`` is ``mlc_llm_build``, e.g. you can build models by running ``mlc_llm_build --model MODEL_NAME_OR_PATH ...``.
-    
 
 More Model Compile Commands
 ---------------------------
