@@ -198,7 +198,7 @@ enum PlaceInPrompt : int {
   NSUInteger width = CGImageGetWidth(imageRef);
   NSUInteger height = CGImageGetHeight(imageRef);
   CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-  unsigned char *rawData = (unsigned char*) calloc(height * width * 4, sizeof(unsigned char));
+  uint8_t* rawData = (uint8_t*) calloc(height * width * 4, sizeof(uint8_t));
   NSUInteger bytesPerPixel = 4;
   NSUInteger bytesPerRow = bytesPerPixel * width;
   NSUInteger bitsPerComponent = 8;
@@ -208,19 +208,6 @@ enum PlaceInPrompt : int {
   CGColorSpaceRelease(colorSpace);
   CGContextDrawImage(context, CGRectMake(0, 0, width, height), imageRef);
   CGContextRelease(context);
-  // step 2. convert unsigned char to uint8_t
-  uint8_t *imageData = (uint8_t*) calloc(height * width * 4, sizeof(uint8_t));
-  int count = 0;
-  for (int i = 0; i < height; i++) {
-    for (int j = 0; j < width; j++) {
-      NSUInteger byteIndex = bytesPerRow * i + bytesPerPixel * j;
-      imageData[count] = (uint8_t)rawData[byteIndex];
-      imageData[count + 1] = (uint8_t)rawData[byteIndex + 1];
-      imageData[count + 2] = (uint8_t)rawData[byteIndex + 2];
-      imageData[count + 3] = (uint8_t)rawData[byteIndex + 3];
-      count += 4;
-    }
-  }
   // step 2. create tvm NDArray
   ShapeTuple shape = {1, 224, 224, 4};
   DLDataType dtype = DataType::UInt(8);
@@ -230,12 +217,11 @@ enum PlaceInPrompt : int {
     nbytes *= (size_t)s;
   }
   NDArray input_image = NDArray::Empty(shape, dtype, device);
-  input_image.CopyFromBytes(imageData, nbytes);
+  input_image.CopyFromBytes(rawData, nbytes);
   // step 3. prefill with image embedding
   NDArray embedding = image_mod_embed_func_(input_image);
   prefill_with_embed_func_(embedding, false);
   // step 4. free memory
-  free(imageData);
   free(rawData);
 
   // prefill the post placeholder string
