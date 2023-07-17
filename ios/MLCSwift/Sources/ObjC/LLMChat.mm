@@ -208,8 +208,8 @@ enum PlaceInPrompt : int {
   CGColorSpaceRelease(colorSpace);
   CGContextDrawImage(context, CGRectMake(0, 0, width, height), imageRef);
   CGContextRelease(context);
-  // step 2. create rgb array from rgba
-  uint8_t *imageData = (uint8_t*) calloc(height * width * 3, sizeof(uint8_t));
+  // step 2. convert unsigned char to uint8_t
+  uint8_t *imageData = (uint8_t*) calloc(height * width * 4, sizeof(uint8_t));
   int count = 0;
   for (int i = 0; i < height; i++) {
     for (int j = 0; j < width; j++) {
@@ -217,11 +217,12 @@ enum PlaceInPrompt : int {
       imageData[count] = (uint8_t)rawData[byteIndex];
       imageData[count + 1] = (uint8_t)rawData[byteIndex + 1];
       imageData[count + 2] = (uint8_t)rawData[byteIndex + 2];
-      count += 3;
+      imageData[count + 3] = (uint8_t)rawData[byteIndex + 3];
+      count += 4;
     }
   }
   // step 2. create tvm NDArray
-  ShapeTuple shape = {1, 224, 224, 3};
+  ShapeTuple shape = {1, 224, 224, 4};
   DLDataType dtype = DataType::UInt(8);
   DLDevice device = DLDevice{kDLMetal, 0};
   size_t nbytes = size_t(dtype.bits / 8);

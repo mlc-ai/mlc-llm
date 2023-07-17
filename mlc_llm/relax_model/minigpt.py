@@ -16,6 +16,7 @@ from .param_manager import ParamManager
 @dataclass
 class MiniGPTConfig:
     dtype: str = "float16"
+    in_chan: int = 4  # represent rgba
     image_size: int = 224
     num_query_token: int = 32
     max_txt_len: int = 160
@@ -183,7 +184,7 @@ class MiniGPTVisualEncoder(nn.Module):
     def __init__(self, config: MiniGPTConfig):
         self.embed_dim = config.visual_encoder_embed_dim
         self.dtype = config.dtype
-        self.transform = TransformImage(config.dtype)
+        self.transform = TransformImage(config.dtype, config.in_chan)
         self.patch_embed = MiniGPTPatchEmbed(
             config.image_size,
             config.patch_size,
@@ -478,7 +479,7 @@ def create_embed_func(
 ) -> None:
     func_name = "embed"
 
-    bs, img_chan = 1, 3
+    bs = 1
     with bb.function(func_name):
         model = MiniGPTModel(config)
         param_manager.register_params(
@@ -486,7 +487,7 @@ def create_embed_func(
         )
 
         input_image = nn.Placeholder(
-            (bs, config.image_size, config.image_size, img_chan),
+            (bs, config.image_size, config.image_size, config.in_chan),
             dtype="uint8",
             name="input_image",
         )
