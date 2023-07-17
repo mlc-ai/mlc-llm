@@ -204,7 +204,10 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#vulkan-driver">Vulkan Driver</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#id1">Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id1">Installation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#amd-radeon-and-radeon-pro">AMD Radeon and Radeon PRO</a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#id2">Validate Installation</a></li>
 </ul>
 </li>
@@ -337,6 +340,15 @@ backend, you should install CUDA, which can be downloaded from
 <p>Please check <a class="reference external" href="https://www.vulkan.org/tools#vulkan-gpu-resources">this
 page</a> and find the
 Vulkan driver according to your GPU vendor.</p>
+<section id="amd-radeon-and-radeon-pro">
+<h4>AMD Radeon and Radeon PRO<a class="headerlink" href="#amd-radeon-and-radeon-pro" title="Permalink to this heading">¶</a></h4>
+<p>For AMD Radeon and Radeon PRO users, please download AMD’s drivers from official website (<a class="reference external" href="https://www.amd.com/en/support/linux-drivers">Linux</a> / <a class="reference external" href="https://www.amd.com/en/support">Windows</a>).
+For Linux users, after you installed the <code class="docutils literal notranslate"><span class="pre">amdgpu-install</span></code> package, you can follow the instructions in its <a class="reference external" href="https://amdgpu-install.readthedocs.io/en/latest/install-script.html">documentation</a> to install
+the driver. We recommend you installing ROCr OpenCL and PRO Vulkan (proprietary) for best performance, which can be done by running the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>amdgpu-install<span class="w"> </span>--usecase<span class="o">=</span>graphics,opencl<span class="w"> </span>--opencl<span class="o">=</span>rocr<span class="w"> </span>--vulkan<span class="o">=</span>pro<span class="w"> </span>--no-32
+</pre></div>
+</div>
+</section>
 </section>
 <section id="id2">
 <h3>Validate Installation<a class="headerlink" href="#id2" title="Permalink to this heading">¶</a></h3>
