@@ -54,9 +54,9 @@ enum PlaceInPrompt : int {
   PackedFunc image_mod_runtime_stats_text_func_;
   // helper variables
   bool first_input_after_image;
-  std::vector<uint8_t> raw_data;
-  NSUInteger width;
-  NSUInteger height;
+  std::vector<uint8_t> image_data;
+  NSUInteger image_width;
+  NSUInteger image_height;
 }
 
 - (instancetype)init {
@@ -90,9 +90,9 @@ enum PlaceInPrompt : int {
     image_mod_runtime_stats_text_func_ = llm_image_mod_->GetFunction("runtime_stats_text");
     // helper variables
     first_input_after_image = false;
-    height = 224;
-    width = 224;
-    raw_data.reserve(height * width * 4);
+    image_height = 224;
+    image_width = 224;
+    image_data.reserve(image_height * image_width * 4);
 
     ICHECK(reload_func_ != nullptr);
     ICHECK(unload_func_ != nullptr);
@@ -204,16 +204,16 @@ enum PlaceInPrompt : int {
   CGImageRef imageRef = [image CGImage];
   CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
   NSUInteger bytesPerPixel = 4;
-  NSUInteger bytesPerRow = bytesPerPixel * width;
+  NSUInteger bytesPerRow = bytesPerPixel * image_width;
   NSUInteger bitsPerComponent = 8;
-  CGContextRef context = CGBitmapContextCreate(raw_data.data(), width, height,
+  CGContextRef context = CGBitmapContextCreate(image_data.data(), image_width, image_height,
                           bitsPerComponent, bytesPerRow, colorSpace,
                           kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
   CGColorSpaceRelease(colorSpace);
-  CGContextDrawImage(context, CGRectMake(0, 0, width, height), imageRef);
+  CGContextDrawImage(context, CGRectMake(0, 0, image_width, image_height), imageRef);
   CGContextRelease(context);
   // step 2. create tvm NDArray
-  ShapeTuple shape = {1, int(height), int(width), 4};
+  ShapeTuple shape = {1, int(image_height), int(image_width), 4};
   DLDataType dtype = DataType::UInt(8);
   DLDevice device = DLDevice{kDLMetal, 0};
   size_t nbytes = size_t(dtype.bits / 8);
@@ -221,7 +221,7 @@ enum PlaceInPrompt : int {
     nbytes *= (size_t)s;
   }
   NDArray input_image = NDArray::Empty(shape, dtype, device);
-  input_image.CopyFromBytes(raw_data.data(), nbytes);
+  input_image.CopyFromBytes(image_data.data(), nbytes);
   // step 3. prefill with image embedding
   NDArray embedding = image_mod_embed_func_(input_image);
   prefill_with_embed_func_(embedding, false);
