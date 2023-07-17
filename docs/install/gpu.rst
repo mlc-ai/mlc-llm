@@ -35,6 +35,17 @@ Please check `this
 page <https://www.vulkan.org/tools#vulkan-gpu-resources>`__ and find the
 Vulkan driver according to your GPU vendor.
 
+AMD Radeon and Radeon PRO
+#########################
+
+For AMD Radeon and Radeon PRO users, please download AMD's drivers from official website (`Linux <https://www.amd.com/en/support/linux-drivers>`__ / `Windows <https://www.amd.com/en/support>`__).
+For Linux users, after you installed the ``amdgpu-install`` package, you can follow the instructions in its `documentation <https://amdgpu-install.readthedocs.io/en/latest/install-script.html>`__ to install
+the driver. We recommend you installing ROCr OpenCL and PRO Vulkan (proprietary) for best performance, which can be done by running the following command:
+
+.. code:: bash
+
+   amdgpu-install --usecase=graphics,opencl --opencl=rocr --vulkan=pro --no-32
+
 Validate Installation
 ^^^^^^^^^^^^^^^^^^^^^
 
