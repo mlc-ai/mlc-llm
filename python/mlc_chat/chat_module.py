@@ -52,7 +52,7 @@ class ChatModule:
         # image module related functions
         self.image_reload_func = image_mod["reload"]
         self.image_embed_func = image_mod["embed"]
-        self.image_reset_func = image_mod["reset_image_module"]
+        self.image_reset_func = image_mod["reset"]
         self.image_runtime_stats_text_func = image_mod["runtime_stats_text"]
         self.image_reset_runtime_stats_func = image_mod["reset_runtime_stats"]
 
@@ -203,7 +203,7 @@ class ChatModule:
         """
         self.reset_image_module_func()
 
-    def embed_image_module(
+    def get_image_embedding(
         self,
         image: tvm.runtime.NDArray,
     ):
@@ -216,7 +216,7 @@ class ChatModule:
         """
         return self.embed_func(image)
 
-    def runtime_stats_text_image_module(self) -> str:
+    def image_module_runtime_stats_text(self) -> str:
         r"""Get the runtime stats text (image encoding speed).
 
         Returns
@@ -226,6 +226,6 @@ class ChatModule:
         """
         return self.runtime_stats_text_func()
 
-    def reset_runtime_stats_image_module(self):
+    def reset_image_module_runtime_stats(self):
         r"""Reset the runtime stats."""
         self.reset_runtime_stats_func()

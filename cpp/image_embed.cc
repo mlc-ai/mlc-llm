@@ -82,10 +82,10 @@ class LLMImage {
     ICHECK(fclear_ndarray_cache) << "Cannot find env function vm.builtin.ndarray_cache.clear";
     (*fclear_ndarray_cache)();
 
-    this->ResetImageModule();
+    this->Reset();
   }
 
-  void ResetImageModule() { this->ResetRuntimeStats(); }
+  void Reset() { this->ResetRuntimeStats(); }
 
   /*! \brief reset the runtime stats. */
   void ResetRuntimeStats() { this->embed_total_time = 0; }
@@ -164,10 +164,10 @@ class LLMImageModule : public ModuleNode {
         ICHECK_EQ(args.size(), 1);
         *rv = GetImageModule()->EmbedStep(args[0]);
       });
-    } else if (name == "reset_image_module") {
+    } else if (name == "reset") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 0);
-        GetImageModule()->ResetImageModule();
+        GetImageModule()->Reset();
       });
     } else if (name == "runtime_stats_text") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {

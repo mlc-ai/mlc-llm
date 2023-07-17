@@ -86,7 +86,7 @@ enum PlaceInPrompt : int {
     image_mod_reload_func_ = llm_image_mod_->GetFunction("reload");
     image_mod_unload_func_ = llm_image_mod_->GetFunction("unload");
     image_mod_embed_func_ = llm_image_mod_->GetFunction("embed");
-    image_mod_reset_func_ = llm_image_mod_->GetFunction("reset_image_module");
+    image_mod_reset_func_ = llm_image_mod_->GetFunction("reset");
     image_mod_runtime_stats_text_func_ = llm_image_mod_->GetFunction("runtime_stats_text");
     // helper variables
     first_input_after_image = false;
