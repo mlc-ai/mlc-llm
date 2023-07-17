@@ -2,7 +2,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain import LLMChain, PromptTemplate
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain.document_loaders import TextLoader
+from langchain.document_loaders import TextLoader, UnstructuredRSTLoader, DirectoryLoader
 from langchain.chains.question_answering import load_qa_chain
 from langchain.llms import OpenAI
 from langchain.text_splitter import CharacterTextSplitter
@@ -55,7 +55,7 @@ def load_qa_chain_example():
     print(f"{color.BOLD}Query:{color.END} {color.BLUE} {query}{color.END}")
     print(f"{color.BOLD}Response:{color.END} {color.GREEN}{chain.run(input_documents=documents, question=query)}{color.END}")
 
-def retrieval_qa_example():
+def retrieval_qa_sotu_example():
     prompt_template = """Use only the following pieces of context to answer the question at the end. Don't use any other knowledge.
 
     {context}
@@ -97,8 +97,42 @@ def retrieval_qa_example():
         print(f"{color.BOLD}SOURCE:{color.END} {color.BLUE}{repr(res['source_documents'][0].page_content)}{color.END}")
         print()
 
+def retrieval_qa_mlc_docs_example():
+    prompt_template = """Use only the following pieces of context to answer the question at the end. Don't use any other knowledge.
+
+    {context}
+
+    USER: {question}
+    ASSISTANT:"""
+
+    PROMPT = PromptTemplate(
+        template=prompt_template, input_variables=["context", "question"]
+    )
+
+    loader = DirectoryLoader("../../docs", glob='*/*.rst', show_progress=True, loader_cls=UnstructuredRSTLoader, loader_kwargs={"mode": "single"})
+    documents = loader.load()
+    text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+    texts = text_splitter.split_documents(documents)
+    embeddings = OpenAIEmbeddings(deployment="text-embedding-ada-002")
+    db = Chroma.from_documents(collection_name="abc", documents=texts, embedding=embeddings)
+    retriever = db.as_retriever(search_type="similarity", search_kwargs={"k":2})
+    qa = RetrievalQA.from_chain_type(
+        llm=OpenAI(),
+        chain_type="stuff",
+        retriever=retriever,
+        return_source_documents=True,
+        chain_type_kwargs={"prompt": PROMPT}
+    )
+    while True:
+        qn = input(f"{color.BOLD}QUESTION:{color.END} ")
+        res = qa({'query': qn})
+        print(f"{color.BOLD}RESPONSE:{color.END} {color.GREEN}{res['result']}{color.END}")
+        print(f"{color.BOLD}SOURCE:{color.END} {color.BLUE}{repr(res['source_documents'][0].page_content)}{color.END}")
+        print()
+
 # Uncomment the demo you want to run below:
 
 # llm_chain_example()
 # load_qa_chain_example()
-# retrieval_qa_example()
+# retrieval_qa_sotu_example()
+# retrieval_qa_mlc_docs_example()
