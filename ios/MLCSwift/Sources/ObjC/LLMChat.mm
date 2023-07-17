@@ -54,7 +54,7 @@ enum PlaceInPrompt : int {
   PackedFunc image_mod_runtime_stats_text_func_;
   // helper variables
   bool first_input_after_image;
-  uint8_t* rawData;
+  std::vector<uint8_t> raw_data;
   NSUInteger width;
   NSUInteger height;
 }
@@ -90,9 +90,9 @@ enum PlaceInPrompt : int {
     image_mod_runtime_stats_text_func_ = llm_image_mod_->GetFunction("runtime_stats_text");
     // helper variables
     first_input_after_image = false;
-    rawData = nullptr;
     height = 224;
     width = 224;
+    raw_data.reserve(height * width * 4);
 
     ICHECK(reload_func_ != nullptr);
     ICHECK(unload_func_ != nullptr);
@@ -177,14 +177,10 @@ enum PlaceInPrompt : int {
 - (void)unloadImageModule {
   image_mod_unload_func_();
   first_input_after_image = false;
-  // notice: this might not be called when app crashes
-  free(rawData);
-  rawData = nullptr;
 }
 
 - (void)reloadImageModule:(NSString*)modelLib modelPath:(NSString*)modelPath {
   first_input_after_image = false;
-  rawData = (uint8_t*) calloc(height * width * 4, sizeof(uint8_t));
   std::string lib_prefix = modelLib.UTF8String;
   std::string model_path = modelPath.UTF8String;
   std::replace(lib_prefix.begin(), lib_prefix.end(), '-', '_');
@@ -210,7 +206,7 @@ enum PlaceInPrompt : int {
   NSUInteger bytesPerPixel = 4;
   NSUInteger bytesPerRow = bytesPerPixel * width;
   NSUInteger bitsPerComponent = 8;
-  CGContextRef context = CGBitmapContextCreate(rawData, width, height,
+  CGContextRef context = CGBitmapContextCreate(raw_data.data(), width, height,
                           bitsPerComponent, bytesPerRow, colorSpace,
                           kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
   CGColorSpaceRelease(colorSpace);
@@ -225,7 +221,7 @@ enum PlaceInPrompt : int {
     nbytes *= (size_t)s;
   }
   NDArray input_image = NDArray::Empty(shape, dtype, device);
-  input_image.CopyFromBytes(rawData, nbytes);
+  input_image.CopyFromBytes(raw_data.data(), nbytes);
   // step 3. prefill with image embedding
   NDArray embedding = image_mod_embed_func_(input_image);
   prefill_with_embed_func_(embedding, false);
