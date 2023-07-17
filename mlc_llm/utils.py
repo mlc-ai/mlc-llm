@@ -330,18 +330,7 @@ def _detect_local_opencl():
     dev = tvm.opencl()
     if not dev.exist:
         return None
-    return tvm.target.Target(
-        {
-            "kind": "opencl",
-            "max_threads_per_block": dev.max_threads_per_block,
-            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
-            "thread_warp_size": dev.warp_size,
-            "supports_float16": 1,
-            "supports_int16": 1,
-            "supports_int8": 1,
-            "supports_16bit_buffer": 1,
-        }
-    )
+    return tvm.target.Target("opencl")
 
 
 def detect_local_target():
@@ -469,20 +458,7 @@ def parse_target(args: argparse.Namespace) -> None:
         args.target_kind = args.target.kind.default_keys[0]
     elif args.target == "opencl":
         target = tvm.target.Target(
-            tvm.target.Target(
-                {
-                    "kind": "opencl",
-                    "max_threads_per_block": 256,
-                    "max_shared_memory_per_block": 32768,
-                    "thread_warp_size": 1,
-                    "supports_float16": 1,
-                    "supports_int16": 1,
-                    "supports_int8": 1,
-                    "supports_8bit_buffer": 1,
-                    "supports_16bit_buffer": 1,
-                    "supports_storage_buffer_storage_class": 1,
-                }
-            ),
+            "opencl",
             host="llvm",
         )
         args.target = target
