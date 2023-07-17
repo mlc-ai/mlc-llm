@@ -5,7 +5,6 @@ This page describes how to compile a model with MLC LLM. Model compilation takes
 and optimized model lib for a given platform. It enables users to bring their own new model weights, try different quantization modes,
 and customize the overall model optimization flow.
 
-
 .. note::
     Before you proceed, please make sure that you have :ref:`install-tvm-unity` correctly installed on your machine.
     TVM-Unity is the necessary foundation for us to compile models with MLC LLM.
@@ -13,10 +12,34 @@ and customize the overall model optimization flow.
     Please also follow the instruction in :ref:`deploy-cli` to obtain the CLI app that can be used to chat with the compiled model.
     Finally, we strongly recommend you read :ref:`project-overview` first to get familiarized with the high-level terminologies.
 
+
 .. contents:: Table of Contents
     :depth: 1
     :local:
 
+Install MLC-LLM Package
+-----------------------
+
+Work with Source Code
+^^^^^^^^^^^^^^^^^^^^^
+
+The easiest way is to use MLC-LLM is to clone the repository, and compile models under the root directory of the repository.
+
+.. code:: bash
+
+    # clone the repository
+    git clone git@github.com:mlc-ai/mlc-llm.git --recursive
+    # enter to root directory of the repo
+    cd mlc-llm  
+
+Verify Installation
+^^^^^^^^^^^^^^^^^^^
+
+.. code:: bash
+
+   python3 -m mlc_llm.build --help
+
+You are expected to see the help information of the building script.
 
 Get Started
 -----------
@@ -35,19 +58,19 @@ your personal computer.
 
         .. code:: shell
 
-            python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target metal --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target metal --quantization q4f16_0
 
         On Apple Silicon powered Mac, compile for x86 Mac:
 
         .. code:: shell
 
-            python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target metal_x86_64 --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target metal_x86_64 --quantization q4f16_0
 
     .. group-tab:: Linux - CUDA
 
         .. code:: shell
 
-            python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target cuda --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target cuda --quantization q4f16_0
 
     .. group-tab:: Vulkan
 
@@ -55,19 +78,19 @@ your personal computer.
 
         .. code:: shell
 
-            python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_0
 
         On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
 
         .. code:: shell
 
-            python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_0 --llvm-mingw path/to/llvm-mingw
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_0 --llvm-mingw path/to/llvm-mingw
 
     .. group-tab:: iOS/iPadOS
 
         .. code:: shell
 
-            python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q4f16_0
 
         .. note::
             If it runs into error
@@ -85,13 +108,13 @@ your personal computer.
 
         .. code:: shell
 
-            python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target android --max-seq-len 768 --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target android --max-seq-len 768 --quantization q4f16_0
 
     .. group-tab:: WebGPU
 
         .. code:: shell
 
-            python3 build.py --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target webgpu --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target webgpu --quantization q4f16_0
 
 By executing the compile command above, we generate the model weights, model lib, and a chat config.
 We can check the output with the commands below:
@@ -259,7 +282,7 @@ Generally, the model compile command is specified by a sequence of arguments and
 
 .. code:: shell
 
-    python3 build.py \
+    python3 -m mlc_llm.build \
         --model MODEL_NAME_OR_PATH \
         [--hf-path HUGGINGFACE_NAME] \
         --target TARGET_NAME \
@@ -329,7 +352,7 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 build.py --model vicuna-v1-7b --target cuda --quantization q3f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target cuda --quantization q3f16_0
 
             .. tab:: Metal
 
@@ -337,13 +360,13 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 build.py --model vicuna-v1-7b --target metal --quantization q3f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target metal --quantization q3f16_0
 
                 On Apple Silicon powered Mac, compile for x86 Mac:
 
                 .. code:: shell
 
-                    python3 build.py --model vicuna-v1-7b --target metal_x86_64 --quantization q3f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target metal_x86_64 --quantization q3f16_0
 
             .. tab:: Vulkan
 
@@ -351,31 +374,31 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 build.py --model vicuna-v1-7b --target vulkan --quantization q3f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target vulkan --quantization q3f16_0
 
                 On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
 
                 .. code:: shell
 
-                    python3 build.py --model vicuna-v1-7b --target vulkan --quantization q3f16_0 --llvm-mingw path/to/llvm-mingw
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target vulkan --quantization q3f16_0 --llvm-mingw path/to/llvm-mingw
 
             .. tab:: WebGPU
 
                 .. code:: shell
 
-                    python3 build.py --model vicuna-v1-7b --target webgpu --quantization q4f32_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target webgpu --quantization q4f32_0
 
             .. tab:: iPhone/iPad
 
                 .. code:: shell
 
-                    python3 build.py --model vicuna-v1-7b --target iphone --max-seq-len 768 --quantization q3f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target iphone --max-seq-len 768 --quantization q3f16_0
 
             .. tab:: Android
 
                 .. code:: shell
 
-                    python3 build.py --model vicuna-v1-7b --target android --max-seq-len 768 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target android --max-seq-len 768 --quantization q4f16_0
 
     .. tab:: RedPajama-v1-3B
 
@@ -385,7 +408,7 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 build.py --model RedPajama-INCITE-Chat-3B-v1 --target cuda --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target cuda --quantization q4f16_0
 
             .. tab:: Metal
 
@@ -393,13 +416,13 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 build.py --model RedPajama-INCITE-Chat-3B-v1 --target metal --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target metal --quantization q4f16_0
 
                 On Apple Silicon powered Mac, compile for x86 Mac:
 
                 .. code:: shell
 
-                    python3 build.py --model RedPajama-INCITE-Chat-3B-v1 --target metal_x86_64 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target metal_x86_64 --quantization q4f16_0
 
             .. tab:: Vulkan
 
@@ -407,31 +430,31 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 build.py --model RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_0
 
                 On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
 
                 .. code:: shell
 
-                    python3 build.py --model RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_0 --llvm-mingw path/to/llvm-mingw
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_0 --llvm-mingw path/to/llvm-mingw
 
             .. tab:: WebGPU
 
                 .. code:: shell
 
-                    python3 build.py --model RedPajama-INCITE-Chat-3B-v1 --target webgpu --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target webgpu --quantization q4f16_0
 
             .. tab:: iPhone/iPad
 
                 .. code:: shell
 
-                    python3 build.py --model RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q4f16_0
 
             .. tab:: Android
 
                 .. code:: shell
 
-                    python3 build.py --model RedPajama-INCITE-Chat-3B-v1 --target android --max-seq-len 768 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target android --max-seq-len 768 --quantization q4f16_0
 
     .. tab:: rwkv-raven-1b5/3b/7b
 
@@ -442,11 +465,11 @@ This section lists compile commands for more models that you can try out.
                 .. code:: shell
 
                     # For 1.5B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target cuda --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-1b5 --target cuda --quantization q8f16_0
                     # For 3B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-3b --target cuda --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-3b --target cuda --quantization q8f16_0
                     # For 7B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-7b --target cuda --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-7b --target cuda --quantization q8f16_0
 
             .. tab:: Metal
 
@@ -455,22 +478,22 @@ This section lists compile commands for more models that you can try out.
                 .. code:: shell
 
                     # For 1.5B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target metal --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-1b5 --target metal --quantization q8f16_0
                     # For 3B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-3b --target metal --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-3b --target metal --quantization q8f16_0
                     # For 7B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-7b --target metal --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-7b --target metal --quantization q8f16_0
 
                 On Apple Silicon powered Mac, compile for x86 Mac:
 
                 .. code:: shell
 
                     # For 1.5B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target metal_x86_64 --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-1b5 --target metal_x86_64 --quantization q8f16_0
                     # For 3B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-3b --target metal_x86_64 --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-3b --target metal_x86_64 --quantization q8f16_0
                     # For 7B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-7b --target metal_x86_64 --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-7b --target metal_x86_64 --quantization q8f16_0
 
             .. tab:: Vulkan
 
@@ -479,33 +502,33 @@ This section lists compile commands for more models that you can try out.
                 .. code:: shell
 
                     # For 1.5B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target vulkan --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-1b5 --target vulkan --quantization q8f16_0
                     # For 3B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-3b --target vulkan --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-3b --target vulkan --quantization q8f16_0
                     # For 7B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-7b --target vulkan --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-7b --target vulkan --quantization q8f16_0
 
                 On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
 
                 .. code:: shell
 
                     # For 1.5B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target vulkan --quantization q8f16_0 --llvm-mingw path/to/llvm-mingw
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-1b5 --target vulkan --quantization q8f16_0 --llvm-mingw path/to/llvm-mingw
                     # For 3B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-3b --target vulkan --quantization q8f16_0 --llvm-mingw path/to/llvm-mingw
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-3b --target vulkan --quantization q8f16_0 --llvm-mingw path/to/llvm-mingw
                     # For 7B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-7b --target vulkan --quantization q8f16_0 --llvm-mingw path/to/llvm-mingw
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-7b --target vulkan --quantization q8f16_0 --llvm-mingw path/to/llvm-mingw
 
             .. tab:: iPhone/iPad
 
                 .. code:: shell
 
                     # For 1.5B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-1b5 --target iphone --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-1b5 --target iphone --quantization q8f16_0
                     # For 3B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-3b --target iphone --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-3b --target iphone --quantization q8f16_0
                     # For 7B model
-                    python3 build.py --hf-path=RWKV/rwkv-raven-7b --target iphone --quantization q8f16_0
+                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-7b --target iphone --quantization q8f16_0
 
     .. tab:: Other models
 
@@ -516,7 +539,7 @@ This section lists compile commands for more models that you can try out.
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 build.py --model MODEL_NAME --target cuda --quantization q4f16_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target cuda --quantization q4f16_0
 
             .. tab:: Metal
 
@@ -525,14 +548,14 @@ This section lists compile commands for more models that you can try out.
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 build.py --model MODEL_NAME --target metal --quantization q4f16_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target metal --quantization q4f16_0
 
                 On Apple Silicon powered Mac, compile for x86 Mac:
 
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 build.py --model MODEL_NAME --target metal_x86_64 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target metal_x86_64 --quantization q4f16_0
 
             .. tab:: Vulkan
 
@@ -541,35 +564,35 @@ This section lists compile commands for more models that you can try out.
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 build.py --model MODEL_NAME --target vulkan --quantization q4f16_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target vulkan --quantization q4f16_0
 
                 On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
 
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 build.py --model MODEL_NAME --target vulkan --quantization q4f16_0 --llvm-mingw path/to/llvm-mingw
+                    python3 -m mlc_llm.build --model MODEL_NAME --target vulkan --quantization q4f16_0 --llvm-mingw path/to/llvm-mingw
 
             .. tab:: WebGPU
 
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 build.py --model MODEL_NAME --target webgpu --quantization q4f32_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target webgpu --quantization q4f32_0
 
             .. tab:: iPhone/iPad
 
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 build.py --model MODEL_NAME --target iphone --max-seq-len 768 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target iphone --max-seq-len 768 --quantization q4f16_0
 
             .. tab:: Android
 
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 build.py --model MODEL_NAME --target android --max-seq-len 768 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target android --max-seq-len 768 --quantization q4f16_0
 
 
 For each model and each backend, the above only provides the most recommended build command (which is the most optimized). You can also try with different argument values (e.g., different quantization modes), whose build results may not run as fast and robustly as the provided one when running the model.
