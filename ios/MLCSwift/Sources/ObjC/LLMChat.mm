@@ -52,8 +52,11 @@ enum PlaceInPrompt : int {
   PackedFunc image_mod_embed_func_;
   PackedFunc image_mod_reset_func_;
   PackedFunc image_mod_runtime_stats_text_func_;
-  // flag for first text input after image uploading
+  // helper variables
   bool first_input_after_image;
+  uint8_t* rawData;
+  NSUInteger width;
+  NSUInteger height;
 }
 
 - (instancetype)init {
@@ -85,7 +88,11 @@ enum PlaceInPrompt : int {
     image_mod_embed_func_ = llm_image_mod_->GetFunction("embed");
     image_mod_reset_func_ = llm_image_mod_->GetFunction("reset_image_module");
     image_mod_runtime_stats_text_func_ = llm_image_mod_->GetFunction("runtime_stats_text");
+    // helper variables
     first_input_after_image = false;
+    rawData = nullptr;
+    height = 224;
+    width = 224;
 
     ICHECK(reload_func_ != nullptr);
     ICHECK(unload_func_ != nullptr);
@@ -170,16 +177,20 @@ enum PlaceInPrompt : int {
 - (void)unloadImageModule {
   image_mod_unload_func_();
   first_input_after_image = false;
+  // notice: this might not be called when app crashes
+  free(rawData);
+  rawData = nullptr;
 }
 
 - (void)reloadImageModule:(NSString*)modelLib modelPath:(NSString*)modelPath {
+  first_input_after_image = false;
+  rawData = (uint8_t*) calloc(height * width * 4, sizeof(uint8_t));
   std::string lib_prefix = modelLib.UTF8String;
   std::string model_path = modelPath.UTF8String;
   std::replace(lib_prefix.begin(), lib_prefix.end(), '-', '_');
   lib_prefix += '_';
   Module lib = (*Registry::Get("runtime.SystemLib"))(lib_prefix);
   image_mod_reload_func_(lib, model_path);
-  first_input_after_image = false;
 }
 
 - (void)resetImageModule {
@@ -195,10 +206,7 @@ enum PlaceInPrompt : int {
   // prefill with image embedding
   // step 1. get image rawdata: credit from https://stackoverflow.com/a/1262893
   CGImageRef imageRef = [image CGImage];
-  NSUInteger width = CGImageGetWidth(imageRef);
-  NSUInteger height = CGImageGetHeight(imageRef);
   CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-  uint8_t* rawData = (uint8_t*) calloc(height * width * 4, sizeof(uint8_t));
   NSUInteger bytesPerPixel = 4;
   NSUInteger bytesPerRow = bytesPerPixel * width;
   NSUInteger bitsPerComponent = 8;
@@ -209,7 +217,7 @@ enum PlaceInPrompt : int {
   CGContextDrawImage(context, CGRectMake(0, 0, width, height), imageRef);
   CGContextRelease(context);
   // step 2. create tvm NDArray
-  ShapeTuple shape = {1, 224, 224, 4};
+  ShapeTuple shape = {1, int(height), int(width), 4};
   DLDataType dtype = DataType::UInt(8);
   DLDevice device = DLDevice{kDLMetal, 0};
   size_t nbytes = size_t(dtype.bits / 8);
@@ -221,8 +229,6 @@ enum PlaceInPrompt : int {
   // step 3. prefill with image embedding
   NDArray embedding = image_mod_embed_func_(input_image);
   prefill_with_embed_func_(embedding, false);
-  // step 4. free memory
-  free(rawData);
 
   // prefill the post placeholder string
   std::string post_placeholder = postPlaceholder.UTF8String;
