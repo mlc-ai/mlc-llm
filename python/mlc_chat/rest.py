@@ -1,4 +1,4 @@
-from .chat_module import ChatModule, quantization_keys
+from .chat_module import ChatModule, quantization_keys, PlaceInPrompt
 from .interface.openai_api import *
 
 from fastapi import FastAPI
@@ -11,6 +11,7 @@ import tvm
 import argparse
 import os
 import asyncio
+import numpy as np
 
 session = {}
 
@@ -146,7 +147,6 @@ async def request_completion(request: CompletionRequest):
     session["chat_mod"].reset_chat()
     prompt = request.prompt[0]
     session["chat_mod"].prefill(input=prompt)
-
     msg = None
     while not session["chat_mod"].stopped():
         session["chat_mod"].decode()
@@ -171,8 +171,20 @@ async def request_embeddings(request: EmbeddingsRequest):
     """
     Gets embedding for some text.
     """
-    assert("Endpoint not implemented.")
-
+    session["chat_mod"].reset_chat()
+    emb = session["chat_mod"].embed(request.input[0], PlaceInPrompt.Middle).numpy()
+    mean_emb = np.squeeze(np.mean(emb, axis=1), axis=0)
+    norm_emb = mean_emb / np.linalg.norm(mean_emb)
+    data = []
+    data.append({"object": "embedding", "embedding": norm_emb.tolist(), "index": 0})
+    return EmbeddingsResponse(
+        data=data,
+        usage=UsageInfo(
+            prompt_tokens=0,
+            completion_tokens=0,
+            total_tokens=0
+        )
+    )
 
 @app.post("/chat/reset")
 async def reset():
