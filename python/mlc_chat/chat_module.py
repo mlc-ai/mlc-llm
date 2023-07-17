@@ -1,14 +1,41 @@
-"""Python runtime for MLC chat."""
+"""Chat module for MLC chat in a standalone file, including image module for multimodal-purposes."""
 #! pylint: disable=unused-import, invalid-name
 import ctypes
 import os
 import sys
-from enum import Enum
 
 import tvm
 import tvm._ffi.base
 
+from enum import Enum
 from . import libinfo
+
+
+def _load_mlc_llm_lib():
+    """Load mlc llm lib"""
+    if sys.platform.startswith("win32") and sys.version_info >= (3, 8):
+        for path in libinfo.get_dll_directories():
+            os.add_dll_directory(path)
+    lib_name = "mlc_llm" if tvm._ffi.base._RUNTIME_ONLY else "mlc_llm_module"
+    lib_path = libinfo.find_lib_path(lib_name, optional=False)
+    return ctypes.CDLL(lib_path[0]), lib_path[0]
+
+
+# only load once here
+if os.environ.get("SKIP_LOADING_MLCLLM_SO", "0") == "0":
+    _LIB, _LIB_PATH = _load_mlc_llm_lib()
+
+
+def quantization_keys():
+    return [
+        "q3f16_0",
+        "q4f16_0",
+        "q4f16_1",
+        "q4f32_0",
+        "q8f16_0",
+        "q0f16",
+        "q0f32",
+    ]
 
 
 class PlaceInPrompt(Enum):
@@ -27,32 +54,6 @@ class PlaceInPrompt(Enum):
     End = 3
 
 
-def _load_mlc_llm_lib():
-    """Load mlc llm lib"""
-    if sys.platform.startswith("win32") and sys.version_info >= (3, 8):
-        for path in libinfo.get_dll_directories():
-            os.add_dll_directory(path)
-    lib_name = "mlc_llm" if tvm._ffi.base._RUNTIME_ONLY else "mlc_llm_module"
-    lib_path = libinfo.find_lib_path(lib_name, optional=False)
-    return ctypes.CDLL(lib_path[0]), lib_path[0]
-
-
-if os.environ.get("SKIP_LOADING_MLCLLM_SO", "0") == "0":
-    _LIB, _LIB_PATH = _load_mlc_llm_lib()
-
-
-def quantization_keys():
-    return [
-        "q3f16_0",
-        "q4f16_0",
-        "q4f16_1",
-        "q4f32_0",
-        "q8f16_0",
-        "q0f16",
-        "q0f32",
-    ]
-
-
 class ChatModule:
     def __init__(self, target: str = "cuda", device_id: int = 0):
         r"""Initialize a chat module.
@@ -64,8 +65,6 @@ class ChatModule:
         device_id : int
             The device id.
         """
-        fcreate = tvm.get_global_func("mlc.llm_chat_create")
-        assert fcreate is not None
         if target == "cuda":
             self.device = tvm.cuda(device_id)
         elif target == "metal":
@@ -75,8 +74,15 @@ class ChatModule:
         else:
             raise ValueError("device type not supported yet")
         device_type = self.device.device_type
-        chat_mod = fcreate(device_type, device_id)
 
+        fcreate_chat_mod = tvm.get_global_func("mlc.llm_chat_create")
+        assert fcreate_chat_mod is not None
+        chat_mod = fcreate_chat_mod(device_type, device_id)
+        fcreate_image_mod = tvm.get_global_func("mlc.llm_image_module_create")
+        assert fcreate_image_mod is not None
+        image_mod = fcreate_image_mod(device_type, device_id)
+
+        # chat module related functions
         self.reload_func = chat_mod["reload"]
         self.prefill_func = chat_mod["prefill"]
         self.embed_func = chat_mod["embed"]
@@ -91,6 +97,12 @@ class ChatModule:
         self.evaluate_func = chat_mod["evaluate"]
         self.get_role0 = chat_mod["get_role0"]
         self.get_role1 = chat_mod["get_role1"]
+        # image module related functions
+        self.image_reload_func = image_mod["reload"]
+        self.image_embed_func = image_mod["embed"]
+        self.image_reset_func = image_mod["reset"]
+        self.image_runtime_stats_text_func = image_mod["runtime_stats_text"]
+        self.image_reset_runtime_stats_func = image_mod["reset_runtime_stats"]
 
     def reload(self, lib: str, model_path: str, app_config_json: str = ""):
         r"""Reload the chat module from the given library and model path.
@@ -216,3 +228,52 @@ class ChatModule:
 
     def evaluate(self):
         self.evaluate_func()
+
+    def reload_image_module(self, lib: str, model_path: str):
+        r"""Reload the image module from the given library and model path.
+
+        Parameters
+        ----------
+        lib : str
+            The library path.
+        model_path : str
+            The model path.
+        """
+        self.reload_func(lib, model_path)
+
+    def reset_image_module(self):
+        r"""Reset the image module, clear its performance record.
+
+        Note
+        ----
+        The model remains the same after :func:`reset_image_module`.
+        To reload module, please use :func:`reload` instead.
+        """
+        self.reset_image_module_func()
+
+    def get_image_embedding(
+        self,
+        image: tvm.runtime.NDArray,
+    ):
+        r"""Given an image of type NDArray, get the embedding of the image.
+
+        Parameters
+        ----------
+        image : tvm.runtime.NDArray
+            The user uploaded image.
+        """
+        return self.embed_func(image)
+
+    def image_module_runtime_stats_text(self) -> str:
+        r"""Get the runtime stats text (image encoding speed).
+
+        Returns
+        -------
+        stats : str
+            The runtime stats text.
+        """
+        return self.runtime_stats_text_func()
+
+    def reset_image_module_runtime_stats(self):
+        r"""Reset the runtime stats."""
+        self.reset_runtime_stats_func()

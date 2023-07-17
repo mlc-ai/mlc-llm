@@ -4,6 +4,7 @@
 //
 import Foundation
 import MLCSwift
+import SwiftUI
 
 enum MessageRole {
     case user
@@ -23,6 +24,8 @@ enum ModelChatState {
     case Terminating
     case Ready
     case Failed
+    case PendingImageUpload
+    case ProcessingImage
 }
 
 class ChatState : ObservableObject {
@@ -30,6 +33,7 @@ class ChatState : ObservableObject {
     @Published var infoText = ""
     @Published var displayName = ""
     @Published var modelChatState = ModelChatState.Ready
+    @Published var useVision = false
     
     private let modelChatStateLock = NSLock()
     
@@ -94,8 +98,16 @@ class ChatState : ObservableObject {
         setModelChatState(newModelChatState: .Failed)
     }
     
+    private func switchToPendingImageUpload() {
+        setModelChatState(newModelChatState: .PendingImageUpload)
+    }
+
+    private func switchToProcessingImage() {
+        setModelChatState(newModelChatState: .ProcessingImage)
+    }
+
     func interruptable() -> Bool {
-        return getModelChatState() == .Ready || getModelChatState() == .Generating || getModelChatState() == .Failed
+        return getModelChatState() == .Ready || getModelChatState() == .Generating || getModelChatState() == .Failed || getModelChatState() == .PendingImageUpload
     }
     
     func resettable() -> Bool {
@@ -105,10 +117,14 @@ class ChatState : ObservableObject {
     func chattable() -> Bool {
         return getModelChatState() == .Ready
     }
+
+    func uploadable() -> Bool {
+        return getModelChatState() == .PendingImageUpload
+    }
     
     private func interruptChat(prologue: () -> Void, epilogue: @escaping () -> Void) {
         assert(interruptable())
-        if getModelChatState() == .Ready || getModelChatState() == .Failed {
+        if getModelChatState() == .Ready || getModelChatState() == .Failed || getModelChatState() == .PendingImageUpload {
             prologue()
             epilogue()
         } else if getModelChatState() == .Generating {
@@ -126,9 +142,17 @@ class ChatState : ObservableObject {
     private func mainResetChat() {
         threadWorker.push {[self] in
             backend.resetChat()
+            if useVision {
+                backend.resetImageModule()
+            }
             DispatchQueue.main.async { [self] in
                 clearHistory()
-                switchToReady()
+                if useVision {
+                    appendMessage(role: .bot, message: "[System] Upload an image to chat")
+                    switchToPendingImageUpload()
+                } else {
+                    switchToReady()
+                }
             }
         }
     }
@@ -144,6 +168,9 @@ class ChatState : ObservableObject {
     
     private func mainTerminateChat(callback: @escaping () -> Void) {
         threadWorker.push { [self] in
+            if useVision {
+                backend.unloadImageModule()
+            }
             backend.unload()
             DispatchQueue.main.async { [self] in
                 clearHistory()
@@ -151,6 +178,7 @@ class ChatState : ObservableObject {
                 self.modelLib = ""
                 self.modelPath = ""
                 self.displayName = ""
+                self.useVision = false
                 switchToReady()
                 callback()
             }
@@ -168,13 +196,18 @@ class ChatState : ObservableObject {
     
     private func mainReloadChat(localId: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int64, displayName: String) {
         clearHistory()
+        let prevUseVision = useVision
         self.localId = localId
         self.modelLib = modelLib
         self.modelPath = modelPath
         self.displayName = displayName
+        self.useVision = displayName.hasPrefix("minigpt")
         threadWorker.push {[self] in
             DispatchQueue.main.async { [self] in
                 appendMessage(role: .bot, message: "[System] Initalize...")
+            }
+            if prevUseVision {
+                backend.unloadImageModule()
             }
             backend.unload()
             let vram = os_proc_available_memory()
@@ -192,10 +225,27 @@ class ChatState : ObservableObject {
                 }
                 return
             }
-            backend.reload(modelLib, modelPath: modelPath)
+            if useVision {
+                // load vicuna model
+                let dir = (modelPath as NSString).deletingLastPathComponent
+                let vicunaModelLib = "vicuna-7b-v1.3-q3f16_0"
+                let vicunaModelPath = dir + "/" + vicunaModelLib
+                let appConfigJsonData = try? JSONSerialization.data(withJSONObject: ["conv_template": "minigpt"], options: [])
+                let appConfigJson = String(data: appConfigJsonData!, encoding: .utf8)
+                backend.reload(vicunaModelLib, modelPath: vicunaModelPath, appConfigJson: appConfigJson)
+                // load image model
+                backend.reloadImageModule(modelLib, modelPath: modelPath)
+            } else {
+                backend.reload(modelLib, modelPath: modelPath, appConfigJson: "")
+            }
             DispatchQueue.main.async { [self] in
-                updateMessage(role: .bot, message: "[System] Ready to chat")
-                switchToReady()
+                if useVision {
+                    updateMessage(role: .bot, message: "[System] Upload an image to chat")
+                    switchToPendingImageUpload()
+                } else {
+                    updateMessage(role: .bot, message: "[System] Ready to chat")
+                    switchToReady()
+                }
             }
         }
     }
@@ -230,15 +280,34 @@ class ChatState : ObservableObject {
                 }
             }
             if getModelChatState() == .Generating {
-                let runtimeStats = backend.runtimeStatsText()
+                let runtimeStats = (backend.runtimeStatsText(useVision))!
                 DispatchQueue.main.async { [self] in
-                    infoText = runtimeStats!
+                    infoText = runtimeStats
                     switchToReady()
                 }
             }
         }
     }
-    
+
+    func requestProcessImage(image: UIImage) {
+        assert(getModelChatState() == .PendingImageUpload)
+        switchToProcessingImage()
+        threadWorker.push {[self] in
+            assert(messages.count > 0)
+            DispatchQueue.main.async { [self] in
+                updateMessage(role: .bot, message: "[System] Processing image")
+            }
+            // step 1. resize image
+            let new_image = resizeImage(image: image, width: 112, height: 112)
+            // step 2. prefill image by backend.prefillImage()
+            backend.prefillImage(new_image, prevPlaceholder: "<Img>", postPlaceholder: "</Img> ")
+            DispatchQueue.main.async { [self] in
+                updateMessage(role: .bot, message: "[System] Ready to chat")
+                switchToReady()
+            }
+        }
+    }
+
     func isCurrentModel(localId: String) -> Bool {
         return self.localId == localId
     }

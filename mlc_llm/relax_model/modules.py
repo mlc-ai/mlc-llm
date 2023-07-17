@@ -224,6 +224,47 @@ class RotaryEmbedding(nn.Module):
         return q_embed, k_embed
 
 
+class TransformImage(nn.Module):
+    def __init__(self, dtype: str, in_chans: int = 4):
+        self.in_chans = in_chans
+        self.dtype = dtype
+
+        # used in normalization, assume channels are RGB
+        self.r_mean = relax.const(0.48145466, "float32")
+        self.g_mean = relax.const(0.4578275, "float32")
+        self.b_mean = relax.const(0.40821073, "float32")
+        self.r_std = relax.const(0.26862954, "float32")
+        self.g_std = relax.const(0.26130258, "float32")
+        self.b_std = relax.const(0.27577711, "float32")
+
+    def forward(self, input: relax.Expr) -> relax.Expr:
+        from tvm.relax.op import astype, concat, permute_dims, strided_slice
+
+        assert input.struct_info.ndim == 4
+        # perform torch.ToTensor on input of shape (bs, height, width, in_chans)
+        input = permute_dims(input, [0, 3, 1, 2])
+        x = astype(input, "float32") / relax.const(255.0, "float32")
+        r = strided_slice(x, axes=[1], begin=[0], end=[1])
+        g = strided_slice(x, axes=[1], begin=[1], end=[2])
+        b = strided_slice(x, axes=[1], begin=[2], end=[3])
+
+        # normalize rgba to rgb
+        if self.in_chans == 4:
+            a = strided_slice(x, axes=[1], begin=[3], end=[4])
+            r /= a
+            g /= a
+            b /= a
+
+        # perform torch.Normalize
+        r = (r - self.r_mean) / self.r_std
+        g = (g - self.g_mean) / self.g_std
+        b = (b - self.b_mean) / self.b_std
+        res = concat([r, g, b], axis=1)
+        res = astype(res, self.dtype)
+
+        return res
+
+
 def named_parameters(model: nn.Module) -> Dict[str, nn.Parameter]:
     params: Dict[str, nn.Parameter] = {}
     for name, module in model.__dict__.items():
