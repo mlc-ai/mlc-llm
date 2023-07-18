@@ -3,10 +3,10 @@ import argparse
 import json
 import os
 import pickle
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import tvm
-from tvm import dlight
+from tvm import dlight as dl
 from tvm import meta_schedule as ms
 from tvm import relax
 
@@ -376,7 +376,10 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
                     args.model_category
                 )(mod_deploy)
             )
-            mod_deploy = dlight.ApplyDefaultSchedule(dlight.gpu.Fallback())(mod_deploy)
+            mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod_deploy)
+            mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.DecodeGEMV())(mod_deploy)
+            mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.Reduction())(mod_deploy)
+            mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod_deploy)
             mod_deploy = mlc_llm.transform.LiftTIRGlobalBufferAlloc()(mod_deploy)
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 

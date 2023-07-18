@@ -54,6 +54,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
     assert args.model_category is not None
 
     model_conv_templates = {
+        "llama-2": "llama-2",
         "vicuna-": "vicuna_v1.1",
         "dolly-": "dolly",
         "stablelm-": "stablelm",

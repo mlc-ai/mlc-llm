@@ -28,6 +28,32 @@ Conversation LlamaDefault() {
   return conv;
 }
 
+Conversation Llama2() {
+  Conversation conv;
+  conv.name = "llama-2";
+  conv.system =
+      ("[INST] <<SYS>>\n\nYou are a helpful, respectful and honest assistant. "
+       "Always answer as helpfully as possible, while being safe. "
+       "Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, "
+       "or illegal content. "
+       "Please ensure that your responses are socially unbiased and positive in nature.\n\n"
+       "If a question does not make any sense, or is not factually coherent, explain why instead "
+       "of answering something not correct. "
+       "If you don't know the answer to a question, please don't share false "
+       "information.\n<</SYS>>\n\n ");
+  conv.roles = {"[INST]", "[/INST]"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {" "};
+  conv.role_msg_sep = " ";
+  conv.role_empty_sep = " ";
+  conv.stop_tokens = {2};
+  conv.stop_str = "";
+  conv.add_bos = true;
+  return conv;
+}
+
 Conversation VicunaV11() {
   Conversation conv;
   conv.name = "vicuna_v1.1";
@@ -386,6 +412,7 @@ using ConvFactory = Conversation (*)();
 Conversation Conversation::FromTemplate(const std::string& name) {
   static std::unordered_map<std::string, ConvFactory> factory = {
       {"llama_default", LlamaDefault},
+      {"llama-2", Llama2},
       {"vicuna_v1.1", VicunaV11},
       {"conv_one_shot", ConvOneShot},
       {"redpajama_chat", RedPajamaChat},
