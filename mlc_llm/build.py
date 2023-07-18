@@ -23,7 +23,7 @@ from mlc_llm.relax_model import (
 )
 
 
-def _parse_args() -> argparse.Namespace:
+def make_args():
     args = argparse.ArgumentParser()
     args.add_argument(
         "--model",
@@ -84,7 +84,9 @@ def _parse_args() -> argparse.Namespace:
                 massive overhaul of embedding feature for all models and use cases",
     )
 
-    parsed = args.parse_args()
+    return args
+
+def _parse_args(parsed) -> argparse.Namespace:
     assert parsed.max_seq_len == -1 or parsed.max_seq_len > 0
 
     parsed.export_kwargs = {}
@@ -397,8 +399,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     print(f"Finish exporting to {lib_path}")
 
 
-def main():
-    args = _parse_args()
+def main(args):
     os.makedirs(args.artifact_path, exist_ok=True)
     if args.debug_dump:
         os.makedirs(os.path.join(args.artifact_path, "debug"), exist_ok=True)
@@ -449,6 +450,60 @@ def main():
         print("Reuse existing prebuilt lib {ARGS.reuse_lib}...")
     dump_default_mlc_chat_config(args)
 
+def build_model(model: str=None,
+          hf_path: str=None,
+          quantization: str=None,
+          max_seq_len: int=None,
+          target: str=None,
+          db_path: str=None,
+          reuse_lib: str=None,
+          artifact_path: str=None,
+          use_cache: int=None,
+          llvm_mingw: str=None,
+          debug_dump: bool=False,
+          debug_load_script: bool=False,  # pylint: disable=redefined-outer-name
+          system_lib: bool=False,
+          sep_embed: bool=False):
+    r"""Builds/compiles a model, see `build.py`'s `make_args` for param info."""
+    # Populate arg list
+    arg_list = []
+    if model is not None:
+        arg_list.extend(["--model", model])
+    if hf_path is not None:
+        arg_list.extend(["--hf-path", hf_path])
+    if quantization is not None:
+        arg_list.extend(["--quantization", quantization])
+    if max_seq_len is not None:
+        arg_list.extend(["--max-seq-len", str(max_seq_len)])
+    if target is not None:
+        arg_list.extend(["--target", target])
+    if db_path is not None:
+        arg_list.extend(["--db-path", db_path])
+    if reuse_lib is not None:
+        arg_list.extend(["--reuse-lib", reuse_lib])
+    if artifact_path is not None:
+        arg_list.extend(["--artifact-path", artifact_path])
+    if use_cache is not None:
+        arg_list.extend(["--use-cache", str(use_cache)])
+    if llvm_mingw is not None:
+        arg_list.extend(["--llvm-mingw", llvm_mingw])
+    if debug_dump:
+        arg_list.append("--debug-dump")
+    if debug_load_script:
+        arg_list.append("--debug-load-script")
+    if system_lib:
+        arg_list.append("--system-lib")
+    if sep_embed:
+        arg_list.append("--sep-embed")
+
+    empty_args = make_args()  # pylint: disable=redefined-outer-name
+    args = empty_args.parse_args(arg_list)
+    args = _parse_args(args)  # pylint: disable=protected-access
+
+    main(args)
 
 if __name__ == "__main__":
-    main()
+    empty_args = make_args()  # Create new ArgumentParser with arguments added
+    parsed_args = empty_args.parse_args()  # Parse through command line
+    parsed_args = _parse_args(parsed_args)  # Post-processing of args
+    main(parsed_args)
