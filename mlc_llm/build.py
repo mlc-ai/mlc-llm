@@ -322,7 +322,7 @@ def mod_transform_before_build(
 
 
 def dump_default_mlc_chat_config(args: argparse.Namespace):
-    params_path = os.path.join(args.artifact_path, "params")
+    args.params_path = os.path.join(args.artifact_path, "params")
     config: Dict[str, Any] = {}
 
     if args.reuse_lib:
@@ -342,14 +342,14 @@ def dump_default_mlc_chat_config(args: argparse.Namespace):
     config["mean_gen_len"] = 128
     config["max_gen_len"] = 512
     config["shift_fill_factor"] = 0.3
-    config["tokenizer_files"] = utils.get_tokenizer_files(params_path)
+    config["tokenizer_files"] = utils.get_tokenizer_files(args.params_path)
     config["model_category"] = args.model_category
     config["model_name"] = args.model
 
-    dump_path = os.path.join(params_path, "mlc-chat-config.json")
-    with open(dump_path, "w", encoding="utf-8") as outfile:
+    args.chat_config_path = os.path.join(args.params_path, "mlc-chat-config.json")
+    with open(args.chat_config_path, "w", encoding="utf-8") as outfile:
         json.dump(config, outfile, indent=4)
-    print(f"Finish exporting chat config to {dump_path}")
+    print(f"Finish exporting chat config to {args.chat_config_path}")
 
 
 def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
@@ -394,9 +394,9 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     )
 
     debug_dump_shader(ex, f"{args.model}_{args.quantization.name}_{target_kind}", args)
-    lib_path = os.path.join(args.artifact_path, output_filename)
-    ex.export_library(lib_path, **args.export_kwargs)
-    print(f"Finish exporting to {lib_path}")
+    args.lib_path = os.path.join(args.artifact_path, output_filename)
+    ex.export_library(args.lib_path, **args.export_kwargs)
+    print(f"Finish exporting to {args.lib_path}")
 
 
 def main(args):
@@ -464,7 +464,21 @@ def build_model(model: str=None,
           debug_load_script: bool=False,  # pylint: disable=redefined-outer-name
           system_lib: bool=False,
           sep_embed: bool=False):
-    r"""Builds/compiles a model, see `build.py`'s `make_args` for param info."""
+    r"""Builds/compiles a model.
+    
+    Parameters
+    ----------
+    See `build.py`'s `make_args` for param info.
+
+    Returns
+    ----------
+    lib_path: str
+        The path to the `.so` library file.
+    model_path: str
+        The path to the folder of the model's parameters.
+    chat_config_path: str
+        The path to the chat config `.json` file.
+    """
     # Populate arg list
     arg_list = []
     if model is not None:
@@ -501,6 +515,7 @@ def build_model(model: str=None,
     args = _parse_args(args)  # pylint: disable=protected-access
 
     main(args)
+    return args.lib_path, args.params_path, args.chat_config_path
 
 if __name__ == "__main__":
     empty_args = make_args()  # Create new ArgumentParser with arguments added
