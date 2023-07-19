@@ -11,6 +11,8 @@ and you can try out prebuilt models on the following platforms:
 
   .. tab:: CLI (Linux/MacOS/Windows)
 
+    **MLC LLM now supports Llama-2.** *Follow the instructions below and try out the CLI!*
+
     To run the models on your PC, you can try out the CLI version of MLC LLM.
 
     We have prepared Conda packages for MLC Chat CLI. If you haven't installed Conda yet,
@@ -32,13 +34,14 @@ and you can try out prebuilt models on the following platforms:
       mkdir -p dist/prebuilt
       git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 
-      # Download prebuilt weights of Vicuna-7B
+      # Download prebuilt weights of Llama-2-7B
       cd dist/prebuilt
-      git clone https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0
+      git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
       cd ../..
-      mlc_chat_cli --local-id vicuna-v1-7b-q3f16_0
+      mlc_chat_cli --local-id Llama-2-7b-chat-hf-q4f16_1
 
-      # Download prebuilt weights of RedPajama-3B
+      # You can try more models, for example:
+      # download prebuilt weights of RedPajama-3B
       cd dist/prebuilt
       git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
       cd ../..

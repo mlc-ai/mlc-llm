@@ -342,7 +342,64 @@ This section lists compile commands for more models that you can try out.
 
 .. tabs::
 
-    .. tab:: Model: vicuna-v1-7b
+    .. tab:: Model: Llama-2-7B
+
+        Please `request for access <https://huggingface.co/meta-llama>`_ to the Llama-2 weights from Meta first.
+        After granted the access, please create directory ``dist/models`` and download the model to the directory.
+        For example, you can run the following code:
+
+        .. code:: shell
+
+            mkdir -p dist/models
+            cd dist/models
+            git clone https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
+            cd ../..
+
+        After downloading the model, run the following command to compile the model.
+
+        .. tabs::
+
+            .. tab:: Target: CUDA
+
+                .. code:: shell
+
+                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target cuda --quantization q4f16_1
+
+            .. tab:: Metal
+
+                On Apple Silicon powered Mac, compile for Apple Silicon Mac:
+
+                .. code:: shell
+
+                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target metal --quantization q4f16_1
+
+                On Apple Silicon powered Mac, compile for x86 Mac:
+
+                .. code:: shell
+
+                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target metal_x86_64 --quantization q4f16_1
+
+            .. tab:: Vulkan
+
+                On Linux, compile for Linux:
+
+                .. code:: shell
+
+                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target vulkan --quantization q4f16_1
+
+                On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
+
+                .. code:: shell
+
+                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target vulkan --quantization q4f16_1 --llvm-mingw path/to/llvm-mingw
+
+            .. tab:: iPhone/iPad
+
+                .. code:: shell
+
+                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target iphone --max-seq-len 768 --quantization q3f16_1
+
+    .. tab:: Vicuna-v1-7B
 
         Please check this page on :doc:`how to get the Vicuna model weights </compilation/get-vicuna-weight>`.
 
