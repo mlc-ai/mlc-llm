@@ -11,7 +11,7 @@ and you can try out prebuilt models on the following platforms:
 
   .. tab:: CLI (Linux/MacOS/Windows)
 
-    **MLC LLM now supports Llama-2.** *Follow the instructions below and try out the CLI!*
+    **MLC LLM now supports 7B/13B Llama-2.** *Follow the instructions below and try out the CLI!*
 
     To run the models on your PC, you can try out the CLI version of MLC LLM.
 
@@ -34,11 +34,15 @@ and you can try out prebuilt models on the following platforms:
       mkdir -p dist/prebuilt
       git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 
-      # Download prebuilt weights of Llama-2-7B
+      # Download prebuilt weights of Llama-2-7B or Llama-2-13B
       cd dist/prebuilt
       git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
+      # or the 13B model
+      # git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1
       cd ../..
       mlc_chat_cli --local-id Llama-2-7b-chat-hf-q4f16_1
+      # or the 13B model
+      # mlc_chat_cli --local-id Llama-2-13b-chat-hf-q4f16_1
 
       # You can try more models, for example:
       # download prebuilt weights of RedPajama-3B
