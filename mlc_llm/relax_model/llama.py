@@ -793,8 +793,8 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     init_shape = relax.ShapeExpr(
         (
             config.max_sequence_length,
-            config.num_attention_heads,
-            config.hidden_size // config.num_attention_heads,
+            config.num_key_value_heads,
+            config.hidden_size // config.num_attention_heads,  # head_dim
         )
     )
     with bb.function("create_kv_cache", []):
