@@ -23,7 +23,6 @@ Everything runs locally  with no server support and accelerated with local GPUs 
 
 <ins>**[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/docs/get_started/try_out.html)**</ins>
 
-
 <p align="center">
   <img src="site/gif/ios-demo.gif" height="700">
 </p>
