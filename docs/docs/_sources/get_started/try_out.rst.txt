@@ -53,7 +53,7 @@ and you can try out prebuilt models on the following platforms:
 
     You can also checkout the :doc:`/prebuilt_models` page to run other models.
 
-    .. figure:: https://mlc.ai/blog/img/redpajama/cli.gif
+    .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif
       :width: 500
       :align: center
 
