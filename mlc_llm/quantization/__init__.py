@@ -28,7 +28,7 @@ quantization_schemes = {
             ["self_attn.o_proj"],
             ["mlp.gate_proj", "mlp.down_proj", "mlp.up_proj"],
         ],
-        _load_quantized_params_func=load_autogptq_params
+        _load_quantized_params_func=load_autogptq_params,
     ),
     "q0f16": QuantizationScheme("q0f16", NoQuantizationSpec("float16")),
     "q0f32": QuantizationScheme("q0f32", NoQuantizationSpec("float32")),
@@ -50,6 +50,19 @@ quantization_schemes = {
             group_size=40,
             transpose=False,
         ),
+        final_fc_weight="same_as_linear_weight",
+    ),
+    "q3f16_1": QuantizationScheme(
+        name="q3f16_1",
+        linear_weight=GroupQuantizationSpec(
+            dtype="float16",
+            mode="int3",
+            sym=True,
+            storage_nbit=16,
+            group_size=40,
+            transpose=False,
+        ),
+        embedding_table="same_as_linear_weight",
         final_fc_weight="same_as_linear_weight",
     ),
     "q4f16_0": QuantizationScheme(
@@ -103,6 +116,19 @@ quantization_schemes = {
             group_size=32,
             transpose=False,
         ),
+        final_fc_weight="same_as_linear_weight",
+    ),
+    "q4f32_1": QuantizationScheme(
+        name="q4f32_1",
+        linear_weight=GroupQuantizationSpec(
+            dtype="float32",
+            mode="int4",
+            sym=False,
+            storage_nbit=32,
+            group_size=32,
+            transpose=False,
+        ),
+        embedding_table="same_as_linear_weight",
         final_fc_weight="same_as_linear_weight",
     ),
     "q8f16_0": QuantizationScheme(

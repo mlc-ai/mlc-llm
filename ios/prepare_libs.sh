@@ -20,7 +20,7 @@ do
    -h   | --help )        help
                           exit
                           ;;
-   *)                     
+   *)
                           echo "$script: illegal option $1"
                           usage
 						                  exit 1 # error
@@ -71,4 +71,4 @@ cd ..
 rm -rf MLCSwift/tvm_home
 ln -s ../../3rdparty/tvm MLCSwift/tvm_home
 
-python3 prepare_model_lib.py
+python prepare_model_lib.py
