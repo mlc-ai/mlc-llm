@@ -19,7 +19,8 @@ Everything runs locally  with no server support and accelerated with local GPUs 
 
 **[Click here to join our Discord server!][discord-url]**
 
-<ins>**[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/docs/get_started/try_out.html)**</ins>
+<ins>**[News] MLC LLM now supports 7B/13B/70B Llama-2 !! [Check out our instruction page to try out!](https://mlc.ai/mlc-llm/docs/get_started/try_out.html)**</ins>
+
 
 <p align="center">
   <img src="site/gif/ios-demo.gif" height="700">
