@@ -399,7 +399,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     print(f"Finish exporting to {args.lib_path}")
 
 
-def main(args):
+def run(args):
     os.makedirs(args.artifact_path, exist_ok=True)
     if args.debug_dump:
         os.makedirs(os.path.join(args.artifact_path, "debug"), exist_ok=True)
@@ -514,11 +514,14 @@ def build_model(model: str=None,
     args = empty_args.parse_args(arg_list)
     args = _parse_args(args)  # pylint: disable=protected-access
 
-    main(args)
+    run(args)
     return args.lib_path, args.params_path, args.chat_config_path
 
-if __name__ == "__main__":
+def main():
     empty_args = make_args()  # Create new ArgumentParser with arguments added
     parsed_args = empty_args.parse_args()  # Parse through command line
     parsed_args = _parse_args(parsed_args)  # Post-processing of args
-    main(parsed_args)
+    run(parsed_args)
+
+if __name__ == "__main__":
+    main()
