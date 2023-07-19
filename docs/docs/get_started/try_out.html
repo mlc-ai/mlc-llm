@@ -291,7 +291,7 @@
 for you to try out MLC Chat app built with MLC LLM,
 and you can try out prebuilt models on the following platforms:</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">CLI (Linux/MacOS/Windows)</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p><strong>MLC LLM now supports 7B/13B Llama-2.</strong> <em>Follow the instructions below and try out the CLI!</em></p>
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">CLI (Linux/MacOS/Windows)</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p><strong>MLC LLM now supports 7B/13B/70B Llama-2.</strong> <em>Follow the instructions below and try out the CLI!</em></p>
 <p>To run the models on your PC, you can try out the CLI version of MLC LLM.</p>
 <p>We have prepared Conda packages for MLC Chat CLI. If you haven’t installed Conda yet,
 please refer to <a class="reference internal" href="../install/conda.html"><span class="doc">this tutorial</span></a> to install Conda.</p>
@@ -309,11 +309,13 @@ git<span class="w"> </span>lfs<span class="w"> </span>install
 mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt
 git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt/lib
 
-<span class="c1"># Download prebuilt weights of Llama-2-7B or Llama-2-13B</span>
+<span class="c1"># Download prebuilt weights of Llama-2-7B, Llama-2-13B or Llama-2-70B</span>
 <span class="nb">cd</span><span class="w"> </span>dist/prebuilt
 git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
 <span class="c1"># or the 13B model</span>
 <span class="c1"># git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1</span>
+<span class="c1"># or the 70B model (only supports Mac w/ Apple Silicon at the moment)</span>
+<span class="c1"># git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1</span>
 <span class="nb">cd</span><span class="w"> </span>../..
 mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>Llama-2-7b-chat-hf-q4f16_1
 <span class="c1"># or the 13B model</span>
