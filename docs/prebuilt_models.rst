@@ -28,6 +28,12 @@ Prebuilt Models for CLI
     - Model Series
     - Quantization Mode
     - Hugging Face repo
+  * - `Llama-2-7b-q4f16_1`
+    - `Llama <https://ai.meta.com/llama/>`__
+    - * Weight storage data type: int4
+      * Running data type: float16
+      * Symmetric quantization
+    - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
   * - `vicuna-v1-7b-q3f16_0`
     - `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
     - * Weight storage data type: int3
@@ -99,6 +105,12 @@ Prebuilt Models for iOS
     - Model Series
     - Quantization Mode
     - Hugging Face repo
+  * - `Llama-2-7b-q3f16_1`
+    - `Llama <https://ai.meta.com/llama/>`__
+    - * Weight storage data type: int3
+      * Running data type: float16
+      * Symmetric quantization
+    - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q3f16_1>`__
   * - `vicuna-v1-7b-q3f16_0`
     - `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
     - * Weight storage data type: int3
@@ -227,6 +239,7 @@ MLC-LLM supports the following model architectures:
   * - ``llama``
     - `LLaMa <https://github.com/facebookresearch/llama>`__
     - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/llama.py>`__
+    - * `Llama-2 <https://ai.meta.com/llama/>`__
     - * `Alpaca <https://github.com/tatsu-lab/stanford_alpaca>`__
       * `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
       * `Guanaco <https://github.com/artidoro/qlora>`__

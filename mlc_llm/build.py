@@ -371,12 +371,12 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
                     mod_deploy
                 )
             if args.target_kind != "cuda":
-                mod_deploy = relax.transform.MetaScheduleApplyDatabase()(mod_deploy)
                 mod_deploy = mlc_llm.dispatch.DispatchTIROperator(  # pylint: disable=not-callable
                     args.model_category
                 )(
                     mod_deploy
                 )
+            mod_deploy = relax.transform.MetaScheduleApplyDatabase()(mod_deploy)
             mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod_deploy)
             mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.DecodeGEMV())(mod_deploy)
             mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.Reduction())(mod_deploy)
