@@ -1,12 +1,12 @@
 {
     "model_libs": [
-        "vicuna-v1-7b-q3f16_0",
+        "Llama-2-7b-chat-hf-q3f16_1",
         "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
     ],
     "model_list": [
         {
-            "model_url": "https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0/",
-            "local_id": "vicuna-v1-7b-q3f16_0"
+            "model_url": "https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/",
+            "local_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
         }
     ],
     "add_model_samples": [

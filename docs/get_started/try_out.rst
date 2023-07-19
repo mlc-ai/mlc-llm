@@ -11,6 +11,8 @@ and you can try out prebuilt models on the following platforms:
 
   .. tab:: CLI (Linux/MacOS/Windows)
 
+    **MLC LLM now supports Llama-2.** *Follow the instructions below and try out the CLI!*
+
     To run the models on your PC, you can try out the CLI version of MLC LLM.
 
     We have prepared Conda packages for MLC Chat CLI. If you haven't installed Conda yet,
@@ -32,13 +34,14 @@ and you can try out prebuilt models on the following platforms:
       mkdir -p dist/prebuilt
       git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 
-      # Download prebuilt weights of Vicuna-7B
+      # Download prebuilt weights of Llama-2-7B
       cd dist/prebuilt
-      git clone https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0
+      git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
       cd ../..
-      mlc_chat_cli --local-id vicuna-v1-7b-q3f16_0
+      mlc_chat_cli --local-id Llama-2-7b-chat-hf-q4f16_1
 
-      # Download prebuilt weights of RedPajama-3B
+      # You can try more models, for example:
+      # download prebuilt weights of RedPajama-3B
       cd dist/prebuilt
       git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
       cd ../..
@@ -50,7 +53,7 @@ and you can try out prebuilt models on the following platforms:
 
     You can also checkout the :doc:`/prebuilt_models` page to run other models.
 
-    .. figure:: https://mlc.ai/blog/img/redpajama/cli.gif
+    .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif
       :width: 500
       :align: center
 
@@ -78,11 +81,13 @@ and you can try out prebuilt models on the following platforms:
     .. image:: https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg
       :width: 135
       :target: https://apps.apple.com/us/app/mlc-chat/id6448482937
-    
+
     |
 
+    **MLC LLM now supports Llama-2 via the test link below** *
+
     .. note::
-      If the app is not available in your country or region on App Store, please try the beta version of MLC-Chat on
+      You can also try out the beta version of MLC-Chat on
       `TestFlight <https://testflight.apple.com/join/57zd7oxa>`__.
 
     Once the app is installed, you can download the models and then engage in chat with the model without requiring an internet connection.
@@ -104,7 +109,7 @@ and you can try out prebuilt models on the following platforms:
       :target: https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk
 
     |
-    
+
     Once the app is installed, you can engage in a chat with the model without the need for an internet connection:
 
     Memory requirements vary across different models. The Vicuna-7B model necessitates an Android device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an Android device with at least 4GB RAM.
