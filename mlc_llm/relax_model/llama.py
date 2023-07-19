@@ -25,6 +25,7 @@ class LlamaConfig:
         intermediate_size=11008,
         num_hidden_layers=32,
         num_attention_heads=32,
+        num_key_value_heads=None,
         hidden_act="silu",
         initializer_range=0.02,
         rms_norm_eps=1e-6,
@@ -43,6 +44,7 @@ class LlamaConfig:
         self.intermediate_size = intermediate_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
+        self.num_key_value_heads = num_key_value_heads
         self.hidden_act = hidden_act
         self.initializer_range = initializer_range
         self.rms_norm_eps = rms_norm_eps
@@ -217,45 +219,44 @@ class LlamaAttention(nn.Module):
     def __init__(self, config: LlamaConfig):
         dtype = config.dtype
         self.hidden_size = config.hidden_size
-        self.num_heads = config.num_attention_heads
-        self.head_dim = self.hidden_size // self.num_heads
-
-        if (self.head_dim * self.num_heads) != self.hidden_size:
-            raise ValueError(
-                f"hidden_size must be divisible by num_heads (got `hidden_size`: {self.hidden_size}"
-                f" and `num_heads`: {self.num_heads})."
-            )
+        self.num_key_value_heads = (
+            config.num_key_value_heads is None
+            and config.num_attention_heads
+            or config.num_key_value_heads
+        )
+        self.num_query_heads = config.num_attention_heads
+        self.head_dim = self.hidden_size // self.num_query_heads
 
         self.combine_matmul = config.combine_matmul
         if self.combine_matmul:
             self.query_key_value_proj = Linear(
                 self.hidden_size,
-                3 * self.num_heads * self.head_dim,
+                (self.num_query_heads + 2 * self.num_key_value_heads) * self.head_dim,
                 dtype=dtype,
                 bias=False,
             )
         else:
             self.q_proj = Linear(
                 self.hidden_size,
-                self.num_heads * self.head_dim,
+                self.num_query_heads * self.head_dim,
                 dtype=dtype,
                 bias=False,
             )
             self.k_proj = Linear(
                 self.hidden_size,
-                self.num_heads * self.head_dim,
+                self.num_key_value_heads * self.head_dim,
                 dtype=dtype,
                 bias=False,
             )
             self.v_proj = Linear(
                 self.hidden_size,
-                self.num_heads * self.head_dim,
+                self.num_key_value_heads * self.head_dim,
                 dtype=dtype,
                 bias=False,
             )
 
         self.o_proj = Linear(
-            self.num_heads * self.head_dim, self.hidden_size, dtype=dtype, bias=False
+            self.hidden_size, self.hidden_size, dtype=dtype, bias=False
         )
 
     def forward(
@@ -282,11 +283,14 @@ class LlamaAttention(nn.Module):
         assert bsz == 1, "Only support batch size 1 at this moment."
 
         if self.combine_matmul:
-            # (bsz * q_len, 3 * self.num_heads * self.head_dim)
             qkv_states = nn.emit(
                 split(
                     self.query_key_value_proj(hidden_states),
-                    indices_or_sections=3,
+                    indices_or_sections=[
+                        self.num_query_heads * self.head_dim,
+                        (self.num_query_heads + self.num_key_value_heads)
+                        * self.head_dim,
+                    ],
                     axis=-1,
                 )
             )
@@ -301,19 +305,19 @@ class LlamaAttention(nn.Module):
         query_states = nn.emit(
             reshape(
                 query_states,
-                (bsz, q_len, self.num_heads, self.head_dim),
+                (bsz, q_len, self.num_query_heads, self.head_dim),
             ),
         )
         key_states = nn.emit(
             reshape(
                 key_states,
-                (bsz, q_len, self.num_heads, self.head_dim),
+                (bsz, q_len, self.num_key_value_heads, self.head_dim),
             ),
         )
         value_states = nn.emit(
             reshape(
                 value_states,
-                (bsz, q_len, self.num_heads, self.head_dim),
+                (bsz, q_len, self.num_key_value_heads, self.head_dim),
             ),
         )
 
@@ -369,6 +373,10 @@ class LlamaAttention(nn.Module):
         )
         key_states = nn.emit(reshape(k_cache, kv_states_shape))
         value_states = nn.emit(reshape(v_cache, kv_states_shape))
+        if self.num_key_value_heads != self.num_query_heads:
+            n_rep = self.num_query_heads // self.num_key_value_heads
+            key_states = nn.emit(relax.op.repeat(key_states, n_rep, axis=2))
+            value_states = nn.emit(relax.op.repeat(value_states, n_rep, axis=2))
 
         query_states = nn.emit(permute_dims(query_states, [0, 2, 1, 3]))
         key_states = nn.emit(permute_dims(key_states, [0, 2, 1, 3]))
@@ -379,10 +387,6 @@ class LlamaAttention(nn.Module):
             / relax.const(math.sqrt(self.head_dim), query_states.struct_info.dtype)
         )
 
-        tvm.ir.assert_structural_equal(
-            attn_weights.struct_info.shape.values,
-            (bsz, tvm.tir.IntImm("int64", self.num_heads), q_len, kv_seq_len),
-        )
         tvm.ir.assert_structural_equal(
             attention_mask.struct_info.shape.values,
             (bsz, tvm.tir.IntImm("int64", 1), q_len, kv_seq_len),
@@ -406,16 +410,6 @@ class LlamaAttention(nn.Module):
         if attn_weights.struct_info.dtype != query_states.struct_info.dtype:
             attn_weights = astype(attn_weights, query_states.struct_info.dtype)
         attn_output = nn.emit(matmul(attn_weights, value_states))
-
-        tvm.ir.assert_structural_equal(
-            attn_output.struct_info.shape.values,
-            (
-                bsz,
-                tvm.tir.IntImm("int64", self.num_heads),
-                q_len,
-                tvm.tir.IntImm("int64", self.head_dim),
-            ),
-        )
 
         attn_output = permute_dims(attn_output, [0, 2, 1, 3])
         attn_output = reshape(attn_output, (bsz, q_len, self.hidden_size))
@@ -799,8 +793,8 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     init_shape = relax.ShapeExpr(
         (
             config.max_sequence_length,
-            config.num_attention_heads,
-            config.hidden_size // config.num_attention_heads,
+            config.num_key_value_heads,
+            config.hidden_size // config.num_attention_heads,  # head_dim
         )
     )
     with bb.function("create_kv_cache", []):
