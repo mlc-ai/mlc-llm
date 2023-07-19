@@ -6,7 +6,8 @@ rm -rf dist
 mkdir -p dist
 
 declare -a builtin_list=(
-    "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
+    "Llama-2-7b-chat-hf-q3f16_1"
+    # "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
     # "vicuna-v1-7b-q3f16_0"
     # "rwkv-raven-1b5-q8f16_0"
     # "rwkv-raven-3b-q8f16_0"
