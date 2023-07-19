@@ -49,7 +49,7 @@ Conversation Llama2() {
   conv.role_msg_sep = " ";
   conv.role_empty_sep = " ";
   conv.stop_tokens = {2};
-  conv.stop_str = "";
+  conv.stop_str = "[INST]";
   conv.add_bos = true;
   return conv;
 }
