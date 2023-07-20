@@ -790,10 +790,15 @@ def create_decoding_func(
 
 
 def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
+    num_key_value_heads = (
+        config.num_attention_heads
+        if config.num_key_value_heads is None
+        else config.num_key_value_heads
+    )
     init_shape = relax.ShapeExpr(
         (
             config.max_sequence_length,
-            config.num_key_value_heads,
+            num_key_value_heads,
             config.hidden_size // config.num_attention_heads,  # head_dim
         )
     )
