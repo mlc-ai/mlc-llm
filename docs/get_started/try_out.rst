@@ -39,12 +39,14 @@ and you can try out prebuilt models on the following platforms:
       git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
       # or the 13B model
       # git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1
-      # or the 70B model (only supports Mac w/ Apple Silicon at the moment)
+      # or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)
       # git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1
       cd ../..
       mlc_chat_cli --local-id Llama-2-7b-chat-hf-q4f16_1
       # or the 13B model
       # mlc_chat_cli --local-id Llama-2-13b-chat-hf-q4f16_1
+      # or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)
+      # mlc_chat_cli --local-id Llama-2-70b-chat-hf-q4f16_1
 
       # You can try more models, for example:
       # download prebuilt weights of RedPajama-3B
