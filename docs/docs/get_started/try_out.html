@@ -314,12 +314,14 @@ git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-a
 git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
 <span class="c1"># or the 13B model</span>
 <span class="c1"># git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1</span>
-<span class="c1"># or the 70B model (only supports Mac w/ Apple Silicon at the moment)</span>
+<span class="c1"># or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)</span>
 <span class="c1"># git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1</span>
 <span class="nb">cd</span><span class="w"> </span>../..
 mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>Llama-2-7b-chat-hf-q4f16_1
 <span class="c1"># or the 13B model</span>
 <span class="c1"># mlc_chat_cli --local-id Llama-2-13b-chat-hf-q4f16_1</span>
+<span class="c1"># or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)</span>
+<span class="c1"># mlc_chat_cli --local-id Llama-2-70b-chat-hf-q4f16_1</span>
 
 <span class="c1"># You can try more models, for example:</span>
 <span class="c1"># download prebuilt weights of RedPajama-3B</span>
