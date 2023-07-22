@@ -7,7 +7,7 @@ def main():
     parsed_args = empty_args.parse_args()  # Parse through command line
     # Post processing of arguments
     parsed_args = core._parse_args(parsed_args)  # pylint: disable=protected-access
-    core.run(parsed_args)
+    core.build_model_from_args(parsed_args)
 
 if __name__ == "__main__":
     main()

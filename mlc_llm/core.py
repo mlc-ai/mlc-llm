@@ -437,7 +437,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     print(f"Finish exporting to {args.lib_path}")
 
 
-def run(args):
+def build_model_from_args(args: argparse.Namespace):
     os.makedirs(args.artifact_path, exist_ok=True)
     if args.debug_dump:
         os.makedirs(os.path.join(args.artifact_path, "debug"), exist_ok=True)
@@ -511,6 +511,6 @@ def build_model(args: BuildArgs):
     build_args_as_dict = asdict(args)
     build_args_namespace = argparse.Namespace(**build_args_as_dict)
     args = _parse_args(build_args_namespace)
-    run(args)
+    build_model_from_args(args)
 
     return args.lib_path, args.params_path, args.chat_config_path
