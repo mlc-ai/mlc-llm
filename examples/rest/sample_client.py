@@ -13,9 +13,6 @@ class color:
    UNDERLINE = '\033[4m'
    END = '\033[0m'
 
-# To launch the server, run
-# $ python -m mlc_chat.rest
-
 # Get a response using a prompt without streaming
 payload = {
     "model": "vicuna-v1-7b",
