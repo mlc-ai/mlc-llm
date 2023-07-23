@@ -1,25 +1,36 @@
+import argparse
+import asyncio
+import os
+import sys
+from contextlib import asynccontextmanager
+
+import tvm
+import uvicorn
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+
 from .chat_module import ChatModule, quantization_keys
 from .interface.openai_api import *
 
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
-from contextlib import asynccontextmanager
-import uvicorn
-
-import tvm
-
-import argparse
-import os
-import asyncio
-
 session = {}
+
+
+def _shared_lib_suffix():
+    if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
+        return ".so"
+    if sys.platform.startswith("win32"):
+        return ".dll"
+    if sys.platform.startswith("darwin"):
+        return ".dylib"
+    return ".so"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     chat_mod = ChatModule(ARGS.device_name, ARGS.device_id)
     model_path = os.path.join(ARGS.artifact_path, ARGS.model + "-" + ARGS.quantization)
     model_dir = ARGS.model + "-" + ARGS.quantization
-    model_lib = model_dir + "-" + ARGS.device_name + ".so"
+    model_lib = model_dir + "-" + ARGS.device_name + _shared_lib_suffix()
     lib_dir = os.path.join(model_path, model_lib)
     prebuilt_lib_dir = os.path.join(ARGS.artifact_path, "prebuilt", "lib", model_lib)
     if os.path.exists(lib_dir):
@@ -152,26 +163,18 @@ async def request_completion(request: CompletionRequest):
         session["chat_mod"].decode()
         msg = session["chat_mod"].get_message()
     return CompletionResponse(
-        choices=[
-            CompletionResponseChoice(
-                index=0,
-                text=msg
-            )
-        ],
+        choices=[CompletionResponseChoice(index=0, text=msg)],
         # TODO: Fill in correct usage info
-        usage=UsageInfo(
-            prompt_tokens=0,
-            completion_tokens=0,
-            total_tokens=0
-        )
+        usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
     )
+
 
 @app.post("/v1/embeddings")
 async def request_embeddings(request: EmbeddingsRequest):
     """
     Gets embedding for some text.
     """
-    assert("Endpoint not implemented.")
+    assert "Endpoint not implemented."
 
 
 @app.post("/chat/reset")
