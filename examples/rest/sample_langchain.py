@@ -10,6 +10,10 @@ from langchain.llms import OpenAI
 # export OPENAI_API_BASE=http://127.0.0.1:8000/v1
 # export OPENAI_API_KEY=EMPTY
 
+# Note that Langchain does not currently support Pydantic v2:
+# https://github.com/langchain-ai/langchain/issues/6841
+# Please ensure that your `pydantic` version is < 2.0
+
 class color:
    PURPLE = '\033[95m'
    CYAN = '\033[96m'

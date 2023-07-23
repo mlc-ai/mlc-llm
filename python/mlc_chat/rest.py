@@ -155,7 +155,11 @@ async def request_completion(request: CompletionRequest):
     Creates a completion for a given prompt.
     """
     session["chat_mod"].reset_chat()
-    prompt = request.prompt[0]
+    # Langchain's load_qa_chain.run expects the input to be a list with the query
+    if isinstance(request.prompt, list):
+        prompt = request.prompt[0]
+    else:
+        prompt = request.prompt
     session["chat_mod"].prefill(input=prompt)
 
     msg = None
