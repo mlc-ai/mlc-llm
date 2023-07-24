@@ -4,9 +4,8 @@ from typing import Optional, Tuple, List, Dict
 import numpy as np
 
 import tvm
-from tvm import relax, te
+from tvm import relax
 from tvm.relax.testing import nn
-from tvm.script import relax as R
 
 from .mpt_config import MPTConfig, attn_config_defaults
 from ...utils import load_torch_pname2binname_map
@@ -34,9 +33,8 @@ def _cast_if_autocast_enabled(tensor: relax.Expr, dtype="float32"):
 class LPLayerNormWOBias(nn.Module):
   def __init__(self, normalized_shape, dtype, eps=1e-05):
     self.weight = nn.Parameter((normalized_shape,), dtype=dtype, name="low_precision_layernorm_weight")
-    # TODO: check default filling of weights
-    self.weight = relax.op.ones((normalized_shape,), dtype)
-    self.bias = relax.op.zeros((normalized_shape,), dtype)
+    # TODO(vchernov): need to set something to layer_norm, but not use
+    self.dummy_bias = relax.op.zeros((normalized_shape,), dtype)
     self.eps = eps
 
     self.dtype = dtype
@@ -44,9 +42,8 @@ class LPLayerNormWOBias(nn.Module):
   def forward(self, x):
     dtype = self.dtype # TODO: temporal workaround
     downcast_x = _cast_if_autocast_enabled(x, dtype)
-    downcast_weight = _cast_if_autocast_enabled(self.weight, dtype) if self.weight is not None else self.weight
-    downcast_bias = _cast_if_autocast_enabled(self.bias, dtype) if self.bias is not None else self.bias
-    return nn.emit(relax.op.nn.layer_norm(downcast_x, downcast_weight, downcast_bias, axes=-1, epsilon=self.eps))
+    downcast_weight = _cast_if_autocast_enabled(self.weight, dtype)
+    return nn.emit(relax.op.nn.layer_norm(downcast_x, downcast_weight, self.dummy_bias, axes=-1, epsilon=self.eps, center=False))
 
 NORM_CLASS_REGISTRY = {'low_precision_layernorm': LPLayerNormWOBias}
 
@@ -355,8 +352,6 @@ class MultiheadAttention(nn.Module):
     if self.softmax_scale is None:
       self.softmax_scale = 1 / math.sqrt(self.d_model / self.n_heads)
     self.Wqkv = Linear(self.d_model, 3 * self.d_model, dtype, bias=False)
-    fuse_splits = (d_model, 2 * d_model)
-    self.Wqkv._fused = (0, fuse_splits)
     if self.qk_ln:
       self.q_ln = LayerNorm(self.d_model, dtype)
       self.k_ln = LayerNorm(self.d_model, dtype)
@@ -375,8 +370,6 @@ class MultiheadAttention(nn.Module):
     else:
       raise ValueError(f'attn_impl={attn_impl!r} is an invalid setting.')
     self.out_proj = Linear(self.d_model, self.d_model, dtype, bias=False)
-    # TODO: Does field _is_residual exist?
-    # self.out_proj._is_residual = True
 
   def forward(self, x, past_key_value=None, attn_bias=None, attention_mask=None, is_causal=True):
     qkv = self.Wqkv(x)
@@ -429,7 +422,7 @@ class MPTBlock(nn.Module):
 
     self.hidden_size = config.d_model
     # Init layers
-    self.self_attn = attn_class(
+    self.attn = attn_class(
         d_model=self.hidden_size,
         n_heads=config.n_heads,
         dtype=config.dtype,
@@ -438,13 +431,13 @@ class MPTBlock(nn.Module):
         qk_ln=attn_config['qk_ln'],
         softmax_scale=attn_config['softmax_scale'],
     )
-    self.mlp = MPTMLP(
+    self.ffn = MPTMLP(
         hidden_size=self.hidden_size,
         intermediate_size=config.expansion_ratio*self.hidden_size,
         dtype=config.dtype,
     )
-    self.input_layernorm = norm_class(self.hidden_size, config.dtype)
-    self.post_attention_layernorm = norm_class(self.hidden_size, config.dtype)
+    self.norm_1 = norm_class(self.hidden_size, config.dtype)
+    self.norm_2 = norm_class(self.hidden_size, config.dtype)
 
   def forward(
       self,
@@ -455,10 +448,10 @@ class MPTBlock(nn.Module):
       is_causal: bool=True,
   ) -> Tuple[relax.Expr, relax.Expr, Optional[Tuple[relax.Expr, relax.Expr]]]:
     residual = hidden_states
-    hidden_states = self.input_layernorm(hidden_states) # TODO: debug comment: not nan
+    hidden_states = self.norm_1(hidden_states)
 
     # Self Attention
-    (hidden_states, present_key_value) = self.self_attn(
+    (hidden_states, present_key_value) = self.attn(
       hidden_states,
       past_key_value=past_key_value,
       attn_bias=attn_bias,
@@ -468,8 +461,8 @@ class MPTBlock(nn.Module):
     residual = nn.emit(residual + hidden_states)
 
     # Fully Connected
-    hidden_states = self.post_attention_layernorm(residual)
-    hidden_states = self.mlp(hidden_states)
+    hidden_states = self.norm_2(residual)
+    hidden_states = self.ffn(hidden_states)
     hidden_states = nn.emit(residual + hidden_states)
 
     return (hidden_states, present_key_value)
@@ -660,7 +653,7 @@ class MPTModel(nn.Module):
       return_dict: Optional[bool]=None,
       use_cache: Optional[bool]=None
   ):
-    return_dict = return_dict if return_dict is not None else self.return_dict
+    # return_dict = return_dict if return_dict is not None else self.return_dict
     use_cache = use_cache if use_cache is not None else self.use_cache
     if attention_mask is not None:
       attention_mask = nn.emit(relax.op.astype(attention_mask, "bool"))
@@ -671,12 +664,12 @@ class MPTModel(nn.Module):
         relax.op.strided_slice(attention_mask, [1], [dim1_len - 1], [dim1_len])
       ) != attention_mask.struct_info.shape[0]:
         raise NotImplementedError('MPT does not support generation with right padding.')
-    if prefix_mask is not None:
-      prefix_mask = nn.emit(relax.op.astype(prefix_mask, "bool"))
-    if not return_dict:
-      raise NotImplementedError('return_dict False is not implemented yet for MPT')
-    if self.prefix_lm and prefix_mask is None:
-      raise ValueError('prefix_mask is a required argument when MPT is configured with prefix_lm=True.')
+    # if prefix_mask is not None:
+    #   prefix_mask = nn.emit(relax.op.astype(prefix_mask, "bool"))
+    # if not return_dict:
+    #   raise NotImplementedError('return_dict False is not implemented yet for MPT')
+    # if self.prefix_lm and prefix_mask is None:
+    #   raise ValueError('prefix_mask is a required argument when MPT is configured with prefix_lm=True.')
 
     S = input_ids.struct_info.shape[1]
     assert S <= self.max_seq_len, f'Cannot forward input with seq_len={S}, this model only supports seq_len<={self.max_seq_len}'
@@ -684,25 +677,25 @@ class MPTModel(nn.Module):
     tok_emb = self.wte(input_ids)
     if self.alibi:
       x = tok_emb
-    else:
-      past_position = 0
-      if past_key_values is not None:
-        if len(past_key_values) != self.n_layers:
-          raise ValueError(f'past_key_values must provide a past_key_value for each attention ' + f'layer in the network (len(past_key_values)={len(past_key_values)!r}; self.config.n_layers={self.n_layers!r}).')
-        past_position = past_key_values[0][0].struct_info.shape[1]
-        if self.attn_impl == 'torch':
-          past_position = past_key_values[0][0].struct_info.shape[3]
-      if S + past_position > self.max_seq_len:
-        raise ValueError(f'Cannot forward input with past sequence length {past_position} and current sequence length {S + 1}, this model only supports total sequence length <= {self.max_seq_len}.')
-      pos = nn.emit(relax.op.expand_dims(relax.op.arange(past_position, S + past_position, dtype="long"), axis=0))
-      if attention_mask is not None:
-        pos_diff_to_slice = nn.emit(relax.op.cumsum(relax.op.astype(relax.op.bitwise_not(attention_mask), "int32"), axis=1))
-        dim1_len = pos_diff_to_slice.struct_info.shape[1]
-        # slicing [:, past_position:]
-        pos_diff = nn.emit(relax.op.strided_slice(pos_diff_to_slice, [1], [past_position], [dim1_len]))
-        pos = nn.emit(relax.op.clip(pos - pos_diff, min=0))
-      pos_emb = self.wpe(pos)
-      x = tok_emb + pos_emb
+    # else:
+    #   past_position = 0
+    #   if past_key_values is not None:
+    #     if len(past_key_values) != self.n_layers:
+    #       raise ValueError(f'past_key_values must provide a past_key_value for each attention ' + f'layer in the network (len(past_key_values)={len(past_key_values)!r}; self.config.n_layers={self.n_layers!r}).')
+    #     past_position = past_key_values[0][0].struct_info.shape[1]
+    #     if self.attn_impl == 'torch':
+    #       past_position = past_key_values[0][0].struct_info.shape[3]
+    #   if S + past_position > self.max_seq_len:
+    #     raise ValueError(f'Cannot forward input with past sequence length {past_position} and current sequence length {S + 1}, this model only supports total sequence length <= {self.max_seq_len}.')
+    #   pos = nn.emit(relax.op.expand_dims(relax.op.arange(past_position, S + past_position, dtype="long"), axis=0))
+    #   if attention_mask is not None:
+    #     pos_diff_to_slice = nn.emit(relax.op.cumsum(relax.op.astype(relax.op.bitwise_not(attention_mask), "int32"), axis=1))
+    #     dim1_len = pos_diff_to_slice.struct_info.shape[1]
+    #     # slicing [:, past_position:]
+    #     pos_diff = nn.emit(relax.op.strided_slice(pos_diff_to_slice, [1], [past_position], [dim1_len]))
+    #     pos = nn.emit(relax.op.clip(pos - pos_diff, min=0))
+    #   pos_emb = self.wpe(pos)
+    #   x = tok_emb + pos_emb
     (attn_bias, attention_mask) = self._attn_bias(dtype=x.struct_info.dtype, attention_mask=attention_mask, prefix_mask=prefix_mask, sequence_id=sequence_id)
     if use_cache and past_key_values is None:
       past_key_values = [() for _ in range(self.n_layers)]
@@ -735,7 +728,7 @@ class MPTForCausalLM(nn.Module):
       return_dict: Optional[bool]=None,
       use_cache: Optional[bool]=None
   ):
-    return_dict = return_dict if return_dict is not None else self.return_dict
+    # return_dict = return_dict if return_dict is not None else self.return_dict
     use_cache = use_cache if use_cache is not None else self.use_cache
 
     # It is part from prepare_inputs_for_generation
@@ -750,7 +743,7 @@ class MPTForCausalLM(nn.Module):
         attention_mask=attention_mask,
         prefix_mask=prefix_mask,
         sequence_id=sequence_id,
-        return_dict=return_dict,
+        return_dict=self.return_dict,
         use_cache=use_cache
     )
 
@@ -830,29 +823,14 @@ def get_model(args, hf_config):
   mod = bb.get()
 
   def f_convert_pname_fwd(pname: str) -> str:
-    if "self_attn" in pname:
-      return pname.replace("self_attn", "attn")
-    elif "mlp" in pname:
-      return pname.replace("mlp", "ffn")
-    else:
-      return pname
+    return pname
 
   pname2binname = load_torch_pname2binname_map(
       model_path, set(pidx2pname.values()), f_convert_pname_fwd
   )
 
   def f_convert_param_bkwd(torch_pname: str, raw_param):
-    if "attn" in torch_pname:
-      pname = torch_pname.replace("attn", "self_attn")
-    elif "ffn" in torch_pname:
-      pname = torch_pname.replace("ffn", "mlp")
-    else:
-      pname = torch_pname
-
-    # TVM does not support bfloat16
-    if raw_param.dtype == "bfloat16":
-      raw_param = raw_param.astype("float16")
-    return [(pname, raw_param)]
+    return [(torch_pname, raw_param)]
 
   args.pidx2pname = pidx2pname
   args.pname2binname = pname2binname
