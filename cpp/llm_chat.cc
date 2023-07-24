@@ -128,7 +128,7 @@ class LLMChat {
   friend class LLMChatModule;
 
  public:
-  explicit LLMChat(DLDevice device) : device_(device) {}
+  explicit LLMChat(DLDevice device) : device_(device), pass_index_(0) {}
 
   /*!
    * \return Text describing runtime stats.
@@ -611,7 +611,7 @@ class LLMChat {
     }
   }
 
-  void PrintNDArray(NDArray array, int64_t num = -1, std::string tensor_tag = "Tensor") const {
+  void PrintNDArray(NDArray array, int64_t num = -1, std::string tensor_tag = "Tensor", bool save = false) {
     NDArray array_cpu = getArrayToPrint(array);
 
     size_t ndim = array_cpu->ndim;
@@ -643,6 +643,15 @@ class LLMChat {
     // TODO(vchernov): after test return LOG(INFO)
     std::cout << tensor_tag << "[:" << num_tag << "] = [" << os.str() << "]" << std::endl;
     // LOG(INFO) << tensor_tag << "[:" << num_tag << "] = [" << os.str() << "]";
+
+    if (save) {
+      // Save to binary file
+      std::string file_name = "tensor_" + std::to_string(pass_index_++) + ".bin";
+      std::cout << tensor_tag << " is saved in " << file_name << std::endl;
+      std::ofstream fs(file_name, std::ios::out | std::ios::binary | std::ios::app);
+      fs.write(reinterpret_cast<const char*>(p_data), 4 * numel);
+      fs.close();
+    }
   }
 
  private:
@@ -915,6 +924,8 @@ class LLMChat {
   Array<ObjectRef> kv_cache_;
   // Temp logits on cpu
   NDArray logits_on_cpu_{nullptr};
+  // Counter of prefill-decode passes
+  int32_t pass_index_;
 };
 
 /*!
