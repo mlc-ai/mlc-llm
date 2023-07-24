@@ -295,10 +295,7 @@ def load_params(artifact_path: str, device) -> List[tvm.nd.NDArray]:
     params, meta = tvmjs.load_ndarray_cache(f"{artifact_path}/params", device)
     plist = []
     size = meta["ParamSize"]
-    print("META:", meta)
     for i in range(size):
-        if i == 2:
-            print("PARAM FROM BIN:", params[f"param_{i}"])
         plist.append(params[f"param_{i}"])
     return plist
 
