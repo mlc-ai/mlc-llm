@@ -133,6 +133,43 @@ else:
 
 "task_specific_params": None
 
+Some parameters from generate() function from transformers:
+```python
+is_greedy_gen_mode = True
+```
+
+Start greedy_search method in generate() from transformers:
+```python
+self.greedy_search(
+    input_ids,
+    logits_processor=logits_processor,
+    stopping_criteria=stopping_criteria,
+    pad_token_id=generation_config.pad_token_id,
+    eos_token_id=generation_config.eos_token_id,
+    output_scores=generation_config.output_scores,
+    return_dict_in_generate=generation_config.return_dict_in_generate,
+    synced_gpus=synced_gpus,
+    streamer=streamer,
+    **model_kwargs,
+)
+```
+Where parameters for MPT-7b-instruct:
+```python
+logits_processor?
+stopping_criteria?
+pad_token_id = None
+eos_token_id None
+output_scores = False
+return_dict_in_generate = False
+synced_gpus = False
+streamer = None
+model_kwargs = {
+  'output_attentions': False,
+  'output_hidden_states': False,
+  'use_cache': False,
+  'attention_mask': tensor([[1, 1, 1, 1, 1, 1, 1, 1]], device='cuda:0')
+}
+```
 
 Refactored greedy_search method for MPT-7b-instruct:
 ```python
@@ -142,6 +179,7 @@ def greedy_search(...):
   stopping_criteria = stopping_criteria # max_length and max_time criteria
   pad_token_id = None
   eos_token_id = None
+  eos_token_id_tensor = None
   output_scores = False
   output_attentions = False
   output_hidden_states = False
@@ -150,6 +188,7 @@ def greedy_search(...):
   # init attention / hidden states / scores tuples
   scores = None
   decoder_attentions = None
+  cross_attentions = None
   decoder_hidden_states = None
 
   # keep track of which sequences are already finished
@@ -158,6 +197,13 @@ def greedy_search(...):
   while True:
     # prepare model inputs
     model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
+    # model_inputs = {
+    # 'input_ids': tensor([[...]], device='cuda:0'),
+    # 'attention_mask': tensor([[True, ..., True]], device='cuda:0'),
+    # 'prefix_mask': None,
+    # 'sequence_id': None,
+    # 'past_key_values': None,
+    # 'use_cache': False}
 
     # forward pass to get next token
     outputs = self(
@@ -178,16 +224,8 @@ def greedy_search(...):
     # update generated ids, model inputs, and length for next step
     input_ids = torch.cat([input_ids, next_tokens[:, None]], dim=-1)
     # START model_kwargs = self._update_model_kwargs_for_generation(outputs, model_kwargs, is_encoder_decoder=False)
-    # update past
-    if "past_key_values" in outputs:
-      model_kwargs["past"] = outputs.past_key_values
-    else:
-      model_kwargs["past"] = None
 
-    # update token_type_ids with last value
-    if "token_type_ids" in model_kwargs:
-      token_type_ids = model_kwargs["token_type_ids"]
-      model_kwargs["token_type_ids"] = torch.cat([token_type_ids, token_type_ids[:, -1].unsqueeze(-1)], dim=-1)
+    model_kwargs["past"] = None
 
     # update attention mask
     if "attention_mask" in model_kwargs:
