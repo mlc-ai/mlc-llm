@@ -1,4 +1,4 @@
-# Node/Javascript Access Examples for MLC_CHAT REST APIs
+# Node/Javascript/Typescript Access Examples for MLC_CHAT REST APIs
 
 First install dependencies.
 
@@ -14,4 +14,6 @@ To run OpenAI (chat completion streaming and non-streaming, and legacy completio
 
 `node sample_openai.js`
 
-Note: Langchain example will require an upstream change to expose the OPENAI_API_BASE path, currently not included.
+To run LangchainJS Typescript example:
+
+`npm run example`
