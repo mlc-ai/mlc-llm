@@ -1,0 +1,8 @@
+{
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "needle": "^3.2.0",
+    "openai": "^3.3.0"
+  }
+}
