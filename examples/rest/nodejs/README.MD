@@ -4,6 +4,8 @@ First install dependencies.
 
 `npm i`
 
+Copy `dotenv.exmaple` to `.env`.
+
 To run JS chat completion (both streaming and non-streaming) example: 
 
 `node sample_client.js`
