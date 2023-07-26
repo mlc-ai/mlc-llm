@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, fields, asdict
 import json
 import os
 import pickle
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 import tvm
 from tvm import dlight as dl
@@ -23,10 +23,12 @@ from mlc_llm.relax_model import (
     rwkv,
 )
 
+
 @dataclass
 class BuildArgs:
-    """BuildArgs is the dataclass that organizes the arguments we use in 
+    """BuildArgs is the dataclass that organizes the arguments we use in
     building a model."""
+
     model: str = field(
         default="auto",
         metadata={
@@ -35,67 +37,80 @@ class BuildArgs:
                 'automatically set the model name according to "--model-path", '
                 '"hf-path" or the model folders under "--artifact-path/models"'
             )
-        }
+        },
     )
     hf_path: str = field(
         default=None,
-        metadata={"help": "Hugging Face path from which to download params, tokenizer, and config"}
+        metadata={
+            "help": "Hugging Face path from which to download params, tokenizer, and config"
+        },
     )
     quantization: str = field(
         default=list(utils.quantization_schemes.keys())[0],
         metadata={
             "help": "The quantization mode we use to compile.",
-            "choices": [*utils.quantization_schemes.keys()]
-        }
+            "choices": [*utils.quantization_schemes.keys()],
+        },
     )
     max_seq_len: int = field(
         default=-1,
-        metadata={"help": "The maximum allowed sequence length for the model."}
+        metadata={"help": "The maximum allowed sequence length for the model."},
     )
     target: str = field(
         default="auto",
-        metadata={"help": "The target platform to compile the model for."}
+        metadata={"help": "The target platform to compile the model for."},
     )
     db_path: str = field(
         default="log_db",
-        metadata={"help": "Path to log database for all models. Default: ./log_db/"}
+        metadata={"help": "Path to log database for all models. Default: ./log_db/"},
     )
     reuse_lib: str = field(
-        default=None,
-        metadata={"help": "Whether to reuse a previously generated lib."}
+        default=None, metadata={"help": "Whether to reuse a previously generated lib."}
     )
     artifact_path: str = field(
-        default="dist",
-        metadata={"help": "Where to store the output."}
+        default="dist", metadata={"help": "Where to store the output."}
     )
     use_cache: int = field(
         default=1,
-        metadata={"help": "Whether to use previously pickled IRModule and skip trace."}
+        metadata={"help": "Whether to use previously pickled IRModule and skip trace."},
+    )
+    convert_weight_only: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to only convert model weights and not build the model.",
+            "action": "store_true",
+        },
+    )
+    build_model_only: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to only build model and do not convert model weights.",
+            "action": "store_true",
+        },
     )
     debug_dump: bool = field(
         default=False,
         metadata={
             "help": "Whether to dump debugging files during compilation.",
-            "action": "store_true"
-        }
+            "action": "store_true",
+        },
     )
     debug_load_script: bool = field(
         default=False,
         metadata={
             "help": "Whether to load the script for debugging.",
-            "action": "store_true"
-        }
+            "action": "store_true",
+        },
     )
     llvm_mingw: str = field(
         default="",
-        metadata={"help": "/path/to/llvm-mingw-root, use llvm-mingw to cross compile to windows."}
+        metadata={
+            "help": "/path/to/llvm-mingw-root, use llvm-mingw to cross compile to windows."
+        },
     )
     system_lib: bool = field(
         default=False,
-        metadata={
-            "help": "A parameter to `relax.build`.",
-            "action": "store_true"
-        }
+        metadata={"help": "A parameter to `relax.build`.", "action": "store_true"},
     )
     sep_embed: bool = field(
         default=False,
@@ -105,8 +120,8 @@ class BuildArgs:
                 "This feature is in testing stage, and will be formally replaced after "
                 "massive overhaul of embedding feature for all models and use cases"
             ),
-            "action": "store_true"
-        }
+            "action": "store_true",
+        },
     )
 
 
@@ -122,7 +137,9 @@ def convert_build_args_to_argparser() -> argparse.ArgumentParser:
             # boolean arguments do not need to specify `type`
             args.add_argument(field_name, default=field.default, **kwargs)
         else:
-            args.add_argument(field_name, type=field.type, default=field.default, **kwargs)
+            args.add_argument(
+                field_name, type=field.type, default=field.default, **kwargs
+            )
     return args
 
 
@@ -252,71 +269,9 @@ def validate_config(model_path: str):
         ), f"Model type {config['model_type']} not supported."
 
 
-def debug_dump_script(mod, name, args: argparse.Namespace, show_meta=True):
-    """Debug dump mode"""
-    if not args.debug_dump:
-        return
-    dump_path = os.path.join(args.artifact_path, "debug", name)
-    with open(dump_path, "w", encoding="utf-8") as outfile:
-        outfile.write(mod.script(show_meta=show_meta))
-    print(f"Dump mod to {dump_path}")
-
-
-def debug_load_script(name: str, args: argparse.Namespace):
-    input_path = os.path.join(args.artifact_path, "debug", name)
-    lib = {"__file__": input_path}
-    with open(input_path, "rb") as i_f:
-        exec(  # pylint: disable=exec-used
-            compile(i_f.read(), input_path, "exec"), lib, lib
-        )
-    return lib["Module"]
-
-
-def debug_dump_shader(ex: tvm.relax.Executable, name: str, args: argparse.Namespace):
-    """Debug dump mode"""
-    if not args.debug_dump:
-        return
-    target_kind = args.target.kind.default_keys[0]
-    suffix_map = {
-        "webgpu": ".wgsl",
-        "cuda": ".cu",
-        "metal": ".mtl",
-        "opencl": ".cl",
-    }
-    suffix = suffix_map.get(target_kind, ".txt")
-    dump_path = os.path.join(args.artifact_path, "debug", name + suffix)
-    source = ex.mod.imported_modules[0].imported_modules[0].get_source()
-    with open(dump_path, "w", encoding="utf-8") as outfile:
-        outfile.write(source)
-    print(f"Dump shader to {dump_path}")
-
-
-def dump_split_tir(mod: tvm.IRModule, args):
-    if not args.debug_dump:
-        return
-
-    template = """
-from tvm.script import ir as I
-from tvm.script import tir as T
-# fmt: off
-{content}
-# fmt: on
-"""
-    mod_static, mod_dynamic = utils.split_static_dynamic_tir(mod)
-    static_path = os.path.join(args.artifact_path, "debug", "mod_tir_static.py")
-    dynamic_path = os.path.join(args.artifact_path, "debug", "mod_tir_dynamic.py")
-    print(f"Dump static shape TIR to {static_path}")
-    with open(static_path, "w", encoding="utf-8") as o_f:
-        o_f.write(template.format(content=mod_static.script()))
-    print(f"Dump dynamic shape TIR to {dynamic_path}")
-    with open(dynamic_path, "w", encoding="utf-8") as o_f:
-        o_f.write(template.format(content=mod_dynamic.script()))
-
-
 def mod_transform_before_build(
     mod: tvm.IRModule,
     param_manager: param_manager.ParamManager,
-    model_params: List[Optional[tvm.nd.NDArray]],
     args: argparse.Namespace,
 ) -> tvm.IRModule:
     """First-stage: Legalize ops and trace"""
@@ -340,8 +295,8 @@ def mod_transform_before_build(
         ]
         if args.sep_embed:
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
-    assert "transform_params" in [gv.name_hint for gv in mod.get_global_vars()]
 
+    mod = param_manager.transform_dequantize(mod)
     mod = mlc_llm.transform.FuseDecodeTranspose()(mod)  # pylint: disable=not-callable
     mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
@@ -349,15 +304,12 @@ def mod_transform_before_build(
         args.quantization.name, args.target_kind
     )(mod)
     mod = mlc_llm.transform.FuseDecodeTake()(mod)
-    mod = relax.transform.DeadCodeElimination(model_names + ["transform_params"])(mod)
+    mod = relax.transform.DeadCodeElimination(model_names)(mod)
     mod = mlc_llm.transform.CleanUpTIRAttrs()(mod)
-    mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
+    mod_deploy = mod
 
-    debug_dump_script(mod_transform, "mod_lift_params.py", args)
-    debug_dump_script(mod_deploy, "mod_deploy.py", args)
+    utils.debug_dump_script(mod_deploy, "mod_deploy.py", args)
 
-    new_params = utils.transform_params(mod_transform, param_manager, model_params)
-    utils.save_params(new_params, args.artifact_path)
     return mod_deploy
 
 
@@ -399,7 +351,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
             {"system_lib_prefix": args.system_lib_prefix}
         )
 
-    debug_dump_script(mod_deploy, "mod_before_build.py", args)
+    utils.debug_dump_script(mod_deploy, "mod_before_build.py", args)
     if target_kind != "cpu":
         db = utils.get_database(args.db_path)  # pylint: disable=invalid-name
         dispatch_target = (
@@ -422,9 +374,9 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 
     if args.debug_load_script:
-        mod_deploy = debug_load_script("mod_build_stage_debug.py", args)
+        mod_deploy = utils.debug_load_script("mod_build_stage_debug.py", args)
 
-    debug_dump_script(mod_deploy, "mod_build_stage.py", args)
+    utils.debug_dump_script(mod_deploy, "mod_build_stage.py", args)
 
     ex = relax.build(mod_deploy, args.target, system_lib=args.system_lib)
 
@@ -432,7 +384,9 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
         f"{args.model}-{args.quantization.name}-{target_kind}.{args.lib_format}"
     )
 
-    debug_dump_shader(ex, f"{args.model}_{args.quantization.name}_{target_kind}", args)
+    utils.debug_dump_shader(
+        ex, f"{args.model}_{args.quantization.name}_{target_kind}", args
+    )
     args.lib_path = os.path.join(args.artifact_path, output_filename)
     ex.export_library(args.lib_path, **args.export_kwargs)
     print(f"Finish exporting to {args.lib_path}")
@@ -442,9 +396,7 @@ def build_model_from_args(args: argparse.Namespace):
     os.makedirs(args.artifact_path, exist_ok=True)
     if args.debug_dump:
         os.makedirs(os.path.join(args.artifact_path, "debug"), exist_ok=True)
-    cache_path = os.path.join(
-        args.artifact_path, f"mod_cache_before_build_{args.target_kind}.pkl"
-    )
+    cache_path = os.path.join(args.artifact_path, "mod_cache_before_build.pkl")
     args.raw_params_path = os.path.join(args.artifact_path, "raw_params")
     use_cache = args.use_cache and os.path.isfile(cache_path)
     if args.sep_embed and args.model_category != "llama":
@@ -454,7 +406,7 @@ def build_model_from_args(args: argparse.Namespace):
             os.path.join(args.model_path, "config.json"), encoding="utf-8"
         ) as i_f:
             config = json.load(i_f)
-    if not use_cache:
+    if not use_cache or args.convert_weight_only:
         if args.model_category == "llama":
             mod, param_manager, params = llama.get_model(args, config)
         elif args.model_category == "gpt_neox":
@@ -469,7 +421,16 @@ def build_model_from_args(args: argparse.Namespace):
             mod, param_manager, params = rwkv.get_model(args, config)
         else:
             raise ValueError(f"Model {args.model} not supported")
-        mod = mod_transform_before_build(mod, param_manager, params, args)
+
+        if not args.build_model_only:
+            new_params = utils.convert_weights(param_manager, params, args)
+            utils.save_params(new_params, args.artifact_path)
+            dump_default_mlc_chat_config(args)
+
+        if args.convert_weight_only:
+            exit(0)
+
+        mod = mod_transform_before_build(mod, param_manager, args)
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)
         print(f"Save a cached module to {cache_path}.")
@@ -482,17 +443,15 @@ def build_model_from_args(args: argparse.Namespace):
         )
         with open(cache_path, "rb") as pkl:
             mod = pickle.load(pkl)
-    dump_split_tir(mod, args)
     if not args.reuse_lib:
         build(mod, args)
     else:
         print("Reuse existing prebuilt lib {ARGS.reuse_lib}...")
-    dump_default_mlc_chat_config(args)
 
 
 def build_model(args: BuildArgs):
     r"""Builds/compiles a model.
-    
+
     Parameters
     ----------
     args : mlc_llm.BuildArgs

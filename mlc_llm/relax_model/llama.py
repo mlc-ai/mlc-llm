@@ -876,6 +876,9 @@ def get_model(args, hf_config):
                 },
             )
 
+    if args.build_model_only:
+        return mod, param_manager, None
+
     def f_convert_pname_fwd(pname: str) -> List[str]:
         if not config.combine_matmul:
             return [pname]
@@ -927,8 +930,7 @@ def get_model(args, hf_config):
             raise ValueError("Unexpected param loading")
         return np.concatenate(torch_params, axis=0).astype(dtype)
 
-    mod = param_manager.transform_module(
-        mod,
+    param_manager.set_param_loading_func(
         args.model_path,
         f_convert_pname_fwd,
         f_convert_param_bkwd,
