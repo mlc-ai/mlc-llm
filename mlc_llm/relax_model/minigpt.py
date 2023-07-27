@@ -514,8 +514,12 @@ def get_model(args):
         bb = relax.BlockBuilder()
         create_embed_func(bb, param_manager, config, args.quantization)
         mod = bb.get()
-        mod = param_manager.transform_module(
-            mod, args.model_path, no_lazy_param_loading=True
+
+        if args.build_model_only:
+            return mod, param_manager, None
+
+        param_manager.set_param_loading_func(
+            args.model_path, no_lazy_param_loading=True
         )
 
         # load visual encoder weights

@@ -666,8 +666,10 @@ def get_model(args: argparse.Namespace, hf_config):
                     },
                 )
 
-        mod = param_manager.transform_module(
-            mod,
+        if args.build_model_only:
+            return mod, param_manager, None
+
+        param_manager.set_param_loading_func(
             args.model_path,
             f_convert_param_bkwd=lambda torch_pname, torch_param: [
                 (torch_pname, torch_param.astype(dtype))
