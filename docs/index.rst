@@ -121,6 +121,7 @@ If you are interested in using Machine Learning Compilation in practice, we high
 
    compilation/compile_models.rst
    compilation/distribute_compiled_models.rst
+   compilation/python.rst
 
 .. toctree::
    :maxdepth: 1

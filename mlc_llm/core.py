@@ -25,8 +25,48 @@ from mlc_llm.relax_model import (
 
 @dataclass
 class BuildArgs:
-    """BuildArgs is the dataclass that organizes the arguments we use in 
-    building a model."""
+    r"""BuildArgs is the dataclass that organizes the arguments we use in 
+    building a model. 
+    
+    For Python `build_model()`, users pass in an instance of `BuildArgs`; for 
+    CLI entry points, an equivalent `ArgumentParser` instance is generated based
+    on the definition of this class using `convert_build_args_to_argparser()`.
+    
+    Parameters
+    ----------
+    model: str
+        The name of the model to build. If it is `auto`, we will automatically
+        set the model name according to `--model-path`, `hf-path`, or the model 
+        folders under `--artifact-path/models`.
+    hf_path: str
+        Hugging Face path from which to download params, tokenizer, and config.
+    quantization: str
+        The quantization mode we use to compile.
+    max_seq_len: int
+        The maximum allowed sequence length for the model.
+    target: str
+        The target platform to compile the model for.
+    db_path: str
+        Path to log database for all models. Default: `./log_db/`.
+    reuse_lib: str
+        Whether to reuse a previously generated lib.
+    artifact_path: str
+        Where to store the output.
+    use_cache: int
+        Whether to use previously pickled IRModule and skip trace.
+    debug_dump: bool
+        Whether to dump debugging files during compilation.
+    debug_load_script: bool
+        Whether to load the script for debugging.
+    llvm_mingw: str
+        `/path/to/llvm-mingw-root`, use llvm-mingw to cross compile to windows.
+    system_lib: bool
+        A parameter to `relax.build`.
+    sep_embed: bool
+        Build with separated embedding layer, only applicable to LlaMa. This
+        feature is in testing stage, and will be formally replaced after massive
+        overhaul of embedding feature for all models and use cases.
+    """
     model: str = field(
         default="auto",
         metadata={
