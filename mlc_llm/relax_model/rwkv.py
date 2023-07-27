@@ -499,6 +499,9 @@ def get_model(args, hf_config):
     create_kv_cache_reset_func(bb, config)
     mod = bb.get()
 
+    if args.build_model_only:
+        return mod, param_manager, None
+
     def f_convert_pname_fwd(pname: str) -> List[str]:
         if (
             "key_weight" in pname
@@ -548,7 +551,7 @@ def get_model(args, hf_config):
         else:
             return [(pname, torch_param.astype(config.dtype))]
 
-    mod = param_manager.transform_module(
-        mod, args.model_path, f_convert_pname_fwd, f_convert_param_bkwd
+    param_manager.set_param_loading_func(
+        args.model_path, f_convert_pname_fwd, f_convert_param_bkwd
     )
     return mod, param_manager, [None] * len(param_manager.param_names)

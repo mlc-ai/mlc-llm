@@ -11,6 +11,7 @@ from tvm import relax
 
 from .quantization import quantization_schemes
 from .relax_model import param_manager
+from .transform import ReorderTransformFunc
 
 
 supported_model_types = set(
@@ -85,36 +86,67 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
     args.quantization = quantization_schemes[args.quantization]
 
 
-def split_transform_deploy_mod(
-    mod: tvm.IRModule, model_names: List[str]
-) -> Tuple[tvm.IRModule, tvm.IRModule]:
-    mod_transform = tvm.IRModule()
-    mod_deploy = tvm.IRModule()
-    transform_func_name = "transform_params"
-
-    for gv in mod.functions:
-        func = mod[gv]
-        if isinstance(func, tvm.tir.PrimFunc):
-            mod_transform[gv] = func
-            mod_deploy[gv] = func
-        elif gv.name_hint == transform_func_name:
-            mod_transform[gv] = func
-        else:
-            mod_deploy[gv] = func
-
-    mod_transform = relax.transform.DeadCodeElimination([transform_func_name])(
-        mod_transform
-    )
-    mod_deploy = relax.transform.DeadCodeElimination(model_names)(mod_deploy)
-
-    return mod_transform, mod_deploy
+def debug_dump_script(mod, name, args: argparse.Namespace, show_meta=True):
+    """Debug dump mode"""
+    if not args.debug_dump:
+        return
+    dump_path = os.path.join(args.artifact_path, "debug", name)
+    with open(dump_path, "w", encoding="utf-8") as outfile:
+        outfile.write(mod.script(show_meta=show_meta))
+    print(f"Dump mod to {dump_path}")
 
 
-def transform_params(
-    mod_transform: tvm.IRModule,
-    param_manager: param_manager.ParamManager,
+def debug_load_script(name: str, args: argparse.Namespace):
+    input_path = os.path.join(args.artifact_path, "debug", name)
+    lib = {"__file__": input_path}
+    with open(input_path, "rb") as i_f:
+        exec(  # pylint: disable=exec-used
+            compile(i_f.read(), input_path, "exec"), lib, lib
+        )
+    return lib["Module"]
+
+
+def debug_dump_shader(ex: tvm.relax.Executable, name: str, args: argparse.Namespace):
+    """Debug dump mode"""
+    if not args.debug_dump:
+        return
+    target_kind = args.target.kind.default_keys[0]
+    suffix_map = {
+        "webgpu": ".wgsl",
+        "cuda": ".cu",
+        "metal": ".mtl",
+        "opencl": ".cl",
+    }
+    suffix = suffix_map.get(target_kind, ".txt")
+    dump_path = os.path.join(args.artifact_path, "debug", name + suffix)
+    source = ex.mod.imported_modules[0].imported_modules[0].get_source()
+    with open(dump_path, "w", encoding="utf-8") as outfile:
+        outfile.write(source)
+    print(f"Dump shader to {dump_path}")
+
+
+def convert_weights(
+    param_mgr: param_manager.ParamManager,
     model_params: List[Optional[tvm.nd.NDArray]],
-) -> List[tvm.nd.NDArray]:
+    args: argparse.Namespace,
+):
+    # Create the quantization function.
+    # We first create an initial one, then reorder it according to each
+    # weight's location in the binary files, in the purpose of reducing
+    # memory usage when loading torch weights as well as acceleration.
+    mod_transform = param_manager.create_quantize_func(param_mgr)
+    mod_transform = ReorderTransformFunc(
+        param_mgr.pidx2pname,
+        param_mgr.torch_pname2binname,
+        param_mgr.f_convert_pname_fwd,
+    )(mod_transform)
+    # Remove the dataflow block inside the param transform function,
+    # so that the LazyTransformParams pass can be applied.
+    mod_transform = relax.transform.ToNonDataflow()(mod_transform)
+    mod_transform = relax.transform.LazyTransformParams()(mod_transform)
+
+    debug_dump_script(mod_transform, "mod_convert_weights.py", args)
+
     target = detect_local_target()
     print(f"Automatically using target for weight quantization: {target}")
     device = tvm.device(target.kind.default_keys[0])
@@ -126,7 +158,7 @@ def transform_params(
     cached_relax_params: Dict[int, tvm.nd.NDArray] = {}
     cached_torch_params: Dict[str, Any] = {}
 
-    get_item, set_item = param_manager.get_param_loading_functions(
+    get_item, set_item = param_mgr.get_param_loading_functions(
         model_params,
         loaded_params,
         loaded_idx_set,
@@ -178,39 +210,6 @@ def load_params(artifact_path: str, device) -> List[tvm.nd.NDArray]:
     for i in range(size):
         plist.append(params[f"param_{i}"])
     return plist
-
-
-def build_model_from_log(relax_mod, target, log_dir):
-    db = ms.database.create(work_dir=log_dir)
-    with target, db, tvm.transform.PassContext(opt_level=3):
-        relax_mod = relax.transform.MetaScheduleApplyDatabase()(relax_mod)
-    return relax_mod
-
-
-def split_static_dynamic_tir(mod: tvm.IRModule):
-    def _is_static_shape_buffer(buffer: tvm.tir.Buffer):
-        for dim in buffer.shape:
-            if not isinstance(dim, tvm.tir.IntImm):
-                return False
-        return True
-
-    def _is_static_shape_func(func: tvm.tir.PrimFunc):
-        for buffer in func.buffer_map.values():
-            if not _is_static_shape_buffer(buffer):
-                return False
-        return True
-
-    mod_dynamic = {}
-    mod_static = {}
-    for k, v in mod.functions.items():
-        if isinstance(v, tvm.tir.PrimFunc):
-            if _is_static_shape_func(v):
-                mod_static[k] = v
-            else:
-                mod_dynamic[k] = v
-    mod_static = tvm.IRModule(mod_static)
-    mod_dynamic = tvm.IRModule(mod_dynamic)
-    return mod_static, mod_dynamic
 
 
 def copy_tokenizer(args: argparse.Namespace) -> None:

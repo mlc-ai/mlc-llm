@@ -729,6 +729,9 @@ def get_model(
                 },
             )
 
+    if args.build_model_only:
+        return mod, param_manager, None
+
     def f_convert_pname_fwd(pname: str) -> List[str]:
         import re  # pylint: disable=import-outside-toplevel
 
@@ -781,7 +784,7 @@ def get_model(
         else:
             return [(torch_pname, torch_param.astype(dtype))]
 
-    mod = param_manager.transform_module(
-        mod, args.model_path, f_convert_pname_fwd, f_convert_param_bkwd
+    param_manager.set_param_loading_func(
+        args.model_path, f_convert_pname_fwd, f_convert_param_bkwd
     )
     return mod, param_manager, [None] * len(param_manager.param_names)

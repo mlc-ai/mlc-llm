@@ -10,7 +10,7 @@ from tvm.relax.testing import nn
 from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import PyExprMutator, mutator
 
-from .. import quantization, transform
+from .. import quantization
 from .modules import named_parameters
 
 
@@ -161,6 +161,7 @@ class ParamManager:
     func_raw_name_map: Dict[str, str]
     func_raw_param_map: Dict[relax.Var, Tuple[str, Parameter]]
     param2qrange: Dict[Parameter, range]
+    quantized_param_info: List[relax.TensorStructInfo]
 
     f_convert_pname_fwd: Callable[[str], List[str]]
     f_convert_param_bkwd: Callable[[str, Any], Optional[List[Tuple[str, Any]]]]
@@ -177,7 +178,8 @@ class ParamManager:
         self.raw_quantized_name_map = {}
         self.func_raw_name_map = {}
         self.func_raw_param_map = {}
-        self.param2qrange = {}
+        self.param2qrange = None
+        self.quantized_param_info = None
 
     def register_params(
         self,
@@ -251,9 +253,8 @@ class ParamManager:
                     func_name,
                 )
 
-    def transform_module(
+    def set_param_loading_func(
         self,
-        mod: tvm.IRModule,
         model_path: str,
         f_convert_pname_fwd: Callable[[str], List[str]] = lambda pname: [pname],
         f_convert_param_bkwd: Callable[
@@ -264,20 +265,11 @@ class ParamManager:
         ] = f_default_compute_relax_param,
         *,
         no_lazy_param_loading: bool = False,
-    ) -> tvm.IRModule:
-        """The entrance function of all quantization-related transformation,
-        including creating the function that computes quantization, and
-        updating the input IRModule with quantized data as function input and
-        dequantization computation.
+    ) -> None:
+        """Set the parameter loading functions.
 
         Parameters
         ----------
-        mod : tvm.IRModule
-            The input IRModule to be applied quantization/dequantization.
-            The IRModule contains all the constructed Relax functions
-            (e.g., the "prefill"/"decode" functions) and is expected to
-            have all of its parameters registered in the ParamManager.
-
         model_path : str
             The path of the Hugging Face model on disk.
 
@@ -299,15 +291,7 @@ class ParamManager:
             A boolean indicating that no lazy parameter loading from torch is needed.
             This needs to be set as True when all the model weights are loaded
             at the time of constructing the model.
-
-        Returns
-        -------
-        updated_mod : tvm.IRModule
-            The IRModule updated with the quantization function and the
-            dequantization computation.
         """
-        ######################### Part 1. Fields setup #########################
-
         self.f_convert_pname_fwd = f_convert_pname_fwd
         self.f_convert_param_bkwd = f_convert_param_bkwd
         self.f_compute_relax_param = f_compute_relax_param
@@ -326,34 +310,34 @@ class ParamManager:
             self.pidx2pname = dict()
             self.torch_pname2binname = dict()
 
-        ################# Part 2. Create quantization function #################
+    def transform_dequantize(self, mod: tvm.IRModule) -> tvm.IRModule:
+        """Apply dequantization to the input IRModule.
 
-        # Create the quantization function.
-        # We first create an initial one, then reorder it according to each
-        # weight's location in the binary files, in the purpose of reducing
-        # memory usage when loading torch weights as well as acceleration.
-        mod_transform = self._create_quantize_func()
-        quantized_param_sinfo = mod_transform["transform_params"].struct_info.ret
-        mod_transform = transform.ReorderTransformFunc(
-            self.pidx2pname, self.torch_pname2binname, self.f_convert_pname_fwd
-        )(mod_transform)
-        # Remove the dataflow block inside the param transform function,
-        # so that the LazyTransformParams pass can be applied.
-        mod_transform = relax.transform.ToNonDataflow()(mod_transform)
-        mod_transform = relax.transform.LazyTransformParams()(mod_transform)
+        Parameters
+        ----------
+        mod : tvm.IRModule
+            The input IRModule to be applied dequantization.
+            The IRModule contains all the constructed Relax functions
+            (e.g., the "prefill"/"decode" functions) and is expected to
+            have all of its parameters registered in the ParamManager.
 
-        ############# Part 3. Update the model with dequantization #############
+        Returns
+        -------
+        updated_mod : tvm.IRModule
+            The IRModule updated with the dequantization computation.
+        """
 
         # For each Relax function in the input IRModule (e.g., "prefill"),
         # we create its input relax.Var of all the quantized data, and
         # store the mapping from function name to the var.
         func2param_var: Dict[str, relax.Var] = {}
+        quantized_param_info = self.get_quantized_param_info()
         for gv, func in mod.functions.items():
             if not isinstance(func, relax.Function):
                 continue
             if func.attrs is None or not "num_input" in func.attrs:
                 continue
-            func2param_var[gv.name_hint] = relax.Var("params", quantized_param_sinfo)
+            func2param_var[gv.name_hint] = relax.Var("params", quantized_param_info)
 
         # Cache mapping to avoid duplicate dequantization.
         dequantized_cache: Dict[relax.Var, relax.Var] = {}
@@ -388,12 +372,79 @@ class ParamManager:
         # Update the input IRModule with dequantization.
         mod = replacer.transform()
 
-        ######################## Part 4. Merge IRModule ########################
-
-        # Merge the quantization IRModule into the updated input IRModule.
-        for gv, func in mod_transform.functions.items():
-            mod[gv] = func
         return mod
+
+    def get_quantized_param_info(self) -> List[relax.TensorStructInfo]:
+        bb = relax.BlockBuilder()
+
+        if self.quantized_param_info is not None:
+            assert self.param2qrange is not None
+            return self.quantized_param_info
+
+        self.param2qrange = dict()
+        quantized_param_info: List[relax.TensorStructInfo] = []
+        for name in self.param_names:
+            param = self.params[name]
+            loaded_tensor_info = param.quant_spec.get_loaded_tensor_info(
+                param.param_info
+            )
+
+            provided_tensor_vars: List[relax.Var] = []
+            for provided_info in loaded_tensor_info:
+                provided_tensor_vars.append(relax.Var("var", provided_info))
+
+            # Get the quantization function of this parameter.
+            f_quantize = param.quant_spec.get_quantize_func(param.param_info)
+            if f_quantize is None:
+                # If the parameter does not have a quantization function, either it
+                # does not need quantization or it is pre-quantized.
+                # if have pre_quantized
+                self.param2qrange[param] = range(
+                    len(quantized_param_info),
+                    len(quantized_param_info) + len(provided_tensor_vars),
+                )
+                quantized_param_info += [
+                    var.struct_info for var in provided_tensor_vars
+                ]
+            else:
+                # If the parameter has a quantization function, it is not expected
+                # to be pre-quantized.
+                assert len(provided_tensor_vars) == 1, (
+                    "A parameter with quantization function is not expected "
+                    "to be pre-quantized."
+                )
+
+                # Apply the quantization function.
+                quantized_data = bb.normalize(
+                    bb.call_te(
+                        f_quantize, provided_tensor_vars[0], primfunc_name_hint="encode"
+                    )
+                )
+
+                if isinstance(quantized_data.struct_info, relax.TupleStructInfo):
+                    n_tensor = len(quantized_data.struct_info.fields)
+                    assert n_tensor > 1
+                    # Record the range of quantized tensors of this parameter.
+                    self.param2qrange[param] = range(
+                        len(quantized_param_info),
+                        len(quantized_param_info) + n_tensor,
+                    )
+                    # Collect the quantized tensors to return.
+                    for i in range(n_tensor):
+                        quantized_param_info.append(
+                            relax.TupleGetItem(quantized_data, i).struct_info
+                        )
+                else:
+                    assert isinstance(
+                        quantized_data.struct_info, relax.TensorStructInfo
+                    )
+                    self.param2qrange[param] = range(
+                        len(quantized_param_info), len(quantized_param_info) + 1
+                    )
+                    quantized_param_info.append(quantized_data.struct_info)
+
+        self.quantized_param_info = relax.TupleStructInfo(quantized_param_info)
+        return self.quantized_param_info
 
     def get_param_loading_functions(
         self,
@@ -599,115 +650,6 @@ class ParamManager:
         self.func_raw_name_map[var] = name
         self.func_raw_param_map[var] = (func_name, param)
 
-    def _create_quantize_func(self) -> tvm.IRModule:
-        """Construct the Relax function which computes quantization.
-        This method is called by `transform_module` below, and is not
-        directly invoked outside the class.
-
-        Returns
-        -------
-        The created function which computes quantization.
-        Precisely, an IRModule which contains the main quantization Relax function
-        and a series of TIR functions is returned.
-        """
-        bb = relax.BlockBuilder()
-
-        # Construct the input of the function.
-        # Similar to `self.param2qrange`, we need a list of ranges for each
-        # parameter to get its corresponding tensors loaded from disk.
-        input_tensor_info: List[relax.TensorStructInfo] = []
-        loaded_tensor_ranges: List[range] = []
-        for name in self.param_names:
-            param = self.params[name]
-            loaded_tensor_info = param.quant_spec.get_loaded_tensor_info(
-                param.param_info
-            )
-            loaded_tensor_ranges.append(
-                range(
-                    len(input_tensor_info),
-                    len(input_tensor_info) + len(loaded_tensor_info),
-                )
-            )
-            input_tensor_info += loaded_tensor_info
-        raw_param_tuple = relax.Var("params", relax.TupleStructInfo(input_tensor_info))
-
-        with bb.function("transform_params", params=[raw_param_tuple]):
-            with bb.dataflow():
-                quantized_params: List[relax.Var] = []
-                for pidx, name in enumerate(self.param_names):
-                    param = self.params[name]
-                    param_vars: List[relax.Var] = []
-                    # Emit relax.TupleGetItem to get the raw parameters or pre-quantized params.
-                    for loaded_tensor_idx in loaded_tensor_ranges[pidx]:
-                        param_vars.append(
-                            bb.emit(
-                                relax.TupleGetItem(raw_param_tuple, loaded_tensor_idx)
-                            )
-                        )
-
-                    # Get the quantization function of this parameter.
-                    f_quantize = param.quant_spec.get_quantize_func(param.param_info)
-                    if f_quantize is None:
-                        # If the parameter does not have a quantization function, either it
-                        # does not need quantization or it is pre-quantized.
-                        # if have pre_quantized
-                        if (
-                            hasattr(param.quant_spec, "pre_quantized")
-                            and param.quant_spec.pre_quantized
-                        ):
-                            self.param2qrange[param] = range(
-                                len(quantized_params),
-                                len(quantized_params) + len(param_vars),
-                            )
-                            quantized_params += param_vars
-                        else:
-                            self.param2qrange[param] = range(
-                                len(quantized_params),
-                                len(quantized_params) + len(param_vars),
-                            )
-                            quantized_params += param_vars
-                    else:
-                        # If the parameter has a quantization function, it is not expected
-                        # to be pre-quantized.
-                        assert len(param_vars) == 1, (
-                            "A parameter with quantization function is not expected "
-                            "to be pre-quantized."
-                        )
-
-                        # Apply the quantization function.
-                        quantized_data = bb.emit_te(
-                            f_quantize, param_vars[0], primfunc_name_hint="encode"
-                        )
-
-                        if isinstance(
-                            quantized_data.struct_info, relax.TupleStructInfo
-                        ):
-                            n_tensor = len(quantized_data.struct_info.fields)
-                            assert n_tensor > 1
-                            # Record the range of quantized tensors of this parameter.
-                            self.param2qrange[param] = range(
-                                len(quantized_params), len(quantized_params) + n_tensor
-                            )
-                            # Collect the quantized tensors to return.
-                            for i in range(n_tensor):
-                                quantized_params.append(
-                                    bb.emit(relax.TupleGetItem(quantized_data, i))
-                                )
-                        else:
-                            assert isinstance(
-                                quantized_data.struct_info, relax.TensorStructInfo
-                            )
-                            self.param2qrange[param] = range(
-                                len(quantized_params), len(quantized_params) + 1
-                            )
-                            quantized_params.append(quantized_data)
-
-                output = bb.emit_output(relax.Tuple(quantized_params))
-            bb.emit_func_output(output)
-
-        # Return the created IRModule.
-        return bb.get()
-
     def _dequantize(
         self,
         param: Parameter,
@@ -872,3 +814,116 @@ def load_torch_pname2binname_map(
             for torch_pname in f_convert_pname_fwd(relax_pname)
         }
     return torch_pname2binname
+
+
+def create_quantize_func(param_manager: ParamManager) -> tvm.IRModule:
+    """Construct the Relax function which computes quantization.
+    This method is called by `transform_module` below, and is not
+    directly invoked outside the class.
+
+    Parameters
+    ----------
+    param_manager : ParamManager
+        The parameter manager which has all the parameter information.
+
+    Returns
+    -------
+    The created function which computes quantization.
+    Precisely, an IRModule which contains the main quantization Relax function
+    and a series of TIR functions is returned.
+    """
+    bb = relax.BlockBuilder()
+    param2qrange = dict()
+
+    # Construct the input of the function.
+    # We need a list of ranges for each
+    # parameter to get its corresponding tensors loaded from disk.
+    input_tensor_info: List[relax.TensorStructInfo] = []
+    loaded_tensor_ranges: List[range] = []
+    for name in param_manager.param_names:
+        param = param_manager.params[name]
+        loaded_tensor_info = param.quant_spec.get_loaded_tensor_info(param.param_info)
+        loaded_tensor_ranges.append(
+            range(
+                len(input_tensor_info),
+                len(input_tensor_info) + len(loaded_tensor_info),
+            )
+        )
+        input_tensor_info += loaded_tensor_info
+    raw_param_tuple = relax.Var("params", relax.TupleStructInfo(input_tensor_info))
+
+    with bb.function("transform_params", params=[raw_param_tuple]):
+        with bb.dataflow():
+            quantized_params: List[relax.Var] = []
+            for pidx, name in enumerate(param_manager.param_names):
+                param = param_manager.params[name]
+                param_vars: List[relax.Var] = []
+                # Emit relax.TupleGetItem to get the raw parameters or pre-quantized params.
+                for loaded_tensor_idx in loaded_tensor_ranges[pidx]:
+                    param_vars.append(
+                        bb.emit(relax.TupleGetItem(raw_param_tuple, loaded_tensor_idx))
+                    )
+
+                # Get the quantization function of this parameter.
+                f_quantize = param.quant_spec.get_quantize_func(param.param_info)
+                if f_quantize is None:
+                    # If the parameter does not have a quantization function, either it
+                    # does not need quantization or it is pre-quantized.
+                    # if have pre_quantized
+                    if (
+                        hasattr(param.quant_spec, "pre_quantized")
+                        and param.quant_spec.pre_quantized
+                    ):
+                        param2qrange[param] = range(
+                            len(quantized_params),
+                            len(quantized_params) + len(param_vars),
+                        )
+                        quantized_params += param_vars
+                    else:
+                        param2qrange[param] = range(
+                            len(quantized_params),
+                            len(quantized_params) + len(param_vars),
+                        )
+                        quantized_params += param_vars
+                else:
+                    # If the parameter has a quantization function, it is not expected
+                    # to be pre-quantized.
+                    assert len(param_vars) == 1, (
+                        "A parameter with quantization function is not expected "
+                        "to be pre-quantized."
+                    )
+
+                    # Apply the quantization function.
+                    quantized_data = bb.emit_te(
+                        f_quantize, param_vars[0], primfunc_name_hint="encode"
+                    )
+
+                    if isinstance(quantized_data.struct_info, relax.TupleStructInfo):
+                        n_tensor = len(quantized_data.struct_info.fields)
+                        assert n_tensor > 1
+                        # Record the range of quantized tensors of this parameter.
+                        param2qrange[param] = range(
+                            len(quantized_params), len(quantized_params) + n_tensor
+                        )
+                        # Collect the quantized tensors to return.
+                        for i in range(n_tensor):
+                            quantized_params.append(
+                                bb.emit(relax.TupleGetItem(quantized_data, i))
+                            )
+                    else:
+                        assert isinstance(
+                            quantized_data.struct_info, relax.TensorStructInfo
+                        )
+                        param2qrange[param] = range(
+                            len(quantized_params), len(quantized_params) + 1
+                        )
+                        quantized_params.append(quantized_data)
+
+            output = bb.emit_output(relax.Tuple(quantized_params))
+        bb.emit_func_output(output)
+
+    mod = bb.get()
+    param_manager.param2qrange = param2qrange
+    param_manager.quantized_param_info = mod["transform_params"].struct_info.ret
+    # Return the created IRModule.
+    return bb.get()
