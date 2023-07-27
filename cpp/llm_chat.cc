@@ -686,7 +686,7 @@ class LLMChat {
       auto decoding_end = std::chrono::high_resolution_clock::now();
       double decoding_ms = static_cast<double>((decoding_end - decoding_start).count()) / 1e6;
       decoding_ms_total += decoding_ms;
-      LOG(INFO) << "[i: " << i << "] decoding-time=" << decoding_ms << "ms"
+      LOG(INFO) << "[i: " << token_len + i + 1 << "] decoding-time=" << decoding_ms << "ms"
                 << " tok/s: " << 1000.0 * (i + 1) / decoding_ms_total << ".";
     }
   }
