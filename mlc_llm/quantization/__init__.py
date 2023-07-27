@@ -4,7 +4,6 @@ from .quantization import QuantizationSpec, NoQuantizationSpec, ParamQuantKind
 from .quantization import QuantSpecUpdater
 from .group_quantization import GroupQuantizationSpec
 from .autogptq_quantization import AutogptqQuantizationSpec, load_autogptq_params
-from .rwkv_quantization import RWKVQuantizationSpec
 from .ft_rowwise_quantization import FTRowwiseQuantizationSpec, FTQuantizeUpdater
 
 
@@ -100,6 +99,19 @@ quantization_schemes = {
         embedding_table="same_as_linear_weight",
         final_fc_weight="same_as_linear_weight",
     ),
+    "q4f16_2": QuantizationScheme(
+        name="q4f16_2",
+        linear_weight=GroupQuantizationSpec(
+            dtype="float16",
+            mode="int4",
+            sym=True,
+            storage_nbit=32,
+            group_size=32,
+            transpose=False,
+        ),
+        embedding_table=NoQuantizationSpec("float16"),
+        final_fc_weight=NoQuantizationSpec("float16"),
+    ),
     "q4f16_ft": QuantizationScheme(
         name="q4f16_ft",
         linear_weight=FTRowwiseQuantizationSpec(
@@ -148,11 +160,6 @@ quantization_schemes = {
             transpose=False,
         ),
         embedding_table="same_as_linear_weight",
-        final_fc_weight="same_as_linear_weight",
-    ),
-    "q8f16_0": QuantizationScheme(
-        name="q8f16_0",
-        linear_weight=RWKVQuantizationSpec(dtype="float16", mode="uint8", nbit=8),
         final_fc_weight="same_as_linear_weight",
     ),
     "q8f16_ft": QuantizationScheme(

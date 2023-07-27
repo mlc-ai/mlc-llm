@@ -75,7 +75,8 @@ def decode_matmul_pattern(match_ewise: int, n_aux_tensor: int, gemv_only: bool):
 @tvm.transform.module_pass(opt_level=0, name="FuseDecodeMatmulEwise")
 class FuseDecodeMatmulEwise:
     def __init__(self, quantization_name: str, target_kind: str) -> None:
-        self.gemv_only = quantization_name != "q4f16_1" and target_kind != "android"
+        # TODO: Need to remove it as we are moving to DLight schedule
+        self.gemv_only = quantization_name not in ["q4f16_1", "q4f16_2"] and target_kind != "android"
 
     def transform_module(
         self, mod: IRModule, ctx: tvm.transform.PassContext
