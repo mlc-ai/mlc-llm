@@ -1,4 +1,5 @@
 .. _compile-models-via-MLC:
+
 Compile Models via MLC
 ======================
 
@@ -276,6 +277,7 @@ different targets. If you are interested in distributing the model besides local
 You are also more than welcome to read the following sections for more details about the compilation.
 
 .. _compile-command-specification:
+
 Compile Command Specification
 -----------------------------
 

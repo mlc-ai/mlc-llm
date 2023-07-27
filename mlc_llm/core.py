@@ -28,16 +28,16 @@ class BuildArgs:
     r"""BuildArgs is the dataclass that organizes the arguments we use in 
     building a model. 
     
-    For Python `build_model()`, users pass in an instance of `BuildArgs`; for 
-    CLI entry points, an equivalent `ArgumentParser` instance is generated based
-    on the definition of this class using `convert_build_args_to_argparser()`.
+    To use :meth:`mlc_llm.build_model`, users pass in an instance of :class:`BuildArgs`; for 
+    CLI entry points, an equivalent :class:`ArgumentParser` instance is generated based
+    on the definition of this class using :meth:`mlc_llm.convert_build_args_to_argparser`.
     
     Parameters
     ----------
     model: str
-        The name of the model to build. If it is `auto`, we will automatically
-        set the model name according to `--model-path`, `hf-path`, or the model 
-        folders under `--artifact-path/models`.
+        The name of the model to build. If it is ``auto``, we will automatically
+        set the model name according to ``--model-path``, ``hf-path``, or the model 
+        folders under ``--artifact-path/models``.
     hf_path: str
         Hugging Face path from which to download params, tokenizer, and config.
     quantization: str
@@ -47,7 +47,7 @@ class BuildArgs:
     target: str
         The target platform to compile the model for.
     db_path: str
-        Path to log database for all models. Default: `./log_db/`.
+        Path to log database for all models. Default: ``./log_db/``.
     reuse_lib: str
         Whether to reuse a previously generated lib.
     artifact_path: str
@@ -59,9 +59,9 @@ class BuildArgs:
     debug_load_script: bool
         Whether to load the script for debugging.
     llvm_mingw: str
-        `/path/to/llvm-mingw-root`, use llvm-mingw to cross compile to windows.
+        ``/path/to/llvm-mingw-root``, use llvm-mingw to cross compile to windows.
     system_lib: bool
-        A parameter to `relax.build`.
+        A parameter to ``relax.build``.
     sep_embed: bool
         Build with separated embedding layer, only applicable to LlaMa. This
         feature is in testing stage, and will be formally replaced after massive
@@ -535,17 +535,17 @@ def build_model(args: BuildArgs):
     
     Parameters
     ----------
-    args : mlc_llm.BuildArgs
+    args : :class:`BuildArgs`
         A dataclass of arguments for building models.
 
     Returns
     ----------
     lib_path: str
-        The path to the `.so` library file.
+        The path to the ``.so`` library file.
     model_path: str
         The path to the folder of the model's parameters.
     chat_config_path: str
-        The path to the chat config `.json` file.
+        The path to the chat config ``.json`` file.
     """
     # Convert BuildArgs to argparse.Namespace so that we can share the rest
     # of the code with the command line workflow
