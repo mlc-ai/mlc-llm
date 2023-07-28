@@ -510,6 +510,8 @@ int main(int argc, char* argv[]) {
   args.add_argument("--device_id").default_value(0).scan<'i', int>();
   args.add_argument("--artifact-path").default_value("dist");
   args.add_argument("--evaluate").default_value(false).implicit_value(true);
+  args.add_argument("--eval-prompt-len").default_value(128).scan<'i', int>();
+  args.add_argument("--eval-gen-len").default_value(1024).scan<'i', int>();
 
   try {
     args.parse_args(argc, argv);
@@ -535,12 +537,14 @@ int main(int argc, char* argv[]) {
     if (args.get<bool>("--evaluate")) {
       // `--evaluate` is only used for performance debugging, and thus will call low-level APIs
       // that are not supposed to be used in chat app setting
+      int prompt_len = args.get<int>("--eval-prompt-len");
+      int gen_len = args.get<int>("--eval-gen-len");
       ModelPaths model = ModelPaths::Find(artifact_path, device_name, local_id);
       tvm::runtime::Module chat_mod = mlc::llm::CreateChatModule(GetDevice(device_name, device_id));
       std::string model_path = model.config.parent_path().string();
       tvm::runtime::Module lib = tvm::runtime::Module::LoadFromFile(model.lib.string());
       chat_mod.GetFunction("reload")(lib, tvm::String(model_path));
-      chat_mod.GetFunction("evaluate")();
+      chat_mod.GetFunction("evaluate")(prompt_len, gen_len);
     } else {
       Chat(&chat, artifact_path, device_name, local_id);
     }
