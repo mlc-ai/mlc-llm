@@ -63,7 +63,7 @@ const newline = () => {
   newline();
   
 // Question and answer stuff chain example with text loader
-const loader = new TextLoader('linux.txt');
+const loader = new TextLoader('../resources/linux.txt');
 const documents = await loader.load();
 const schain =  loadQAStuffChain(chat);
 const query = "When was Linux released?";
