@@ -240,7 +240,7 @@ MLC-LLM supports the following model architectures:
     - `LLaMa <https://github.com/facebookresearch/llama>`__
     - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/llama.py>`__
     - * `Llama-2 <https://ai.meta.com/llama/>`__
-    - * `Alpaca <https://github.com/tatsu-lab/stanford_alpaca>`__
+      * `Alpaca <https://github.com/tatsu-lab/stanford_alpaca>`__
       * `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
       * `Guanaco <https://github.com/artidoro/qlora>`__
       * `OpenLLaMA <https://github.com/openlm-research/open_llama>`__
@@ -274,7 +274,7 @@ MLC-LLM supports the following model architectures:
 
 For models structured in these model architectures, you can check the :doc:`model compilation page </compilation/compile_models>` on how to compile models.
 Please `create a new issue <https://github.com/mlc-ai/mlc-llm/issues/new/choose>`_ if you want to request a new model architecture.
-Our tutorial :doc:`/tutorials/bring-your-own-models` introduces how to bring a new model architecture to MLC-LLM.
+Our tutorial :doc:`Define New Models </tutorials/customize/define_new_models>` introduces how to bring a new model architecture to MLC-LLM.
 
 .. _contribute-models-to-mlc-llm:
 
