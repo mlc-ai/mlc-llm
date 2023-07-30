@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, fields, asdict
 import json
 import os
 import pickle
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import tvm
 from tvm import dlight as dl
@@ -449,7 +449,7 @@ def build_model_from_args(args: argparse.Namespace):
         print("Reuse existing prebuilt lib {ARGS.reuse_lib}...")
 
 
-def build_model(args: BuildArgs):
+def build_model(args: BuildArgs) -> (Optional[str], Optional[str], Optional[str]):
     r"""Builds/compiles a model.
 
     Parameters
@@ -459,11 +459,11 @@ def build_model(args: BuildArgs):
 
     Returns
     ----------
-    lib_path: str
+    lib_path: Optional[str]
         The path to the model library file. Return ``None`` if not applicable.
-    model_path: str
+    model_path: Optional[str]
         The path to the folder of the model's parameters. Return ``None`` if not applicable.
-    chat_config_path: str
+    chat_config_path: Optional[str]
         The path to the chat config `.json` file. Return ``None`` if not applicable.
     """
     # Convert BuildArgs to argparse.Namespace so that we can share the rest
