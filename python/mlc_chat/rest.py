@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import os
+import subprocess
 import sys
 from contextlib import asynccontextmanager
 
@@ -21,7 +22,13 @@ def _shared_lib_suffix():
     if sys.platform.startswith("win32"):
         return ".dll"
     if sys.platform.startswith("darwin"):
-        return ".dylib"
+        cpu_brand_string = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"]).decode("utf-8")
+        if cpu_brand_string.startswith("Apple"):
+            # Apple Silicon
+            return ".so"
+        else:
+            # Intel (x86)
+            return ".dylib"
     return ".so"
 
 
