@@ -4,7 +4,7 @@ from typing import List, Literal, Optional, Tuple
 from tvm import relax, te, tir, topi
 
 from .quantization import QuantizationSpec
-from .quantization import FQuantize, FDequantize
+from .quantization import FQuantize, convert_TE_func
 
 
 @dataclass
@@ -17,14 +17,16 @@ class RWKVQuantizationSpec(QuantizationSpec):
     def get_quantize_func(
         self, param_info: relax.TensorStructInfo
     ) -> Optional[FQuantize]:
-        return encoding_func(self.dtype, self.mode, self.nbit)
+        return convert_TE_func(
+            encoding_func(self.dtype, self.mode, self.nbit), func_name="encode"
+        )
 
     def get_dequantize_func(
         self,
         param_info: relax.TensorStructInfo,
         qparam_info: List[relax.TensorStructInfo],
-    ) -> Optional[FDequantize]:
-        return decoding_func(self.dtype)
+    ) -> Optional[FQuantize]:
+        return convert_TE_func(decoding_func(self.dtype), func_name="decode")
 
 
 def encoding_func(input_dtype: str, quant_dtype: str, nbit: int):
