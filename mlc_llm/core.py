@@ -460,11 +460,11 @@ def build_model(args: BuildArgs):
     Returns
     ----------
     lib_path: str
-        The path to the `.so` library file.
+        The path to the model library file. Return ``None`` if not applicable.
     model_path: str
-        The path to the folder of the model's parameters.
+        The path to the folder of the model's parameters. Return ``None`` if not applicable.
     chat_config_path: str
-        The path to the chat config `.json` file.
+        The path to the chat config `.json` file. Return ``None`` if not applicable.
     """
     # Convert BuildArgs to argparse.Namespace so that we can share the rest
     # of the code with the command line workflow
@@ -473,4 +473,11 @@ def build_model(args: BuildArgs):
     args = _parse_args(build_args_namespace)
     build_model_from_args(args)
 
-    return args.lib_path, args.params_path, args.chat_config_path
+    # Prepare output; some workflows may or may not have the paths to return
+    lib_path = args.lib_path if hasattr(args, "lib_path") else None
+    model_path = args.params_path if hasattr(args, "params_path") else None
+    chat_config_path = (
+        args.chat_config_path if hasattr(args, "chat_config_path") else None
+    )
+
+    return lib_path, model_path, chat_config_path
