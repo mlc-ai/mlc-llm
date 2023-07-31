@@ -398,7 +398,6 @@ class ParamManager:
             if f_quantize is None:
                 # If the parameter does not have a quantization function, either it
                 # does not need quantization or it is pre-quantized.
-                # if have pre_quantized
                 self.param2qrange[param] = range(
                     len(quantized_param_info),
                     len(quantized_param_info) + len(provided_tensor_vars),
@@ -415,12 +414,7 @@ class ParamManager:
                 )
 
                 # Apply the quantization function.
-                quantized_data = bb.normalize(
-                    bb.call_te(
-                        f_quantize, provided_tensor_vars[0], primfunc_name_hint="encode"
-                    )
-                )
-
+                quantized_data = bb.normalize(f_quantize(bb, provided_tensor_vars))
                 if isinstance(quantized_data.struct_info, relax.TupleStructInfo):
                     n_tensor = len(quantized_data.struct_info.fields)
                     assert n_tensor > 1
@@ -702,7 +696,7 @@ class ParamManager:
             return qparams[0]
         else:
             # Apply the dequantization function.
-            return bb.emit_te(f_dequantize, *qparams, primfunc_name_hint="decode")
+            return bb.emit(f_dequantize(bb, qparams))
 
 
 @mutator
@@ -869,22 +863,11 @@ def create_quantize_func(param_manager: ParamManager) -> tvm.IRModule:
                 if f_quantize is None:
                     # If the parameter does not have a quantization function, either it
                     # does not need quantization or it is pre-quantized.
-                    # if have pre_quantized
-                    if (
-                        hasattr(param.quant_spec, "pre_quantized")
-                        and param.quant_spec.pre_quantized
-                    ):
-                        param2qrange[param] = range(
-                            len(quantized_params),
-                            len(quantized_params) + len(param_vars),
-                        )
-                        quantized_params += param_vars
-                    else:
-                        param2qrange[param] = range(
-                            len(quantized_params),
-                            len(quantized_params) + len(param_vars),
-                        )
-                        quantized_params += param_vars
+                    param2qrange[param] = range(
+                        len(quantized_params),
+                        len(quantized_params) + len(param_vars),
+                    )
+                    quantized_params += param_vars
                 else:
                     # If the parameter has a quantization function, it is not expected
                     # to be pre-quantized.
@@ -894,9 +877,7 @@ def create_quantize_func(param_manager: ParamManager) -> tvm.IRModule:
                     )
 
                     # Apply the quantization function.
-                    quantized_data = bb.emit_te(
-                        f_quantize, param_vars[0], primfunc_name_hint="encode"
-                    )
+                    quantized_data = bb.emit(f_quantize(bb, param_vars))
 
                     if isinstance(quantized_data.struct_info, relax.TupleStructInfo):
                         n_tensor = len(quantized_data.struct_info.fields)
