@@ -6,7 +6,7 @@ from tvm.script import tir as T
 
 from . import tir_utils
 from .quantization import QuantizationSpec
-from .quantization import FQuantize, FDequantize
+from .quantization import FQuantize, FTEQuantize, FTEDequantize, convert_TE_func
 
 
 @dataclass
@@ -22,36 +22,42 @@ class GroupQuantizationSpec(QuantizationSpec):
     def get_quantize_func(
         self, param_info: relax.TensorStructInfo
     ) -> Optional[FQuantize]:
-        return encoding_func(
-            sym=self.sym,
-            group_size=self.group_size,
-            nbit=int(self.mode[-1]),
-            mode=self.mode,
-            storage_nbit=self.storage_nbit,
-            transpose=self.transpose,
-            dtype=self.dtype,
+        return convert_TE_func(
+            encoding_func(
+                sym=self.sym,
+                group_size=self.group_size,
+                nbit=int(self.mode[-1]),
+                mode=self.mode,
+                storage_nbit=self.storage_nbit,
+                transpose=self.transpose,
+                dtype=self.dtype,
+            ),
+            func_name="encode",
         )
 
     def get_dequantize_func(
         self,
         param_info: relax.TensorStructInfo,
         qparam_info: List[relax.TensorStructInfo],
-    ) -> Optional[FDequantize]:
-        return decoding_func(
-            sym=self.sym,
-            group_size=self.group_size,
-            nbit=int(self.mode[-1]),
-            mode=self.mode,
-            storage_nbit=self.storage_nbit,
-            dim_length=param_info.shape.values[-1],
-            data_transposed=self.transpose,
-            transpose_output=self.transpose,
-            dtype=self.dtype,
+    ) -> Optional[FQuantize]:
+        return convert_TE_func(
+            decoding_func(
+                sym=self.sym,
+                group_size=self.group_size,
+                nbit=int(self.mode[-1]),
+                mode=self.mode,
+                storage_nbit=self.storage_nbit,
+                dim_length=param_info.shape.values[-1],
+                data_transposed=self.transpose,
+                transpose_output=self.transpose,
+                dtype=self.dtype,
+            ),
+            func_name="decode",
         )
 
 
 # fmt: off
-def encoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit: int, transpose: bool=True, dtype: str = "float32") -> FQuantize:
+def encoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit: int, transpose: bool=True, dtype: str = "float32") -> FTEQuantize:
     def te_encode_asym(weight: te.Tensor):
         assert weight.shape[1] % group_size == 0
         n_group = weight.shape[1] // group_size
@@ -129,7 +135,7 @@ def encoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit
     return te_encode_sym if sym else te_encode_asym
 
 
-def decoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit: int, dim_length: tir.PrimExpr, data_transposed: bool=True, transpose_output: bool=False, dtype: str = "float32") -> FDequantize:
+def decoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit: int, dim_length: tir.PrimExpr, data_transposed: bool=True, transpose_output: bool=False, dtype: str = "float32") -> FTEDequantize:
     def te_decode_asym(*args):
         n_float_per_u32 = 32 // nbit
         data = args[0]

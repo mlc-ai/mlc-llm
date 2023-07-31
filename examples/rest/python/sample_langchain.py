@@ -48,7 +48,7 @@ def llm_chain_example():
     output = llm_chain.predict(human_input="What does it mean?")
 
 def load_qa_chain_example():
-    loader = TextLoader('linux.txt')
+    loader = TextLoader('../resources/linux.txt')
     documents = loader.load()
     chain = load_qa_chain(llm=OpenAI(), chain_type="stuff", verbose=False)
     query = "When was Linux released?"

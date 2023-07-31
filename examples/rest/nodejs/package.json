@@ -1,0 +1,40 @@
+{
+  "name": "mlc-llm-js-examples",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "license": "AGPL-version-3.0",
+  "private": false,
+  "engines": {
+    "node": ">= 14.0.0",
+    "npm": ">= 6.0.0"
+  },
+  "homepage": "",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "bugs": "",
+  "keywords": [],
+  "author": {
+    "name": "",
+    "email": "",
+    "url": ""
+  },
+  "contributors": [],
+  "scripts": {
+    "example": "ts-node --esm ./sample_langchain.ts"
+  },
+  "dependencies": {
+    "@types/node": "^20.4.4",
+    "dotenv": "^16.3.1",
+    "langchain": "^0.0.117",
+    "needle": "^3.2.0",
+    "openai": "^3.3.0",
+    "typescript": "^5.1.6"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.1"
+  }
+}

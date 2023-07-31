@@ -4,8 +4,9 @@ from typing import Callable, List, Literal, Optional, Union
 
 from tvm import relax, te
 
-FQuantize = Callable[[te.Tensor], List[te.Tensor]]
-FDequantize = Callable[[List[te.Tensor]], te.Tensor]
+FQuantize = Callable[[relax.BlockBuilder, List[relax.Expr]], relax.Var]
+FTEQuantize = Callable[[te.Tensor], List[te.Tensor]]
+FTEDequantize = Callable[[List[te.Tensor]], te.Tensor]
 
 
 @dataclass
@@ -16,12 +17,14 @@ class QuantizationSpec:
     A subclass of QuantizationSpec
       - contains more data fields (e.g., the "group size" in group quantization)
       which instruct the quantization/dequantization,
-      - defines the `get_quantize_func` method, which returns a TE function
-      (`Callable[[te.Tensor], List[te.Tensor]]`) that describes the computation
+      - defines the `get_quantize_func` method, which returns a function
+      (`Callable[[relax.BlockBuilder, List[relax.Expr]], relax.Var]`) that takes a
+      Relax BlockBuilder and the weight relax Var to be quantized, computes
+      the quantization and returns the relax Var of quantized results.
       algorithm of the quantization.
-      - defines the `get_dequantize_func` method, which returns a TE function
-      (`Callable[[List[te.Tensor]], te.Tensor]`) that describes the computation
-      algorithm of the dequantization.
+      - defines the `get_dequantize_func` method, which returns function
+      (`Callable[[relax.BlockBuilder, List[relax.Expr]], relax.Var]`) that takes
+      the quantized results, computes and returns the dequantization result.
       - optionally overloads the `get_loaded_tensor_info` when the parameter is
       pre-quantized, in which case `get_loaded_tensor_info` needs to be overloaded
       so that we know how many quantized data tensors there are, and the dtype
@@ -46,9 +49,16 @@ class QuantizationSpec:
     def get_quantize_func(
         self, param_info: relax.TensorStructInfo
     ) -> Optional[FQuantize]:
-        """Returns the TE function which computes quantization.
+        """Returns the function which computes quantization.
         Returning `None` means the parameter does not need quantization or is
         pre-quantized.
+
+        The returned function takes a Relax BlockBuilder and a (list of) weight
+        relax Var to be quantized, computes the quantization and returns the
+        quantization result Relax Var(s).
+
+        You can use `convert_TE_func` to convert a TE function to the function
+        of the desired return format. See `group_quantization.py` for examples.
         """
         return NotImplementedError()
 
@@ -56,9 +66,16 @@ class QuantizationSpec:
         self,
         param_info: relax.TensorStructInfo,
         qparam_info: List[relax.TensorStructInfo],
-    ) -> Optional[FDequantize]:
-        """Returns the TE function which computes dequantization.
+    ) -> Optional[FQuantize]:
+        """Returns the function which computes dequantization.
         Returning `None` means the parameter does not need dequantization.
+
+        The returned function takes a Relax BlockBuilder and a (list of)
+        quantized weight relax Var, computes the dequantization and returns the
+        result Relax Var(s).
+
+        You can use `convert_TE_func` to convert a TE function to the function
+        of the desired return format. See `group_quantization.py` for examples.
         """
         return NotImplementedError()
 
@@ -76,7 +93,7 @@ class NoQuantizationSpec(QuantizationSpec):
         self,
         param_info: relax.TensorStructInfo,
         qparam_info: List[relax.TensorStructInfo],
-    ) -> Optional[FDequantize]:
+    ) -> Optional[FQuantize]:
         return None
 
 
@@ -108,12 +125,12 @@ class QuantizationScheme:
     final_fc_weight: QuantizationSpec
     others: QuantizationSpec
     pre_quantized: bool
-    
+
     """_base_model_prefix is used to match the parameter names when loading from pre-quantized pytorch checkpoints.
     Its value can vary depending on the transformer models used. For example, it can be "model" for Llama, "levit" for LeViT.
     see more candidates in huggingchat [modeling](https://github.com/huggingface/transformers/blob/src/transformers/models/llama/modeling_llama.py#L344) 
-    """ 
-    _base_model_prefix: str 
+    """
+    _base_model_prefix: str
 
     """_layers_block_name is used to match the parameter names when loading from pre-quantized pytorch checkpoints.
     the parameter names usually to be {_base_model_prefix}.{_layers_block_name}.{parameter_name}
@@ -121,9 +138,9 @@ class QuantizationScheme:
     For example, the parameter names of the linear layers in Llama are "model.model.encoder.layers.0.linear1.weight", 
     "model.model.encoder.layers.0.linear1.bias", etc.
     """
-    _layers_block_name: str 
+    _layers_block_name: str
 
-    '''_inside_layer_modules defines the names of the layers that are inside the quantize process.
+    """_inside_layer_modules defines the names of the layers that are inside the quantize process.
     
     For example, the autogptq scheme:
         ```python
@@ -134,15 +151,14 @@ class QuantizationScheme:
             ]
         ```
     represents the q, k, v projection layers, the output projection layer, and the mlp layers are quantized.
-    '''
-    _inside_layer_modules: List[List[str]] 
+    """
+    _inside_layer_modules: List[List[str]]
 
     """This optional callable function is used to load quantized parameters from the checkpoints.
     If the scheme is used for pre-quantized, this function must be provided.
     """
     _load_quantized_params_func: Optional[Callable]
 
-    
     def __init__(
         self,
         name: str,
@@ -180,7 +196,7 @@ class QuantizationScheme:
             self.final_fc_weight = self.linear_weight
         else:
             self.final_fc_weight = final_fc_weight
-        
+
         self.pre_quantized = pre_quantized
         self._base_model_prefix = _base_model_prefix
         self._layers_block_name = _layers_block_name
@@ -202,9 +218,18 @@ class QuantizationScheme:
             return self._load_quantized_params_func(*args, **kwargs)
         else:
             raise RuntimeError("The model is not pre-quantized.")
-    
+
     def get_layers_block_name(self) -> str:
         return self._layers_block_name
 
     def get_base_model_prefix(self) -> str:
         return self._base_model_prefix
+
+
+def convert_TE_func(
+    te_func: Union[FTEQuantize, FTEDequantize], func_name: str
+) -> FQuantize:
+    def func(bb: relax.BlockBuilder, inputs: List[relax.Expr]) -> relax.Var:
+        return bb.call_te(te_func, *inputs, primfunc_name_hint=func_name)
+
+    return func

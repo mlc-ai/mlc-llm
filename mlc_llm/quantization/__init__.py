@@ -1,4 +1,4 @@
-from .quantization import FQuantize, FDequantize
+from .quantization import FQuantize
 from .quantization import QuantizationScheme
 from .quantization import QuantizationSpec, NoQuantizationSpec, ParamQuantKind
 from .group_quantization import GroupQuantizationSpec

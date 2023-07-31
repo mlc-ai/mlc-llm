@@ -654,12 +654,14 @@ class LLMChat {
   }
 
   // do some quick evaluation of the pipeline
-  void Evaluate() {
+  void Evaluate(int64_t token_len, int64_t generate_len) {
     this->ResetKVCache();
-    std::string test_prompt = "The capital of Canada is";
-    std::vector<int32_t> tokens = tokenizer_->Encode(test_prompt);
+    std::vector<int32_t> tokens;
+    for (int i = 0; i < token_len - 1; ++i) {
+      tokens.push_back(2);
+    }
     tokens.insert(tokens.begin(), bos_token_id_);
-    int64_t token_len = static_cast<int64_t>(tokens.size());
+
     std::vector<int32_t> first_sample_data = {6234};
 
     // warm up: skip first run
@@ -667,30 +669,26 @@ class LLMChat {
     this->ForwardTokens(first_sample_data, token_len + 1);
     this->ResetKVCache();
 
-    // start recording
+    // encoding
     auto encoding_start = std::chrono::high_resolution_clock::now();
     this->ForwardTokens(tokens, token_len);
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    auto encoding_end = std::chrono::high_resolution_clock::now();
+    double encoding_ms = static_cast<double>((encoding_end - encoding_start).count()) / 1e6;
+    LOG(INFO) << "encoding-time=" << encoding_ms << "ms, ";
 
-    auto decoding_start = std::chrono::high_resolution_clock::now();
-
-    this->UpdateLogitsOrProbOnCPUSync(this->ForwardTokens(first_sample_data, token_len + 1));
-    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
-    auto decoding_end = std::chrono::high_resolution_clock::now();
-
-    // print first few logits for eyeballs
-    std::ostringstream os;
-    for (int i = 0; i < 10; ++i) {
-      if (i != 0) os << ", ";
-      os << static_cast<float*>(logits_on_cpu_->data)[i];
+    double decoding_ms_total = 0;
+    // start encoding
+    for (int i = 0; i < generate_len; ++i) {
+      auto decoding_start = std::chrono::high_resolution_clock::now();
+      this->UpdateLogitsOrProbOnCPUSync(this->ForwardTokens(first_sample_data, token_len + i + 1));
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+      auto decoding_end = std::chrono::high_resolution_clock::now();
+      double decoding_ms = static_cast<double>((decoding_end - decoding_start).count()) / 1e6;
+      decoding_ms_total += decoding_ms;
+      LOG(INFO) << "[i: " << token_len + i + 1 << "] decoding-time=" << decoding_ms << "ms"
+                << " tok/s: " << 1000.0 * (i + 1) / decoding_ms_total << ".";
     }
-    LOG(INFO) << "logits[:10] =[" << os.str() << "]";
-
-    double encoding_ms = static_cast<double>((decoding_start - encoding_start).count()) / 1e6;
-    double decoding_ms = static_cast<double>((decoding_end - decoding_start).count()) / 1e6;
-
-    LOG(INFO) << "encoding-time=" << encoding_ms << "ms, "
-              << "decoding-time=" << decoding_ms << "ms.";
   }
 
  private:
@@ -1012,8 +1010,10 @@ class LLMChatModule : public ModuleNode {
         ClearGlobalMemoryManager();
       });
     } else if (name == "evaluate") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->Evaluate(); });
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 2);
+        GetChat()->Evaluate(args[0], args[1]);
+      });
     } else if (name == "prefill") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK(1 <= args.size() && args.size() <= 3);
