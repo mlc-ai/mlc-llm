@@ -26,18 +26,18 @@ from mlc_llm.relax_model import (
 
 @dataclass
 class BuildArgs:
-    r"""BuildArgs is the dataclass that organizes the arguments we use in 
-    building a model. 
-    
-    To use :meth:`mlc_llm.build_model`, users pass in an instance of :class:`BuildArgs`; for 
+    r"""BuildArgs is the dataclass that organizes the arguments we use in
+    building a model.
+
+    To use :meth:`mlc_llm.build_model`, users pass in an instance of :class:`BuildArgs`; for
     CLI entry points, an equivalent :class:`ArgumentParser` instance is generated based
     on the definition of this class using :meth:`mlc_llm.convert_build_args_to_argparser`.
-    
+
     Parameters
     ----------
     model: str
         The name of the model to build. If it is ``auto``, we will automatically
-        set the model name according to ``--model-path``, ``hf-path``, or the model 
+        set the model name according to ``--model-path``, ``hf-path``, or the model
         folders under ``--artifact-path/models``.
     hf_path: str
         Hugging Face path from which to download params, tokenizer, and config.
@@ -55,6 +55,11 @@ class BuildArgs:
         Where to store the output.
     use_cache: int
         Whether to use previously pickled IRModule and skip trace.
+    convert_weight_only: bool
+        Whether to only convert model weights and not build the model. If both
+        ``convert_weight_only`` and ``build_model_only`` are set, the behavior is undefined.
+    build_model_only: bool
+        Whether to only build model and do not convert model weights.
     debug_dump: bool
         Whether to dump debugging files during compilation.
     debug_load_script: bool
