@@ -519,7 +519,7 @@ def get_model(args):
             return mod, param_manager, None
 
         param_manager.set_param_loading_func(
-            args.model_path, no_lazy_param_loading=True
+            args.model_path, args.use_safetensors, no_lazy_param_loading=True
         )
 
         # load visual encoder weights

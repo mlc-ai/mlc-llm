@@ -12,6 +12,7 @@ from .quantization import FQuantize, FTEDequantize, convert_TE_func
 
 def load_autogptq_params(
     model_path: str,
+    use_safetensors: bool,
     param_list: List[relax.Var],
     pidx2pname: Dict[int, str],
     device: Device,
@@ -26,7 +27,9 @@ def load_autogptq_params(
 
     from auto_gptq import AutoGPTQForCausalLM
 
-    model = AutoGPTQForCausalLM.from_quantized(model_path).cpu()
+    model = AutoGPTQForCausalLM.from_quantized(
+        model_path, use_safetensors=use_safetensors
+    ).cpu()
     param_dict = model.state_dict()
     for pidx, pname in pidx2pname.items():
         if any(excluded_param in pname for excluded_param in excluded_params):

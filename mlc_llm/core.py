@@ -123,6 +123,16 @@ class BuildArgs:
             "action": "store_true",
         },
     )
+    use_safetensors: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Use ``.safetensors`` instead of the default ``.bin`` when loading "
+                "model weights."
+            ),
+            "action": "store_true",
+        },
+    )
 
 
 def convert_build_args_to_argparser() -> argparse.ArgumentParser:

@@ -1,7 +1,8 @@
 import json
 import os
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
+from torch import Tensor as torchTensor
 import tvm
 from tvm import relax, tir
 from tvm._ffi.runtime_ctypes import Device
@@ -145,6 +146,13 @@ class ParamManager:
     model_path : str
         The path of the Hugging Face model on disk.
 
+    use_safetensors: bool
+        Whether to use `.safetensors` instead of `.bin` to load model.
+
+    safetensors_load_func: Callable[[Union[str, os.PathLike], str], Dict[str, torch.Tensor]]
+        A reference to the function `load_file` improted from `safetensors.torch`.
+        The goal is to prevent repeatedly importing in a tvm registered function.
+
     pidx2pname : Dict[int, str]
         The dictionary from each Relax parameter's index in `param_names` to
         the Relax parameter's name.
@@ -168,6 +176,10 @@ class ParamManager:
     f_compute_relax_param: Callable[[str, List[Any]], Any]
 
     model_path: str
+    use_safetensors: bool
+    safetensors_load_func: Callable[
+        [Union[str, os.PathLike], str], Dict[str, torchTensor]
+    ]
     pidx2pname: Dict[int, str]
     torch_pname2binname: Dict[str, str]
 
@@ -256,6 +268,7 @@ class ParamManager:
     def set_param_loading_func(
         self,
         model_path: str,
+        use_safetensors: bool,
         f_convert_pname_fwd: Callable[[str], List[str]] = lambda pname: [pname],
         f_convert_param_bkwd: Callable[
             [str, Any], Optional[List[Tuple[str, Any]]]
@@ -272,6 +285,9 @@ class ParamManager:
         ----------
         model_path : str
             The path of the Hugging Face model on disk.
+
+        use_safetensors : bool
+            Whether to use ``.safetensors`` instead of ``.bin`` to load model.
 
         f_convert_pname_fwd : Callable[[str], List[str]]
             The function which converts Relax parameter name (ours) to torch's
@@ -297,12 +313,21 @@ class ParamManager:
         self.f_compute_relax_param = f_compute_relax_param
 
         self.model_path = model_path
+        self.use_safetensors = use_safetensors
+        if self.use_safetensors:
+            # Use a pointer here to prevent repeated import in tvm registered function
+            # pylint: disable=import-outside-toplevel
+            from safetensors.torch import load_file
+
+            self.safetensors_load_func = load_file
+            # pylint: enable=import-outside-toplevel
         if not no_lazy_param_loading:
             self.pidx2pname = {
                 pidx: pname for pidx, pname in enumerate(self.param_names)
             }
             self.torch_pname2binname = load_torch_pname2binname_map(
                 self.model_path,
+                self.use_safetensors,
                 set(self.pidx2pname.values()),
                 f_convert_pname_fwd=f_convert_pname_fwd,
             )
@@ -499,10 +524,15 @@ class ParamManager:
                 return torch_param.detach().cpu().numpy()
 
         def load_torch_params_from_bin(torch_binname: str):
-            torch_params = torch.load(
-                os.path.join(self.model_path, torch_binname),
-                map_location=torch.device("cpu"),
-            )
+            torch_binpath = os.path.join(self.model_path, torch_binname)
+            torch_params = None
+            if self.use_safetensors:
+                torch_params = self.safetensors_load_func(torch_binpath)
+            else:
+                torch_params = torch.load(
+                    torch_binpath,
+                    map_location=torch.device("cpu"),
+                )
             torch_param_names = list(torch_params.keys())
             for torch_param_name in torch_param_names:
                 torch_param = fetch_torch_param(torch_params[torch_param_name])
@@ -774,6 +804,7 @@ class ParamReplacer(PyExprMutator):
 
 def load_torch_pname2binname_map(
     model_path: str,
+    use_safetensors: bool,
     relax_pnames: Set[str],
     f_convert_pname_fwd: Callable[[str], List[str]] = lambda pname: [pname],
 ) -> Dict[str, str]:
@@ -785,6 +816,9 @@ def load_torch_pname2binname_map(
     model_path : str
         The path of the Hugging Face model on disk.
 
+    use_safetensors: bool
+        Whether to use ``.safetensors`` instead of ``.bin`` to load model.
+
     relax_pnames: Set[str]
         The name of the Relax parameters.
 
@@ -792,7 +826,15 @@ def load_torch_pname2binname_map(
         The function which converts Relax parameter name to torch's
         parameter names. See ParamManager for more details.
     """
-    bin_idx_path = os.path.join(model_path, "pytorch_model.bin.index.json")
+    bin_idx_path = None
+    single_shard_file_name = None
+    if use_safetensors:
+        bin_idx_path = os.path.join(model_path, "model.safetensors.index.json")
+        single_shard_file_name = "model.safetensors"
+    else:
+        bin_idx_path = os.path.join(model_path, "pytorch_model.bin.index.json")
+        single_shard_file_name = "pytorch_model.bin"
+
     if os.path.isfile(bin_idx_path):
         # Multiple weight shards.
         with open(bin_idx_path, "r") as f_torch_json:
@@ -800,10 +842,10 @@ def load_torch_pname2binname_map(
             torch_pname2binname = torch_bin_json["weight_map"]
     else:
         # Single weight shard.
-        single_shard_path = os.path.join(model_path, "pytorch_model.bin")
+        single_shard_path = os.path.join(model_path, single_shard_file_name)
         assert os.path.isfile(single_shard_path)
         torch_pname2binname = {
-            torch_pname: "pytorch_model.bin"
+            torch_pname: single_shard_file_name
             for relax_pname in relax_pnames
             for torch_pname in f_convert_pname_fwd(relax_pname)
         }
