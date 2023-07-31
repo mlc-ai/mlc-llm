@@ -58,19 +58,19 @@ your personal computer.
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target metal --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target metal --quantization q4f16_1
 
         On Apple Silicon powered Mac, compile for x86 Mac:
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target metal_x86_64 --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target metal_x86_64 --quantization q4f16_1
 
     .. group-tab:: Linux - CUDA
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target cuda --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target cuda --quantization q4f16_1
 
     .. group-tab:: Vulkan
 
@@ -78,19 +78,19 @@ your personal computer.
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_1
 
         On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_0 --llvm-mingw path/to/llvm-mingw
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_1 --llvm-mingw path/to/llvm-mingw
 
     .. group-tab:: iOS/iPadOS
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q4f16_1
 
         .. note::
             If it runs into error
@@ -108,13 +108,13 @@ your personal computer.
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target android --max-seq-len 768 --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target android --max-seq-len 768 --quantization q4f16_1
 
     .. group-tab:: WebGPU
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target webgpu --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target webgpu --quantization q4f16_1
 
 By executing the compile command above, we generate the model weights, model lib, and a chat config.
 We can check the output with the commands below:
@@ -125,12 +125,12 @@ We can check the output with the commands below:
 
         .. code:: shell
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0
-              RedPajama-INCITE-Chat-3B-v1-q4f16_0-metal.so     # ===> the model library
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+              RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so     # ===> the model library
               mod_cache_before_build_metal.pkl                 # ===> a cached file for future builds
               params                                           # ===> containing the model weights, tokenizer and chat config
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
               mlc-chat-config.json                             # ===> the chat config
               ndarray-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
@@ -144,21 +144,21 @@ We can check the output with the commands below:
         .. code:: shell
 
             # Run CLI
-            mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
+            mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_1
 
-       The CLI will use the config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json``
-       and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-metal.so``.
+       The CLI will use the config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json``
+       and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so``.
 
     .. group-tab:: Linux - CUDA
 
         .. code:: shell
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0
-              RedPajama-INCITE-Chat-3B-v1-q4f16_0-cuda.so      # ===> the model library
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+              RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so      # ===> the model library
               mod_cache_before_build_cuda.pkl                  # ===> a cached file for future builds
               params                                           # ===> containing the model weights, tokenizer and chat config
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
               mlc-chat-config.json                             # ===> the chat config
               ndarray-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
@@ -173,21 +173,21 @@ We can check the output with the commands below:
         .. code:: shell
 
             # Run CLI
-            mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
+            mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_1
 
-        The CLI app using config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json``
-        and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-cuda.so``.
+        The CLI app using config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json``
+        and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so``.
 
     .. group-tab:: Vulkan
 
         .. code:: shell
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0
-              RedPajama-INCITE-Chat-3B-v1-q4f16_0-vulkan.so    # ===> the model library (will be .dll when built for Windows)
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+              RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so    # ===> the model library (will be .dll when built for Windows)
               mod_cache_before_build_vulkan.pkl                # ===> a cached file for future builds
               params                                           # ===> containing the model weights, tokenizer and chat config
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
               mlc-chat-config.json                             # ===> the chat config
               ndarray-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
@@ -201,21 +201,21 @@ We can check the output with the commands below:
         .. code:: shell
 
             # Run CLI
-            mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
+            mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_1
 
-        CLI app will use config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json``
-        and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-vulkan.so`` (or ``.dll``).
+        CLI app will use config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json``
+        and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so`` (or ``.dll``).
 
     .. group-tab:: iOS/iPadOS
 
         .. code:: shell
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0
-              RedPajama-INCITE-Chat-3B-v1-q4f16_0-iphone.tar   # ===> the model library
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+              RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar   # ===> the model library
               mod_cache_before_build_iphone.pkl                # ===> a cached file for future builds
               params                                           # ===> containing the model weights, tokenizer and chat config
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
               mlc-chat-config.json                             # ===> the chat config
               ndarray-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
@@ -224,19 +224,19 @@ We can check the output with the commands below:
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
-        The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-iphone.tar``
+        The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar``
         will be packaged as a static library into the iOS app. Checkout :ref:`deploy-ios` for more details.
 
     .. group-tab:: Android
 
         .. code:: shell
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0
-              RedPajama-INCITE-Chat-3B-v1-q4f16_0-android.tar  # ===> the model library
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+              RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar  # ===> the model library
               mod_cache_before_build_android.pkl               # ===> a cached file for future builds
               params                                           # ===> containing the model weights, tokenizer and chat config
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
               mlc-chat-config.json                             # ===> the chat config
               ndarray-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
@@ -245,19 +245,19 @@ We can check the output with the commands below:
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
-        The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-android.tar``
+        The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar``
         will be packaged as a static library into the android app. Checkout :ref:`deploy-android` for more details.
 
     .. group-tab:: WebGPU
 
         .. code:: shell
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0
-              RedPajama-INCITE-Chat-3B-v1-q4f16_0-webgpu.wasm  # ===> the model library
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+              RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm  # ===> the model library
               mod_cache_before_build_webgpu.pkl                # ===> a cached file for future builds
               params                                           # ===> containing the model weights, tokenizer and chat config
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
               mlc-chat-config.json                             # ===> the chat config
               ndarray-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
@@ -266,7 +266,7 @@ We can check the output with the commands below:
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
-        The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-webgpu.wasm``
+        The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm``
         can be uploaded to internet. You can pass a ``model_lib_map`` field to WebLLM app config to use this library.
 
 
@@ -317,7 +317,7 @@ Another two necessary arguments for the compile command are the target and the q
                                     ``vulkan``, ``cuda``, ``webgpu``, ``android``, and ``opencl``.
 --quantization QUANTIZATION_MODE    The quantization mode we use to compile.
                                     The format of the code is ``qAfB(_0)``, where ``A`` represents the number of bits for storing weights and ``B`` represents the number of bits for storing activations.
-                                    Available options are: ``q3f16_0``, ``q4f16_0``, ``q4f32_0``, ``q0f32``, ``q0f16``, and ``q8f16_0`` (``q8f16_0`` is mainly designed for RWKV).
+                                    Available options are: ``q3f16_0``, ``q4f16_1``, ``q4f32_0``, ``q0f32``, ``q0f16``, and ``q8f16_0`` (``q8f16_0`` is mainly designed for RWKV).
                                     We encourage you to use 4-bit quantization, as the text generated by 3-bit quantized models may have bad quality depending on the model.
 
 The following arguments are optional:
@@ -455,7 +455,7 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target android --max-seq-len 768 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target android --max-seq-len 768 --quantization q4f16_1
 
     .. tab:: RedPajama-v1-3B
 
@@ -465,7 +465,7 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target cuda --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target cuda --quantization q4f16_1
 
             .. tab:: Metal
 
@@ -473,13 +473,13 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target metal --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target metal --quantization q4f16_1
 
                 On Apple Silicon powered Mac, compile for x86 Mac:
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target metal_x86_64 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target metal_x86_64 --quantization q4f16_1
 
             .. tab:: Vulkan
 
@@ -487,31 +487,31 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_1
 
                 On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_0 --llvm-mingw path/to/llvm-mingw
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_1 --llvm-mingw path/to/llvm-mingw
 
             .. tab:: WebGPU
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target webgpu --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target webgpu --quantization q4f16_1
 
             .. tab:: iPhone/iPad
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q4f16_1
 
             .. tab:: Android
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target android --max-seq-len 768 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target android --max-seq-len 768 --quantization q4f16_1
 
     .. tab:: rwkv-raven-1b5/3b/7b
 
@@ -596,7 +596,7 @@ This section lists compile commands for more models that you can try out.
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target cuda --quantization q4f16_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target cuda --quantization q4f16_1
 
             .. tab:: Metal
 
@@ -605,14 +605,14 @@ This section lists compile commands for more models that you can try out.
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target metal --quantization q4f16_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target metal --quantization q4f16_1
 
                 On Apple Silicon powered Mac, compile for x86 Mac:
 
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target metal_x86_64 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target metal_x86_64 --quantization q4f16_1
 
             .. tab:: Vulkan
 
@@ -621,14 +621,14 @@ This section lists compile commands for more models that you can try out.
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target vulkan --quantization q4f16_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target vulkan --quantization q4f16_1
 
                 On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
 
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target vulkan --quantization q4f16_0 --llvm-mingw path/to/llvm-mingw
+                    python3 -m mlc_llm.build --model MODEL_NAME --target vulkan --quantization q4f16_1 --llvm-mingw path/to/llvm-mingw
 
             .. tab:: WebGPU
 
@@ -642,14 +642,14 @@ This section lists compile commands for more models that you can try out.
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target iphone --max-seq-len 768 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target iphone --max-seq-len 768 --quantization q4f16_1
 
             .. tab:: Android
 
                 .. code:: shell
 
                     # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target android --max-seq-len 768 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model MODEL_NAME --target android --max-seq-len 768 --quantization q4f16_1
 
 
 For each model and each backend, the above only provides the most recommended build command (which is the most optimized). You can also try with different argument values (e.g., different quantization modes), whose build results may not run as fast and robustly as the provided one when running the model.

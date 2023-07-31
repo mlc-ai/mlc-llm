@@ -1,18 +1,18 @@
 {
-    "model_libs": [
-        "Llama-2-7b-chat-hf-q3f16_1",
-        "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
-    ],
-    "model_list": [
-        {
-            "model_url": "https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/",
-            "local_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
-        }
-    ],
-    "add_model_samples": [
-        {
-            "model_url": "https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/",
-            "local_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
-        }
-    ]
+  "model_libs": [
+    "Llama-2-7b-chat-hf-q3f16_1",
+    "RedPajama-INCITE-Chat-3B-v1-q4f16_1"
+  ],
+  "model_list": [
+    {
+      "model_url": "https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1/",
+      "local_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1"
+    }
+  ],
+  "add_model_samples": [
+    {
+      "model_url": "https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1/",
+      "local_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1"
+    }
+  ]
 }
