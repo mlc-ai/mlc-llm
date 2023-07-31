@@ -346,25 +346,25 @@ We strongly recommend you <strong>start with Metal/CUDA/Vulkan</strong> as it is
 your personal computer.</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-TWV0YWw=" aria-selected="true" class="sphinx-tabs-tab group-tab" id="tab-0-TWV0YWw=" name="TWV0YWw=" role="tab" tabindex="0">Metal</button><button aria-controls="panel-0-TGludXggLSBDVURB" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tab" tabindex="-1">Linux - CUDA</button><button aria-controls="panel-0-VnVsa2Fu" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-VnVsa2Fu" name="VnVsa2Fu" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-0-aU9TL2lQYWRPUw==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tab" tabindex="-1">iOS/iPadOS</button><button aria-controls="panel-0-QW5kcm9pZA==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tab" tabindex="-1">Android</button><button aria-controls="panel-0-V2ViR1BV" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-V2ViR1BV" name="V2ViR1BV" role="tab" tabindex="-1">WebGPU</button></div><div aria-labelledby="tab-0-TWV0YWw=" class="sphinx-tabs-panel group-tab" id="panel-0-TWV0YWw=" name="TWV0YWw=" role="tabpanel" tabindex="0"><p>On Apple Silicon powered Mac, compile for Apple Silicon Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 <p>On Apple Silicon powered Mac, compile for x86 Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-0-TGludXggLSBDVURB" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+</div><div aria-labelledby="tab-0-TGludXggLSBDVURB" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-0-VnVsa2Fu" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-VnVsa2Fu" name="VnVsa2Fu" role="tabpanel" tabindex="0"><p>On Linux, compile for Linux:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 <p>On Linux, compile for Windows: please first install the <a class="reference external" href="https://github.com/mstorsjo/llvm-mingw">LLVM-MinGW</a> toolchain, and substitute the <code class="docutils literal notranslate"><span class="pre">path/to/llvm-mingw</span></code> in the command with your LLVM-MinGW installation path.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-0-aU9TL2lQYWRPUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+</div><div aria-labelledby="tab-0-aU9TL2lQYWRPUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 <div class="admonition note">
@@ -378,10 +378,10 @@ xcrun: error: unable to find utility &quot;metallib&quot;, not a developer tool 
 <p>, please check and make sure you have Command Line Tools for Xcode installed correctly.
 You can use <code class="docutils literal notranslate"><span class="pre">xcrun</span> <span class="pre">metal</span></code> to validate: when it prints <code class="docutils literal notranslate"><span class="pre">metal:</span> <span class="pre">error:</span> <span class="pre">no</span> <span class="pre">input</span> <span class="pre">files</span></code>, it means the Command Line Tools for Xcode is installed and can be found, and you can proceed the model compiling.</p>
 </div>
-</div><div aria-labelledby="tab-0-QW5kcm9pZA==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+</div><div aria-labelledby="tab-0-QW5kcm9pZA==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-0-V2ViR1BV" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-V2ViR1BV" name="V2ViR1BV" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>webgpu<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+</div><div aria-labelledby="tab-0-V2ViR1BV" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-V2ViR1BV" name="V2ViR1BV" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>webgpu<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 </div></div>
@@ -389,12 +389,12 @@ You can use <code class="docutils literal notranslate"><span class="pre">xcrun</
 We can check the output with the commands below:</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-TWV0YWw=" aria-selected="true" class="sphinx-tabs-tab group-tab" id="tab-1-TWV0YWw=" name="TWV0YWw=" role="tab" tabindex="0">Metal</button><button aria-controls="panel-1-TGludXggLSBDVURB" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tab" tabindex="-1">Linux - CUDA</button><button aria-controls="panel-1-VnVsa2Fu" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-VnVsa2Fu" name="VnVsa2Fu" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-1-aU9TL2lQYWRPUw==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tab" tabindex="-1">iOS/iPadOS</button><button aria-controls="panel-1-QW5kcm9pZA==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tab" tabindex="-1">Android</button><button aria-controls="panel-1-V2ViR1BV" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-V2ViR1BV" name="V2ViR1BV" role="tab" tabindex="-1">WebGPU</button></div><div aria-labelledby="tab-1-TWV0YWw=" class="sphinx-tabs-panel group-tab" id="panel-1-TWV0YWw=" name="TWV0YWw=" role="tabpanel" tabindex="0"><blockquote>
-<div><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0
-<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0-metal.so<span class="w">     </span><span class="c1"># ===&gt; the model library</span>
+<div><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so<span class="w">     </span><span class="c1"># ===&gt; the model library</span>
 <span class="w">  </span>mod_cache_before_build_metal.pkl<span class="w">                 </span><span class="c1"># ===&gt; a cached file for future builds</span>
 <span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
@@ -406,18 +406,18 @@ We can check the output with the commands below:</p>
 </div>
 <p>We now chat with the model using the command line interface (CLI) app.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run CLI</span>
-mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0
+mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1
 </pre></div>
 </div>
 </div></blockquote>
-<p>The CLI will use the config file <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json</span></code>
-and model library <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-metal.so</span></code>.</p>
-</div><div aria-labelledby="tab-1-TGludXggLSBDVURB" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0
-<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0-cuda.so<span class="w">      </span><span class="c1"># ===&gt; the model library</span>
+<p>The CLI will use the config file <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json</span></code>
+and model library <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so</span></code>.</p>
+</div><div aria-labelledby="tab-1-TGludXggLSBDVURB" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so<span class="w">      </span><span class="c1"># ===&gt; the model library</span>
 <span class="w">  </span>mod_cache_before_build_cuda.pkl<span class="w">                  </span><span class="c1"># ===&gt; a cached file for future builds</span>
 <span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
@@ -430,17 +430,17 @@ and model library <code class="docutils literal notranslate"><span class="pre">d
 <p>We now chat with the model using the command line interface (CLI) app.
 Follow the build from source instruction</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run CLI</span>
-mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0
+mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1
 </pre></div>
 </div>
-<p>The CLI app using config file <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json</span></code>
-and model library <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-cuda.so</span></code>.</p>
-</div><div aria-labelledby="tab-1-VnVsa2Fu" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-VnVsa2Fu" name="VnVsa2Fu" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0
-<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0-vulkan.so<span class="w">    </span><span class="c1"># ===&gt; the model library (will be .dll when built for Windows)</span>
+<p>The CLI app using config file <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json</span></code>
+and model library <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so</span></code>.</p>
+</div><div aria-labelledby="tab-1-VnVsa2Fu" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-VnVsa2Fu" name="VnVsa2Fu" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so<span class="w">    </span><span class="c1"># ===&gt; the model library (will be .dll when built for Windows)</span>
 <span class="w">  </span>mod_cache_before_build_vulkan.pkl<span class="w">                </span><span class="c1"># ===&gt; a cached file for future builds</span>
 <span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
@@ -452,17 +452,17 @@ and model library <code class="docutils literal notranslate"><span class="pre">d
 </div>
 <p>We can further quickly run and validate the model compilation using the command line interface (CLI) app.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run CLI</span>
-mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0
+mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1
 </pre></div>
 </div>
-<p>CLI app will use config file <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params/mlc-chat-config.json</span></code>
-and model library <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-vulkan.so</span></code> (or <code class="docutils literal notranslate"><span class="pre">.dll</span></code>).</p>
-</div><div aria-labelledby="tab-1-aU9TL2lQYWRPUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0
-<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0-iphone.tar<span class="w">   </span><span class="c1"># ===&gt; the model library</span>
+<p>CLI app will use config file <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json</span></code>
+and model library <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so</span></code> (or <code class="docutils literal notranslate"><span class="pre">.dll</span></code>).</p>
+</div><div aria-labelledby="tab-1-aU9TL2lQYWRPUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar<span class="w">   </span><span class="c1"># ===&gt; the model library</span>
 <span class="w">  </span>mod_cache_before_build_iphone.pkl<span class="w">                </span><span class="c1"># ===&gt; a cached file for future builds</span>
 <span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
@@ -472,14 +472,14 @@ and model library <code class="docutils literal notranslate"><span class="pre">d
 <span class="w">  </span>tokenizer_config.json
 </pre></div>
 </div>
-<p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-iphone.tar</span></code>
+<p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar</span></code>
 will be packaged as a static library into the iOS app. Checkout <a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS App and Swift API</span></a> for more details.</p>
-</div><div aria-labelledby="tab-1-QW5kcm9pZA==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0
-<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0-android.tar<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
+</div><div aria-labelledby="tab-1-QW5kcm9pZA==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
 <span class="w">  </span>mod_cache_before_build_android.pkl<span class="w">               </span><span class="c1"># ===&gt; a cached file for future builds</span>
 <span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
@@ -489,14 +489,14 @@ will be packaged as a static library into the iOS app. Checkout <a class="refere
 <span class="w">  </span>tokenizer_config.json
 </pre></div>
 </div>
-<p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-android.tar</span></code>
+<p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar</span></code>
 will be packaged as a static library into the android app. Checkout <a class="reference internal" href="../deploy/android.html#deploy-android"><span class="std std-ref">Android App</span></a> for more details.</p>
-</div><div aria-labelledby="tab-1-V2ViR1BV" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-V2ViR1BV" name="V2ViR1BV" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0
-<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0-webgpu.wasm<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
+</div><div aria-labelledby="tab-1-V2ViR1BV" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-V2ViR1BV" name="V2ViR1BV" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
 <span class="w">  </span>mod_cache_before_build_webgpu.pkl<span class="w">                </span><span class="c1"># ===&gt; a cached file for future builds</span>
 <span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
@@ -506,7 +506,7 @@ will be packaged as a static library into the android app. Checkout <a class="re
 <span class="w">  </span>tokenizer_config.json
 </pre></div>
 </div>
-<p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_0/RedPajama-INCITE-Chat-3B-v1-q4f16_0-webgpu.wasm</span></code>
+<p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm</span></code>
 can be uploaded to internet. You can pass a <code class="docutils literal notranslate"><span class="pre">model_lib_map</span></code> field to WebLLM app config to use this library.</p>
 </div></div>
 <p>Each compilation target produces a specific model library for the given platform. The model weight is shared across
@@ -558,7 +558,7 @@ Besides <code class="docutils literal notranslate"><span class="pre">auto</span>
 <dt><kbd><span class="option">--quantization <var>QUANTIZATION_MODE</var></span></kbd></dt>
 <dd><p>The quantization mode we use to compile.
 The format of the code is <code class="docutils literal notranslate"><span class="pre">qAfB(_0)</span></code>, where <code class="docutils literal notranslate"><span class="pre">A</span></code> represents the number of bits for storing weights and <code class="docutils literal notranslate"><span class="pre">B</span></code> represents the number of bits for storing activations.
-Available options are: <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f16_0</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f32_0</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f16</span></code>, and <code class="docutils literal notranslate"><span class="pre">q8f16_0</span></code> (<code class="docutils literal notranslate"><span class="pre">q8f16_0</span></code> is mainly designed for RWKV).
+Available options are: <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f32_0</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f16</span></code>, and <code class="docutils literal notranslate"><span class="pre">q8f16_0</span></code> (<code class="docutils literal notranslate"><span class="pre">q8f16_0</span></code> is mainly designed for RWKV).
 We encourage you to use 4-bit quantization, as the text generated by 3-bit quantized models may have bad quality depending on the model.</p>
 </dd>
 </dl>
@@ -650,37 +650,37 @@ git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/m
 </div><div aria-labelledby="tab-4-4-4" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-4" name="4-4" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q3f16_0
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-4-4-5" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-5" name="4-5" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+</div><div aria-labelledby="tab-4-4-5" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-5" name="4-5" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 </div></div>
 </div><div aria-labelledby="tab-2-2-2" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-2" name="2-2" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-5-5-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-5-5-0" name="5-0" role="tab" tabindex="0">Target: CUDA</button><button aria-controls="panel-5-5-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-1" name="5-1" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-5-5-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-2" name="5-2" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-5-5-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-3" name="5-3" role="tab" tabindex="-1">WebGPU</button><button aria-controls="panel-5-5-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-4" name="5-4" role="tab" tabindex="-1">iPhone/iPad</button><button aria-controls="panel-5-5-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-5" name="5-5" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-5-5-0" class="sphinx-tabs-panel" id="panel-5-5-0" name="5-0" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-5-5-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-5-5-0" name="5-0" role="tab" tabindex="0">Target: CUDA</button><button aria-controls="panel-5-5-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-1" name="5-1" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-5-5-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-2" name="5-2" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-5-5-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-3" name="5-3" role="tab" tabindex="-1">WebGPU</button><button aria-controls="panel-5-5-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-4" name="5-4" role="tab" tabindex="-1">iPhone/iPad</button><button aria-controls="panel-5-5-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-5" name="5-5" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-5-5-0" class="sphinx-tabs-panel" id="panel-5-5-0" name="5-0" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-5-5-1" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-1" name="5-1" role="tabpanel" tabindex="0"><p>On Apple Silicon powered Mac, compile for Apple Silicon Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 <p>On Apple Silicon powered Mac, compile for x86 Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-5-5-2" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-2" name="5-2" role="tabpanel" tabindex="0"><p>On Linux, compile for Linux:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 <p>On Linux, compile for Windows: please first install the <a class="reference external" href="https://github.com/mstorsjo/llvm-mingw">LLVM-MinGW</a> toolchain, and substitute the <code class="docutils literal notranslate"><span class="pre">path/to/llvm-mingw</span></code> in the command with your LLVM-MinGW installation path.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-5-5-3" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-3" name="5-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>webgpu<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+</div><div aria-labelledby="tab-5-5-3" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-3" name="5-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>webgpu<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-5-5-4" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-4" name="5-4" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+</div><div aria-labelledby="tab-5-5-4" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-4" name="5-4" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-5-5-5" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-5" name="5-5" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+</div><div aria-labelledby="tab-5-5-5" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-5" name="5-5" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 </div></div>
@@ -740,27 +740,27 @@ python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span clas
 </div></div>
 </div><div aria-labelledby="tab-2-2-4" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-4" name="2-4" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-7-7-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-7-7-0" name="7-0" role="tab" tabindex="0">Target: CUDA</button><button aria-controls="panel-7-7-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-7-7-1" name="7-1" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-7-7-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-7-7-2" name="7-2" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-7-7-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-7-7-3" name="7-3" role="tab" tabindex="-1">WebGPU</button><button aria-controls="panel-7-7-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-7-7-4" name="7-4" role="tab" tabindex="-1">iPhone/iPad</button><button aria-controls="panel-7-7-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-7-7-5" name="7-5" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-7-7-0" class="sphinx-tabs-panel" id="panel-7-7-0" name="7-0" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-7-7-1" class="sphinx-tabs-panel" hidden="true" id="panel-7-7-1" name="7-1" role="tabpanel" tabindex="0"><p>On Apple Silicon powered Mac, compile for Apple Silicon Mac:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 <p>On Apple Silicon powered Mac, compile for x86 Mac:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-7-7-2" class="sphinx-tabs-panel" hidden="true" id="panel-7-7-2" name="7-2" role="tabpanel" tabindex="0"><p>On Linux, compile for Linux:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 <p>On Linux, compile for Windows: please first install the <a class="reference external" href="https://github.com/mstorsjo/llvm-mingw">LLVM-MinGW</a> toolchain, and substitute the <code class="docutils literal notranslate"><span class="pre">path/to/llvm-mingw</span></code> in the command with your LLVM-MinGW installation path.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
+python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-7-7-3" class="sphinx-tabs-panel" hidden="true" id="panel-7-7-3" name="7-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
@@ -768,11 +768,11 @@ python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span clas
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-7-7-4" class="sphinx-tabs-panel" hidden="true" id="panel-7-7-4" name="7-4" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-7-7-5" class="sphinx-tabs-panel" hidden="true" id="panel-7-7-5" name="7-5" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 </div></div>

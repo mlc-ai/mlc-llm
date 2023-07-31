@@ -322,29 +322,29 @@
 either build the model using a Hugging Face URL, or a local
 directory. For Vicuna weights, please follow our <a class="reference internal" href="../compilation/get-vicuna-weight.html"><span class="doc">Getting Vicuna Weights</span></a> tutorial.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># From mlc-llm project directory</span>
-python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>path/to/vicuna-v1-7b<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span>
+python3<span class="w"> </span>build.py<span class="w"> </span>--model<span class="w"> </span>path/to/vicuna-v1-7b<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span>
 
 <span class="c1"># If the model path is `dist/models/vicuna-v1-7b`,</span>
 <span class="c1"># we can simplify the build command to</span>
-<span class="c1"># python build.py --model vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768</span>
+<span class="c1"># python build.py --model vicuna-v1-7b --quantization q4f16_1 --target android --max-seq-len 768</span>
 </pre></div>
 </div>
 </li>
 <li><p>Configure the <code class="docutils literal notranslate"><span class="pre">model_libs</span></code> in <code class="docutils literal notranslate"><span class="pre">android/MLCChat/app/src/main/assets/app-config.json</span></code>:</p>
 <p>If there is a <code class="docutils literal notranslate"><span class="pre">local_id</span></code> in <code class="docutils literal notranslate"><span class="pre">model_libs</span></code> list, then there should be a <code class="docutils literal notranslate"><span class="pre">local_id-target.tar</span></code> in <code class="docutils literal notranslate"><span class="pre">dist/local_id</span></code> compiled in Step 1.</p>
-<p>For example, if you have <code class="docutils literal notranslate"><span class="pre">vicuna-v1-7b-q4f16_0</span></code> in the <code class="docutils literal notranslate"><span class="pre">model_libs</span></code>:</p>
+<p>For example, if you have <code class="docutils literal notranslate"><span class="pre">vicuna-v1-7b-q4f16_1</span></code> in the <code class="docutils literal notranslate"><span class="pre">model_libs</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>android/MLCChat/app/src/main/assets/app-config.json
 <span class="c1"># &quot;model_libs&quot;: [</span>
 <span class="c1">#   ...</span>
-<span class="c1">#   &quot;vicuna-v1-7b-q4f16_0&quot;,</span>
+<span class="c1">#   &quot;vicuna-v1-7b-q4f16_1&quot;,</span>
 <span class="c1">#   ...</span>
 <span class="c1"># ],</span>
 </pre></div>
 </div>
-<p>then there should be a <code class="docutils literal notranslate"><span class="pre">dist/vicuna-v1-7b-q4f16_0/vicuna-v1-7b-q4f16_0-android.tar</span></code> file:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>dist/vicuna-v1-7b-q4f16_0
+<p>then there should be a <code class="docutils literal notranslate"><span class="pre">dist/vicuna-v1-7b-q4f16_1/vicuna-v1-7b-q4f16_1-android.tar</span></code> file:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>dist/vicuna-v1-7b-q4f16_1
 <span class="c1"># ...</span>
-<span class="c1"># vicuna-v1-7b-q4f16_0-android.tar,</span>
+<span class="c1"># vicuna-v1-7b-q4f16_1-android.tar,</span>
 <span class="c1"># ...</span>
 </pre></div>
 </div>
