@@ -35,34 +35,34 @@ App Build Instructions
    .. code:: shell
 
       # From mlc-llm project directory
-      python3 build.py --model path/to/vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768
+      python3 build.py --model path/to/vicuna-v1-7b --quantization q4f16_1 --target android --max-seq-len 768
 
       # If the model path is `dist/models/vicuna-v1-7b`,
       # we can simplify the build command to
-      # python build.py --model vicuna-v1-7b --quantization q4f16_0 --target android --max-seq-len 768
+      # python build.py --model vicuna-v1-7b --quantization q4f16_1 --target android --max-seq-len 768
 
 2. Configure the ``model_libs`` in ``android/MLCChat/app/src/main/assets/app-config.json``:
    
    If there is a ``local_id`` in ``model_libs`` list, then there should be a ``local_id-target.tar`` in ``dist/local_id`` compiled in Step 1.
 
-   For example, if you have ``vicuna-v1-7b-q4f16_0`` in the ``model_libs``:
+   For example, if you have ``vicuna-v1-7b-q4f16_1`` in the ``model_libs``:
 
    .. code:: bash
 
       cat android/MLCChat/app/src/main/assets/app-config.json
       # "model_libs": [
       #   ...
-      #   "vicuna-v1-7b-q4f16_0",
+      #   "vicuna-v1-7b-q4f16_1",
       #   ...
       # ],
    
-   then there should be a ``dist/vicuna-v1-7b-q4f16_0/vicuna-v1-7b-q4f16_0-android.tar`` file:
+   then there should be a ``dist/vicuna-v1-7b-q4f16_1/vicuna-v1-7b-q4f16_1-android.tar`` file:
 
    .. code:: bash
 
-      ls dist/vicuna-v1-7b-q4f16_0
+      ls dist/vicuna-v1-7b-q4f16_1
       # ...
-      # vicuna-v1-7b-q4f16_0-android.tar,
+      # vicuna-v1-7b-q4f16_1-android.tar,
       # ...
 
 3. Download `Android Studio <https://developer.android.com/studio>`_, install the ``NDK`` and ``CMake`` via `SDK Manager <https://developer.android.com/studio/projects/install-ndk>`_.

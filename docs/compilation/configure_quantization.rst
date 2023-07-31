@@ -16,4 +16,4 @@ In MLC-LLM we use a short code that indicates the quantization mode to use.
 The format of the code is ``qAfB(_id)``, where ``A`` represents the number
 of bits for storing weights and ``B`` represents the number of bits for storing activations. The ``_id`` is an integer identifier to distinguish different quantization algorithms (e.g. symmetric, non-symmetric, GPTQ, etc).
 
-Currently, the available options are: ``q3f16_0``, ``q4f16_0``, ``q4f32_0``, ``q0f32``, ``q0f16``, and ``q8f16_0`` (``q8f16_0`` is mainly designed for RWKV).
+Currently, the available options are: ``q3f16_0``, ``q4f16_1``, ``q4f32_0``, ``q0f32``, ``q0f16``, and ``q8f16_0`` (``q8f16_0`` is mainly designed for RWKV).

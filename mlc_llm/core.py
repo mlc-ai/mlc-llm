@@ -1,17 +1,13 @@
 # pylint: disable=missing-docstring
 import argparse
-from dataclasses import dataclass, field, fields, asdict
 import json
 import os
 import pickle
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Dict, Optional
 
-import tvm
-from tvm import dlight as dl
-from tvm import meta_schedule as ms
-from tvm import relax
-
 import mlc_llm
+import tvm
 from mlc_llm import utils
 from mlc_llm.relax_model import (
     gpt_bigcode,
@@ -22,6 +18,9 @@ from mlc_llm.relax_model import (
     param_manager,
     rwkv,
 )
+from tvm import dlight as dl
+from tvm import meta_schedule as ms
+from tvm import relax
 
 
 @dataclass
@@ -41,9 +40,7 @@ class BuildArgs:
     )
     hf_path: str = field(
         default=None,
-        metadata={
-            "help": "Hugging Face path from which to download params, tokenizer, and config"
-        },
+        metadata={"help": "Hugging Face path from which to download params, tokenizer, and config"},
     )
     quantization: str = field(
         default=list(utils.quantization_schemes.keys())[0],
@@ -67,9 +64,7 @@ class BuildArgs:
     reuse_lib: str = field(
         default=None, metadata={"help": "Whether to reuse a previously generated lib."}
     )
-    artifact_path: str = field(
-        default="dist", metadata={"help": "Where to store the output."}
-    )
+    artifact_path: str = field(default="dist", metadata={"help": "Where to store the output."})
     use_cache: int = field(
         default=1,
         metadata={"help": "Whether to use previously pickled IRModule and skip trace."},
@@ -104,9 +99,7 @@ class BuildArgs:
     )
     llvm_mingw: str = field(
         default="",
-        metadata={
-            "help": "/path/to/llvm-mingw-root, use llvm-mingw to cross compile to windows."
-        },
+        metadata={"help": "/path/to/llvm-mingw-root, use llvm-mingw to cross compile to windows."},
     )
     system_lib: bool = field(
         default=False,
@@ -137,9 +130,7 @@ def convert_build_args_to_argparser() -> argparse.ArgumentParser:
             # boolean arguments do not need to specify `type`
             args.add_argument(field_name, default=field.default, **kwargs)
         else:
-            args.add_argument(
-                field_name, type=field.type, default=field.default, **kwargs
-            )
+            args.add_argument(field_name, field.type, default=field.default, **kwargs)
     return args
 
 
@@ -176,9 +167,7 @@ def _parse_args(parsed) -> argparse.Namespace:
         parsed.db_path = []
 
     if len(parsed.db_path) == 0:
-        print(
-            f"WARNING: --db-path does not point to a valid database: {parsed.db_path}"
-        )
+        print(f"WARNING: --db-path does not point to a valid database: {parsed.db_path}")
     else:
         print(f"Database paths: {parsed.db_path}")
 
@@ -208,9 +197,7 @@ def _setup_model_path(args: argparse.Namespace):  # pylint: disable=too-many-bra
         else:
             os.makedirs(args.model_path, exist_ok=True)
             os.system("git lfs install")
-            os.system(
-                f"git clone https://huggingface.co/{args.hf_path} {args.model_path}"
-            )
+            os.system(f"git clone https://huggingface.co/{args.hf_path} {args.model_path}")
             print(f"Downloaded weights to {args.model_path}")
         validate_config(args.model_path)
     elif args.model != "auto":
@@ -222,9 +209,7 @@ def _setup_model_path(args: argparse.Namespace):  # pylint: disable=too-many-bra
         validate_config(args.model_path)
     else:
         lookup_path = os.path.join(args.artifact_path, "models")
-        print(
-            f'"--model" is set to "auto". Searching in {lookup_path} for existing models.'
-        )
+        print(f'"--model" is set to "auto". Searching in {lookup_path} for existing models.')
         for dirname in os.listdir(lookup_path):
             if os.path.isdir(os.path.join(lookup_path, dirname)) and os.path.isfile(
                 os.path.join(lookup_path, dirname, "config.json")
@@ -320,9 +305,7 @@ def dump_default_mlc_chat_config(args: argparse.Namespace):
     if args.reuse_lib:
         config["model_lib"] = f"{args.reuse_lib}"
         if not args.reuse_lib.endswith(args.quantization.name):
-            raise RuntimeError(
-                f"Trying to reuse lib without suffix {args.quantization.name}"
-            )
+            raise RuntimeError(f"Trying to reuse lib without suffix {args.quantization.name}")
     else:
         config["model_lib"] = f"{args.model}-{args.quantization.name}"
 
@@ -347,9 +330,7 @@ def dump_default_mlc_chat_config(args: argparse.Namespace):
 def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     target_kind = args.target_kind
     if args.system_lib_prefix:
-        mod_deploy = mod_deploy.with_attrs(
-            {"system_lib_prefix": args.system_lib_prefix}
-        )
+        mod_deploy = mod_deploy.with_attrs({"system_lib_prefix": args.system_lib_prefix})
 
     utils.debug_dump_script(mod_deploy, "mod_before_build.py", args)
     if target_kind != "cpu":
@@ -361,8 +342,10 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
         )
         with db, dispatch_target:
             if args.target_kind == "android":
-                mod_deploy = mlc_llm.dispatch.DispatchTIROperatorAdreno()(  # pylint: disable=not-callable
-                    mod_deploy
+                mod_deploy = (
+                    mlc_llm.dispatch.DispatchTIROperatorAdreno()(  # pylint: disable=not-callable
+                        mod_deploy
+                    )
                 )
             mod_deploy = relax.transform.MetaScheduleApplyDatabase()(mod_deploy)
             mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod_deploy)
@@ -380,19 +363,20 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
 
     ex = relax.build(mod_deploy, args.target, system_lib=args.system_lib)
 
-    output_filename = (
-        f"{args.model}-{args.quantization.name}-{target_kind}.{args.lib_format}"
-    )
+    output_filename = f"{args.model}-{args.quantization.name}-{target_kind}.{args.lib_format}"
 
-    utils.debug_dump_shader(
-        ex, f"{args.model}_{args.quantization.name}_{target_kind}", args
-    )
+    utils.debug_dump_shader(ex, f"{args.model}_{args.quantization.name}_{target_kind}", args)
     args.lib_path = os.path.join(args.artifact_path, output_filename)
     ex.export_library(args.lib_path, **args.export_kwargs)
     print(f"Finish exporting to {args.lib_path}")
 
 
 def build_model_from_args(args: argparse.Namespace):
+    if args.quantization == "q4f16_0":
+        print(
+            "WARNING: q4f16_1 is preferred to q4f16_0, "
+            "and it is highly recommended to use q4f16_1 instaed"
+        )
     os.makedirs(args.artifact_path, exist_ok=True)
     if args.debug_dump:
         os.makedirs(os.path.join(args.artifact_path, "debug"), exist_ok=True)
@@ -402,9 +386,7 @@ def build_model_from_args(args: argparse.Namespace):
     if args.sep_embed and args.model_category != "llama":
         raise ValueError(f"separate embedding not supported on {args.model}")
     if args.model_category != "minigpt":
-        with open(
-            os.path.join(args.model_path, "config.json"), encoding="utf-8"
-        ) as i_f:
+        with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
             config = json.load(i_f)
     if not use_cache or args.convert_weight_only:
         if args.model_category == "llama":
@@ -476,8 +458,6 @@ def build_model(args: BuildArgs) -> (Optional[str], Optional[str], Optional[str]
     # Prepare output; some workflows may or may not have the paths to return
     lib_path = args.lib_path if hasattr(args, "lib_path") else None
     model_path = args.params_path if hasattr(args, "params_path") else None
-    chat_config_path = (
-        args.chat_config_path if hasattr(args, "chat_config_path") else None
-    )
+    chat_config_path = args.chat_config_path if hasattr(args, "chat_config_path") else None
 
     return lib_path, model_path, chat_config_path
