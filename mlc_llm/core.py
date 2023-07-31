@@ -21,6 +21,7 @@ from mlc_llm.relax_model import (
     minigpt,
     param_manager,
     rwkv,
+    chatglm,
 )
 
 
@@ -419,6 +420,8 @@ def build_model_from_args(args: argparse.Namespace):
             mod, param_manager, params = gptj.get_model(args, config)
         elif args.model_category == "rwkv":
             mod, param_manager, params = rwkv.get_model(args, config)
+        elif args.model_category == "chatglm":
+            mod, param_manager, params = chatglm.get_model(args, config)
         else:
             raise ValueError(f"Model {args.model} not supported")
 

@@ -136,7 +136,7 @@ class RotaryEmbedding(nn.Module):
         freq = np.einsum("i,j->ij", t, inv_freq)
         if swizzle_style == "neox":
             emb = np.concatenate((freq, freq), axis=-1)
-        elif swizzle_style == "gptj":
+        elif swizzle_style in ("gptj", "glm"):
             emb = np.repeat(freq, repeats=2, axis=-1)
         else:
             raise KeyError("Unrecognized swizzle style {}".format(swizzle_style))
@@ -163,7 +163,7 @@ class RotaryEmbedding(nn.Module):
                     i_head_dim - n_feat_half,
                 ],
             )
-        elif self.swizzle_style == "gptj":
+        elif self.swizzle_style in ("gptj", "glm"):
             return tir.Select(
                 i_head_dim % 2 == 0,
                 -x[i_batch_size, i_seq_len, i_num_heads, i_head_dim + 1],
