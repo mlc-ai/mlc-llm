@@ -2,7 +2,7 @@
 import tvm
 from tvm import relax, tir
 from tvm.ir.module import IRModule
-from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcard
+from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_const, is_op, wildcard
 
 
 def pattern_check(ctx: relax.transform.PatternCheckContext) -> bool:
@@ -24,7 +24,7 @@ def decode_take_pattern(n_aux_tensor: int):
         TuplePattern([*aux_tensors[0:n_aux_tensor]]),
         add_constraint=False,
     )
-    indices = wildcard()
+    indices = ~is_const()
     take_args = [decode, indices]
     take = is_op("relax.call_tir")(
         GlobalVarPattern(), TuplePattern(take_args), add_constraint=False
