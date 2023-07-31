@@ -127,8 +127,8 @@ class BuildArgs:
         default=False,
         metadata={
             "help": (
-                "Use ``.safetensors`` instead of the default ``.bin`` when loading "
-                "model weights."
+                "Specifies whether to use ``.safetensors`` instead of the default "
+                "``.bin`` when loading in model weights."
             ),
             "action": "store_true",
         },

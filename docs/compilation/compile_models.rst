@@ -290,7 +290,8 @@ Generally, the model compile command is specified by a sequence of arguments and
         [--max-seq-len MAX_ALLOWED_SEQUENCE_LENGTH] \
         [--reuse-lib LIB_NAME] \
         [--use-cache=0] \
-        [--debug-dump]
+        [--debug-dump] \
+        [--use-safetensors]
 
 This command first goes with ``--model`` or ``--hf-path``.
 **Only one of them needs to be specified**: when the model is publicly available on Hugging Face, you can use ``--hf-path`` to specify the model.
@@ -333,7 +334,7 @@ The following arguments are optional:
                                             and will compile the model from the very start.
                                             Using cache can help reduce the time needed to compile.
 --debug-dump                                Specifies whether to dump debugging files during compilation.
-
+--use-safetensors                           Specifies whether to use ``.safetensors`` instead of the default ``.bin`` when loading in model weights.
 
 More Model Compile Commands
 ---------------------------
