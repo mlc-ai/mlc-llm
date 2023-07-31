@@ -130,7 +130,7 @@ def convert_build_args_to_argparser() -> argparse.ArgumentParser:
             # boolean arguments do not need to specify `type`
             args.add_argument(field_name, default=field.default, **kwargs)
         else:
-            args.add_argument(field_name, field.type, default=field.default, **kwargs)
+            args.add_argument(field_name, type=field.type, default=field.default, **kwargs)
     return args
 
 
