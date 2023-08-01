@@ -552,6 +552,6 @@ def get_model(args, hf_config):
             return [(pname, torch_param.astype(config.dtype))]
 
     param_manager.set_param_loading_func(
-        args.model_path, f_convert_pname_fwd, f_convert_param_bkwd
+        args.model_path, args.use_safetensors, f_convert_pname_fwd, f_convert_param_bkwd
     )
     return mod, param_manager, [None] * len(param_manager.param_names)

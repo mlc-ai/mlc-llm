@@ -671,6 +671,7 @@ def get_model(args: argparse.Namespace, hf_config):
 
         param_manager.set_param_loading_func(
             args.model_path,
+            args.use_safetensors,
             f_convert_param_bkwd=lambda torch_pname, torch_param: [
                 (torch_pname, torch_param.astype(dtype))
             ],

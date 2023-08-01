@@ -116,6 +116,16 @@ class BuildArgs:
             "action": "store_true",
         },
     )
+    use_safetensors: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Specifies whether to use ``.safetensors`` instead of the default "
+                "``.bin`` when loading in model weights."
+            ),
+            "action": "store_true",
+        },
+    )
 
 
 def convert_build_args_to_argparser() -> argparse.ArgumentParser:
@@ -136,6 +146,13 @@ def convert_build_args_to_argparser() -> argparse.ArgumentParser:
 
 def _parse_args(parsed) -> argparse.Namespace:
     assert parsed.max_seq_len == -1 or parsed.max_seq_len > 0
+    if parsed.use_safetensors:
+        try:
+            import safetensors  # pylint: disable=import-outside-toplevel, unused-import
+        except ImportError as error:
+            raise ImportError(
+                "`use_safetensors` option is toggled, please install safetensors package."
+            ) from error
 
     parsed.export_kwargs = {}
     parsed.lib_format = "so"
