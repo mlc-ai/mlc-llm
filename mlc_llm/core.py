@@ -140,6 +140,16 @@ class BuildArgs:
             "action": "store_true",
         },
     )
+    use_cutlass_norm: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Offload layer and RMS norm operations to CUTLASS when the target is CUDA"
+                "and TVM has been built with CUTLASS enabled."
+            ),
+            "action": "store_true",
+        },
+    )
 
 
 def convert_build_args_to_argparser() -> argparse.ArgumentParser:
@@ -323,6 +333,10 @@ def mod_transform_before_build(
             mod["prefill"] = rewrite_attention(mod["prefill"])
             mod["decode"] = rewrite_attention(mod["decode"])
             patterns += get_patterns_with_prefix("cutlass.attention")
+
+        if args.use_cutlass_norm:
+            patterns += get_patterns_with_prefix("cutlass.layer_norm")
+            patterns += get_patterns_with_prefix("cutlass.rms_norm")
 
         if len(patterns) > 0:
             os.makedirs("./tmp", exist_ok=True)
