@@ -51,9 +51,9 @@ and you can try out prebuilt models on the following platforms:
       # You can try more models, for example:
       # download prebuilt weights of RedPajama-3B
       cd dist/prebuilt
-      git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
+      git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
       cd ../..
-      mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_1
+      mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
 
     .. note::
       If you are using Windows or Linux. Make sure you have the latest Vulkan driver installed.

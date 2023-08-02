@@ -54,7 +54,7 @@ in the root of the MLC-LLM.
 
    cd dist/prebuilt
    git lfs install
-   git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
+   git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
    cd ../..
 
 Validate that the files and directories exist:
@@ -62,10 +62,10 @@ Validate that the files and directories exist:
 .. code:: bash
 
    >>> ls -l ./dist/prebuilt/lib/*-iphone.tar
-   ./dist/prebuilt/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar
+   ./dist/prebuilt/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_0-iphone.tar
    ./dist/prebuilt/lib/vicuna-v1-7b-q3f16_0-iphone.tar
 
-   >>> ls -l ./dist/prebuilt/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
+   >>> ls -l ./dist/prebuilt/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
    # chat config:
    mlc-chat-config.json
    # model weights:
@@ -107,7 +107,7 @@ run the following command under the ``./ios`` directory:
 .. code:: bash
 
    cd ./ios
-   open ./prepare_params.sh # make sure builtin_list only contains "RedPajama-INCITE-Chat-3B-v1-q4f16_1"
+   open ./prepare_params.sh # make sure builtin_list only contains "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
    ./prepare_params.sh
 
 The outcome should be as follows:
@@ -115,7 +115,7 @@ The outcome should be as follows:
 .. code:: bash
 
    >>> ls ./dist/
-   RedPajama-INCITE-Chat-3B-v1-q4f16_1
+   RedPajama-INCITE-Chat-3B-v1-q4f16_0
 
 Step 4. Build iOS App
 ^^^^^^^^^^^^^^^^^^^^^

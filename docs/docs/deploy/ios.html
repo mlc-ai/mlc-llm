@@ -350,16 +350,16 @@ git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-a
 
 <span class="nb">cd</span><span class="w"> </span>dist/prebuilt
 git<span class="w"> </span>lfs<span class="w"> </span>install
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
 <span class="nb">cd</span><span class="w"> </span>../..
 </pre></div>
 </div>
 <p>Validate that the files and directories exist:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/prebuilt/lib/*-iphone.tar
-./dist/prebuilt/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar
+./dist/prebuilt/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_0-iphone.tar
 ./dist/prebuilt/lib/vicuna-v1-7b-q3f16_0-iphone.tar
 
-&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/prebuilt/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
+&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/prebuilt/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
 <span class="c1"># chat config:</span>
 mlc-chat-config.json
 <span class="c1"># model weights:</span>
@@ -392,13 +392,13 @@ libtvm_runtime.a<span class="w">     </span><span class="c1"># TVM Unity runtime
 <p>We can also optionally add prepackage weights into the app,
 run the following command under the <code class="docutils literal notranslate"><span class="pre">./ios</span></code> directory:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>./ios
-open<span class="w"> </span>./prepare_params.sh<span class="w"> </span><span class="c1"># make sure builtin_list only contains &quot;RedPajama-INCITE-Chat-3B-v1-q4f16_1&quot;</span>
+open<span class="w"> </span>./prepare_params.sh<span class="w"> </span><span class="c1"># make sure builtin_list only contains &quot;RedPajama-INCITE-Chat-3B-v1-q4f16_0&quot;</span>
 ./prepare_params.sh
 </pre></div>
 </div>
 <p>The outcome should be as follows:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>./dist/
-RedPajama-INCITE-Chat-3B-v1-q4f16_1
+RedPajama-INCITE-Chat-3B-v1-q4f16_0
 </pre></div>
 </div>
 </section>
