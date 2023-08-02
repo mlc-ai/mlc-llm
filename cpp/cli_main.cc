@@ -42,6 +42,9 @@ std::string DetectDeviceName(std::string device_name) {
     if (DeviceAPI::Get(DLDevice{kDLMetal, 0}, allow_missing)) {
       return "metal";
     }
+    if (DeviceAPI::Get(DLDevice{kDLROCM, 0}, allow_missing)) {
+      return "rocm";
+    }
     if (DeviceAPI::Get(DLDevice{kDLVulkan, 0}, allow_missing)) {
       return "vulkan";
     }
@@ -56,6 +59,7 @@ std::string DetectDeviceName(std::string device_name) {
 DLDevice GetDevice(const std::string& device_name, int device_id) {
   if (device_name == "cuda") return DLDevice{kDLCUDA, device_id};
   if (device_name == "metal") return DLDevice{kDLMetal, device_id};
+  if (device_name == "rocm") return DLDevice{kDLROCM, device_id};
   if (device_name == "vulkan") return DLDevice{kDLVulkan, device_id};
   if (device_name == "opencl") return DLDevice{kDLOpenCL, device_id};
   LOG(FATAL) << "Do not recognize device name " << device_name;
