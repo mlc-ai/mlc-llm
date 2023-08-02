@@ -315,28 +315,31 @@ def mod_transform_before_build(
     mod = param_manager.transform_dequantize(mod)
     mod = mlc_llm.transform.FuseDecodeTranspose()(mod)  # pylint: disable=not-callable
 
-    if (
-        args.use_cutlass_attn
-        and args.target_kind == "cuda"
-        and tvm.get_global_func("relax.ext.cutlass", True)
-    ):
-        mod["prefill"] = rewrite_attention(mod["prefill"])
-        mod["decode"] = rewrite_attention(mod["decode"])
+    if args.target_kind == "cuda" and tvm.get_global_func("relax.ext.cutlass", True):
+        # CUTLASS offloading
+        patterns = []
 
-        partition_pass = relax.transform.FuseOpsByPattern(
-            get_patterns_with_prefix("cutlass.attention"),
-            bind_constants=False,
-            annotate_codegen=True,
-        )
-        mod = partition_pass(mod)
-        mod = annotate_workspace(mod)
-        mod = relax.transform.AllocateWorkspace()(mod)
+        if args.use_cutlass_attn:
+            mod["prefill"] = rewrite_attention(mod["prefill"])
+            mod["decode"] = rewrite_attention(mod["decode"])
+            patterns += get_patterns_with_prefix("cutlass.attention")
 
-        os.makedirs("./tmp", exist_ok=True)
-        mod = relax.transform.RunCodegen(
-            {"cutlass": {"sm": 80, "find_first_valid": False}},
-            entry_functions=model_names,
-        )(mod)
+        if len(patterns) > 0:
+            os.makedirs("./tmp", exist_ok=True)
+
+            mod = tvm.transform.Sequential(
+                [
+                    relax.transform.FuseOpsByPattern(
+                        patterns, bind_constants=False, annotate_codegen=True
+                    ),
+                    annotate_workspace,
+                    relax.transform.AllocateWorkspace(),
+                    relax.transform.RunCodegen(
+                        {"cutlass": {"sm": 80, "find_first_valid": False}},
+                        entry_functions=model_names,
+                    ),
+                ]
+            )(mod)
 
     mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
