@@ -1,14 +1,21 @@
 """Chat module for MLC chat in a standalone file, including image module for multimodal-purposes."""
 #! pylint: disable=unused-import, invalid-name
 import ctypes
+import json
 import os
 import sys
+from dataclasses import dataclass, fields, asdict
+from enum import Enum
+from typing import List, Optional
 
 import tvm
 import tvm._ffi.base
 
-from enum import Enum
 from . import libinfo
+
+# pylint: disable=line-too-long
+_PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
+# pylint: enable=line-too-long
 
 
 def _load_mlc_llm_lib():
@@ -38,6 +45,45 @@ def quantization_keys():
     ]
 
 
+# TODO(Charlie): add documentation for the two dataclasses looking at
+# https://mlc.ai/mlc-llm/docs/get_started/mlc_chat_config.html
+@dataclass
+class ConvConfig:
+    """The dataclass that represents conversation template."""
+
+    name: str
+    system: str
+    roles: List[str]
+    messages: List[str]
+    offset: str
+    separator_style: int
+    seps: List[str]
+    role_msg_sep: str
+    role_empty_sep: str
+    role_msg_sep: str  # TODO(Charlie): not present in `llm_chat.cc`
+    stop_str: str
+    stop_tokens: List[int]
+    add_bos: bool
+
+
+# TODO(Charlie): determine what is optional and what is not here
+@dataclass
+class ChatConfig:
+    """The dataclass that represents the mlc-chat-config.json file."""
+
+    model_lib: Optional[str] = None
+    local_id: Optional[str] = None
+    conv_template: Optional[str] = None
+    temperature: Optional[float] = None
+    repetition_penalty: Optional[float] = None
+    top_p: Optional[float] = None
+    mean_gen_len: Optional[int] = None
+    max_gen_len: Optional[int] = None
+    shift_fill_factor: Optional[float] = None
+    tokenizer_files: Optional[List[str]] = None
+    conv_config: Optional[ConvConfig] = None
+
+
 class PlaceInPrompt(Enum):
     """The place of an input message in a prompt."""
 
@@ -55,26 +101,42 @@ class PlaceInPrompt(Enum):
 
 
 class ChatModule:
-    def __init__(self, target: str = "cuda", device_id: int = 0):
+    def __init__(
+        self,
+        model,
+        device_name: str = "cuda",
+        device_id: int = 0,
+        chat_config: Optional[ChatConfig] = None,
+        lib_path=None,
+    ):
         r"""Initialize a chat module.
 
         Parameters
         ----------
+        model: str
+            The huggingface model name with its quantization. Or the full path
+            to a folder of such weights.
         target : str
             The target device type.
         device_id : int
             The device id.
         """
-        if target == "cuda":
+        # 1. Get self.device
+        if device_name == "cuda":
             self.device = tvm.cuda(device_id)
-        elif target == "metal":
+        elif device_name == "metal":
             self.device = tvm.metal(device_id)
-        elif target == "vulkan":
+        elif device_name == "vulkan":
             self.device = tvm.vulkan(device_id)
+        elif device_name == "rocm":
+            self.device = tvm.rocm(device_id)
+        elif device_name == "opencl":
+            self.device = tvm.opencl(device_id)
         else:
             raise ValueError("device type not supported yet")
         device_type = self.device.device_type
 
+        # 2. Populate chat/image mod and their functions
         fcreate_chat_mod = tvm.get_global_func("mlc.llm_chat_create")
         assert fcreate_chat_mod is not None
         chat_mod = fcreate_chat_mod(device_type, device_id)
@@ -97,6 +159,7 @@ class ChatModule:
         self.evaluate_func = chat_mod["evaluate"]
         self.get_role0 = chat_mod["get_role0"]
         self.get_role1 = chat_mod["get_role1"]
+
         # image module related functions
         self.image_reload_func = image_mod["reload"]
         self.image_embed_func = image_mod["embed"]
@@ -104,7 +167,194 @@ class ChatModule:
         self.image_runtime_stats_text_func = image_mod["runtime_stats_text"]
         self.image_reset_runtime_stats_func = image_mod["reset_runtime_stats"]
 
-    def reload(self, lib: str, model_path: str, app_config_json: str = ""):
+        # 3. Look up model_path
+        self.model_path, self.config_file_path = self._get_model_path(model)
+
+        # 4. Instantiate chat_config
+        self.chat_config = self._get_chat_config(self.config_file_path, chat_config)
+
+        # 5. Look up model library
+        self.lib_path = self._get_lib_path(model, self.chat_config, lib_path, device_name)
+
+        # 6. Call reload
+        # TODO(Charlie): check if this method will serialize the ConvConfig
+        user_chat_config_json_str = json.dumps(asdict(chat_config))
+        self._reload(self.lib_path, self.model_path, user_chat_config_json_str)
+
+    def _get_lib_path(
+        self, model: str, chat_config: ChatConfig, lib_path: Optional[str], device_name: str
+    ) -> str:
+        """Look up the model library."""
+        # 1. Use user's lib_path if provided
+        if lib_path is not None:
+            if os.path.isfile(lib_path):
+                print(f"Using library model: {lib_path}")
+                try:
+                    lib_path = tvm.runtime.load_module(lib_path)
+                except Exception as e:
+                    err_msg = (
+                        f"Ran into error when loading the `lib_path` you passed in: {lib_path} \n"
+                        f"Please checkout {_PYTHON_GET_STARTED_TUTORIAL_URL} for an "
+                        "example on how to load a model."
+                    )
+                    raise RuntimeError() from e
+                return lib_path
+            else:
+                err_msg = (
+                    f"The `lib_path` you passed in is not a file: {lib_path}.\nPlease checkout "
+                    f"{_PYTHON_GET_STARTED_TUTORIAL_URL} for an example on how to load a model."
+                )
+                raise FileNotFoundError(err_msg)
+
+        # 2. Generate all possible file names according to OS
+        candidate_lib_names = []
+        if sys.platform.startswith("linux"):
+            candidate_lib_names = [f"{chat_config.model_lib}-{device_name}.so"]
+        elif sys.platform.startswith("Darwin"):
+            # Note that `dylib` comes before `so` since we prioritize `dylib` for MacOS
+            candidate_lib_names = [
+                f"{chat_config.model_lib}-{device_name}.dylib",
+                f"{chat_config.model_lib}-{device_name}.so",
+            ]
+        elif sys.platform.startswith("win32"):
+            candidate_lib_names = [f"{chat_config.model_lib}-{device_name}.dll"]
+        else:
+            candidate_lib_names = [
+                f"{chat_config.model_lib}-{device_name}.dylib",
+                f"{chat_config.model_lib}-{device_name}.so",
+                f"{chat_config.model_lib}-{device_name}.dll",
+            ]
+
+        # 3. Genereate possible model library paths
+        candidate_paths = []
+        for lib_name in candidate_lib_names:
+            # TODO(Charlie): There should be more possibilities (e.g. using self.model_path)
+            candidate_paths.extend(
+                [
+                    f"{lib_name}",
+                    f"dist/prebuilt/lib/{lib_name}",  # Using prebuilt workflow
+                    f"dist/{model}/{lib_name}",  # Default directory after mlc_llm.build_model()
+                ]
+            )
+
+        # 4. Search for model library
+        for candidate in candidate_paths:
+            if os.path.isfile(candidate):
+                print(f"Using library model: {os.path.abspath(candidate)}")
+                try:
+                    candidate_loaded = tvm.runtime.load_module(candidate)
+                except Exception as e:
+                    err_msg = (
+                        f"Ran into error when loading the library we found: {candidate} \n"
+                        f"Please checkout {_PYTHON_GET_STARTED_TUTORIAL_URL} for an "
+                        "example on how to load a model."
+                    )
+                    raise RuntimeError() from e
+                return candidate_loaded
+
+        # 5. Error
+        err_msg = (
+            f"Cannot find the library that corresponds to {chat_config.model_lib}, "
+            "which is either provided in the `chat_config` you passed in, or "
+            f"specified in {self.config_file_path}.\n"
+            "We searched over: \n"
+        )
+        for candidate in candidate_paths:
+            err_msg += f"- {candidate}\n"
+        err_msg += (
+            "If you would like to directly specify the model lib path, you may "
+            "consider passing in the `lib_path` parameter.\n"
+            f"Please checkout {_PYTHON_GET_STARTED_TUTORIAL_URL} for an example "
+            "on how to load a model."
+        )
+        raise FileNotFoundError(err_msg)
+
+    def _get_chat_config(self, config_file_path: str, user_chat_config: ChatConfig) -> ChatConfig:
+        """Read the config file in model path, potentially overriden by user input."""
+        original_chat_config = None
+        with open(config_file_path, mode="rt", encoding="utf-8") as f:
+            json_object = json.load(f)
+            original_chat_config = ChatConfig(**json_object)
+        if user_chat_config is not None:
+            # We override using user's chat config
+            # TODO(Charlie): should user_chat_config's ConvConfig override the entire
+            # original_chat_config's ConvConfig, or should we perform another
+            # similar override for ConvConfig? Currently prefers the former
+            # since original_chat_config's ConvConfig is already an override
+            for field in fields(user_chat_config):
+                field_name = field.name
+                field_value = getattr(user_chat_config, field_name)
+                if field_value is not None:
+                    setattr(original_chat_config, field_name, field_value)
+        return original_chat_config
+
+    def _get_model_path(self, model: str) -> (str, str):
+        """Use user-provided ``model`` to search for a valid model path.
+
+        We define "valid" as having an ``mlc-chat-config.json`` right under the folder.
+
+        Raises error messages with information and hints for users.
+
+        Parameters
+        ----------
+        model : str
+            User' input.
+
+        Returns
+        ------
+        model_path : str
+            A "valid" model_path, with ``os.isfile(os.path.join(model_path,
+            "mlc-chat-config.json"))`` being ``True``.
+        chat_file : str
+            Essentially ``os.path.join(model_path, "mlc-chat-config.json")``.
+        """
+        # Note that the order of this list corresponds to our search priority
+        candidate_paths = [
+            f"{model}",  # full path, or just the name
+            f"dist/prebuilt/{model}",  # Using prebuilt workflow
+            f"dist/{model}/params",  # Default directory after mlc_llm.build_model()
+            f"dist/prebuilt/mlc-chat-{model}",  # Also prebuilt workflow, but missed prefix
+        ]
+
+        # Look for the first folder that has `mlc-chat-config.json` under it
+        for candidate in candidate_paths:
+            chat_file = os.path.join(candidate, "mlc-chat-config.json")
+            if os.path.isfile(chat_file):
+                print(f"Using model folder: {os.path.abspath(candidate)}")
+                return candidate, chat_file
+
+        # Failed to find a valid model_path, analyzing error for user
+        err_msg = (
+            "Cannot find mlc-chat-config.json in the model folder. "
+            "According to your input `model`, we found folder(s) "
+        )
+        found_folder = False
+        for candidate in candidate_paths:
+            if os.path.isdir(candidate):
+                err_msg += f"{os.path.abspath(candidate)}, "
+                found_folder = True
+
+        if found_folder:
+            # Error 1: there is a folder, but not an mlc-llm model folder
+            err_msg += (
+                "\nbut we cannot find `mlc-chat-config.json` in the folder(s), a required file.\n"
+                "MLC-Chat consumes models that are processed "
+                "by the MLC-LLM build process. Please checkout "
+                f"{_PYTHON_GET_STARTED_TUTORIAL_URL} for an example on how to load a model."
+            )
+            raise FileNotFoundError(err_msg)
+        else:
+            # Error 2: cannot find a folder
+            err_msg = (
+                "Cannot find the model folder. We searched over the following possible paths: "
+                f"{candidate_paths}.\n"
+                "You can try to pass in `model=/path/to/your-model-path`, and confirm "
+                "that it contains `mlc-chat-config.json`. Please checkout "
+                f"{_PYTHON_GET_STARTED_TUTORIAL_URL} for an example on how to load a model."
+            )
+            raise FileNotFoundError(err_msg)
+
+    def _reload(self, lib: str, model_path: str, app_config_json: str = ""):
         r"""Reload the chat module from the given library and model path.
 
         Parameters
@@ -155,9 +405,7 @@ class ChatModule:
         """
         return self.embed_func(input, place_in_prompt.value)
 
-    def prefill_with_embed(
-        self, embedding: tvm.runtime.NDArray, decode_next_token: bool = True
-    ):
+    def prefill_with_embed(self, embedding: tvm.runtime.NDArray, decode_next_token: bool = True):
         r"""Given an embedding, run the prefill stage and optionally decode the first output token.
 
         Parameters
