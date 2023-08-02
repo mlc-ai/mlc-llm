@@ -6,7 +6,7 @@ Configure MLCChat in JSON
 This page explains the components of a chat configuration and how to customize them for your own purposes.
 
 Each MLC Chat runtime can be configured via an ``mlc-chat-config.json`` file under the directory of each compiled model (e.g.
-`RedPajama chat config <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1/blob/main/mlc-chat-config.json>`__)
+`RedPajama chat config <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/blob/main/mlc-chat-config.json>`__)
 which contains the chat configuration. You can customize the chat configuration by modifying this file.
 Additionally, the runtimes also provide APIs to optionally override some of the configurations.
 

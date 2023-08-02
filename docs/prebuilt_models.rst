@@ -40,12 +40,12 @@ Prebuilt Models for CLI
       * Running data type: float16
       * Symmetric quantization
     - `link <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0>`__
-  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
+  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_0`
     - `RedPajama <https://www.together.xyz/blog/redpajama>`__
     - * Weight storage data type: int4
       * Running data type: float16
       * Symmetric quantization
-    - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
+    - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0>`__
   * - `rwkv-raven-1b5-q8f16_0`
     - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
     - * Weight storage data type: uint8
@@ -117,12 +117,12 @@ Prebuilt Models for iOS
       * Running data type: float16
       * Symmetric quantization
     - `link <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0>`__
-  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
+  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_0`
     - `RedPajama <https://www.together.xyz/blog/redpajama>`__
     - * Weight storage data type: int4
       * Running data type: float16
       * Symmetric quantization
-    - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
+    - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0>`__
 
 The `downloadable iOS app <https://apps.apple.com/us/app/mlc-chat/id6448482937>`_ has builtin RedPajama-3B model support.
 To add a model to the iOS app, follow the steps below:
@@ -184,7 +184,7 @@ For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/op
     - * Weight storage data type: int3
       * Running data type: float16
       * Symmetric quantization
-  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
+  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_0`
     - GPT-NeoX
     - * Weight storage data type: int4
       * Running data type: float16
@@ -210,12 +210,12 @@ Prebuilt Models for Android
       * Running data type: float16
       * Symmetric quantization
     - `link <https://huggingface.co/mlc-ai/demo-vicuna-v1-7b-int4>`__
-  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
+  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_0`
     - `RedPajama <https://www.together.xyz/blog/redpajama>`__
     - * Weight storage data type: int4
       * Running data type: float16
       * Symmetric quantization
-    - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
+    - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0>`__
 
 ------------------
 
@@ -264,7 +264,7 @@ MLC-LLM supports the following model architectures:
   * - ``minigpt``
     - `MiniGPT <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
     - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/minigpt.py>`__
-    - 
+    -
   * - ``gpt_bigcode``
     - `GPTBigCode <https://huggingface.co/docs/transformers/model_doc/gpt_bigcode>`__
     - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_bigcode.py>`__
