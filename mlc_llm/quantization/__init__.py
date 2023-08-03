@@ -154,4 +154,20 @@ quantization_schemes = {
         linear_weight=RWKVQuantizationSpec(dtype="float16", mode="uint8", nbit=8),
         final_fc_weight="same_as_linear_weight",
     ),
+    "q8f16_ft": QuantizationScheme(
+        name="q8f16_ft",
+        linear_weight=FTRowwiseQuantizationSpec(
+            dtype="float16",
+            nbit=8,
+        ),
+        embedding_table=GroupQuantizationSpec(
+            dtype="float16",
+            mode="int8",
+            sym=True,
+            storage_nbit=32,
+            group_size=32,
+            transpose=False,
+        ),
+        final_fc_weight="same_as_linear_weight",
+    ),
 }
