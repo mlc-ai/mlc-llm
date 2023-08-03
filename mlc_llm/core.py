@@ -476,6 +476,10 @@ def build_model_from_args(args: argparse.Namespace):
         else:
             raise ValueError(f"Model {args.model} not supported")
 
+        for qspec_updater_class in param_manager.qspec_updater_classes:
+            qspec_updater = qspec_updater_class(param_manager)
+            qspec_updater.visit_module(mod)
+
         if not args.build_model_only:
             new_params = utils.convert_weights(param_manager, params, args)
             utils.save_params(new_params, args.artifact_path)
@@ -500,7 +504,7 @@ def build_model_from_args(args: argparse.Namespace):
     if not args.reuse_lib:
         build(mod, args)
     else:
-        print("Reuse existing prebuilt lib {ARGS.reuse_lib}...")
+        print(f"Reuse existing prebuilt lib {args.reuse_lib}...")
 
 
 def build_model(args: BuildArgs) -> (Optional[str], Optional[str], Optional[str]):
