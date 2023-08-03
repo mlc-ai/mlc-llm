@@ -130,7 +130,7 @@ class BuildArgs:
             "action": "store_true",
         },
     )
-    use_cutlass_attn: bool = field(
+    no_cutlass_attn: bool = field(
         default=False,
         metadata={
             "help": (
@@ -140,7 +140,7 @@ class BuildArgs:
             "action": "store_true",
         },
     )
-    use_cutlass_norm: bool = field(
+    no_cutlass_norm: bool = field(
         default=False,
         metadata={
             "help": (
@@ -330,12 +330,12 @@ def mod_transform_before_build(
         # CUTLASS offloading
         patterns = []
 
-        if args.use_cutlass_attn:
+        if not args.no_cutlass_attn:
             mod["prefill"] = rewrite_attention(mod["prefill"])
             mod["decode"] = rewrite_attention(mod["decode"])
             patterns += get_patterns_with_prefix("cutlass.attention")
 
-        if args.use_cutlass_norm:
+        if not args.no_cutlass_norm:
             patterns += get_patterns_with_prefix("cutlass.layer_norm")
             patterns += get_patterns_with_prefix("cutlass.rms_norm")
 
