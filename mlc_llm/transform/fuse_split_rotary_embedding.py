@@ -18,7 +18,13 @@ def get_split_rotary(num_attention_heads, head_dim):
 
     @T.prim_func
     def split_rotary(
-        qkv: T.handle, cos_h: T.handle, sin_h: T.handle, split_0: T.handle, split_1: T.handle, split_2: T.handle, n: T.int64,
+        qkv: T.handle,
+        cos_h: T.handle,
+        sin_h: T.handle,
+        split_0: T.handle,
+        split_1: T.handle,
+        split_2: T.handle,
+        n: T.int64,
     ):
         A = T.match_buffer(qkv, [1, 1, hidden_size * 3], dtype="float16")
         cos = T.match_buffer(cos_h, [2048, head_dim], dtype="float16")
@@ -70,14 +76,12 @@ def get_split_rotary(num_attention_heads, head_dim):
 
 
 def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size):
-    head_dim = hidden_size  // num_attention_heads
+    head_dim = hidden_size // num_attention_heads
 
     mod["split_rotary"] = get_split_rotary(num_attention_heads, head_dim)
 
     gvar = mod.get_global_var("split_rotary")
-    relax.expr._update_struct_info(
-        gvar, mod.get_global_var("rotary_embedding1").struct_info
-    )
+    relax.expr._update_struct_info(gvar, mod.get_global_var("rotary_embedding1").struct_info)
 
     with PatternContext() as ctx:
         # lv3: R.Tuple(R.Tensor((1, 1, 4096), dtype="float16"), R.Tensor((1, 1, 4096), dtype="float16"), R.Tensor((1, 1, 4096), dtype="float16")) = R.split(lv2, indices_or_sections=[4096, 8192], axis=2)
