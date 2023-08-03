@@ -17,15 +17,16 @@ Everything runs locally  with no server support and accelerated with local GPUs 
 * NVIDIA GPUs via CUDA on Windows and Linux;
 * WebGPU on browsers (through companion project [WebLLM](https://github.com/mlc-ai/web-llm/tree/main)).
 
-**[Click here to join our Discord server!][discord-url]**
-
-**[News] MLC LLM now supports 7B/13B/70B Llama-2 !!**
-
 <ins>**[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/docs/get_started/try_out.html)**</ins>
 
 <p align="center">
   <img src="site/gif/ios-demo.gif" height="700">
 </p>
+
+## News
+
+* [08/02/2023] [Dockerfile](https://github.com/junrushao/llm-perf-bench/) released for CUDA performance benchmarking
+* [07/19/2023] Supports 7B/13B/70B Llama-2
 
 ## What is MLC LLM?
 
