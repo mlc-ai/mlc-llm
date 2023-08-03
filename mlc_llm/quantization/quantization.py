@@ -1,8 +1,10 @@
 import enum
 from dataclasses import dataclass
-from typing import Callable, List, Literal, Optional, Union
+from typing import Callable, List, Literal, Optional, Type, Union
 
+import tvm
 from tvm import relax, te
+from tvm.relax.expr_functor import PyExprVisitor, visitor
 
 FQuantize = Callable[[relax.BlockBuilder, List[relax.Expr]], relax.Var]
 FTEQuantize = Callable[[te.Tensor], List[te.Tensor]]
@@ -46,9 +48,7 @@ class QuantizationSpec:
         """
         return [param_info]
 
-    def get_quantize_func(
-        self, param_info: relax.TensorStructInfo
-    ) -> Optional[FQuantize]:
+    def get_quantize_func(self, param_info: relax.TensorStructInfo) -> Optional[FQuantize]:
         """Returns the function which computes quantization.
         Returning `None` means the parameter does not need quantization or is
         pre-quantized.
@@ -84,9 +84,7 @@ class QuantizationSpec:
 class NoQuantizationSpec(QuantizationSpec):
     """The quantization specification that describes doing no quantization."""
 
-    def get_quantize_func(
-        self, param_info: relax.TensorStructInfo
-    ) -> Optional[FQuantize]:
+    def get_quantize_func(self, param_info: relax.TensorStructInfo) -> Optional[FQuantize]:
         return None
 
     def get_dequantize_func(
@@ -117,6 +115,10 @@ class ParamQuantKind(enum.IntEnum):
 class QuantizationScheme:
     """The quantization scheme class describes how an entire model is quantized.
     It contains the quantization specification for each parameter quantization kind.
+
+    Besides, it has an optional field for a visitor class which has the ability to
+    take the constructed model (in format of IRModule) as input, go through the
+    model and update the QuantizationSpec for certain parameters.
     """
 
     name: str
@@ -125,6 +127,8 @@ class QuantizationScheme:
     final_fc_weight: QuantizationSpec
     others: QuantizationSpec
     pre_quantized: bool
+
+    qspec_updater_class: Optional[Type["QuantSpecUpdater"]]
 
     """_base_model_prefix is used to match the parameter names when loading from pre-quantized pytorch checkpoints.
     Its value can vary depending on the transformer models used. For example, it can be "model" for Llama, "levit" for LeViT.
@@ -164,13 +168,10 @@ class QuantizationScheme:
         name: str,
         linear_weight: QuantizationSpec,
         *,
-        embedding_table: Optional[
-            Union[QuantizationSpec, Literal["same_as_linear_weight"]]
-        ] = None,
-        final_fc_weight: Optional[
-            Union[QuantizationSpec, Literal["same_as_linear_weight"]]
-        ] = None,
+        embedding_table: Optional[Union[QuantizationSpec, Literal["same_as_linear_weight"]]] = None,
+        final_fc_weight: Optional[Union[QuantizationSpec, Literal["same_as_linear_weight"]]] = None,
         others: Optional[QuantizationSpec] = None,
+        qspec_updater_class: Optional[Type["QuantSpecUpdater"]] = None,
         pre_quantized: bool = False,
         _base_model_prefix: str = "",
         _layers_block_name: str = "",
@@ -179,9 +180,7 @@ class QuantizationScheme:
     ) -> None:
         self.name = name
         self.linear_weight = linear_weight
-        self.others = (
-            others if others is not None else NoQuantizationSpec(self.model_dtype)
-        )
+        self.others = others if others is not None else NoQuantizationSpec(self.model_dtype)
 
         if embedding_table is None:
             self.embedding_table = self.others
@@ -196,6 +195,8 @@ class QuantizationScheme:
             self.final_fc_weight = self.linear_weight
         else:
             self.final_fc_weight = final_fc_weight
+
+        self.qspec_updater_class = qspec_updater_class
 
         self.pre_quantized = pre_quantized
         self._base_model_prefix = _base_model_prefix
@@ -226,10 +227,37 @@ class QuantizationScheme:
         return self._base_model_prefix
 
 
-def convert_TE_func(
-    te_func: Union[FTEQuantize, FTEDequantize], func_name: str
-) -> FQuantize:
+def convert_TE_func(te_func: Union[FTEQuantize, FTEDequantize], func_name: str) -> FQuantize:
     def func(bb: relax.BlockBuilder, inputs: List[relax.Expr]) -> relax.Var:
         return bb.call_te(te_func, *inputs, primfunc_name_hint=func_name)
 
     return func
+
+
+@visitor
+class QuantSpecUpdater(PyExprVisitor):
+    def __init__(self, param_manager) -> None:
+        super().__init__()
+        self.param_manager = param_manager
+        self.param_map = None
+        self.builder = relax.BlockBuilder()
+
+    def lookup_binding(self, var: relax.Var):
+        return self.builder.lookup_binding(var)
+
+    def visit_module(self, mod: tvm.IRModule):
+        for gv, func in mod.functions.items():
+            if not isinstance(func, relax.Function):
+                continue
+            if func.attrs is None or not "num_input" in func.attrs:
+                continue
+
+            self.param_map = dict()
+            num_input = int(func.attrs["num_input"])
+            params_in_func = self.param_manager.params_in_func[gv.name_hint]
+            assert len(func.params) - num_input == len(params_in_func)
+            for i, relax_param in enumerate(func.params[num_input:]):
+                self.param_map[relax_param] = params_in_func[i]
+
+            self.builder.normalize(func)
+            self.visit_expr(func)

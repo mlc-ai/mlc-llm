@@ -1,11 +1,14 @@
 from dataclasses import dataclass
 from typing import List, Literal, Optional
 
+import tvm
 from tvm import relax, te, tir, topi
 from tvm.script import tir as T
+from tvm.relax.expr_functor import visitor
 
 from . import tir_utils
-from .quantization import QuantizationSpec
+from .quantization import QuantizationSpec, QuantSpecUpdater
+from .quantization import NoQuantizationSpec
 from .quantization import FQuantize, FTEQuantize, FTEDequantize, convert_TE_func
 
 
@@ -19,9 +22,7 @@ class GroupQuantizationSpec(QuantizationSpec):
     group_size: int
     transpose: bool
 
-    def get_quantize_func(
-        self, param_info: relax.TensorStructInfo
-    ) -> Optional[FQuantize]:
+    def get_quantize_func(self, param_info: relax.TensorStructInfo) -> Optional[FQuantize]:
         return convert_TE_func(
             encoding_func(
                 sym=self.sym,
@@ -187,3 +188,27 @@ def decoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit
 
     return te_decode_sym if sym else te_decode_asym
 # fmt: on
+
+
+# A simple example demo showing how QuantSpecUpdater is used.
+# NOTE: This visitor is only for demo purpose and should not be put into real use.
+@visitor
+class GroupQuantDemoUpdater(QuantSpecUpdater._cls):
+    def visit_call_(self, call: relax.Call):
+        if call.op != tvm.ir.Op.get("relax.matmul"):
+            return
+        rhs = self.lookup_binding(call.args[1])
+        assert rhs is not None
+        if (
+            rhs.op != tvm.ir.Op.get("relax.permute_dims")
+            or rhs.attrs.axes is not None
+            or rhs.args[0].struct_info.ndim != 2
+        ):
+            return
+
+        if rhs.args[0] not in self.param_map:
+            return
+        param = self.param_map[rhs.args[0]]
+        # Update to no quantization for matmul with float32 output dtype.
+        if call.struct_info.dtype == "float32":
+            param.quant_spec = NoQuantizationSpec(param.param_info.dtype)

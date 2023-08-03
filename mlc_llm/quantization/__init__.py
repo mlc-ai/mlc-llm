@@ -1,6 +1,7 @@
 from .quantization import FQuantize
 from .quantization import QuantizationScheme
 from .quantization import QuantizationSpec, NoQuantizationSpec, ParamQuantKind
+from .quantization import QuantSpecUpdater
 from .group_quantization import GroupQuantizationSpec
 from .autogptq_quantization import AutogptqQuantizationSpec, load_autogptq_params
 from .rwkv_quantization import RWKVQuantizationSpec
