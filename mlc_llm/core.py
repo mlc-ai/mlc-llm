@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 import mlc_llm
 import tvm
 from mlc_llm import utils
-from mlc_llm.transform import rewrite_attention
+from mlc_llm.transform import rewrite_attention, fuse_split_rotary_embedding
 from mlc_llm.relax_model import (
     gpt_bigcode,
     gpt_neox,
@@ -299,6 +299,7 @@ def mod_transform_before_build(
     mod: tvm.IRModule,
     param_manager: param_manager.ParamManager,
     args: argparse.Namespace,
+    config: Dict,
 ) -> tvm.IRModule:
     """First-stage: Legalize ops and trace"""
     if args.model.startswith("rwkv-"):
@@ -488,7 +489,7 @@ def build_model_from_args(args: argparse.Namespace):
         if args.convert_weight_only:
             exit(0)
 
-        mod = mod_transform_before_build(mod, param_manager, args)
+        mod = mod_transform_before_build(mod, param_manager, args, config)
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)
         print(f"Save a cached module to {cache_path}.")
