@@ -324,7 +324,9 @@ def mod_transform_before_build(
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
 
     mod = param_manager.transform_dequantize(mod)
-    mod = mlc_llm.transform.FuseDecodeTranspose()(mod)  # pylint: disable=not-callable
+    mod = mlc_llm.transform.FuseDecodeTranspose(skip_gemm=args.quantization.name != "q4f16_ft")(
+        mod
+    )  # pylint: disable=not-callable
 
     if args.target_kind == "cuda" and tvm.get_global_func("relax.ext.cutlass", True):
         # CUTLASS offloading
@@ -338,6 +340,9 @@ def mod_transform_before_build(
         if not args.no_cutlass_norm:
             patterns += get_patterns_with_prefix("cutlass.layer_norm")
             patterns += get_patterns_with_prefix("cutlass.rms_norm")
+
+        if args.quantization.name == "q4f16_ft":
+            patterns += get_patterns_with_prefix("cutlass.decode_matmul")
 
         if len(patterns) > 0:
             os.makedirs("./tmp", exist_ok=True)

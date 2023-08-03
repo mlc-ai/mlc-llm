@@ -8,14 +8,16 @@ from tvm.relax.expr_functor import PyExprMutator, mutator
 
 @tvm.transform.module_pass(opt_level=0, name="FuseDecodeTranspose")
 class FuseDecodeTranspose:
-    def transform_module(
-        self, mod: IRModule, ctx: tvm.transform.PassContext
-    ) -> IRModule:
+    def __init__(self, skip_gemm=True) -> None:
+        self.skip_gemm = skip_gemm
+
+    def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:
         @mutator
         class DecodeTransposeFusor(PyExprMutator):
-            def __init__(self, mod: IRModule):
+            def __init__(self, mod: IRModule, skip_gemm=True):
                 super().__init__(mod)
                 self.mod = mod
+                self.skip_gemm = skip_gemm
 
             def transform(self) -> IRModule:
                 for gv, func in self.mod.functions.items():
@@ -35,7 +37,7 @@ class FuseDecodeTranspose:
                     return call
 
                 # Do not fuse decode-transpose for GeMM
-                if (
+                if self.skip_gemm and (
                     call.args[0].struct_info.ndim < 2
                     or not isinstance(call.args[0].struct_info.shape[-2], tir.IntImm)
                     or call.args[0].struct_info.shape[-2].value != 1
@@ -108,4 +110,4 @@ class FuseDecodeTranspose:
                     call.args[0], decoded_matmul_rhs, out_dtype=call.attrs.out_dtype
                 )
 
-        return DecodeTransposeFusor(mod).transform()
+        return DecodeTransposeFusor(mod, self.skip_gemm).transform()

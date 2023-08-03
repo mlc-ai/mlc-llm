@@ -40,6 +40,18 @@ def _tir_packed_uint_to_uint_to_float(storage_nbit: int):
     return f_convert
 
 
+def _tir_packed_int_to_int_to_float(storage_nbit: int):
+    storage_dtype = "int" + str(storage_nbit)
+
+    def f_convert(nbit: int, val: tir.PrimExpr, pos: tir.PrimExpr, dtype: str):
+        assert val.dtype == storage_dtype
+        mask = tir.const((1 << nbit) - 1, "int32")
+        unextended = (val >> (pos.astype("int32") * tir.const(nbit, "int32"))) & mask
+        return tir.Cast(dtype, (unextended << tir.const(32 - nbit, "int32")) >> tir.const(32 - nbit, "int32"))
+
+    return f_convert
+
+
 def _tir_f32_to_uint_to_f4(val: tir.PrimExpr):
     assert val.dtype == "float32"
     val_u32 = tir.reinterpret("uint32", val)
