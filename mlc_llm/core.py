@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 import mlc_llm
 import tvm
 from mlc_llm import utils
+from mlc_llm.transform import rewrite_attention
 from mlc_llm.relax_model import (
     gpt_bigcode,
     gpt_neox,
@@ -18,9 +19,12 @@ from mlc_llm.relax_model import (
     param_manager,
     rwkv,
 )
+
 from tvm import dlight as dl
 from tvm import meta_schedule as ms
 from tvm import relax
+from tvm.relax.backend import get_patterns_with_prefix
+from tvm.relax.backend.contrib.cutlass import annotate_workspace
 
 
 @dataclass
@@ -122,6 +126,26 @@ class BuildArgs:
             "help": (
                 "Specifies whether to use ``.safetensors`` instead of the default "
                 "``.bin`` when loading in model weights."
+            ),
+            "action": "store_true",
+        },
+    )
+    use_cutlass_attn: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Offload attention operations to CUTLASS when the target is CUDA"
+                "and TVM has been built with CUTLASS enabled."
+            ),
+            "action": "store_true",
+        },
+    )
+    use_cutlass_norm: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Offload layer and RMS norm operations to CUTLASS when the target is CUDA"
+                "and TVM has been built with CUTLASS enabled."
             ),
             "action": "store_true",
         },
@@ -300,6 +324,37 @@ def mod_transform_before_build(
 
     mod = param_manager.transform_dequantize(mod)
     mod = mlc_llm.transform.FuseDecodeTranspose()(mod)  # pylint: disable=not-callable
+
+    if args.target_kind == "cuda" and tvm.get_global_func("relax.ext.cutlass", True):
+        # CUTLASS offloading
+        patterns = []
+
+        if args.use_cutlass_attn:
+            mod["prefill"] = rewrite_attention(mod["prefill"])
+            mod["decode"] = rewrite_attention(mod["decode"])
+            patterns += get_patterns_with_prefix("cutlass.attention")
+
+        if args.use_cutlass_norm:
+            patterns += get_patterns_with_prefix("cutlass.layer_norm")
+            patterns += get_patterns_with_prefix("cutlass.rms_norm")
+
+        if len(patterns) > 0:
+            os.makedirs("./tmp", exist_ok=True)
+
+            mod = tvm.transform.Sequential(
+                [
+                    relax.transform.FuseOpsByPattern(
+                        patterns, bind_constants=False, annotate_codegen=True
+                    ),
+                    annotate_workspace,
+                    relax.transform.AllocateWorkspace(),
+                    relax.transform.RunCodegen(
+                        {"cutlass": {"sm": 80, "find_first_valid": False}},
+                        entry_functions=model_names,
+                    ),
+                ]
+            )(mod)
+
     mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
     mod = mlc_llm.transform.FuseDecodeMatmulEwise(  # pylint: disable=not-callable
