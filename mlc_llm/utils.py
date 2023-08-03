@@ -308,6 +308,20 @@ def _detect_local_cuda():
     )
 
 
+def _detect_local_rocm():
+    dev = tvm.rocm()
+    if not dev.exist:
+        return None
+    return tvm.target.Target(
+        {
+            "kind": "rocm",
+            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+            "max_threads_per_block": dev.max_threads_per_block,
+            "thread_warp_size": dev.warp_size,
+        }
+    )
+
+
 def _detect_local_vulkan():
     dev = tvm.vulkan()
     if not dev.exist:
@@ -336,6 +350,7 @@ def _detect_local_opencl():
 def detect_local_target():
     for method in [
         _detect_local_metal,
+        _detect_local_rocm,
         _detect_local_cuda,
         _detect_local_vulkan,
         _detect_local_opencl,
