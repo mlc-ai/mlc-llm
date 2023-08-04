@@ -325,7 +325,11 @@ def mod_transform_before_build(
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
 
     mod = param_manager.transform_dequantize(mod)
-    mod = mlc_llm.transform.FuseDecodeTranspose()(mod)  # pylint: disable=not-callable
+
+    use_ft_quant = args.quantization.name in ["q4f16_ft", "q8f16_ft"]
+    mod = mlc_llm.transform.FuseDecodeTranspose(skip_gemm=not use_ft_quant)(
+        mod
+    )  # pylint: disable=not-callable
 
     if "num_attention_heads" in config and "hidden_size" in config:
         mod = fuse_split_rotary_embedding(mod, config["num_attention_heads"], config["hidden_size"])
@@ -342,6 +346,9 @@ def mod_transform_before_build(
         if not args.no_cutlass_norm:
             patterns += get_patterns_with_prefix("cutlass.layer_norm")
             patterns += get_patterns_with_prefix("cutlass.rms_norm")
+
+        if use_ft_quant:
+            patterns += get_patterns_with_prefix("cutlass.decode_matmul")
 
         if len(patterns) > 0:
             os.makedirs("./tmp", exist_ok=True)
