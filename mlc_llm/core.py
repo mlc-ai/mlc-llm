@@ -23,6 +23,7 @@ from mlc_llm.relax_model import (
 from tvm import dlight as dl
 from tvm import meta_schedule as ms
 from tvm import relax
+from tvm.contrib.nvcc import parse_compute_version
 from tvm.relax.backend import get_patterns_with_prefix
 from tvm.relax.backend.contrib.cutlass import annotate_workspace
 
@@ -345,6 +346,13 @@ def mod_transform_before_build(
         if len(patterns) > 0:
             os.makedirs("./tmp", exist_ok=True)
 
+            major, minor = parse_compute_version(tvm.cuda(0).compute_version)
+
+            if major == 8:
+                sm = 80
+            else:
+                sm = 10 * major + minor
+
             mod = tvm.transform.Sequential(
                 [
                     relax.transform.FuseOpsByPattern(
@@ -353,7 +361,7 @@ def mod_transform_before_build(
                     annotate_workspace,
                     relax.transform.AllocateWorkspace(),
                     relax.transform.RunCodegen(
-                        {"cutlass": {"sm": 80, "find_first_valid": False}},
+                        {"cutlass": {"sm": sm, "find_first_valid": False}},
                         entry_functions=model_names,
                     ),
                 ]
