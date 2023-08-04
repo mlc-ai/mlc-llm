@@ -45,12 +45,6 @@ def old_make_args():
         help="The target platform to compile the model for."
     )
     args.add_argument(
-        "--db-path",
-        type=str,
-        default="log_db",
-        help="Path to log database for all models. Default: ./log_db/",
-    )
-    args.add_argument(
         "--reuse-lib",
         type=str,
         default=None,
