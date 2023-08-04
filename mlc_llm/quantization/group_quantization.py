@@ -1,12 +1,15 @@
 from dataclasses import dataclass
 from typing import List, Literal, Optional
 
+import tvm
 from tvm import relax, te, tir, topi
 from tvm.script import tir as T
+from tvm.relax.expr_functor import visitor
 
 from . import tir_utils
-from .quantization import QuantizationSpec
-from .quantization import FQuantize, FDequantize
+from .quantization import QuantizationSpec, QuantSpecUpdater
+from .quantization import NoQuantizationSpec
+from .quantization import FQuantize, FTEQuantize, FTEDequantize, convert_TE_func
 
 
 @dataclass
@@ -19,39 +22,43 @@ class GroupQuantizationSpec(QuantizationSpec):
     group_size: int
     transpose: bool
 
-    def get_quantize_func(
-        self, param_info: relax.TensorStructInfo
-    ) -> Optional[FQuantize]:
-        return encoding_func(
-            sym=self.sym,
-            group_size=self.group_size,
-            nbit=int(self.mode[-1]),
-            mode=self.mode,
-            storage_nbit=self.storage_nbit,
-            transpose=self.transpose,
-            dtype=self.dtype,
+    def get_quantize_func(self, param_info: relax.TensorStructInfo) -> Optional[FQuantize]:
+        return convert_TE_func(
+            encoding_func(
+                sym=self.sym,
+                group_size=self.group_size,
+                nbit=int(self.mode[-1]),
+                mode=self.mode,
+                storage_nbit=self.storage_nbit,
+                transpose=self.transpose,
+                dtype=self.dtype,
+            ),
+            func_name="encode",
         )
 
     def get_dequantize_func(
         self,
         param_info: relax.TensorStructInfo,
         qparam_info: List[relax.TensorStructInfo],
-    ) -> Optional[FDequantize]:
-        return decoding_func(
-            sym=self.sym,
-            group_size=self.group_size,
-            nbit=int(self.mode[-1]),
-            mode=self.mode,
-            storage_nbit=self.storage_nbit,
-            dim_length=param_info.shape.values[-1],
-            data_transposed=self.transpose,
-            transpose_output=self.transpose,
-            dtype=self.dtype,
+    ) -> Optional[FQuantize]:
+        return convert_TE_func(
+            decoding_func(
+                sym=self.sym,
+                group_size=self.group_size,
+                nbit=int(self.mode[-1]),
+                mode=self.mode,
+                storage_nbit=self.storage_nbit,
+                dim_length=param_info.shape.values[-1],
+                data_transposed=self.transpose,
+                transpose_output=self.transpose,
+                dtype=self.dtype,
+            ),
+            func_name="decode",
         )
 
 
 # fmt: off
-def encoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit: int, transpose: bool=True, dtype: str = "float32") -> FQuantize:
+def encoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit: int, transpose: bool=True, dtype: str = "float32") -> FTEQuantize:
     def te_encode_asym(weight: te.Tensor):
         assert weight.shape[1] % group_size == 0
         n_group = weight.shape[1] // group_size
@@ -129,7 +136,7 @@ def encoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit
     return te_encode_sym if sym else te_encode_asym
 
 
-def decoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit: int, dim_length: tir.PrimExpr, data_transposed: bool=True, transpose_output: bool=False, dtype: str = "float32") -> FDequantize:
+def decoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit: int, dim_length: tir.PrimExpr, data_transposed: bool=True, transpose_output: bool=False, dtype: str = "float32") -> FTEDequantize:
     def te_decode_asym(*args):
         n_float_per_u32 = 32 // nbit
         data = args[0]
@@ -181,3 +188,27 @@ def decoding_func(sym: bool, group_size: int, nbit: int, mode: str, storage_nbit
 
     return te_decode_sym if sym else te_decode_asym
 # fmt: on
+
+
+# A simple example demo showing how QuantSpecUpdater is used.
+# NOTE: This visitor is only for demo purpose and should not be put into real use.
+@visitor
+class GroupQuantDemoUpdater(QuantSpecUpdater._cls):
+    def visit_call_(self, call: relax.Call):
+        if call.op != tvm.ir.Op.get("relax.matmul"):
+            return
+        rhs = self.lookup_binding(call.args[1])
+        assert rhs is not None
+        if (
+            rhs.op != tvm.ir.Op.get("relax.permute_dims")
+            or rhs.attrs.axes is not None
+            or rhs.args[0].struct_info.ndim != 2
+        ):
+            return
+
+        if rhs.args[0] not in self.param_map:
+            return
+        param = self.param_map[rhs.args[0]]
+        # Update to no quantization for matmul with float32 output dtype.
+        if call.struct_info.dtype == "float32":
+            param.quant_spec = NoQuantizationSpec(param.param_info.dtype)

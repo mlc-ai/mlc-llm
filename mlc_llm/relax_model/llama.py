@@ -932,6 +932,7 @@ def get_model(args, hf_config):
 
     param_manager.set_param_loading_func(
         args.model_path,
+        args.use_safetensors,
         f_convert_pname_fwd,
         f_convert_param_bkwd,
         f_compute_relax_param,
@@ -942,6 +943,7 @@ def get_model(args, hf_config):
     if args.quantization.pre_quantized:
         param_list = args.quantization.load_quantized_params(
             args.model_path,
+            args.use_safetensors,
             param_list,
             param_manager.pidx2pname,
             device,

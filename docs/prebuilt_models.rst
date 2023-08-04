@@ -204,7 +204,7 @@ Prebuilt Models for Android
     - Model Series
     - Quantization Mode
     - Hugging Face repo
-  * - `vicuna-v1-7b-q4f16_0`
+  * - `vicuna-v1-7b-q4f16_1`
     - `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
     - * Weight storage data type: int4
       * Running data type: float16
@@ -264,7 +264,7 @@ MLC-LLM supports the following model architectures:
   * - ``minigpt``
     - `MiniGPT <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
     - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/minigpt.py>`__
-    - 
+    -
   * - ``gpt_bigcode``
     - `GPTBigCode <https://huggingface.co/docs/transformers/model_doc/gpt_bigcode>`__
     - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_bigcode.py>`__

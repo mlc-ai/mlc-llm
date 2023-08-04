@@ -8,6 +8,13 @@ This page describes how to distribute the model you compiled so others can use t
 For demonstration purposes, we show how to compile the `RedPajama-3B instruct model <https://huggingface.co/togethercomputer/RedPajama-INCITE-Instruct-3B-v1>`_
 (which has different weights from the RedPajama chat model).
 
+.. note::
+
+    We use the quantization option `q4f16_0` here throughout the example
+    because that was what came with the existing prebuilt (we are upgrading prebuilt for `q4f16_1`).
+    If you do not need to try out prebuilt and would like to compile the library
+    from scratch, we recommend `q4f16_1`.
+
 
 If you have not compiled the RedPajama-3B instruct model,
 you can use the following command to compile it:
@@ -94,7 +101,7 @@ and update the value of field ``model_lib`` to ``"RedPajama-INCITE-Chat-3B-v1-q4
     .. code:: shell
 
         python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --reuse-lib RedPajama-INCITE-Chat-3B-v1-q4f16_0 --target [your target] --quantization q4f16_0
-    
+
     In this way, `mlc_llm.build` does not produce the model library for the instruct model, and in `mlc-chat-config.json`
     the ``model_lib`` field is set to ``RedPajama-INCITE-Chat-3B-v1-q4f16_0``.
 

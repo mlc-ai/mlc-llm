@@ -4,15 +4,15 @@ import tvm
 import numpy as np
 from tvm._ffi.runtime_ctypes import Device
 from tvm import relax, te, tir, topi
-from tvm.script import tir as T
 
 from . import tir_utils
 from .quantization import QuantizationSpec
-from .quantization import FDequantize
+from .quantization import FQuantize, FTEDequantize, convert_TE_func
 
 
 def load_autogptq_params(
     model_path: str,
+    use_safetensors: bool,
     param_list: List[relax.Var],
     pidx2pname: Dict[int, str],
     device: Device,
@@ -27,7 +27,9 @@ def load_autogptq_params(
 
     from auto_gptq import AutoGPTQForCausalLM
 
-    model = AutoGPTQForCausalLM.from_quantized(model_path).cpu()
+    model = AutoGPTQForCausalLM.from_quantized(
+        model_path, use_safetensors=use_safetensors
+    ).cpu()
     param_dict = model.state_dict()
     for pidx, pname in pidx2pname.items():
         if any(excluded_param in pname for excluded_param in excluded_params):
@@ -79,7 +81,7 @@ class AutogptqQuantizationSpec(QuantizationSpec):
         # by default, torch stores weight in [outfeatures, infeatures]
         outfeatures, infeatures = param.struct_info.shape
         group_size = self.group_size if self.group_size != -1 else infeatures
-        
+
         PARAM_CONFIGS = {
             "qweight": {
                 "shape_fn": lambda self, infeatures, outfeatures: (
@@ -133,25 +135,28 @@ class AutogptqQuantizationSpec(QuantizationSpec):
 
     def get_quantize_func(
         self, param_info: relax.TensorStructInfo
-    ) -> Optional[FDequantize]:
+    ) -> Optional[FQuantize]:
         return None
 
     def get_dequantize_func(
         self,
         param_info: relax.TensorStructInfo,
         qparam_info: List[relax.TensorStructInfo],
-    ) -> Optional[FDequantize]:
+    ) -> Optional[FQuantize]:
         infeatures = param_info.shape.struct_info  # type: ignore
-        return decoding_func(
-            sym=self.sym,
-            group_size=self.group_size if self.group_size != -1 else infeatures,
-            nbit=int(self.mode[-1]),
-            mode=self.mode,
-            storage_nbit=self.storage_nbit,
-            dim_length=param_info.shape.values[-1],
-            data_transposed=self.transpose,
-            transpose_output=self.transpose,
-            dtype=self.dtype,
+        return convert_TE_func(
+            decoding_func(
+                sym=self.sym,
+                group_size=self.group_size if self.group_size != -1 else infeatures,
+                nbit=int(self.mode[-1]),
+                mode=self.mode,
+                storage_nbit=self.storage_nbit,
+                dim_length=param_info.shape.values[-1],
+                data_transposed=self.transpose,
+                transpose_output=self.transpose,
+                dtype=self.dtype,
+            ),
+            func_name="decode",
         )
 
 
@@ -165,7 +170,7 @@ def decoding_func(
     data_transposed: bool = True,
     transpose_output: bool = False,
     dtype: str = "float16",
-) -> FDequantize:
+) -> FTEDequantize:
     assert dtype in ["float16"], "Only support float16 currently"
     assert sym == False, "Only support sym=False currently"
     assert storage_nbit == 32, "Only support storage_nbit=32 currently"

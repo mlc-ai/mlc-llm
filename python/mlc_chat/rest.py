@@ -83,6 +83,7 @@ def _parse_args():
     )
     args.add_argument("--device-name", type=str, default="cuda")
     args.add_argument("--device-id", type=int, default=0)
+    args.add_argument("--host", type=str, default="127.0.0.1")
     args.add_argument("--port", type=int, default=8000)
 
     parsed = args.parse_args()
@@ -206,4 +207,4 @@ async def read_stats():
 
 ARGS = _parse_args()
 if __name__ == "__main__":
-    uvicorn.run("mlc_chat.rest:app", port=ARGS.port, reload=False, access_log=False)
+    uvicorn.run("mlc_chat.rest:app", host=ARGS.host, port=ARGS.port, reload=False, access_log=False)
