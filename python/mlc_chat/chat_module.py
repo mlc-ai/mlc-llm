@@ -51,19 +51,20 @@ def quantization_keys():
 class ConvConfig:
     """The dataclass that represents conversation template."""
 
-    name: str
-    system: str
-    roles: List[str]
-    messages: List[str]
-    offset: str
-    separator_style: int
-    seps: List[str]
-    role_msg_sep: str
-    role_empty_sep: str
-    role_msg_sep: str  # TODO(Charlie): not present in `llm_chat.cc`
-    stop_str: str
-    stop_tokens: List[int]
-    add_bos: bool
+    # Everything has to be optional since users do not have to override
+    name: Optional[str] = None
+    system: Optional[str] = None
+    roles: Optional[List[str]] = None
+    messages: Optional[List[str]] = None
+    offset: Optional[str] = None
+    separator_style: Optional[int] = None
+    seps: Optional[List[str]] = None
+    role_msg_sep: Optional[str] = None
+    role_empty_sep: Optional[str] = None
+    role_msg_sep: Optional[str] = None  # TODO(Charlie): not present in `llm_chat.cc`
+    stop_str: Optional[str] = None
+    stop_tokens: Optional[List[int]] = None
+    add_bos: Optional[bool] = None
 
 
 # TODO(Charlie): determine what is optional and what is not here
@@ -71,6 +72,7 @@ class ConvConfig:
 class ChatConfig:
     """The dataclass that represents the mlc-chat-config.json file."""
 
+    # Everything has to be optional since users do not have to override
     model_lib: Optional[str] = None
     local_id: Optional[str] = None
     conv_template: Optional[str] = None
@@ -82,6 +84,8 @@ class ChatConfig:
     shift_fill_factor: Optional[float] = None
     tokenizer_files: Optional[List[str]] = None
     conv_config: Optional[ConvConfig] = None
+    model_category: Optional[str] = None
+    model_name: Optional[str] = None
 
 
 class PlaceInPrompt(Enum):
@@ -98,6 +102,28 @@ class PlaceInPrompt(Enum):
     # The input message is the ending part of a prompt, no role name and separator should be appended prior to it
     # since the message is concatenated to some prior messages.
     End = 3
+
+def _convert_chat_config_to_json_str(chat_config: ChatConfig):
+    """Convert user's input ChatConfig to a json string."""
+    if chat_config is None:
+        return ""
+    # Only want to keep entries that are not None; otherwise, we would override things to None
+    assert hasattr(ChatConfig, "conv_config")  # in case dataclass attribute name changes
+    chat_dict = {}
+    for k, v in asdict(chat_config).items():
+        if k == "conv_config" and v is not None:
+            # conv template is another dict, do the same thing
+            conv_dict = {}
+            for conv_k, conv_v in v.items():
+                if conv_v is not None:
+                    conv_dict[conv_k] = conv_v
+            chat_dict[k] = conv_dict
+            continue
+
+        if v is not None:
+            chat_dict[k] = v
+
+    return json.dumps(chat_dict)
 
 
 class ChatModule:
@@ -178,7 +204,7 @@ class ChatModule:
 
         # 6. Call reload
         # TODO(Charlie): check if this method will serialize the ConvConfig
-        user_chat_config_json_str = json.dumps(asdict(chat_config))
+        user_chat_config_json_str = _convert_chat_config_to_json_str(chat_config)
         self._reload(self.lib_path, self.model_path, user_chat_config_json_str)
 
     def _get_lib_path(
@@ -189,15 +215,7 @@ class ChatModule:
         if lib_path is not None:
             if os.path.isfile(lib_path):
                 print(f"Using library model: {lib_path}")
-                try:
-                    lib_path = tvm.runtime.load_module(lib_path)
-                except Exception as e:
-                    err_msg = (
-                        f"Ran into error when loading the `lib_path` you passed in: {lib_path} \n"
-                        f"Please checkout {_PYTHON_GET_STARTED_TUTORIAL_URL} for an "
-                        "example on how to load a model."
-                    )
-                    raise RuntimeError() from e
+                lib_path = tvm.runtime.load_module(lib_path)
                 return lib_path
             else:
                 err_msg = (
@@ -241,15 +259,7 @@ class ChatModule:
         for candidate in candidate_paths:
             if os.path.isfile(candidate):
                 print(f"Using library model: {os.path.abspath(candidate)}")
-                try:
-                    candidate_loaded = tvm.runtime.load_module(candidate)
-                except Exception as e:
-                    err_msg = (
-                        f"Ran into error when loading the library we found: {candidate} \n"
-                        f"Please checkout {_PYTHON_GET_STARTED_TUTORIAL_URL} for an "
-                        "example on how to load a model."
-                    )
-                    raise RuntimeError() from e
+                candidate_loaded = tvm.runtime.load_module(candidate)
                 return candidate_loaded
 
         # 5. Error
@@ -277,10 +287,6 @@ class ChatModule:
             original_chat_config = ChatConfig(**json_object)
         if user_chat_config is not None:
             # We override using user's chat config
-            # TODO(Charlie): should user_chat_config's ConvConfig override the entire
-            # original_chat_config's ConvConfig, or should we perform another
-            # similar override for ConvConfig? Currently prefers the former
-            # since original_chat_config's ConvConfig is already an override
             for field in fields(user_chat_config):
                 field_name = field.name
                 field_value = getattr(user_chat_config, field_name)
@@ -326,18 +332,18 @@ class ChatModule:
         # Failed to find a valid model_path, analyzing error for user
         err_msg = (
             "Cannot find mlc-chat-config.json in the model folder. "
-            "According to your input `model`, we found folder(s) "
+            "According to your input `model`, we found folder(s): "
         )
         found_folder = False
         for candidate in candidate_paths:
             if os.path.isdir(candidate):
-                err_msg += f"{os.path.abspath(candidate)}, "
+                err_msg += f"- {os.path.abspath(candidate)}\n"
                 found_folder = True
 
         if found_folder:
             # Error 1: there is a folder, but not an mlc-llm model folder
             err_msg += (
-                "\nbut we cannot find `mlc-chat-config.json` in the folder(s), a required file.\n"
+                "But we cannot find `mlc-chat-config.json` in the folder(s), a required file.\n"
                 "MLC-Chat consumes models that are processed "
                 "by the MLC-LLM build process. Please checkout "
                 f"{_PYTHON_GET_STARTED_TUTORIAL_URL} for an example on how to load a model."
