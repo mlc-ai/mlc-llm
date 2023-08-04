@@ -164,7 +164,7 @@ class FTQuantizeUpdater(QuantSpecUpdater._cls):
 
         param = self.param_map[rhs.args[0]]
 
-        if call.struct_info.dtype == "float32" or rhs.struct_info[-1] % 8 != 0:
+        if call.struct_info.dtype == "float32" or rhs.struct_info.shape[-1] % 8 != 0:
             param.quant_spec = GroupQuantizationSpec(param.param_info.dtype,
                                                      mode="int4",
                                                      sym=True,
