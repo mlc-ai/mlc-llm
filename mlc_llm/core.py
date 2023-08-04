@@ -502,6 +502,8 @@ def build_model_from_args(args: argparse.Namespace):
         if not args.build_model_only:
             new_params = utils.convert_weights(param_manager, params, args)
             utils.save_params(new_params, args.artifact_path)
+            if args.model_category != "minigpt":
+                utils.copy_tokenizer(args)
             dump_default_mlc_chat_config(args)
 
         if args.convert_weight_only:
@@ -511,8 +513,6 @@ def build_model_from_args(args: argparse.Namespace):
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)
         print(f"Save a cached module to {cache_path}.")
-        if args.model_category != "minigpt":
-            utils.copy_tokenizer(args)
     else:
         print(
             f"Load cached module from {cache_path} and skip tracing. "
