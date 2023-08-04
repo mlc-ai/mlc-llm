@@ -151,6 +151,16 @@ class BuildArgs:
             "action": "store_true",
         },
     )
+    use_cuda_graph: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Specifies whether to enable CUDA Graph for the decoder. MLP and QKV "
+                "projection between two attention layers are put into a graph."
+            ),
+            "action": "store_true",
+        },
+    )
 
 
 def convert_build_args_to_argparser() -> argparse.ArgumentParser:
@@ -452,7 +462,13 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
 
     utils.debug_dump_script(mod_deploy, "mod_build_stage.py", args)
 
-    ex = relax.build(mod_deploy, args.target, system_lib=args.system_lib)
+    use_cuda_graph = args.use_cuda_graph and target_kind == "cuda"
+
+    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": use_cuda_graph}):
+        # The num_input attribute is needed to capture transformed weights passed as input
+        # into a cuda graph.
+        mod_deploy["decode"] = mod_deploy["decode"].with_attr({"num_input": 3})
+        ex = relax.build(mod_deploy, args.target, system_lib=args.system_lib)
 
     output_filename = f"{args.model}-{args.quantization.name}-{target_kind}.{args.lib_format}"
 
