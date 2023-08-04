@@ -326,6 +326,9 @@ def mod_transform_before_build(
     mod = param_manager.transform_dequantize(mod)
     mod = mlc_llm.transform.FuseDecodeTranspose()(mod)  # pylint: disable=not-callable
 
+    if "num_attention_heads" in config and "hidden_size" in config:
+        mod = fuse_split_rotary_embedding(mod, config["num_attention_heads"], config["hidden_size"])
+
     if args.target_kind == "cuda" and tvm.get_global_func("relax.ext.cutlass", True):
         # CUTLASS offloading
         patterns = []
