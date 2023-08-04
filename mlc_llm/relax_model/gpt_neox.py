@@ -82,9 +82,7 @@ class GPTNeoXAttention(nn.Module):
         self.num_heads = num_heads
         self.head_dim = hidden_size // num_heads
         self.rotary_embedding = rotary_embedding
-        self.q_proj = Linear(hidden_size, hidden_size, dtype, bias=True)
-        self.k_proj = Linear(hidden_size, hidden_size, dtype, bias=True)
-        self.v_proj = Linear(hidden_size, hidden_size, dtype, bias=True)
+        self.query_key_value = Linear(hidden_size, hidden_size * 3, dtype, bias=True)
         self.dense = Linear(hidden_size, hidden_size, dtype, bias=True)
         self.dtype = dtype
 
@@ -101,20 +99,20 @@ class GPTNeoXAttention(nn.Module):
         batch_size, seq_len, _ = hidden_states.struct_info.shape
         kv_seq_len = all_seq_len_shape.struct_info.values[0]
 
-        def _project(proj):
-            return nn.emit(
+        # qkv_states: [batch_size, seq_len, hidden_size * 3]
+        qkv_states = nn.emit(
+            relax.op.split(
                 reshape(
-                    proj(hidden_states),
-                    (batch_size, seq_len, self.num_heads, self.head_dim),
-                )
+                    self.query_key_value(hidden_states),
+                    (batch_size, seq_len, self.num_heads, 3 * self.head_dim),
+                ),
+                indices_or_sections=3,
+                axis=-1,
             )
+        )
 
         # q/k/v states: [batch_size, seq_len, num_attention_heads, head_size]
-        q, k, v = (
-            _project(self.q_proj),
-            _project(self.k_proj),
-            _project(self.v_proj),
-        )
+        q, k, v = [relax.TupleGetItem(qkv_states, idx) for idx in range(3)]
         q, k = self.rotary_embedding(q, k, kv_seq_len - seq_len)
 
         if past_key_value is not None:
@@ -488,9 +486,7 @@ class GPTNeoXForCausalLM(nn.Module):
         return logits, key_value_cache
 
 
-def get_param_quant_kind(
-    name: str, param_info: relax.TensorStructInfo
-) -> ParamQuantKind:
+def get_param_quant_kind(name: str, param_info: relax.TensorStructInfo) -> ParamQuantKind:
     if "embed_in.weight" in name:
         return ParamQuantKind.embedding_table
     elif "embed_out.weight" in name:
@@ -513,9 +509,7 @@ def create_embed_func(
     seq_len = tvm.tir.Var("n", "int64")
     with bb.function(func_name):
         model = GPTNeoXEmbedTokensWrapper(config)
-        param_manager.register_params(
-            model, func_name, quant_scheme, get_param_quant_kind
-        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
         with bb.dataflow():
@@ -544,9 +538,7 @@ def create_encoding_func(
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = GPTNeoXForCausalLM(config, sep_embed)
-        param_manager.register_params(
-            model, func_name, quant_scheme, get_param_quant_kind
-        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         inputs = (
             nn.Placeholder(
@@ -557,9 +549,7 @@ def create_encoding_func(
             if sep_embed
             else nn.Placeholder((batch_size, seq_len), dtype="int32", name="input_ids")
         )
-        all_seq_len_shape = relax.Var(
-            "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
-        )
+        all_seq_len_shape = relax.Var("all_seq_len", relax.ShapeStructInfo((all_seq_len,)))
         past_key_values = relax.Var(
             "kv_cache",
             relax.TupleStructInfo(
@@ -597,13 +587,9 @@ def create_decoding_func(
     all_seq_len = tvm.tir.Var("n", "int64")
     with bb.function(func_name):
         model = GPTNeoXForCausalLM(config)
-        param_manager.register_params(
-            model, func_name, quant_scheme, get_param_quant_kind
-        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
-        input_ids = nn.Placeholder(
-            (batch_size, seq_len), dtype="int32", name="input_ids"
-        )
+        input_ids = nn.Placeholder((batch_size, seq_len), dtype="int32", name="input_ids")
         all_seq_len_shape = relax.Var(
             "all_seq_len",
             relax.ShapeStructInfo((all_seq_len,)),
@@ -664,9 +650,7 @@ def create_kv_cache_func(
 
 def create_softmax_func(bb: relax.BlockBuilder, config: GPTNeoXConfig) -> None:
     with bb.function("softmax_with_temperature"):
-        logits = nn.Placeholder(
-            (1, 1, config.vocab_size), dtype="float32", name="logits"
-        )
+        logits = nn.Placeholder((1, 1, config.vocab_size), dtype="float32", name="logits")
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
             div = bb.emit(relax.op.divide(logits, temperature))
@@ -733,53 +717,13 @@ def get_model(
         return mod, param_manager, None
 
     def f_convert_pname_fwd(pname: str) -> List[str]:
-        import re  # pylint: disable=import-outside-toplevel
-
-        str_pattern = re.compile(r"(q|k|v)_proj")
-        if re.search(str_pattern, pname) is not None:
-            return [str_pattern.sub("query_key_value", pname)]
-        else:
-            return [pname]
-
-    num_heads = config.num_attention_heads
-    hidden_size = config.hidden_size
-    head_dim = hidden_size // num_heads
+        return [pname]
 
     def f_convert_param_bkwd(torch_pname: str, torch_param):
         # torch_param: numpy.ndarray
-        if torch_pname.endswith("query_key_value.weight"):
-            assert torch_param.ndim == 2
-            torch_param = torch_param.astype(dtype).reshape(
-                num_heads, 3, head_dim, hidden_size
-            )
-            q_weight = torch_param[:, 0, :, :].reshape(hidden_size, hidden_size)
-            k_weight = torch_param[:, 1, :, :].reshape(hidden_size, hidden_size)
-            v_weight = torch_param[:, 2, :, :].reshape(hidden_size, hidden_size)
-            return [
-                (torch_pname.replace("query_key_value", "q_proj"), q_weight),
-                (torch_pname.replace("query_key_value", "k_proj"), k_weight),
-                (torch_pname.replace("query_key_value", "v_proj"), v_weight),
-            ]
-        elif torch_pname.endswith("query_key_value.bias"):
-            assert torch_param.ndim == 1
-            torch_param = torch_param.astype(dtype).reshape(num_heads, 3, head_dim)
-            q_bias = torch_param[:, 0, :].reshape(hidden_size)
-            k_bias = torch_param[:, 1, :].reshape(hidden_size)
-            v_bias = torch_param[:, 2, :].reshape(hidden_size)
-            return [
-                (torch_pname.replace("query_key_value", "q_proj"), q_bias),
-                (torch_pname.replace("query_key_value", "k_proj"), k_bias),
-                (torch_pname.replace("query_key_value", "v_proj"), v_bias),
-            ]
-        elif (
-            "layernorm" in torch_pname
-            or "layer_norm" in torch_pname
-            or "embed_out" in torch_pname
-        ):
+        if "layernorm" in torch_pname or "layer_norm" in torch_pname or "embed_out" in torch_pname:
             return [(torch_pname, torch_param.astype("float32"))]
-        elif (
-            ".dense_h_to_4h.bias" in torch_pname or ".dense_4h_to_h.bias" in torch_pname
-        ):
+        elif ".dense_h_to_4h.bias" in torch_pname or ".dense_4h_to_h.bias" in torch_pname:
             return [(torch_pname, torch_param.astype(ffn_out_dtype))]
         else:
             return [(torch_pname, torch_param.astype(dtype))]
