@@ -169,9 +169,11 @@ class FTQuantizeUpdater(QuantSpecUpdater._cls):
             # FT does not support fp32 output dtype
             # TODO(masahi): If `matmul(..., out_dtype="float32")` is immediately followed
             # by `cast(..., "float16")`, `matmul -> cast` can be offloaded.
-            param.quant_spec = GroupQuantizationSpec(param.param_info.dtype,
-                                                     mode="int4",
-                                                     sym=True,
-                                                     storage_nbit=32,
-                                                     group_size=32,
-                                                     transpose=False)
+            param.quant_spec = GroupQuantizationSpec(
+                param.param_info.dtype,
+                mode="int4",
+                sym=True,
+                storage_nbit=32,
+                group_size=32,
+                transpose=False,
+            )
