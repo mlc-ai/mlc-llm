@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import tvm
+from tvm.contrib.nvcc import parse_compute_version
 from tvm import relax, te, tir, topi
 from tvm.script import tir as T
 from tvm.relax.expr_functor import visitor
@@ -16,9 +17,22 @@ from .group_quantization import GroupQuantizationSpec
 class FTRowwiseQuantizationSpec(QuantizationSpec):
     """The quantization specification for the FasterTransformer kernel."""
 
-    nbit: int
+    def __init__(self, dtype, nbit):
+        super().__init__(dtype)
+        self.nbit = nbit
+
+        if tvm.cuda(0).exist:
+            major, minor = parse_compute_version(tvm.cuda(0).compute_version)
+            if major == 8:
+                self.sm = 80
+            else:
+                self.sm = 10 * major + minor
+        else:
+            self.sm = None
 
     def get_quantize_func(self, param_info: relax.TensorStructInfo) -> Optional[FQuantize]:
+        assert self.sm is not None
+
         def f_quantize(bb: relax.BlockBuilder, inputs: List[relax.Expr]):
             encoded_data = bb.emit_te(
                 encoding_func(
@@ -34,7 +48,7 @@ class FTRowwiseQuantizationSpec(QuantizationSpec):
                 relax.call_pure_packed(
                     "cutlass.ft_preprocess_weight",
                     packed_weight,
-                    80,
+                    self.sm,
                     self.nbit == 4,
                     sinfo_args=packed_weight.struct_info,
                 )
