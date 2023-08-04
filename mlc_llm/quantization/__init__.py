@@ -5,7 +5,7 @@ from .quantization import QuantSpecUpdater
 from .group_quantization import GroupQuantizationSpec
 from .autogptq_quantization import AutogptqQuantizationSpec, load_autogptq_params
 from .rwkv_quantization import RWKVQuantizationSpec
-from .ft_rowwise_quantization import FTRowwiseQuantizationSpec
+from .ft_rowwise_quantization import FTRowwiseQuantizationSpec, FTQuantizeUpdater
 
 
 # The predefined quantization schemes.
@@ -115,6 +115,7 @@ quantization_schemes = {
             transpose=False,
         ),
         final_fc_weight="same_as_linear_weight",
+        qspec_updater_class=FTQuantizeUpdater,
     ),
     "q4f32_0": QuantizationScheme(
         name="q4f32_0",
@@ -169,5 +170,6 @@ quantization_schemes = {
             transpose=False,
         ),
         final_fc_weight="same_as_linear_weight",
+        qspec_updater_class=FTQuantizeUpdater,
     ),
 }

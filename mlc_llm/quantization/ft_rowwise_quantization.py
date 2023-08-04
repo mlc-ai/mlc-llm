@@ -1,12 +1,15 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
+import tvm
 from tvm import relax, te, tir, topi
 from tvm.script import tir as T
+from tvm.relax.expr_functor import visitor
 
 from . import tir_utils
-from .quantization import QuantizationSpec
+from .quantization import QuantizationSpec, QuantSpecUpdater
 from .quantization import FQuantize, convert_TE_func
+from .group_quantization import GroupQuantizationSpec
 
 
 @dataclass
@@ -140,3 +143,31 @@ def decoding_func(nbit: int, storage_nbit: int):
         return topi.transpose(w)
 
     return te_decode_sym
+
+
+@visitor
+class FTQuantizeUpdater(QuantSpecUpdater._cls):
+    def visit_call_(self, call: relax.Call):
+        if call.op != tvm.ir.Op.get("relax.matmul"):
+            return
+        rhs = self.lookup_binding(call.args[1])
+        assert rhs is not None
+        if (
+            rhs.op != tvm.ir.Op.get("relax.permute_dims")
+            or rhs.attrs.axes is not None
+            or rhs.args[0].struct_info.ndim != 2
+        ):
+            return
+
+        if rhs.args[0] not in self.param_map:
+            return
+
+        param = self.param_map[rhs.args[0]]
+
+        if call.struct_info.dtype == "float32" or rhs.struct_info[-1] % 8 != 0:
+            param.quant_spec = GroupQuantizationSpec(param.param_info.dtype,
+                                                     mode="int4",
+                                                     sym=True,
+                                                     storage_nbit=32,
+                                                     group_size=32,
+                                                     transpose=False)
