@@ -21,7 +21,6 @@ from mlc_llm.relax_model import (
 )
 
 from tvm import dlight as dl
-from tvm import meta_schedule as ms
 from tvm import relax
 from tvm.contrib.nvcc import parse_compute_version
 from tvm.relax.backend import get_patterns_with_prefix
@@ -61,10 +60,6 @@ class BuildArgs:
     target: str = field(
         default="auto",
         metadata={"help": "The target platform to compile the model for."},
-    )
-    db_path: str = field(
-        default="log_db",
-        metadata={"help": "Path to log database for all models. Default: ./log_db/"},
     )
     reuse_lib: str = field(
         default=None, metadata={"help": "Whether to reuse a previously generated lib."}
@@ -193,35 +188,6 @@ def _parse_args(parsed) -> argparse.Namespace:
     parsed.lib_format = "so"
     parsed.system_lib_prefix = None
     parsed = _setup_model_path(parsed)
-
-    if os.path.exists(parsed.db_path):
-        filenames = os.listdir(parsed.db_path)
-        if (
-            len(filenames) == 2
-            and "database_workload.json" in filenames
-            and "database_tuning_record.json" in filenames
-        ):
-            ms.database.create(work_dir=parsed.db_path)
-            parsed.db_path = [parsed.db_path]
-        else:
-            db_paths = []
-            for filename in filenames:
-                db_path = os.path.join(parsed.db_path, filename)
-                if os.path.isdir(db_path):
-                    try:
-                        ms.database.create(work_dir=db_path)
-                    except Exception:
-                        continue
-                    else:
-                        db_paths.append(db_path)
-            parsed.db_path = db_paths
-    else:
-        parsed.db_path = []
-
-    if len(parsed.db_path) == 0:
-        print(f"WARNING: --db-path does not point to a valid database: {parsed.db_path}")
-    else:
-        print(f"Database paths: {parsed.db_path}")
 
     utils.parse_target(parsed)
     utils.argparse_postproc_common(parsed)
@@ -435,20 +401,18 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
 
     utils.debug_dump_script(mod_deploy, "mod_before_build.py", args)
     if target_kind != "cpu":
-        db = utils.get_database(args.db_path)  # pylint: disable=invalid-name
         dispatch_target = (
             args.target
             if args.target_kind != "webgpu"
             else tvm.target.Target("apple/m1-gpu-restricted")
         )
-        with db, dispatch_target:
+        with dispatch_target:
             if args.target_kind == "android":
                 mod_deploy = (
                     mlc_llm.dispatch.DispatchTIROperatorAdreno()(  # pylint: disable=not-callable
                         mod_deploy
                     )
                 )
-            mod_deploy = relax.transform.MetaScheduleApplyDatabase()(mod_deploy)
             mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod_deploy)
             mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod_deploy)
             mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.Reduction())(mod_deploy)
