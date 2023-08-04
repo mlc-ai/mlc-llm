@@ -103,10 +103,13 @@ class PlaceInPrompt(Enum):
     # since the message is concatenated to some prior messages.
     End = 3
 
-def _convert_chat_config_to_json_str(chat_config: ChatConfig):
+def _convert_chat_config_to_json_str(chat_config: ChatConfig, conv_template: str):
     """Convert user's input ChatConfig to a json string."""
     if chat_config is None:
         return ""
+    # Current logic does not allow partial ChatConfig wihtout specifying the
+    # conv_template. Hence we use the conv_template after considering overrides.
+    chat_config.conv_template = conv_template
     # Only want to keep entries that are not None; otherwise, we would override things to None
     assert hasattr(ChatConfig, "conv_config")  # in case dataclass attribute name changes
     chat_dict = {}
@@ -204,7 +207,7 @@ class ChatModule:
 
         # 6. Call reload
         # TODO(Charlie): check if this method will serialize the ConvConfig
-        user_chat_config_json_str = _convert_chat_config_to_json_str(chat_config)
+        user_chat_config_json_str = _convert_chat_config_to_json_str(chat_config, self.chat_config.conv_template)
         self._reload(self.lib_path, self.model_path, user_chat_config_json_str)
 
     def _get_lib_path(
