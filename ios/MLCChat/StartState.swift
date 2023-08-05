@@ -183,7 +183,6 @@ class StartState : ObservableObject {
                     
                     if localIds.contains(modelConfig.local_id) {
                         try fileManager.removeItem(at: tempFileUrl)
-                        showAlert(message: "Local ID: \(modelConfig.local_id) already exists")
                         return
                     }
                     
