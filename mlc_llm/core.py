@@ -220,6 +220,7 @@ def _setup_model_path(args: argparse.Namespace):  # pylint: disable=too-many-bra
         validate_config(args.model_path)
     elif args.model != "auto":
         if os.path.isdir(args.model):
+            args.model = os.path.normpath(args.model)  # Remove potential trailing `/`
             args.model_path = args.model
             args.model = os.path.basename(args.model)
         else:
