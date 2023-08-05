@@ -40,12 +40,12 @@ Prebuilt Models for CLI
       * Running data type: float16
       * Symmetric quantization
     - `link <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0>`__
-  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_0`
+  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
     - `RedPajama <https://www.together.xyz/blog/redpajama>`__
     - * Weight storage data type: int4
       * Running data type: float16
       * Symmetric quantization
-    - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0>`__
+    - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
   * - `rwkv-raven-1b5-q8f16_0`
     - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
     - * Weight storage data type: uint8
@@ -117,12 +117,12 @@ Prebuilt Models for iOS
       * Running data type: float16
       * Symmetric quantization
     - `link <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0>`__
-  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_0`
+  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
     - `RedPajama <https://www.together.xyz/blog/redpajama>`__
     - * Weight storage data type: int4
       * Running data type: float16
       * Symmetric quantization
-    - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0>`__
+    - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
 
 The `downloadable iOS app <https://apps.apple.com/us/app/mlc-chat/id6448482937>`_ has builtin RedPajama-3B model support.
 To add a model to the iOS app, follow the steps below:
@@ -184,7 +184,7 @@ For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/op
     - * Weight storage data type: int3
       * Running data type: float16
       * Symmetric quantization
-  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_0`
+  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
     - GPT-NeoX
     - * Weight storage data type: int4
       * Running data type: float16

@@ -301,32 +301,38 @@
 <span id="configure-mlc-chat-json"></span><h1>Configure MLCChat in JSON<a class="headerlink" href="#configure-mlcchat-in-json" title="Permalink to this heading">¶</a></h1>
 <p>This page explains the components of a chat configuration and how to customize them for your own purposes.</p>
 <p>Each MLC Chat runtime can be configured via an <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file under the directory of each compiled model (e.g.
-<a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/blob/main/mlc-chat-config.json">RedPajama chat config</a>)
+<a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1/blob/main/mlc-chat-config.json">RedPajama chat config</a>)
 which contains the chat configuration. You can customize the chat configuration by modifying this file.
 Additionally, the runtimes also provide APIs to optionally override some of the configurations.</p>
 <section id="structure-of-mlcchat-configuration">
 <span id="struct-mlc-chat-conv"></span><h2>Structure of MLCChat Configuration<a class="headerlink" href="#structure-of-mlcchat-configuration" title="Permalink to this heading">¶</a></h2>
-<p>Below is the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file corresponding to Vicuna model:</p>
+<p>Below is the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> file corresponding to Llama2 model:</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="c1">// mlc-chat-config.json</span>
 <span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;model_lib&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vicuna-v1-7b-q4f32_0&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;local_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vicuna-v1-7b-q4f32_0&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;conv_template&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vicuna_v1.1&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;model_lib&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;local_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;conv_template&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;llama-2&quot;</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;temperature&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.7</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;repetition_penalty&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;top_p&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.95</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;mean_gen_len&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;max_gen_len&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">512</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;shift_fill_factor&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.3</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;tokenizer_files&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="s2">&quot;added_tokens.json&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;tokenizer.json&quot;</span><span class="p">,</span>
 <span class="w">      </span><span class="s2">&quot;tokenizer.model&quot;</span>
-<span class="w">  </span><span class="p">]</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;model_category&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;llama&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;model_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Llama-2-7b-chat-hf&quot;</span>
 <span class="p">}</span>
 </pre></div>
 </div>
 <p>The following fields contain the meta-data which affect system behaviors.</p>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">model_lib</span></code></dt><dd><p>The necessary model library to launch this model architecture. We recommend reuse model library when possible.
-For example, all LLaMA-7B models can use <cite>vicuna-v1-7b-q4f32_0</cite>. So you can distribute LLaMA-7B
+For example, all LLaMA-7B models compiled under <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code> quantization
+can use <cite>Llama-2-7b-chat-hf-q4f16_1</cite>. So you can distribute LLaMA-7B
 weight variants and still use them in prebuilt MLC chat apps.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">local_id</span></code></dt><dd><p>Uniquely identifying the model in application. This is also used by command line interface app to specify which model to run.</p>
@@ -361,6 +367,7 @@ weight variants and still use them in prebuilt MLC chat apps.</p>
 <span id="load-predefined-conv-template"></span><h2>Load from Pre-defined Conversation Templates<a class="headerlink" href="#load-from-pre-defined-conversation-templates" title="Permalink to this heading">¶</a></h2>
 <p>MLC-LLM provided a set of pre-defined conversation templates, which you can directly use by specifying the template name in <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> field in the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>, below is a list (not complete) of supported conversation templates:</p>
 <ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">llama-2</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">vicuna_v1.1</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">redpajama_chat</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">rwkv</span></code></p></li>

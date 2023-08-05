@@ -398,7 +398,7 @@ ls<span class="w"> </span>-l<span class="w"> </span>./build/
 </div>
 <section id="run-models-through-mlcchat-cli">
 <h3><a class="toc-backref" href="#id6" role="doc-backlink">Run Models through MLCChat CLI</a><a class="headerlink" href="#run-models-through-mlcchat-cli" title="Permalink to this heading">¶</a></h3>
-<p>Once <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> is installed, you are able to run any MLC-compiled model on comamnd line.</p>
+<p>Once <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> is installed, you are able to run any MLC-compiled model on command line.</p>
 <p><strong>Ensure Model Exists.</strong> As the input to <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, it is always good to double check if the compiled model exists.</p>
 <details class="summary-details">
 <summary>Details</summary><div class="sphinx-tabs docutils container">
@@ -409,10 +409,10 @@ ls<span class="w"> </span>-l<span class="w"> </span>./build/
 </ul>
 <details class="summary-example">
 <summary>Example</summary><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/prebuilt/lib
-vicuna-v1-7b-q3f16_0-metal.so<span class="w">  </span><span class="c1"># Format: $(local_id)-$(arch).$(suffix)</span>
-vicuna-v1-7b-q3f16_0-vulkan.so
+Llama-2-7b-chat-hf-q4f16_1-metal.so<span class="w">  </span><span class="c1"># Format: $(local_id)-$(arch).$(suffix)</span>
+Llama-2-7b-chat-hf-q4f16_1-vulkan.so
 ...
-&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/prebuilt/mlc-chat-vicuna-v1-7b-q3f16_0<span class="w">  </span><span class="c1"># Format: ./dist/prebuilt/mlc-chat-$(local_id)/</span>
+&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1<span class="w">  </span><span class="c1"># Format: ./dist/prebuilt/mlc-chat-$(local_id)/</span>
 <span class="c1"># chat config:</span>
 mlc-chat-config.json
 <span class="c1"># model weights:</span>
@@ -427,10 +427,10 @@ params_shard_*.bin
 <li><p>Model weights and chat config are located under <code class="docutils literal notranslate"><span class="pre">./dist/$(local_id)/params/</span></code>.</p></li>
 </ul>
 <details class="summary-example">
-<summary>Example</summary><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/vicuna-v1-7b-q3f16_0/<span class="w"> </span><span class="c1"># Format: ./dist/$(local_id)/</span>
-vicuna-v1-7b-q3f16_0-metal.so<span class="w">  </span><span class="c1"># Format: $(local_id)-$(arch).$(suffix)</span>
+<summary>Example</summary><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/Llama-2-7b-chat-hf-q4f16_1/<span class="w"> </span><span class="c1"># Format: ./dist/$(local_id)/</span>
+Llama-2-7b-chat-hf-q4f16_1-metal.so<span class="w">  </span><span class="c1"># Format: $(local_id)-$(arch).$(suffix)</span>
 ...
-&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/vicuna-v1-7b-q3f16_0/params<span class="w">  </span><span class="c1"># Format: ``./dist/$(local_id)/params/``</span>
+&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/Llama-2-7b-chat-hf-q4f16_1/params<span class="w">  </span><span class="c1"># Format: ``./dist/$(local_id)/params/``</span>
 <span class="c1"># chat config:</span>
 mlc-chat-config.json
 <span class="c1"># model weights:</span>
@@ -445,11 +445,11 @@ params_shard_*.bin
 </div>
 <p><strong>Run the Model.</strong> Next run <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> in command line:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># `local_id` is `$(model_name)-$(quantize_mode)`</span>
-<span class="c1"># In this example, `model_name` is `vicuna-v1-7b`, and `quantize_mode` is `q3f16_0`</span>
-&gt;&gt;&gt;<span class="w"> </span>mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>vicuna-v1-7b-q3f16_0
+<span class="c1"># In this example, `model_name` is `Llama-2-7b-chat-hf`, and `quantize_mode` is `q4f16_1`</span>
+&gt;&gt;&gt;<span class="w"> </span>mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>Llama-2-7b-chat-hf-q4f16_1
 Use<span class="w"> </span>MLC<span class="w"> </span>config:<span class="w"> </span><span class="s2">&quot;....../mlc-chat-config.json&quot;</span>
 Use<span class="w"> </span>model<span class="w"> </span>weights:<span class="w"> </span><span class="s2">&quot;....../ndarray-cache.json&quot;</span>
-Use<span class="w"> </span>model<span class="w"> </span>library:<span class="w"> </span><span class="s2">&quot;....../vicuna-v1-7b-q3f16_0-metal.so&quot;</span>
+Use<span class="w"> </span>model<span class="w"> </span>library:<span class="w"> </span><span class="s2">&quot;....../Llama-2-7b-chat-hf-q4f16_1-metal.so&quot;</span>
 ...
 </pre></div>
 </div>

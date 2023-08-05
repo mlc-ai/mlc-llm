@@ -298,23 +298,16 @@
 <p>This page describes how to distribute the model you compiled so others can use the model in MLC chat runtime.
 For demonstration purposes, we show how to compile the <a class="reference external" href="https://huggingface.co/togethercomputer/RedPajama-INCITE-Instruct-3B-v1">RedPajama-3B instruct model</a>
 (which has different weights from the RedPajama chat model).</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>We use the quantization option <cite>q4f16_0</cite> here throughout the example
-because that was what came with the existing prebuilt (we are upgrading prebuilt for <cite>q4f16_1</cite>).
-If you do not need to try out prebuilt and would like to compile the library
-from scratch, we recommend <cite>q4f16_1</cite>.</p>
-</div>
 <p>If you have not compiled the RedPajama-3B instruct model,
 you can use the following command to compile it:</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-TWV0YWw=" aria-selected="true" class="sphinx-tabs-tab group-tab" id="tab-0-TWV0YWw=" name="TWV0YWw=" role="tab" tabindex="0">Metal</button><button aria-controls="panel-0-TGludXggLSBDVURB" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tab" tabindex="-1">Linux - CUDA</button><button aria-controls="panel-0-VnVsa2Fu" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-VnVsa2Fu" name="VnVsa2Fu" role="tab" tabindex="-1">Vulkan</button></div><div aria-labelledby="tab-0-TWV0YWw=" class="sphinx-tabs-panel group-tab" id="panel-0-TWV0YWw=" name="TWV0YWw=" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Instruct-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-TWV0YWw=" aria-selected="true" class="sphinx-tabs-tab group-tab" id="tab-0-TWV0YWw=" name="TWV0YWw=" role="tab" tabindex="0">Metal</button><button aria-controls="panel-0-TGludXggLSBDVURB" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tab" tabindex="-1">Linux - CUDA</button><button aria-controls="panel-0-VnVsa2Fu" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-VnVsa2Fu" name="VnVsa2Fu" role="tab" tabindex="-1">Vulkan</button></div><div aria-labelledby="tab-0-TWV0YWw=" class="sphinx-tabs-panel group-tab" id="panel-0-TWV0YWw=" name="TWV0YWw=" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Instruct-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-0-TGludXggLSBDVURB" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Instruct-3B-v1<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+</div><div aria-labelledby="tab-0-TGludXggLSBDVURB" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Instruct-3B-v1<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-0-VnVsa2Fu" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-VnVsa2Fu" name="VnVsa2Fu" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Instruct-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+</div><div aria-labelledby="tab-0-VnVsa2Fu" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-VnVsa2Fu" name="VnVsa2Fu" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Instruct-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 </div></div>
@@ -332,12 +325,12 @@ you can use the following command to compile it:</p>
 <section id="step-1-check-the-build-artifact">
 <h2><a class="toc-backref" href="#id2" role="doc-backlink">Step 1. Check the Build Artifact</a><a class="headerlink" href="#step-1-check-the-build-artifact" title="Permalink to this heading">¶</a></h2>
 <p>To begin with, we can check that we have the compilation artifact ready on the disk.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0
-<span class="w">    </span>RedPajama-INCITE-Instruct-3B-v1-q4f16_0-metal.so<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1
+<span class="w">    </span>RedPajama-INCITE-Instruct-3B-v1-q4f16_1-metal.so<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
 <span class="w">    </span>mod_cache_before_build_metal.pkl<span class="w">                  </span><span class="c1"># ===&gt; a cached file for future builds</span>
 <span class="w">    </span>params<span class="w">                                            </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/params
 <span class="w">    </span>mlc-chat-config.json<span class="w">                              </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">    </span>ndarray-cache.json<span class="w">                                </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">    </span>params_shard_0.bin<span class="w">                                </span><span class="c1"># ===&gt; the model weights</span>
@@ -352,7 +345,7 @@ you can use the following command to compile it:</p>
 <section id="step-2-update-mlc-chat-configuration-json">
 <h2><a class="toc-backref" href="#id3" role="doc-backlink">Step 2. Update MLC Chat Configuration JSON</a><a class="headerlink" href="#step-2-update-mlc-chat-configuration-json" title="Permalink to this heading">¶</a></h2>
 <p>You can <strong>optionally</strong> customize the chat config file
-<code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/params/mlc-chat-config.json</span></code> (checkout <a class="reference internal" href="../get_started/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Configure MLCChat in JSON</span></a> for more detailed instructions).
+<code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/params/mlc-chat-config.json</span></code> (checkout <a class="reference internal" href="../get_started/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Configure MLCChat in JSON</span></a> for more detailed instructions).
 You can also simply use the default configuration and skip this step.</p>
 <p>For demonstration purpose, we update <code class="docutils literal notranslate"><span class="pre">mean_gen_len</span></code> to 32 and <code class="docutils literal notranslate"><span class="pre">max_gen_len</span></code> to 64.
 We also update <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> to <code class="docutils literal notranslate"><span class="pre">&quot;LM&quot;</span></code> because the model is instruction-tuned.</p>
@@ -362,8 +355,8 @@ We also update <code class="docutils literal notranslate"><span class="pre">conv
 <p>An MLC chat app needs to look for the model library to run the model.
 In the case of RedPajama-3B instruct model, we already have a prebuilt model lib for RedPajama-3B chat model that shares the
 same model architecture and quantization mode as the instruct model.
-We can edit <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/params/mlc-chat-config.json</span></code>
-and update the value of field <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> to <code class="docutils literal notranslate"><span class="pre">&quot;RedPajama-INCITE-Chat-3B-v1-q4f16_0&quot;</span></code>.</p>
+We can edit <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/params/mlc-chat-config.json</span></code>
+and update the value of field <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> to <code class="docutils literal notranslate"><span class="pre">&quot;RedPajama-INCITE-Chat-3B-v1-q4f16_1&quot;</span></code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>We recommend reusing the model lib for the same architecture with different weight variants.
@@ -371,34 +364,34 @@ You can leverage the <code class="docutils literal notranslate"><span class="pre
 Reusing model lib allows us to run the model on existing MLC apps (e.g. iOS) that requires static packaging.</p>
 <p>For example, if you have compiled RedPajama-3B chat model before, then you can use the following command to compile the instruct model,
 which reuses the compiled chat model library:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Instruct-3B-v1<span class="w"> </span>--reuse-lib<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_0<span class="w"> </span>--target<span class="w"> </span><span class="o">[</span>your<span class="w"> </span>target<span class="o">]</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_0
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Instruct-3B-v1<span class="w"> </span>--reuse-lib<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1<span class="w"> </span>--target<span class="w"> </span><span class="o">[</span>your<span class="w"> </span>target<span class="o">]</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
 </div>
 <p>In this way, <cite>mlc_llm.build</cite> does not produce the model library for the instruct model, and in <cite>mlc-chat-config.json</cite>
-the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field is set to <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_0</span></code>.</p>
+the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field is set to <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_1</span></code>.</p>
 <p>Please note that only models with same architecture and compiled with same quantization modes can reuse and share model library.</p>
 </div>
 <p>We should distribute the generated model lib if we want to build a new model architecture or try out customized compilation optimizations.
-In this case, we should keep the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field as <code class="docutils literal notranslate"><span class="pre">&quot;RedPajama-INCITE-Instruct-3B-v1-q4f16_0&quot;</span></code>.
-You can upload the model library <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/RedPajama-INCITE-Instruct-3B-v1-q4f16_0-metal.so</span></code>
+In this case, we should keep the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field as <code class="docutils literal notranslate"><span class="pre">&quot;RedPajama-INCITE-Instruct-3B-v1-q4f16_1&quot;</span></code>.
+You can upload the model library <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-metal.so</span></code>
 and ask others to download it to  <cite>dist/prebuilt/lib</cite> directory so the CLI app can pick it up.</p>
 </section>
 <section id="step-4-upload-the-compiled-model-weights">
 <h2><a class="toc-backref" href="#id5" role="doc-backlink">Step 4. Upload the Compiled Model Weights</a><a class="headerlink" href="#step-4-upload-the-compiled-model-weights" title="Permalink to this heading">¶</a></h2>
 <p>As a next step, we need to upload the model weights.
-We only need to upload the files in <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/params</span></code>.
+We only need to upload the files in <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/params</span></code>.
 If you also want to host the compiled models on Hugging Face, you can follow the instructions below:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># First, please create a repository on Hugging Face.</span>
 <span class="c1"># With the repository created, run</span>
 git<span class="w"> </span>lfs<span class="w"> </span>install
 git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo
 <span class="nb">cd</span><span class="w"> </span>my-redpajama3b-weight-huggingface-repo
-cp<span class="w"> </span>path/to/mlc-llm/dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/params/*<span class="w"> </span>.
+cp<span class="w"> </span>path/to/mlc-llm/dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/params/*<span class="w"> </span>.
 git<span class="w"> </span>add<span class="w"> </span>.<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Add redpajama-3b instruct model weights&quot;</span>
 git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>main
 </pre></div>
 </div>
-<p>Here we provide an <a class="reference external" href="https://huggingface.co/mlc-ai/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/tree/main">example distributed RedPajama-3B instruct model repository</a> which you can refer to.</p>
+<p>Here we provide an <a class="reference external" href="https://huggingface.co/mlc-ai/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/tree/main">example distributed RedPajama-3B instruct model repository</a> which you can refer to.</p>
 <hr class="docutils" />
 <p>Good job, you have successfully distributed the model you compiled.
 Next, we will talk about how we can consume the model weights in applications.</p>
@@ -417,10 +410,10 @@ wget<span class="w"> </span>url-to-my-model-lib
 
 <span class="c1"># Download the model weights</span>
 <span class="nb">cd</span><span class="w"> </span>dist/prebuilt
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo<span class="w"> </span>RedPajama-INCITE-Instruct-3B-v1-q4f16_0
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo<span class="w"> </span>RedPajama-INCITE-Instruct-3B-v1-q4f16_1
 <span class="nb">cd</span><span class="w"> </span>../..
 <span class="c1"># Run CLI</span>
-mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Instruct-3B-v1-q4f16_0
+mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Instruct-3B-v1-q4f16_1
 </pre></div>
 </div>
 </section>
@@ -429,8 +422,8 @@ mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-
 <p>For iOS app, model libraries are statically packed into the app at the time of app building.
 Therefore, the iOS app supports running any models whose model libraries are integrated into the app.
 You can check the <a class="reference internal" href="../prebuilt_models.html#prebuilt-models-ios"><span class="std std-ref">list of supported model libraries</span></a>.</p>
-<p>To download and run the compiled RedPajama-3B instruct model on iPhone, we need to reuse the integrated <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_0</span></code> model library.
-Please revisit <a class="reference internal" href="#distribute-model-step3-specify-model-lib"><span class="std std-ref">Step 3. Specify the Model Lib</span></a> and make sure the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field of <cite>mlc-chat-config.json</cite> is set to <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_0</span></code>.</p>
+<p>To download and run the compiled RedPajama-3B instruct model on iPhone, we need to reuse the integrated <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_1</span></code> model library.
+Please revisit <a class="reference internal" href="#distribute-model-step3-specify-model-lib"><span class="std std-ref">Step 3. Specify the Model Lib</span></a> and make sure the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field of <cite>mlc-chat-config.json</cite> is set to <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_1</span></code>.</p>
 <p>Now we can download the model weights in iOS app and run the model by following the steps below:</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">Step 1</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">Step 2</button><button aria-controls="panel-1-1-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-2" name="1-2" role="tab" tabindex="-1">Step 3</button><button aria-controls="panel-1-1-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-3" name="1-3" role="tab" tabindex="-1">Step 4</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><p>Open “MLCChat” app, click “Add model variant”.</p>

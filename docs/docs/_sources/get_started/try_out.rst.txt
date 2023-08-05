@@ -51,9 +51,9 @@ and you can try out prebuilt models on the following platforms:
       # You can try more models, for example:
       # download prebuilt weights of RedPajama-3B
       cd dist/prebuilt
-      git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
+      git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
       cd ../..
-      mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
+      mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_1
 
     .. note::
       If you are using Windows or Linux. Make sure you have the latest Vulkan driver installed.
@@ -100,7 +100,7 @@ and you can try out prebuilt models on the following platforms:
 
     Once the app is installed, you can download the models and then engage in chat with the model without requiring an internet connection.
 
-    Memory requirements vary across different models. The Vicuna-7B model necessitates an iPhone device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an iPhone with at least 4GB RAM.
+    Memory requirements vary across different models. The Llama2-7B model necessitates an iPhone device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an iPhone with at least 4GB RAM.
 
     .. figure:: https://mlc.ai/blog/img/redpajama/ios.gif
       :width: 300
