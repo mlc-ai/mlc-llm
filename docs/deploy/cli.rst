@@ -98,7 +98,7 @@ and the cli. Please click the details below to see the instruction.
 Run Models through MLCChat CLI
 ------------------------------
 
-Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model on comamnd line.
+Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model on command line.
 
 **Ensure Model Exists.** As the input to ``mlc_chat_cli``, it is always good to double check if the compiled model exists.
 
@@ -118,10 +118,10 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
           .. code:: shell
 
             >>> ls -l ./dist/prebuilt/lib
-            vicuna-v1-7b-q3f16_0-metal.so  # Format: $(local_id)-$(arch).$(suffix)
-            vicuna-v1-7b-q3f16_0-vulkan.so
+            Llama-2-7b-chat-hf-q4f16_1-metal.so  # Format: $(local_id)-$(arch).$(suffix)
+            Llama-2-7b-chat-hf-q4f16_1-vulkan.so
             ...
-            >>> ls -l ./dist/prebuilt/mlc-chat-vicuna-v1-7b-q3f16_0  # Format: ./dist/prebuilt/mlc-chat-$(local_id)/
+            >>> ls -l ./dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1  # Format: ./dist/prebuilt/mlc-chat-$(local_id)/
             # chat config:
             mlc-chat-config.json
             # model weights:
@@ -140,10 +140,10 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
 
           .. code:: shell
 
-            >>> ls -l ./dist/vicuna-v1-7b-q3f16_0/ # Format: ./dist/$(local_id)/
-            vicuna-v1-7b-q3f16_0-metal.so  # Format: $(local_id)-$(arch).$(suffix)
+            >>> ls -l ./dist/Llama-2-7b-chat-hf-q4f16_1/ # Format: ./dist/$(local_id)/
+            Llama-2-7b-chat-hf-q4f16_1-metal.so  # Format: $(local_id)-$(arch).$(suffix)
             ...
-            >>> ls -l ./dist/vicuna-v1-7b-q3f16_0/params  # Format: ``./dist/$(local_id)/params/``
+            >>> ls -l ./dist/Llama-2-7b-chat-hf-q4f16_1/params  # Format: ``./dist/$(local_id)/params/``
             # chat config:
             mlc-chat-config.json
             # model weights:
@@ -158,11 +158,11 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
 .. code:: shell
 
   # `local_id` is `$(model_name)-$(quantize_mode)`
-  # In this example, `model_name` is `vicuna-v1-7b`, and `quantize_mode` is `q3f16_0`
-  >>> mlc_chat_cli --local-id vicuna-v1-7b-q3f16_0
+  # In this example, `model_name` is `Llama-2-7b-chat-hf`, and `quantize_mode` is `q4f16_1`
+  >>> mlc_chat_cli --local-id Llama-2-7b-chat-hf-q4f16_1
   Use MLC config: "....../mlc-chat-config.json"
   Use model weights: "....../ndarray-cache.json"
-  Use model library: "....../vicuna-v1-7b-q3f16_0-metal.so"
+  Use model library: "....../Llama-2-7b-chat-hf-q4f16_1-metal.so"
   ...
 
 Have fun chatting with MLC-compiled LLM!

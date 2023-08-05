@@ -300,8 +300,8 @@ In other cases you need to specify the model via ``--model``.
 --model MODEL_NAME_OR_PATH  The name or local path of the model to compile.
                             We will search for the model on your disk in the following two candidates:
 
-                            - ``dist/models/MODEL_NAME_OR_PATH`` (e.g., ``--model vicuna-v1-7b``),
-                            - ``MODEL_NAME_OR_PATH`` (e.g., ``--model /my-model/vicuna-v1-7b``).
+                            - ``dist/models/MODEL_NAME_OR_PATH`` (e.g., ``--model Llama-2-7b-chat-hf``),
+                            - ``MODEL_NAME_OR_PATH`` (e.g., ``--model /my-model/Llama-2-7b-chat-hf``).
 
                             When running the compile command using ``--model``, please make sure you have placed the model to compile under ``dist/models/`` or other location on the disk.
 
@@ -394,6 +394,12 @@ This section lists compile commands for more models that you can try out.
 
                     python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target vulkan --quantization q4f16_1 --llvm-mingw path/to/llvm-mingw
 
+            .. tab:: WebGPU
+
+                .. code:: shell
+
+                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target webgpu --quantization q4f32_1
+
             .. tab:: iPhone/iPad
 
                 .. code:: shell
@@ -410,7 +416,7 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target cuda --quantization q3f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target cuda --quantization q4f16_1
 
             .. tab:: Metal
 
@@ -418,13 +424,13 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target metal --quantization q3f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target metal --quantization q4f16_1
 
                 On Apple Silicon powered Mac, compile for x86 Mac:
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target metal_x86_64 --quantization q3f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target metal_x86_64 --quantization q4f16_1
 
             .. tab:: Vulkan
 
@@ -432,31 +438,31 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target vulkan --quantization q3f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target vulkan --quantization q4f16_1
 
                 On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target vulkan --quantization q3f16_0 --llvm-mingw path/to/llvm-mingw
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target vulkan --quantization q4f16_1 --llvm-mingw path/to/llvm-mingw
 
             .. tab:: WebGPU
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target webgpu --quantization q4f32_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target webgpu --quantization q4f32_1
 
             .. tab:: iPhone/iPad
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target iphone --max-seq-len 768 --quantization q3f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target iphone --max-seq-len 768 --quantization q3f16_1
 
             .. tab:: Android
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target android --max-seq-len 768 --quantization q4f16_1
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target android --max-seq-len 768 --quantization q4f16_0
 
     .. tab:: RedPajama-v1-3B
 

@@ -28,6 +28,8 @@ This section shows how we can build the app from source.
 Step 1. Install Build Dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+First and foremost, please clone the `MLC LLM GitHub repository <https://github.com/mlc-ai/mlc-llm>`_.
+
 Please follow :doc:`/install/tvm` to install TVM Unity.
 Note that we **do not** have to run `build.py` since we can use prebuilt weights.
 We only need TVM Unity's utility to combine the libraries (`local-id-iphone.tar`) into a single library.
@@ -42,10 +44,11 @@ We also need to have the following build dependencies:
 Step 2. Download Prebuilt Weights and Library
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You also need to obtain a copy of the MLC-LLM source code.
+You also need to obtain a copy of the MLC-LLM source code
+by cloning the `MLC LLM GitHub repository <https://github.com/mlc-ai/mlc-llm>`_.
 To simplify the build, we will use prebuilt model
 weights and libraries here. Run the following command
-in the root of the MLC-LLM.
+in the root directory of the MLC-LLM.
 
 .. code:: bash
 
@@ -54,7 +57,7 @@ in the root of the MLC-LLM.
 
    cd dist/prebuilt
    git lfs install
-   git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
+   git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
    cd ../..
 
 Validate that the files and directories exist:
@@ -62,10 +65,11 @@ Validate that the files and directories exist:
 .. code:: bash
 
    >>> ls -l ./dist/prebuilt/lib/*-iphone.tar
-   ./dist/prebuilt/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_0-iphone.tar
-   ./dist/prebuilt/lib/vicuna-v1-7b-q3f16_0-iphone.tar
+   ./dist/prebuilt/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar
+   ./dist/prebuilt/lib/Llama-2-7b-chat-hf-q3f16_1-iphone.tar
+   ...
 
-   >>> ls -l ./dist/prebuilt/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
+   >>> ls -l ./dist/prebuilt/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
    # chat config:
    mlc-chat-config.json
    # model weights:
@@ -85,10 +89,12 @@ components by following these steps:
 
 .. code:: bash
 
+   git submodule update --init --recursive
    cd ./ios
    ./prepare_libs.sh
 
-This will create a ``./build`` folder that contains the following files:
+This will create a ``./build`` folder that contains the following files.
+Please make sure all the following files exist in ``./build/``.
 
 .. code:: bash
 
@@ -101,13 +107,13 @@ This will create a ``./build`` folder that contains the following files:
 
 **Add prepackage model**
 
-We can also optionally add prepackage weights into the app,
+We can also *optionally* add prepackage weights into the app,
 run the following command under the ``./ios`` directory:
 
 .. code:: bash
 
    cd ./ios
-   open ./prepare_params.sh # make sure builtin_list only contains "RedPajama-INCITE-Chat-3B-v1-q4f16_0"
+   open ./prepare_params.sh # make sure builtin_list only contains "RedPajama-INCITE-Chat-3B-v1-q4f16_1"
    ./prepare_params.sh
 
 The outcome should be as follows:
@@ -115,7 +121,7 @@ The outcome should be as follows:
 .. code:: bash
 
    >>> ls ./dist/
-   RedPajama-INCITE-Chat-3B-v1-q4f16_0
+   RedPajama-INCITE-Chat-3B-v1-q4f16_1
 
 Step 4. Build iOS App
 ^^^^^^^^^^^^^^^^^^^^^

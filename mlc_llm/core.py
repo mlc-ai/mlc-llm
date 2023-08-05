@@ -47,7 +47,7 @@ class BuildArgs:
         metadata={"help": "Hugging Face path from which to download params, tokenizer, and config"},
     )
     quantization: str = field(
-        default=list(utils.quantization_schemes.keys())[0],
+        default="q4f16_1",
         metadata={
             "help": "The quantization mode we use to compile.",
             "choices": [*utils.quantization_schemes.keys()],

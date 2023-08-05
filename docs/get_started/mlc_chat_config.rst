@@ -6,7 +6,7 @@ Configure MLCChat in JSON
 This page explains the components of a chat configuration and how to customize them for your own purposes.
 
 Each MLC Chat runtime can be configured via an ``mlc-chat-config.json`` file under the directory of each compiled model (e.g.
-`RedPajama chat config <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0/blob/main/mlc-chat-config.json>`__)
+`RedPajama chat config <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1/blob/main/mlc-chat-config.json>`__)
 which contains the chat configuration. You can customize the chat configuration by modifying this file.
 Additionally, the runtimes also provide APIs to optionally override some of the configurations.
 
@@ -15,30 +15,36 @@ Additionally, the runtimes also provide APIs to optionally override some of the 
 Structure of MLCChat Configuration
 ----------------------------------
 
-Below is the ``mlc-chat-config.json`` file corresponding to Vicuna model:
+Below is the ``mlc-chat-config.json`` file corresponding to Llama2 model:
 
 .. code:: json
 
   // mlc-chat-config.json
   {
-    "model_lib": "vicuna-v1-7b-q4f32_0",
-    "local_id": "vicuna-v1-7b-q4f32_0",
-    "conv_template": "vicuna_v1.1",
+    "model_lib": "Llama-2-7b-chat-hf-q4f16_1",
+    "local_id": "Llama-2-7b-chat-hf-q4f16_1",
+    "conv_template": "llama-2",
     "temperature": 0.7,
     "repetition_penalty": 1.0,
     "top_p": 0.95,
     "mean_gen_len": 128,
+    "max_gen_len": 512,
     "shift_fill_factor": 0.3,
     "tokenizer_files": [
+        "added_tokens.json",
+        "tokenizer.json",
         "tokenizer.model"
-    ]
+    ],
+    "model_category": "llama",
+    "model_name": "Llama-2-7b-chat-hf"
   }
 
 The following fields contain the meta-data which affect system behaviors.
 
 ``model_lib``
   The necessary model library to launch this model architecture. We recommend reuse model library when possible.
-  For example, all LLaMA-7B models can use `vicuna-v1-7b-q4f32_0`. So you can distribute LLaMA-7B
+  For example, all LLaMA-7B models compiled under ``q4f16_1`` quantization
+  can use `Llama-2-7b-chat-hf-q4f16_1`. So you can distribute LLaMA-7B
   weight variants and still use them in prebuilt MLC chat apps.
 
 ``local_id``
@@ -85,6 +91,7 @@ Load from Pre-defined Conversation Templates
 
 MLC-LLM provided a set of pre-defined conversation templates, which you can directly use by specifying the template name in ``conv_template`` field in the ``mlc-chat-config.json``, below is a list (not complete) of supported conversation templates:
 
+- ``llama-2``
 - ``vicuna_v1.1``
 - ``redpajama_chat``
 - ``rwkv``

@@ -8,13 +8,6 @@ This page describes how to distribute the model you compiled so others can use t
 For demonstration purposes, we show how to compile the `RedPajama-3B instruct model <https://huggingface.co/togethercomputer/RedPajama-INCITE-Instruct-3B-v1>`_
 (which has different weights from the RedPajama chat model).
 
-.. note::
-
-    We use the quantization option `q4f16_0` here throughout the example
-    because that was what came with the existing prebuilt (we are upgrading prebuilt for `q4f16_1`).
-    If you do not need to try out prebuilt and would like to compile the library
-    from scratch, we recommend `q4f16_1`.
-
 
 If you have not compiled the RedPajama-3B instruct model,
 you can use the following command to compile it:
@@ -25,19 +18,19 @@ you can use the following command to compile it:
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --target metal --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --target metal --quantization q4f16_1
 
     .. group-tab:: Linux - CUDA
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --target cuda --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --target cuda --quantization q4f16_1
 
     .. group-tab:: Vulkan
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --target vulkan --quantization q4f16_0
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --target vulkan --quantization q4f16_1
 
 
 .. contents:: Table of Contents
@@ -51,12 +44,12 @@ To begin with, we can check that we have the compilation artifact ready on the d
 
 .. code:: shell
 
-    ~/mlc-llm > ls dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0
-        RedPajama-INCITE-Instruct-3B-v1-q4f16_0-metal.so  # ===> the model library
+    ~/mlc-llm > ls dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1
+        RedPajama-INCITE-Instruct-3B-v1-q4f16_1-metal.so  # ===> the model library
         mod_cache_before_build_metal.pkl                  # ===> a cached file for future builds
         params                                            # ===> containing the model weights, tokenizer and chat config
 
-    ~/mlc-llm > ls dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/params
+    ~/mlc-llm > ls dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/params
         mlc-chat-config.json                              # ===> the chat config
         ndarray-cache.json                                # ===> the model weight info
         params_shard_0.bin                                # ===> the model weights
@@ -71,7 +64,7 @@ Step 2. Update MLC Chat Configuration JSON
 ------------------------------------------
 
 You can **optionally** customize the chat config file
-``dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/params/mlc-chat-config.json`` (checkout :ref:`configure-mlc-chat-json` for more detailed instructions).
+``dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/params/mlc-chat-config.json`` (checkout :ref:`configure-mlc-chat-json` for more detailed instructions).
 You can also simply use the default configuration and skip this step.
 
 For demonstration purpose, we update ``mean_gen_len`` to 32 and ``max_gen_len`` to 64.
@@ -86,8 +79,8 @@ Step 3. Specify the Model Lib
 An MLC chat app needs to look for the model library to run the model.
 In the case of RedPajama-3B instruct model, we already have a prebuilt model lib for RedPajama-3B chat model that shares the
 same model architecture and quantization mode as the instruct model.
-We can edit ``dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/params/mlc-chat-config.json``
-and update the value of field ``model_lib`` to ``"RedPajama-INCITE-Chat-3B-v1-q4f16_0"``.
+We can edit ``dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/params/mlc-chat-config.json``
+and update the value of field ``model_lib`` to ``"RedPajama-INCITE-Chat-3B-v1-q4f16_1"``.
 
 .. note::
 
@@ -100,17 +93,17 @@ and update the value of field ``model_lib`` to ``"RedPajama-INCITE-Chat-3B-v1-q4
 
     .. code:: shell
 
-        python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --reuse-lib RedPajama-INCITE-Chat-3B-v1-q4f16_0 --target [your target] --quantization q4f16_0
+        python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Instruct-3B-v1 --reuse-lib RedPajama-INCITE-Chat-3B-v1-q4f16_1 --target [your target] --quantization q4f16_1
 
     In this way, `mlc_llm.build` does not produce the model library for the instruct model, and in `mlc-chat-config.json`
-    the ``model_lib`` field is set to ``RedPajama-INCITE-Chat-3B-v1-q4f16_0``.
+    the ``model_lib`` field is set to ``RedPajama-INCITE-Chat-3B-v1-q4f16_1``.
 
     Please note that only models with same architecture and compiled with same quantization modes can reuse and share model library.
 
 
 We should distribute the generated model lib if we want to build a new model architecture or try out customized compilation optimizations.
-In this case, we should keep the ``model_lib`` field as ``"RedPajama-INCITE-Instruct-3B-v1-q4f16_0"``.
-You can upload the model library ``dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/RedPajama-INCITE-Instruct-3B-v1-q4f16_0-metal.so``
+In this case, we should keep the ``model_lib`` field as ``"RedPajama-INCITE-Instruct-3B-v1-q4f16_1"``.
+You can upload the model library ``dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-metal.so``
 and ask others to download it to  `dist/prebuilt/lib` directory so the CLI app can pick it up.
 
 
@@ -118,7 +111,7 @@ Step 4. Upload the Compiled Model Weights
 -----------------------------------------
 
 As a next step, we need to upload the model weights.
-We only need to upload the files in ``dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/params``.
+We only need to upload the files in ``dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/params``.
 If you also want to host the compiled models on Hugging Face, you can follow the instructions below:
 
 .. code:: shell
@@ -128,11 +121,11 @@ If you also want to host the compiled models on Hugging Face, you can follow the
     git lfs install
     git clone https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo
     cd my-redpajama3b-weight-huggingface-repo
-    cp path/to/mlc-llm/dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/params/* .
+    cp path/to/mlc-llm/dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/params/* .
     git add . && git commit -m "Add redpajama-3b instruct model weights"
     git push origin main
 
-Here we provide an `example distributed RedPajama-3B instruct model repository <https://huggingface.co/mlc-ai/RedPajama-INCITE-Instruct-3B-v1-q4f16_0/tree/main>`_ which you can refer to.
+Here we provide an `example distributed RedPajama-3B instruct model repository <https://huggingface.co/mlc-ai/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/tree/main>`_ which you can refer to.
 
 ---------------------------------
 
@@ -157,10 +150,10 @@ The steps needed to run models in CLI are similar to the steps to download the p
 
     # Download the model weights
     cd dist/prebuilt
-    git clone https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo RedPajama-INCITE-Instruct-3B-v1-q4f16_0
+    git clone https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo RedPajama-INCITE-Instruct-3B-v1-q4f16_1
     cd ../..
     # Run CLI
-    mlc_chat_cli --local-id RedPajama-INCITE-Instruct-3B-v1-q4f16_0
+    mlc_chat_cli --local-id RedPajama-INCITE-Instruct-3B-v1-q4f16_1
 
 
 Download the Distributed Models and Run in iOS App
@@ -170,8 +163,8 @@ For iOS app, model libraries are statically packed into the app at the time of a
 Therefore, the iOS app supports running any models whose model libraries are integrated into the app.
 You can check the :ref:`list of supported model libraries <prebuilt-models-ios>`.
 
-To download and run the compiled RedPajama-3B instruct model on iPhone, we need to reuse the integrated ``RedPajama-INCITE-Chat-3B-v1-q4f16_0`` model library.
-Please revisit :ref:`distribute-model-step3-specify-model-lib` and make sure the ``model_lib`` field of `mlc-chat-config.json` is set to ``RedPajama-INCITE-Chat-3B-v1-q4f16_0``.
+To download and run the compiled RedPajama-3B instruct model on iPhone, we need to reuse the integrated ``RedPajama-INCITE-Chat-3B-v1-q4f16_1`` model library.
+Please revisit :ref:`distribute-model-step3-specify-model-lib` and make sure the ``model_lib`` field of `mlc-chat-config.json` is set to ``RedPajama-INCITE-Chat-3B-v1-q4f16_1``.
 
 Now we can download the model weights in iOS app and run the model by following the steps below:
 
