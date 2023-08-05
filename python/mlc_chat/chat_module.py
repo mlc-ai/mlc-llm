@@ -505,6 +505,7 @@ class ChatModule:
         self.stopped_func = chat_mod["stopped"]
         self.get_message_func = chat_mod["get_message"]
         self.reset_chat_func = chat_mod["reset_chat"]
+        self.load_json_override_func = chat_mod["load_json_override"]
         self.runtime_stats_text_func = chat_mod["runtime_stats_text"]
         self.reset_runtime_stats_func = chat_mod["reset_runtime_stats"]
         self.process_system_prompts_func = chat_mod["process_system_prompts"]
@@ -628,15 +629,32 @@ class ChatModule:
         """
         return self.get_message_func()
 
-    def reset_chat(self):
-        r"""Reset the chat session and clear all chat history.
+    def reset_chat(self, chat_config: Optional[ChatConfig] = None):
+        r"""Reset the chat session, clear all chat history, and potentially
+        override the original `mlc-chat-config.json`.
+
+        Parameters
+        ----------
+        chat_config : Optional[ChatConfig]
+            A ``ChatConfig`` instance partially filled. If specified, the chat
+            module will reload the `mlc-chat-config.json`, and override it with
+            ``chat_config``, just like in initialization.
 
         Note
         ----
         The model remains the same after :func:`reset_chat`.
-        To reload module, please use :func:`reload` instead.
+        To reload module, please either re-initialize a :class:`ChatModule` instance
+        or use :func:`_reload` instead.
         """
         self.reset_chat_func()
+        if chat_config is not None:
+            # Redo the overriding
+            self.chat_config = _get_chat_config(self.config_file_path, chat_config)
+            user_chat_config_json_str = _convert_chat_config_to_json_str(
+                chat_config, self.chat_config.conv_template
+            )
+            # Second argument is `partial_update = True`
+            self.load_json_override_func(user_chat_config_json_str, True)
 
     def runtime_stats_text(self) -> str:
         r"""Get the runtime stats text (encoding speed and decoding speed).
