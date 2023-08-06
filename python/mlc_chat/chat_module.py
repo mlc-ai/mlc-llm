@@ -574,6 +574,23 @@ class ChatModule:
         # TODO: work in progress
         pass
 
+    def embed_text(
+        self,
+        input: str,
+        place_in_prompt: PlaceInPrompt = PlaceInPrompt.All
+    ):
+        r"""Given a text input, get the embedding of the tokenized prompt.
+        User can decide where to place the input in the prompt.
+
+        Parameters
+        ----------
+        input : str
+            The user input string.
+        place_in_prompt: PlaceInPrompt
+            The place of the input message in the prompt. See `class PlaceInPrompt` for details.
+        """
+        return self.embed_func(input, place_in_prompt.value)
+
     def reset_chat(self, chat_config: Optional[ChatConfig] = None):
         r"""Reset the chat session, clear all chat history, and potentially
         override the original `mlc-chat-config.json`.
@@ -649,23 +666,6 @@ class ChatModule:
             The place of the input message in the prompt. See `class PlaceInPrompt` for details.
         """
         self.prefill_func(input, decode_next_token, place_in_prompt.value)
-
-    def _embed(
-        self,
-        input: str,
-        place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
-    ):
-        r"""Given a text input, get the embedding of the tokenized prompt.
-        User can decide where to place the input in the prompt.
-
-        Parameters
-        ----------
-        input : str
-            The user input string.
-        place_in_prompt: PlaceInPrompt
-            The place of the input message in the prompt. See `class PlaceInPrompt` for details.
-        """
-        return self.embed_func(input, place_in_prompt.value)
 
     def _prefill_with_embed(self, embedding: tvm.runtime.NDArray, decode_next_token: bool = True):
         r"""Given an embedding, run the prefill stage and optionally decode the first output token.
