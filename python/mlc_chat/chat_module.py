@@ -1,4 +1,4 @@
-"""Chat module for MLC chat in a standalone file, including image module for multimodal-purposes."""
+"""The Python API for MLC chat."""
 #! pylint: disable=unused-import, invalid-name
 import ctypes
 import json
@@ -35,13 +35,18 @@ if os.environ.get("SKIP_LOADING_MLCLLM_SO", "0") == "0":
 
 def quantization_keys():
     return [
-        "q3f16_0",
-        "q4f16_0",
-        "q4f16_1",
-        "q4f32_0",
-        "q8f16_0",
+        "autogptq_llama_q4f16_0",
         "q0f16",
         "q0f32",
+        "q3f16_0",
+        "q3f16_1",
+        "q4f16_0",
+        "q4f16_1",
+        "q4f16_ft",
+        "q4f32_0",
+        "q4f32_1",
+        "q8f16_0",
+        "q8f16_ft",
     ]
 
 
@@ -54,7 +59,7 @@ class ConvConfig:
     setting in ``mlc-chat-config.json`` under the model folder. Note that we will
     first load the predefined template with the name specified in ``conv_template``.
 
-    Since the configuraiton is partial, everything will be ``Optional``.
+    Since the configuration is partial, everything will be ``Optional``.
 
     Parameters
     ----------
@@ -444,11 +449,41 @@ def _convert_chat_config_to_json_str(chat_config: Optional[ChatConfig], conv_tem
     return json.dumps(chat_dict)
 
 
+def _detect_local_device(device_id: int = 0):
+    """Automatically detect the local device if user does not specify.
+
+    Parameters
+    ----------
+    device_id : int
+        The local device id.
+
+    Returns
+    ------
+    dev : Device
+        The local device.
+    """
+    if tvm.metal().exist:
+        return tvm.metal(device_id)
+    if tvm.rocm().exist:
+        return tvm.rocm(device_id)
+    if tvm.cuda().exist:
+        return tvm.cuda(device_id)
+    if tvm.vulkan().exist:
+        return tvm.vulkan(device_id)
+    if tvm.opencl().exist:
+        return tvm.opencl(device_id)
+
+    print(
+        "None of the following device is detected: metal, rocm, cuda, vulkan, opencl. Switch to llvm instead."
+    )
+    return tvm.cpu(device_id)
+
+
 class ChatModule:
     def __init__(
         self,
         model,
-        device_name: str = "cuda",
+        device_name: str = "auto",
         device_id: int = 0,
         chat_config: Optional[ChatConfig] = None,
         lib_path: Optional[str] = None,
@@ -464,7 +499,8 @@ class ChatModule:
             folder. In the former case, we will use the provided name to search
             for the model folder over possible paths.
         device_name : str
-            The device type (e.g. ``cuda``, ``vulkan``).
+            The device name, enter one of "cuda", "metal", "vulkan", "rocm", "opencl", "auto".
+            If "auto", the local device will be automatically detected.
         device_id : int
             The device id passed to ``tvm``.
         chat_config : Optional[ChatConfig]
@@ -484,41 +520,38 @@ class ChatModule:
             self.device = tvm.rocm(device_id)
         elif device_name == "opencl":
             self.device = tvm.opencl(device_id)
+        elif device_name == "auto":
+            self.device = _detect_local_device(device_id)
         else:
-            raise ValueError("device type not supported yet")
+            raise ValueError(
+                f"invalid device name: {device_name}. Please choose from the following: \
+                             cuda, metal, vulkan, rocm, opencl, auto."
+            )
         device_type = self.device.device_type
 
-        # 2. Populate chat/image mod and their functions
+        # 2. Populate chat module and their functions
         fcreate_chat_mod = tvm.get_global_func("mlc.llm_chat_create")
         assert fcreate_chat_mod is not None
         chat_mod = fcreate_chat_mod(device_type, device_id)
-        fcreate_image_mod = tvm.get_global_func("mlc.llm_image_module_create")
-        assert fcreate_image_mod is not None
-        image_mod = fcreate_image_mod(device_type, device_id)
 
         # chat module related functions
         self.reload_func = chat_mod["reload"]
+        self.unload_func = chat_mod["unload"]
         self.prefill_func = chat_mod["prefill"]
         self.embed_func = chat_mod["embed"]
         self.prefill_with_embed_func = chat_mod["prefill_with_embed"]
         self.decode_func = chat_mod["decode"]
-        self.stopped_func = chat_mod["stopped"]
-        self.get_message_func = chat_mod["get_message"]
         self.reset_chat_func = chat_mod["reset_chat"]
         self.load_json_override_func = chat_mod["load_json_override"]
+        self.stopped_func = chat_mod["stopped"]
+        self.get_message_func = chat_mod["get_message"]
         self.runtime_stats_text_func = chat_mod["runtime_stats_text"]
         self.reset_runtime_stats_func = chat_mod["reset_runtime_stats"]
+        self.get_config_json_func = chat_mod["get_config_json"]
         self.process_system_prompts_func = chat_mod["process_system_prompts"]
         self.evaluate_func = chat_mod["evaluate"]
-        self.get_role0 = chat_mod["get_role0"]
-        self.get_role1 = chat_mod["get_role1"]
-
-        # image module related functions
-        self.image_reload_func = image_mod["reload"]
-        self.image_embed_func = image_mod["embed"]
-        self.image_reset_func = image_mod["reset"]
-        self.image_runtime_stats_text_func = image_mod["runtime_stats_text"]
-        self.image_reset_runtime_stats_func = image_mod["reset_runtime_stats"]
+        self.get_role0_func = chat_mod["get_role0"]
+        self.get_role1_func = chat_mod["get_role1"]
 
         # 3. Look up model_path
         self.model_path, self.config_file_path = _get_model_path(model)
@@ -537,97 +570,9 @@ class ChatModule:
         )
         self._reload(self.lib_path, self.model_path, user_chat_config_json_str)
 
-    def _reload(self, lib: str, model_path: str, app_config_json: str = ""):
-        r"""Reload the chat module from the given library and model path.
-
-        Parameters
-        ----------
-        lib : str
-            The library path.
-        model_path : str
-            The model path.
-        app_config_json: str
-            The partial config that is used to partially override the model configuration.
-        """
-        self.reload_func(lib, model_path, app_config_json)
-
-    def prefill(
-        self,
-        input: str,
-        decode_next_token: bool = True,
-        place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
-    ):
-        r"""Run prefill stage for a given input and optionally decode the first output token.
-        User can decide where to place the input in the prompt.
-
-        Parameters
-        ----------
-        input : str
-            The user input string.
-        decode_next_token : bool
-            Whether to decode the next token after prefilling.
-        place_in_prompt: PlaceInPrompt
-            The place of the input message in the prompt.
-        """
-        self.prefill_func(input, decode_next_token, place_in_prompt.value)
-
-    def embed(
-        self,
-        input: str,
-        place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
-    ):
-        r"""Given a text input, get the embedding of the tokenized prompt.
-        User can decide where to place the input in the prompt.
-
-        Parameters
-        ----------
-        input : str
-            The user input string.
-        place_in_prompt: PlaceInPrompt
-            The place of the input message in the prompt.
-        """
-        return self.embed_func(input, place_in_prompt.value)
-
-    def prefill_with_embed(self, embedding: tvm.runtime.NDArray, decode_next_token: bool = True):
-        r"""Given an embedding, run the prefill stage and optionally decode the first output token.
-
-        Parameters
-        ----------
-        embedding : tvm.runtime.NDArray
-            The embedding of user input.
-        decode_next_token : bool
-            Whether to decode the next token after prefilling.
-        """
-        self.prefill_with_embed_func(embedding, decode_next_token)
-
-    def decode(self):
-        r"""Decode the next token, the decoding result is stored in a buffer and
-        can be retrieved by :func:`get_message`.
-        """
-        self.decode_func()
-
-    def stopped(self) -> bool:
-        r"""Check if the stop condition is met for the current round.
-
-        Returns
-        -------
-        stopped : bool
-        """
-        return self.stopped_func() != 0
-
-    def get_message(self) -> str:
-        r"""Get the output message in the current round.
-
-        Returns
-        -------
-        message : str
-
-        Note
-        ----
-        This function returns the message that corresponds to
-        all the tokens decoded so far.
-        """
-        return self.get_message_func()
+    def generate(self):
+        # TODO: work in progress
+        pass
 
     def reset_chat(self, chat_config: Optional[ChatConfig] = None):
         r"""Reset the chat session, clear all chat history, and potentially
@@ -656,8 +601,9 @@ class ChatModule:
             # Second argument is `partial_update = True`
             self.load_json_override_func(user_chat_config_json_str, True)
 
-    def runtime_stats_text(self) -> str:
-        r"""Get the runtime stats text (encoding speed and decoding speed).
+    def get_runtime_stats(self) -> str:
+        r"""Get the runtime stats of the encoding step, decoding step, (and embedding step if exists)
+        of the chat module in text form.
 
         Returns
         -------
@@ -666,19 +612,8 @@ class ChatModule:
         """
         return self.runtime_stats_text_func()
 
-    def reset_runtime_stats(self):
-        r"""Reset the runtime stats."""
-        self.reset_runtime_stats_func()
-
-    def process_system_prompts(self):
-        r"""Pre-process by prefilling the system prompts, running prior to any user input."""
-        self.process_system_prompts_func()
-
-    def evaluate(self):
-        self.evaluate_func()
-
-    def reload_image_module(self, lib: str, model_path: str):
-        r"""Reload the image module from the given library and model path.
+    def _reload(self, lib: str, model_path: str, app_config_json: str = ""):
+        r"""Reload the chat module from the given library and model path.
 
         Parameters
         ----------
@@ -686,42 +621,145 @@ class ChatModule:
             The library path.
         model_path : str
             The model path.
+        app_config_json: str
+            The partial config that is used to partially override the model configuration.
         """
-        self.reload_func(lib, model_path)
+        self.reload_func(lib, model_path, app_config_json)
 
-    def reset_image_module(self):
-        r"""Reset the image module, clear its performance record.
+    def _unload(self):
+        r"""Unload the chat module and clear memory of all loaded models."""
+        self.unload_func()
 
-        Note
-        ----
-        The model remains the same after :func:`reset_image_module`.
-        To reload module, please use :func:`reload` instead.
-        """
-        self.reset_image_module_func()
-
-    def get_image_embedding(
+    def _prefill(
         self,
-        image: tvm.runtime.NDArray,
+        input: str,
+        decode_next_token: bool = True,
+        place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
     ):
-        r"""Given an image of type NDArray, get the embedding of the image.
+        r"""Run prefill stage for a given input and optionally decode the first output token.
+        User can decide where to place the input in the prompt.
 
         Parameters
         ----------
-        image : tvm.runtime.NDArray
-            The user uploaded image.
+        input : str
+            The user input string.
+        decode_next_token : bool
+            Whether to decode the next token after prefilling.
+        place_in_prompt: PlaceInPrompt
+            The place of the input message in the prompt. See `class PlaceInPrompt` for details.
         """
-        return self.embed_func(image)
+        self.prefill_func(input, decode_next_token, place_in_prompt.value)
 
-    def image_module_runtime_stats_text(self) -> str:
-        r"""Get the runtime stats text (image encoding speed).
+    def _embed(
+        self,
+        input: str,
+        place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
+    ):
+        r"""Given a text input, get the embedding of the tokenized prompt.
+        User can decide where to place the input in the prompt.
+
+        Parameters
+        ----------
+        input : str
+            The user input string.
+        place_in_prompt: PlaceInPrompt
+            The place of the input message in the prompt. See `class PlaceInPrompt` for details.
+        """
+        return self.embed_func(input, place_in_prompt.value)
+
+    def _prefill_with_embed(self, embedding: tvm.runtime.NDArray, decode_next_token: bool = True):
+        r"""Given an embedding, run the prefill stage and optionally decode the first output token.
+
+        Parameters
+        ----------
+        embedding : tvm.runtime.NDArray
+            The embedding of user input.
+        decode_next_token : bool
+            Whether to decode the next token after prefilling.
+        """
+        self.prefill_with_embed_func(embedding, decode_next_token)
+
+    def _decode(self):
+        r"""Decode the next token, the decoding result is stored in a buffer and
+        can be retrieved by :func:`get_message`.
+        """
+        self.decode_func()
+
+    def _stopped(self) -> bool:
+        r"""Check if the stop condition is met for the current round.
 
         Returns
         -------
-        stats : str
-            The runtime stats text.
+        stopped : bool
         """
-        return self.runtime_stats_text_func()
+        return self.stopped_func() != 0
 
-    def reset_image_module_runtime_stats(self):
-        r"""Reset the runtime stats."""
+    def _get_message(self) -> str:
+        r"""Get the output message in the current round.
+
+        Returns
+        -------
+        message : str
+
+        Note
+        ----
+        This function returns the message that corresponds to
+        all the tokens decoded so far.
+        """
+        return self.get_message_func()
+
+    def _get_config_json(self):
+        r"""Get the configuration of the chat module in a single json string.
+
+        Returns
+        -------
+        config : str
+            The config json string.
+        """
+        return self.get_config_json_func()
+
+    def _load_json_override(self, config_str: str, partial_update: bool = False):
+        r"""Load JSON config and override existing configurations for the chat module.
+
+        Parameters
+        ----------
+        config_str : str
+            A json config string that partially specifies some of the options.
+        partial_update : bool
+            Whether it's a partial update or full update, if set to true, we perform a partial update
+            on some of the provided options; if set to false, all options must be provided.
+        """
+        self.load_json_override_func(config_str, partial_update)
+
+    def _get_role_0(self):
+        r"""Get the name of role 0 in the conversation.
+
+        Returns
+        -------
+        name : str
+            The name of role 0.
+        """
+        return self.get_role0_func()
+
+    def _get_role_1(self):
+        r"""Get the name of role 1 in the conversation.
+
+        Returns
+        -------
+        name : str
+            The name of role 1.
+        """
+        return self.get_role1_func()
+
+    def _reset_runtime_stats(self):
+        r"""Reset the runtime stats, clear all performance history."""
         self.reset_runtime_stats_func()
+
+    def _process_system_prompts(self):
+        r"""Pre-process by prefilling the system prompts, running prior to any user input."""
+        self.process_system_prompts_func()
+
+    def _evaluate(self, token_len: int, generate_len: int):
+        r"""Perform a quick evaluation of the chat pipeline with toy inputs.
+        Use for debug purpose only."""
+        self.evaluate_func(token_len, generate_len)
