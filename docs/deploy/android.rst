@@ -155,15 +155,14 @@ weights you build, please follow the steps below.
 
    please uninstall the existing app and try ``adb install`` again.
 
--  Step 13. Push the tokenizer and model weights to your phone through
+-  Step 13. Push the model dir to your phone through
    ADB.
 
     .. code:: bash
 
-      adb push dist/models/vicuna-v1-7b/tokenizer.model /data/local/tmp/vicuna-v1-7b/tokenizer.model
-      adb push dist/vicuna-v1-7b/float16/params /data/local/tmp/vicuna-v1-7b/params
-      adb shell "mkdir -p /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/Download/"
-      adb shell "mv /data/local/tmp/vicuna-v1-7b /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/Download/vicuna-v1-7b"
+      adb push dist/models/vicuna-v1-7b/ /data/local/tmp/vicuna-v1-7b/
+      adb shell "mkdir -p /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/"
+      adb shell "mv /data/local/tmp/vicuna-v1-7b /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/vicuna-v1-7b"
 
 -  Step 14. Everything is ready. Launch the MLCChat on your phone and
    you will be able to use the app with your own weights. You will find
