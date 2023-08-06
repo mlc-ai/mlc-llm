@@ -29,8 +29,8 @@ class StartState : ObservableObject {
     static let ParamsConfigFileName = "ndarray-cache.json"
     
     init() {
-        loadPrebuiltModels()
         loadAppConfig()
+        loadPrebuiltModels()
     }
     
     private func loadPrebuiltModels() {
@@ -101,7 +101,11 @@ class StartState : ObservableObject {
             assert(fileManager.fileExists(atPath: modelConfigUrl.path()))
             let fileHandle = try FileHandle(forReadingFrom: modelConfigUrl)
             let data = fileHandle.readDataToEndOfFile()
-            return try decoder.decode(ModelConfig.self, from: data)
+            let modelConfig = try decoder.decode(ModelConfig.self, from: data)
+            if !isModelConfigAllowed(modelConfig: modelConfig) {
+                return nil
+            }
+            return modelConfig
         } catch {
             showAlert(message: "Failed to resolve model config: \(error.localizedDescription)")
         }
@@ -137,6 +141,14 @@ class StartState : ObservableObject {
         } else {
             alertMessage.append("\n" + message)
         }
+    }
+    
+    private func isModelConfigAllowed(modelConfig: ModelConfig) -> Bool {
+        if appConfig.model_libs.contains(modelConfig.model_lib) {
+            return true
+        }
+        showAlert(message: "Model lib \(modelConfig.model_lib) is not supported")
+        return false
     }
     
     

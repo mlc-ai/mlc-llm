@@ -85,7 +85,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val modelConfig = gson.fromJson(modelConfigString, ModelConfig::class.java)
                 addModelConfig(modelConfig, modelRecord.modelUrl, true)
             } else {
-                downloadModelConfig(modelRecord.modelUrl, modelRecord.localId, true)
+                downloadModelConfig(
+                    if (modelRecord.modelUrl.endsWith("/")) modelRecord.modelUrl else "$modelRecord.modelUrl/",
+                    modelRecord.localId,
+                    true
+                )
             }
         }
         modelSampleList += appConfig.modelSamples
@@ -126,6 +130,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun isModelConfigAllowed(modelConfig: ModelConfig): Boolean {
+        if (appConfig.modelLibs.contains(modelConfig.modelLib)) return true;
+        viewModelScope.launch {
+            Toast.makeText(
+                application,
+                "Model lib ${modelConfig.modelLib} is not supported.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+        return false
+    }
+
 
     private fun downloadModelConfig(modelUrl: String, localId: String?, isBuiltin: Boolean) {
         thread(start = true) {
@@ -160,6 +176,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             ).show()
                             return@launch
                         }
+                        if (!isModelConfigAllowed(modelConfig)) {
+                            tempFile.delete()
+                            return@launch
+                        }
                         val modelDirFile = File(appDirFile, modelConfig.localId)
                         val modelConfigFile = File(modelDirFile, ModelConfigFilename)
                         tempFile.copyTo(modelConfigFile, overwrite = true)
@@ -180,7 +200,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 viewModelScope.launch {
                     Toast.makeText(
                         application,
-                        "Add model failed: ${e.localizedMessage}",
+                        "Download model config failed: ${e.localizedMessage}",
                         Toast.LENGTH_SHORT
                     ).show()
                 }
