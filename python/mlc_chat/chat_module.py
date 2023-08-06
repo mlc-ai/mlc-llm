@@ -463,20 +463,20 @@ def _detect_local_device(device_id: int = 0):
         The local device.
     """
     if tvm.metal().exist:
-        return tvm.metal(device_id)
+        return tvm.metal(device_id), "metal"
     if tvm.rocm().exist:
-        return tvm.rocm(device_id)
+        return tvm.rocm(device_id), "rocm"
     if tvm.cuda().exist:
-        return tvm.cuda(device_id)
+        return tvm.cuda(device_id), "cuda"
     if tvm.vulkan().exist:
-        return tvm.vulkan(device_id)
+        return tvm.vulkan(device_id), "vulkan"
     if tvm.opencl().exist:
-        return tvm.opencl(device_id)
+        return tvm.opencl(device_id), "opencl"
 
     print(
         "None of the following device is detected: metal, rocm, cuda, vulkan, opencl. Switch to llvm instead."
     )
-    return tvm.cpu(device_id)
+    return tvm.cpu(device_id), "llvm"
 
 
 class ChatModule:
@@ -521,7 +521,7 @@ class ChatModule:
         elif device_name == "opencl":
             self.device = tvm.opencl(device_id)
         elif device_name == "auto":
-            self.device = _detect_local_device(device_id)
+            self.device, device_name = _detect_local_device(device_id)
         else:
             raise ValueError(
                 f"invalid device name: {device_name}. Please choose from the following: \
