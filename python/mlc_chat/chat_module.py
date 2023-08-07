@@ -645,19 +645,28 @@ class ChatModule:
             # Second argument is `partial_update = True`
             self.load_json_override_func(user_chat_config_json_str, True)
 
-    def embed_text(self, input: str, place_in_prompt: PlaceInPrompt = PlaceInPrompt.Middle):
-        r"""Given a text input, get the embedding of the tokenized prompt.
-        User can decide where to place the input in the prompt. By default, no prompts will be
-        padded before or after the input text.
+    def embed_text(self, input: str):
+        r"""Given a text input, returns its embedding in the LLM.
 
         Parameters
         ----------
         input : str
             The user input string.
-        place_in_prompt: PlaceInPrompt
-            The place of the input message in the prompt. See `class PlaceInPrompt` for details.
+
+        Returns
+        -------
+        embedding : tvm.runtime.NDArray
+            The embedding of the text.
+
+        Note
+        ----
+        This is a high-level method and is only used for retrieving text embeddings. Users are
+        not supposed to call :func:`generate` after calling this method in the same chat session,
+        since the input to this method is not prefilled and will cause error. If user needs to
+        call :func:`generate` later, please call :func:`reset_chat` first.
+        For a more fine-grained embedding API, see :func:`_embed`.
         """
-        return self.embed_func(input, place_in_prompt.value)
+        return self.embed_func(input, PlaceInPrompt.Middle.value)
 
     def runtime_stats_text(self) -> str:
         r"""Get the runtime stats of the encoding step, decoding step, (and embedding step if exists)
@@ -707,6 +716,25 @@ class ChatModule:
             The place of the input message in the prompt. See `class PlaceInPrompt` for details.
         """
         self.prefill_func(input, decode_next_token, place_in_prompt.value)
+
+    def _embed(self, input: str, place_in_prompt: PlaceInPrompt = PlaceInPrompt.All):
+        r"""A more fine-grained embedding API. Given a text input, get the embedding of the tokenized prompt.
+        User can decide where to place the input in the prompt. This functionality usually aids the subsequent
+        call to :func:`_prefill_with_embed`.
+
+        Parameters
+        ----------
+        input : str
+            The user input string.
+        place_in_prompt: PlaceInPrompt
+            The place of the input message in the prompt. See `class PlaceInPrompt` for details.
+
+        Returns
+        -------
+        embedding : tvm.runtime.NDArray
+            The embedding of the text.
+        """
+        return self.embed_func(input, place_in_prompt.value)
 
     def _prefill_with_embed(self, embedding: tvm.runtime.NDArray, decode_next_token: bool = True):
         r"""Given an embedding, run the prefill stage and optionally decode the first output token.
