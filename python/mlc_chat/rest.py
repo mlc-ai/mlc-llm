@@ -9,9 +9,11 @@ import tvm
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
-from dataclasses import dataclass, field, fields
 
-from .chat_module import ChatModule, quantization_keys
+from dataclasses import dataclass, field, fields
+from typing import Optional
+
+from .chat_module import ChatModule
 from .interface.openai_api import *
 
 
@@ -28,6 +30,16 @@ class RestAPIArgs:
                 (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
                 folder. In the former case, we will use the provided name to search
                 for the model folder over possible paths.
+                """
+            )
+        }
+    )
+    lib_path: str = field(
+        default="None",
+        metadata={
+            "help": (
+                """
+                The full path to the model library file to use (e.g. a ``.so`` file).
                 """
             )
         }
@@ -110,33 +122,12 @@ def _shared_lib_suffix():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    chat_mod = ChatModule(ARGS.device_name, ARGS.device_id)
-    model_path = os.path.join(ARGS.artifact_path, ARGS.model + "-" + ARGS.quantization)
-    model_dir = ARGS.model + "-" + ARGS.quantization
-    model_lib = model_dir + "-" + ARGS.device_name + _shared_lib_suffix()
-    lib_dir = os.path.join(model_path, model_lib)
-    prebuilt_lib_dir = os.path.join(ARGS.artifact_path, "prebuilt", "lib", model_lib)
-    if os.path.exists(lib_dir):
-        lib = tvm.runtime.load_module(lib_dir)
-    elif os.path.exists(prebuilt_lib_dir):
-        lib = tvm.runtime.load_module(prebuilt_lib_dir)
-    else:
-        raise ValueError(
-            f"Unable to find {model_lib} at {lib_dir} or {prebuilt_lib_dir}."
-        )
-
-    local_model_path = os.path.join(model_path, "params")
-    prebuilt_model_path = os.path.join(
-        ARGS.artifact_path, "prebuilt", f"mlc-chat-{model_dir}"
+    chat_mod = ChatModule(
+        model=ARGS.model,
+        device_name=ARGS.device_name,
+        device_id=ARGS.device_id,
+        lib_path=ARGS.lib_path
     )
-    if os.path.exists(local_model_path):
-        chat_mod.reload(lib=lib, model_path=local_model_path)
-    elif os.path.exists(prebuilt_model_path):
-        chat_mod.reload(lib=lib, model_path=prebuilt_model_path)
-    else:
-        raise ValueError(
-            f"Unable to find model params at {local_model_path} or {prebuilt_model_path}."
-        )
     session["chat_mod"] = chat_mod
 
     yield
