@@ -11,7 +11,7 @@ from typing import List, Optional
 import tvm
 import tvm._ffi.base
 
-from . import libinfo
+from . import libinfo, callback
 
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
@@ -479,6 +479,14 @@ def _detect_local_device(device_id: int = 0):
     return tvm.cpu(device_id), "llvm"
 
 
+def _first_idx_mismatch(str1, str2):
+    """Find the first index that mismatch in two strings. Helper function for generating the output."""
+    for i, (char1, char2) in enumerate(zip(str1, str2)):
+        if char1 != char2:
+            return i
+    return min(len(str1), len(str2))
+
+
 class ChatModule:
     def __init__(
         self,
@@ -522,6 +530,7 @@ class ChatModule:
             self.device = tvm.opencl(device_id)
         elif device_name == "auto":
             self.device, device_name = _detect_local_device(device_id)
+            print(f"system automatically detected device: {device_name}")
         else:
             raise ValueError(
                 f"invalid device name: {device_name}. Please choose from the following: \
@@ -570,9 +579,38 @@ class ChatModule:
         )
         self._reload(self.lib_path, self.model_path, user_chat_config_json_str)
 
-    def generate(self):
-        # TODO: work in progress
-        pass
+    def generate(self, prompt: str, progress_callback=callback.stream_to_stdout(interval=2)):
+        r"""A high-level method that generates the response from the chat module given a user prompt.
+        User can specify which callback method to use upon receiving the response.
+
+        Parameters
+        ----------
+        prompt : str
+            The user input prompt, i.e. a question to ask the chat module.
+        progress_callback: object
+            Optional argument. The callback method used upon receiving the response from the chat module.
+            User should pass in a callback class. See `mlc_chat/callback.py` for a full list
+            of available callback classes.
+            By default, the response is streamed to stdout.
+        """
+        self._prefill(prompt)
+        i, cur_utf8_chars = 0, "".encode("utf-8")
+        res = ""
+        while not self._stopped():
+            self._decode()
+            if i % progress_callback.interval == 0 or self._stopped():
+                new_msg = self._get_message()
+                new_utf8_chars = new_msg.encode("utf-8")
+                pos = _first_idx_mismatch(cur_utf8_chars, new_utf8_chars)
+                print_msg = ""
+                for _ in range(pos, len(cur_utf8_chars)):
+                    print_msg += "\b \b"
+                for j in range(pos, len(new_utf8_chars)):
+                    print_msg += chr(new_utf8_chars[j])
+                cur_utf8_chars = new_utf8_chars
+                res += print_msg
+                print(res)
+            i += 1
 
     def reset_chat(self, chat_config: Optional[ChatConfig] = None):
         r"""Reset the chat session, clear all chat history, and potentially
