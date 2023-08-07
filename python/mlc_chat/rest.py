@@ -9,12 +9,88 @@ import tvm
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
+from dataclasses import dataclass, field, fields
 
 from .chat_module import ChatModule, quantization_keys
 from .interface.openai_api import *
 
-session = {}
 
+@dataclass
+class RestAPIArgs:
+    """RestAPIArgs is the dataclass that organizes the arguments used for starting a REST API server."""
+
+    model: str = field(
+        metadata={
+            "help": (
+                """
+                The model folder after compiling with MLC-LLM build process. The parameter
+                can either be the model name with its quantization scheme
+                (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
+                folder. In the former case, we will use the provided name to search
+                for the model folder over possible paths.
+                """
+            )
+        }
+    )
+    device_name: str = field(
+        default="auto",
+        metadata={
+            "help": (
+                """
+                The device name, enter one of "cuda", "metal", "vulkan", "rocm", "opencl", "auto".
+                If "auto", the local device will be automatically detected.
+                """
+            )
+        }
+    )
+    device_id: int = field(
+        default=0,
+        metadata={
+            "help": (
+                """
+                The device id passed to ``tvm``, defaults to 0.
+                """
+            )
+        }
+    )
+    host: str = field(
+        default="127.0.0.1",
+        metadata={
+            "help": (
+                """
+                The host at which the server should be started, defaults to 127.0.0.1.
+                """
+            )
+        }
+    )
+    port: int = field(
+        default=8000,
+        metadata={
+            "help": (
+                """
+                The port on which the server should be started, defaults to 8000.
+                """
+            )
+        }
+    )
+
+def convert_args_to_argparser() -> argparse.ArgumentParser:
+    """Convert from RestAPIArgs to an equivalent ArgumentParser."""
+    args = argparse.ArgumentParser("MLC Chat REST API")
+    for field in fields(RestAPIArgs):
+        name = field.name.replace("_", "-")
+        field_name = f"--{name}"
+        # `kwargs` contains `help`, `choices`, and `action`
+        kwargs = field.metadata.copy()
+        if field.type == bool:
+            # boolean arguments do not need to specify `type`
+            args.add_argument(field_name, default=field.default, **kwargs)
+        else:
+            args.add_argument(field_name, type=field.type, default=field.default, **kwargs)
+    return args
+
+
+session = {}
 
 def _shared_lib_suffix():
     if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
@@ -69,26 +145,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-
-
-def _parse_args():
-    args = argparse.ArgumentParser("MLC Chat REST API")
-    args.add_argument("--model", type=str, default="vicuna-v1-7b")
-    args.add_argument("--artifact-path", type=str, default="dist")
-    args.add_argument(
-        "--quantization",
-        type=str,
-        choices=quantization_keys(),
-        default=quantization_keys()[0],
-    )
-    args.add_argument("--device-name", type=str, default="cuda")
-    args.add_argument("--device-id", type=int, default=0)
-    args.add_argument("--host", type=str, default="127.0.0.1")
-    args.add_argument("--port", type=int, default=8000)
-
-    parsed = args.parse_args()
-    return parsed
-
 
 class AsyncChatCompletionStream:
     def __aiter__(self):
@@ -205,6 +261,6 @@ async def read_stats():
     return session["chat_mod"].runtime_stats_text()
 
 
-ARGS = _parse_args()
+ARGS = convert_args_to_argparser().parse_args()
 if __name__ == "__main__":
     uvicorn.run("mlc_chat.rest:app", host=ARGS.host, port=ARGS.port, reload=False, access_log=False)
