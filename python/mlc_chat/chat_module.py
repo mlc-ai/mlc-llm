@@ -574,23 +574,6 @@ class ChatModule:
         # TODO: work in progress
         pass
 
-    def embed_text(
-        self,
-        input: str,
-        place_in_prompt: PlaceInPrompt = PlaceInPrompt.All
-    ):
-        r"""Given a text input, get the embedding of the tokenized prompt.
-        User can decide where to place the input in the prompt.
-
-        Parameters
-        ----------
-        input : str
-            The user input string.
-        place_in_prompt: PlaceInPrompt
-            The place of the input message in the prompt. See `class PlaceInPrompt` for details.
-        """
-        return self.embed_func(input, place_in_prompt.value)
-
     def reset_chat(self, chat_config: Optional[ChatConfig] = None):
         r"""Reset the chat session, clear all chat history, and potentially
         override the original `mlc-chat-config.json`.
@@ -618,7 +601,21 @@ class ChatModule:
             # Second argument is `partial_update = True`
             self.load_json_override_func(user_chat_config_json_str, True)
 
-    def get_runtime_stats(self) -> str:
+    def embed_text(self, input: str, place_in_prompt: PlaceInPrompt = PlaceInPrompt.Middle):
+        r"""Given a text input, get the embedding of the tokenized prompt.
+        User can decide where to place the input in the prompt. By default, no prompts will be
+        padded before or after the input text.
+
+        Parameters
+        ----------
+        input : str
+            The user input string.
+        place_in_prompt: PlaceInPrompt
+            The place of the input message in the prompt. See `class PlaceInPrompt` for details.
+        """
+        return self.embed_func(input, place_in_prompt.value)
+
+    def runtime_stats_text(self) -> str:
         r"""Get the runtime stats of the encoding step, decoding step, (and embedding step if exists)
         of the chat module in text form.
 
