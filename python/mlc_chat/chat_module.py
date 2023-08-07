@@ -253,9 +253,9 @@ def _get_model_path(model: str) -> (str, str):
     if found_folder:
         # Error 1: there is a folder, but not an mlc-llm model folder (E1)
         err_msg = (
-            "Cannot find the model folder. The `model` you pass in does not seem "
-            "to refer to a valid model folder.\n"
-            "Specifically, we cannot find `mlc-chat-config.json`, a required file.\n"
+            "The model folder provided does not seem to refer to a valid mlc-llm model folder.\n"
+            "Specifically, we cannot find `mlc-chat-config.json`, a required file. You should "
+            "provide a path that contains the file.\n"
             "According to your input `model`, we looked at folder(s):\n"
             f"{valid_dir_str}"
             "MLC-Chat consumes models that are processed by the MLC-LLM build process.\n"
