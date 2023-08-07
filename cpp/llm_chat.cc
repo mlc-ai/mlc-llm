@@ -527,7 +527,8 @@ class LLMChat {
       return NDArray::Empty({}, DataType::Float(32), device_);
     }
 
-    CHECK(embed_func_.defined());
+    CHECK(embed_func_.defined()) << "In order to use the embedding functionality, make sure you "
+                                    "build the model in MLC-LLM with `sep_embed` option on.";
     auto tstart = std::chrono::high_resolution_clock::now();
 
     NDArray input_data = this->GetInputTokenNDArray(prompt_tokens);
