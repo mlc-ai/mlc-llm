@@ -227,9 +227,9 @@ def _get_model_path(model: str) -> (str, str):
     # Note that the order of this list corresponds to our search priority
     candidate_paths = [
         f"{model}",  # full path, or just the name
-        f"dist/prebuilt/{model}",  # Using prebuilt workflow
-        f"dist/{model}/params",  # Default directory after mlc_llm.build_model()
-        f"dist/prebuilt/mlc-chat-{model}",  # Also prebuilt workflow, but missed prefix
+        f"dist/prebuilt/{model}", f"mlc-llm/dist/prebuilt/{model}",  # Using prebuilt workflow
+        f"dist/{model}/params", f"mlc-llm/dist/{model}/params", # Default directory after mlc_llm.build_model()
+        f"dist/prebuilt/mlc-chat-{model}", f"mlc-llm/dist/prebuilt/mlc-chat-{model}", # Also prebuilt workflow, but missed prefix
     ]
 
     # Look for the first folder that has `mlc-chat-config.json` under it
@@ -381,8 +381,8 @@ def _get_lib_module(
         candidate_paths.extend(
             [
                 f"{lib_name}",
-                f"dist/prebuilt/lib/{lib_name}",  # Using prebuilt workflow
-                f"dist/{model}/{lib_name}",  # Default directory after mlc_llm.build_model()
+                f"dist/prebuilt/lib/{lib_name}", f"mlc-llm/dist/prebuilt/lib/{lib_name}",  # Using prebuilt workflow
+                f"dist/{model}/{lib_name}", f"mlc-llm/dist/{model}/{lib_name}",  # Default directory after mlc_llm.build_model()
                 os.path.join(model_path, lib_name),  # User put library inside `model_path`
                 os.path.join(pardir_model_path, lib_name),  # Under parent directory of `model_path`
             ]
