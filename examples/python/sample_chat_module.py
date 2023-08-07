@@ -7,12 +7,11 @@ from python.mlc_chat.chat_module  import ChatModule
 cm = ChatModule(model='Llama-2-7b-chat-hf-q4f16_1', device_name="vulkan")
 
 # Generate a response for a given prompt
-# TODO: Update once generate API is complete
-cm.generate()
+cm.generate(prompt="What is the meaning of life?")
 
 # Print some runtime statistics for the generation
-runtime_stats = cm.get_runtime_stats()
+runtime_stats = cm.runtime_stats_text()
 print(f"{runtime_stats=}")
 
-# Reset the chat module
+# # Reset the chat module
 cm.reset_chat()
