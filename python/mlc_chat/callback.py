@@ -15,5 +15,17 @@ class stream_to_stdout(object):
         """
         self.interval = interval
 
-    def __call__(self, message: str):
-        pass
+    def __call__(self, message: str = "", stopped: bool = False):
+        r"""Stream the message to stdout without any buffering.
+
+        Parameters
+        ----------
+        message : str
+            The new piece of message that is not streamed to stdout yet.
+        stopped : bool
+            Whether streaming reaches the end. If so, print out an additional "\n".
+        """
+        if stopped:
+            print()
+        else:
+            print(message, end="", flush=True)

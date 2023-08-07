@@ -377,15 +377,14 @@ def _get_lib_module(
     candidate_paths = []
     for lib_name in candidate_lib_names:
         # Equivalent to {model_path}/../
-        pardir_model_path = os.path.abspath(os.path.join(
-            os.path.abspath(model_path), os.pardir))
+        pardir_model_path = os.path.abspath(os.path.join(os.path.abspath(model_path), os.pardir))
         candidate_paths.extend(
             [
                 f"{lib_name}",
                 f"dist/prebuilt/lib/{lib_name}",  # Using prebuilt workflow
                 f"dist/{model}/{lib_name}",  # Default directory after mlc_llm.build_model()
                 os.path.join(model_path, lib_name),  # User put library inside `model_path`
-                os.path.join(pardir_model_path, lib_name)  # Under parent directory of `model_path`
+                os.path.join(pardir_model_path, lib_name),  # Under parent directory of `model_path`
             ]
         )
 
@@ -594,12 +593,15 @@ class ChatModule:
         progress_callback: object
             Optional argument. The callback method used upon receiving the response from the chat module.
             User should pass in a callback class. See `mlc_chat/callback.py` for a full list
-            of available callback classes.
-            By default, the response is streamed to stdout.
+            of available callback classes. By default, the response is streamed to stdout.
+
+        Note
+        ----
+        The generate api gives the raw response, and no chat bot role name will be displayed
+        prior to the response. User can retrieve the role name via :func:`_get_role_1`.
         """
         self._prefill(prompt)
         i, cur_utf8_chars = 0, "".encode("utf-8")
-        res = ""
         while not self._stopped():
             self._decode()
             if i % progress_callback.interval == 0 or self._stopped():
@@ -612,9 +614,9 @@ class ChatModule:
                 for j in range(pos, len(new_utf8_chars)):
                     print_msg += chr(new_utf8_chars[j])
                 cur_utf8_chars = new_utf8_chars
-                res += print_msg
-                print(res)
+                progress_callback(message=print_msg)
             i += 1
+        progress_callback(stopped=True)
 
     def reset_chat(self, chat_config: Optional[ChatConfig] = None):
         r"""Reset the chat session, clear all chat history, and potentially
