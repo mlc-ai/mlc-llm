@@ -2,7 +2,7 @@
 //  ChatView.swift
 
 import SwiftUI
-
+import GameController
 
 struct ChatView: View {
     @State var inputMessage: String = ""
@@ -96,10 +96,14 @@ struct ChatView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .frame(minHeight: CGFloat(30))
                     .focused($inputIsFocused)
+                    .onSubmit {
+                        let isKeyboardConnected = GCKeyboard.coalesced != nil
+                        if isKeyboardConnected {
+                            send()
+                        }
+                    }
                 Button("Send") {
-                    self.inputIsFocused = false
-                    chatState.requestGenerate(prompt: inputMessage)
-                    inputMessage = ""
+                    send()
                 }.bold().disabled(!(chatState.chattable() && inputMessage != ""))
             }.frame(minHeight: CGFloat(70)).padding()
         }
@@ -124,5 +128,13 @@ struct ChatView: View {
                 .disabled(!chatState.resettable())
             }
         }
+    }
+}
+
+private extension ChatView {
+    func send() {
+        inputIsFocused = false
+        chatState.requestGenerate(prompt: inputMessage)
+        inputMessage = ""
     }
 }
