@@ -534,6 +534,9 @@ class LLMChat {
     NDArray input_data = this->GetInputTokenNDArray(prompt_tokens);
     NDArray embedding = embed_func_(input_data, params_);
 
+    int32_t new_seq_len = total_seq_len_ + token_len;
+    total_seq_len_ = new_seq_len;
+
     auto tend = std::chrono::high_resolution_clock::now();
 
     this->embed_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
@@ -554,9 +557,7 @@ class LLMChat {
     auto tstart = std::chrono::high_resolution_clock::now();
 
     int64_t token_len = embedding.Shape()[1];
-    int32_t new_seq_len = total_seq_len_ + token_len;
-    NDArray logits_on_device = this->ForwardEmbeddings(embedding, new_seq_len);
-    total_seq_len_ = new_seq_len;
+    NDArray logits_on_device = this->ForwardEmbeddings(embedding, total_seq_len_);
 
     if (!decode_next_token) {
       auto tend = std::chrono::high_resolution_clock::now();
