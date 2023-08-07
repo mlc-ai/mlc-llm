@@ -183,22 +183,10 @@
 <li class="toctree-l2"><a class="reference internal" href="#api-reference">API Reference</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#mlc_chat.ChatModule"><code class="docutils literal notranslate"><span class="pre">ChatModule</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.__init__"><code class="docutils literal notranslate"><span class="pre">ChatModule.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.decode"><code class="docutils literal notranslate"><span class="pre">ChatModule.decode()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.embed"><code class="docutils literal notranslate"><span class="pre">ChatModule.embed()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.get_image_embedding"><code class="docutils literal notranslate"><span class="pre">ChatModule.get_image_embedding()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.get_message"><code class="docutils literal notranslate"><span class="pre">ChatModule.get_message()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.image_module_runtime_stats_text"><code class="docutils literal notranslate"><span class="pre">ChatModule.image_module_runtime_stats_text()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.prefill"><code class="docutils literal notranslate"><span class="pre">ChatModule.prefill()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.prefill_with_embed"><code class="docutils literal notranslate"><span class="pre">ChatModule.prefill_with_embed()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.process_system_prompts"><code class="docutils literal notranslate"><span class="pre">ChatModule.process_system_prompts()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reload"><code class="docutils literal notranslate"><span class="pre">ChatModule.reload()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reload_image_module"><code class="docutils literal notranslate"><span class="pre">ChatModule.reload_image_module()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.embed_text"><code class="docutils literal notranslate"><span class="pre">ChatModule.embed_text()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.generate"><code class="docutils literal notranslate"><span class="pre">ChatModule.generate()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reset_chat"><code class="docutils literal notranslate"><span class="pre">ChatModule.reset_chat()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reset_image_module"><code class="docutils literal notranslate"><span class="pre">ChatModule.reset_image_module()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reset_image_module_runtime_stats"><code class="docutils literal notranslate"><span class="pre">ChatModule.reset_image_module_runtime_stats()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reset_runtime_stats"><code class="docutils literal notranslate"><span class="pre">ChatModule.reset_runtime_stats()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.runtime_stats_text"><code class="docutils literal notranslate"><span class="pre">ChatModule.runtime_stats_text()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.stopped"><code class="docutils literal notranslate"><span class="pre">ChatModule.stopped()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -350,211 +338,100 @@ that supports other GPU runtime than the prebuilt version. Please refer our <a c
 The <code class="xref py py-class docutils literal notranslate"><span class="pre">ChatModule</span></code> class provides the following methods:</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="mlc_chat.ChatModule">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlc_chat.</span></span><span class="sig-name descname"><span class="pre">ChatModule</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'cuda'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlc_chat.</span></span><span class="sig-name descname"><span class="pre">ChatModule</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chat_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">ChatConfig</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lib_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <dl class="py method">
 <dt class="sig sig-object py" id="mlc_chat.ChatModule.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'cuda'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.__init__" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chat_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">ChatConfig</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lib_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.__init__" title="Permalink to this definition">¶</a></dt>
 <dd><p>Initialize a chat module.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>target</strong> (<em>str</em>) – The target device type.</p></li>
-<li><p><strong>device_id</strong> (<em>int</em>) – The device id.</p></li>
+<li><p><strong>model</strong> (<em>str</em>) – The model folder after compiling with MLC-LLM build process. The parameter
+can either be the model name with its quantization scheme
+(e.g. <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf-q4f16_1</span></code>), or a full path to the model
+folder. In the former case, we will use the provided name to search
+for the model folder over possible paths.</p></li>
+<li><p><strong>device_name</strong> (<em>str</em>) – The device name, enter one of “cuda”, “metal”, “vulkan”, “rocm”, “opencl”, “auto”.
+If “auto”, the local device will be automatically detected.</p></li>
+<li><p><strong>device_id</strong> (<em>int</em>) – The device id passed to <code class="docutils literal notranslate"><span class="pre">tvm</span></code>.</p></li>
+<li><p><strong>chat_config</strong> (<em>Optional</em><em>[</em><em>ChatConfig</em><em>]</em>) – A <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> instance partially filled. Will be used to override the
+<code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>.</p></li>
+<li><p><strong>lib_path</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The full path to the model library file to use (e.g. a <code class="docutils literal notranslate"><span class="pre">.so</span></code> file).</p></li>
 </ul>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.decode">
-<span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.decode" title="Permalink to this definition">¶</a></dt>
-<dd><p>Decode the next token, the decoding result is stored in a buffer and
-can be retrieved by <a class="reference internal" href="#mlc_chat.ChatModule.get_message" title="mlc_chat.ChatModule.get_message"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_message()</span></code></a>.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.embed">
-<span class="sig-name descname"><span class="pre">embed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">place_in_prompt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PlaceInPrompt</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">PlaceInPrompt.All</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.embed" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.embed_text">
+<span class="sig-name descname"><span class="pre">embed_text</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">place_in_prompt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PlaceInPrompt</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">PlaceInPrompt.Middle</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.embed_text" title="Permalink to this definition">¶</a></dt>
 <dd><p>Given a text input, get the embedding of the tokenized prompt.
-User can decide where to place the input in the prompt.</p>
+User can decide where to place the input in the prompt. By default, no prompts will be
+padded before or after the input text.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>input</strong> (<em>str</em>) – The user input string.</p></li>
-<li><p><strong>place_in_prompt</strong> (<em>PlaceInPrompt</em>) – The place of the input message in the prompt.</p></li>
+<li><p><strong>place_in_prompt</strong> (<em>PlaceInPrompt</em>) – The place of the input message in the prompt. See <cite>class PlaceInPrompt</cite> for details.</p></li>
 </ul>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.get_image_embedding">
-<span class="sig-name descname"><span class="pre">get_image_embedding</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">NDArray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.get_image_embedding" title="Permalink to this definition">¶</a></dt>
-<dd><p>Given an image of type NDArray, get the embedding of the image.</p>
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.generate">
+<span class="sig-name descname"><span class="pre">generate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prompt:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">progress_callback=&lt;mlc_chat.callback.stream_to_stdout</span> <span class="pre">object&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.generate" title="Permalink to this definition">¶</a></dt>
+<dd><p>A high-level method that generates the response from the chat module given a user prompt.
+User can specify which callback method to use upon receiving the response.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>image</strong> (<em>tvm.runtime.NDArray</em>) – The user uploaded image.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.get_message">
-<span class="sig-name descname"><span class="pre">get_message</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#mlc_chat.ChatModule.get_message" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the output message in the current round.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>message</strong></p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>str</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>prompt</strong> (<em>str</em>) – The user input prompt, i.e. a question to ask the chat module.</p></li>
+<li><p><strong>progress_callback</strong> (<em>object</em>) – Optional argument. The callback method used upon receiving the response from the chat module.
+User should pass in a callback class. See <cite>mlc_chat/callback.py</cite> for a full list
+of available callback classes. By default, the response is streamed to stdout.</p></li>
+</ul>
 </dd>
 </dl>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This function returns the message that corresponds to
-all the tokens decoded so far.</p>
+<p>The generate api gives the raw response, and no chat bot role name will be displayed
+prior to the response. User can retrieve the role name via <code class="xref py py-func docutils literal notranslate"><span class="pre">_get_role_1()</span></code>.</p>
 </div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.image_module_runtime_stats_text">
-<span class="sig-name descname"><span class="pre">image_module_runtime_stats_text</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#mlc_chat.ChatModule.image_module_runtime_stats_text" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the runtime stats text (image encoding speed).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>stats</strong> – The runtime stats text.</p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>str</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.prefill">
-<span class="sig-name descname"><span class="pre">prefill</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decode_next_token</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">place_in_prompt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PlaceInPrompt</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">PlaceInPrompt.All</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.prefill" title="Permalink to this definition">¶</a></dt>
-<dd><p>Run prefill stage for a given input and optionally decode the first output token.
-User can decide where to place the input in the prompt.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>input</strong> (<em>str</em>) – The user input string.</p></li>
-<li><p><strong>decode_next_token</strong> (<em>bool</em>) – Whether to decode the next token after prefilling.</p></li>
-<li><p><strong>place_in_prompt</strong> (<em>PlaceInPrompt</em>) – The place of the input message in the prompt.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.prefill_with_embed">
-<span class="sig-name descname"><span class="pre">prefill_with_embed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">embedding</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">NDArray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decode_next_token</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.prefill_with_embed" title="Permalink to this definition">¶</a></dt>
-<dd><p>Given an embedding, run the prefill stage and optionally decode the first output token.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>embedding</strong> (<em>tvm.runtime.NDArray</em>) – The embedding of user input.</p></li>
-<li><p><strong>decode_next_token</strong> (<em>bool</em>) – Whether to decode the next token after prefilling.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.process_system_prompts">
-<span class="sig-name descname"><span class="pre">process_system_prompts</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.process_system_prompts" title="Permalink to this definition">¶</a></dt>
-<dd><p>Pre-process by prefilling the system prompts, running prior to any user input.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.reload">
-<span class="sig-name descname"><span class="pre">reload</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lib</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">app_config_json</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.reload" title="Permalink to this definition">¶</a></dt>
-<dd><p>Reload the chat module from the given library and model path.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>lib</strong> (<em>str</em>) – The library path.</p></li>
-<li><p><strong>model_path</strong> (<em>str</em>) – The model path.</p></li>
-<li><p><strong>app_config_json</strong> (<em>str</em>) – The partial config that is used to partially override the model configuration.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.reload_image_module">
-<span class="sig-name descname"><span class="pre">reload_image_module</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lib</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.reload_image_module" title="Permalink to this definition">¶</a></dt>
-<dd><p>Reload the image module from the given library and model path.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>lib</strong> (<em>str</em>) – The library path.</p></li>
-<li><p><strong>model_path</strong> (<em>str</em>) – The model path.</p></li>
-</ul>
-</dd>
-</dl>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mlc_chat.ChatModule.reset_chat">
-<span class="sig-name descname"><span class="pre">reset_chat</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.reset_chat" title="Permalink to this definition">¶</a></dt>
-<dd><p>Reset the chat session and clear all chat history.</p>
+<span class="sig-name descname"><span class="pre">reset_chat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chat_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">ChatConfig</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.reset_chat" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reset the chat session, clear all chat history, and potentially
+override the original <cite>mlc-chat-config.json</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>chat_config</strong> (<em>Optional</em><em>[</em><em>ChatConfig</em><em>]</em>) – A <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> instance partially filled. If specified, the chat
+module will reload the <cite>mlc-chat-config.json</cite>, and override it with
+<code class="docutils literal notranslate"><span class="pre">chat_config</span></code>, just like in initialization.</p>
+</dd>
+</dl>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The model remains the same after <a class="reference internal" href="#mlc_chat.ChatModule.reset_chat" title="mlc_chat.ChatModule.reset_chat"><code class="xref py py-func docutils literal notranslate"><span class="pre">reset_chat()</span></code></a>.
-To reload module, please use <a class="reference internal" href="#mlc_chat.ChatModule.reload" title="mlc_chat.ChatModule.reload"><code class="xref py py-func docutils literal notranslate"><span class="pre">reload()</span></code></a> instead.</p>
+To reload module, please either re-initialize a <a class="reference internal" href="#mlc_chat.ChatModule" title="mlc_chat.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">ChatModule</span></code></a> instance
+or use <code class="xref py py-func docutils literal notranslate"><span class="pre">_reload()</span></code> instead.</p>
 </div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.reset_image_module">
-<span class="sig-name descname"><span class="pre">reset_image_module</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.reset_image_module" title="Permalink to this definition">¶</a></dt>
-<dd><p>Reset the image module, clear its performance record.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The model remains the same after <a class="reference internal" href="#mlc_chat.ChatModule.reset_image_module" title="mlc_chat.ChatModule.reset_image_module"><code class="xref py py-func docutils literal notranslate"><span class="pre">reset_image_module()</span></code></a>.
-To reload module, please use <a class="reference internal" href="#mlc_chat.ChatModule.reload" title="mlc_chat.ChatModule.reload"><code class="xref py py-func docutils literal notranslate"><span class="pre">reload()</span></code></a> instead.</p>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.reset_image_module_runtime_stats">
-<span class="sig-name descname"><span class="pre">reset_image_module_runtime_stats</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.reset_image_module_runtime_stats" title="Permalink to this definition">¶</a></dt>
-<dd><p>Reset the runtime stats.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.reset_runtime_stats">
-<span class="sig-name descname"><span class="pre">reset_runtime_stats</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.reset_runtime_stats" title="Permalink to this definition">¶</a></dt>
-<dd><p>Reset the runtime stats.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mlc_chat.ChatModule.runtime_stats_text">
 <span class="sig-name descname"><span class="pre">runtime_stats_text</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#mlc_chat.ChatModule.runtime_stats_text" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the runtime stats text (encoding speed and decoding speed).</p>
+<dd><p>Get the runtime stats of the encoding step, decoding step, (and embedding step if exists)
+of the chat module in text form.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>stats</strong> – The runtime stats text.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p>str</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.stopped">
-<span class="sig-name descname"><span class="pre">stopped</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#mlc_chat.ChatModule.stopped" title="Permalink to this definition">¶</a></dt>
-<dd><p>Check if the stop condition is met for the current round.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>stopped</strong></p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>bool</p>
 </dd>
 </dl>
 </dd></dl>
