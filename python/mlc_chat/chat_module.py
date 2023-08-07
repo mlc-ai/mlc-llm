@@ -376,12 +376,16 @@ def _get_lib_module(
     # 3. Genereate possible model library paths
     candidate_paths = []
     for lib_name in candidate_lib_names:
+        # Equivalent to {model_path}/../
+        pardir_model_path = os.path.abspath(os.path.join(
+            os.path.abspath(model_path), os.pardir))
         candidate_paths.extend(
             [
                 f"{lib_name}",
                 f"dist/prebuilt/lib/{lib_name}",  # Using prebuilt workflow
                 f"dist/{model}/{lib_name}",  # Default directory after mlc_llm.build_model()
-                f"{model_path}/{lib_name}",  # User put library inside `model_path`
+                os.path.join(model_path, lib_name),  # User put library inside `model_path`
+                os.path.join(pardir_model_path, lib_name)  # Under parent directory of `model_path`
             ]
         )
 
