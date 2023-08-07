@@ -13,5 +13,5 @@ cm.generate(prompt="What is the meaning of life?")
 runtime_stats = cm.runtime_stats_text()
 print(f"{runtime_stats=}")
 
-# # Reset the chat module
+# Reset the chat module
 cm.reset_chat()
