@@ -1066,6 +1066,13 @@ class LLMChatModule : public ModuleNode {
         ICHECK_EQ(args.size(), 0);
         GetChat()->ResetChat();
       });
+    } else if (name == "load_json_override") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 2);
+        std::string config_str = args[0];
+        bool partial_update = args[1];
+        GetChat()->LoadJSONOverride(config_str, partial_update);
+      });
     } else if (name == "get_role0") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         *rv = GetChat()->conversation_.roles[0];
