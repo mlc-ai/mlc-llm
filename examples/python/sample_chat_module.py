@@ -4,7 +4,7 @@ from python.mlc_chat.chat_module  import ChatModule
 # $ python -m examples.python.sample_chat_module 
 
 # Create a ChatModule instance
-cm = ChatModule(model='Llama-2-7b-chat-hf-q4f16_1', device_name="vulkan")
+cm = ChatModule(model='Llama-2-7b-chat-hf-q4f16_1')
 
 # Generate a response for a given prompt
 cm.generate(prompt="What is the meaning of life?")
