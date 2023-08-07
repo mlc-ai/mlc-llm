@@ -365,18 +365,27 @@ If “auto”, the local device will be automatically detected.</p></li>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mlc_chat.ChatModule.embed_text">
-<span class="sig-name descname"><span class="pre">embed_text</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">place_in_prompt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PlaceInPrompt</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">PlaceInPrompt.Middle</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.embed_text" title="Permalink to this definition">¶</a></dt>
-<dd><p>Given a text input, get the embedding of the tokenized prompt.
-User can decide where to place the input in the prompt. By default, no prompts will be
-padded before or after the input text.</p>
+<span class="sig-name descname"><span class="pre">embed_text</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.embed_text" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given a text input, returns its embedding in the LLM.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>input</strong> (<em>str</em>) – The user input string.</p></li>
-<li><p><strong>place_in_prompt</strong> (<em>PlaceInPrompt</em>) – The place of the input message in the prompt. See <cite>class PlaceInPrompt</cite> for details.</p></li>
-</ul>
+<dd class="field-odd"><p><strong>input</strong> (<em>str</em>) – The user input string.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>embedding</strong> – The embedding of the text.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tvm.runtime.NDArray</p>
 </dd>
 </dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This is a high-level method and is only used for retrieving text embeddings. Users are
+not supposed to call <a class="reference internal" href="#mlc_chat.ChatModule.generate" title="mlc_chat.ChatModule.generate"><code class="xref py py-func docutils literal notranslate"><span class="pre">generate()</span></code></a> after calling this method in the same chat session,
+since the input to this method is not prefilled and will cause error. If user needs to
+call <a class="reference internal" href="#mlc_chat.ChatModule.generate" title="mlc_chat.ChatModule.generate"><code class="xref py py-func docutils literal notranslate"><span class="pre">generate()</span></code></a> later, please call <a class="reference internal" href="#mlc_chat.ChatModule.reset_chat" title="mlc_chat.ChatModule.reset_chat"><code class="xref py py-func docutils literal notranslate"><span class="pre">reset_chat()</span></code></a> first.
+For a more fine-grained embedding API, see <code class="xref py py-func docutils literal notranslate"><span class="pre">_embed()</span></code>.</p>
+</div>
 </dd></dl>
 
 <dl class="py method">
