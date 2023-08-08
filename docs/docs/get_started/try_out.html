@@ -291,7 +291,10 @@
 for you to try out MLC Chat app built with MLC LLM,
 and you can try out prebuilt models on the following platforms:</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Python</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">CLI (Linux/MacOS/Windows)</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-0-0-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-4" name="0-4" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p><strong>MLC LLM supports 7B/13B/70B Llama-2.</strong> Follow the instructions below and try out the Python API.</p>
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Python</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">CLI (Linux/MacOS/Windows)</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-0-0-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-4" name="0-4" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p><strong>MLC LLM supports 7B/13B/70B Llama-2.</strong>
+We provide a <a class="reference external" href="https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb">Jupyter notebook</a>
+for you to try MLC Chat Python API in Colab.
+You can also follow the instructions below and try out the Python API in you native environment.</p>
 <p>To run LLMs using MLC LLM in Python, please visit <a class="reference external" href="https://mlc.ai/package/">https://mlc.ai/package/</a> to install
 the chat package using pip. With the Python package installed, run the following
 for preparation.</p>
@@ -347,10 +350,13 @@ git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/m
 </pre></div>
 </div>
 <p>You can also checkout the <a class="reference internal" href="../prebuilt_models.html"><span class="doc">Model Prebuilts</span></a> page to run other models.</p>
-<figure class="align-center" id="id1">
+<p>To use Python API interactively, you are welcome to check out the
+<a class="reference external" href="https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb">Jupyter notebook</a>
+and run it in Colab.</p>
+<figure class="align-center" id="id2">
 <a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg" style="width: 600px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM Python API</span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM Python API</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p><strong>MLC LLM now supports 7B/13B/70B Llama-2.</strong> <em>Follow the instructions below and try out the CLI!</em></p>
@@ -399,20 +405,20 @@ mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-
 Please follow the instructions in <a class="reference internal" href="../install/gpu.html"><span class="doc">GPU Drivers and SDKs</span></a> tutorial to prepare the environment.</p>
 </div>
 <p>You can also checkout the <a class="reference internal" href="../prebuilt_models.html"><span class="doc">Model Prebuilts</span></a> page to run other models.</p>
-<figure class="align-center" id="id2">
+<figure class="align-center" id="id3">
 <a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif" style="width: 500px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on CLI</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on CLI</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><p>With the advancements of WebGPU, we can now run LLM completely in the web browser environment.
 You can try out the web version of MLC LLM in <a class="reference external" href="https://webllm.mlc.ai/#chat-demo">WebLLM</a>.</p>
 <p>In WebLLM, once the model weights are fetched and stored in the local cache in the first run, you can start to interact with the model without Internet connection.</p>
 <p>A WebGPU-compatible browser and a local GPU are needed to run WebLLM. You can download the latest Google Chrome and use <a class="reference external" href="https://webgpureport.org/">WebGPU Report</a> to verify the functionality of WebGPU on your browser.</p>
-<figure class="align-center" id="id3">
+<figure class="align-center" id="id4">
 <a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/web.gif"><img alt="https://mlc.ai/blog/img/redpajama/web.gif" src="https://mlc.ai/blog/img/redpajama/web.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on Web</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on Web</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div><div aria-labelledby="tab-0-0-3" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-3" name="0-3" role="tabpanel" tabindex="0"><p>The MLC Chat app is now available in App Store at no cost. You can download and explore it by simply clicking the button below:</p>
@@ -428,10 +434,10 @@ You can try out the web version of MLC LLM in <a class="reference external" href
 </div>
 <p>Once the app is installed, you can download the models and then engage in chat with the model without requiring an internet connection.</p>
 <p>Memory requirements vary across different models. The Llama2-7B model necessitates an iPhone device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an iPhone with at least 4GB RAM.</p>
-<figure class="align-center" id="id4">
+<figure class="align-center" id="id5">
 <a class="reference internal image-reference" href="https://mlc.ai/blog/img/redpajama/ios.gif"><img alt="https://mlc.ai/blog/img/redpajama/ios.gif" src="https://mlc.ai/blog/img/redpajama/ios.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC Chat on iOS</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC Chat on iOS</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div><div aria-labelledby="tab-0-0-4" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-4" name="0-4" role="tabpanel" tabindex="0"><p>The MLC Chat Android app is free and available for download, and you can try out by simply clicking the button below:</p>
@@ -441,10 +447,10 @@ You can try out the web version of MLC LLM in <a class="reference external" href
 </div>
 <p>Once the app is installed, you can engage in a chat with the model without the need for an internet connection:</p>
 <p>Memory requirements vary across different models. The Vicuna-7B model necessitates an Android device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an Android device with at least 4GB RAM.</p>
-<figure class="align-center" id="id5">
+<figure class="align-center" id="id6">
 <a class="reference internal image-reference" href="https://mlc.ai/blog/img/android/android-recording.gif"><img alt="https://mlc.ai/blog/img/android/android-recording.gif" src="https://mlc.ai/blog/img/android/android-recording.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on Android</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on Android</span><a class="headerlink" href="#id6" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div></div>
