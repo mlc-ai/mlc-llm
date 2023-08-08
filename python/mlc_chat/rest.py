@@ -14,6 +14,7 @@ from dataclasses import dataclass, field, fields
 from typing import Optional
 
 from .chat_module import ChatModule
+from .callback import update_var
 from .interface.openai_api import *
 
 
@@ -126,15 +127,15 @@ class AsyncChatCompletionStream:
         return self
 
     async def get_next_msg(self):
-        if not session["chat_mod"].stopped():
-            session["chat_mod"].decode()
-            msg = session["chat_mod"].get_message()
+        if not session["chat_mod"]._stopped():
+            session["chat_mod"]._decode()
+            msg = session["chat_mod"]._get_message()
             return msg
         else:
             raise StopAsyncIteration
 
     async def __anext__(self):
-        if not session["chat_mod"].stopped():
+        if not session["chat_mod"]._stopped():
             task = asyncio.create_task(self.get_next_msg())
             msg = await task
             return msg
@@ -147,9 +148,16 @@ async def request_completion(request: ChatCompletionRequest):
     """
     Creates model response for the given chat conversation.
     """
-    for message in request.messages:
-        session["chat_mod"].prefill(input=message.content)
+    if len(request.messages) > 1:
+            raise ValueError(
+                """
+                The /v1/chat/completions endpoint currently only supports single message prompts.
+                Please ensure your request contains only one message
+                """)
+
     if request.stream:
+
+        session["chat_mod"]._prefill(input=request.messages[0].content)
 
         async def iter_response():
             prev_txt = ""
@@ -171,15 +179,13 @@ async def request_completion(request: ChatCompletionRequest):
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
     else:
-        msg = None
-        while not session["chat_mod"].stopped():
-            session["chat_mod"].decode()
-            msg = session["chat_mod"].get_message()
+        update_fn = update_var()
+        session["chat_mod"].generate(prompt=request.messages[0].content, progress_callback=update_fn)
         return ChatCompletionResponse(
             choices=[
                 ChatCompletionResponseChoice(
                     index=0,
-                    message=ChatMessage(role="assistant", content=msg),
+                    message=ChatMessage(role="assistant", content=update_fn.var),
                     finish_reason="stop",
                 )
             ],
@@ -196,17 +202,21 @@ async def request_completion(request: CompletionRequest):
     session["chat_mod"].reset_chat()
     # Langchain's load_qa_chain.run expects the input to be a list with the query
     if isinstance(request.prompt, list):
+        if len(request.prompt) > 1:
+            raise ValueError(
+                """
+                The /v1/completions endpoint currently only supports single message prompts.
+                Please ensure your request contains only one message
+                """)
         prompt = request.prompt[0]
     else:
         prompt = request.prompt
-    session["chat_mod"].prefill(input=prompt)
 
-    msg = None
-    while not session["chat_mod"].stopped():
-        session["chat_mod"].decode()
-        msg = session["chat_mod"].get_message()
+    update_fn = update_var()
+    session["chat_mod"].generate(prompt=prompt, progress_callback=update_fn)
+
     return CompletionResponse(
-        choices=[CompletionResponseChoice(index=0, text=msg)],
+        choices=[CompletionResponseChoice(index=0, text=update_fn.var)],
         # TODO: Fill in correct usage info
         usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
     )
