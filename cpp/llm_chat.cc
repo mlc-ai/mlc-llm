@@ -707,6 +707,44 @@ class LLMChat {
     }
   }
 
+  std::string RawGenerate(std::string prompt, int64_t generate_len) {
+    CHECK_GE(generate_len, 0) << "The input generate is expected to be non-negative.";
+
+    this->ResetKVCache();
+    this->ResetRuntimeStats();
+
+    std::vector<int32_t> tokens = tokenizer_->Encode(prompt);
+    int64_t input_length = tokens.size();
+
+    NDArray logits_on_device;
+    // prefill
+    {
+      auto tstart = std::chrono::high_resolution_clock::now();
+      logits_on_device = this->ForwardTokens(tokens, tokens.size());
+      tokens.push_back(this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_));
+      auto tend = std::chrono::high_resolution_clock::now();
+
+      this->prefill_total_time = static_cast<double>((tend - tstart).count()) / 1e9;
+      this->prefill_total_tokens = input_length;
+    }
+
+    // decode
+    {
+      auto tstart = std::chrono::high_resolution_clock::now();
+      for (int64_t len = 1; len < generate_len; ++len) {
+        logits_on_device = this->ForwardTokens({tokens.back()}, tokens.size());
+        tokens.push_back(this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_));
+      }
+      auto tend = std::chrono::high_resolution_clock::now();
+
+      this->decode_total_time = static_cast<double>((tend - tstart).count()) / 1e9;
+      this->decode_total_tokens = generate_len;
+    }
+
+    std::string output = tokenizer_->Decode({tokens.begin() + input_length, tokens.end()});
+    return output;
+  }
+
  private:
   picojson::value SerializeConfigToJSONValue() const {
     picojson::object config;
@@ -1029,6 +1067,12 @@ class LLMChatModule : public ModuleNode {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 2);
         GetChat()->Evaluate(args[0], args[1]);
+      });
+    } else if (name == "raw_generate") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 2);
+        std::string s = GetChat()->RawGenerate(args[0], args[1]);
+        *rv = s;
       });
     } else if (name == "prefill") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {

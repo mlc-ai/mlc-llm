@@ -7,4 +7,7 @@ from mlc_chat.chat_module import ChatModule
 
 # Create a ChatModule instance
 cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
-cm.evaluate(prompt_len=1, generate_len=512)
+
+output = cm.benchmark_generate("What's the meaning of life?", generate_length=256)
+print(f"Generated text:\n{output}\n")
+print(f"Statistics: {cm.stats()}")
