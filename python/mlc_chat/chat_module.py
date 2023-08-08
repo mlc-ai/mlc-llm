@@ -553,6 +553,7 @@ class ChatModule:
         self._embed_func = chat_mod["embed"]
         self._prefill_with_embed_func = chat_mod["prefill_with_embed"]
         self._decode_func = chat_mod["decode"]
+        self._raw_generate_func = chat_mod["raw_generate"]
         self._reset_chat_func = chat_mod["reset_chat"]
         self._load_json_override_func = chat_mod["load_json_override"]
         self._stopped_func = chat_mod["stopped"]
@@ -679,28 +680,58 @@ class ChatModule:
         """
         return self._runtime_stats_text_func()
 
-    def evaluate(self, prompt_len: int, generate_len: int):
-        r"""Perform a quick evaluation of the chat pipeline with toy inputs.
-        For example,
+    def benchmark_generate(self, prompt: str, generate_length: int) -> str:
+        r"""Given the input prompt and target length of generation,
+        generate text with performance benchmark. For example,
 
         .. code:: python
 
-            cm = mlc_chat.ChatModule("Llama-2-7b-chat-hf-q4f16_1")
-            cm.evaluate(prompt_len=20, generate_len=512)
+            from mlc_chat.chat_module import ChatModule
 
-        will print the time evaluation results at each time step from the
-        initial prompt length 20 to the total length 532 at the end of
-        generation.
+            cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
+            output = cm.benchmark_generate("What's the meaning of life?", generate_length=256)
+            print(f"Generated text:\n{output}\n")
+            print(f"Statistics: {cm.stats()}")
+
+        will generate 256 tokens in total based on prompt "What's the meaning
+        of life?". After generation, you can use `cm.stats()` to print the
+        generation speed.
+
+        Notes
+        -----
+        1. This method generates text without system prompt (i.e., it is pure
+        text generation with no chat style).
+        2. To generate text until the target generation length, this method
+        ignores the stop token of the model. This means text generated after the
+        stop token might be meaningless.
+        3. To make the benchmark as accurate as possible, we first do a round of
+        prefill and decode before text generation.
+        4. This method resets the previous performance statistics.
 
         Parameters
         ----------
-        prompt_len : int
-            The initial length of prompt in the evaluation.
+        prompt : str
+            The prompt of the text generation.
 
-        generate_len : int
-            The number of tokens to generate in the evaluation.
+        generate_length : int
+            The target length of generation.
+
+        Returns
+        -------
+        output : str
+            The generated text output.
         """
-        self._evaluate_func(prompt_len, generate_len)
+        if generate_length < 0:
+            raise ValueError(
+                "The generation length is expected to be non-negative, "
+                f"while the given length is {generate_length}"
+            )
+
+        # warmup run
+        self._prefill(prompt)
+        self._decode()
+
+        return self._raw_generate_func(prompt, generate_length)
 
     def _reload(self, lib: str, model_path: str, app_config_json: str = ""):
         r"""Reload the chat module from the given library and model path.
