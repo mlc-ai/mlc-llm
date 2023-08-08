@@ -9,6 +9,78 @@ and you can try out prebuilt models on the following platforms:
 
 .. tabs::
 
+  .. tab:: Python
+
+    **MLC LLM supports 7B/13B/70B Llama-2.** Follow the instructions below and try out the Python API.
+
+    To run LLMs using MLC LLM in Python, please visit https://mlc.ai/package/ to install
+    the chat package using pip. With the Python package installed, run the following
+    for preparation.
+
+    .. code:: bash
+
+      # Verify the installation of the Python package.
+      # You are expected to see "<class 'mlc_chat.chat_module.ChatModule'>" printed out.
+      python -c "from mlc_chat import ChatModule; print(ChatModule)"
+
+      # Install Git and Git-LFS if you haven't already. Then run
+      git lfs install
+
+      # Create a directory, download the model weights from HuggingFace, and download the binary libraries
+      # from GitHub.
+      mkdir -p dist/prebuilt
+      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
+
+      # Download prebuilt weights of Llama-2-7B, Llama-2-13B or Llama-2-70B
+      cd dist/prebuilt
+      git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
+      # or the 13B model
+      # git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1
+      # or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)
+      # git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1
+      cd ../..
+
+    Then create a Python file ``sample_mlc_chat.py`` paste the following lines:
+
+    .. code:: python
+
+      from mlc_chat import ChatModule
+
+      # From the mlc-llm directory, run
+      # $ python sample_mlc_chat.py
+
+      # Create a ChatModule instance
+      cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
+      # You can change to other models that you downloaded, for example,
+      # cm = ChatModule(model="Llama-2-13b-chat-hf-q4f16_1")  # Llama2 13b model
+
+      # Generate a response for a given prompt
+      output = cm.generate(prompt="What is the meaning of life?")
+      print(f"Generated text:\n{output}\n")
+
+      # Print prefill and decode performance statistics
+      print(f"Statistics: {cm.stats()}\n")
+
+      output = cm.generate(prompt="How many points did you list out?")
+      print(f"Followup generation:\n{output}\n")
+
+      # Reset the chat module by
+      # cm.reset_chat()
+
+    Now run the Python file to start the chat
+
+    .. code:: bash
+
+      python sample_mlc_chat.py
+
+    You can also checkout the :doc:`/prebuilt_models` page to run other models.
+
+    .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg
+      :width: 600
+      :align: center
+
+      MLC LLM Python API
+
   .. tab:: CLI (Linux/MacOS/Windows)
 
     **MLC LLM now supports 7B/13B/70B Llama-2.** *Follow the instructions below and try out the CLI!*
