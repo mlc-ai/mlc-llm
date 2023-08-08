@@ -14,7 +14,6 @@ from dataclasses import dataclass, field, fields
 from typing import Optional
 
 from .chat_module import ChatModule
-from .callback import update_var
 from .interface.openai_api import *
 
 
