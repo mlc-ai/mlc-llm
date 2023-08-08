@@ -44,23 +44,16 @@ class RestAPIArgs:
             )
         }
     )
-    device_name: str = field(
+    device: str = field(
         default="auto",
         metadata={
             "help": (
                 """
-                The device name, enter one of "cuda", "metal", "vulkan", "rocm", "opencl", "auto".
-                If "auto", the local device will be automatically detected.
-                """
-            )
-        }
-    )
-    device_id: int = field(
-        default=0,
-        metadata={
-            "help": (
-                """
-                The device id passed to ``tvm``, defaults to 0.
+                The description of the device to run on. User should provide a string in the
+                form of 'device_name:device_id' or 'device_name', where 'device_name' is one of
+                'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto' (automatically detect the
+                local device), and 'device_id' is the device id to run on. If no 'device_id'
+                is provided, it will be set to 0 by default.
                 """
             )
         }
@@ -108,8 +101,7 @@ session = {}
 async def lifespan(app: FastAPI):
     chat_mod = ChatModule(
         model=ARGS.model,
-        device_name=ARGS.device_name,
-        device_id=ARGS.device_id,
+        device=ARGS.device,
         lib_path=ARGS.lib_path
     )
     session["chat_mod"] = chat_mod
