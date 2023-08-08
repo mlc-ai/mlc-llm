@@ -1,4 +1,4 @@
-from python.mlc_chat.chat_module  import ChatModule
+from mlc_chat.chat_module  import ChatModule
 
 # From the mlc-llm directory, run
 # $ python -m examples.python.sample_chat_module 

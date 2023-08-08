@@ -373,7 +373,7 @@ def _get_lib_module(
             f"{chat_config.model_lib}-{device_name}.dll",
         ]
 
-    # 3. Genereate possible model library paths
+    # 3. Generate possible model library paths
     candidate_paths = []
     for lib_name in candidate_lib_names:
         # Equivalent to {model_path}/../
