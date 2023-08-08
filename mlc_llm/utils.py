@@ -292,7 +292,7 @@ def _detect_local_cuda():
             "max_threads_per_block": dev.max_threads_per_block,
             "thread_warp_size": dev.warp_size,
             "registers_per_block": 65536,
-            "arch": "sm_" + tvm.cuda().compute_version.replace(".", ""),
+            "arch": "sm_" + dev.compute_version.replace(".", ""),
         }
     )
 
@@ -362,6 +362,12 @@ def parse_target(args: argparse.Namespace) -> None:
                 target,
                 host="llvm",  # TODO: detect host CPU
             )
+        args.target = target
+        args.target_kind = args.target.kind.default_keys[0]
+    elif args.target == "cuda":
+        target = _detect_local_cuda()
+        if target is None:
+            raise ValueError("Cannot detect local CUDA GPU target!")
         args.target = target
         args.target_kind = args.target.kind.default_keys[0]
     elif args.target == "metal":
@@ -504,6 +510,24 @@ def parse_target(args: argparse.Namespace) -> None:
     else:
         args.target = tvm.target.Target(args.target, host="llvm")
         args.target_kind = args.target.kind.default_keys[0]
+
+    if args.target_kind == "cuda":
+        from tvm.contrib import nvcc
+
+        assert args.target.arch[3:] != ""
+        if int(args.target.arch[3:]) >= 70:
+            compute_versions = [70, 72, 75, 80, 86, 87, 89, 90]
+        else:
+            compute_versions = [60, 61, 62]
+
+        @tvm.register_func("tvm_callback_cuda_compile", override=True)
+        def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
+            """use nvcc to generate fatbin code for better optimization"""
+            arch = []
+            for compute_version in compute_versions:
+                arch += ["-gencode", f"arch=compute_{compute_version},code=sm_{compute_version}"]
+            ptx = nvcc.compile_cuda(code, target_format="fatbin", arch=arch)
+            return ptx
 
     # use mingw to cross compile windows
     if hasattr(args, "llvm_mingw") and args.llvm_mingw != "":
