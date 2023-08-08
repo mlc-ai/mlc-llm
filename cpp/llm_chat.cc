@@ -407,6 +407,13 @@ class LLMChat {
       if (this->conversation_.add_bos) {
         tokens.insert(tokens.begin(), bos_token_id_);
       }
+      if (this->conversation_.prefix_tokens.size() != 0) {
+        tokens.insert(
+          tokens.begin(),
+          this->conversation_.prefix_tokens.begin(),
+          this->conversation_.prefix_tokens.end()
+        );
+      }
     } else {
       prompts = this->conversation_.GetPromptArrayLastRound(place_in_prompt);
     }
@@ -423,6 +430,13 @@ class LLMChat {
     tokens.clear();
     if (this->conversation_.add_bos) {
       tokens.insert(tokens.begin(), bos_token_id_);
+    }
+    if (this->conversation_.prefix_tokens.size() != 0) {
+      tokens.insert(
+        tokens.begin(),
+        this->conversation_.prefix_tokens.begin(),
+        this->conversation_.prefix_tokens.end()
+      );
     }
     std::vector<std::string> all_prompts = this->conversation_.GetPromptArray();
     // get estimate of the fragment

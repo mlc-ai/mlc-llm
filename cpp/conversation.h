@@ -64,6 +64,8 @@ class Conversation {
   std::string stop_str = "";
   /*! \brief token list that matches stop */
   std::vector<int32_t> stop_tokens = {};
+  /*! \brief token list prefixing the conversation */
+  std::vector<int32_t> prefix_tokens = {};
   /*!
    * \brief Whether caller should consider add bos before system prompt.
    * \note This option is only used for llama models atm.
@@ -108,10 +110,18 @@ class Conversation {
       eq_stop_tokens =
           std::equal(stop_tokens.begin(), stop_tokens.end(), other.stop_tokens.begin());
     }
+    bool eq_prefix_tokens = true;
+    if (prefix_tokens.size() != other.prefix_tokens.size()) {
+      eq_prefix_tokens = false;
+    } else {
+      eq_prefix_tokens =
+          std::equal(prefix_tokens.begin(), prefix_tokens.end(), other.prefix_tokens.begin());
+    }
     return (name == other.name) && (system == other.system) && (offset == other.offset) &&
            (separator_style == other.separator_style) && (role_msg_sep == other.role_msg_sep) &&
            (role_empty_sep == other.role_empty_sep) && (stop_str == other.stop_str) &&
-           (add_bos == other.add_bos) && eq_roles && eq_messages && eq_seps && eq_stop_tokens;
+           (add_bos == other.add_bos) && eq_roles && eq_messages && eq_seps && eq_stop_tokens &&
+           eq_prefix_tokens;
   }
 
   /**

@@ -25,6 +25,9 @@ class DispatchTIROperator:  # pylint: disable=too-few-public-methods
         elif model == "gptj":
             lookup = None
 
+        elif model == "chatglm":
+            lookup = None
+
         else:
             raise ValueError(f"Model {model} not supported")
         self.lookup = lookup

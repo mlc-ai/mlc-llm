@@ -405,6 +405,26 @@ Conversation WizardLM() {
   return conv;
 }
 
+Conversation GLM() {
+  Conversation conv;
+  conv.name = "glm";
+  conv.system = "";
+  conv.roles = {"问", "答"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"\n\n"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2};
+  conv.stop_str = "</s>";
+  conv.prefix_tokens = {64790, 64792};
+  conv.add_bos = false;
+  return conv;
+}
+
 }  // namespace
 
 using ConvFactory = Conversation (*)();
@@ -427,6 +447,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"LM", VanillaLM},
       {"code_gpt", CodeGPT},
       {"wizardlm", WizardLM},
+      {"glm", GLM},
   };
   auto it = factory.find(name);
   if (it == factory.end()) {

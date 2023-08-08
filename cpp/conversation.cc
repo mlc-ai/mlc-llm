@@ -107,6 +107,18 @@ void Conversation::LoadJSONOverride(const picojson::value& config_json, bool par
   } else {
     CHECK(partial_update) << "Key \"stop_tokens\" not found.";
   }
+  if (config.count("prefix_tokens")) {
+    CHECK(config["prefix_tokens"].is<picojson::array>()) << "Invalid prefix_tokens" << err_templ;
+    picojson::array prefix_tokens_arr = config["prefix_tokens"].get<picojson::array>();
+    std::vector<int32_t> prefix_tokens;
+    for (const picojson::value& prefix_token : prefix_tokens_arr) {
+      CHECK(prefix_token.is<int64_t>()) << "Invalid prefix_tokens" << err_templ;
+      prefix_tokens.push_back(prefix_token.get<int64_t>());
+    }
+    this->prefix_tokens = prefix_tokens;
+  } else {
+    CHECK(partial_update) << "Key \"prefix_tokens\" not found.";
+  }
   if (config.count("add_bos")) {
     CHECK(config["add_bos"].is<bool>()) << "Invalid add_bos" << err_templ;
     this->add_bos = config["add_bos"].get<bool>();
@@ -158,6 +170,11 @@ picojson::value Conversation::SerializeToJSON() const {
     stop_tokens_arr.push_back(picojson::value((int64_t)stop_token_str));
   }
   config["stop_tokens"] = picojson::value(stop_tokens_arr);
+  picojson::array prefix_tokens_arr;
+  for (const int32_t& prefix_token_str : this->prefix_tokens) {
+    prefix_tokens_arr.push_back(picojson::value((int64_t)prefix_token_str));
+  }
+  config["prefix_tokens"] = picojson::value(prefix_tokens_arr);
   config["add_bos"] = picojson::value(this->add_bos);
   return picojson::value(config);
 }
