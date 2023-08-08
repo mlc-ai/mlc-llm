@@ -501,8 +501,8 @@ class ChatModule:
         """
         device_err_msg = (
             f"Invalid device name: {device}. Please enter the device in the form "
-            f"'device_name:device_id' or 'device_name', where 'device_name' need to be "
-            f"one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto'."
+            "'device_name:device_id' or 'device_name', where 'device_name' need to be "
+            "one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto'."
         )
 
         # 0. Retrieve device_name and device_id (if any, default 0) from device arg
@@ -510,7 +510,7 @@ class ChatModule:
         if len(device_args) == 1:
             device_name, device_id = device_args[0], 0
         elif len(device_args) == 2:
-            device_name, device_id = device_args[0], device_args[1]
+            device_name, device_id = device_args[0], int(device_args[1])
         elif len(device_args) > 2:
             raise ValueError(device_err_msg)
 
