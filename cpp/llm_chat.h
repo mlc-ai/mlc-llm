@@ -22,6 +22,8 @@ namespace mlc {
 namespace llm {
 
 // explicit export via TVM_DLL
+MLC_LLM_DLL std::string GetDeltaMessage(std::string curr_message, std::string new_message);
+
 MLC_LLM_DLL tvm::runtime::Module CreateChatModule(DLDevice device);
 
 MLC_LLM_DLL tvm::runtime::Module CreateChatModuleLegacy(tvm::runtime::Module executable,

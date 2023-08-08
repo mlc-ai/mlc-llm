@@ -408,11 +408,8 @@ class LLMChat {
         tokens.insert(tokens.begin(), bos_token_id_);
       }
       if (this->conversation_.prefix_tokens.size() != 0) {
-        tokens.insert(
-          tokens.begin(),
-          this->conversation_.prefix_tokens.begin(),
-          this->conversation_.prefix_tokens.end()
-        );
+        tokens.insert(tokens.begin(), this->conversation_.prefix_tokens.begin(),
+                      this->conversation_.prefix_tokens.end());
       }
     } else {
       prompts = this->conversation_.GetPromptArrayLastRound(place_in_prompt);
@@ -432,11 +429,8 @@ class LLMChat {
       tokens.insert(tokens.begin(), bos_token_id_);
     }
     if (this->conversation_.prefix_tokens.size() != 0) {
-      tokens.insert(
-        tokens.begin(),
-        this->conversation_.prefix_tokens.begin(),
-        this->conversation_.prefix_tokens.end()
-      );
+      tokens.insert(tokens.begin(), this->conversation_.prefix_tokens.begin(),
+                    this->conversation_.prefix_tokens.end());
     }
     std::vector<std::string> all_prompts = this->conversation_.GetPromptArray();
     // get estimate of the fragment
@@ -1234,6 +1228,66 @@ class LLMChatModule : public ModuleNode {
   std::unique_ptr<LLMChat> chat_ = nullptr;
   DLDevice device_;
 };
+
+std::vector<std::string> CountUTF8(const std::string& s) {
+  // assume that the string is always valid utf8
+  std::vector<std::string> ret;
+  for (size_t pos = 0; pos < s.size();) {
+    if ((s[pos] & 0x80) == 0x00) {
+      ret.push_back(s.substr(pos, 1));
+      pos += 1;
+    } else if (pos + 1 < s.size() && (s[pos] & 0xE0) == 0xC0 && (s[pos + 1] & 0xC0) == 0x80) {
+      ret.push_back(s.substr(pos, 2));
+      pos += 2;
+    } else if (pos + 1 < s.size() && (s[pos] & 0xF0) == 0xE0 && (s[pos + 1] & 0xC0) == 0x80 &&
+               (s[pos + 2] & 0xC0) == 0x80) {
+      ret.push_back(s.substr(pos, 3));
+      pos += 3;
+    } else if (pos + 2 < s.size() && (s[pos] & 0xF8) == 0xF0 && (s[pos + 1] & 0xC0) == 0x80 &&
+               (s[pos + 2] & 0xC0) == 0x80 && (s[pos + 3] & 0xC0) == 0x80) {
+      ret.push_back(s.substr(pos, 4));
+      pos += 4;
+    } else {
+      LOG(FATAL) << "Invalid UTF8 string";
+    }
+  }
+  return std::move(ret);
+}
+
+/*!
+ * \brief Get the diff of new message and current message (the delta message).
+ * \param curr_message The current message.
+ * \param new_message The new message
+ * \return The delta message.
+ * \note The main complication here is that new_msg can be different from previous message, so we
+ need to find the diff, delete previous messages that are different, then print it out.
+ This logic is only needed for simple stdout.
+
+ For UI apps that can directly update output text we can simply do last_reply.text =
+ chat->GetMessage();
+ */
+std::string GetDeltaMessage(std::string curr_message, std::string new_message) {
+  std::vector<std::string> cur_utf8_chars = CountUTF8(curr_message);
+  std::vector<std::string> new_utf8_chars = CountUTF8(new_message);
+  // Step 1. Find the index of the first UTF8 char that differs
+  size_t pos = std::mismatch(cur_utf8_chars.begin(), cur_utf8_chars.end(), new_utf8_chars.begin(),
+                             new_utf8_chars.end())
+                   .first -
+               cur_utf8_chars.begin();
+  // Step 2. Delete the previous message since `pos`
+  std::string print = "";
+  for (size_t j = pos; j < cur_utf8_chars.size(); ++j) {
+    print += "\b \b";
+  }
+  // Step 3. Print the new message since `pos`
+  for (size_t j = pos; j < new_utf8_chars.size(); ++j) {
+    print += new_utf8_chars[j];
+  }
+  return print;
+}
+
+// register as a system function that can be queried
+TVM_REGISTER_GLOBAL("mlc.get_delta_message").set_body_typed(GetDeltaMessage);
 
 tvm::runtime::Module CreateChatModule(DLDevice device) {
   ObjectPtr<LLMChatModule> n = make_object<LLMChatModule>();
