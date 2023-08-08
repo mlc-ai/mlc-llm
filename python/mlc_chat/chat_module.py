@@ -376,7 +376,7 @@ def _get_lib_module(
     # 4. Search for model library
     for candidate in candidate_paths:
         if os.path.isfile(candidate):
-            print(f"Using library model: {os.path.abspath(candidate)}")
+            print(f"Using library model: {os.path.abspath(candidate)}\n")
             return tvm.runtime.load_module(candidate)
 
     # 5. Error
@@ -529,7 +529,7 @@ class ChatModule:
             self.device = tvm.opencl(device_id)
         elif device_name == "auto":
             self.device, device_name = _detect_local_device(device_id)
-            print(f"system automatically detected device: {device_name}")
+            print(f"System automatically detected device: {device_name}")
         else:
             raise ValueError(device_err_msg)
         device_type = self.device.device_type

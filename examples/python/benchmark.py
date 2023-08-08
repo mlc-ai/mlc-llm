@@ -1,8 +1,6 @@
 from mlc_chat import ChatModule
 
 # From the mlc-llm directory, run
-# $ python -m examples.python.benchmark
-# or directly run
 # $ python examples/python/benchmark.py
 
 # Create a ChatModule instance
