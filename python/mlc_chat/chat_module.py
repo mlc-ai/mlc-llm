@@ -498,6 +498,8 @@ class ChatModule:
             ``mlc-chat-config.json``.
         lib_path : Optional[str]
             The full path to the model library file to use (e.g. a ``.so`` file).
+            If unspecified, we will use the provided ``model`` to search over
+            possible paths.
         """
         device_err_msg = (
             f"Invalid device name: {device}. Please enter the device in the form "
@@ -695,7 +697,7 @@ class ChatModule:
 
         .. code:: python
 
-            from mlc_chat.chat_module import ChatModule
+            from mlc_chat import ChatModule
 
             cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
             output = cm.benchmark_generate("What's the meaning of life?", generate_length=256)

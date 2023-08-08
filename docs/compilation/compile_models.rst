@@ -1,3 +1,5 @@
+.. _compile-models-via-MLC:
+
 Compile Models via MLC
 ======================
 
