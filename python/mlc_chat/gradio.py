@@ -265,7 +265,7 @@ class GradioChatModule(ChatModule):
 
     def get_stats(self, stats_output):
         """Get runtime statistics."""
-        stats_output = self.runtime_stats_text()
+        stats_output = self.stats()
         return stats_output
 
 

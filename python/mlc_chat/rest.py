@@ -202,7 +202,7 @@ async def read_stats():
     """
     Get the runtime stats.
     """
-    return session["chat_mod"].runtime_stats_text()
+    return session["chat_mod"].stats()
 
 
 ARGS = _parse_args()
