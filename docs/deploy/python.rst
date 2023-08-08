@@ -5,8 +5,8 @@ Python API and Gradio Frontend
    :local:
    :depth: 2
 
-We expose Python API for the MLC-Chat for easy integration into other Python projects,
-we also provide a web demo based on `gradio <https://gradio.app/>`_ as an example of using Python API to interact with MLC-Chat.
+We expose Python API for the MLC-Chat for easy integration into other Python projects.
+We also provide a web demo based on `gradio <https://gradio.app/>`_ as an example of using Python API to interact with MLC-Chat.
 
 Python API
 ----------
@@ -23,7 +23,7 @@ Verify Installation
 
 You are expected to see the information about the :class:`mlc_chat.ChatModule` class.
 
-If the prebuild is unavailable on your platform, or you would like to build a runtime
+If the prebuilt is unavailable on your platform, or you would like to build a runtime
 that supports other GPU runtime than the prebuilt version. Please refer our :ref:`Build MLC-Chat Package From Source<mlcchat_package_build_from_source>` tutorial.
 
 Get Started
@@ -95,9 +95,10 @@ run the following code with the conda environment you used to install ``mlc_chat
 
 .. code:: python
 
-   from mlc_chat.chat_module  import ChatModule
+   from mlc_chat import ChatModule
    cm = ChatModule(model='Llama-2-7b-chat-hf-q4f16_1')  # Create a ChatModule instance
-   cm.generate(prompt="What is the meaning of life?") # Generate a response for a given prompt
+   output = cm.generate(prompt="What is the meaning of life?") # Generate a response for a given prompt
+   print(output)
    runtime_stats = cm.stats()  # Print some runtime statistics for the generation
    print(f"{runtime_stats=}")
    cm.reset_chat()  # Reset the chat module
@@ -150,7 +151,7 @@ We provide an example below.
 
 .. code:: python
 
-   from mlc_chat.chat_module import ChatModule, ChatConfig, ConvConfig
+   from mlc_chat import ChatModule, ChatConfig, ConvConfig
 
    # Using a `ConvConfig`, we modify `system`, a field in the conversation template
    # `system` refers to the prompt encoded before starting the chat
@@ -162,13 +163,13 @@ We provide an example below.
 
    # Using the `chat_config` we created, instantiate a `ChatModule`
    cm = mlc_chat.ChatModule('Llama-2-7b-chat-hf-q4f16_1', chat_config=chat_config)
-   cm.generate(prompt='What is one plus one?')
+   print(cm.generate(prompt='What is one plus one?'))
 
    # You could also pass in a `ConvConfig` instance to `reset_chat()`
    conv_config = ConvConfig(system='Please show as much sadness as you can when talking to me.')
    chat_config = ChatConfig(max_gen_len=128, conv_config=conv_config)
    cm.reset_chat(chat_config)
-   cm.generate(prompt='What is one plus one?')
+   print(cm.generate(prompt='What is one plus one?'))
 
 
 .. collapse:: See output

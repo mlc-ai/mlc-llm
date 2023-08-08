@@ -25,9 +25,6 @@ if os.environ.get("SKIP_LOADING_MLCLLM_SO", "0") == "0":
     _LIB, _LIB_PATH = _load_mlc_llm_lib()
 
 
-_get_delta_message = tvm.get_global_func("mlc.get_delta_message")
-
-
 def get_delta_message(curr_message: str, new_message: str) -> str:
     r"""Given the current message and the new message, compute the delta message
     (the newly generated part, the diff of the new message from the current message).
@@ -44,4 +41,5 @@ def get_delta_message(curr_message: str, new_message: str) -> str:
     delta_message : str
         The diff of the new message from the current message (the newly generated part).
     """
-    return _get_delta_message(curr_message, new_message)
+    f_get_delta_message = tvm.get_global_func("mlc.get_delta_message")
+    return f_get_delta_message(curr_message, new_message)
