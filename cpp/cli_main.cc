@@ -115,31 +115,6 @@ std::string GetArchSuffix() {
   return "";
 }
 
-std::vector<std::string> CountUTF8(const std::string& s) {
-  // assume that the string is always valid utf8
-  std::vector<std::string> ret;
-  for (size_t pos = 0; pos < s.size();) {
-    if ((s[pos] & 0x80) == 0x00) {
-      ret.push_back(s.substr(pos, 1));
-      pos += 1;
-    } else if (pos + 1 < s.size() && (s[pos] & 0xE0) == 0xC0 && (s[pos + 1] & 0xC0) == 0x80) {
-      ret.push_back(s.substr(pos, 2));
-      pos += 2;
-    } else if (pos + 1 < s.size() && (s[pos] & 0xF0) == 0xE0 && (s[pos + 1] & 0xC0) == 0x80 &&
-               (s[pos + 2] & 0xC0) == 0x80) {
-      ret.push_back(s.substr(pos, 3));
-      pos += 3;
-    } else if (pos + 2 < s.size() && (s[pos] & 0xF8) == 0xF0 && (s[pos + 1] & 0xC0) == 0x80 &&
-               (s[pos + 2] & 0xC0) == 0x80 && (s[pos + 3] & 0xC0) == 0x80) {
-      ret.push_back(s.substr(pos, 4));
-      pos += 4;
-    } else {
-      LOG(FATAL) << "Invalid UTF8 string";
-    }
-  }
-  return std::move(ret);
-}
-
 void PrintSpecialCommands() {
   std::cout << "You can use the following special commands:\n"
             << "  /help               print the special commands\n"
@@ -398,39 +373,14 @@ void Converse(ChatModule* chat, const std::string& input, int stream_interval,
   chat->Prefill(input);
 
   std::string cur_msg = "";
-  std::vector<std::string> cur_utf8_chars = CountUTF8(cur_msg);
-
   os << chat->GetRole1() << ": " << std::flush;
   for (size_t i = 0; !chat->Stopped(); ++i) {
     chat->Decode();
     if (i % stream_interval == 0 || chat->Stopped()) {
       std::string new_msg = chat->GetMessage();
-      // NOTE: display the new message.
-      // The main complication here is that new_msg can be different
-      // from previous message, so we need to find the diff,
-      // delete previous messages that are different, then print it out.
-      // This logic is only needed for simple stdout.
-      //
-      // For UI apps that can directly update output text
-      // we can simply do last_reply.text = chat->GetMessage();
-      std::vector<std::string> new_utf8_chars = CountUTF8(new_msg);
-      // Step 1. Find the index of the first UTF8 char that differs
-      size_t pos = std::mismatch(cur_utf8_chars.begin(), cur_utf8_chars.end(),
-                                 new_utf8_chars.begin(), new_utf8_chars.end())
-                       .first -
-                   cur_utf8_chars.begin();
-      // Step 2. Delete the previous message since `pos`
-      std::string print = "";
-      for (size_t j = pos; j < cur_utf8_chars.size(); ++j) {
-        print += "\b \b";
-      }
-      // Step 3. Print the new message since `pos`
-      for (size_t j = pos; j < new_utf8_chars.size(); ++j) {
-        print += new_utf8_chars[j];
-      }
+      std::string print = mlc::llm::GetDeltaMessage(cur_msg, new_msg);
       os << print << std::flush;
       cur_msg = std::move(new_msg);
-      cur_utf8_chars = std::move(new_utf8_chars);
     }
   }
   os << std::endl << std::flush;

@@ -1,6 +1,5 @@
 """The Python API for MLC chat."""
 #! pylint: disable=unused-import, invalid-name
-import ctypes
 import json
 import os
 import sys
@@ -9,31 +8,17 @@ from enum import Enum
 from typing import List, Optional
 
 import tvm
-import tvm._ffi.base
 
-from . import libinfo, callback
+from . import callback
+
 
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
 # pylint: enable=line-too-long
 
 
-def _load_mlc_llm_lib():
-    """Load mlc llm lib"""
-    if sys.platform.startswith("win32") and sys.version_info >= (3, 8):
-        for path in libinfo.get_dll_directories():
-            os.add_dll_directory(path)
-    lib_name = "mlc_llm" if tvm._ffi.base._RUNTIME_ONLY else "mlc_llm_module"
-    lib_path = libinfo.find_lib_path(lib_name, optional=False)
-    return ctypes.CDLL(lib_path[0]), lib_path[0]
-
-
-# only load once here
-if os.environ.get("SKIP_LOADING_MLCLLM_SO", "0") == "0":
-    _LIB, _LIB_PATH = _load_mlc_llm_lib()
-
-
 def quantization_keys():
+    r"""Get the keys of all quantization schemes."""
     return [
         "autogptq_llama_q4f16_0",
         "q0f16",
@@ -482,14 +467,6 @@ def _detect_local_device(device_id: int = 0):
     return tvm.cpu(device_id), "llvm"
 
 
-def _first_idx_mismatch(str1, str2):
-    """Find the first index that mismatch in two strings. Helper function for generating the output."""
-    for i, (char1, char2) in enumerate(zip(str1, str2)):
-        if char1 != char2:
-            return i
-    return min(len(str1), len(str2))
-
-
 class ChatModule:
     def __init__(
         self,
@@ -583,41 +560,54 @@ class ChatModule:
         )
         self._reload(self.lib_path, self.model_path, user_chat_config_json_str)
 
-    def generate(self, prompt: str, progress_callback=callback.stream_to_stdout(interval=2)):
-        r"""A high-level method that generates the response from the chat module given a user prompt.
-        User can specify which callback method to use upon receiving the response.
+    def generate(
+        self, prompt: str, progress_callback=callback.DeltaCallback(callback_interval=2)
+    ) -> str:
+        r"""A high-level method that returns the full response from the chat module given a user prompt.
+        User can specify which callback method to use upon receiving the response. By default, we use
+        the naive callback method `DeltaCallback`.
 
         Parameters
         ----------
         prompt : str
             The user input prompt, i.e. a question to ask the chat module.
         progress_callback: object
-            Optional argument. The callback method used upon receiving the response from the chat module.
-            User should pass in a callback class. See `mlc_chat/callback.py` for a full list
-            of available callback classes. By default, the response is streamed to stdout.
+            The callback method used upon receiving a newly generated message from the chat module.
+            User can optionally pass in a callback class to overwrite the naive callback class
+            or change the callback interval in the class (the generate frequency).
+            See `mlc_chat/callback.py` for a full list of available callback classes.
 
-        Note
-        ----
-        The generate api gives the raw response, and no chat bot role name will be displayed
-        prior to the response. User can retrieve the role name via :func:`_get_role_1`.
+        Returns
+        -------
+        output : string
+            The generated full output from the chat module.
+
+        Examples
+        --------
+        .. code-block:: python
+
+          # Suppose we created a chat module, and would like to stream its response to stdout
+          # with a refresh interval of 5.
+          from mlc_chat import ChatModule, callback
+          cm = ChatModule(xxx)
+          prompt = "what's the color of banana?"
+          output = cm.generate(prompt, callback.StreamToStdout(callback_interval=5))
         """
         self._prefill(prompt)
-        i, cur_utf8_chars = 0, "".encode("utf-8")
+        apply_callback = progress_callback.__class__ != callback.DeltaCallback
+
+        i, new_msg = 0, ""
         while not self._stopped():
             self._decode()
-            if i % progress_callback.interval == 0 or self._stopped():
+            if i % progress_callback.callback_interval == 0 or self._stopped():
                 new_msg = self._get_message()
-                new_utf8_chars = new_msg.encode("utf-8")
-                pos = _first_idx_mismatch(cur_utf8_chars, new_utf8_chars)
-                print_msg = ""
-                for _ in range(pos, len(cur_utf8_chars)):
-                    print_msg += "\b \b"
-                for j in range(pos, len(new_utf8_chars)):
-                    print_msg += chr(new_utf8_chars[j])
-                cur_utf8_chars = new_utf8_chars
-                progress_callback(message=print_msg)
+                if apply_callback:
+                    progress_callback(new_msg)
             i += 1
-        progress_callback(stopped=True)
+
+        if apply_callback:
+            progress_callback(stopped=True)
+        return new_msg
 
     def reset_chat(self, chat_config: Optional[ChatConfig] = None):
         r"""Reset the chat session, clear all chat history, and potentially
