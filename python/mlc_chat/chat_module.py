@@ -468,11 +468,12 @@ def _detect_local_device(device_id: int = 0):
 
 
 class ChatModule:
+    """The ChatModule for MLC LLM."""
+
     def __init__(
         self,
         model: str,
-        device_name: str = "auto",
-        device_id: int = 0,
+        device: str = "auto",
         chat_config: Optional[ChatConfig] = None,
         lib_path: Optional[str] = None,
     ):
@@ -486,17 +487,33 @@ class ChatModule:
             (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
             folder. In the former case, we will use the provided name to search
             for the model folder over possible paths.
-        device_name : str
-            The device name, enter one of "cuda", "metal", "vulkan", "rocm", "opencl", "auto".
-            If "auto", the local device will be automatically detected.
-        device_id : int
-            The device id passed to ``tvm``.
+        device : str
+            The description of the device to run on. User should provide a string in the
+            form of 'device_name:device_id' or 'device_name', where 'device_name' is one of
+            'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto' (automatically detect the
+            local device), and 'device_id' is the device id to run on. If no 'device_id'
+            is provided, it will be set to 0 by default.
         chat_config : Optional[ChatConfig]
             A ``ChatConfig`` instance partially filled. Will be used to override the
             ``mlc-chat-config.json``.
         lib_path : Optional[str]
             The full path to the model library file to use (e.g. a ``.so`` file).
         """
+        device_err_msg = (
+            f"Invalid device name: {device}. Please enter the device in the form "
+            f"'device_name:device_id' or 'device_name', where 'device_name' need to be "
+            f"one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto'."
+        )
+
+        # 0. Retrieve device_name and device_id (if any, default 0) from device arg
+        device_args = device.split(":")
+        if len(device_args) == 1:
+            device_name, device_id = device_args[0], 0
+        elif len(device_args) == 2:
+            device_name, device_id = device_args[0], device_args[1]
+        elif len(device_args) > 2:
+            raise ValueError(device_err_msg)
+
         # 1. Get self.device
         if device_name == "cuda":
             self.device = tvm.cuda(device_id)
@@ -512,10 +529,7 @@ class ChatModule:
             self.device, device_name = _detect_local_device(device_id)
             print(f"system automatically detected device: {device_name}")
         else:
-            raise ValueError(
-                f"invalid device name: {device_name}. Please choose from the following: \
-                             cuda, metal, vulkan, rocm, opencl, auto."
-            )
+            raise ValueError(device_err_msg)
         device_type = self.device.device_type
 
         # 2. Populate chat module and their functions
