@@ -574,22 +574,19 @@ class ChatModule:
         )
         self._reload(self.lib_path, self.model_path, user_chat_config_json_str)
 
-    def generate(
-        self, prompt: str, progress_callback=callback.DeltaCallback(callback_interval=2)
-    ) -> str:
+    def generate(self, prompt: str, progress_callback=None) -> str:
         r"""A high-level method that returns the full response from the chat module given a user prompt.
-        User can specify which callback method to use upon receiving the response. By default, we use
-        the naive callback method `DeltaCallback`.
+        User can optionally specify which callback method to use upon receiving the response. By default,
+        no callback will be applied.
 
         Parameters
         ----------
         prompt : str
             The user input prompt, i.e. a question to ask the chat module.
         progress_callback: object
-            The callback method used upon receiving a newly generated message from the chat module.
-            User can optionally pass in a callback class to overwrite the naive callback class
-            or change the callback interval in the class (the generate frequency).
-            See `mlc_chat/callback.py` for a full list of available callback classes.
+            The optional callback method used upon receiving a newly generated message from the chat module.
+            See `mlc_chat/callback.py` for a full list of available callback classes. Currently, only
+            streaming to stdout callback method is supported, see `Examples` for more detailed usage.
 
         Returns
         -------
@@ -600,27 +597,35 @@ class ChatModule:
         --------
         .. code-block:: python
 
-          # Suppose we created a chat module, and would like to stream its response to stdout
-          # with a refresh interval of 5.
+          # Suppose we would like to stream the response of the chat module to stdout
+          # with a refresh interval of 2. Upon calling generate(), We will see the response of
+          # the chat module streaming to stdout piece by piece, and in the end we receive the
+          # full response as a single string `output`.
+
           from mlc_chat import ChatModule, callback
           cm = ChatModule(xxx)
           prompt = "what's the color of banana?"
-          output = cm.generate(prompt, callback.StreamToStdout(callback_interval=5))
+          output = cm.generate(prompt, callback.StreamToStdout(callback_interval=2))
+          print(output)
         """
         self._prefill(prompt)
-        apply_callback = progress_callback.__class__ != callback.DeltaCallback
 
+        if not progress_callback:
+            while not self._stopped():
+                self._decode()
+            new_msg = self._get_message()
+            return new_msg
+
+        # apply callback with a rate of callback_interval
         i, new_msg = 0, ""
         while not self._stopped():
             self._decode()
             if i % progress_callback.callback_interval == 0 or self._stopped():
                 new_msg = self._get_message()
-                if apply_callback:
-                    progress_callback(new_msg)
+                progress_callback(new_msg)
             i += 1
+        progress_callback(stopped=True)
 
-        if apply_callback:
-            progress_callback(stopped=True)
         return new_msg
 
     def reset_chat(self, chat_config: Optional[ChatConfig] = None):
