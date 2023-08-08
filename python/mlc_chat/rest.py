@@ -179,13 +179,12 @@ async def request_completion(request: ChatCompletionRequest):
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
     else:
-        update_fn = update_var()
-        session["chat_mod"].generate(prompt=request.messages[0].content, progress_callback=update_fn)
+        msg = session["chat_mod"].generate(prompt=request.messages[0].content)
         return ChatCompletionResponse(
             choices=[
                 ChatCompletionResponseChoice(
                     index=0,
-                    message=ChatMessage(role="assistant", content=update_fn.var),
+                    message=ChatMessage(role="assistant", content=msg),
                     finish_reason="stop",
                 )
             ],
@@ -212,11 +211,10 @@ async def request_completion(request: CompletionRequest):
     else:
         prompt = request.prompt
 
-    update_fn = update_var()
-    session["chat_mod"].generate(prompt=prompt, progress_callback=update_fn)
+    msg = session["chat_mod"].generate(prompt=prompt)
 
     return CompletionResponse(
-        choices=[CompletionResponseChoice(index=0, text=update_fn.var)],
+        choices=[CompletionResponseChoice(index=0, text=msg)],
         # TODO: Fill in correct usage info
         usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
     )
