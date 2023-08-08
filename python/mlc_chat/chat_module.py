@@ -493,7 +493,7 @@ def _first_idx_mismatch(str1, str2):
 class ChatModule:
     def __init__(
         self,
-        model,
+        model: str,
         device_name: str = "auto",
         device_id: int = 0,
         chat_config: Optional[ChatConfig] = None,
@@ -547,23 +547,23 @@ class ChatModule:
         chat_mod = fcreate_chat_mod(device_type, device_id)
 
         # chat module related functions
-        self.reload_func = chat_mod["reload"]
-        self.unload_func = chat_mod["unload"]
-        self.prefill_func = chat_mod["prefill"]
-        self.embed_func = chat_mod["embed"]
-        self.prefill_with_embed_func = chat_mod["prefill_with_embed"]
-        self.decode_func = chat_mod["decode"]
-        self.reset_chat_func = chat_mod["reset_chat"]
-        self.load_json_override_func = chat_mod["load_json_override"]
-        self.stopped_func = chat_mod["stopped"]
-        self.get_message_func = chat_mod["get_message"]
-        self.runtime_stats_text_func = chat_mod["runtime_stats_text"]
-        self.reset_runtime_stats_func = chat_mod["reset_runtime_stats"]
-        self.get_config_json_func = chat_mod["get_config_json"]
-        self.process_system_prompts_func = chat_mod["process_system_prompts"]
-        self.evaluate_func = chat_mod["evaluate"]
-        self.get_role0_func = chat_mod["get_role0"]
-        self.get_role1_func = chat_mod["get_role1"]
+        self._reload_func = chat_mod["reload"]
+        self._unload_func = chat_mod["unload"]
+        self._prefill_func = chat_mod["prefill"]
+        self._embed_func = chat_mod["embed"]
+        self._prefill_with_embed_func = chat_mod["prefill_with_embed"]
+        self._decode_func = chat_mod["decode"]
+        self._reset_chat_func = chat_mod["reset_chat"]
+        self._load_json_override_func = chat_mod["load_json_override"]
+        self._stopped_func = chat_mod["stopped"]
+        self._get_message_func = chat_mod["get_message"]
+        self._runtime_stats_text_func = chat_mod["runtime_stats_text"]
+        self._reset_runtime_stats_func = chat_mod["reset_runtime_stats"]
+        self._get_config_json_func = chat_mod["get_config_json"]
+        self._process_system_prompts_func = chat_mod["process_system_prompts"]
+        self._evaluate_func = chat_mod["evaluate"]
+        self._get_role0_func = chat_mod["get_role0"]
+        self._get_role1_func = chat_mod["get_role1"]
 
         # 3. Look up model_path
         self.model_path, self.config_file_path = _get_model_path(model)
@@ -635,7 +635,7 @@ class ChatModule:
         To reload module, please either re-initialize a :class:`ChatModule` instance
         or use :func:`_reload` instead.
         """
-        self.reset_chat_func()
+        self._reset_chat_func()
         if chat_config is not None:
             # Redo the overriding
             self.chat_config = _get_chat_config(self.config_file_path, chat_config)
@@ -643,7 +643,7 @@ class ChatModule:
                 chat_config, self.chat_config.conv_template
             )
             # Second argument is `partial_update = True`
-            self.load_json_override_func(user_chat_config_json_str, True)
+            self._load_json_override_func(user_chat_config_json_str, True)
 
     def embed_text(self, input: str):
         r"""Given a text input, returns its embedding in the LLM.
@@ -666,9 +666,9 @@ class ChatModule:
         call :func:`generate` later, please call :func:`reset_chat` first.
         For a more fine-grained embedding API, see :func:`_embed`.
         """
-        return self.embed_func(input, PlaceInPrompt.Middle.value)
+        return self._embed_func(input, PlaceInPrompt.Middle.value)
 
-    def runtime_stats_text(self) -> str:
+    def stats(self) -> str:
         r"""Get the runtime stats of the encoding step, decoding step, (and embedding step if exists)
         of the chat module in text form.
 
@@ -677,7 +677,30 @@ class ChatModule:
         stats : str
             The runtime stats text.
         """
-        return self.runtime_stats_text_func()
+        return self._runtime_stats_text_func()
+
+    def evaluate(self, prompt_len: int, generate_len: int):
+        r"""Perform a quick evaluation of the chat pipeline with toy inputs.
+        For example,
+
+        .. code:: python
+
+            cm = mlc_chat.ChatModule("Llama-2-7b-chat-hf-q4f16_1")
+            cm.evaluate(prompt_len=20, generate_len=512)
+
+        will print the time evaluation results at each time step from the
+        initial prompt length 20 to the total length 532 at the end of
+        generation.
+
+        Parameters
+        ----------
+        prompt_len : int
+            The initial length of prompt in the evaluation.
+
+        generate_len : int
+            The number of tokens to generate in the evaluation.
+        """
+        self._evaluate_func(prompt_len, generate_len)
 
     def _reload(self, lib: str, model_path: str, app_config_json: str = ""):
         r"""Reload the chat module from the given library and model path.
@@ -691,11 +714,11 @@ class ChatModule:
         app_config_json: str
             The partial config that is used to partially override the model configuration.
         """
-        self.reload_func(lib, model_path, app_config_json)
+        self._reload_func(lib, model_path, app_config_json)
 
     def _unload(self):
         r"""Unload the chat module and clear memory of all loaded models."""
-        self.unload_func()
+        self._unload_func()
 
     def _prefill(
         self,
@@ -715,7 +738,7 @@ class ChatModule:
         place_in_prompt: PlaceInPrompt
             The place of the input message in the prompt. See `class PlaceInPrompt` for details.
         """
-        self.prefill_func(input, decode_next_token, place_in_prompt.value)
+        self._prefill_func(input, decode_next_token, place_in_prompt.value)
 
     def _embed(self, input: str, place_in_prompt: PlaceInPrompt = PlaceInPrompt.All):
         r"""A more fine-grained embedding API. Given a text input, get the embedding of the tokenized prompt.
@@ -734,7 +757,7 @@ class ChatModule:
         embedding : tvm.runtime.NDArray
             The embedding of the text.
         """
-        return self.embed_func(input, place_in_prompt.value)
+        return self._embed_func(input, place_in_prompt.value)
 
     def _prefill_with_embed(self, embedding: tvm.runtime.NDArray, decode_next_token: bool = True):
         r"""Given an embedding, run the prefill stage and optionally decode the first output token.
@@ -746,13 +769,13 @@ class ChatModule:
         decode_next_token : bool
             Whether to decode the next token after prefilling.
         """
-        self.prefill_with_embed_func(embedding, decode_next_token)
+        self._prefill_with_embed_func(embedding, decode_next_token)
 
     def _decode(self):
         r"""Decode the next token, the decoding result is stored in a buffer and
         can be retrieved by :func:`get_message`.
         """
-        self.decode_func()
+        self._decode_func()
 
     def _stopped(self) -> bool:
         r"""Check if the stop condition is met for the current round.
@@ -761,7 +784,7 @@ class ChatModule:
         -------
         stopped : bool
         """
-        return self.stopped_func() != 0
+        return self._stopped_func() != 0
 
     def _get_message(self) -> str:
         r"""Get the output message in the current round.
@@ -775,7 +798,7 @@ class ChatModule:
         This function returns the message that corresponds to
         all the tokens decoded so far.
         """
-        return self.get_message_func()
+        return self._get_message_func()
 
     def _get_config_json(self):
         r"""Get the configuration of the chat module in a single json string.
@@ -785,7 +808,7 @@ class ChatModule:
         config : str
             The config json string.
         """
-        return self.get_config_json_func()
+        return self._get_config_json_func()
 
     def _load_json_override(self, config_str: str, partial_update: bool = False):
         r"""Load JSON config and override existing configurations for the chat module.
@@ -798,7 +821,7 @@ class ChatModule:
             Whether it's a partial update or full update, if set to true, we perform a partial update
             on some of the provided options; if set to false, all options must be provided.
         """
-        self.load_json_override_func(config_str, partial_update)
+        self._load_json_override_func(config_str, partial_update)
 
     def _get_role_0(self):
         r"""Get the name of role 0 in the conversation.
@@ -808,7 +831,7 @@ class ChatModule:
         name : str
             The name of role 0.
         """
-        return self.get_role0_func()
+        return self._get_role0_func()
 
     def _get_role_1(self):
         r"""Get the name of role 1 in the conversation.
@@ -818,17 +841,12 @@ class ChatModule:
         name : str
             The name of role 1.
         """
-        return self.get_role1_func()
+        return self._get_role1_func()
 
     def _reset_runtime_stats(self):
         r"""Reset the runtime stats, clear all performance history."""
-        self.reset_runtime_stats_func()
+        self._reset_runtime_stats_func()
 
     def _process_system_prompts(self):
         r"""Pre-process by prefilling the system prompts, running prior to any user input."""
-        self.process_system_prompts_func()
-
-    def _evaluate(self, token_len: int, generate_len: int):
-        r"""Perform a quick evaluation of the chat pipeline with toy inputs.
-        Use for debug purpose only."""
-        self.evaluate_func(token_len, generate_len)
+        self._process_system_prompts_func()
