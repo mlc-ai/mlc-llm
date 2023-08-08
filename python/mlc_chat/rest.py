@@ -14,7 +14,6 @@ from dataclasses import dataclass, field, fields
 from typing import Optional
 
 from .chat_module import ChatModule
-from .callback import update_var
 from .interface.openai_api import *
 
 
@@ -45,23 +44,16 @@ class RestAPIArgs:
             )
         }
     )
-    device_name: str = field(
+    device: str = field(
         default="auto",
         metadata={
             "help": (
                 """
-                The device name, enter one of "cuda", "metal", "vulkan", "rocm", "opencl", "auto".
-                If "auto", the local device will be automatically detected.
-                """
-            )
-        }
-    )
-    device_id: int = field(
-        default=0,
-        metadata={
-            "help": (
-                """
-                The device id passed to ``tvm``, defaults to 0.
+                The description of the device to run on. User should provide a string in the
+                form of 'device_name:device_id' or 'device_name', where 'device_name' is one of
+                'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto' (automatically detect the
+                local device), and 'device_id' is the device id to run on. If no 'device_id'
+                is provided, it will be set to 0 by default.
                 """
             )
         }
@@ -109,8 +101,7 @@ session = {}
 async def lifespan(app: FastAPI):
     chat_mod = ChatModule(
         model=ARGS.model,
-        device_name=ARGS.device_name,
-        device_id=ARGS.device_id,
+        device=ARGS.device,
         lib_path=ARGS.lib_path
     )
     session["chat_mod"] = chat_mod
@@ -179,13 +170,12 @@ async def request_completion(request: ChatCompletionRequest):
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
     else:
-        update_fn = update_var()
-        session["chat_mod"].generate(prompt=request.messages[0].content, progress_callback=update_fn)
+        msg = session["chat_mod"].generate(prompt=request.messages[0].content)
         return ChatCompletionResponse(
             choices=[
                 ChatCompletionResponseChoice(
                     index=0,
-                    message=ChatMessage(role="assistant", content=update_fn.var),
+                    message=ChatMessage(role="assistant", content=msg),
                     finish_reason="stop",
                 )
             ],
@@ -212,11 +202,10 @@ async def request_completion(request: CompletionRequest):
     else:
         prompt = request.prompt
 
-    update_fn = update_var()
-    session["chat_mod"].generate(prompt=prompt, progress_callback=update_fn)
+    msg = session["chat_mod"].generate(prompt=prompt)
 
     return CompletionResponse(
-        choices=[CompletionResponseChoice(index=0, text=update_fn.var)],
+        choices=[CompletionResponseChoice(index=0, text=msg)],
         # TODO: Fill in correct usage info
         usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
     )
