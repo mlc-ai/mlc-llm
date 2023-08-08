@@ -296,7 +296,7 @@
            <div itemprop="articleBody">
             
   <section id="compile-models-via-mlc">
-<h1>Compile Models via MLC<a class="headerlink" href="#compile-models-via-mlc" title="Permalink to this heading">¶</a></h1>
+<span id="id1"></span><h1>Compile Models via MLC<a class="headerlink" href="#compile-models-via-mlc" title="Permalink to this heading">¶</a></h1>
 <p>This page describes how to compile a model with MLC LLM. Model compilation takes model inputs, produces quantized model weights,
 and optimized model lib for a given platform. It enables users to bring their own new model weights, try different quantization modes,
 and customize the overall model optimization flow.</p>
@@ -311,14 +311,14 @@ Finally, we strongly recommend you read <a class="reference internal" href="../g
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#install-mlc-llm-package" id="id6">Install MLC-LLM Package</a></p></li>
-<li><p><a class="reference internal" href="#get-started" id="id7">Get Started</a></p></li>
-<li><p><a class="reference internal" href="#compile-command-specification" id="id8">Compile Command Specification</a></p></li>
-<li><p><a class="reference internal" href="#more-model-compile-commands" id="id9">More Model Compile Commands</a></p></li>
+<li><p><a class="reference internal" href="#install-mlc-llm-package" id="id7">Install MLC-LLM Package</a></p></li>
+<li><p><a class="reference internal" href="#get-started" id="id8">Get Started</a></p></li>
+<li><p><a class="reference internal" href="#compile-command-specification" id="id9">Compile Command Specification</a></p></li>
+<li><p><a class="reference internal" href="#more-model-compile-commands" id="id10">More Model Compile Commands</a></p></li>
 </ul>
 </nav>
 <section id="install-mlc-llm-package">
-<h2><a class="toc-backref" href="#id6" role="doc-backlink">Install MLC-LLM Package</a><a class="headerlink" href="#install-mlc-llm-package" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Install MLC-LLM Package</a><a class="headerlink" href="#install-mlc-llm-package" title="Permalink to this heading">¶</a></h2>
 <section id="work-with-source-code">
 <h3>Work with Source Code<a class="headerlink" href="#work-with-source-code" title="Permalink to this heading">¶</a></h3>
 <p>The easiest way is to use MLC-LLM is to clone the repository, and compile models under the root directory of the repository.</p>
@@ -338,7 +338,7 @@ git<span class="w"> </span>clone<span class="w"> </span>git@github.com:mlc-ai/ml
 </section>
 </section>
 <section id="get-started">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Get Started</a><a class="headerlink" href="#get-started" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Get Started</a><a class="headerlink" href="#get-started" title="Permalink to this heading">¶</a></h2>
 <p>This section provides a step by step instructions to guide you through the compilation process of one specific model.
 We take the RedPajama-v1-3B as an example.
 You can select the platform where you want to <strong>run</strong> your model from the tabs below and run the corresponding command.
@@ -514,7 +514,7 @@ different targets. If you are interested in distributing the model besides local
 You are also more than welcome to read the following sections for more details about the compilation.</p>
 </section>
 <section id="compile-command-specification">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Compile Command Specification</a><a class="headerlink" href="#compile-command-specification" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Compile Command Specification</a><a class="headerlink" href="#compile-command-specification" title="Permalink to this heading">¶</a></h2>
 <p>This section describes the list of options that can be used during compilation.
 Generally, the model compile command is specified by a sequence of arguments and in the following pattern:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span><span class="se">\</span>
@@ -590,7 +590,7 @@ Using cache can help reduce the time needed to compile.</p>
 </dl>
 </section>
 <section id="more-model-compile-commands">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">More Model Compile Commands</a><a class="headerlink" href="#more-model-compile-commands" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">More Model Compile Commands</a><a class="headerlink" href="#more-model-compile-commands" title="Permalink to this heading">¶</a></h2>
 <p>This section lists compile commands for more models that you can try out.</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">Model: Llama-2-7B</button><button aria-controls="panel-2-2-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-1" name="2-1" role="tab" tabindex="-1">Vicuna-v1-7B</button><button aria-controls="panel-2-2-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-2" name="2-2" role="tab" tabindex="-1">RedPajama-v1-3B</button><button aria-controls="panel-2-2-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-3" name="2-3" role="tab" tabindex="-1">rwkv-raven-1b5/3b/7b</button><button aria-controls="panel-2-2-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-4" name="2-4" role="tab" tabindex="-1">Other models</button></div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><p>Please <a class="reference external" href="https://huggingface.co/meta-llama">request for access</a> to the Llama-2 weights from Meta first.
