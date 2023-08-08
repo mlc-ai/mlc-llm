@@ -11,7 +11,10 @@ and you can try out prebuilt models on the following platforms:
 
   .. tab:: Python
 
-    **MLC LLM supports 7B/13B/70B Llama-2.** Follow the instructions below and try out the Python API.
+    **MLC LLM supports 7B/13B/70B Llama-2.**
+    We provide a `Jupyter notebook <https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb>`_
+    for you to try MLC Chat Python API in Colab.
+    You can also follow the instructions below and try out the Python API in you native environment.
 
     To run LLMs using MLC LLM in Python, please visit https://mlc.ai/package/ to install
     the chat package using pip. With the Python package installed, run the following
@@ -74,6 +77,10 @@ and you can try out prebuilt models on the following platforms:
       python sample_mlc_chat.py
 
     You can also checkout the :doc:`/prebuilt_models` page to run other models.
+
+    To use Python API interactively, you are welcome to check out the
+    `Jupyter notebook <https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb>`_
+    and run it in Colab.
 
     .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg
       :width: 600
