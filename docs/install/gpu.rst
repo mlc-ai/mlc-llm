@@ -23,6 +23,24 @@ Validate Installation
 
 To verify you have correctly installed CUDA runtime and NVIDIA driver, run ``nvidia-smi`` in command line and see if you can get the GPU information.
 
+ROCm
+----
+
+ROCm is required to compile and run models with ROCm backend.
+
+Installation
+^^^^^^^^^^^^
+
+Right now MLC LLM only supports ROCm 5.6.
+If you have AMD GPU and you want to use models compiled with ROCm
+backend, you should install ROCm 5.6 from `here <https://docs.amd.com/en/docs-5.6.0/deploy/linux/installer/install.html>`__.
+
+Validate Installation
+^^^^^^^^^^^^^^^^^^^^^
+
+To verify you have correctly installed ROCm 5.6, run ``rocm-smi`` in command line.
+If you see the list of AMD devices printed out in a table, it means the ROCm is correctly installed.
+
 Vulkan Driver
 -------------
 
