@@ -739,6 +739,7 @@ class ChatModule:
             )
 
         # warmup run
+        self.reset_chat()
         self._prefill(prompt)
         self._decode()
 
