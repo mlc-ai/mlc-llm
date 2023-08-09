@@ -5,7 +5,7 @@
 
 👉 👉 :doc:`Get started by trying out the MLC Chat. </get_started/try_out>`
 
-Machine Learning Compilation for LLM (MLC LLM) is a universal deployment solution that enables LLMs to run efficiently on consumer devices, leveraging native hardware acceleration like GPUs.
+Machine Learning Compilation for LLM (MLC LLM) is a high-performance universal deployment for large-language models.
 
 .. table:: MLC LLM: A universal deployment solution for large language models
    :widths: 200, 250, 250, 250, 250
