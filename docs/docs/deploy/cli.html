@@ -378,15 +378,13 @@ mkdir<span class="w"> </span>-p<span class="w"> </span>build<span class="w"> </s
 python3<span class="w"> </span>../cmake/gen_cmake_config.py
 <span class="c1"># build `mlc_chat_cli`</span>
 cmake<span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cmake<span class="w"> </span>--build<span class="w"> </span>.<span class="w"> </span>--parallel<span class="w"> </span><span class="k">$(</span>nproc<span class="k">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
-<span class="c1"># check if the file is generated successfully</span>
-ls<span class="w"> </span>-l<span class="w"> </span>.
 </pre></div>
 </div>
 </div>
 <p><strong>Step 3. Validate installation.</strong> You may validate if MLCChat CLI is compiled successfully using the following command:</p>
 <div class="literal-block-wrapper docutils container" id="id3">
 <div class="code-block-caption"><span class="caption-text">Validate installation</span><a class="headerlink" href="#id3" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># expected to see `mlc_chat_cli`, `libmlc_llm` and `libtvm_runtime`</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># expected to see `mlc_chat_cli`, `libmlc_llm.so` and `libtvm_runtime.so`</span>
 ls<span class="w"> </span>-l<span class="w"> </span>./build/
 <span class="c1"># expected to see help message</span>
 ./build/mlc_chat_cli<span class="w"> </span>--help
