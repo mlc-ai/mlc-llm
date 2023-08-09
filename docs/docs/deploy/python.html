@@ -394,26 +394,62 @@ params_shard_*.bin
 </pre></div>
 </div>
 </details></div></div>
-<p>After making sure that the files exist, from the <code class="docutils literal notranslate"><span class="pre">mlc-llm</span></code> directory, we can
-run the following code with the conda environment you used to install <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code>:</p>
+<p>After making sure that the files exist, using the conda environment you used
+to install <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code>, from the <code class="docutils literal notranslate"><span class="pre">mlc-llm</span></code> directory, you can create a Python
+file <code class="docutils literal notranslate"><span class="pre">sample_mlc_chat.py</span></code> and paste the following lines:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_chat</span> <span class="kn">import</span> <span class="n">ChatModule</span>
-<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s1">&#39;Llama-2-7b-chat-hf-q4f16_1&#39;</span><span class="p">)</span>  <span class="c1"># Create a ChatModule instance</span>
-<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">)</span> <span class="c1"># Generate a response for a given prompt</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
-<span class="n">runtime_stats</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">stats</span><span class="p">()</span>  <span class="c1"># Print some runtime statistics for the generation</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">runtime_stats</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
-<span class="n">cm</span><span class="o">.</span><span class="n">reset_chat</span><span class="p">()</span>  <span class="c1"># Reset the chat module</span>
+<span class="kn">from</span> <span class="nn">mlc_chat.callback</span> <span class="kn">import</span> <span class="n">StreamToStdout</span>
+
+<span class="c1"># From the mlc-llm directory, run</span>
+<span class="c1"># $ python sample_mlc_chat.py</span>
+
+<span class="c1"># Create a ChatModule instance</span>
+<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f16_1&quot;</span><span class="p">)</span>
+<span class="c1"># You can change to other models that you downloaded, for example,</span>
+<span class="c1"># cm = ChatModule(model=&quot;Llama-2-13b-chat-hf-q4f16_1&quot;)  # Llama2 13b model</span>
+
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+   <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">,</span>
+   <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="c1"># Print prefill and decode performance statistics</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Statistics: </span><span class="si">{</span><span class="n">cm</span><span class="o">.</span><span class="n">stats</span><span class="p">()</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+   <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;How many points did you list out?&quot;</span><span class="p">,</span>
+   <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="c1"># Reset the chat module by</span>
+<span class="c1"># cm.reset_chat()</span>
 </pre></div>
 </div>
+<p>Now run the Python file to start the chat</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>sample_mlc_chat.py
+</pre></div>
+</div>
+<p>You can also checkout the <a class="reference internal" href="../prebuilt_models.html"><span class="doc">Model Prebuilts</span></a> page to run other models.</p>
 <details class="summary-see-output">
 <summary>See output</summary><div class="highlight-default notranslate"><div class="highlight"><pre><span></span>Using model folder: ./dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
 Using mlc chat config: ./dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1/mlc-chat-config.json
 Using library model: ./dist/prebuilt/lib/Llama-2-7b-chat-hf-q4f16_1-cuda.so
 
-Hello! I&#39;m here to help you with your question. However, I must point out
-...
+Thank you for your question! The meaning of life is a complex and subjective topic that has been debated by philosophers, theologians, scientists, and many others for centuries. There is no one definitive answer to this question, as it can vary depending on a person&#39;s beliefs, values, experiences, and perspectives.
 
-runtime_stats=&#39;prefill: 336.0 tok/s, decode: 118.5 tok/s&#39;
+However, here are some possible ways to approach the question:
+
+1. Religious or spiritual beliefs: Many people believe that the meaning of life is to fulfill a divine or spiritual purpose, whether that be to follow a set of moral guidelines, to achieve spiritual enlightenment, or to fulfill a particular destiny.
+2. Personal growth and development: Some people believe that the meaning of life is to learn, grow, and evolve as individuals, to develop one&#39;s talents and abilities, and to become the best version of oneself.
+3. Relationships and connections: Others believe that the meaning of life is to form meaningful connections and relationships with others, to love and be loved, and to build a supportive and fulfilling social network.
+4. Contribution and impact: Some people believe that the meaning of life is to make a positive impact on the world, to contribute to society in a meaningful way, and to leave a lasting legacy.
+5. Simple pleasures and enjoyment: Finally, some people believe that the meaning of life is to simply enjoy the present moment, to find pleasure and happiness in the simple things in life, and to appreciate the beauty and wonder of the world around us.
+
+Ultimately, the meaning of life is a deeply personal and subjective question, and each person must find their own answer based on their own beliefs, values, and experiences.
+
+Statistics: prefill: 3477.5 tok/s, decode: 153.6 tok/s
+
+I listed out 5 possible ways to approach the question of the meaning of life.
 </pre></div>
 </div>
 </details><div class="line-block">
@@ -449,6 +485,7 @@ option of overriding any field you’d like in Python, so that you do not need t
 provide two dataclasses <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_chat.ChatConfig</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_chat.ConvConfig</span></code>.</p>
 <p>We provide an example below.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_chat</span> <span class="kn">import</span> <span class="n">ChatModule</span><span class="p">,</span> <span class="n">ChatConfig</span><span class="p">,</span> <span class="n">ConvConfig</span>
+<span class="kn">from</span> <span class="nn">mlc_chat.callback</span> <span class="kn">import</span> <span class="n">StreamToStdout</span>
 
 <span class="c1"># Using a `ConvConfig`, we modify `system`, a field in the conversation template</span>
 <span class="c1"># `system` refers to the prompt encoded before starting the chat</span>
@@ -460,13 +497,21 @@ provide two dataclasses <code class="xref py py-class docutils literal notransla
 
 <span class="c1"># Using the `chat_config` we created, instantiate a `ChatModule`</span>
 <span class="n">cm</span> <span class="o">=</span> <span class="n">mlc_chat</span><span class="o">.</span><span class="n">ChatModule</span><span class="p">(</span><span class="s1">&#39;Llama-2-7b-chat-hf-q4f16_1&#39;</span><span class="p">,</span> <span class="n">chat_config</span><span class="o">=</span><span class="n">chat_config</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="s1">&#39;What is one plus one?&#39;</span><span class="p">))</span>
+
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+   <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is one plus one?&quot;</span><span class="p">,</span>
+   <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
 
 <span class="c1"># You could also pass in a `ConvConfig` instance to `reset_chat()`</span>
 <span class="n">conv_config</span> <span class="o">=</span> <span class="n">ConvConfig</span><span class="p">(</span><span class="n">system</span><span class="o">=</span><span class="s1">&#39;Please show as much sadness as you can when talking to me.&#39;</span><span class="p">)</span>
 <span class="n">chat_config</span> <span class="o">=</span> <span class="n">ChatConfig</span><span class="p">(</span><span class="n">max_gen_len</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">conv_config</span><span class="o">=</span><span class="n">conv_config</span><span class="p">)</span>
 <span class="n">cm</span><span class="o">.</span><span class="n">reset_chat</span><span class="p">(</span><span class="n">chat_config</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="s1">&#39;What is one plus one?&#39;</span><span class="p">))</span>
+
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+   <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is one plus one?&quot;</span><span class="p">,</span>
+   <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
 </pre></div>
 </div>
 <details class="summary-see-output">
@@ -694,25 +739,21 @@ of the chat module in text form.</p>
 </section>
 <section id="gradio-frontend">
 <h2><a class="toc-backref" href="#id7" role="doc-backlink">Gradio Frontend</a><a class="headerlink" href="#gradio-frontend" title="Permalink to this heading">¶</a></h2>
-<p>The gradio frontend provides a web interface for the MLC-Chat model, which allows user to interact with the model in a more user-friendly way.
+<p>The gradio frontend provides a web interface for the MLC-Chat model, which allows user to interact with the model in a more user-friendly way and switch between different models to compare performance.
 To use gradio frontend, you need to install gradio first:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>gradio
 </pre></div>
 </div>
 <p>Then you can run the following code to start the interface:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>mlc_chat.gradio<span class="w"> </span>--artifact-path<span class="w"> </span>ARTIFACT_PATH<span class="w"> </span>--device-name<span class="w"> </span>DEVICE_NAME<span class="w"> </span>--device-id<span class="w"> </span>DEVICE_ID<span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT_NUMBER<span class="o">]</span><span class="w"> </span><span class="o">[</span>--share<span class="o">]</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>mlc_chat.gradio<span class="w"> </span>--artifact-path<span class="w"> </span>ARTIFACT_PATH<span class="w"> </span><span class="o">[</span>--device<span class="w"> </span>DEVICE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT_NUMBER<span class="o">]</span><span class="w"> </span><span class="o">[</span>--share<span class="o">]</span>
 </pre></div>
 </div>
 <dl class="option-list">
 <dt><kbd><span class="option">--artifact-path</span></kbd></dt>
-<dd><p>The path to the artifact folder where models are stored. The default value is <code class="docutils literal notranslate"><span class="pre">dist</span></code>.</p>
+<dd><p>Please provide a path containing all the model folders you wish to use. The default value is <code class="docutils literal notranslate"><span class="pre">dist</span></code>.</p>
 </dd>
-<dt><kbd><span class="option">--device-name</span></kbd></dt>
-<dd><p>The device name to run the model. Available options are:
-<code class="docutils literal notranslate"><span class="pre">metal</span></code>, <code class="docutils literal notranslate"><span class="pre">cuda</span></code>, <code class="docutils literal notranslate"><span class="pre">vulkan</span></code>, <code class="docutils literal notranslate"><span class="pre">cpu</span></code>. The default value is <code class="docutils literal notranslate"><span class="pre">cuda</span></code>.</p>
-</dd>
-<dt><kbd><span class="option">--device-id</span></kbd></dt>
-<dd><p>The device id to run the model. The default value is <code class="docutils literal notranslate"><span class="pre">0</span></code>.</p>
+<dt><kbd><span class="option">--device</span></kbd></dt>
+<dd><p>The description of the device to run on. User should provide a string in the form of ‘device_name:device_id’ or ‘device_name’, where ‘device_name’ is one of ‘cuda’, ‘metal’, ‘vulkan’, ‘rocm’, ‘opencl’, ‘auto’ (automatically detect the local device), and ‘device_id’ is the device id to run on. If no ‘device_id’ is provided, it will be set to 0. The default value is <code class="docutils literal notranslate"><span class="pre">auto</span></code>.</p>
 </dd>
 <dt><kbd><span class="option">--port</span></kbd></dt>
 <dd><p>The port number to run gradio. The default value is <code class="docutils literal notranslate"><span class="pre">7860</span></code>.</p>
