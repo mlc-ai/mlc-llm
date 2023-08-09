@@ -49,15 +49,21 @@ To launch the REST server for MLC-Chat, run the following command in your termin
 
 .. code:: bash
 
-   python -m mlc_chat.rest --device-name DEVICE [--quantization QUANTIZATION_MODE] [--device-id DEVICE_ID] [--port PORT] [--artifact-path ARTIFACT_PATH]
+   python -m mlc_chat.rest --model MODEL [--lib-path LIB_PATH] [--device DEVICE] [--host HOST] [--port PORT]
 
-
---device-name          The device name to run the model. Available options are:
-                       ``metal``, ``cuda``, ``vulkan``, ``cpu``.
---device-id            The device id to run the model. The default value is ``0``.
---quantization-mode    The code indicating the quantization mode to run the model. See :ref:`quantization_mode` for more details.
---artifact-path        The path to the artifact folder where models are stored. The default value is ``dist``.
---port                 The port to run the server. The default value is ``8000``.
+--model                The model folder after compiling with MLC-LLM build process. The parameter
+                       can either be the model name with its quantization scheme
+                       (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
+                       folder. In the former case, we will use the provided name to search
+                       for the model folder over possible paths.
+--lib-path             An optional field to specify the full path to the model library file to use (e.g. a ``.so`` file).
+--device               The description of the device to run on. User should provide a string in the
+                       form of 'device_name:device_id' or 'device_name', where 'device_name' is one of
+                       'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto' (automatically detect the
+                       local device), and 'device_id' is the device id to run on. The default value is ``auto``,
+                       with the device id set to 0 for default.
+--host                 The host at which the server should be started, defaults to ``127.0.0.1``.
+--port                 The port on which the server should be started, defaults to ``8000``.
 
 You can access ``http://127.0.0.1:PORT/docs`` (replace ``PORT`` with the port number you specified) to see the list of
 supported endpoints.

@@ -340,25 +340,32 @@ Then please follow the instruction in <a class="reference internal" href="cli.ht
 <section id="launch-the-server">
 <h2><a class="toc-backref" href="#id5" role="doc-backlink">Launch the Server</a><a class="headerlink" href="#launch-the-server" title="Permalink to this heading">¶</a></h2>
 <p>To launch the REST server for MLC-Chat, run the following command in your terminal.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>mlc_chat.rest<span class="w"> </span>--device-name<span class="w"> </span>DEVICE<span class="w"> </span><span class="o">[</span>--quantization<span class="w"> </span>QUANTIZATION_MODE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--device-id<span class="w"> </span>DEVICE_ID<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--artifact-path<span class="w"> </span>ARTIFACT_PATH<span class="o">]</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>mlc_chat.rest<span class="w"> </span>--model<span class="w"> </span>MODEL<span class="w"> </span><span class="o">[</span>--lib-path<span class="w"> </span>LIB_PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--device<span class="w"> </span>DEVICE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span>
 </pre></div>
 </div>
 <dl class="option-list">
-<dt><kbd><span class="option">--device-name</span></kbd></dt>
-<dd><p>The device name to run the model. Available options are:
-<code class="docutils literal notranslate"><span class="pre">metal</span></code>, <code class="docutils literal notranslate"><span class="pre">cuda</span></code>, <code class="docutils literal notranslate"><span class="pre">vulkan</span></code>, <code class="docutils literal notranslate"><span class="pre">cpu</span></code>.</p>
+<dt><kbd><span class="option">--model</span></kbd></dt>
+<dd><p>The model folder after compiling with MLC-LLM build process. The parameter
+can either be the model name with its quantization scheme
+(e.g. <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf-q4f16_1</span></code>), or a full path to the model
+folder. In the former case, we will use the provided name to search
+for the model folder over possible paths.</p>
 </dd>
-<dt><kbd><span class="option">--device-id</span></kbd></dt>
-<dd><p>The device id to run the model. The default value is <code class="docutils literal notranslate"><span class="pre">0</span></code>.</p>
+<dt><kbd><span class="option">--lib-path</span></kbd></dt>
+<dd><p>An optional field to specify the full path to the model library file to use (e.g. a <code class="docutils literal notranslate"><span class="pre">.so</span></code> file).</p>
 </dd>
-<dt><kbd><span class="option">--quantization-mode</span></kbd></dt>
-<dd><p>The code indicating the quantization mode to run the model. See <a class="reference internal" href="../compilation/configure_quantization.html#quantization-mode"><span class="std std-ref">🚧 Quantization Mode (Not Stable)</span></a> for more details.</p>
+<dt><kbd><span class="option">--device</span></kbd></dt>
+<dd><p>The description of the device to run on. User should provide a string in the
+form of ‘device_name:device_id’ or ‘device_name’, where ‘device_name’ is one of
+‘cuda’, ‘metal’, ‘vulkan’, ‘rocm’, ‘opencl’, ‘auto’ (automatically detect the
+local device), and ‘device_id’ is the device id to run on. The default value is <code class="docutils literal notranslate"><span class="pre">auto</span></code>,
+with the device id set to 0 for default.</p>
 </dd>
-<dt><kbd><span class="option">--artifact-path</span></kbd></dt>
-<dd><p>The path to the artifact folder where models are stored. The default value is <code class="docutils literal notranslate"><span class="pre">dist</span></code>.</p>
+<dt><kbd><span class="option">--host</span></kbd></dt>
+<dd><p>The host at which the server should be started, defaults to <code class="docutils literal notranslate"><span class="pre">127.0.0.1</span></code>.</p>
 </dd>
 <dt><kbd><span class="option">--port</span></kbd></dt>
-<dd><p>The port to run the server. The default value is <code class="docutils literal notranslate"><span class="pre">8000</span></code>.</p>
+<dd><p>The port on which the server should be started, defaults to <code class="docutils literal notranslate"><span class="pre">8000</span></code>.</p>
 </dd>
 </dl>
 <p>You can access <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:PORT/docs</span></code> (replace <code class="docutils literal notranslate"><span class="pre">PORT</span></code> with the port number you specified) to see the list of
