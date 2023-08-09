@@ -264,7 +264,7 @@ The :class:`mlc_chat.ChatModule` class provides the following methods:
 Gradio Frontend
 ---------------
 
-The gradio frontend provides a web interface for the MLC-Chat model, which allows user to interact with the model in a more user-friendly way.
+The gradio frontend provides a web interface for the MLC-Chat model, which allows user to interact with the model in a more user-friendly way and switch between different models to compare performance.
 To use gradio frontend, you need to install gradio first:
 
 .. code-block:: bash
@@ -275,12 +275,10 @@ Then you can run the following code to start the interface:
 
 .. code:: bash
 
-   python -m mlc_chat.gradio --artifact-path ARTIFACT_PATH --device-name DEVICE_NAME --device-id DEVICE_ID [--port PORT_NUMBER] [--share]
+   python -m mlc_chat.gradio --artifact-path ARTIFACT_PATH [--device DEVICE] [--port PORT_NUMBER] [--share]
 
---artifact-path        The path to the artifact folder where models are stored. The default value is ``dist``.
---device-name          The device name to run the model. Available options are:
-                       ``metal``, ``cuda``, ``vulkan``, ``cpu``. The default value is ``cuda``.
---device-id            The device id to run the model. The default value is ``0``.
+--artifact-path        Please provide a path containing all the model folders you wish to use. The default value is ``dist``.
+--device               The description of the device to run on. User should provide a string in the form of 'device_name:device_id' or 'device_name', where 'device_name' is one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto' (automatically detect the local device), and 'device_id' is the device id to run on. If no 'device_id' is provided, it will be set to 0. The default value is ``auto``.
 --port                 The port number to run gradio. The default value is ``7860``.   
 --share                Whether to create a publicly shareable link for the interface.
 
