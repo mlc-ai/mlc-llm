@@ -322,6 +322,7 @@ git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/m
 </div>
 <p>Then create a Python file <code class="docutils literal notranslate"><span class="pre">sample_mlc_chat.py</span></code> paste the following lines:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_chat</span> <span class="kn">import</span> <span class="n">ChatModule</span>
+<span class="kn">from</span> <span class="nn">mlc_chat.callback</span> <span class="kn">import</span> <span class="n">StreamToStdout</span>
 
 <span class="c1"># From the mlc-llm directory, run</span>
 <span class="c1"># $ python sample_mlc_chat.py</span>
@@ -331,15 +332,18 @@ git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/m
 <span class="c1"># You can change to other models that you downloaded, for example,</span>
 <span class="c1"># cm = ChatModule(model=&quot;Llama-2-13b-chat-hf-q4f16_1&quot;)  # Llama2 13b model</span>
 
-<span class="c1"># Generate a response for a given prompt</span>
-<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Generated text:</span><span class="se">\n</span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">,</span>
+    <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
 
 <span class="c1"># Print prefill and decode performance statistics</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Statistics: </span><span class="si">{</span><span class="n">cm</span><span class="o">.</span><span class="n">stats</span><span class="p">()</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
 
-<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;How many points did you list out?&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Followup generation:</span><span class="se">\n</span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;How many points did you list out?&quot;</span><span class="p">,</span>
+    <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
 
 <span class="c1"># Reset the chat module by</span>
 <span class="c1"># cm.reset_chat()</span>

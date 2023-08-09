@@ -507,19 +507,24 @@ The <a class="reference internal" href="#mlc_chat.ChatModule" title="mlc_chat.Ch
 <p>The ChatModule for MLC LLM.</p>
 <p class="rubric">Examples</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_chat</span> <span class="kn">import</span> <span class="n">ChatModule</span>
+<span class="kn">from</span> <span class="nn">mlc_chat.callback</span> <span class="kn">import</span> <span class="n">StreamToStdout</span>
 
 <span class="c1"># Create a ChatModule instance</span>
 <span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f16_1&quot;</span><span class="p">)</span>
 
 <span class="c1"># Generate a response for a given prompt</span>
-<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Generated text:</span><span class="se">\n</span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">,</span>
+    <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
 
 <span class="c1"># Print prefill and decode performance statistics</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Statistics: </span><span class="si">{</span><span class="n">cm</span><span class="o">.</span><span class="n">stats</span><span class="p">()</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
 
-<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;How many points did you list out?&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Followup generation:</span><span class="se">\n</span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;How many points did you list out?&quot;</span><span class="p">,</span>
+    <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
 </pre></div>
 </div>
 <dl class="field-list simple">
