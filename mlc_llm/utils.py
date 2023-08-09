@@ -366,7 +366,7 @@ def parse_target(args: argparse.Namespace) -> None:
             )
         args.target = target
         args.target_kind = args.target.kind.default_keys[0]
-    elif args.target == "cuda":
+    elif args.target == "cuda" or args.target == "cuda-multiarch":
         target = _detect_local_cuda()
         if target is None:
             raise ValueError("Cannot detect local CUDA GPU target!")
@@ -513,7 +513,7 @@ def parse_target(args: argparse.Namespace) -> None:
         args.target = tvm.target.Target(args.target, host="llvm")
         args.target_kind = args.target.kind.default_keys[0]
 
-    if args.target_kind == "cuda":
+    if args.target_kind == "cuda-multiarch":
         from tvm.contrib import nvcc
 
         assert args.target.arch[3:] != ""
