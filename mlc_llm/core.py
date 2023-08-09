@@ -147,11 +147,12 @@ class BuildArgs:
             "action": "store_true",
         },
     )
-    use_cublas: bool = field(
+    no_cublas: bool = field(
         default=False,
         metadata={
-            "help": ("Offload matmul to cuBLAS when target is CUDA and TVM has been built"
-                     "with cuBLAS enbaled."),
+            "help": ("Disable the step that offloads matmul to cuBLAS. Without this flag, "
+                     "matmul will be offloaded to cuBLAS if quantization mode is q0f16 or q0f32, "
+                     "target is CUDA and TVM has been built with cuBLAS enbaled."),
             "action": "store_true",
         },
     )
@@ -324,7 +325,6 @@ def mod_transform_before_build(
         patterns = []
 
         has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
-        has_cublas = tvm.get_global_func("relax.ext.cublas", True)
 
         if has_cutlass and not args.no_cutlass_attn:
             mod["prefill"] = rewrite_attention(mod["prefill"])
@@ -338,7 +338,9 @@ def mod_transform_before_build(
         if has_cutlass and use_ft_quant:
             patterns += get_patterns_with_prefix("cutlass.decode_matmul")
 
-        if has_cublas and args.use_cublas:
+        has_cublas = tvm.get_global_func("relax.ext.cublas", True)
+
+        if has_cublas and args.quantization.name in ("q0f16", "q0f32") and not args.no_cublas:
             patterns += get_patterns_with_prefix("cublas")
 
         if len(patterns) > 0:
