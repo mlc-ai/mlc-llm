@@ -476,19 +476,24 @@ class ChatModule:
     .. code:: python
 
         from mlc_chat import ChatModule
+        from mlc_chat.callback import StreamToStdout
 
         # Create a ChatModule instance
         cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
 
         # Generate a response for a given prompt
-        output = cm.generate(prompt="What is the meaning of life?")
-        print(f"Generated text:\n{output}\n")
+        output = cm.generate(
+            prompt="What is the meaning of life?",
+            progress_callback=StreamToStdout(callback_interval=2),
+        )
 
         # Print prefill and decode performance statistics
         print(f"Statistics: {cm.stats()}\n")
 
-        output = cm.generate(prompt="How many points did you list out?")
-        print(f"Followup generation:\n{output}\n")
+        output = cm.generate(
+            prompt="How many points did you list out?",
+            progress_callback=StreamToStdout(callback_interval=2),
+        )
 
 
     Parameters
