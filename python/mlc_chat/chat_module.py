@@ -468,7 +468,54 @@ def _detect_local_device(device_id: int = 0):
 
 
 class ChatModule:
-    """The ChatModule for MLC LLM."""
+    r"""The ChatModule for MLC LLM.
+
+    Examples
+    --------
+
+    .. code:: python
+
+        from mlc_chat import ChatModule
+
+        # Create a ChatModule instance
+        cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
+
+        # Generate a response for a given prompt
+        output = cm.generate(prompt="What is the meaning of life?")
+        print(f"Generated text:\n{output}\n")
+
+        # Print prefill and decode performance statistics
+        print(f"Statistics: {cm.stats()}\n")
+
+        output = cm.generate(prompt="How many points did you list out?")
+        print(f"Followup generation:\n{output}\n")
+
+
+    Parameters
+    ----------
+    model: str
+        The model folder after compiling with MLC-LLM build process. The parameter
+        can either be the model name with its quantization scheme
+        (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
+        folder. In the former case, we will use the provided name to search
+        for the model folder over possible paths.
+
+    device : str
+        The description of the device to run on. User should provide a string in the
+        form of 'device_name:device_id' or 'device_name', where 'device_name' is one of
+        'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto' (automatically detect the
+        local device), and 'device_id' is the device id to run on. If no 'device_id'
+        is provided, it will be set to 0 by default.
+
+    chat_config : Optional[ChatConfig]
+        A ``ChatConfig`` instance partially filled. Will be used to override the
+        ``mlc-chat-config.json``.
+
+    lib_path : Optional[str]
+        The full path to the model library file to use (e.g. a ``.so`` file).
+        If unspecified, we will use the provided ``model`` to search over
+        possible paths.
+    """
 
     def __init__(
         self,
@@ -477,30 +524,6 @@ class ChatModule:
         chat_config: Optional[ChatConfig] = None,
         lib_path: Optional[str] = None,
     ):
-        r"""Initialize a chat module.
-
-        Parameters
-        ----------
-        model: str
-            The model folder after compiling with MLC-LLM build process. The parameter
-            can either be the model name with its quantization scheme
-            (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
-            folder. In the former case, we will use the provided name to search
-            for the model folder over possible paths.
-        device : str
-            The description of the device to run on. User should provide a string in the
-            form of 'device_name:device_id' or 'device_name', where 'device_name' is one of
-            'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto' (automatically detect the
-            local device), and 'device_id' is the device id to run on. If no 'device_id'
-            is provided, it will be set to 0 by default.
-        chat_config : Optional[ChatConfig]
-            A ``ChatConfig`` instance partially filled. Will be used to override the
-            ``mlc-chat-config.json``.
-        lib_path : Optional[str]
-            The full path to the model library file to use (e.g. a ``.so`` file).
-            If unspecified, we will use the provided ``model`` to search over
-            possible paths.
-        """
         device_err_msg = (
             f"Invalid device name: {device}. Please enter the device in the form "
             "'device_name:device_id' or 'device_name', where 'device_name' need to be "
@@ -692,8 +715,8 @@ class ChatModule:
         return self._runtime_stats_text_func()
 
     def benchmark_generate(self, prompt: str, generate_length: int) -> str:
-        r"""Given the input prompt and target length of generation,
-        generate text with performance benchmark. For example,
+        r"""Controlled generation with input prompt and fixed number of
+        generated tokens, ignoring system prompt. For example,
 
         .. code:: python
 
@@ -710,14 +733,12 @@ class ChatModule:
 
         Notes
         -----
-        1. This method generates text without system prompt (i.e., it is pure
-        text generation with no chat style).
-        2. To generate text until the target generation length, this method
-        ignores the stop token of the model. This means text generated after the
-        stop token might be meaningless.
-        3. To make the benchmark as accurate as possible, we first do a round of
-        prefill and decode before text generation.
-        4. This method resets the previous performance statistics.
+        1. This function is typically used in controlled benchmarks. It generates
+        text without system prompt (i.e., it is pure text generation with no chat
+        style) and ignores the token stop model(s).
+        2. To make the benchmark as accurate as possible, we first do a round of
+        warmup prefill and decode before text generation.
+        3. This function resets the previous performance statistics.
 
         Parameters
         ----------
