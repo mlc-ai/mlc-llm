@@ -26,6 +26,7 @@ from tvm import relax
 from tvm.contrib.nvcc import parse_compute_version
 from tvm.relax.backend import get_patterns_with_prefix
 from tvm.relax.backend.contrib.cutlass import annotate_workspace
+import tvm.relax.backend.contrib.cublas as _
 
 
 @dataclass
@@ -144,6 +145,15 @@ class BuildArgs:
                 "Offload layer and RMS norm operations to CUTLASS when the target is CUDA"
                 "and TVM has been built with CUTLASS enabled."
             ),
+            "action": "store_true",
+        },
+    )
+    no_cublas: bool = field(
+        default=False,
+        metadata={
+            "help": ("Disable the step that offloads matmul to cuBLAS. Without this flag, "
+                     "matmul will be offloaded to cuBLAS if quantization mode is q0f16 or q0f32, "
+                     "target is CUDA and TVM has been built with cuBLAS enbaled."),
             "action": "store_true",
         },
     )
@@ -312,21 +322,27 @@ def mod_transform_before_build(
     if "num_attention_heads" in config and "hidden_size" in config:
         mod = fuse_split_rotary_embedding(mod, config["num_attention_heads"], config["hidden_size"])
 
-    if args.target_kind == "cuda" and tvm.get_global_func("relax.ext.cutlass", True):
-        # CUTLASS offloading
+    if args.target_kind == "cuda":
         patterns = []
 
-        if not args.no_cutlass_attn:
+        has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
+
+        if has_cutlass and not args.no_cutlass_attn:
             mod["prefill"] = rewrite_attention(mod["prefill"])
             mod["decode"] = rewrite_attention(mod["decode"])
             patterns += get_patterns_with_prefix("cutlass.attention")
 
-        if not args.no_cutlass_norm:
+        if has_cutlass and not args.no_cutlass_norm:
             patterns += get_patterns_with_prefix("cutlass.layer_norm")
             patterns += get_patterns_with_prefix("cutlass.rms_norm")
 
-        if use_ft_quant:
+        if has_cutlass and use_ft_quant:
             patterns += get_patterns_with_prefix("cutlass.decode_matmul")
+
+        has_cublas = tvm.get_global_func("relax.ext.cublas", True)
+
+        if has_cublas and args.quantization.name in ("q0f16", "q0f32") and not args.no_cublas:
+            patterns += get_patterns_with_prefix("cublas")
 
         if len(patterns) > 0:
             os.makedirs("./tmp", exist_ok=True)
