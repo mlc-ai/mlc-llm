@@ -63,7 +63,7 @@ class RestAPIArgs:
         metadata={
             "help": (
                 """
-                The host at which the server should be started, defaults to 127.0.0.1.
+                The host at which the server should be started, defaults to ``127.0.0.1``.
                 """
             )
         }
@@ -73,7 +73,7 @@ class RestAPIArgs:
         metadata={
             "help": (
                 """
-                The port on which the server should be started, defaults to 8000.
+                The port on which the server should be started, defaults to ``8000``.
                 """
             )
         }
