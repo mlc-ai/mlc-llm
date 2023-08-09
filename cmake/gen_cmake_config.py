@@ -6,6 +6,7 @@ if __name__ == "__main__":
     cmake_config_str = "set(CMAKE_BUILD_TYPE RelWithDebInfo)\n"
     backends = [
         Backend("CUDA", "USE_CUDA", "Use CUDA? (y/n): "),
+        Backend("ROCm", "USE_ROCM", "Use ROCm? (y/n): "),
         Backend("Vulkan", "USE_VULKAN", "Use Vulkan? (y/n): "),
         Backend(
             "Metal",
