@@ -90,19 +90,46 @@ If you do not have the MLC-compiled ``model`` ready:
             params_shard_*.bin
             ...
 
-After making sure that the files exist, from the ``mlc-llm`` directory, we can
-run the following code with the conda environment you used to install ``mlc_chat``:
+After making sure that the files exist, using the conda environment you used
+to install ``mlc_chat``, from the ``mlc-llm`` directory, you can create a Python
+file ``sample_mlc_chat.py`` and paste the following lines:
 
 .. code:: python
 
    from mlc_chat import ChatModule
-   cm = ChatModule(model='Llama-2-7b-chat-hf-q4f16_1')  # Create a ChatModule instance
-   output = cm.generate(prompt="What is the meaning of life?") # Generate a response for a given prompt
-   print(output)
-   runtime_stats = cm.stats()  # Print some runtime statistics for the generation
-   print(f"{runtime_stats=}")
-   cm.reset_chat()  # Reset the chat module
+   from mlc_chat.callback import StreamToStdout
 
+   # From the mlc-llm directory, run
+   # $ python sample_mlc_chat.py
+
+   # Create a ChatModule instance
+   cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
+   # You can change to other models that you downloaded, for example,
+   # cm = ChatModule(model="Llama-2-13b-chat-hf-q4f16_1")  # Llama2 13b model
+
+   output = cm.generate(
+      prompt="What is the meaning of life?",
+      progress_callback=StreamToStdout(callback_interval=2),
+   )
+
+   # Print prefill and decode performance statistics
+   print(f"Statistics: {cm.stats()}\n")
+
+   output = cm.generate(
+      prompt="How many points did you list out?",
+      progress_callback=StreamToStdout(callback_interval=2),
+   )
+
+   # Reset the chat module by
+   # cm.reset_chat()
+
+Now run the Python file to start the chat
+
+.. code:: bash
+
+   python sample_mlc_chat.py
+
+You can also checkout the :doc:`/prebuilt_models` page to run other models.
 
 .. collapse:: See output
 
@@ -112,10 +139,21 @@ run the following code with the conda environment you used to install ``mlc_chat
       Using mlc chat config: ./dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1/mlc-chat-config.json
       Using library model: ./dist/prebuilt/lib/Llama-2-7b-chat-hf-q4f16_1-cuda.so
 
-      Hello! I'm here to help you with your question. However, I must point out
-      ...
+      Thank you for your question! The meaning of life is a complex and subjective topic that has been debated by philosophers, theologians, scientists, and many others for centuries. There is no one definitive answer to this question, as it can vary depending on a person's beliefs, values, experiences, and perspectives.
 
-      runtime_stats='prefill: 336.0 tok/s, decode: 118.5 tok/s'
+      However, here are some possible ways to approach the question:
+
+      1. Religious or spiritual beliefs: Many people believe that the meaning of life is to fulfill a divine or spiritual purpose, whether that be to follow a set of moral guidelines, to achieve spiritual enlightenment, or to fulfill a particular destiny.
+      2. Personal growth and development: Some people believe that the meaning of life is to learn, grow, and evolve as individuals, to develop one's talents and abilities, and to become the best version of oneself.
+      3. Relationships and connections: Others believe that the meaning of life is to form meaningful connections and relationships with others, to love and be loved, and to build a supportive and fulfilling social network.
+      4. Contribution and impact: Some people believe that the meaning of life is to make a positive impact on the world, to contribute to society in a meaningful way, and to leave a lasting legacy.
+      5. Simple pleasures and enjoyment: Finally, some people believe that the meaning of life is to simply enjoy the present moment, to find pleasure and happiness in the simple things in life, and to appreciate the beauty and wonder of the world around us.
+
+      Ultimately, the meaning of life is a deeply personal and subjective question, and each person must find their own answer based on their own beliefs, values, and experiences.
+
+      Statistics: prefill: 3477.5 tok/s, decode: 153.6 tok/s
+
+      I listed out 5 possible ways to approach the question of the meaning of life.
 
 |
 
@@ -152,6 +190,7 @@ We provide an example below.
 .. code:: python
 
    from mlc_chat import ChatModule, ChatConfig, ConvConfig
+   from mlc_chat.callback import StreamToStdout
 
    # Using a `ConvConfig`, we modify `system`, a field in the conversation template
    # `system` refers to the prompt encoded before starting the chat
@@ -163,13 +202,21 @@ We provide an example below.
 
    # Using the `chat_config` we created, instantiate a `ChatModule`
    cm = mlc_chat.ChatModule('Llama-2-7b-chat-hf-q4f16_1', chat_config=chat_config)
-   print(cm.generate(prompt='What is one plus one?'))
+
+   output = cm.generate(
+      prompt="What is one plus one?",
+      progress_callback=StreamToStdout(callback_interval=2),
+   )
 
    # You could also pass in a `ConvConfig` instance to `reset_chat()`
    conv_config = ConvConfig(system='Please show as much sadness as you can when talking to me.')
    chat_config = ChatConfig(max_gen_len=128, conv_config=conv_config)
    cm.reset_chat(chat_config)
-   print(cm.generate(prompt='What is one plus one?'))
+
+   output = cm.generate(
+      prompt="What is one plus one?",
+      progress_callback=StreamToStdout(callback_interval=2),
+   )
 
 
 .. collapse:: See output
