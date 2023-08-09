@@ -93,14 +93,78 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
     args.quantization = quantization_schemes[args.quantization]
 
 
-def debug_dump_script(mod, name, args: argparse.Namespace, show_meta=True):
+def debug_dump_script(
+    mod, name, args: argparse.Namespace, show_meta=True, black_format: Optional[bool] = None
+):
     """Debug dump mode"""
     if not args.debug_dump:
         return
+
+    if black_format is None:
+        black_format = args.black_format
+
+    def format_script(script, dump_path: pathlib.Path):
+        try:
+            import black
+        except ImportError:
+            return script
+
+        try:
+            script = black.format_str(script, mode=black.FileMode())
+        except black.InvalidInput:
+            pass
+
+        return script
+
+    if not hasattr(debug_dump_script, "step_num"):
+        debug_dump_script.step_num = 0
+    debug_dump_script.step_num += 1
+
     dump_path = os.path.join(args.artifact_path, "debug", name)
+    os.makedirs(os.path.split(dump_path)[0], exist_ok=True)
+
+    script = mod.script(show_meta=True)
+    if black_format:
+        script = format_script(script, dump_path)
+
     with open(dump_path, "w", encoding="utf-8") as outfile:
-        outfile.write(mod.script(show_meta=show_meta))
-    print(f"Dump mod to {dump_path}")
+        outfile.write(script)
+
+    print(f"Dumped mod to {dump_path}", flush=True)
+
+
+@tvm.ir.instrument.pass_instrument
+class DumpBeforeAfter:
+    """Dump before/after each pass
+
+    Usage:
+
+    with tvm.transform.PassContext(instruments=[DumpBeforeAfter(ARGS)]):
+        ...
+    """
+
+    def __init__(self, args, excludes_list=[]):
+        self.args = args
+        self.excludes_list = excludes_list
+        self.step_num = 0
+
+    def not_excluded(self, pass_name):
+        for exclusion in self.excludes_list:
+            if exclusion in pass_name:
+                return False
+        return True
+
+    def run_before_pass(self, mod, info):
+        if self.not_excluded(info.name):
+            name = f"step_{self.step_num:03d}_before_{info.name}.py"
+            debug_dump_script(mod, name=name, args=self.args)
+            self.step_num += 1
+
+    def run_after_pass(self, mod, info):
+        if self.not_excluded(info.name):
+            name = f"step_{self.step_num:03d}_name_{info.name}.py"
+            debug_dump_script(mod, name=name, args=self.args)
+            self.step_num += 1
 
 
 def debug_dump_benchmark_script(

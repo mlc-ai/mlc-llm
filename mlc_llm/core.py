@@ -136,6 +136,17 @@ class BuildArgs:
             "action": "store_true",
         },
     )
+    black_format: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Whether to use the black autoformatter "
+                "to format the debug dumps.  "
+                "Disabled by default, as black can be very slow on large files."
+            ),
+            "action": "store_true",
+        },
+    )
     debug_load_script: bool = field(
         default=False,
         metadata={
