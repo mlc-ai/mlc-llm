@@ -78,15 +78,13 @@ and the cli. Please click the details below to see the instruction.
         python3 ../cmake/gen_cmake_config.py
         # build `mlc_chat_cli`
         cmake .. && cmake --build . --parallel $(nproc) && cd ..
-        # check if the file is generated successfully
-        ls -l .
 
     **Step 3. Validate installation.** You may validate if MLCChat CLI is compiled successfully using the following command:
 
     .. code-block:: bash
         :caption: Validate installation
 
-        # expected to see `mlc_chat_cli`, `libmlc_llm` and `libtvm_runtime`
+        # expected to see `mlc_chat_cli`, `libmlc_llm.so` and `libtvm_runtime.so`
         ls -l ./build/
         # expected to see help message
         ./build/mlc_chat_cli --help
