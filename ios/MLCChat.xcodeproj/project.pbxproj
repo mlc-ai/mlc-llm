@@ -97,6 +97,16 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		AEC27EFF2A85EE2800254E67 /* States */ = {
+			isa = PBXGroup;
+			children = (
+				1453A4CE2A1354B9001B909F /* ModelState.swift */,
+				1453A4CC2A1354B9001B909F /* StartState.swift */,
+				C0D643C029F99B07004DDAA4 /* ChatState.swift */,
+			);
+			path = States;
+			sourceTree = "<group>";
+		};
 		C0D643A629F99A7F004DDAA4 = {
 			isa = PBXGroup;
 			children = (
@@ -121,13 +131,11 @@
 			children = (
 				C09834182A16F4CB00A05B51 /* app-config.json */,
 				AEC27EF82A85C29000254E67 /* Models */,
-				1453A4CE2A1354B9001B909F /* ModelState.swift */,
+				AEC27EFF2A85EE2800254E67 /* States */,
 				1453A4CB2A1354B9001B909F /* ModelView.swift */,
-				1453A4CC2A1354B9001B909F /* StartState.swift */,
 				1453A4CA2A1354B9001B909F /* StartView.swift */,
 				C06A74E629F9A1DF00BC4BE6 /* MLCChat.entitlements */,
 				C0D643C729F99B34004DDAA4 /* MessageView.swift */,
-				C0D643C029F99B07004DDAA4 /* ChatState.swift */,
 				C0D643C229F99B07004DDAA4 /* ChatView.swift */,
 				C0D643B229F99A7F004DDAA4 /* MLCChatApp.swift */,
 				A773CC642A5DC98200467BFE /* ImageProcessing.swift */,
