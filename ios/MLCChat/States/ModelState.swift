@@ -5,26 +5,25 @@
 
 import Foundation
 
-enum ModelInitState {
-    case Initializing
-    case Indexing
-    case Paused
-    case Downloading
-    case Pausing
-    case Verifying
-    case Finished
-    case Failed
-    case Clearing
-    case Deleting
-}
+final class ModelState : ObservableObject, Identifiable {
+    enum ModelInitState {
+        case Initializing
+        case Indexing
+        case Paused
+        case Downloading
+        case Pausing
+        case Verifying
+        case Finished
+        case Failed
+        case Clearing
+        case Deleting
+    }
 
-struct DownloadTask: Hashable {
-    let remoteUrl: URL
-    let localUrl: URL
-}
+    private struct DownloadTask: Hashable {
+        let remoteURL: URL
+        let localURL: URL
+    }
 
-
-class ModelState : ObservableObject, Identifiable {
     @Published var modelConfig: ModelConfig!
     @Published var modelInitState: ModelInitState = .Initializing
     @Published var progress: Int = 0
@@ -129,25 +128,25 @@ class ModelState : ObservableObject, Identifiable {
         
         // collect tokenizer download tasks
         for tokenizerFile in modelConfig.tokenizerFiles {
-            let remoteUrl = baseRemoteUrl.appending(path: tokenizerFile)
-            let localUrl = modelDirUrl.appending(path: tokenizerFile)
-         
-            if fileManager.fileExists(atPath: localUrl.path()) {
+            let remoteURL = baseRemoteUrl.appending(path: tokenizerFile)
+            let localURL = modelDirUrl.appending(path: tokenizerFile)
+
+            if fileManager.fileExists(atPath: localURL.path()) {
                 progress += 1
             } else {
-                remainingTasks.insert(DownloadTask(remoteUrl: remoteUrl, localUrl: localUrl))
+                remainingTasks.insert(DownloadTask(remoteURL: remoteURL, localURL: localURL))
             }
         }
         
         // collect params download tasks
         for paramsRecord in paramsConfig.records {
-            let remoteUrl = baseRemoteUrl.appending(path: paramsRecord.dataPath)
-            let localUrl = modelDirUrl.appending(path: paramsRecord.dataPath)
+            let remoteURL = baseRemoteUrl.appending(path: paramsRecord.dataPath)
+            let localURL = modelDirUrl.appending(path: paramsRecord.dataPath)
 
-            if fileManager.fileExists(atPath: localUrl.path()) {
+            if fileManager.fileExists(atPath: localURL.path()) {
                 progress += 1
             } else {
-                remainingTasks.insert(DownloadTask(remoteUrl: remoteUrl, localUrl: localUrl))
+                remainingTasks.insert(DownloadTask(remoteURL: remoteURL, localURL: localURL))
             }
         }
         if progress < total {
@@ -170,7 +169,7 @@ class ModelState : ObservableObject, Identifiable {
     private func handleNewDownload(downloadTask: DownloadTask) {
         // start one download task
         assert(downloadingTasks.count < maxDownloadingTasks)
-        let task = URLSession.shared.downloadTask(with: downloadTask.remoteUrl) {
+        let task = URLSession.shared.downloadTask(with: downloadTask.remoteURL) {
             urlOrNil, responseOrNil, errorOrNil in
             guard let fileUrl = urlOrNil else {
                 DispatchQueue.main.async { [self] in
@@ -180,9 +179,9 @@ class ModelState : ObservableObject, Identifiable {
             }
             
             do {
-                try self.fileManager.createDirectory(at: downloadTask.localUrl.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try? self.fileManager.removeItem(at: downloadTask.localUrl)
-                try self.fileManager.moveItem(at: fileUrl, to: downloadTask.localUrl)
+                try self.fileManager.createDirectory(at: downloadTask.localURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? self.fileManager.removeItem(at: downloadTask.localURL)
+                try self.fileManager.moveItem(at: fileUrl, to: downloadTask.localURL)
             } catch {
                 print(error.localizedDescription)
             }
@@ -272,13 +271,13 @@ class ModelState : ObservableObject, Identifiable {
         // verify tokenizer
         for tokenizerFile in modelConfig.tokenizerFiles {
             let localUrl = modelDirUrl.appending(path: tokenizerFile)
-         
+
             if !fileManager.fileExists(atPath: localUrl.path()) {
                 switchToFailed()
                 return
             }
             progress += 1
-                
+
         }
         
         // verify params
