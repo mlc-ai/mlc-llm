@@ -235,7 +235,7 @@ class StartState : ObservableObject {
         models.append(ModelState(modelConfig: modelConfig, modelUrl: modelUrl, modelDirUrl: modelBaseUrl, startState: self, chatState: chatState))
         if modelUrl != nil && !isBuiltin {
             updateAppConfig {
-                appConfig.model_list.append(ModelRecord(model_url: modelUrl!.absoluteString, local_id: modelConfig.local_id))
+                appConfig.model_list.append(AppConfig.ModelRecord(model_url: modelUrl!.absoluteString, local_id: modelConfig.local_id))
             }
         }
     }
