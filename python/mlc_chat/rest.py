@@ -35,7 +35,7 @@ class RestAPIArgs:
         }
     )
     lib_path: str = field(
-        default="None",
+        default=None,
         metadata={
             "help": (
                 """
