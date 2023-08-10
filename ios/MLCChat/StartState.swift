@@ -68,28 +68,28 @@ class StartState : ObservableObject {
             let fileHandle = try FileHandle(forReadingFrom: appConfigUrl)
             let data = fileHandle.readDataToEndOfFile()
             appConfig = try decoder.decode(AppConfig.self, from: data)
-            for model in self.appConfig.model_list {
-                if self.prebuiltLocalIds.contains(model.local_id) {
+            for model in self.appConfig.modelList {
+                if self.prebuiltLocalIds.contains(model.localID) {
                     continue
                 }
                 let modelConfigUrl = cacheDirUrl
-                    .appending(path:  model.local_id)
+                    .appending(path:  model.localID)
                     .appending(path: StartState.ModelConfigFileName)
                 
                 if fileManager.fileExists(atPath: modelConfigUrl.path()) {
                     if let modelConfig = loadModelConfig(modelConfigUrl: modelConfigUrl) {
                         addModelConfig(
                             modelConfig: modelConfig,
-                            modelUrl: URL(string: model.model_url)!,
+                            modelUrl: URL(string: model.modelURL)!,
                             isBuiltin: true
                         )
                     }
                 } else {
-                    downloadConfig(modelUrl: URL(string: model.model_url)!, localId: model.local_id, isBuiltin: true)
+                    downloadConfig(modelUrl: URL(string: model.modelURL)!, localId: model.localID, isBuiltin: true)
                 }
             }
-            for sample in appConfig.add_model_samples {
-                exampleModelUrls.append(ExampleModelUrl(model_url: sample.model_url, local_id: sample.local_id))
+            for sample in appConfig.addModelSamples {
+                exampleModelUrls.append(ExampleModelUrl(model_url: sample.modelURL, local_id: sample.localID))
             }
         } catch {
             showAlert(message: "Failed to load app config: \(error.localizedDescription)")
@@ -130,7 +130,7 @@ class StartState : ObservableObject {
         localIds.remove(localId)
         models.removeAll(where: {$0.modelConfig.localID == localId})
         updateAppConfig {
-            appConfig.model_list.removeAll(where: {$0.local_id == localId})
+            appConfig.modelList.removeAll(where: {$0.localID == localId})
         }
     }
     
@@ -144,7 +144,7 @@ class StartState : ObservableObject {
     }
     
     private func isModelConfigAllowed(modelConfig: ModelConfig) -> Bool {
-        if appConfig.model_libs.contains(modelConfig.modelLib) {
+        if appConfig.modelLibs.contains(modelConfig.modelLib) {
             return true
         }
         showAlert(message: "Model lib \(modelConfig.modelLib) is not supported")
@@ -235,7 +235,7 @@ class StartState : ObservableObject {
         models.append(ModelState(modelConfig: modelConfig, modelUrl: modelUrl, modelDirUrl: modelBaseUrl, startState: self, chatState: chatState))
         if modelUrl != nil && !isBuiltin {
             updateAppConfig {
-                appConfig.model_list.append(AppConfig.ModelRecord(model_url: modelUrl!.absoluteString, local_id: modelConfig.localID))
+                appConfig.modelList.append(AppConfig.ModelRecord(modelURL: modelUrl!.absoluteString, localID: modelConfig.localID))
             }
         }
     }
