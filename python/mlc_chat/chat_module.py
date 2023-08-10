@@ -1,5 +1,6 @@
 """The Python API for MLC chat."""
 #! pylint: disable=unused-import, invalid-name
+import inspect
 import json
 import os
 import sys
@@ -170,6 +171,13 @@ class ChatConfig:
     model_category: Optional[str] = None
     model_name: Optional[str] = None
 
+    @classmethod
+    def _from_json(chat_config_cls, json_obj: dict):
+        return chat_config_cls(**{
+            k: v for k, v in json_obj.items()
+            if k in inspect.signature(chat_config_cls).parameters
+        })
+
 
 class PlaceInPrompt(Enum):
     """The place of an input message in a prompt."""
@@ -282,7 +290,7 @@ def _get_chat_config(config_file_path: str, user_chat_config: Optional[ChatConfi
     final_chat_config = None
     with open(config_file_path, mode="rt", encoding="utf-8") as f:
         json_object = json.load(f)
-        final_chat_config = ChatConfig(**json_object)
+        final_chat_config = ChatConfig._from_json(json_object)
     if user_chat_config is not None:
         # We override using user's chat config
         for field in fields(user_chat_config):
