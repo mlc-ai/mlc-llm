@@ -173,7 +173,6 @@ class ChatConfig:
 
     @classmethod
     def _from_json(chat_config_cls, json_obj: dict):
-        print(type(json_obj))
         return chat_config_cls(**{
             k: v for k, v in json_obj.items()
             if k in inspect.signature(chat_config_cls).parameters
