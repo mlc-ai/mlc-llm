@@ -10,7 +10,7 @@ import Foundation
 
 class StartState : ObservableObject {
     @Published var models = [ModelState]()
-    @Published var exampleModelUrls = [ExampleModelUrl]()
+    @Published var exampleModelUrls = [ExampleModelURL]()
     @Published var alertMessage = ""
     @Published var alertDisplayed = false
     @Published var chatState = ChatState()
@@ -89,7 +89,7 @@ class StartState : ObservableObject {
                 }
             }
             for sample in appConfig.addModelSamples {
-                exampleModelUrls.append(ExampleModelUrl(model_url: sample.modelURL, local_id: sample.localID))
+                exampleModelUrls.append(ExampleModelURL(modelURL: sample.modelURL, localID: sample.localID))
             }
         } catch {
             showAlert(message: "Failed to load app config: \(error.localizedDescription)")

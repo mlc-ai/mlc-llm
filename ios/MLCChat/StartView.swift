@@ -46,8 +46,8 @@ struct StartView: View {
                         "these variants may contain same weights as builtin ones"
                     )) {
                         ForEach(state.exampleModelUrls) { record in
-                            Button(record.local_id) {
-                                state.requestAddModel(url: record.model_url, localId: record.local_id)
+                            Button(record.localID) {
+                                state.requestAddModel(url: record.modelURL, localId: record.localID)
                             }.buttonStyle(.borderless)
                         }
                     }
