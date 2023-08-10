@@ -190,8 +190,8 @@ class ChatState : ObservableObject {
         assert(interruptable())
         interruptChat(prologue: {
             switchToTerminating()
-        }, epilogue: { [self] in
-            mainTerminateChat(callback: callback)
+        }, epilogue: { [weak self] in
+            self?.mainTerminateChat(callback: callback)
         })
     }
     

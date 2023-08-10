@@ -231,8 +231,10 @@ class StartState : ObservableObject {
         // mlc-chat-config.json should exist
         let modelConfigUrl = modelBaseUrl.appending(path: StartState.ModelConfigFileName)
         assert(fileManager.fileExists(atPath: modelConfigUrl.path()))
-        
-        models.append(ModelState(modelConfig: modelConfig, modelUrl: modelUrl, modelDirUrl: modelBaseUrl, startState: self, chatState: chatState))
+
+        let model = ModelState(modelConfig: modelConfig, modelLocalBaseURL: modelBaseUrl, startState: self, chatState: chatState)
+        model.loadModel(modelURL: modelUrl)
+        models.append(model)
         if modelUrl != nil && !isBuiltin {
             updateAppConfig {
                 appConfig.modelList.append(AppConfig.ModelRecord(modelURL: modelUrl!.absoluteString, localID: modelConfig.localID))
