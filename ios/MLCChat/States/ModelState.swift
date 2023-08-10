@@ -28,6 +28,7 @@ final class ModelState : ObservableObject, Identifiable {
     @Published var modelInitState: ModelInitState = .initializing
     @Published var progress: Int = 0
     @Published var total: Int = 1
+
     private let fileManager: FileManager = FileManager.default
     private let decoder = JSONDecoder()
     private var paramsConfig: ParamsConfig!
@@ -38,8 +39,7 @@ final class ModelState : ObservableObject, Identifiable {
     private var baseRemoteUrl: URL! = nil
     private var chatState: ChatState!
     private var startState: StartState!
-    
-    
+
     init(modelConfig: ModelConfig, modelUrl: URL?, modelDirUrl: URL, startState: StartState, chatState: ChatState) {
         switchToInitializing(modelConfig: modelConfig, modelUrl: modelUrl, modelDirUrl: modelDirUrl, startState: startState, chatState: chatState)
     }
@@ -52,108 +52,6 @@ final class ModelState : ObservableObject, Identifiable {
             estimatedVRAMReq: modelConfig.estimatedVRAMReq,
             displayName: modelConfig.displayName
         )
-    }
-    
-    private func switchToInitializing(modelConfig: ModelConfig, modelUrl: URL?, modelDirUrl: URL, startState: StartState, chatState: ChatState) {
-        self.modelConfig = modelConfig
-        self.modelDirUrl = modelDirUrl
-        self.startState = startState
-        self.chatState = chatState
-        // switchToInitializing should only be called in init
-        assert(modelInitState == .initializing)
-        if !fileManager.fileExists(atPath: modelDirUrl.path()) {
-            do {
-                try fileManager.createDirectory(at: modelDirUrl, withIntermediateDirectories: true)
-            } catch {
-                print(error.localizedDescription)
-            }
-        }
-        
-        if modelUrl == nil {
-            // verify local model
-            switchToVerifying()
-            return
-        } else {
-            baseRemoteUrl = modelUrl!.appending(path: "resolve").appending(path: "main")
-        }
-        
-        // create local params dir
-        let paramsConfigUrl = modelDirUrl.appending(path: StartState.ParamsConfigFileName)
-        
-        if fileManager.fileExists(atPath: paramsConfigUrl.path()) {
-            // ndarray-cache.json already downloaded
-            loadParamsConfig()
-            switchToIndexing()
-        } else {
-            // download ndarray-cache.json
-            downloadParamsConfig()
-        }
-    }
-    
-    private func loadParamsConfig() {
-        let paramsConfigUrl = modelDirUrl.appending(path: StartState.ParamsConfigFileName)
-        assert(fileManager.fileExists(atPath: paramsConfigUrl.path()))
-        do {
-            let fileHandle = try FileHandle(forReadingFrom: paramsConfigUrl)
-            let data = fileHandle.readDataToEndOfFile()
-            paramsConfig = try self.decoder.decode(ParamsConfig.self, from: data)
-        } catch {
-            print(error.localizedDescription)
-        }
-    }
-    
-    private func downloadParamsConfig() {
-        let paramsConfigUrl = modelDirUrl.appending(path: StartState.ParamsConfigFileName)
-        let downloadTask = URLSession.shared.downloadTask(with: baseRemoteUrl.appending(path: StartState.ParamsConfigFileName)) {
-            urlOrNil, responseOrNil, errorOrNil in
-            guard let fileUrl = urlOrNil else { return }
-            do {
-                try? self.fileManager.removeItem(at: paramsConfigUrl)
-                try self.fileManager.moveItem(at: fileUrl, to: paramsConfigUrl)
-                DispatchQueue.main.async {
-                    self.loadParamsConfig()
-                    self.switchToIndexing()
-                }
-            } catch {
-                print(error.localizedDescription)
-            }
-        }
-        downloadTask.resume()
-    }
-    
-    private func switchToIndexing() {
-        modelInitState = .indexing
-        progress = 0
-        total = modelConfig.tokenizerFiles.count + paramsConfig.records.count
-        
-        // collect tokenizer download tasks
-        for tokenizerFile in modelConfig.tokenizerFiles {
-            let remoteURL = baseRemoteUrl.appending(path: tokenizerFile)
-            let localURL = modelDirUrl.appending(path: tokenizerFile)
-
-            if fileManager.fileExists(atPath: localURL.path()) {
-                progress += 1
-            } else {
-                remainingTasks.insert(DownloadTask(remoteURL: remoteURL, localURL: localURL))
-            }
-        }
-        
-        // collect params download tasks
-        for paramsRecord in paramsConfig.records {
-            let remoteURL = baseRemoteUrl.appending(path: paramsRecord.dataPath)
-            let localURL = modelDirUrl.appending(path: paramsRecord.dataPath)
-
-            if fileManager.fileExists(atPath: localURL.path()) {
-                progress += 1
-            } else {
-                remainingTasks.insert(DownloadTask(remoteURL: remoteURL, localURL: localURL))
-            }
-        }
-        if progress < total {
-            switchToPaused()
-        } else {
-            switchToFinished()
-        }
     }
     
     func handleStart() {
@@ -294,26 +192,6 @@ final class ModelState : ObservableObject, Identifiable {
         switchToFinished()
     }
     
-    private func switchToFinished() {
-        modelInitState = .finished
-    }
-    
-    private func switchToFailed() {
-        modelInitState = .failed
-    }
-    
-    private func switchToDownloading() {
-        modelInitState = .downloading
-        for downloadTask in remainingTasks {
-            if downloadingTasks.count < maxDownloadingTasks {
-                handleNewDownload(downloadTask: downloadTask)
-            } else {
-                return
-            }
-        }
-    }
-    
-    
     func handleClear() {
         assert(modelInitState == .downloading || modelInitState == .paused || modelInitState == .finished)
         switchToClearing()
@@ -323,8 +201,112 @@ final class ModelState : ObservableObject, Identifiable {
         assert(modelInitState == .downloading || modelInitState == .paused || modelInitState == .finished || modelInitState == .failed)
         switchToDeleting()
     }
-    
-    private func switchToClearing() {
+}
+
+private extension ModelState {
+    func switchToInitializing(modelConfig: ModelConfig, modelUrl: URL?, modelDirUrl: URL, startState: StartState, chatState: ChatState) {
+        self.modelConfig = modelConfig
+        self.modelDirUrl = modelDirUrl
+        self.startState = startState
+        self.chatState = chatState
+        // switchToInitializing should only be called in init
+        assert(modelInitState == .initializing)
+        if !fileManager.fileExists(atPath: modelDirUrl.path()) {
+            do {
+                try fileManager.createDirectory(at: modelDirUrl, withIntermediateDirectories: true)
+            } catch {
+                print(error.localizedDescription)
+            }
+        }
+
+        if modelUrl == nil {
+            // verify local model
+            switchToVerifying()
+            return
+        } else {
+            baseRemoteUrl = modelUrl!.appending(path: "resolve").appending(path: "main")
+        }
+
+        // create local params dir
+        let paramsConfigUrl = modelDirUrl.appending(path: StartState.ParamsConfigFileName)
+
+        if fileManager.fileExists(atPath: paramsConfigUrl.path()) {
+            // ndarray-cache.json already downloaded
+            loadParamsConfig()
+            switchToIndexing()
+        } else {
+            // download ndarray-cache.json
+            downloadParamsConfig()
+        }
+    }
+
+    func loadParamsConfig() {
+        let paramsConfigUrl = modelDirUrl.appending(path: StartState.ParamsConfigFileName)
+        assert(fileManager.fileExists(atPath: paramsConfigUrl.path()))
+        do {
+            let fileHandle = try FileHandle(forReadingFrom: paramsConfigUrl)
+            let data = fileHandle.readDataToEndOfFile()
+            paramsConfig = try self.decoder.decode(ParamsConfig.self, from: data)
+        } catch {
+            print(error.localizedDescription)
+        }
+    }
+
+    func downloadParamsConfig() {
+        let paramsConfigUrl = modelDirUrl.appending(path: StartState.ParamsConfigFileName)
+        let downloadTask = URLSession.shared.downloadTask(with: baseRemoteUrl.appending(path: StartState.ParamsConfigFileName)) {
+            urlOrNil, responseOrNil, errorOrNil in
+            guard let fileUrl = urlOrNil else { return }
+            do {
+                try? self.fileManager.removeItem(at: paramsConfigUrl)
+                try self.fileManager.moveItem(at: fileUrl, to: paramsConfigUrl)
+                DispatchQueue.main.async {
+                    self.loadParamsConfig()
+                    self.switchToIndexing()
+                }
+            } catch {
+                print(error.localizedDescription)
+            }
+        }
+        downloadTask.resume()
+    }
+
+    func switchToIndexing() {
+        modelInitState = .indexing
+        progress = 0
+        total = modelConfig.tokenizerFiles.count + paramsConfig.records.count
+
+        // collect tokenizer download tasks
+        for tokenizerFile in modelConfig.tokenizerFiles {
+            let remoteURL = baseRemoteUrl.appending(path: tokenizerFile)
+            let localURL = modelDirUrl.appending(path: tokenizerFile)
+
+            if fileManager.fileExists(atPath: localURL.path()) {
+                progress += 1
+            } else {
+                remainingTasks.insert(DownloadTask(remoteURL: remoteURL, localURL: localURL))
+            }
+        }
+
+        // collect params download tasks
+        for paramsRecord in paramsConfig.records {
+            let remoteURL = baseRemoteUrl.appending(path: paramsRecord.dataPath)
+            let localURL = modelDirUrl.appending(path: paramsRecord.dataPath)
+
+            if fileManager.fileExists(atPath: localURL.path()) {
+                progress += 1
+            } else {
+                remainingTasks.insert(DownloadTask(remoteURL: remoteURL, localURL: localURL))
+            }
+        }
+        if progress < total {
+            switchToPaused()
+        } else {
+            switchToFinished()
+        }
+    }
+
+    func switchToClearing() {
         if modelInitState == .paused {
             modelInitState = .clearing
             clear()
@@ -340,8 +322,8 @@ final class ModelState : ObservableObject, Identifiable {
             modelInitState = .clearing
         }
     }
-    
-    private func switchToDeleting() {
+
+    func switchToDeleting() {
         if modelInitState == .paused || modelInitState == .failed {
             modelInitState = .deleting
             delete()
@@ -357,8 +339,27 @@ final class ModelState : ObservableObject, Identifiable {
             modelInitState = .deleting
         }
     }
-    
-    private func clear() {
+
+    func switchToFinished() {
+        modelInitState = .finished
+    }
+
+    func switchToFailed() {
+        modelInitState = .failed
+    }
+
+    func switchToDownloading() {
+        modelInitState = .downloading
+        for downloadTask in remainingTasks {
+            if downloadingTasks.count < maxDownloadingTasks {
+                handleNewDownload(downloadTask: downloadTask)
+            } else {
+                return
+            }
+        }
+    }
+
+    func clear() {
         do {
             let fileUrls = try fileManager.contentsOfDirectory(at: modelDirUrl, includingPropertiesForKeys: nil)
             for fileUrl in fileUrls where fileUrl.lastPathComponent != StartState.ModelConfigFileName {
@@ -371,8 +372,8 @@ final class ModelState : ObservableObject, Identifiable {
             print(error.localizedDescription)
         }
     }
-    
-    private func delete() {
+
+    func delete() {
         do {
             try fileManager.removeItem(at: modelDirUrl)
             assert(!fileManager.fileExists(atPath: modelDirUrl.path()))

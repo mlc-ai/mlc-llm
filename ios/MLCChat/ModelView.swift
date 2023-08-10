@@ -38,7 +38,7 @@ struct ModelView: View {
             }
             HStack{
                 if modelState.modelInitState != .finished || isRemoving {
-                    ProgressView(value: Double( modelState.progress) / Double(modelState.total))
+                    ProgressView(value: Double(modelState.progress) / Double(modelState.total))
                         .progressViewStyle(.linear)
                 }
                 if (modelState.modelInitState == .paused) {
