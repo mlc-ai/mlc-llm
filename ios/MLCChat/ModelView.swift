@@ -26,15 +26,15 @@ struct ModelView: View {
                         }
                 ) {
                     HStack {
-                        Text(modelState.modelConfig.local_id)
+                        Text(modelState.modelConfig.localID)
                         Spacer()
-                        if chatState.isCurrentModel(localId: modelState.modelConfig.local_id) {
+                        if chatState.isCurrentModel(localId: modelState.modelConfig.localID) {
                             Image(systemName: "checkmark").foregroundColor(.blue)
                         }
                     }
                 }.buttonStyle(.borderless)
             } else {
-                Text(modelState.modelConfig.local_id).opacity(0.5)
+                Text(modelState.modelConfig.localID).opacity(0.5)
             }
             HStack{
                 if modelState.modelInitState != .Finished || isRemoving {

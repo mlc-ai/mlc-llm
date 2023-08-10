@@ -44,7 +44,7 @@ class StartState : ObservableObject {
                 let modelConfigUrl = modelDir.appending(path: StartState.ModelConfigFileName)
                 if fileManager.fileExists(atPath: modelConfigUrl.path()) {
                     if let modelConfig = loadModelConfig(modelConfigUrl: modelConfigUrl) {
-                        assert(modelDir.lastPathComponent == modelConfig.local_id)
+                        assert(modelDir.lastPathComponent == modelConfig.localID)
                         addModelConfig(modelConfig: modelConfig, modelUrl: nil, isBuiltin: true)
                     }
                 }
@@ -128,7 +128,7 @@ class StartState : ObservableObject {
         // model dir should have been deleted in ModelState
         assert(!fileManager.fileExists(atPath: cacheDirUrl.appending(path: localId).path()))
         localIds.remove(localId)
-        models.removeAll(where: {$0.modelConfig.local_id == localId})
+        models.removeAll(where: {$0.modelConfig.localID == localId})
         updateAppConfig {
             appConfig.model_list.removeAll(where: {$0.local_id == localId})
         }
@@ -144,10 +144,10 @@ class StartState : ObservableObject {
     }
     
     private func isModelConfigAllowed(modelConfig: ModelConfig) -> Bool {
-        if appConfig.model_libs.contains(modelConfig.model_lib) {
+        if appConfig.model_libs.contains(modelConfig.modelLib) {
             return true
         }
-        showAlert(message: "Model lib \(modelConfig.model_lib) is not supported")
+        showAlert(message: "Model lib \(modelConfig.modelLib) is not supported")
         return false
     }
     
@@ -190,15 +190,15 @@ class StartState : ObservableObject {
                     
                     
                     if localId != nil {
-                        assert(localId == modelConfig.local_id)
+                        assert(localId == modelConfig.localID)
                     }
                     
-                    if localIds.contains(modelConfig.local_id) {
+                    if localIds.contains(modelConfig.localID) {
                         try fileManager.removeItem(at: tempFileUrl)
                         return
                     }
                     
-                    let modelBaseUrl = cacheDirUrl.appending(path: modelConfig.local_id)
+                    let modelBaseUrl = cacheDirUrl.appending(path: modelConfig.localID)
                     try fileManager.createDirectory(at: modelBaseUrl, withIntermediateDirectories: true)
                     let modelConfigUrl = modelBaseUrl.appending(path: StartState.ModelConfigFileName)
                     try fileManager.moveItem(at: tempFileUrl, to: modelConfigUrl)
@@ -214,17 +214,17 @@ class StartState : ObservableObject {
     }
     
     private func addModelConfig(modelConfig: ModelConfig, modelUrl: URL?, isBuiltin: Bool) {
-        assert(!localIds.contains(modelConfig.local_id))
-        localIds.insert(modelConfig.local_id)
+        assert(!localIds.contains(modelConfig.localID))
+        localIds.insert(modelConfig.localID)
         var modelBaseUrl: URL
         
         // local-id dir should exist
         if modelUrl == nil {
             // prebuilt model in dist
-            modelBaseUrl = Bundle.main.bundleURL.appending(path: StartState.PrebuiltModelDir).appending(path: modelConfig.local_id)
+            modelBaseUrl = Bundle.main.bundleURL.appending(path: StartState.PrebuiltModelDir).appending(path: modelConfig.localID)
         } else {
             // download model in cache
-            modelBaseUrl = cacheDirUrl.appending(path: modelConfig.local_id)
+            modelBaseUrl = cacheDirUrl.appending(path: modelConfig.localID)
         }
         assert(fileManager.fileExists(atPath: modelBaseUrl.path()))
         
@@ -235,7 +235,7 @@ class StartState : ObservableObject {
         models.append(ModelState(modelConfig: modelConfig, modelUrl: modelUrl, modelDirUrl: modelBaseUrl, startState: self, chatState: chatState))
         if modelUrl != nil && !isBuiltin {
             updateAppConfig {
-                appConfig.model_list.append(AppConfig.ModelRecord(model_url: modelUrl!.absoluteString, local_id: modelConfig.local_id))
+                appConfig.model_list.append(AppConfig.ModelRecord(model_url: modelUrl!.absoluteString, local_id: modelConfig.localID))
             }
         }
     }

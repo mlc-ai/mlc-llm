@@ -47,11 +47,11 @@ class ModelState : ObservableObject, Identifiable {
     
     func startChat(chatState: ChatState) {
         chatState.requestReloadChat(
-            localId: modelConfig.local_id,
-            modelLib: modelConfig.model_lib,
+            localId: modelConfig.localID,
+            modelLib: modelConfig.modelLib,
             modelPath: modelDirUrl.path(),
-            estimatedVRAMReq: modelConfig.estimated_vram_req ?? 4000000000,
-            displayName: modelConfig.display_name ?? modelConfig.local_id.components(separatedBy: "-")[0]
+            estimatedVRAMReq: modelConfig.estimatedVRAMReq ?? 4000000000,
+            displayName: modelConfig.displayName ?? modelConfig.localID.components(separatedBy: "-")[0]
         )
     }
     
@@ -125,10 +125,10 @@ class ModelState : ObservableObject, Identifiable {
     private func switchToIndexing() {
         modelInitState = .Indexing
         progress = 0
-        total = modelConfig.tokenizer_files.count + paramsConfig.records.count
+        total = modelConfig.tokenizerFiles.count + paramsConfig.records.count
         
         // collect tokenizer download tasks
-        for tokenizerFile in modelConfig.tokenizer_files {
+        for tokenizerFile in modelConfig.tokenizerFiles {
             let remoteUrl = baseRemoteUrl.appending(path: tokenizerFile)
             let localUrl = modelDirUrl.appending(path: tokenizerFile)
          
@@ -268,9 +268,9 @@ class ModelState : ObservableObject, Identifiable {
         }
         loadParamsConfig()
         progress = 0
-        total = modelConfig.tokenizer_files.count + paramsConfig.records.count
+        total = modelConfig.tokenizerFiles.count + paramsConfig.records.count
         // verify tokenizer
-        for tokenizerFile in modelConfig.tokenizer_files {
+        for tokenizerFile in modelConfig.tokenizerFiles {
             let localUrl = modelDirUrl.appending(path: tokenizerFile)
          
             if !fileManager.fileExists(atPath: localUrl.path()) {
@@ -330,7 +330,7 @@ class ModelState : ObservableObject, Identifiable {
             modelInitState = .Clearing
             clear()
         } else if modelInitState == .Finished {
-            if chatState.localId == modelConfig.local_id {
+            if chatState.localId == modelConfig.localID {
                 chatState.requestTerminateChat {
                     self.clear()
                 }
@@ -347,7 +347,7 @@ class ModelState : ObservableObject, Identifiable {
             modelInitState = .Deleting
             delete()
         } else if modelInitState == .Finished {
-            if chatState.localId == modelConfig.local_id {
+            if chatState.localId == modelConfig.localID {
                 chatState.requestTerminateChat {
                     self.delete()
                 }
@@ -377,7 +377,7 @@ class ModelState : ObservableObject, Identifiable {
         do {
             try fileManager.removeItem(at: modelDirUrl)
             assert(!fileManager.fileExists(atPath: modelDirUrl.path()))
-            startState.requestDeleteModel(localId: modelConfig.local_id)
+            startState.requestDeleteModel(localId: modelConfig.localID)
         } catch {
             print(error.localizedDescription)
         }
