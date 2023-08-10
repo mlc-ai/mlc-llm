@@ -1,4 +1,4 @@
-# pylint: disable=missing-docstring
+# pylint: disable=missing-docstring, redefined-outer-name
 import argparse
 import json
 import os
@@ -291,15 +291,7 @@ def mod_transform_before_build(
     config: Dict,
 ) -> tvm.IRModule:
     """First-stage: Legalize ops and trace"""
-    if args.model.startswith("rwkv-"):
-        model_names = [
-            "decode",
-            "create_kv_cache",
-            "softmax_with_temperature",
-            "get_metadata",
-            "reset_kv_cache",
-        ]
-    elif args.model.startswith("minigpt"):
+    if args.model.startswith("minigpt"):
         model_names = ["embed"]
     else:
         model_names = [
@@ -311,6 +303,8 @@ def mod_transform_before_build(
         ]
         if args.sep_embed:
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
+        if args.model.startswith("rwkv-"):
+            model_names += ["reset_kv_cache"]
 
     mod = param_manager.transform_dequantize(mod)
 
@@ -383,7 +377,15 @@ def mod_transform_before_build(
     return mod_deploy
 
 
-def dump_default_mlc_chat_config(args: argparse.Namespace):
+def dump_mlc_chat_config(
+    args: argparse.Namespace,
+    temperature: float = 0.7,
+    repetition_penalty: float = 1.0,
+    top_p: float = 0.95,
+    mean_gen_len: int = 128,
+    max_gen_len: int = 512,
+    shift_fill_factor: float = 0.3,
+):
     args.params_path = os.path.join(args.artifact_path, "params")
     config: Dict[str, Any] = {}
 
@@ -396,12 +398,12 @@ def dump_default_mlc_chat_config(args: argparse.Namespace):
 
     config["local_id"] = f"{args.model}-{args.quantization.name}"
     config["conv_template"] = args.conv_template
-    config["temperature"] = 0.7
-    config["repetition_penalty"] = 1.0
-    config["top_p"] = 0.95
-    config["mean_gen_len"] = 128
-    config["max_gen_len"] = 512
-    config["shift_fill_factor"] = 0.3
+    config["temperature"] = temperature
+    config["repetition_penalty"] = repetition_penalty
+    config["top_p"] = top_p
+    config["mean_gen_len"] = mean_gen_len
+    config["max_gen_len"] = max_gen_len
+    config["shift_fill_factor"] = shift_fill_factor
     config["tokenizer_files"] = utils.get_tokenizer_files(args.params_path)
     config["model_category"] = args.model_category
     config["model_name"] = args.model
@@ -431,12 +433,18 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
                         mod_deploy
                     )
                 )
-            mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod_deploy)
-            mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod_deploy)
-            mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.Reduction())(mod_deploy)
-            mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.GeneralReduction())(mod_deploy)
-            mod_deploy = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod_deploy)
-            mod_deploy = mlc_llm.transform.LiftTIRGlobalBufferAlloc()(mod_deploy)
+            mod_deploy = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+                dl.gpu.Matmul(),
+                dl.gpu.GEMV(),
+                dl.gpu.Reduction(),
+                dl.gpu.GeneralReduction(),
+                dl.gpu.Fallback(),
+            )(mod_deploy)
+            mod_deploy = (
+                mlc_llm.transform.LiftTIRGlobalBufferAlloc()(  # pylint: disable=not-callable
+                    mod_deploy
+                )
+            )
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 
     if args.debug_load_script:
@@ -504,7 +512,11 @@ def build_model_from_args(args: argparse.Namespace):
             utils.save_params(new_params, args.artifact_path)
             if args.model_category != "minigpt":
                 utils.copy_tokenizer(args)
-            dump_default_mlc_chat_config(args)
+            if args.model_category == "rwkv":
+                # TODO: refactor config into model definition
+                dump_mlc_chat_config(args, top_p=0.6, temperature=1.2, repetition_penalty=0.996)
+            else:
+                dump_mlc_chat_config(args)
 
         if args.convert_weight_only:
             exit(0)

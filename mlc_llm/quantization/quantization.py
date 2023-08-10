@@ -132,20 +132,20 @@ class QuantizationScheme:
 
     """_base_model_prefix is used to match the parameter names when loading from pre-quantized pytorch checkpoints.
     Its value can vary depending on the transformer models used. For example, it can be "model" for Llama, "levit" for LeViT.
-    see more candidates in huggingchat [modeling](https://github.com/huggingface/transformers/blob/src/transformers/models/llama/modeling_llama.py#L344) 
+    see more candidates in huggingchat [modeling](https://github.com/huggingface/transformers/blob/src/transformers/models/llama/modeling_llama.py#L344)
     """
     _base_model_prefix: str
 
     """_layers_block_name is used to match the parameter names when loading from pre-quantized pytorch checkpoints.
     the parameter names usually to be {_base_model_prefix}.{_layers_block_name}.{parameter_name}
-    
-    For example, the parameter names of the linear layers in Llama are "model.model.encoder.layers.0.linear1.weight", 
+
+    For example, the parameter names of the linear layers in Llama are "model.model.encoder.layers.0.linear1.weight",
     "model.model.encoder.layers.0.linear1.bias", etc.
     """
     _layers_block_name: str
 
     """_inside_layer_modules defines the names of the layers that are inside the quantize process.
-    
+
     For example, the autogptq scheme:
         ```python
             _inside_layer_modules=[
@@ -175,7 +175,7 @@ class QuantizationScheme:
         pre_quantized: bool = False,
         _base_model_prefix: str = "",
         _layers_block_name: str = "",
-        _inside_layer_modules: List[List[str]] = [],
+        _inside_layer_modules: List[List[str]] = None,
         _load_quantized_params_func: Optional[Callable] = None,
     ) -> None:
         self.name = name
@@ -201,7 +201,7 @@ class QuantizationScheme:
         self.pre_quantized = pre_quantized
         self._base_model_prefix = _base_model_prefix
         self._layers_block_name = _layers_block_name
-        self._inside_layer_modules = _inside_layer_modules
+        self._inside_layer_modules = [] if _inside_layer_modules is None else _inside_layer_modules
         self._load_quantized_params_func = _load_quantized_params_func
 
     @property

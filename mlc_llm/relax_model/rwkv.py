@@ -1,15 +1,16 @@
 # pylint: disable=missing-docstring,invalid-name
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Literal, Tuple
 
-from tvm import relax
+from tvm import relax, te, tir
 from tvm.relax import Expr, op
 from tvm.relax.testing import nn
 from tvm.script import relax as R
+from tvm.script import tir as T
 
 from ..quantization import ParamQuantKind, QuantizationScheme
 from .commons import create_metadata_func
-from .modules import ModuleList
+from .modules import ModuleList, Linear
 from .param_manager import ParamManager
 
 # Reference: https://github.com/BlinkDL/RWKV-LM/blob/main/RWKV-v4/src/model_run.py
@@ -85,6 +86,94 @@ def _store_state(state: Expr, value: Expr):
     )
 
 
+def is_one(x: tir.PrimExpr) -> bool:
+    return isinstance(x, tir.IntImm) and x.value == 1
+
+
+def create_wkv_func(hidden_size: int, dtype: str, out_dtype: str):
+    @T.prim_func
+    def wkv_func(
+        k: T.handle,
+        v: T.handle,
+        time_decay: T.handle,
+        time_first: T.handle,
+        saved_a: T.handle,
+        saved_b: T.handle,
+        saved_p: T.handle,
+        wkv: T.handle,
+        out_a: T.handle,
+        out_b: T.handle,
+        out_p: T.handle,
+    ):
+        T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
+        context_length = T.int64()
+        K = T.match_buffer(k, (context_length, hidden_size), dtype=dtype)
+        V = T.match_buffer(v, (context_length, hidden_size), dtype=dtype)
+        TimeDecay = T.match_buffer(time_decay, (hidden_size,), dtype=dtype)
+        TimeFirst = T.match_buffer(time_first, (hidden_size,), dtype=dtype)
+        SavedA = T.match_buffer(saved_a, (1, hidden_size), dtype=dtype)
+        SavedB = T.match_buffer(saved_b, (1, hidden_size), dtype=dtype)
+        SavedP = T.match_buffer(saved_p, (1, hidden_size), dtype=dtype)
+        WKV = T.match_buffer(wkv, (context_length, hidden_size), dtype=out_dtype)
+        OutA = T.match_buffer(out_a, (1, hidden_size), dtype=dtype)
+        OutB = T.match_buffer(out_b, (1, hidden_size), dtype=dtype)
+        OutP = T.match_buffer(out_p, (1, hidden_size), dtype=dtype)
+
+        P = T.alloc_buffer((hidden_size,), dtype=dtype, scope="local")
+        E1 = T.alloc_buffer((hidden_size,), dtype=dtype, scope="local")
+        E2 = T.alloc_buffer((hidden_size,), dtype=dtype, scope="local")
+        A_local = T.alloc_buffer((hidden_size,), dtype=dtype, scope="local")
+        B_local = T.alloc_buffer((hidden_size,), dtype=dtype, scope="local")
+        P_local = T.alloc_buffer((hidden_size,), dtype=dtype, scope="local")
+
+        for bx in T.thread_binding(hidden_size // 32, thread="blockIdx.x"):
+            for tx in T.thread_binding(32, thread="threadIdx.x"):
+                with T.block("init"):
+                    vi = T.axis.S(hidden_size, bx * 32 + tx)
+                    A_local[vi] = SavedA[0, vi]
+                    B_local[vi] = SavedB[0, vi]
+                    P_local[vi] = SavedP[0, vi]
+                for j in range(context_length):
+                    with T.block("main"):
+                        vi = T.axis.S(hidden_size, bx * 32 + tx)
+                        vj = T.axis.opaque(context_length, j)
+                        P[vi] = T.max(P_local[vi], K[vj, vi] + TimeFirst[vi])
+                        E1[vi] = T.exp(P_local[vi] - P[vi])
+                        E2[vi] = T.exp(K[vj, vi] + TimeFirst[vi] - P[vi])
+                        WKV[vj, vi] = T.cast(
+                            (E1[vi] * A_local[vi] + E2[vi] * V[vj, vi])
+                            / (E1[vi] * B_local[vi] + E2[vi]),
+                            out_dtype,
+                        )
+
+                        P[vi] = T.max(P_local[vi] + TimeDecay[vi], K[vj, vi])
+                        E1[vi] = T.exp(P_local[vi] + TimeDecay[vi] - P[vi])
+                        E2[vi] = T.exp(K[vj, vi] - P[vi])
+                        A_local[vi] = E1[vi] * A_local[vi] + E2[vi] * V[vj, vi]
+                        B_local[vi] = E1[vi] * B_local[vi] + E2[vi]
+                        P_local[vi] = P[vi]
+
+                with T.block("write_back"):
+                    vi = T.axis.S(hidden_size, bx * 32 + tx)
+                    OutA[0, vi] = A_local[vi]
+                    OutB[0, vi] = B_local[vi]
+                    OutP[0, vi] = P_local[vi]
+
+    return wkv_func
+
+
+def _te_concat_saved_x(saved_x: te.Tensor, x: te.Tensor):
+    return te.compute(
+        x.shape,
+        lambda i, j: tir.if_then_else(i == 0, saved_x[0, j], x[i - 1, j]),
+    )
+
+
+def _te_get_last_x(x: te.Tensor):
+    seq_len, hidden_size = x.shape
+    return te.compute((1, hidden_size), lambda _, j: x[seq_len - 1, j])
+
+
 class RWKV_Embedding(nn.Module):
     def __init__(self, num_embeddings, embedding_dim, dtype):
         self.num_embeddings = num_embeddings
@@ -134,37 +223,38 @@ class RWKV_FFN(nn.Module):
         self.time_mix_receptance = nn.Parameter(
             (self.hidden_size,), dtype=config.dtype, name=f"ffn_{index}_time_mix_r"
         )
-        self.key_weight = nn.Parameter(
-            (self.hidden_size, config.intermediate_size),
-            dtype=config.dtype,
-            name=f"ffn_{index}_key_weight",
+        self.key = Linear(
+            self.hidden_size, config.intermediate_size, dtype=config.dtype, bias=False
         )
-        self.receptance_weight = nn.Parameter(
-            (self.hidden_size, self.hidden_size),
-            dtype=config.dtype,
-            name=f"ffn_{index}_receptance_weight",
+        self.receptance = Linear(
+            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
         )
-        self.value_weight = nn.Parameter(
-            (config.intermediate_size, self.hidden_size),
-            dtype=config.dtype,
-            name=f"ffn_{index}_value_weight",
+        self.value = Linear(
+            config.intermediate_size, self.hidden_size, dtype=config.dtype, bias=False
         )
 
     def forward(self, x: Expr, state: Expr) -> Expr:
         offset = self.index * 5 + State.FFN_X
+        context_length = x.struct_info.shape[0]
+        hidden_size = self.hidden_size
 
-        saved_x = _load_state(state[offset], self.hidden_size, self.dtype)
-        ones = nn.emit(relax.op.ones((self.hidden_size,), self.dtype))
+        saved_x = _load_state(state[offset], hidden_size, self.dtype)
+        if not is_one(context_length):
+            saved_x = nn.emit_te(_te_concat_saved_x, saved_x, x)
+        ones = nn.emit(relax.op.ones((hidden_size,), self.dtype))
         xk = nn.emit(x * self.time_mix_key + saved_x * (ones - self.time_mix_key))
         xr = nn.emit(
             x * self.time_mix_receptance + saved_x * (ones - self.time_mix_receptance)
         )
+        if not is_one(context_length):
+            x = nn.emit_te(_te_get_last_x, x)
+        assert is_one(x.struct_info.shape[0])
         saved_x = _store_state(state[offset], x)
 
-        r = nn.emit(op.sigmoid(op.matmul(xr, self.receptance_weight)))
-        xv = nn.emit(op.square(op.nn.relu(op.matmul(xk, self.key_weight))))
+        r = nn.emit(op.sigmoid(self.receptance(xr)))
+        xv = nn.emit(op.square(op.nn.relu(self.key(xk))))
 
-        return nn.emit(r * op.matmul(xv, self.value_weight)), [saved_x]
+        return nn.emit(r * self.value(xv)), [saved_x]
 
 
 class RWKV_Attention(nn.Module):
@@ -188,73 +278,67 @@ class RWKV_Attention(nn.Module):
         self.time_mix_receptance = nn.Parameter(
             (self.hidden_size,), dtype=config.dtype, name=f"att_{index}_time_mix_r"
         )
-        self.key_weight = nn.Parameter(
-            (self.hidden_size, self.hidden_size),
-            dtype=config.dtype,
-            name=f"att_{index}_key_weight",
+        self.key = Linear(
+            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
         )
-        self.value_weight = nn.Parameter(
-            (self.hidden_size, self.hidden_size),
-            dtype=config.dtype,
-            name=f"att_{index}_value_weight",
+        self.value = Linear(
+            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
         )
-        self.receptance_weight = nn.Parameter(
-            (self.hidden_size, self.hidden_size),
-            dtype=config.dtype,
-            name=f"att_{index}_receptance_weight",
+        self.receptance = Linear(
+            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
         )
-        self.output_weight = nn.Parameter(
-            (self.hidden_size, self.hidden_size),
-            dtype=config.dtype,
-            name=f"att_{index}_output_weight",
+        self.output = Linear(
+            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
         )
 
     def forward(self, x: Expr, state: Expr) -> Expr:
         # Load current state
-        saved_x = _load_state(
-            state[self.index * 5 + State.ATT_X], self.hidden_size, self.dtype
-        )
-        saved_a = _load_state(
-            state[self.index * 5 + State.ATT_A], self.hidden_size, "float32"
-        )
-        saved_b = _load_state(
-            state[self.index * 5 + State.ATT_B], self.hidden_size, "float32"
-        )
-        saved_p = _load_state(
-            state[self.index * 5 + State.ATT_P], self.hidden_size, "float32"
-        )
         ones = nn.emit(relax.op.ones((self.hidden_size,), self.dtype))
+        index = self.index
+        hidden_size = self.hidden_size
+        context_length = x.struct_info.shape[0]
+        bb = relax.BlockBuilder.current()
+
+        saved_a = _load_state(state[index * 5 + State.ATT_A], hidden_size, "float32")
+        saved_b = _load_state(state[index * 5 + State.ATT_B], hidden_size, "float32")
+        saved_p = _load_state(state[index * 5 + State.ATT_P], hidden_size, "float32")
+        saved_x = _load_state(state[index * 5 + State.ATT_X], hidden_size, self.dtype)
+        if not is_one(context_length):
+            saved_x = nn.emit_te(_te_concat_saved_x, saved_x, x)
+
         xk = nn.emit(x * self.time_mix_key + saved_x * (ones - self.time_mix_key))
         xv = nn.emit(x * self.time_mix_value + saved_x * (ones - self.time_mix_value))
         xr = nn.emit(
             x * self.time_mix_receptance + saved_x * (ones - self.time_mix_receptance)
         )
 
-        r = nn.emit(op.sigmoid(op.matmul(xr, self.receptance_weight)))
-        k = nn.emit(op.astype(op.matmul(xk, self.key_weight), "float32"))
-        v = nn.emit(op.astype(op.matmul(xv, self.value_weight), "float32"))
+        r = nn.emit(op.sigmoid(self.receptance(xr)))
+        k = nn.emit(op.astype(self.key(xk), "float32"))
+        v = nn.emit(op.astype(self.value(xv), "float32"))
 
-        w = nn.emit(k + self.time_first)
-        p = nn.emit(op.maximum(saved_p, w))
-        e1 = nn.emit(op.exp(saved_p - p))
-        e2 = nn.emit(op.exp(w - p))
-        wkv = nn.emit(
-            op.astype((e1 * saved_a + e2 * v) / (e1 * saved_b + e2), self.dtype)
+        gv = bb.add_func(create_wkv_func(hidden_size, "float32", self.dtype), "wkv")
+        ret = nn.emit(
+            relax.call_tir(
+                gv,
+                [k, v, self.time_decay, self.time_first, saved_a, saved_b, saved_p],
+                [
+                    R.Tensor((context_length, hidden_size), self.dtype),
+                    R.Tensor((1, hidden_size), "float32"),
+                    R.Tensor((1, hidden_size), "float32"),
+                    R.Tensor((1, hidden_size), "float32"),
+                ],
+            )
         )
-        w = nn.emit(saved_p + self.time_decay)
-        p = nn.emit(op.maximum(w, k))
-        e1 = nn.emit(op.exp(w - p))
-        e2 = nn.emit(op.exp(k - p))
+        if not is_one(context_length):
+            x = nn.emit_te(_te_get_last_x, x)
 
-        aa = nn.emit(e1 * saved_a + e2 * v)
-        bb = nn.emit(e1 * saved_b + e2)
-
+        assert is_one(x.struct_info.shape[0])
         saved_x = _store_state(state[self.index * 5 + State.ATT_X], x)
-        saved_a = _store_state(state[self.index * 5 + State.ATT_A], aa)
-        saved_b = _store_state(state[self.index * 5 + State.ATT_B], bb)
-        saved_p = _store_state(state[self.index * 5 + State.ATT_P], p)
+        saved_a = _store_state(state[self.index * 5 + State.ATT_A], ret[1])
+        saved_b = _store_state(state[self.index * 5 + State.ATT_B], ret[2])
+        saved_p = _store_state(state[self.index * 5 + State.ATT_P], ret[3])
 
-        return nn.emit(op.matmul(r * wkv, self.output_weight)), [
+        return nn.emit(self.output(r * ret[0])), [
             saved_x,
             saved_a,
             saved_b,
@@ -319,6 +403,8 @@ class RWKVModel(nn.Module):
             eps=config.layer_norm_epsilon,
             name_prefix="out_ln",
         )
+        self.hidden_size = config.hidden_size
+        self.dtype = config.dtype
 
     def forward(self, input_ids: Expr, state: Expr) -> Tuple[Expr, List[Expr]]:
         hidden_states = self.embeddings(input_ids)
@@ -326,6 +412,9 @@ class RWKVModel(nn.Module):
         for _, layer in enumerate(self.blocks):
             hidden_states, layer_states = layer(hidden_states, state)
             states += layer_states
+        context_length = hidden_states.struct_info.shape[0]
+        if not is_one(context_length):
+            hidden_states = nn.emit_te(_te_get_last_x, hidden_states)
         hidden_states = self.ln_out(hidden_states)
         return hidden_states, states
 
@@ -333,10 +422,8 @@ class RWKVModel(nn.Module):
 class RWKVForCausalLM(nn.Module):
     def __init__(self, config: RWKVConfig):
         self.rwkv = RWKVModel(config)
-        self.head_weight = nn.Parameter(
-            (config.hidden_size, config.vocab_size),
-            dtype=config.dtype,
-            name="head_weight",
+        self.head = Linear(
+            config.hidden_size, config.vocab_size, dtype=config.dtype, bias=False
         )
         self.vocab_size = config.vocab_size
         ############ End ############
@@ -347,7 +434,7 @@ class RWKVForCausalLM(nn.Module):
         state: relax.Expr,
     ):
         hidden_states, key_value_cache = self.rwkv(input_ids, state)
-        logits = nn.emit(op.matmul(hidden_states, self.head_weight))
+        logits = nn.emit(self.head(hidden_states))
         logits = nn.emit(op.reshape(logits, (1, 1, self.vocab_size)))
         if logits.struct_info.dtype != "float32":
             logits = nn.emit(relax.op.astype(logits, "float32"))
@@ -360,21 +447,24 @@ def get_param_quant_kind(
 ) -> ParamQuantKind:
     if name.endswith("embeddings.weight"):
         return ParamQuantKind.embedding_table
-    elif name == "head_weight":
+    elif name == "head.weight":
         return ParamQuantKind.final_fc_weight
-    elif param_info.ndim == 2 and name.endswith("_weight"):
+    elif param_info.ndim == 2 and name.endswith(".weight"):
         return ParamQuantKind.linear_weight
     else:
         return ParamQuantKind.others
 
 
-def create_decoding_func(
+def create_func(
     bb: relax.BlockBuilder,
     param_manager: ParamManager,
     config: RWKVConfig,
     quant_scheme: QuantizationScheme,
+    func_name=Literal["prefill", "decode"],
 ):
-    func_name = "decode"
+    if func_name not in ["prefill", "decode"]:
+        raise ValueError(f"func_name must be 'prefill' or 'decode', got {func_name}")
+    seq_len = 1 if func_name == "decode" else tir.Var("n", "int64")
 
     with bb.function(func_name):
         model = RWKVForCausalLM(config)
@@ -382,7 +472,7 @@ def create_decoding_func(
             model, func_name, quant_scheme, get_param_quant_kind
         )
 
-        input_ids = nn.Placeholder((1, 1), dtype="int32", name="input_ids")
+        input_ids = nn.Placeholder((1, seq_len), dtype="int32", name="input_ids")
         # Placeholder for compatibility to LLAMA
         all_seq_len_shape = relax.Var("place_holder", R.Object())
         state = relax.Var("state", R.Tuple([R.Object()] * config.num_hidden_layers * 5))
@@ -399,7 +489,10 @@ def create_decoding_func(
 
     mod = bb.get()
     gv = mod.get_global_var(func_name)
-    bb.update_func(gv, mod[gv].with_attr("num_input", 3))
+    f = mod[gv].with_attr("num_input", 3)
+    if func_name == "prefill":
+        f = f.with_attr("tir_var_upper_bound", {"n": config.context_length})
+    bb.update_func(gv, f)
 
 
 def create_kv_cache_func(bb: relax.BlockBuilder, config: RWKVConfig) -> None:
@@ -485,7 +578,8 @@ def get_model(args, hf_config):
 
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
-    create_decoding_func(bb, param_manager, config, args.quantization)
+    create_func(bb, param_manager, config, args.quantization, "prefill")
+    create_func(bb, param_manager, config, args.quantization, "decode")
     create_kv_cache_func(bb, config)
     create_softmax_func(bb, config)
     create_metadata_func(
@@ -531,25 +625,14 @@ def get_model(args, hf_config):
         # reshape
         if "time_" in torch_pname:
             torch_param = torch_param.squeeze()
-        if (
-            "key.weight" in torch_pname
-            or "value.weight" in torch_pname
-            or "receptance.weight" in torch_pname
-            or "output.weight" in torch_pname
-            or "head.weight" in torch_pname
-        ):
-            pname = torch_pname.replace(".weight", "_weight")
-            torch_param = torch_param.T
-        else:
-            pname = torch_pname
 
         # convert dtype
         if "time_decay" in torch_pname:  # need fp32 for this
-            return [(pname, -np.exp(torch_param.astype("float32")))]
+            return [(torch_pname, -np.exp(torch_param.astype("float32")))]
         elif "time_first" in torch_pname:
-            return [(pname, torch_param.astype("float32"))]
+            return [(torch_pname, torch_param.astype("float32"))]
         else:
-            return [(pname, torch_param.astype(config.dtype))]
+            return [(torch_pname, torch_param.astype(config.dtype))]
 
     param_manager.set_param_loading_func(
         args.model_path, args.use_safetensors, f_convert_pname_fwd, f_convert_param_bkwd

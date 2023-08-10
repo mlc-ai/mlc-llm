@@ -25,10 +25,7 @@ class DumpInstrument:
             return
 
         print(f"[{self.counter}][{name}]")
-        print(*args, sep="\n")
-        if self.counter == 6:
-            for i, arg in enumerate( args):
-                arg = arg.numpy().dump(f"tmp/{i}.pkl")
+        print(args[-1])
         self.counter += 1
 
 
@@ -99,7 +96,7 @@ def deploy_to_pipeline(args) -> None:
         prefill_func = None
 
     if inputs.shape[1] > 1 and prefill_func:
-        inputs = tvm.nd.array(inputs.numpy(), device=primary_device)
+        inputs = tvm.nd.array(inputs, device=primary_device)
         logits, kv_caches = prefill_func(inputs, seq_len_shape, kv_caches, const_params)
     else:
         for i in range(inputs.shape[1]):
