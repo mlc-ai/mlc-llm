@@ -50,8 +50,8 @@ class ModelState : ObservableObject, Identifiable {
             localId: modelConfig.localID,
             modelLib: modelConfig.modelLib,
             modelPath: modelDirUrl.path(),
-            estimatedVRAMReq: modelConfig.estimatedVRAMReq ?? 4000000000,
-            displayName: modelConfig.displayName ?? modelConfig.localID.components(separatedBy: "-")[0]
+            estimatedVRAMReq: modelConfig.estimatedVRAMReq,
+            displayName: modelConfig.displayName
         )
     }
     

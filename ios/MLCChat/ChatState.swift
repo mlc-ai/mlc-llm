@@ -194,7 +194,7 @@ class ChatState : ObservableObject {
         })
     }
     
-    private func mainReloadChat(localId: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int64, displayName: String) {
+    private func mainReloadChat(localId: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int, displayName: String) {
         clearHistory()
         let prevUseVision = useVision
         self.localId = localId
@@ -250,7 +250,7 @@ class ChatState : ObservableObject {
         }
     }
     
-    func requestReloadChat(localId: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int64, displayName: String) {
+    func requestReloadChat(localId: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int, displayName: String) {
         if (isCurrentModel(localId: localId)) {
             return
         }
