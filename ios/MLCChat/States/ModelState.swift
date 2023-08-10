@@ -7,16 +7,16 @@ import Foundation
 
 final class ModelState : ObservableObject, Identifiable {
     enum ModelInitState {
-        case Initializing
-        case Indexing
-        case Paused
-        case Downloading
-        case Pausing
-        case Verifying
-        case Finished
-        case Failed
-        case Clearing
-        case Deleting
+        case initializing
+        case indexing
+        case paused
+        case downloading
+        case pausing
+        case verifying
+        case finished
+        case failed
+        case clearing
+        case deleting
     }
 
     private struct DownloadTask: Hashable {
@@ -25,7 +25,7 @@ final class ModelState : ObservableObject, Identifiable {
     }
 
     @Published var modelConfig: ModelConfig!
-    @Published var modelInitState: ModelInitState = .Initializing
+    @Published var modelInitState: ModelInitState = .initializing
     @Published var progress: Int = 0
     @Published var total: Int = 1
     private let fileManager: FileManager = FileManager.default
@@ -60,7 +60,7 @@ final class ModelState : ObservableObject, Identifiable {
         self.startState = startState
         self.chatState = chatState
         // switchToInitializing should only be called in init
-        assert(modelInitState == .Initializing)
+        assert(modelInitState == .initializing)
         if !fileManager.fileExists(atPath: modelDirUrl.path()) {
             do {
                 try fileManager.createDirectory(at: modelDirUrl, withIntermediateDirectories: true)
@@ -122,7 +122,7 @@ final class ModelState : ObservableObject, Identifiable {
     }
     
     private func switchToIndexing() {
-        modelInitState = .Indexing
+        modelInitState = .indexing
         progress = 0
         total = modelConfig.tokenizerFiles.count + paramsConfig.records.count
         
@@ -198,12 +198,12 @@ final class ModelState : ObservableObject, Identifiable {
         remainingTasks.remove(downloadTask)
         downloadingTasks.remove(downloadTask)
         progress += 1
-        assert(modelInitState == .Downloading ||
-               modelInitState == .Pausing ||
-               modelInitState == .Clearing ||
-               modelInitState == .Deleting
+        assert(modelInitState == .downloading ||
+               modelInitState == .pausing ||
+               modelInitState == .clearing ||
+               modelInitState == .deleting
         )
-        if modelInitState == .Downloading {
+        if modelInitState == .downloading {
             if remainingTasks.isEmpty {
                 if downloadingTasks.isEmpty {
                     switchToFinished()
@@ -211,15 +211,15 @@ final class ModelState : ObservableObject, Identifiable {
             } else {
                 handleNextDownload()
             }
-        } else if modelInitState == .Pausing {
+        } else if modelInitState == .pausing {
             if downloadingTasks.isEmpty {
                 switchToPaused()
             }
-        } else if modelInitState == .Clearing {
+        } else if modelInitState == .clearing {
             if downloadingTasks.isEmpty {
                 clear()
             }
-        } else if modelInitState == .Deleting {
+        } else if modelInitState == .deleting {
             if downloadingTasks.isEmpty {
                 delete()
             }
@@ -228,11 +228,11 @@ final class ModelState : ObservableObject, Identifiable {
     
     private func handleCancelDownload(downloadTask: DownloadTask) {
         // withdraw the failed download task
-        assert(modelInitState == .Downloading || modelInitState == .Pausing)
+        assert(modelInitState == .downloading || modelInitState == .pausing)
         downloadingTasks.remove(downloadTask)
-        if modelInitState == .Downloading {
+        if modelInitState == .downloading {
             handleNextDownload()
-        } else if modelInitState == .Pausing {
+        } else if modelInitState == .pausing {
             if downloadingTasks.count == 0 {
                 switchToPaused()
             }
@@ -241,7 +241,7 @@ final class ModelState : ObservableObject, Identifiable {
     
     private func handleNextDownload() {
         // start next download task
-        assert(modelInitState == .Downloading)
+        assert(modelInitState == .downloading)
         for downloadTask in remainingTasks {
             if !downloadingTasks.contains(downloadTask) {
                 handleNewDownload(downloadTask: downloadTask)
@@ -251,15 +251,15 @@ final class ModelState : ObservableObject, Identifiable {
     }
     
     private func switchToPaused() {
-        modelInitState = .Paused
+        modelInitState = .paused
     }
     
     private func switchToPausing() {
-        modelInitState = .Pausing
+        modelInitState = .pausing
     }
     
     private func switchToVerifying() {
-        modelInitState = .Verifying
+        modelInitState = .verifying
         let paramsConfigUrl = modelDirUrl.appending(path: StartState.ParamsConfigFileName)
         if !fileManager.fileExists(atPath: paramsConfigUrl.path()) {
             switchToFailed()
@@ -295,15 +295,15 @@ final class ModelState : ObservableObject, Identifiable {
     }
     
     private func switchToFinished() {
-        modelInitState = .Finished
+        modelInitState = .finished
     }
     
     private func switchToFailed() {
-        modelInitState = .Failed
+        modelInitState = .failed
     }
     
     private func switchToDownloading() {
-        modelInitState = .Downloading
+        modelInitState = .downloading
         for downloadTask in remainingTasks {
             if downloadingTasks.count < maxDownloadingTasks {
                 handleNewDownload(downloadTask: downloadTask)
@@ -315,20 +315,20 @@ final class ModelState : ObservableObject, Identifiable {
     
     
     func handleClear() {
-        assert(modelInitState == .Downloading || modelInitState == .Paused || modelInitState == .Finished)
+        assert(modelInitState == .downloading || modelInitState == .paused || modelInitState == .finished)
         switchToClearing()
     }
     
     func handleDelete() {
-        assert(modelInitState == .Downloading || modelInitState == .Paused || modelInitState == .Finished || modelInitState == .Failed)
+        assert(modelInitState == .downloading || modelInitState == .paused || modelInitState == .finished || modelInitState == .failed)
         switchToDeleting()
     }
     
     private func switchToClearing() {
-        if modelInitState == .Paused {
-            modelInitState = .Clearing
+        if modelInitState == .paused {
+            modelInitState = .clearing
             clear()
-        } else if modelInitState == .Finished {
+        } else if modelInitState == .finished {
             if chatState.localId == modelConfig.localID {
                 chatState.requestTerminateChat {
                     self.clear()
@@ -337,15 +337,15 @@ final class ModelState : ObservableObject, Identifiable {
                 clear()
             }
         } else {
-            modelInitState = .Clearing
+            modelInitState = .clearing
         }
     }
     
     private func switchToDeleting() {
-        if modelInitState == .Paused || modelInitState == .Failed {
-            modelInitState = .Deleting
+        if modelInitState == .paused || modelInitState == .failed {
+            modelInitState = .deleting
             delete()
-        } else if modelInitState == .Finished {
+        } else if modelInitState == .finished {
             if chatState.localId == modelConfig.localID {
                 chatState.requestTerminateChat {
                     self.delete()
@@ -354,7 +354,7 @@ final class ModelState : ObservableObject, Identifiable {
                 delete()
             }
         } else {
-            modelInitState = .Deleting
+            modelInitState = .deleting
         }
     }
     
