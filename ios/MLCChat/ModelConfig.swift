@@ -5,7 +5,7 @@
 
 import Foundation
 
-struct ModelConfig: Codable, Hashable {
+struct ModelConfig: Decodable {
     let model_lib: String
     let local_id: String
     let tokenizer_files: [String]
@@ -13,26 +13,26 @@ struct ModelConfig: Codable, Hashable {
     let estimated_vram_req: Int64!
 }
 
-struct ParamsRecord: Codable, Hashable {
+struct ParamsRecord: Decodable {
     let dataPath: String
 }
 
-struct ParamsConfig: Codable, Hashable {
+struct ParamsConfig: Decodable {
     let records: [ParamsRecord]
 }
 
-struct ModelRecord: Codable, Hashable {
+struct ModelRecord: Codable {
     let model_url: String
     let local_id: String
 }
 
-struct AppConfig: Codable, Hashable {
+struct AppConfig: Codable {
     let model_libs: [String]
     var model_list: [ModelRecord]
     let add_model_samples: [ModelRecord]
 }
 
-struct ExampleModelUrl: Hashable, Identifiable {
+struct ExampleModelUrl: Identifiable {
     let id = UUID()
     let model_url: String
     let local_id: String
