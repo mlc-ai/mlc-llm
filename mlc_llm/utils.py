@@ -39,9 +39,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "minigpt": "minigpt",
     }
     try:
-        with open(
-            os.path.join(args.model_path, "config.json"), encoding="utf-8"
-        ) as i_f:
+        with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
             config = json.load(i_f)
             args.model_category = config["model_type"]
     except Exception:
@@ -101,9 +99,7 @@ def debug_load_script(name: str, args: argparse.Namespace):
     input_path = os.path.join(args.artifact_path, "debug", name)
     lib = {"__file__": input_path}
     with open(input_path, "rb") as i_f:
-        exec(  # pylint: disable=exec-used
-            compile(i_f.read(), input_path, "exec"), lib, lib
-        )
+        exec(compile(i_f.read(), input_path, "exec"), lib, lib)  # pylint: disable=exec-used
     return lib["Module"]
 
 
@@ -241,9 +237,7 @@ def get_tokenizer_files(path) -> List[str]:
 
 
 def _detect_local_metal_host():
-    target_triple = tvm._ffi.get_global_func(
-        "tvm.codegen.llvm.GetDefaultTargetTriple"
-    )()
+    target_triple = tvm._ffi.get_global_func("tvm.codegen.llvm.GetDefaultTargetTriple")()
     process_triple = tvm._ffi.get_global_func("tvm.codegen.llvm.GetProcessTriple")()
     host_cpu = tvm._ffi.get_global_func("tvm.codegen.llvm.GetHostCPUName")()
     print(
@@ -370,8 +364,11 @@ def parse_target(args: argparse.Namespace) -> None:
         target = _detect_local_cuda()
         if target is None:
             raise ValueError("Cannot detect local CUDA GPU target!")
+        multiarch = args.target == "cuda-multiarch"
         args.target = target
         args.target_kind = args.target.kind.default_keys[0]
+        if multiarch:
+            args.target_kind += "-multiarch"
     elif args.target == "metal":
         target = _detect_local_metal()
         if target is None:
@@ -424,9 +421,7 @@ def parse_target(args: argparse.Namespace) -> None:
             args.export_kwargs = {"fcompile": tar.tar}
             args.lib_format = "tar"
             args.system_lib = True
-            args.system_lib_prefix = f"{args.model}_{args.quantization}_".replace(
-                "-", "_"
-            )
+            args.system_lib_prefix = f"{args.model}_{args.quantization}_".replace("-", "_")
 
         @tvm.register_func("tvm_callback_metal_compile")
         def compile_metal(src, target):
@@ -501,9 +496,7 @@ def parse_target(args: argparse.Namespace) -> None:
             }
             args.lib_format = "tar"
             args.system_lib = True
-            args.system_lib_prefix = f"{args.model}_{args.quantization}_".replace(
-                "-", "_"
-            )
+            args.system_lib_prefix = f"{args.model}_{args.quantization}_".replace("-", "_")
         args.target = tvm.target.Target(
             "opencl",
             host="llvm -mtriple=aarch64-linux-android",  # TODO: Only support arm64 for now
@@ -521,6 +514,8 @@ def parse_target(args: argparse.Namespace) -> None:
             compute_versions = [70, 72, 75, 80, 86, 87, 89, 90]
         else:
             compute_versions = [60, 61, 62]
+
+        args.target_kind = "cuda"
 
         @tvm.register_func("tvm_callback_cuda_compile", override=True)
         def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument

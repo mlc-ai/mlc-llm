@@ -34,28 +34,41 @@ const std::vector<std::string> quantization_presets = {"q3f16_0",  //
                                                        "q0f16",    //
                                                        "q0f32"};
 
-std::string DetectDeviceName(std::string device_name) {
+std::pair<std::string, int> DetectDevice(std::string device) {
   using tvm::runtime::DeviceAPI;
+
+  std::string device_name;
+  int device_id;
+  int delimiter_pos = device.find(":");
+
+  if (delimiter_pos == std::string::npos) {
+    device_name = device;
+    device_id = 0;
+  } else {
+    device_name = device.substr(0, delimiter_pos);
+    device_id = std::stoi(device.substr(delimiter_pos + 1, device.length()));
+  }
+
   if (device_name == "auto") {
     bool allow_missing = true;
     if (DeviceAPI::Get(DLDevice{kDLCUDA, 0}, allow_missing)) {
-      return "cuda";
+      return {"cuda", device_id};
     }
     if (DeviceAPI::Get(DLDevice{kDLMetal, 0}, allow_missing)) {
-      return "metal";
+      return {"metal", device_id};
     }
     if (DeviceAPI::Get(DLDevice{kDLROCM, 0}, allow_missing)) {
-      return "rocm";
+      return {"rocm", device_id};
     }
     if (DeviceAPI::Get(DLDevice{kDLVulkan, 0}, allow_missing)) {
-      return "vulkan";
+      return {"vulkan", device_id};
     }
     if (DeviceAPI::Get(DLDevice{kDLOpenCL, 0}, allow_missing)) {
-      return "opencl";
+      return {"opencl", device_id};
     }
     LOG(FATAL) << "Cannot auto detect device-name";
   }
-  return device_name;
+  return {device_name, device_id};
 }
 
 DLDevice GetDevice(const std::string& device_name, int device_id) {
@@ -462,8 +475,7 @@ int main(int argc, char* argv[]) {
   args.add_argument("--local-id").default_value("");
   args.add_argument("--model").default_value("vicuna-v1-7b");
   args.add_argument("--quantization").default_value("auto");
-  args.add_argument("--device-name").default_value("auto");
-  args.add_argument("--device_id").default_value(0).scan<'i', int>();
+  args.add_argument("--device").default_value("auto");
   args.add_argument("--artifact-path").default_value("dist");
   args.add_argument("--evaluate").default_value(false).implicit_value(true);
   args.add_argument("--eval-prompt-len").default_value(128).scan<'i', int>();
@@ -480,8 +492,7 @@ int main(int argc, char* argv[]) {
   std::string local_id = args.get<std::string>("--local-id");
   std::string model = args.get<std::string>("--model");
   std::string quantization = args.get<std::string>("--quantization");
-  std::string device_name = DetectDeviceName(args.get<std::string>("--device-name"));
-  int device_id = args.get<int>("--device_id");
+  auto [device_name, device_id] = DetectDevice(args.get<std::string>("--device"));
   std::string artifact_path = args.get<std::string>("--artifact-path");
 
   if (local_id.empty()) {
