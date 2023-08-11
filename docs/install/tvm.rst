@@ -92,7 +92,7 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
         echo "set(USE_CUDA   OFF)" >> config.cmake
         echo "set(USE_METAL  OFF)" >> config.cmake
         echo "set(USE_VULKAN OFF)" >> config.cmake
-        echo "set(USE_OpenCL OFF)" >> config.cmake
+        echo "set(USE_OPENCL OFF)" >> config.cmake
 
     .. note::
         ``HIDE_PRIVATE_SYMBOLS`` is a configuration option that enables the ``-fvisibility=hidden`` flag. This flag helps prevent potential symbol conflicts between TVM and PyTorch. These conflicts arise due to the frameworks shipping LLVMs of different versions.
