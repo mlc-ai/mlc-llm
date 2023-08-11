@@ -107,6 +107,18 @@
 			path = States;
 			sourceTree = "<group>";
 		};
+		AEC27F002A86306800254E67 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A773CC642A5DC98200467BFE /* ImageProcessing.swift */,
+				1453A4CB2A1354B9001B909F /* ModelView.swift */,
+				1453A4CA2A1354B9001B909F /* StartView.swift */,
+				C0D643C729F99B34004DDAA4 /* MessageView.swift */,
+				C0D643C229F99B07004DDAA4 /* ChatView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
 		C0D643A629F99A7F004DDAA4 = {
 			isa = PBXGroup;
 			children = (
@@ -132,13 +144,9 @@
 				C09834182A16F4CB00A05B51 /* app-config.json */,
 				AEC27EF82A85C29000254E67 /* Models */,
 				AEC27EFF2A85EE2800254E67 /* States */,
-				1453A4CB2A1354B9001B909F /* ModelView.swift */,
-				1453A4CA2A1354B9001B909F /* StartView.swift */,
+				AEC27F002A86306800254E67 /* Views */,
 				C06A74E629F9A1DF00BC4BE6 /* MLCChat.entitlements */,
-				C0D643C729F99B34004DDAA4 /* MessageView.swift */,
-				C0D643C229F99B07004DDAA4 /* ChatView.swift */,
 				C0D643B229F99A7F004DDAA4 /* MLCChatApp.swift */,
-				A773CC642A5DC98200467BFE /* ImageProcessing.swift */,
 				C0D643B629F99A80004DDAA4 /* Assets.xcassets */,
 				C0D643B829F99A80004DDAA4 /* Preview Content */,
 			);
