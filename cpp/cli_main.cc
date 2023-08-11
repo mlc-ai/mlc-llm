@@ -66,6 +66,7 @@ std::pair<std::string, int> DetectDevice(std::string device) {
     if (DeviceAPI::Get(DLDevice{kDLOpenCL, 0}, allow_missing)) {
       return {"opencl", device_id};
     }
+    // TODO: Auto-detect devices for mali
     LOG(FATAL) << "Cannot auto detect device-name";
   }
   return {device_name, device_id};
@@ -76,7 +77,7 @@ DLDevice GetDevice(const std::string& device_name, int device_id) {
   if (device_name == "metal") return DLDevice{kDLMetal, device_id};
   if (device_name == "rocm") return DLDevice{kDLROCM, device_id};
   if (device_name == "vulkan") return DLDevice{kDLVulkan, device_id};
-  if (device_name == "opencl") return DLDevice{kDLOpenCL, device_id};
+  if (device_name == "opencl" || device_name == "mali") return DLDevice{kDLOpenCL, device_id};
   LOG(FATAL) << "Do not recognize device name " << device_name;
   return DLDevice{kDLCPU, 0};
 }
@@ -358,7 +359,7 @@ ModelPaths ModelPaths::Find(const std::filesystem::path& artifact_path,
   if (auto path = FindFile(
           {
               artifact_path / lib_local_id,              // Usually this is the candidate
-              artifact_path / "prebuilt" / "lib",        // prebuild lib
+              artifact_path / "prebuilt" / "lib",        // prebuilt lib
               artifact_path / "prebuilt" / lib_local_id  // For prebuilts
           },
           {

@@ -513,7 +513,7 @@ def parse_target(args: argparse.Namespace) -> None:
             host="llvm -mtriple=aarch64-linux-gnu",
         )
         args.target = target
-        args.target_kind = args.target.kind.default_keys[0]
+        args.target_kind = "mali"
     else:
         args.target = tvm.target.Target(args.target, host="llvm")
         args.target_kind = args.target.kind.default_keys[0]
