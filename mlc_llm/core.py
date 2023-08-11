@@ -420,6 +420,10 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
         mod_deploy = mod_deploy.with_attrs({"system_lib_prefix": args.system_lib_prefix})
 
     utils.debug_dump_script(mod_deploy, "mod_before_build.py", args)
+    utils.debug_dump_benchmark_script(
+        mod_deploy, f"{args.model}_{args.quantization.name}".replace("-", "_"), args
+    )
+
     if target_kind != "cpu":
         dispatch_target = (
             args.target
