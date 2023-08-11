@@ -16,7 +16,7 @@ struct ModelView: View {
     
     var body: some View {
         VStack(alignment: .leading) {
-            if (modelState.modelInitState == .finished) {
+            if (modelState.modelDownloadState == .finished) {
                 NavigationLink(
                     destination:
                         ChatView()
@@ -37,25 +37,25 @@ struct ModelView: View {
                 Text(modelState.modelConfig.localID).opacity(0.5)
             }
             HStack{
-                if modelState.modelInitState != .finished || isRemoving {
+                if modelState.modelDownloadState != .finished || isRemoving {
                     ProgressView(value: Double(modelState.progress) / Double(modelState.total))
                         .progressViewStyle(.linear)
                 }
-                if (modelState.modelInitState == .paused) {
+                if (modelState.modelDownloadState == .paused) {
                     Button() {
                         modelState.handleStart()
                     } label: {
                         Image(systemName: "icloud.and.arrow.down")
                     }
                     .buttonStyle(.borderless)
-                } else if (modelState.modelInitState == .downloading) {
+                } else if (modelState.modelDownloadState == .downloading) {
                     Button() {
                         modelState.handlePause()
                     } label: {
                         Image(systemName: "stop.circle")
                     }
                     .buttonStyle(.borderless)
-                } else if (modelState.modelInitState == .failed) {
+                } else if (modelState.modelDownloadState == .failed) {
                     Image(systemName: "exclamationmark.triangle").foregroundColor(.red)
                 }
                 
@@ -69,18 +69,18 @@ struct ModelView: View {
                             modelState.handleDelete()
                         }
                         .disabled(
-                            modelState.modelInitState != .downloading &&
-                                  modelState.modelInitState != .paused &&
-                                  modelState.modelInitState != .finished &&
-                                  modelState.modelInitState != .failed
+                            modelState.modelDownloadState != .downloading &&
+                                  modelState.modelDownloadState != .paused &&
+                                  modelState.modelDownloadState != .finished &&
+                                  modelState.modelDownloadState != .failed
                         )
                         Button("Clear Data") {
                             modelState.handleClear()
                         }
                         .disabled(
-                            modelState.modelInitState != .downloading &&
-                                  modelState.modelInitState != .paused &&
-                                  modelState.modelInitState != .finished)
+                            modelState.modelDownloadState != .downloading &&
+                                  modelState.modelDownloadState != .paused &&
+                                  modelState.modelDownloadState != .finished)
                         Button("Cancel", role: .cancel) {
                             alertDelete = false
                         }

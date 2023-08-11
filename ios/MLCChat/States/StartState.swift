@@ -233,7 +233,7 @@ class StartState : ObservableObject {
         assert(fileManager.fileExists(atPath: modelConfigUrl.path()))
 
         let model = ModelState(modelConfig: modelConfig, modelLocalBaseURL: modelBaseUrl, startState: self, chatState: chatState)
-        model.loadModel(modelURL: modelUrl)
+        model.checkModelDownloadState(modelURL: modelUrl)
         models.append(model)
         if modelUrl != nil && !isBuiltin {
             updateAppConfig {

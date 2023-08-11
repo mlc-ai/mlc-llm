@@ -6,7 +6,7 @@
 import Foundation
 
 final class ModelState: ObservableObject, Identifiable {
-    enum ModelInitState {
+    enum ModelDownloadState {
         case initializing
         case indexing
         case paused
@@ -25,7 +25,7 @@ final class ModelState: ObservableObject, Identifiable {
     }
 
     @Published var modelConfig: ModelConfig
-    @Published var modelInitState: ModelInitState = .initializing
+    @Published var modelDownloadState: ModelDownloadState = .initializing
     @Published var progress: Int = 0
     @Published var total: Int = 1
 
@@ -51,7 +51,7 @@ final class ModelState: ObservableObject, Identifiable {
         self.chatState = chatState
     }
 
-    func loadModel(modelURL: URL?) {
+    func checkModelDownloadState(modelURL: URL?) {
         createModelFolderIfNeeded()
 
         guard let modelURL else {
@@ -94,12 +94,12 @@ final class ModelState: ObservableObject, Identifiable {
     }
     
     func handleClear() {
-        assert(modelInitState == .downloading || modelInitState == .paused || modelInitState == .finished)
+        assert(modelDownloadState == .downloading || modelDownloadState == .paused || modelDownloadState == .finished)
         switchToClearing()
     }
     
     func handleDelete() {
-        assert(modelInitState == .downloading || modelInitState == .paused || modelInitState == .finished || modelInitState == .failed)
+        assert(modelDownloadState == .downloading || modelDownloadState == .paused || modelDownloadState == .finished || modelDownloadState == .failed)
         switchToDeleting()
     }
 }
@@ -156,7 +156,7 @@ private extension ModelState {
             return
         }
 
-        modelInitState = .indexing
+        modelDownloadState = .indexing
         progress = 0
         total = modelConfig.tokenizerFiles.count + paramsConfig.records.count
 
@@ -224,40 +224,40 @@ private extension ModelState {
         remainingTasks.remove(downloadTask)
         downloadingTasks.remove(downloadTask)
         progress += 1
-        assert(modelInitState == .downloading ||
-               modelInitState == .pausing ||
-               modelInitState == .clearing ||
-               modelInitState == .deleting
+        assert(modelDownloadState == .downloading ||
+               modelDownloadState == .pausing ||
+               modelDownloadState == .clearing ||
+               modelDownloadState == .deleting
         )
-        if modelInitState == .downloading {
+        if modelDownloadState == .downloading {
             if remainingTasks.isEmpty && downloadingTasks.isEmpty {
                 switchToFinished()
             } else {
                 handleNextDownload()
             }
-        } else if modelInitState == .pausing && downloadingTasks.isEmpty {
+        } else if modelDownloadState == .pausing && downloadingTasks.isEmpty {
             switchToPaused()
-        } else if modelInitState == .clearing && downloadingTasks.isEmpty {
+        } else if modelDownloadState == .clearing && downloadingTasks.isEmpty {
             clear()
-        } else if modelInitState == .deleting && downloadingTasks.isEmpty {
+        } else if modelDownloadState == .deleting && downloadingTasks.isEmpty {
             delete()
         }
     }
 
     func handleCancelDownload(downloadTask: DownloadTask) {
         // withdraw the failed download task
-        assert(modelInitState == .downloading || modelInitState == .pausing)
+        assert(modelDownloadState == .downloading || modelDownloadState == .pausing)
         downloadingTasks.remove(downloadTask)
-        if modelInitState == .downloading {
+        if modelDownloadState == .downloading {
             handleNextDownload()
-        } else if modelInitState == .pausing && downloadingTasks.count == 0 {
+        } else if modelDownloadState == .pausing && downloadingTasks.count == 0 {
             switchToPaused()
         }
     }
 
     func handleNextDownload() {
         // start next download task
-        assert(modelInitState == .downloading)
+        assert(modelDownloadState == .downloading)
         for downloadTask in remainingTasks {
             if !downloadingTasks.contains(downloadTask) {
                 handleNewDownload(downloadTask: downloadTask)
@@ -267,15 +267,15 @@ private extension ModelState {
     }
 
     func switchToPaused() {
-        modelInitState = .paused
+        modelDownloadState = .paused
     }
 
     func switchToPausing() {
-        modelInitState = .pausing
+        modelDownloadState = .pausing
     }
 
     func switchToVerifying() {
-        modelInitState = .verifying
+        modelDownloadState = .verifying
 
         let paramsConfigURL = modelLocalBaseURL.appending(path: StartState.ParamsConfigFileName)
         guard fileManager.fileExists(atPath: paramsConfigURL.path()) else {
@@ -336,10 +336,10 @@ private extension ModelState {
     }
 
     func switchToClearing() {
-        if modelInitState == .paused {
-            modelInitState = .clearing
+        if modelDownloadState == .paused {
+            modelDownloadState = .clearing
             clear()
-        } else if modelInitState == .finished {
+        } else if modelDownloadState == .finished {
             if chatState.localId == modelConfig.localID {
                 chatState.requestTerminateChat { [weak self] in
                     self?.clear()
@@ -348,15 +348,15 @@ private extension ModelState {
                 clear()
             }
         } else {
-            modelInitState = .clearing
+            modelDownloadState = .clearing
         }
     }
 
     func switchToDeleting() {
-        if modelInitState == .paused || modelInitState == .failed {
-            modelInitState = .deleting
+        if modelDownloadState == .paused || modelDownloadState == .failed {
+            modelDownloadState = .deleting
             delete()
-        } else if modelInitState == .finished {
+        } else if modelDownloadState == .finished {
             if chatState.localId == modelConfig.localID {
                 chatState.requestTerminateChat { [weak self] in
                     self?.delete()
@@ -365,20 +365,20 @@ private extension ModelState {
                 delete()
             }
         } else {
-            modelInitState = .deleting
+            modelDownloadState = .deleting
         }
     }
 
     func switchToFinished() {
-        modelInitState = .finished
+        modelDownloadState = .finished
     }
 
     func switchToFailed() {
-        modelInitState = .failed
+        modelDownloadState = .failed
     }
 
     func switchToDownloading() {
-        modelInitState = .downloading
+        modelDownloadState = .downloading
         for downloadTask in remainingTasks {
             if downloadingTasks.count < maxDownloadingTasks {
                 handleNewDownload(downloadTask: downloadTask)
