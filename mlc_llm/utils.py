@@ -502,6 +502,18 @@ def parse_target(args: argparse.Namespace) -> None:
             host="llvm -mtriple=aarch64-linux-android",  # TODO: Only support arm64 for now
         )
         args.target_kind = "android"
+    elif args.target in ["mali"]:
+        from tvm.contrib import ndk
+
+        args.export_kwargs = {
+            "fcompile": ndk.create_shared,
+        }
+        target = tvm.target.Target(
+            "opencl -device=mali",
+            host="llvm -mtriple=aarch64-linux-gnu",
+        )
+        args.target = target
+        args.target_kind = args.target.kind.default_keys[0]
     else:
         args.target = tvm.target.Target(args.target, host="llvm")
         args.target_kind = args.target.kind.default_keys[0]
