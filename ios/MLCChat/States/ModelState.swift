@@ -62,7 +62,7 @@ final class ModelState: ObservableObject, Identifiable {
         modelRemoteBaseURL = modelURL.appending(path: "resolve").appending(path: "main")
 
         // create local params dir
-        let paramsConfigURL = modelLocalBaseURL.appending(path: StartState.ParamsConfigFileName)
+        let paramsConfigURL = modelLocalBaseURL.appending(path: Constants.paramsConfigFileName)
         if fileManager.fileExists(atPath: paramsConfigURL.path()) {
             // ndarray-cache.json already downloaded
             loadParamsConfig()
@@ -116,7 +116,7 @@ private extension ModelState {
     }
 
     func loadParamsConfig() {
-        let paramsConfigURL = modelLocalBaseURL.appending(path: StartState.ParamsConfigFileName)
+        let paramsConfigURL = modelLocalBaseURL.appending(path: Constants.paramsConfigFileName)
         assert(fileManager.fileExists(atPath: paramsConfigURL.path()))
         do {
             let fileHandle = try FileHandle(forReadingFrom: paramsConfigURL)
@@ -132,8 +132,8 @@ private extension ModelState {
             return
         }
 
-        let paramsConfigURL = modelLocalBaseURL.appending(path: StartState.ParamsConfigFileName)
-        let downloadTask = URLSession.shared.downloadTask(with: modelRemoteBaseURL.appending(path: StartState.ParamsConfigFileName)) {
+        let paramsConfigURL = modelLocalBaseURL.appending(path: Constants.paramsConfigFileName)
+        let downloadTask = URLSession.shared.downloadTask(with: modelRemoteBaseURL.appending(path: Constants.paramsConfigFileName)) {
             [weak self] urlOrNil, responseOrNil, errorOrNil in
             guard let self else { return }
             guard let fileURL = urlOrNil else { return }
@@ -277,7 +277,7 @@ private extension ModelState {
     func switchToVerifying() {
         modelDownloadState = .verifying
 
-        let paramsConfigURL = modelLocalBaseURL.appending(path: StartState.ParamsConfigFileName)
+        let paramsConfigURL = modelLocalBaseURL.appending(path: Constants.paramsConfigFileName)
         guard fileManager.fileExists(atPath: paramsConfigURL.path()) else {
             switchToFailed()
             return
@@ -391,11 +391,11 @@ private extension ModelState {
     func clear() {
         do {
             let fileURLs = try fileManager.contentsOfDirectory(at: modelLocalBaseURL, includingPropertiesForKeys: nil)
-            for fileURL in fileURLs where fileURL.lastPathComponent != StartState.ModelConfigFileName {
+            for fileURL in fileURLs where fileURL.lastPathComponent != Constants.modelConfigFileName {
                 try fileManager.removeItem(at: fileURL)
                 assert(!fileManager.fileExists(atPath: fileURL.path()))
             }
-            assert(fileManager.fileExists(atPath: modelLocalBaseURL.appending(path: StartState.ModelConfigFileName).path()))
+            assert(fileManager.fileExists(atPath: modelLocalBaseURL.appending(path: Constants.modelConfigFileName).path()))
             switchToIndexing()
         } catch {
             print(error.localizedDescription)
@@ -406,7 +406,7 @@ private extension ModelState {
         do {
             try fileManager.removeItem(at: modelLocalBaseURL)
             assert(!fileManager.fileExists(atPath: modelLocalBaseURL.path()))
-            startState.requestDeleteModel(localId: modelConfig.localID)
+            startState.requestDeleteModel(localId: modelConfig.localID) // TODO: can it decouple?
         } catch {
             print(error.localizedDescription)
         }

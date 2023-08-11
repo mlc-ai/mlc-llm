@@ -16,6 +16,7 @@
 		AEC27EFA2A85C2AC00254E67 /* ParamsConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27EF92A85C2AC00254E67 /* ParamsConfig.swift */; };
 		AEC27EFC2A85C3B000254E67 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27EFB2A85C3B000254E67 /* AppConfig.swift */; };
 		AEC27EFE2A85C45700254E67 /* ExampleModelURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27EFD2A85C45700254E67 /* ExampleModelURL.swift */; };
+		AEC27F022A86337E00254E67 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27F012A86337E00254E67 /* Constants.swift */; };
 		C06A74F229F9A78800BC4BE6 /* dist in CopyFiles */ = {isa = PBXBuildFile; fileRef = C06A74E029F99C9F00BC4BE6 /* dist */; };
 		C09834192A16F4E000A05B51 /* app-config.json in CopyFiles */ = {isa = PBXBuildFile; fileRef = C09834182A16F4CB00A05B51 /* app-config.json */; };
 		C0D643B329F99A7F004DDAA4 /* MLCChatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D643B229F99A7F004DDAA4 /* MLCChatApp.swift */; };
@@ -61,6 +62,7 @@
 		AEC27EF92A85C2AC00254E67 /* ParamsConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParamsConfig.swift; sourceTree = "<group>"; };
 		AEC27EFB2A85C3B000254E67 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		AEC27EFD2A85C45700254E67 /* ExampleModelURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExampleModelURL.swift; sourceTree = "<group>"; };
+		AEC27F012A86337E00254E67 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		C06A74E029F99C9F00BC4BE6 /* dist */ = {isa = PBXFileReference; lastKnownFileType = folder; path = dist; sourceTree = "<group>"; };
 		C06A74E629F9A1DF00BC4BE6 /* MLCChat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MLCChat.entitlements; sourceTree = "<group>"; };
 		C09834182A16F4CB00A05B51 /* app-config.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "app-config.json"; sourceTree = "<group>"; };
@@ -119,6 +121,14 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		AEC27F032A86338800254E67 /* Common */ = {
+			isa = PBXGroup;
+			children = (
+				AEC27F012A86337E00254E67 /* Constants.swift */,
+			);
+			path = Common;
+			sourceTree = "<group>";
+		};
 		C0D643A629F99A7F004DDAA4 = {
 			isa = PBXGroup;
 			children = (
@@ -142,6 +152,7 @@
 			isa = PBXGroup;
 			children = (
 				C09834182A16F4CB00A05B51 /* app-config.json */,
+				AEC27F032A86338800254E67 /* Common */,
 				AEC27EF82A85C29000254E67 /* Models */,
 				AEC27EFF2A85EE2800254E67 /* States */,
 				AEC27F002A86306800254E67 /* Views */,
@@ -263,6 +274,7 @@
 				AEC27EFE2A85C45700254E67 /* ExampleModelURL.swift in Sources */,
 				AEC27EFA2A85C2AC00254E67 /* ParamsConfig.swift in Sources */,
 				AEC27EFC2A85C3B000254E67 /* AppConfig.swift in Sources */,
+				AEC27F022A86337E00254E67 /* Constants.swift in Sources */,
 				1453A4D02A1354B9001B909F /* ModelView.swift in Sources */,
 				1453A4CF2A1354B9001B909F /* StartView.swift in Sources */,
 			);
