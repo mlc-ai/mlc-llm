@@ -385,10 +385,10 @@ Conversation CodeGPT() {
   return conv;
 }
 
-Conversation WizardLM() {
+Conversation WizardLM7B() {
   // 7B version; does not support multi-round; similar to ConvOneShot
   Conversation conv;
-  conv.name = "wizardlm";
+  conv.name = "wizardlm_7b";
   conv.system = "";
   conv.roles = {"User", "Response"};
   conv.messages = {};
@@ -401,6 +401,28 @@ Conversation WizardLM() {
   // and remove eos from stop token setting.
   conv.stop_tokens = {2};
   conv.stop_str = "###";
+  conv.add_bos = true;
+  return conv;
+}
+
+Conversation WizardCoderOrMATH() {
+  // Same template for both WizardCoder and WizardMATH
+  Conversation conv;
+  conv.name = "wizard_coder_or_math";
+  conv.system =
+      "Below is an instruction that describes a task. Write a response that appropriately "
+      "completes the request.";
+  conv.roles = {"Instruction", "Response"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"\n\n### ", "\n\n### "};
+  conv.role_msg_sep = ":\n";
+  conv.role_empty_sep = ":\n";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {0};
+  conv.stop_str = "</s>";
   conv.add_bos = true;
   return conv;
 }
@@ -446,7 +468,8 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"moss", MOSS},
       {"LM", VanillaLM},
       {"code_gpt", CodeGPT},
-      {"wizardlm", WizardLM},
+      {"wizardlm_7b", WizardLM7B},
+      {"wizard_coder_or_math", WizardCoderOrMATH},
       {"glm", GLM},
   };
   auto it = factory.find(name);

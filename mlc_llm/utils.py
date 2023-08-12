@@ -66,8 +66,10 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "gorilla-": "gorilla",
         "guanaco": "guanaco",
         "starcoder": "code_gpt",
-        "wizardcoder-": "code_gpt",
-        "wizardlm-": "wizardlm",
+        "wizardlm-7b": "wizardlm_7b",  # first get rid of 7b
+        "wizardlm-": "vicuna_v1.1",  # all others use vicuna template
+        "wizardmath-": "wizard_coder_or_math",
+        "wizardcoder-": "wizard_coder_or_math",
         "gpt_bigcode-santacoder": "code_gpt",
         "chatglm2": "glm",
         "codegeex2": "glm",
