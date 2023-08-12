@@ -1,6 +1,7 @@
 //
 //  MessageView.swift
-
+//  MLCChat
+//
 
 import SwiftUI
 

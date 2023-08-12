@@ -54,6 +54,19 @@ final class ChatState: ObservableObject {
         || getModelChatState() == .failed
         || getModelChatState() == .pendingImageUpload
     }
+
+    var isChattable: Bool {
+        return getModelChatState() == .ready
+    }
+
+    var isUploadable: Bool {
+        return getModelChatState() == .pendingImageUpload
+    }
+
+    var isResettable: Bool {
+        return getModelChatState() == .ready
+        || getModelChatState() == .generating
+    }
     
     func requestResetChat() {
         assert(isResettable)
@@ -203,19 +216,6 @@ private extension ChatState {
         setModelChatState(.processingImage)
     }
 
-    var isResettable: Bool {
-        return getModelChatState() == .ready
-        || getModelChatState() == .generating
-    }
-
-    var isChattable: Bool {
-        return getModelChatState() == .ready
-    }
-
-    var isUploadable: Bool {
-        return getModelChatState() == .pendingImageUpload
-    }
-    
     func interruptChat(prologue: () -> Void, epilogue: @escaping () -> Void) {
         assert(isInterruptible)
         if getModelChatState() == .ready 
