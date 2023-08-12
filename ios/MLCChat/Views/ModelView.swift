@@ -28,7 +28,7 @@ struct ModelView: View {
                     HStack {
                         Text(modelState.modelConfig.localID)
                         Spacer()
-                        if chatState.isCurrentModel(localId: modelState.modelConfig.localID) {
+                        if chatState.isCurrentModel(localID: modelState.modelConfig.localID) {
                             Image(systemName: "checkmark").foregroundColor(.blue)
                         }
                     }

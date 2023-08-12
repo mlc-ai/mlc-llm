@@ -75,7 +75,7 @@ final class ModelState: ObservableObject, Identifiable {
 
     func startChat(chatState: ChatState) {
         chatState.requestReloadChat(
-            localId: modelConfig.localID,
+            localID: modelConfig.localID,
             modelLib: modelConfig.modelLib,
             modelPath: modelLocalBaseURL.path(),
             estimatedVRAMReq: modelConfig.estimatedVRAMReq,
@@ -340,7 +340,7 @@ private extension ModelState {
             modelDownloadState = .clearing
             clear()
         } else if modelDownloadState == .finished {
-            if chatState.localId == modelConfig.localID {
+            if chatState.localID == modelConfig.localID {
                 chatState.requestTerminateChat { [weak self] in
                     self?.clear()
                 }
@@ -357,7 +357,7 @@ private extension ModelState {
             modelDownloadState = .deleting
             delete()
         } else if modelDownloadState == .finished {
-            if chatState.localId == modelConfig.localID {
+            if chatState.localID == modelConfig.localID {
                 chatState.requestTerminateChat { [weak self] in
                     self?.delete()
                 }
