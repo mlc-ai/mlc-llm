@@ -39,9 +39,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "minigpt": "minigpt",
     }
     try:
-        with open(
-            os.path.join(args.model_path, "config.json"), encoding="utf-8"
-        ) as i_f:
+        with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
             config = json.load(i_f)
             args.model_category = config["model_type"]
     except Exception:
@@ -68,8 +66,10 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "gorilla-": "gorilla",
         "guanaco": "guanaco",
         "starcoder": "code_gpt",
-        "wizardcoder-": "code_gpt",
-        "wizardlm-": "wizardlm",
+        "wizardlm-7b": "wizardlm_7b",  # first get rid of 7b
+        "wizardlm-": "vicuna_v1.1",  # all others use vicuna template
+        "wizardmath-": "wizard_coder_or_math",
+        "wizardcoder-": "wizard_coder_or_math",
         "gpt_bigcode-santacoder": "code_gpt",
         "chatglm2": "glm",
         "codegeex2": "glm",
@@ -101,9 +101,7 @@ def debug_load_script(name: str, args: argparse.Namespace):
     input_path = os.path.join(args.artifact_path, "debug", name)
     lib = {"__file__": input_path}
     with open(input_path, "rb") as i_f:
-        exec(  # pylint: disable=exec-used
-            compile(i_f.read(), input_path, "exec"), lib, lib
-        )
+        exec(compile(i_f.read(), input_path, "exec"), lib, lib)  # pylint: disable=exec-used
     return lib["Module"]
 
 
@@ -241,9 +239,7 @@ def get_tokenizer_files(path) -> List[str]:
 
 
 def _detect_local_metal_host():
-    target_triple = tvm._ffi.get_global_func(
-        "tvm.codegen.llvm.GetDefaultTargetTriple"
-    )()
+    target_triple = tvm._ffi.get_global_func("tvm.codegen.llvm.GetDefaultTargetTriple")()
     process_triple = tvm._ffi.get_global_func("tvm.codegen.llvm.GetProcessTriple")()
     host_cpu = tvm._ffi.get_global_func("tvm.codegen.llvm.GetHostCPUName")()
     print(
@@ -424,9 +420,7 @@ def parse_target(args: argparse.Namespace) -> None:
             args.export_kwargs = {"fcompile": tar.tar}
             args.lib_format = "tar"
             args.system_lib = True
-            args.system_lib_prefix = f"{args.model}_{args.quantization}_".replace(
-                "-", "_"
-            )
+            args.system_lib_prefix = f"{args.model}_{args.quantization}_".replace("-", "_")
 
         @tvm.register_func("tvm_callback_metal_compile")
         def compile_metal(src, target):
@@ -501,9 +495,7 @@ def parse_target(args: argparse.Namespace) -> None:
             }
             args.lib_format = "tar"
             args.system_lib = True
-            args.system_lib_prefix = f"{args.model}_{args.quantization}_".replace(
-                "-", "_"
-            )
+            args.system_lib_prefix = f"{args.model}_{args.quantization}_".replace("-", "_")
         args.target = tvm.target.Target(
             "opencl",
             host="llvm -mtriple=aarch64-linux-android",  # TODO: Only support arm64 for now
