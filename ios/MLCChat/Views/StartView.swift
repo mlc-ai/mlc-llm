@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct StartView: View {
-    @EnvironmentObject var state: StartState
+    @EnvironmentObject var appState: AppState
     @State private var isAdding: Bool = false
     @State private var isRemoving: Bool = false
     @State private var inputModelUrl: String = ""
@@ -17,8 +17,8 @@ struct StartView: View {
         NavigationStack {
             List{
                 Section(header: Text("Models")){
-                    ForEach(state.models) { modelState in
-                        ModelView(isRemoving: $isRemoving).environmentObject(modelState).environmentObject(state.chatState)
+                    ForEach(appState.models) { modelState in
+                        ModelView(isRemoving: $isRemoving).environmentObject(modelState).environmentObject(appState.chatState)
                     }
                     if !isRemoving {
                         Button("Edit model") {
@@ -45,9 +45,9 @@ struct StartView: View {
                         "Click below to import sample model variants, " +
                         "these variants may contain same weights as builtin ones"
                     )) {
-                        ForEach(state.exampleModelUrls) { record in
+                        ForEach(appState.exampleModels) { record in
                             Button(record.localID) {
-                                state.requestAddModel(url: record.modelURL, localId: record.localID)
+                                appState.requestAddModel(url: record.modelURL, localID: record.localID)
                             }.buttonStyle(.borderless)
                         }
                     }
@@ -57,7 +57,7 @@ struct StartView: View {
                             inputModelUrl = ""
                         }.buttonStyle(.borderless)
                         Button("Add model") {
-                            state.requestAddModel(url: inputModelUrl, localId: nil)
+                            appState.requestAddModel(url: inputModelUrl, localID: nil)
                             isAdding = false
                             inputModelUrl = ""
                         }
@@ -66,12 +66,11 @@ struct StartView: View {
                 }
             }
             .navigationTitle("MLC Chat")
-            .alert("Error", isPresented: $state.alertDisplayed, actions: {
+            .alert("Error", isPresented: $appState.alertDisplayed, actions: {
                 Button("OK") {}
             }, message: {
-                Text(state.alertMessage)
+                Text(appState.alertMessage)
             })
-
         }
     }
 }

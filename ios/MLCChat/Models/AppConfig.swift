@@ -16,11 +16,11 @@ struct AppConfig: Codable {
 
     let modelLibs: [String]
     var modelList: [ModelRecord]
-    let addModelSamples: [ModelRecord]
+    let exampleModels: [ModelRecord]
 
     enum CodingKeys: String, CodingKey {
         case modelLibs = "model_libs"
         case modelList = "model_list"
-        case addModelSamples = "add_model_samples"
+        case exampleModels = "add_model_samples"
     }
 }

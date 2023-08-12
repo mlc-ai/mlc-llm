@@ -30,7 +30,7 @@ final class ModelState: ObservableObject, Identifiable {
     @Published var total: Int = 1
 
     private var modelLocalBaseURL: URL
-    private var startState: StartState
+    private var startState: AppState
     private var chatState: ChatState
 
     private let fileManager: FileManager = FileManager.default
@@ -43,7 +43,7 @@ final class ModelState: ObservableObject, Identifiable {
 
     init(modelConfig: ModelConfig,
          modelLocalBaseURL: URL,
-         startState: StartState,
+         startState: AppState,
          chatState: ChatState) {
         self.modelConfig = modelConfig
         self.modelLocalBaseURL = modelLocalBaseURL

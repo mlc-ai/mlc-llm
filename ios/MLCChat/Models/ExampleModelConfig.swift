@@ -1,11 +1,11 @@
 //
-//  ExampleModelUrl.swift
+//  ExampleModelConfig.swift
 //  MLCChat
 //
 
 import Foundation
 
-struct ExampleModelURL: Identifiable {
+struct ExampleModelConfig: Identifiable {
     let id = UUID()
     let modelURL: String
     let localID: String
