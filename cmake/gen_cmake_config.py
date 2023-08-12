@@ -3,9 +3,20 @@ from collections import namedtuple
 Backend = namedtuple("Backend", ["name", "cmake_config_name", "prompt_str"])
 
 if __name__ == "__main__":
-    cmake_config_str = "set(CMAKE_BUILD_TYPE RelWithDebInfo)\n"
+    tvm_home = ""
+
+    tvm_home = input(
+        "Enter TVM_HOME in absolute path. If not specified, 3rdparty/tvm will be used by default: "
+    )
+    if len(tvm_home) == 0:
+        tvm_home = "3rdparty/tvm"
+
+    cmake_config_str = "set(TVM_HOME {})\n".format(tvm_home)
+    cmake_config_str += "set(CMAKE_BUILD_TYPE RelWithDebInfo)\n"
     backends = [
         Backend("CUDA", "USE_CUDA", "Use CUDA? (y/n): "),
+        Backend("CUTLASS", "USE_CUTLASS", "Use CUTLASS? (y/n): "),
+        Backend("CUBLAS", "USE_CUBLAS", "Use CUBLAS? (y/n): "),
         Backend("ROCm", "USE_ROCM", "Use ROCm? (y/n): "),
         Backend("Vulkan", "USE_VULKAN", "Use Vulkan? (y/n): "),
         Backend(
@@ -31,8 +42,9 @@ if __name__ == "__main__":
                 break
             else:
                 print("Invalid input: {}. Please input again.".format(use_backend))
+
+    print("\nWriting the following configuration to config.cmake...")
     print(cmake_config_str)
-    print("Writing configuration to config.cmake...")
 
     with open("config.cmake", "w") as f:
         f.write(cmake_config_str)
