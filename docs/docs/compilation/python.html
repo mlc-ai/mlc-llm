@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Install Conda &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Python API for Model Compilation &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -46,8 +46,8 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="GPU Drivers and SDKs" href="gpu.html" />
-    <link rel="prev" title="Install TVM Unity" href="tvm.html" /> 
+    <link rel="next" title="Define New Model Architectures" href="../tutorials/customize/define_new_models.html" />
+    <link rel="prev" title="Distribute Compiled Models" href="distribute_compiled_models.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -180,10 +180,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Models via MLC</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/python.html">Python API for Model Compilation</a></li>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Models via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distribute_compiled_models.html">Distribute Compiled Models</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Python API for Model Compilation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#install-mlc-llm-as-a-package">Install MLC-LLM as a Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#compiling-model-in-python">Compiling Model in Python</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#api-reference">API Reference</a></li>
+</ul>
+</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
 <ul>
@@ -194,15 +199,11 @@
 <li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Unity</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Install Conda</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#install-miniconda">Install Miniconda</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#validate-installation">Validate installation</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="gpu.html">GPU Drivers and SDKs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="emcc.html">Install Wasm Build Environment</a></li>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/conda.html">Install Conda</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/gpu.html">GPU Drivers and SDKs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/emcc.html">Install Wasm Build Environment</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Community</span></p>
 <ul>
@@ -264,7 +265,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Install Conda</li>
+      <li>Python API for Model Compilation</li>
     
     
       
@@ -275,7 +276,7 @@
         
             
             
-              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/install/conda.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/compilation/python.rst" class="fa fa-github"> Edit on GitHub</a>
             
           
         
@@ -289,77 +290,58 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="install-conda">
-<h1><a class="toc-backref" href="#id5" role="doc-backlink">Install Conda</a><a class="headerlink" href="#install-conda" title="Permalink to this heading">¶</a></h1>
-<p>MLC LLM does not depend on, but generally recommends conda as a generic dependency manager, primarily because it creates unified cross-platform experience to make windows/Linux/macOS development equally easy. Moreover, conda is python-friendly and provides all the python packages needed for MLC LLM, such as numpy.</p>
-<nav class="contents" id="table-of-contents">
+  <section id="python-api-for-model-compilation">
+<h1>Python API for Model Compilation<a class="headerlink" href="#python-api-for-model-compilation" title="Permalink to this heading">¶</a></h1>
+<nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#install-conda" id="id5">Install Conda</a></p>
-<ul>
-<li><p><a class="reference internal" href="#install-miniconda" id="id6">Install Miniconda</a></p></li>
-<li><p><a class="reference internal" href="#validate-installation" id="id7">Validate installation</a></p></li>
-</ul>
-</li>
+<li><p><a class="reference internal" href="#install-mlc-llm-as-a-package" id="id1">Install MLC-LLM as a Package</a></p></li>
+<li><p><a class="reference internal" href="#compiling-model-in-python" id="id2">Compiling Model in Python</a></p></li>
+<li><p><a class="reference internal" href="#api-reference" id="id3">API Reference</a></p></li>
 </ul>
 </nav>
-<section id="install-miniconda">
-<h2><a class="toc-backref" href="#id6" role="doc-backlink">Install Miniconda</a><a class="headerlink" href="#install-miniconda" title="Permalink to this heading">¶</a></h2>
-<p><strong>Use installer.</strong> Miniconda, a minimal distribution of conda, comes with out-of-box installer across Windows/macOS/Linux. Please refer to its <a class="reference external" href="https://docs.conda.io/en/latest/miniconda.html#latest-miniconda-installer-links">official website</a> link for detailed instructions.</p>
-<p><strong>Set libmamba as the dependency solver.</strong> The default dependency solver in conda could be slow in certain scenarios, and it is always recommended to upgrade it to libmamba, a faster solver.</p>
-<div class="literal-block-wrapper docutils container" id="id1">
-<div class="code-block-caption"><span class="caption-text">Set libmamba as the default solver</span><a class="headerlink" href="#id1" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># update conda</span>
-conda<span class="w"> </span>update<span class="w"> </span>--yes<span class="w"> </span>-n<span class="w"> </span>base<span class="w"> </span>-c<span class="w"> </span>defaults<span class="w"> </span>conda
-<span class="c1"># install `conda-libmamba-solver`</span>
-conda<span class="w"> </span>install<span class="w"> </span>--yes<span class="w"> </span>-n<span class="w"> </span>base<span class="w"> </span>conda-libmamba-solver
-<span class="c1"># set it as the default solver</span>
-conda<span class="w"> </span>config<span class="w"> </span>--set<span class="w"> </span>solver<span class="w"> </span>libmamba
+<p>We expose Python API for compiling/building model in the package <code class="xref py py-mod docutils literal notranslate"><span class="pre">mlc_llm</span></code>, so
+that users may build model in any directory in their program (i.e. not just
+within the mlc-llm repo).</p>
+<section id="install-mlc-llm-as-a-package">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Install MLC-LLM as a Package</a><a class="headerlink" href="#install-mlc-llm-as-a-package" title="Permalink to this heading">¶</a></h2>
+<p>To install, we first clone the repository (as mentioned in
+<a class="reference internal" href="compile_models.html#compile-models-via-mlc"><span class="std std-ref">Compile Models via MLC</span></a>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># clone the repository</span>
+git<span class="w"> </span>clone<span class="w"> </span>git@github.com:mlc-ai/mlc-llm.git<span class="w"> </span>--recursive
 </pre></div>
 </div>
+<p>Afterwards, we use <code class="docutils literal notranslate"><span class="pre">pip</span></code> to install <code class="xref py py-mod docutils literal notranslate"><span class="pre">mlc_llm</span></code> as a package so that we can
+use it in any directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># enter to root directory of the repo</span>
+<span class="nb">cd</span><span class="w"> </span>mlc-llm
+<span class="c1"># install the package</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Conda is a generic dependency manager, which is not necessarily related to any Python distributions.
-In fact, some of our tutorials recommends to use conda to install cmake, git and rust for its unified experience across OS platforms.</p>
+<p>To verify installation, you are expected to see information about the package
+<code class="xref py py-mod docutils literal notranslate"><span class="pre">mlc_llm</span></code> even if you are not in the directory of <code class="docutils literal notranslate"><span class="pre">mlc-llm</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import mlc_llm; print(mlc_llm)&quot;</span>
+</pre></div>
 </div>
 </section>
-<section id="validate-installation">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Validate installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h2>
-<p><strong>Step 1. Check conda-arch mismatch.</strong> Nowadays macOS runs on two different architectures: arm64 and x86_64, which could particularly lead to many misuses in MLC LLM, where the error message hints about “architecture mismatch”. Use the following command to make sure particular conda architecture is installed accordingly:</p>
-<div class="literal-block-wrapper docutils container" id="id2">
-<div class="code-block-caption"><span class="caption-text">Check conda architecture</span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>conda<span class="w"> </span>info<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>platform
-<span class="c1"># for arm mac</span>
-platform<span class="w"> </span>:<span class="w"> </span>osx-arm64
-<span class="c1"># for x86 mac</span>
-platform<span class="w"> </span>:<span class="w"> </span>osx-64
-</pre></div>
-</div>
-</div>
-<p><strong>Step 2. Check conda virtual environment.</strong> If you have installed python in your conda virtual environment, make sure conda, Python and pip are all from this environment:</p>
-<div class="literal-block-wrapper docutils container" id="id3">
-<div class="code-block-caption"><span class="caption-text">Check conda virtual environment (macOS, Linux)</span><a class="headerlink" href="#id3" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$CONDA_PREFIX</span>
-/.../miniconda3/envs/mlc-doc-venv
-&gt;&gt;&gt;<span class="w"> </span>which<span class="w"> </span>python
-/.../miniconda3/envs/mlc-doc-venv/bin/python
-&gt;&gt;&gt;<span class="w"> </span>which<span class="w"> </span>pip
-/.../miniconda3/envs/mlc-doc-venv/bin/pip
-</pre></div>
-</div>
-</div>
-<div class="literal-block-wrapper docutils container" id="id4">
-<div class="code-block-caption"><span class="caption-text">Check conda virtual environment (Windows)</span><a class="headerlink" href="#id4" title="Permalink to this code">¶</a></div>
-<div class="highlight-bat notranslate"><div class="highlight"><pre><span></span><span class="p">&gt;&gt;</span>&gt; <span class="k">echo</span> $Env:CONDA_PREFIX
-\...\miniconda3\envs\mlc-doc-venv
-<span class="p">&gt;&gt;</span>&gt; Get-Command python.exe
-\...\miniconda3\envs\mlc-doc-venv\bin\python.exe
-<span class="p">&gt;&gt;</span>&gt; Get-Command pip.exe
-\...\miniconda3\envs\mlc-doc-venv\bin\pip.exe
-</pre></div>
-</div>
-</div>
+<section id="compiling-model-in-python">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Compiling Model in Python</a><a class="headerlink" href="#compiling-model-in-python" title="Permalink to this heading">¶</a></h2>
+<p>After installing the package, you can build the model using <code class="xref py py-meth docutils literal notranslate"><span class="pre">mlc_llm.build_model()</span></code>,
+which takes in an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">BuildArgs</span></code> (a dataclass that represents
+the arguments for building a model).</p>
+<p>For detailed instruction with code, please refer to <a class="reference external" href="https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_compile_llama2_with_mlc_llm.ipynb">the python notebook</a>
+(executable in Colab), where we walk you through compiling Llama-2 with <code class="xref py py-mod docutils literal notranslate"><span class="pre">mlc_llm</span></code>
+in Python.</p>
+</section>
+<section id="api-reference">
+<span id="api-reference-compile-model"></span><h2><a class="toc-backref" href="#id3" role="doc-backlink">API Reference</a><a class="headerlink" href="#api-reference" title="Permalink to this heading">¶</a></h2>
+<p>In order to use the python API <code class="xref py py-meth docutils literal notranslate"><span class="pre">mlc_llm.build_model()</span></code>, users need to create
+an instance of the dataclass <code class="xref py py-class docutils literal notranslate"><span class="pre">BuildArgs</span></code>. The corresponding arguments in
+command line shown in <a class="reference internal" href="compile_models.html#compile-command-specification"><span class="std std-ref">Compile Command Specification</span></a> are automatically
+converted from the definition of <code class="xref py py-class docutils literal notranslate"><span class="pre">BuildArgs</span></code> and are equivalent.</p>
+<p>Then with an instantiated <code class="xref py py-class docutils literal notranslate"><span class="pre">BuildArgs</span></code>, users can call the build API
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">mlc_llm.build_model()</span></code>.</p>
 </section>
 </section>
 
@@ -373,10 +355,10 @@ platform<span class="w"> </span>:<span class="w"> </span>osx-64
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="gpu.html" class="btn btn-neutral float-right" title="GPU Drivers and SDKs" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../tutorials/customize/define_new_models.html" class="btn btn-neutral float-right" title="Define New Model Architectures" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="tvm.html" class="btn btn-neutral float-left" title="Install TVM Unity" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="distribute_compiled_models.html" class="btn btn-neutral float-left" title="Distribute Compiled Models" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 
