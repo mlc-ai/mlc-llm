@@ -1,20 +1,20 @@
 //
 //  MessageView.swift
-
+//  MLCChat
+//
 
 import SwiftUI
 
 struct MessageView: View {
-    var role: MessageRole;
-    var message: String
+    let role: MessageRole;
+    let message: String
     
     var body: some View {
-        let textColor = role == MessageRole.user ? Color.white : Color(UIColor.label)
-        let background = role == MessageRole.user ? Color.blue : Color(
-            UIColor.secondarySystemBackground
-        )
+        let textColor = role.isUser ? Color.white : Color(UIColor.label)
+        let background = role.isUser ? Color.blue : Color(UIColor.secondarySystemBackground)
+        
         HStack {
-            if (role == MessageRole.user) {
+            if role.isUser {
                 Spacer()
             }
             Text(message)
@@ -23,7 +23,7 @@ struct MessageView: View {
                 .background(background)
                 .cornerRadius(10)
                 .textSelection(.enabled)
-            if (role != MessageRole.user) {
+            if !role.isUser {
                 Spacer()
             }
         }
@@ -33,7 +33,7 @@ struct MessageView: View {
 }
 
 struct ImageView: View {
-    var image: UIImage
+    let image: UIImage
 
     var body: some View {
         let background = Color.blue
