@@ -11,6 +11,10 @@ enum MessageRole {
     case bot
 }
 
+extension MessageRole {
+    var isUser: Bool { self == .user }
+}
+
 struct MessageData: Hashable {
     let id = UUID()
     var role: MessageRole
