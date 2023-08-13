@@ -33,6 +33,8 @@ The easiest way is to use MLC-LLM is to clone the repository, and compile models
     git clone git@github.com:mlc-ai/mlc-llm.git --recursive
     # enter to root directory of the repo
     cd mlc-llm
+    # install mlc-llm
+    pip install .
 
 Verify Installation
 ^^^^^^^^^^^^^^^^^^^
