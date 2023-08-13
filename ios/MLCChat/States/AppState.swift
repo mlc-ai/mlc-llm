@@ -148,12 +148,13 @@ private extension AppState {
     }
 
     func showAlert(message: String) {
-        DispatchQueue.main.sync {
-            if !alertDisplayed {
-                alertMessage = message
-                alertDisplayed = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if !self.alertDisplayed {
+                self.alertMessage = message
+                self.alertDisplayed = true
             } else {
-                alertMessage.append("\n" + message)
+                self.alertMessage.append("\n" + message)
             }
         }
     }
