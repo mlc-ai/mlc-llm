@@ -131,3 +131,68 @@ OpenCL SDK
 ----------
 
 OpenCL SDK is only required when you want to build your own models for OpenCL backend. Please refer to `OpenCL's Github Repository <https://github.com/KhronosGroup/OpenCL-SDK>`__ for installation guide of OpenCL-SDK.
+
+Orange Pi 5 (RK3588 based SBC)
+------------------------------
+
+OpenCL SDK and Mali GPU driver is required to compile and run models for OpenCL backend.
+
+Installation
+^^^^^^^^^^^^
+
+* Download and install the Ubuntu 22.04 for your board from `here <https://github.com/Joshua-Riek/ubuntu-rockchip/releases/tag/v1.22>`__
+
+* Download and install ``libmali-g610.so``
+
+.. code-block:: bash
+
+   cd /usr/lib && sudo wget https://github.com/JeffyCN/mirrors/raw/libmali/lib/aarch64-linux-gnu/libmali-valhall-g610-g6p0-x11-wayland-gbm.so
+
+* Check if file ``mali_csffw.bin`` exist under path ``/lib/firmware``, if not download it with command:
+
+.. code-block:: bash
+
+   cd /lib/firmware && sudo wget https://github.com/JeffyCN/mirrors/raw/libmali/firmware/g610/mali_csffw.bin
+
+* Download OpenCL ICD loader and manually add libmali to ICD
+
+.. code-block:: bash
+
+   sudo apt install mesa-opencl-icd
+   sudo mkdir -p /etc/OpenCL/vendors
+   echo "/usr/lib/libmali-valhall-g610-g6p0-x11-wayland-gbm.so" | sudo tee /etc/OpenCL/vendors/mali.icd
+
+* Download and install ``libOpenCL``
+
+.. code-block:: bash
+
+   sudo apt install ocl-icd-opencl-dev
+
+* Download and install dependencies for Mali OpenCL
+
+.. code-block:: bash
+
+   sudo apt install libxcb-dri2-0 libxcb-dri3-0 libwayland-client0 libwayland-server0 libx11-xcb1
+
+* Download and install clinfo to check if OpenCL successfully installed
+
+.. code-block:: bash
+
+   sudo apt install clinfo
+
+Validate Installation
+^^^^^^^^^^^^^^^^^^^^^
+
+To verify you have correctly installed OpenCL runtime and Mali GPU driver, run ``clinfo`` in command line and see if you can get the GPU information.
+You are expect to see the following information:
+
+.. code-block:: bash
+
+   $ clinfo
+   arm_release_ver: g13p0-01eac0, rk_so_ver: 3
+   Number of platforms                               2
+      Platform Name                                   ARM Platform
+      Platform Vendor                                 ARM
+      Platform Version                                OpenCL 2.1 v1.g6p0-01eac0.2819f9d4dbe0b5a2f89c835d8484f9cd
+      Platform Profile                                FULL_PROFILE
+      ...
