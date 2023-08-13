@@ -7,11 +7,12 @@ import SwiftUI
 import GameController
 
 struct ChatView: View {
-    @EnvironmentObject var chatState: ChatState
+    @EnvironmentObject private var chatState: ChatState
 
     @State private var inputMessage: String = ""
     @FocusState private var inputIsFocused: Bool
     @Environment(\.dismiss) private var dismiss
+    @Namespace private var messagesBottomID
 
     // vision-related properties
     @State private var showActionSheet: Bool = false
@@ -22,11 +23,7 @@ struct ChatView: View {
     
     var body: some View {
         VStack {
-            Text(chatState.infoText)
-                .multilineTextAlignment(.center)
-                .opacity(0.5)
-                .listRowSeparator(.hidden)
-
+            modelInfoView
             messagesView
             uploadImageView
             messageInputView
@@ -57,6 +54,13 @@ struct ChatView: View {
 }
 
 private extension ChatView {
+    var modelInfoView: some View {
+        Text(chatState.infoText)
+            .multilineTextAlignment(.center)
+            .opacity(0.5)
+            .listRowSeparator(.hidden)
+    }
+
     var messagesView: some View {
         ScrollViewReader { scrollViewProxy in
             ScrollView {
@@ -64,36 +68,30 @@ private extension ChatView {
                     let messageCount = chatState.messages.count
                     let hasSystemMessage = messageCount > 0 && chatState.messages[0].role == MessageRole.bot
                     let startIndex = hasSystemMessage ? 1 : 0
-                    // display conversations
-                    ForEach(chatState.messages[startIndex...].reversed()) {
-                        message in
-                        MessageView(role: message.role, message: message.message)
-                            .rotationEffect(.radians(.pi))
-                            .scaleEffect(x: -1, y: 1, anchor: .center)
-                    }
-                    // display image
-                    if let image, imageConfirmed {
-                        ImageView(image: image)
-                            .rotationEffect(.radians(.pi))
-                            .scaleEffect(x: -1, y: 1, anchor: .center)
-                    }
+
                     // display the system message
                     if hasSystemMessage {
                         MessageView(role: chatState.messages[0].role, message: chatState.messages[0].message)
-                            .rotationEffect(.radians(.pi))
-                            .scaleEffect(x: -1, y: 1, anchor: .center)
                     }
-                }
-                .id("MessageHistory")
 
+                    // display image
+                    if let image, imageConfirmed {
+                        ImageView(image: image)
+                    }
+
+                    // display conversations
+                    ForEach(chatState.messages[startIndex...], id: \.id) { message in
+                        MessageView(role: message.role, message: message.message)
+                    }
+                    HStack { EmptyView() }
+                        .id(messagesBottomID)
+                }
             }
             .onChange(of: chatState.messages) { _ in
-                withAnimation{
-                    scrollViewProxy.scrollTo("MessageHistory", anchor: .top)
+                withAnimation {
+                    scrollViewProxy.scrollTo(messagesBottomID, anchor: .bottom)
                 }
             }
-            .rotationEffect(.radians(.pi))
-            .scaleEffect(x: -1, y: 1, anchor: .center)
         }
     }
 
@@ -125,24 +123,26 @@ private extension ChatView {
                 .disabled(!chatState.isUploadable)
             } else {
                 VStack {
-                    Image(uiImage: image!)
-                        .resizable()
-                        .frame(width: 300, height: 300)
-                    HStack {
-                        Button("Undo") {
-                            self.image = nil
+                    if let image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .frame(width: 300, height: 300)
+
+                        HStack {
+                            Button("Undo") {
+                                self.image = nil
+                            }
+                            .padding()
+
+                            Button("Submit") {
+                                imageConfirmed = true
+                                chatState.requestProcessImage(image: image)
+                            }
+                            .padding()
                         }
-                        .padding()
-                        Button("Submit") {
-                            self.imageConfirmed = true
-                            self.chatState.requestProcessImage(image: image!)
-                        }
-                        .padding()
                     }
                 }
             }
-        } else {
-            EmptyView()
         }
     }
 

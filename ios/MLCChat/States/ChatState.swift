@@ -11,7 +11,7 @@ enum MessageRole {
     case bot
 }
 
-struct MessageData: Hashable, Identifiable {
+struct MessageData: Hashable {
     let id = UUID()
     var role: MessageRole
     var message: String
