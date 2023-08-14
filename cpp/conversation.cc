@@ -58,6 +58,7 @@ void Conversation::LoadJSONOverride(const picojson::value& config_json, bool par
     this->offset = config["offset"].get<int64_t>();
   } else {
     CHECK(partial_update) << "Key \"offset\" not found.";
+    this->offset = this->messages.size();
   }
   if (config.count("separator_style")) {
     CHECK(config["separator_style"].is<int64_t>()) << "Invalid separator style" << err_templ;
