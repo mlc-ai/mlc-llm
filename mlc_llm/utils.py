@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 import shutil
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 import tvm
 from tvm import relax
@@ -118,7 +118,10 @@ def debug_dump_benchmark_script(
         )
 
         stmt = []
-        relax_funcs, _ = extract_all_func_info_from_relax(mod)
+        try:
+            relax_funcs, _ = extract_all_func_info_from_relax(mod)
+        except NotImplementedError:
+            return
         tvm_script_prefix = "# from tvm.script import tir as T"
         for relax_func_gv in relax_funcs:  # pylint: disable=consider-using-dict-items
             for prim_func_gv in relax_funcs[relax_func_gv]:
