@@ -146,6 +146,7 @@ def debug_dump_benchmark_script(
         outfile.write("\n" + "\n".join(stmt) + "\n")
     print(f"Dump benchmarking script to {dump_path}.")
 
+
 def debug_load_script(name: str, args: argparse.Namespace):
     input_path = os.path.join(args.artifact_path, "debug", name)
     lib = {"__file__": input_path}
@@ -178,6 +179,21 @@ def convert_weights(
     model_params: List[Optional[tvm.nd.NDArray]],
     args: argparse.Namespace,
 ):
+    # Run pre-quantization if provided.
+    if param_mgr.f_run_prequantize is not None:
+        args.model_path = param_mgr.f_run_prequantize(args.model_path)
+        param_mgr.model_path = args.model_path
+    param_mgr.torch_pname2binname = (
+        param_manager.load_torch_pname2binname_map(
+            args.model_path,
+            args.use_safetensors,
+            set(param_mgr.pidx2pname.values()),
+            param_mgr.f_convert_pname_fwd,
+        )
+        if len(param_mgr.pidx2pname) != 0
+        else dict()
+    )
+
     # Create the quantization function.
     # We first create an initial one, then reorder it according to each
     # weight's location in the binary files, in the purpose of reducing

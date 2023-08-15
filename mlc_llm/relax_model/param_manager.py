@@ -164,19 +164,17 @@ class ParamManager:
 
     params: Dict[str, Parameter]
     param_names: List[str]
-    params_in_func: Dict[str, List[Parameter]]
-
-    raw_quantized_name_map: Dict[relax.Var, List[relax.Var]]
-    func_raw_name_map: Dict[str, str]
     func_raw_param_map: Dict[relax.Var, Tuple[str, Parameter]]
     param2qrange: Dict[Parameter, range]
     quantized_param_info: List[relax.TensorStructInfo]
 
     qspec_updater_classes: List[quantization.QuantSpecUpdater]
 
+    nparam_to_load: int
     f_convert_pname_fwd: Callable[[str], List[str]]
     f_convert_param_bkwd: Callable[[str, Any], Optional[List[Tuple[str, Any]]]]
     f_compute_relax_param: Callable[[str, List[Any]], Any]
+    f_run_prequantize: Optional[Callable[[str], str]]
 
     model_path: str
     use_safetensors: bool
@@ -189,11 +187,15 @@ class ParamManager:
         self.param_names = []
         self.params_in_func = {}
 
-        self.raw_quantized_name_map = {}
-        self.func_raw_name_map = {}
         self.func_raw_param_map = {}
         self.param2qrange = None
         self.quantized_param_info = None
+
+        self.nparam_to_load = None
+        self.f_convert_pname_fwd = None
+        self.f_convert_param_bkwd = None
+        self.f_compute_relax_param = None
+        self.f_run_prequantize = None
 
         self.qspec_updater_classes = []
 
@@ -230,45 +232,24 @@ class ParamManager:
         """
         if quantization_scheme.qspec_updater_class is not None:
             self.qspec_updater_classes.append(quantization_scheme.qspec_updater_class)
-        self.params_in_func[func_name] = []
+        if quantization_scheme.f_convert_param_bkwd is not None:
+            self.f_convert_param_bkwd = quantization_scheme.f_convert_param_bkwd
+        if quantization_scheme.f_compute_relax_param is not None:
+            self.f_compute_relax_param = quantization_scheme.f_compute_relax_param
+        if quantization_scheme.f_run_prequantize is not None:
+            self.f_run_prequantize = quantization_scheme.f_run_prequantize
 
+        self.params_in_func[func_name] = []
         # For each parameter in the input model, get its quantization kind and
         # register the parameter with its name and quantization kind.
         for name, relax_param in named_parameters(model).items():
-            _base_model_prefix = quantization_scheme.get_base_model_prefix()
-            if _base_model_prefix:
-                name = f"{_base_model_prefix}.{name}"
             quant_kind = f_get_param_quant_kind(name, relax_param.struct_info)
-            if quantization_scheme.pre_quantized:
-                # if pre_quantized, register the quantized tensor based on the quant_kind
-                if quantization_scheme.is_inside_layer_modules(name):
-                    quantization_spec = getattr(quantization_scheme, quant_kind.name)
-                    quantized_params = quantization_spec.get_quantized_params(name, relax_param)
-                    self.raw_quantized_name_map.setdefault(relax_param, [])
-                    for quantized_name, quantized_param in quantized_params.items():
-                        param = self._register_param(
-                            quantized_name,
-                            quantized_param,
-                            quantization_spec,
-                            func_name,
-                        )
-                        if quantized_param not in self.raw_quantized_name_map[relax_param]:
-                            self.raw_quantized_name_map[relax_param].append(quantized_param)
-                else:
-                    # do not quantize the parameters outside the layer modules
-                    param = self._register_param(
-                        name,
-                        relax_param,
-                        getattr(quantization_scheme, quant_kind.name),
-                        func_name,
-                    )
-            else:
-                param = self._register_param(
-                    name,
-                    relax_param,
-                    getattr(quantization_scheme, quant_kind.name),
-                    func_name,
-                )
+            param = self._register_param(
+                name,
+                relax_param,
+                getattr(quantization_scheme, quant_kind.name),
+                func_name,
+            )
 
             self.params_in_func[func_name].append(param)
 
@@ -314,29 +295,30 @@ class ParamManager:
             at the time of constructing the model.
         """
         self.f_convert_pname_fwd = f_convert_pname_fwd
-        self.f_convert_param_bkwd = f_convert_param_bkwd
-        self.f_compute_relax_param = f_compute_relax_param
+        if self.f_convert_param_bkwd is None:
+            self.f_convert_param_bkwd = f_convert_param_bkwd
+        if self.f_compute_relax_param is None:
+            self.f_compute_relax_param = f_compute_relax_param
 
         self.model_path = model_path
         self.use_safetensors = use_safetensors
         if self.use_safetensors:
             # Use a pointer here to prevent repeated import in tvm registered function
-            # pylint: disable=import-outside-toplevel
-            from safetensors.torch import load_file
+            from safetensors.torch import load_file  # pylint: disable=import-outside-toplevel
 
             self.safetensors_load_func = load_file
-            # pylint: enable=import-outside-toplevel
+
+        pnames_to_load = []
+        for param_name in self.param_names:
+            param = self.params[param_name]
+            loaded_names, _ = param.quant_spec.get_loaded_tensor_info(param_name, param.param_info)
+            pnames_to_load += loaded_names
+
+        self.nparam_to_load = len(pnames_to_load)
         if not no_lazy_param_loading:
-            self.pidx2pname = {pidx: pname for pidx, pname in enumerate(self.param_names)}
-            self.torch_pname2binname = load_torch_pname2binname_map(
-                self.model_path,
-                self.use_safetensors,
-                set(self.pidx2pname.values()),
-                f_convert_pname_fwd=f_convert_pname_fwd,
-            )
+            self.pidx2pname = {pidx: pname for pidx, pname in enumerate(pnames_to_load)}
         else:
             self.pidx2pname = dict()
-            self.torch_pname2binname = dict()
 
     def transform_dequantize(self, mod: tvm.IRModule) -> tvm.IRModule:
         """Apply dequantization to the input IRModule.
@@ -372,26 +354,13 @@ class ParamManager:
 
         # Define a var replacement function for applying dequantization.
         def f_replace(var: relax.Var, bb: relax.BlockBuilder) -> relax.Var:
-            if var in self.raw_quantized_name_map:
-                quantized_params = self.raw_quantized_name_map[var]
-                qparams: List[relax.Var] = []
-                for quantized_param in quantized_params:
-                    func_name, param = self.func_raw_param_map[quantized_param]
-                    quantized_tuple = func2param_var[func_name]
-                    for qparam_idx in self.param2qrange[param]:
-                        qparams.append(bb.emit(relax.TupleGetItem(quantized_tuple, qparam_idx)))
-                de_quantize = self._dequantize(
-                    param, func2param_var[func_name], bb, qparams=qparams
-                )
-                return de_quantize
-            else:
-                if var in dequantized_cache:
-                    return dequantized_cache[var]
-                assert var in self.func_raw_param_map
-                func_name, param = self.func_raw_param_map[var]
-                dequantized = self._dequantize(param, func2param_var[func_name], bb)
-                dequantized_cache[var] = dequantized
-                return dequantized
+            if var in dequantized_cache:
+                return dequantized_cache[var]
+            assert var in self.func_raw_param_map
+            func_name, param = self.func_raw_param_map[var]
+            dequantized = self._dequantize(param, func2param_var[func_name], bb)
+            dequantized_cache[var] = dequantized
+            return dequantized
 
         # Create the function mutator for applying dequantization.
         replacer = ParamReplacer(mod, func2param_var, f_replace)
@@ -411,7 +380,7 @@ class ParamManager:
         quantized_param_info: List[relax.TensorStructInfo] = []
         for name in self.param_names:
             param = self.params[name]
-            loaded_tensor_info = param.quant_spec.get_loaded_tensor_info(param.param_info)
+            _, loaded_tensor_info = param.quant_spec.get_loaded_tensor_info(name, param.param_info)
 
             provided_tensor_vars: List[relax.Var] = []
             for provided_info in loaded_tensor_info:
@@ -658,7 +627,6 @@ class ParamManager:
 
         # Record the mapping from the input relax.Var to the function name and
         # the parameter in the manager.
-        self.func_raw_name_map[var] = name
         self.func_raw_param_map[var] = (func_name, param)
         return param
 
@@ -822,21 +790,35 @@ def load_torch_pname2binname_map(
     else:
         bin_idx_path = os.path.join(model_path, "pytorch_model.bin.index.json")
         single_shard_file_name = "pytorch_model.bin"
+    single_shard_path = os.path.join(model_path, single_shard_file_name)
 
     if os.path.isfile(bin_idx_path):
         # Multiple weight shards.
         with open(bin_idx_path, "r") as f_torch_json:
             torch_bin_json = json.load(f_torch_json)
             torch_pname2binname = torch_bin_json["weight_map"]
-    else:
+    elif os.path.isfile(single_shard_path):
         # Single weight shard.
-        single_shard_path = os.path.join(model_path, single_shard_file_name)
-        assert os.path.isfile(single_shard_path)
         torch_pname2binname = {
             torch_pname: single_shard_file_name
             for relax_pname in relax_pnames
             for torch_pname in f_convert_pname_fwd(relax_pname)
         }
+    else:
+        suffix = ".safetensors" if use_safetensors else ".bin"
+        shard_names = []
+        # Collect Scan every single file with the suffix
+        for filename in os.listdir(model_path):
+            if filename.endswith(suffix):
+                shard_names.append(filename)
+        if len(shard_names) == 1:
+            torch_pname2binname = {
+                torch_pname: shard_names[0]
+                for relax_pname in relax_pnames
+                for torch_pname in f_convert_pname_fwd(relax_pname)
+            }
+        else:
+            raise ValueError("Multiple weight shard files without json map is not supported")
     return torch_pname2binname
 
 
@@ -866,7 +848,7 @@ def create_quantize_func(param_manager: ParamManager) -> tvm.IRModule:
     loaded_tensor_ranges: List[range] = []
     for name in param_manager.param_names:
         param = param_manager.params[name]
-        loaded_tensor_info = param.quant_spec.get_loaded_tensor_info(param.param_info)
+        _, loaded_tensor_info = param.quant_spec.get_loaded_tensor_info(name, param.param_info)
         loaded_tensor_ranges.append(
             range(
                 len(input_tensor_info),
