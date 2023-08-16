@@ -501,7 +501,8 @@ class LLMChat {
 
   std::vector<int32_t> PrepareBeforeEmbedding(std::string inp, bool append_conversation = true,
                                               PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
-    if (conversation_.name == "LM") {
+    if (conversation_.separator_style == SeparatorStyle::kLM ||
+        conversation_.separator_style == SeparatorStyle::kCodeCompletion) {
       this->ResetChat();
     }
     if (reset_stats_per_prefill_) {
