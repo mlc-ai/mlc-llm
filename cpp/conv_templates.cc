@@ -290,6 +290,44 @@ Conversation StableLM() {
   return conv;
 }
 
+Conversation StableCodeCompletion() {
+  Conversation conv;
+  conv.name = "stablecode_completion";
+  conv.system = "";
+  conv.roles = {"Prompt", "Code"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kCodeCompletion;
+  conv.seps = {""};
+  conv.role_msg_sep = "";
+  conv.role_empty_sep = "";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {0};
+  conv.stop_str = "<|endoftext|>";
+  conv.add_bos = false;
+  return conv;
+}
+
+Conversation StableCodeInstruct() {
+  Conversation conv;
+  conv.name = "stablecode_instruct";
+  conv.system = "";
+  conv.roles = {"###Instruction", "###Response"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {""};
+  conv.role_msg_sep = "\n";
+  conv.role_empty_sep = "\n";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {0};
+  conv.stop_str = "<|endoftext|>";
+  conv.add_bos = false;
+  return conv;
+}
+
 Conversation MiniGPT() {
   Conversation conv;
   conv.name = "minigpt";
@@ -366,22 +404,22 @@ Conversation VanillaLM() {
   return conv;
 }
 
-Conversation CodeGPT() {
+Conversation GPTBigCode() {
   Conversation conv;
-  conv.name = "code_gpt";
+  conv.name = "gpt_bigcode";
   conv.system = "";
   conv.roles = {"Prompt", "Code"};
   conv.messages = {};
   conv.offset = 0;
-  conv.separator_style = SeparatorStyle::kSepRoleMsg;
-  conv.seps = {"\n\n", "### End\n"};
-  conv.role_msg_sep = ":\n";
-  conv.role_empty_sep = ":\n";
+  conv.separator_style = SeparatorStyle::kCodeCompletion;
+  conv.seps = {""};
+  conv.role_msg_sep = "";
+  conv.role_empty_sep = "";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
   conv.stop_tokens = {0};
-  conv.stop_str = "### End";
-  conv.add_bos = true;
+  conv.stop_str = "<|endoftext|>";
+  conv.add_bos = false;
   return conv;
 }
 
@@ -464,10 +502,12 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"dolly", Dolly},
       {"oasst", Oasst},
       {"stablelm", StableLM},
+      {"stablecode_completion", StableCodeCompletion},
+      {"stablecode_instruct", StableCodeInstruct},
       {"minigpt", MiniGPT},
       {"moss", MOSS},
       {"LM", VanillaLM},
-      {"code_gpt", CodeGPT},
+      {"gpt_bigcode", GPTBigCode},
       {"wizardlm_7b", WizardLM7B},
       {"wizard_coder_or_math", WizardCoderOrMATH},
       {"glm", GLM},

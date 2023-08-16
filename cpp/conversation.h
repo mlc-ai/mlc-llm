@@ -17,6 +17,8 @@ namespace llm {
 enum class SeparatorStyle {
   /*! \brief Add separator between role and message. */
   kSepRoleMsg,
+  /*! \brief Code completion without separators or roles. No memory. */
+  kCodeCompletion,
   /*! \brief raw language model style, always only returns last message. */
   kLM,
 };
@@ -280,7 +282,8 @@ class Conversation {
           /* fproc_message= */ Identity,
           /* place_in_prompt= */ place_in_prompt);
     } else {
-      ICHECK(this->separator_style == SeparatorStyle::kLM) << "Unsupported separator_style";
+      ICHECK(this->separator_style == SeparatorStyle::kLM ||
+        this->separator_style == SeparatorStyle::kCodeCompletion) << "Unsupported separator_style";
       // special handle LM, LM mode have no memory
       // and only returns last one
       if (this->messages.size() >= 2) {
