@@ -84,7 +84,7 @@ class ConvConfig:
     name: Optional[str] = None
     system: Optional[str] = None
     roles: Optional[List[str]] = None
-    messages: Optional[List[str]] = None
+    messages: Optional[List[List[str]]] = None
     offset: Optional[str] = None
     separator_style: Optional[int] = None
     seps: Optional[List[str]] = None
@@ -94,6 +94,9 @@ class ConvConfig:
     stop_tokens: Optional[List[int]] = None
     add_bos: Optional[bool] = None
 
+    def __post_init__(self):
+        if self.messages is not None and self.offset is None:
+            self.offset = len(self.messages)
 
 @dataclass
 class ChatConfig:
