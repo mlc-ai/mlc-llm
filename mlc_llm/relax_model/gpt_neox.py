@@ -674,6 +674,8 @@ def get_model(
     elif model.startswith("stablelm-"):
         stop_tokens = [50278, 50279, 50277, 1, 0]
         ffn_out_dtype = "float16"
+    elif model.lower().startswith("stablecode-"):
+        stop_tokens = [0]
     elif model.lower().startswith("redpajama-"):
         stop_tokens = [0]
     else:
