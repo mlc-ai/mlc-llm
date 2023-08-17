@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 import shutil
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Sequence, Callable
 
 import tvm
 from tvm import relax
@@ -210,9 +210,11 @@ def debug_dump_shader(ex: tvm.relax.Executable, name: str, args: argparse.Namesp
 
 
 def convert_weights(
+    mod_transform: tvm.IRModule,
     param_mgr: param_manager.ParamManager,
     model_params: List[Optional[tvm.nd.NDArray]],
     args: argparse.Namespace,
+    transform_args: Sequence[relax.Expr] = [],
 ):
     # Run pre-quantization if provided.
     if param_mgr.f_run_prequantize is not None:
@@ -234,6 +236,9 @@ def convert_weights(
     # weight's location in the binary files, in the purpose of reducing
     # memory usage when loading torch weights as well as acceleration.
     mod_transform = param_manager.create_quantize_func(param_mgr)
+    # Reorder the provided transformation according to each weight's
+    # location in the binary files, in the purpose of reducing memory
+    # usage when loading torch weights as well as acceleration.
     mod_transform = ReorderTransformFunc(
         param_mgr.pidx2pname,
         param_mgr.torch_pname2binname,
@@ -277,9 +282,34 @@ def convert_weights(
     ex = relax.build(mod_transform, target=target)
     vm = relax.vm.VirtualMachine(ex, device)
     print("Start computing and quantizing weights... This may take a while.")
-    vm["transform_params"]()
+    vm["transform_params"](*transform_args)
     print("Finish computing and quantizing weights.")
     return loaded_params
+
+
+def save_lifted_params(
+    mod_transform: tvm.IRModule,
+    param_mgr: param_manager.ParamManager,
+    params: List[tvm.nd.NDArray],
+    args: argparse.Namespace,
+) -> None:
+    if args.multigpu:
+        world_size = args.num_gpus
+        for rank in range(world_size):
+            if args.multigpu == "post-fusion":
+                transform_args_list = [rank]
+            elif args.multigpu == "pre-fusion":
+                transform_args_list = [world_size, rank]
+            sharded_params = convert_weights(
+                mod_transform,
+                params,
+                args,
+                transform_args=[tvm.runtime.ShapeTuple(transform_args_list)],
+            )
+            save_params(sharded_params, args.artifact_path, rank, world_size)
+    else:
+        params = convert_weights(mod_transform, params, args)
+        save_params(params, args.artifact_path)
 
 
 def _get_params_path(artifact_path: str, rank: int, world_size: int) -> str:

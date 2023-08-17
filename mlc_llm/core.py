@@ -213,6 +213,12 @@ class BuildArgs:
             "action": "store_true",
         },
     )
+    multigpu: str = field(
+        default=None,
+        metadata={
+            "choices": ["pre-fusion", "post-fusion"],
+        },
+    )
 
 
 def convert_build_args_to_argparser() -> argparse.ArgumentParser:
@@ -240,6 +246,9 @@ def _parse_args(parsed) -> argparse.Namespace:
             raise ImportError(
                 "`use_safetensors` option is toggled, please install safetensors package."
             ) from error
+
+    if parsed.num_gpus > 1:
+        assert parsed.multigpu, "--multigpu kind not set but non-trivial num-gpus specified"
 
     parsed.export_kwargs = {}
     parsed.lib_format = "so"
@@ -332,7 +341,6 @@ def validate_config(model_path: str):
 
 def mod_transform_before_build(
     mod: tvm.IRModule,
-    param_manager: param_manager.ParamManager,
     args: argparse.Namespace,
     config: Dict,
 ) -> tvm.IRModule:
@@ -351,8 +359,6 @@ def mod_transform_before_build(
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
         if args.model.lower().startswith("rwkv-"):
             model_names += ["reset_kv_cache"]
-
-    mod = param_manager.transform_dequantize(mod)
 
     use_ft_quant = args.quantization.name in ["q4f16_ft", "q8f16_ft"]
     mod = mlc_llm.transform.FuseDecodeTranspose(skip_gemm=not use_ft_quant)(
@@ -426,11 +432,10 @@ def mod_transform_before_build(
     mod = mlc_llm.transform.FuseDecodeTake()(mod)
     mod = relax.transform.DeadCodeElimination(model_names)(mod)
     mod = mlc_llm.transform.CleanUpTIRAttrs()(mod)
-    mod_deploy = mod
 
-    utils.debug_dump_script(mod_deploy, "mod_deploy.py", args)
+    utils.debug_dump_script(mod, "mod_deploy.py", args)
 
-    return mod_deploy
+    return mod
 
 
 def dump_mlc_chat_config(
@@ -567,21 +572,38 @@ def build_model_from_args(args: argparse.Namespace):
             qspec_updater = qspec_updater_class(param_manager)
             qspec_updater.visit_module(mod)
 
-        if not args.build_model_only:
-            new_params = utils.convert_weights(param_manager, params, args)
-            utils.save_params(new_params, args.artifact_path)
-            if args.model_category != "minigpt":
-                utils.copy_tokenizer(args)
-            if args.model_category == "rwkv":
-                # TODO: refactor config into model definition
-                dump_mlc_chat_config(args, top_p=0.6, temperature=1.2, repetition_penalty=0.996)
-            else:
-                dump_mlc_chat_config(args)
+        # transform_dequantize is permitted to change the input
+        # arguments of the end-to-end model, such that the function
+        # now accepts transformed arguments.
+        mod = param_manager.transform_dequantize(mod)
+        params = utils.convert_weights(
+            mlc_llm.relax_model.param_manager.create_quantize_func(param_manager),
+            param_manager,
+            params,
+            args,
+        )
 
-        if args.convert_weight_only:
-            exit(0)
+        # mod_transform_before_build is not permitted to change the
+        # input arguments.
+        mod = mod_transform_before_build(mod, args, config)
 
-        mod = mod_transform_before_build(mod, param_manager, args, model_config)
+        # LiftTransformParams is not permitted to change the
+        # input arguments, only to break up a single function call
+        # `func(activations,weights)` into a series of two function
+        # calls `func(activations, preprocess(weights))`.
+        mod = relax.transform.LiftTransformParams()(mod)
+        mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod)
+
+        utils.save_lifted_params(mod_transform, param_manager, params, args)
+
+        if args.model_category != "minigpt":
+            utils.copy_tokenizer(args)
+        if args.model_category == "rwkv":
+            # TODO: refactor config into model definition
+            dump_mlc_chat_config(args, top_p=0.6, temperature=1.2, repetition_penalty=0.996)
+        else:
+            dump_mlc_chat_config(args)
+
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)
         print(f"Save a cached module to {cache_path}.")
