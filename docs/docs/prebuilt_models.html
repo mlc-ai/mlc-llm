@@ -321,21 +321,26 @@ The models have undergone extensive testing on various devices, and their perfor
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Model code</p></th>
-<th class="head"><p>Model Series</p></th>
+<th class="head"><p>Original Model</p></th>
 <th class="head"><p>Quantization Mode</p></th>
 <th class="head"><p>Hugging Face repo</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><cite>Llama-2-7b-q4f16_1</cite></p></td>
-<td><p><a class="reference external" href="https://ai.meta.com/llama/">Llama</a></p></td>
+<tr class="row-even"><td><p><cite>Llama-2-{7, 13, 70}b-chat-hf-q4f16_1</cite></p></td>
+<td><p><a class="reference external" href="https://ai.meta.com/llama/">Llama-2</a></p></td>
 <td><ul class="simple">
 <li><p>Weight storage data type: int4</p></li>
 <li><p>Running data type: float16</p></li>
 <li><p>Symmetric quantization</p></li>
 </ul>
 </td>
-<td><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1">link</a></p></td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1">7B link</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1">13B link</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1">70B link</a></p></li>
+</ul>
+</td>
 </tr>
 <tr class="row-odd"><td><p><cite>vicuna-v1-7b-q3f16_0</cite></p></td>
 <td><p><a class="reference external" href="https://lmsys.org/blog/2023-03-30-vicuna/">Vicuna</a></p></td>
@@ -357,7 +362,7 @@ The models have undergone extensive testing on various devices, and their perfor
 </td>
 <td><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1">link</a></p></td>
 </tr>
-<tr class="row-odd"><td><p><cite>rwkv-raven-1b5-q8f16_0</cite></p></td>
+<tr class="row-odd"><td><p><cite>rwkv-raven-{1b5, 3b, 7b}-q8f16_0</cite></p></td>
 <td><p><a class="reference external" href="https://github.com/BlinkDL/RWKV-LM">RWKV</a></p></td>
 <td><ul class="simple">
 <li><p>Weight storage data type: uint8</p></li>
@@ -365,27 +370,97 @@ The models have undergone extensive testing on various devices, and their perfor
 <li><p>Symmetric quantization</p></li>
 </ul>
 </td>
-<td><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0">link</a></p></td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0">1b5 link</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0">3b link</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0">7b link</a></p></li>
+</ul>
+</td>
 </tr>
-<tr class="row-even"><td><p><cite>rwkv-raven-3b-q8f16_0</cite></p></td>
-<td><p><a class="reference external" href="https://github.com/BlinkDL/RWKV-LM">RWKV</a></p></td>
+<tr class="row-even"><td><p><cite>WizardLM-13B-V1.2-{q4f16_1, q4f32_1}</cite></p></td>
+<td><p><a class="reference external" href="https://github.com/nlpxucan/WizardLM">WizardLM</a></p></td>
 <td><ul class="simple">
-<li><p>Weight storage data type: uint8</p></li>
-<li><p>Running data type: float16</p></li>
+<li><p>Weight storage data type: int4</p></li>
+<li><p>Running data type: float{16, 32}</p></li>
 <li><p>Symmetric quantization</p></li>
 </ul>
 </td>
-<td><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0">link</a></p></td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-WizardLM-13B-V1.2-q4f16_1">q4f16_1 link</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-WizardLM-13B-V1.2-q4f32_1">q4f32_1 link</a></p></li>
+</ul>
+</td>
 </tr>
-<tr class="row-odd"><td><p><cite>rwkv-raven-7b-q8f16_0</cite></p></td>
-<td><p><a class="reference external" href="https://github.com/BlinkDL/RWKV-LM">RWKV</a></p></td>
+<tr class="row-odd"><td><p><cite>WizardCoder-15B-V1.0-{q4f16_1, q4f32_1}</cite></p></td>
+<td><p><a class="reference external" href="https://github.com/nlpxucan/WizardLM">WizardCoder</a></p></td>
 <td><ul class="simple">
-<li><p>Weight storage data type: uint8</p></li>
+<li><p>Weight storage data type: int4</p></li>
+<li><p>Running data type: float{16, 32}</p></li>
+<li><p>Symmetric quantization</p></li>
+</ul>
+</td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f16_1">q4f16_1 link</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f32_1">q4f32_1 link</a></p></li>
+</ul>
+</td>
+</tr>
+<tr class="row-even"><td><p><cite>WizardMath-{7, 13, 70}B-V1.0-q4f16_1</cite></p></td>
+<td><p><a class="reference external" href="https://github.com/nlpxucan/WizardLM">WizardMath</a></p></td>
+<td><ul class="simple">
+<li><p>Weight storage data type: int4</p></li>
 <li><p>Running data type: float16</p></li>
 <li><p>Symmetric quantization</p></li>
 </ul>
 </td>
-<td><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0">link</a></p></td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-WizardMath-7B-V1.0-q4f16_1">7B link</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-WizardMath-13B-V1.0-q4f16_1">13B link</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-WizardMath-70B-V1.0-q4f16_1">70B link</a></p></li>
+</ul>
+</td>
+</tr>
+<tr class="row-odd"><td><p><cite>llama2-7b-chat-uncensored-{q4f16_1, q4f32_1}</cite></p></td>
+<td><p><a class="reference external" href="https://huggingface.co/georgesung/llama2_7b_chat_uncensored">georgesung</a></p></td>
+<td><ul class="simple">
+<li><p>Weight storage data type: int4</p></li>
+<li><p>Running data type: float{16, 32}</p></li>
+<li><p>Symmetric quantization</p></li>
+</ul>
+</td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-georgesung-llama2-7b-chat-uncensored-q4f16_1">q4f16_1 link</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-georgesung-llama2-7b-chat-uncensored-q4f32_1">q4f32_1 link</a></p></li>
+</ul>
+</td>
+</tr>
+<tr class="row-even"><td><p><cite>Llama2-Chinese-7b-Chat-{q4f16_1, q4f32_1}</cite></p></td>
+<td><p><a class="reference external" href="https://github.com/FlagAlpha/Llama2-Chinese">FlagAlpha</a></p></td>
+<td><ul class="simple">
+<li><p>Weight storage data type: int4</p></li>
+<li><p>Running data type: float{16, 32}</p></li>
+<li><p>Symmetric quantization</p></li>
+</ul>
+</td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-FlagAlpha-Llama2-Chinese-7b-Chat-q4f16_1">q4f16_1 link</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-FlagAlpha-Llama2-Chinese-7b-Chat-q4f32_1">q4f32_1 link</a></p></li>
+</ul>
+</td>
+</tr>
+<tr class="row-odd"><td><p><cite>GOAT-7B-Community-{q4f16_1, q4f32_1}</cite></p></td>
+<td><p><a class="reference external" href="https://huggingface.co/GOAT-AI/GOAT-7B-Community">GOAT-AI</a></p></td>
+<td><ul class="simple">
+<li><p>Weight storage data type: int4</p></li>
+<li><p>Running data type: float{16, 32}</p></li>
+<li><p>Symmetric quantization</p></li>
+</ul>
+</td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-GOAT-7B-Community-q4f16_1">q4f16_1 link</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/mlc-chat-GOAT-7B-Community-q4f32_1">q4f32_1 link</a></p></li>
+</ul>
+</td>
 </tr>
 </tbody>
 </table>
@@ -497,7 +572,7 @@ For example, if you compile <a class="reference external" href="https://github.c
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><cite>vicuna-v1-7b-q3f16_0</cite></p></td>
+<tr class="row-even"><td><p><cite>Llama-2-7b-chat-hf-q3f16_1</cite></p></td>
 <td><p>LLaMA</p></td>
 <td><ul class="simple">
 <li><p>Weight storage data type: int3</p></li>
@@ -506,7 +581,16 @@ For example, if you compile <a class="reference external" href="https://github.c
 </ul>
 </td>
 </tr>
-<tr class="row-odd"><td><p><cite>RedPajama-INCITE-Chat-3B-v1-q4f16_1</cite></p></td>
+<tr class="row-odd"><td><p><cite>vicuna-v1-7b-q3f16_0</cite></p></td>
+<td><p>LLaMA</p></td>
+<td><ul class="simple">
+<li><p>Weight storage data type: int3</p></li>
+<li><p>Running data type: float16</p></li>
+<li><p>Symmetric quantization</p></li>
+</ul>
+</td>
+</tr>
+<tr class="row-even"><td><p><cite>RedPajama-INCITE-Chat-3B-v1-q4f16_1</cite></p></td>
 <td><p>GPT-NeoX</p></td>
 <td><ul class="simple">
 <li><p>Weight storage data type: int4</p></li>
@@ -592,6 +676,8 @@ For example, if you compile <a class="reference external" href="https://github.c
 <li><p><a class="reference external" href="https://huggingface.co/gorilla-llm/gorilla-7b-hf-delta-v0">Gorilla</a></p></li>
 <li><p><a class="reference external" href="https://github.com/nlpxucan/WizardLM">WizardLM</a></p></li>
 <li><p><a class="reference external" href="https://github.com/RUC-GSAI/YuLan-Chat">YuLan-Chat</a></p></li>
+<li><p><a class="reference external" href="https://github.com/nlpxucan/WizardLM/tree/main/WizardMath">WizardMath</a></p></li>
+<li><p><a class="reference external" href="https://github.com/FlagAlpha/Llama2-Chinese">FlagAlpha Llama-2 Chinese</a></p></li>
 </ul>
 </td>
 </tr>

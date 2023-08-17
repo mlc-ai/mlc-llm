@@ -25,15 +25,17 @@ Prebuilt Models for CLI
   :header-rows: 1
 
   * - Model code
-    - Model Series
+    - Original Model
     - Quantization Mode
     - Hugging Face repo
-  * - `Llama-2-7b-q4f16_1`
-    - `Llama <https://ai.meta.com/llama/>`__
+  * - `Llama-2-{7, 13, 70}b-chat-hf-q4f16_1`
+    - `Llama-2 <https://ai.meta.com/llama/>`__
     - * Weight storage data type: int4
       * Running data type: float16
       * Symmetric quantization
-    - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
+    - * `7B link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
+      * `13B link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1>`__
+      * `70B link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1>`__
   * - `vicuna-v1-7b-q3f16_0`
     - `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
     - * Weight storage data type: int3
@@ -46,24 +48,58 @@ Prebuilt Models for CLI
       * Running data type: float16
       * Symmetric quantization
     - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
-  * - `rwkv-raven-1b5-q8f16_0`
+  * - `rwkv-raven-{1b5, 3b, 7b}-q8f16_0`
     - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
     - * Weight storage data type: uint8
       * Running data type: float16
       * Symmetric quantization
-    - `link <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0>`__
-  * - `rwkv-raven-3b-q8f16_0`
-    - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
-    - * Weight storage data type: uint8
+    - * `1b5 link <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0>`__
+      * `3b link <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0>`__
+      * `7b link <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0>`__
+  * - `WizardLM-13B-V1.2-{q4f16_1, q4f32_1}`
+    - `WizardLM <https://github.com/nlpxucan/WizardLM>`__
+    - * Weight storage data type: int4
+      * Running data type: float{16, 32}
+      * Symmetric quantization
+    - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-13B-V1.2-q4f16_1>`__
+      * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-13B-V1.2-q4f32_1>`__
+  * - `WizardCoder-15B-V1.0-{q4f16_1, q4f32_1}`
+    - `WizardCoder <https://github.com/nlpxucan/WizardLM>`__
+    - * Weight storage data type: int4
+      * Running data type: float{16, 32}
+      * Symmetric quantization
+    - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f16_1>`__
+      * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f32_1>`__
+  * - `WizardMath-{7, 13, 70}B-V1.0-q4f16_1`
+    - `WizardMath <https://github.com/nlpxucan/WizardLM>`__
+    - * Weight storage data type: int4
       * Running data type: float16
       * Symmetric quantization
-    - `link <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0>`__
-  * - `rwkv-raven-7b-q8f16_0`
-    - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
-    - * Weight storage data type: uint8
-      * Running data type: float16
+    - * `7B link <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-7B-V1.0-q4f16_1>`__
+      * `13B link <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-13B-V1.0-q4f16_1>`__
+      * `70B link <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-70B-V1.0-q4f16_1>`__
+  * - `llama2-7b-chat-uncensored-{q4f16_1, q4f32_1}`
+    - `georgesung <https://huggingface.co/georgesung/llama2_7b_chat_uncensored>`__
+    - * Weight storage data type: int4
+      * Running data type: float{16, 32}
       * Symmetric quantization
-    - `link <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0>`__
+    - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-georgesung-llama2-7b-chat-uncensored-q4f16_1>`__
+      * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-georgesung-llama2-7b-chat-uncensored-q4f32_1>`__
+  * - `Llama2-Chinese-7b-Chat-{q4f16_1, q4f32_1}`
+    - `FlagAlpha <https://github.com/FlagAlpha/Llama2-Chinese>`__
+    - * Weight storage data type: int4
+      * Running data type: float{16, 32}
+      * Symmetric quantization
+    - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-FlagAlpha-Llama2-Chinese-7b-Chat-q4f16_1>`__
+      * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-FlagAlpha-Llama2-Chinese-7b-Chat-q4f32_1>`__
+  * - `GOAT-7B-Community-{q4f16_1, q4f32_1}`
+    - `GOAT-AI <https://huggingface.co/GOAT-AI/GOAT-7B-Community>`__
+    - * Weight storage data type: int4
+      * Running data type: float{16, 32}
+      * Symmetric quantization
+    - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-GOAT-7B-Community-q4f16_1>`__
+      * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-GOAT-7B-Community-q4f32_1>`__
+
 
 To download and run one model with CLI, follow the instructions below:
 
@@ -179,6 +215,11 @@ For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/op
   * - Model library name
     - Model Family
     - Quantization Mode
+  * - `Llama-2-7b-chat-hf-q3f16_1`
+    - LLaMA
+    - * Weight storage data type: int3
+      * Running data type: float16
+      * Symmetric quantization
   * - `vicuna-v1-7b-q3f16_0`
     - LLaMA
     - * Weight storage data type: int3
@@ -247,6 +288,8 @@ MLC-LLM supports the following model architectures:
       * `Gorilla <https://huggingface.co/gorilla-llm/gorilla-7b-hf-delta-v0>`__
       * `WizardLM <https://github.com/nlpxucan/WizardLM>`__
       * `YuLan-Chat <https://github.com/RUC-GSAI/YuLan-Chat>`__
+      * `WizardMath <https://github.com/nlpxucan/WizardLM/tree/main/WizardMath>`__
+      * `FlagAlpha Llama-2 Chinese <https://github.com/FlagAlpha/Llama2-Chinese>`__
   * - ``gpt-neox``
     - `GPT-NeoX <https://github.com/EleutherAI/gpt-neox>`__
     - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_neox.py>`__
