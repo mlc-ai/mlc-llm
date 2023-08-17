@@ -955,7 +955,7 @@ def get_model(args, hf_config):
         config.position_embedding_base
         ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
     )
-    # Hardcode the cached sin/cos for 2048.
+    # Set the cached sin/cos to the max sequence length.
     # This will be eliminated further with online rotary embedding calculation.
     t = np.arange(config.max_sequence_length, dtype=inv_freq.dtype)
     freqs = np.einsum("i,j->ij", t, inv_freq)
