@@ -25,11 +25,11 @@ Prebuilt Models for CLI
   :header-rows: 1
 
   * - Model code
-    - Model Series
+    - Original Model
     - Quantization Mode
     - Hugging Face repo
   * - `Llama-2-{7, 13, 70}b-chat-hf-q4f16_1`
-    - `Llama <https://ai.meta.com/llama/>`__
+    - `Llama-2 <https://ai.meta.com/llama/>`__
     - * Weight storage data type: int4
       * Running data type: float16
       * Symmetric quantization
@@ -64,14 +64,14 @@ Prebuilt Models for CLI
     - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-13B-V1.2-q4f16_1>`__
       * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-13B-V1.2-q4f32_1>`__
   * - `WizardCoder-15B-V1.0-{q4f16_1, q4f32_1}`
-    - `WizardLM <https://github.com/nlpxucan/WizardLM>`__
+    - `WizardCoder <https://github.com/nlpxucan/WizardLM>`__
     - * Weight storage data type: int4
       * Running data type: float{16, 32}
       * Symmetric quantization
     - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f16_1>`__
       * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f32_1>`__
   * - `WizardMath-{7, 13, 70}B-V1.0-q4f16_1`
-    - `WizardLM <https://github.com/nlpxucan/WizardLM>`__
+    - `WizardMath <https://github.com/nlpxucan/WizardLM>`__
     - * Weight storage data type: int4
       * Running data type: float16
       * Symmetric quantization
