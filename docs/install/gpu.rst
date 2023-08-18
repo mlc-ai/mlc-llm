@@ -157,7 +157,7 @@ Installation
 * Download OpenCL ICD loader and manually add libmali to ICD
 
 .. code-block:: bash
-
+   sudo apt update
    sudo apt install mesa-opencl-icd
    sudo mkdir -p /etc/OpenCL/vendors
    echo "/usr/lib/libmali-valhall-g610-g6p0-x11-wayland-gbm.so" | sudo tee /etc/OpenCL/vendors/mali.icd
