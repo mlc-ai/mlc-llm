@@ -530,7 +530,7 @@ def build_model_from_args(args: argparse.Namespace):
         os.makedirs(os.path.join(args.artifact_path, "debug"), exist_ok=True)
     cache_path = os.path.join(args.artifact_path, "mod_cache_before_build.pkl")
     args.raw_params_path = os.path.join(args.artifact_path, "raw_params")
-    use_cache = args.use_cache and os.path.isfile(cache_path)        
+    use_cache = args.use_cache and os.path.isfile(cache_path)
     if args.sep_embed and args.model_category != "llama":
         raise ValueError(f"separate embedding not supported on {args.model}")
     if args.model_category != "minigpt":
