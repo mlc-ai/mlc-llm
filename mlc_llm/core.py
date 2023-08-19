@@ -358,7 +358,10 @@ def mod_transform_before_build(
     )  # pylint: disable=not-callable
 
     if "num_attention_heads" in config and "hidden_size" in config:
-        mod = fuse_split_rotary_embedding(mod, config["num_attention_heads"], config["hidden_size"])
+        if args.max_seq_len:
+            mod = fuse_split_rotary_embedding(mod, config["num_attention_heads"], config["hidden_size"], args.max_seq_len)
+        else:
+            mod = fuse_split_rotary_embedding(mod, config["num_attention_heads"], config["hidden_size"])
 
     if args.target_kind == "cuda":
         patterns = []

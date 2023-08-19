@@ -13,7 +13,7 @@ from tvm.relax.dpl import (
 from tvm.script import relax as R
 
 
-def get_split_rotary(num_attention_heads, head_dim):
+def get_split_rotary(num_attention_heads, head_dim, max_sequence_length=2048):
     hidden_size = num_attention_heads * head_dim
 
     @T.prim_func
@@ -27,8 +27,8 @@ def get_split_rotary(num_attention_heads, head_dim):
         n: T.int64,
     ):
         A = T.match_buffer(qkv, [1, 1, hidden_size * 3], dtype="float16")
-        cos = T.match_buffer(cos_h, [2048, head_dim], dtype="float16")
-        sin = T.match_buffer(sin_h, [2048, head_dim], dtype="float16")
+        cos = T.match_buffer(cos_h, [max_sequence_length, head_dim], dtype="float16")
+        sin = T.match_buffer(sin_h, [max_sequence_length, head_dim], dtype="float16")
         T_split = T.match_buffer(split_0, [1, 1, hidden_size], dtype="float16")
         T_split_1 = T.match_buffer(split_1, [1, 1, hidden_size], dtype="float16")
         T_split_2 = T.match_buffer(split_2, [1, 1, hidden_size], dtype="float16")
@@ -75,10 +75,11 @@ def get_split_rotary(num_attention_heads, head_dim):
     return split_rotary
 
 
-def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size):
+def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size, max_sequence_length=2048):
     head_dim = hidden_size // num_attention_heads
+    print(f"fuse_split_rotary_embedding {max_sequence_length}")
 
-    mod["split_rotary"] = get_split_rotary(num_attention_heads, head_dim)
+    mod["split_rotary"] = get_split_rotary(num_attention_heads, head_dim, max_sequence_length)
 
     gvar = mod.get_global_var("split_rotary")
     relax.expr._update_struct_info(gvar, mod.get_global_var("rotary_embedding1").struct_info)

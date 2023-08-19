@@ -612,13 +612,13 @@ class LlamaForCausalLM(nn.Module):
         assert config.hidden_size % config.num_attention_heads == 0
         head_dim = config.hidden_size // config.num_attention_heads
 
-        # Hardcode the cached sin/cos for 2048.
+        # Set the cached sin/cos to the max seq len.
         # This will be eliminated further with online rotary embedding calculation.
         self.cos_cached = nn.Parameter(
-            (2048, head_dim), dtype=config.dtype, name="cos_cached"
+            (config.max_sequence_length, head_dim), dtype=config.dtype, name="cos_cached"
         )
         self.sin_cached = nn.Parameter(
-            (2048, head_dim), dtype=config.dtype, name="sin_cached"
+            (config.max_sequence_length, head_dim), dtype=config.dtype, name="sin_cached"
         )
         ############ End ############
 
@@ -955,9 +955,9 @@ def get_model(args, hf_config):
         config.position_embedding_base
         ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
     )
-    # Hardcode the cached sin/cos for 2048.
+    # Set the cached sin/cos to the max sequence length.
     # This will be eliminated further with online rotary embedding calculation.
-    t = np.arange(2048, dtype=inv_freq.dtype)
+    t = np.arange(config.max_sequence_length, dtype=inv_freq.dtype)
     freqs = np.einsum("i,j->ij", t, inv_freq)
     emb = np.concatenate((freqs, freqs), axis=-1)
     param_list[-2] = tvm.nd.array(np.cos(emb).astype(config.dtype), device)
