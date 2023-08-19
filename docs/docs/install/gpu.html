@@ -447,11 +447,6 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 <ul class="simple">
 <li><p>Download OpenCL ICD loader and manually add libmali to ICD</p></li>
 </ul>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>mesa-opencl-icd
-sudo<span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span>/etc/OpenCL/vendors
-<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;/usr/lib/libmali-valhall-g610-g6p0-x11-wayland-gbm.so&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w"> </span>/etc/OpenCL/vendors/mali.icd
-</pre></div>
-</div>
 <ul class="simple">
 <li><p>Download and install <code class="docutils literal notranslate"><span class="pre">libOpenCL</span></code></p></li>
 </ul>
