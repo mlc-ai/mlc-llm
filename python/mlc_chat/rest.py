@@ -9,6 +9,7 @@ import tvm
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from dataclasses import dataclass, field, fields
 from typing import Optional
@@ -112,6 +113,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+origins = [
+    "*",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class AsyncChatCompletionStream:
     def __aiter__(self):
