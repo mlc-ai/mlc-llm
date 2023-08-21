@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 import shutil
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import tvm
 from tvm import relax
@@ -91,6 +91,35 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
     if args.quantization not in quantization_schemes:
         raise ValueError(f'Quantization "{args.quantization}" is not supported.')
     args.quantization = quantization_schemes[args.quantization]
+
+
+def split_transform_deploy_mod(
+    mod: tvm.IRModule, model_names: List[str]
+) -> Tuple[tvm.IRModule, tvm.IRModule]:
+    mod_transform = tvm.IRModule()
+    mod_deploy = tvm.IRModule()
+
+    transform_func_names = [
+        gv.name_hint for gv in mod.get_global_vars() if gv.name_hint.endswith("_transform_params")
+    ]
+    assert transform_func_names
+
+    for gv, func in mod.functions.items():
+        if gv.name_hint in transform_func_names:
+            mod_transform[gv] = func
+        elif "global_symbol" in func.attrs:
+            mod_deploy[gv] = func
+        else:
+            mod_transform[gv] = func
+            mod_deploy[gv] = func
+
+    mod_transform = relax.transform.DeadCodeElimination(transform_func_names)(mod_transform)
+    mod_deploy = relax.transform.DeadCodeElimination(model_names)(mod_deploy)
+
+    # Copy the runtime module from external codegen
+    mod_deploy = mod_deploy.with_attrs(mod.attrs)
+
+    return mod_transform, mod_deploy
 
 
 def debug_dump_script(mod, name, args: argparse.Namespace, show_meta=True):
