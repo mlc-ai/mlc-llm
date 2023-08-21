@@ -3,7 +3,8 @@ import argparse
 import json
 import os
 import shutil
-from typing import Any, Dict, List, Optional, Set, Tuple, Sequence, Callable
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Sequence
+
 
 import tvm
 from tvm import relax
@@ -236,6 +237,14 @@ def convert_weights(
     # weight's location in the binary files, in the purpose of reducing
     # memory usage when loading torch weights as well as acceleration.
     mod_transform = param_manager.create_quantize_func(param_mgr)
+    transform_func_names = [
+        gv.name_hint
+        for gv in mod_transform.get_global_vars()
+        if gv.name_hint.endswith("transform_params")
+    ]
+    assert len(transform_func_names) == 1
+    transform_func_name = transform_func_names[0]
+
     # Reorder the provided transformation according to each weight's
     # location in the binary files, in the purpose of reducing memory
     # usage when loading torch weights as well as acceleration.
@@ -282,7 +291,7 @@ def convert_weights(
     ex = relax.build(mod_transform, target=target)
     vm = relax.vm.VirtualMachine(ex, device)
     print("Start computing and quantizing weights... This may take a while.")
-    vm["transform_params"](*transform_args)
+    vm[transform_func_name](*transform_args)
     print("Finish computing and quantizing weights.")
     return loaded_params
 
