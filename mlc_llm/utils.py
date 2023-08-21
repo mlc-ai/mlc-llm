@@ -253,8 +253,26 @@ def convert_weights(
     return loaded_params
 
 
-def save_params(params: List[tvm.nd.NDArray], artifact_path: str) -> None:
+def _get_params_path(artifact_path: str, rank: int, world_size: int) -> str:
+    params_path = f"{artifact_path}/params"
+    if world_size == 1:
+        assert rank == 0
+        return params_path
+    else:
+        assert world_size > 1
+        assert 0 <= rank < world_size
+        return os.path.join(params_path, f"shardset{rank+1}-of-{world_size}")
+
+
+def save_params(
+    params: List[tvm.nd.NDArray],
+    artifact_path: str,
+    rank: int = 0,
+    world_size: int = 1,
+) -> None:
     from tvm.contrib import tvmjs  # pylint: disable=import-outside-toplevel
+
+    params_path = _get_params_path(artifact_path, rank, world_size)
 
     meta_data = {}
     param_dict = {}
@@ -267,14 +285,24 @@ def save_params(params: List[tvm.nd.NDArray], artifact_path: str) -> None:
     total_size = total_size / 1024.0 / 1024.0 / 1024.0
     print(f"Total param size: {total_size} GB")
     tvmjs.dump_ndarray_cache(
-        param_dict, f"{artifact_path}/params", meta_data=meta_data, encode_format="raw"
+        param_dict,
+        params_path,
+        meta_data=meta_data,
+        encode_format="raw",
     )
 
 
-def load_params(artifact_path: str, device) -> List[tvm.nd.NDArray]:
+def load_params(
+    artifact_path: str,
+    device,
+    rank: int = 0,
+    world_size: int = 1,
+) -> List[tvm.nd.NDArray]:
     from tvm.contrib import tvmjs  # pylint: disable=import-outside-toplevel
 
-    params, meta = tvmjs.load_ndarray_cache(f"{artifact_path}/params", device)
+    params_path = _get_params_path(artifact_path, rank, world_size)
+
+    params, meta = tvmjs.load_ndarray_cache(params_path, device)
     plist = []
     size = meta["ParamSize"]
     for i in range(size):
