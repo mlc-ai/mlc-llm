@@ -429,19 +429,18 @@ void Chat(ChatModule* chat, const std::string& device_name, std::string local_id
     } else if (input.substr(0, 6) == "/stats") {
       std::cout << chat->RuntimeStatsText() << std::endl << std::flush;
     } else if (input.substr(0, 7) == "/reload") {
-      // TODO: Handle reload path
-    //   std::string new_local_id;
-    //   {
-    //     std::string reload_prompt;
-    //     std::istringstream is(input);
-    //     is >> reload_prompt >> new_local_id;
-    //   }
-    //   if (new_local_id.empty()) {
-    //     new_local_id = local_id;
-    //   }
-    //   model = ModelPaths::Find(artifact_path, device_name, new_local_id);
-    //   chat->Reload(model);
-    //   local_id = new_local_id;
+      std::string new_local_id;
+      {
+        std::string reload_prompt;
+        std::istringstream is(input);
+        is >> reload_prompt >> new_local_id;
+      }
+      if (new_local_id.empty()) {
+        new_local_id = local_id;
+      }
+      model = ModelPaths::Find(device_name, new_local_id);
+      chat->Reload(model);
+      local_id = new_local_id;
     } else if (input.substr(0, 5) == "/help") {
       PrintSpecialCommands();
     } else {
@@ -450,34 +449,11 @@ void Chat(ChatModule* chat, const std::string& device_name, std::string local_id
   }
 }
 
-// std::string GuessLocalId(const std::filesystem::path& artifact_path, const std::string& model,
-//                          const std::string& quantization) {
-//   std::vector<std::string> local_id_candidates;
-//   std::vector<std::string> quantization_candidates =
-//       (quantization == "auto") ? quantization_presets : std::vector<std::string>{quantization};
-//   for (std::string quantization_candidate : quantization_candidates) {
-//     local_id_candidates.push_back(model + "-" + quantization_candidate);
-//   }
-//   for (const std::string& guess_local_id : local_id_candidates) {
-//     if (std::optional<std::filesystem::path> config_path =
-//             TryInferMLCChatConfig(artifact_path, guess_local_id)) {
-//       return guess_local_id;
-//     }
-//   }
-//   std::cerr << "Cannot find \"mlc-chat-config.json\" in path \"" << artifact_path << "/"
-//             << local_id_candidates[0] << "/params/\", \"" << artifact_path
-//             << "/prebuilt/" + local_id_candidates[0] << "\" or other candidate paths.";
-//   exit(1);
-// }
-
 int main(int argc, char* argv[]) {
   argparse::ArgumentParser args("mlc_chat");
 
-  args.add_argument("--local-id").default_value("");
-//   args.add_argument("--model").default_value("vicuna-v1-7b");
-//   args.add_argument("--quantization").default_value("auto");
+  args.add_argument("--local-id");
   args.add_argument("--device").default_value("auto");
-//   args.add_argument("--artifact-path").default_value("dist");
   args.add_argument("--evaluate").default_value(false).implicit_value(true);
   args.add_argument("--eval-prompt-len").default_value(128).scan<'i', int>();
   args.add_argument("--eval-gen-len").default_value(1024).scan<'i', int>();
@@ -491,29 +467,21 @@ int main(int argc, char* argv[]) {
   }
 
   std::string local_id = args.get<std::string>("--local-id");
-//   std::string model = args.get<std::string>("--model");
-//   std::string quantization = args.get<std::string>("--quantization");
   auto [device_name, device_id] = DetectDevice(args.get<std::string>("--device"));
-//   std::string artifact_path = args.get<std::string>("--artifact-path");
-
-//   if (local_id.empty()) {
-//     local_id = GuessLocalId(artifact_path, model, quantization);
-//   }
 
   try {
     ChatModule chat(GetDevice(device_name, device_id));
     if (args.get<bool>("--evaluate")) {
       // `--evaluate` is only used for performance debugging, and thus will call low-level APIs
       // that are not supposed to be used in chat app setting
-      // TODO: Handle evaluate path
-    //   int prompt_len = args.get<int>("--eval-prompt-len");
-    //   int gen_len = args.get<int>("--eval-gen-len");
-    //   ModelPaths model = ModelPaths::Find(artifact_path, device_name, local_id);
-    //   tvm::runtime::Module chat_mod = mlc::llm::CreateChatModule(GetDevice(device_name, device_id));
-    //   std::string model_path = model.config.parent_path().string();
-    //   tvm::runtime::Module lib = tvm::runtime::Module::LoadFromFile(model.lib.string());
-    //   chat_mod.GetFunction("reload")(lib, tvm::String(model_path));
-    //   chat_mod.GetFunction("evaluate")(prompt_len, gen_len);
+      int prompt_len = args.get<int>("--eval-prompt-len");
+      int gen_len = args.get<int>("--eval-gen-len");
+      ModelPaths model = ModelPaths::Find(device_name, local_id);
+      tvm::runtime::Module chat_mod = mlc::llm::CreateChatModule(GetDevice(device_name, device_id));
+      std::string model_path = model.config.parent_path().string();
+      tvm::runtime::Module lib = tvm::runtime::Module::LoadFromFile(model.lib.string());
+      chat_mod.GetFunction("reload")(lib, tvm::String(model_path));
+      chat_mod.GetFunction("evaluate")(prompt_len, gen_len);
     } else {
       Chat(&chat, device_name, local_id);
     }
