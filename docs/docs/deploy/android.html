@@ -315,7 +315,8 @@
 </section>
 <section id="build-android-package-from-source">
 <h2><a class="toc-backref" href="#id3" role="doc-backlink">Build Android Package from Source</a><a class="headerlink" href="#build-android-package-from-source" title="Permalink to this heading">¶</a></h2>
-<p>If you’re a developer looking to integrate new functionality or support different model architectures in the Android Package, you may need to build it from source. To do so, please follow the instructions provided below on building the Android package from source.</p>
+<p>If you’re a developer looking to integrate new functionality or support different model architectures in the Android Package, you may need to build it from source. To do so, please follow the instructions provided below on building the Android package from source.
+Before you begin, clone this repository and initialize the submodules, as well as install and initalize rustup.</p>
 <section id="app-build-instructions">
 <h3><a class="toc-backref" href="#id4" role="doc-backlink">App Build Instructions</a><a class="headerlink" href="#app-build-instructions" title="Permalink to this heading">¶</a></h3>
 <ol class="arabic">
@@ -353,18 +354,21 @@ python3<span class="w"> </span>build.py<span class="w"> </span>--model<span clas
 <li><p>Download <a class="reference external" href="https://developer.android.com/studio">Android Studio</a>, install the <code class="docutils literal notranslate"><span class="pre">NDK</span></code> and <code class="docutils literal notranslate"><span class="pre">CMake</span></code> via <a class="reference external" href="https://developer.android.com/studio/projects/install-ndk">SDK Manager</a>.</p></li>
 <li><p>Setup <code class="docutils literal notranslate"><span class="pre">ANDROID_NDK</span></code> and <code class="docutils literal notranslate"><span class="pre">TVM_NDK_CC</span></code> environment variable to the installed NDK compiler path:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># replace the /path/to/android/ndk to your NDK path</span>
-<span class="c1"># e.g. export ANDROID_NDK=/Users/me/Library/Android/sdk/ndk/25.2.9519653</span>
+<span class="c1"># e.g. for MacOS: export ANDROID_NDK=/Users/me/Library/Android/sdk/ndk/25.2.9519653</span>
+<span class="c1"># e.g. for Linux: export ANDROID_NDK=/home/user/Downloads/android-studio/plugins/android-ndk</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">ANDROID_NDK</span><span class="o">=</span>/path/to/android/ndk
 
 <span class="c1"># replace the /path/to/android/ndk/clang to your NDK compiler path</span>
-<span class="c1"># e.g. export TVM_NDK_CC=/Users/me/Library/Android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang</span>
+<span class="c1"># e.g. for MacOS: export TVM_NDK_CC=/Users/me/Library/Android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang</span>
+<span class="c1"># e.g. for Linux: export TVM_NDK_CC=/home/user/Downloads/android-studio/plugins/c-clangd/bin/clang/linux/x64/clangd</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">TVM_NDK_CC</span><span class="o">=</span>/path/to/android/ndk/clang
 </pre></div>
 </div>
 </li>
-<li><p>Setup <code class="docutils literal notranslate"><span class="pre">JAVA_HOME</span></code> environment varh:</p>
+<li><p>Setup <code class="docutils literal notranslate"><span class="pre">JAVA_HOME</span></code> environment variable:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># replace the /path/to/jdk to your JDK path</span>
-<span class="c1"># e.g. export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home</span>
+<span class="c1"># e.g. for MacOS: export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home</span>
+<span class="c1"># e.g. for Linux: export JAVA_HOME=/home/user/Downloads/jdk-20</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">JAVA_HOME</span><span class="o">=</span>/path/to/jdk
 </pre></div>
 </div>

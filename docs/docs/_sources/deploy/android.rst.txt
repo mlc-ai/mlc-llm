@@ -23,7 +23,8 @@ The MLC LLM Android app is free and available for download and can be tried out 
 Build Android Package from Source
 ---------------------------------
 
-If you're a developer looking to integrate new functionality or support different model architectures in the Android Package, you may need to build it from source. To do so, please follow the instructions provided below on building the Android package from source.
+If you're a developer looking to integrate new functionality or support different model architectures in the Android Package, you may need to build it from source. To do so, please follow the instructions provided below on building the Android package from source. 
+Before you begin, clone this repository and initialize the submodules, as well as install and initalize rustup.
 
 App Build Instructions
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -72,19 +73,22 @@ App Build Instructions
    .. code:: bash
 
       # replace the /path/to/android/ndk to your NDK path
-      # e.g. export ANDROID_NDK=/Users/me/Library/Android/sdk/ndk/25.2.9519653
+      # e.g. for MacOS: export ANDROID_NDK=/Users/me/Library/Android/sdk/ndk/25.2.9519653
+      # e.g. for Linux: export ANDROID_NDK=/home/user/Downloads/android-studio/plugins/android-ndk
       export ANDROID_NDK=/path/to/android/ndk
 
       # replace the /path/to/android/ndk/clang to your NDK compiler path
-      # e.g. export TVM_NDK_CC=/Users/me/Library/Android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
+      # e.g. for MacOS: export TVM_NDK_CC=/Users/me/Library/Android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
+      # e.g. for Linux: export TVM_NDK_CC=/home/user/Downloads/android-studio/plugins/c-clangd/bin/clang/linux/x64/clangd
       export TVM_NDK_CC=/path/to/android/ndk/clang
 
-5. Setup ``JAVA_HOME`` environment varh:
+5. Setup ``JAVA_HOME`` environment variable:
 
    .. code:: bash
 
       # replace the /path/to/jdk to your JDK path
-      # e.g. export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home
+      # e.g. for MacOS: export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home
+      # e.g. for Linux: export JAVA_HOME=/home/user/Downloads/jdk-20
       export JAVA_HOME=/path/to/jdk
 
 6. Build the libs for Android app and then copy the built files to the ``android/MLCChat/app/src/main/src/libs``:
