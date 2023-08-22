@@ -221,8 +221,7 @@ class ReorderTransformFunc:
         self, mod: IRModule, ctx: tvm.transform.PassContext
     ) -> IRModule:
         for gv, func in list(mod.functions.items()):
-            if isinstance(func, relax.Function):
-                assert gv.name_hint.endswith("transform_params")
+            if isinstance(func, relax.Function) and gv.name_hint.endswith("transform_params"):
                 func_updated = reorder_func(func, self.pidx2binname)
                 mod[gv] = func_updated
         return mod
