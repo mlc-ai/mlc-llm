@@ -219,6 +219,12 @@ class BuildArgs:
             "choices": ["pre-fusion", "post-fusion"],
         },
     )
+    num_gpus: int = field(
+        default=1,
+        metadata={
+            "help": "The number of GPUs to use.  If greater than 1, muiltigpu must not be None."
+        },
+    )
 
 
 def convert_build_args_to_argparser() -> argparse.ArgumentParser:
