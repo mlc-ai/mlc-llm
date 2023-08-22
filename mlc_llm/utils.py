@@ -329,13 +329,14 @@ def save_lifted_params(
                 transform_args_list = [world_size, rank]
             sharded_params = convert_weights(
                 mod_transform,
+                param_mgr,
                 params,
                 args,
                 transform_args=[tvm.runtime.ShapeTuple(transform_args_list)],
             )
             save_params(sharded_params, args.artifact_path, rank, world_size)
     else:
-        params = convert_weights(mod_transform, params, args)
+        params = convert_weights(mod_transform, param_mgr, params, args)
         save_params(params, args.artifact_path)
 
 
