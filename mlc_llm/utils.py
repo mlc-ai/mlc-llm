@@ -103,7 +103,7 @@ def debug_dump_script(
     if black_format is None:
         black_format = args.black_format
 
-    def format_script(script, dump_path: pathlib.Path):
+    def format_script(script):
         try:
             import black
         except ImportError:
@@ -125,7 +125,7 @@ def debug_dump_script(
 
     script = mod.script(show_meta=True)
     if black_format:
-        script = format_script(script, dump_path)
+        script = format_script(script)
 
     with open(dump_path, "w", encoding="utf-8") as outfile:
         outfile.write(script)
