@@ -747,7 +747,7 @@ class ParamReplacer(PyExprMutator):
             ret_struct_info=func.ret_struct_info,
             is_pure=func.is_pure,
             attrs=func.attrs,
-        ).without_attr("num_input")
+        )
 
     def visit_var_(self, var: Var) -> Expr:
         if var not in self.param_set:
