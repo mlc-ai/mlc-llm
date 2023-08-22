@@ -94,9 +94,25 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
     args.quantization = quantization_schemes[args.quantization]
 
 
-def split_transform_deploy_mod(
-    mod: tvm.IRModule, model_names: List[str]
-) -> Tuple[tvm.IRModule, tvm.IRModule]:
+def get_model_names(mod: tvm.IRModule) -> List[str]:
+    excludes = ["softmax_with_temperature", "split_rotary"]
+
+    out = []
+    for gvar, func in mod.functions.items():
+        is_model = all(
+            [
+                "global_symbol" in func.attrs,
+                len(func.params) > 0,
+                gvar.name_hint not in excludes,
+                not gvar.name_hint.endswith("_transform_params"),
+            ]
+        )
+        if is_model:
+            out.append(gvar.name_hint)
+    return out
+
+
+def split_transform_deploy_mod(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
     mod_transform = tvm.IRModule()
     mod_deploy = tvm.IRModule()
 
@@ -105,10 +121,12 @@ def split_transform_deploy_mod(
     ]
     assert transform_func_names
 
+    model_names = get_model_names(mod)
+
     for gv, func in mod.functions.items():
         if gv.name_hint in transform_func_names:
             mod_transform[gv] = func
-        elif "global_symbol" in func.attrs:
+        elif gv.name_hint in model_names:
             mod_deploy[gv] = func
         else:
             mod_transform[gv] = func
