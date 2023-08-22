@@ -524,7 +524,7 @@ class ChatModule:
     ):
         device_err_msg = (
             f"Invalid device name: {device}. Please enter the device in the form "
-            "'device_name:device_id' or 'device_name', where 'device_name' need to be "
+            "'device_name:device_id' or 'device_name', where 'device_name' needs to be "
             "one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto'."
         )
 

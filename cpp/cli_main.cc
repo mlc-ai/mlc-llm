@@ -78,7 +78,8 @@ DLDevice GetDevice(const std::string& device_name, int device_id) {
   if (device_name == "rocm") return DLDevice{kDLROCM, device_id};
   if (device_name == "vulkan") return DLDevice{kDLVulkan, device_id};
   if (device_name == "opencl" || device_name == "mali") return DLDevice{kDLOpenCL, device_id};
-  LOG(FATAL) << "Do not recognize device name " << device_name;
+  LOG(FATAL) << "Invalid device name: " << device_name << ". Please enter the device in the form 'device_name:device_id'"
+    " or 'device_name', where 'device_name' needs to be one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto'.";
   return DLDevice{kDLCPU, 0};
 }
 
@@ -137,8 +138,8 @@ void PrintSpecialCommands() {
             << "  /exit               quit the cli\n"
             << "  /stats              print out the latest stats (token/sec)\n"
             << "  /reset              restart a fresh chat\n"
-            << "  /reload [local_id]  reload model `local_id` from disk, or reload the current "
-               "model if `local_id` is not specified\n"
+            << "  /reload [model]  reload model `model` from disk, or reload the current "
+               "model if `model` is not specified\n"
             << std::endl
             << std::flush;
 }
@@ -335,8 +336,13 @@ ModelPaths ModelPaths::Find(const std::string& device_name, const std::string& l
   if (auto path = TryInferMLCChatConfig(local_id)) {
     config_path = path.value();
   } else {
-    // TODO: Add more descriptive error message.
-    std::cerr << "Cannot find \"mlc-chat-config.json\" in path" << local_id;
+    LOG(FATAL) << "The model folder provided does not seem to refer to a valid mlc-llm model folder. "
+    "Specifically, we cannot find `mlc-chat-config.json`, a required file. You should provide a path that contains the file. "
+    "According to your input `" << local_id << "`, we looked at folder(s):\n"
+    << "- " + local_id << "\n"
+    << "- dist/prebuilt/" + local_id << "\n"
+    << "- dist/" + local_id + "/params" << "\n"
+    << "- dist/prebuilt/mlc-chat-" + local_id;
     exit(1);
   }
   std::cout << "Use MLC config: " << config_path << std::endl;
@@ -368,9 +374,12 @@ ModelPaths ModelPaths::Find(const std::string& device_name, const std::string& l
           GetLibSuffixes())) {
     lib_path = path.value();
   } else {
-    // TODO: Fix error message
-    std::cerr << "Cannot find library \"" << lib_name << GetLibSuffixes().back() << "\" in "
-              << "/prebuilt/lib or other search paths" << std::endl;
+    LOG(FATAL) << "Cannot find the model library that corresponds to `" << lib_local_id << "`.\n"
+    << "We searched over the following possible paths: \n"
+    << "- " + lib_local_id << "\n"
+    << "- dist/prebuilt/lib \n"
+    << "- dist/" + local_id << "\n"
+    << "- dist/prebuilt/" + lib_local_id;
     exit(1);
   }
   std::cout << "Use model library: " << lib_path << std::endl;
@@ -406,8 +415,9 @@ void Converse(ChatModule* chat, const std::string& input, int stream_interval,
  * \brief Start a chat conversation.
  *
  * \param chat The chat module.
- * \param executable The model library to initialize the chat module.
- * \param model_path The model path with contains the model config, tokenizer and parameters.
+ * \param device_name The device that the model should run on.
+ * \param local_id The model path which contains the model config, tokenizer and parameters.
+ * \param stream_interval The interval that should be used for streaming the response.
  */
 void Chat(ChatModule* chat, const std::string& device_name, std::string local_id, int stream_interval = 2) {
   ModelPaths model = ModelPaths::Find(device_name, local_id);
@@ -452,7 +462,7 @@ void Chat(ChatModule* chat, const std::string& device_name, std::string local_id
 int main(int argc, char* argv[]) {
   argparse::ArgumentParser args("mlc_chat");
 
-  args.add_argument("--local-id");
+  args.add_argument("--model");
   args.add_argument("--device").default_value("auto");
   args.add_argument("--evaluate").default_value(false).implicit_value(true);
   args.add_argument("--eval-prompt-len").default_value(128).scan<'i', int>();
@@ -466,7 +476,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  std::string local_id = args.get<std::string>("--local-id");
+  std::string local_id = args.get<std::string>("--model");
   auto [device_name, device_id] = DetectDevice(args.get<std::string>("--device"));
 
   try {
