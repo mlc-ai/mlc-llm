@@ -139,7 +139,7 @@ set_property(TARGET mlc_llm APPEND PROPERTY LINK_OPTIONS "${MLC_VISIBILITY_FLAG}
 find_program(CARGO_EXECUTABLE cargo)
 
 if(NOT CARGO_EXECUTABLE)
-    message(FATAL_ERROR "Rust is not found! Please install Rust.")
+    message(FATAL_ERROR "Cargo is not found! Please install cargo.")
 endif()
 
 # when this option is on,
