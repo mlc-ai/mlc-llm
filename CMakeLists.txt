@@ -136,6 +136,12 @@ target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp)
 set_property(TARGET mlc_llm_module APPEND PROPERTY LINK_OPTIONS "${MLC_VISIBILITY_FLAG}")
 set_property(TARGET mlc_llm APPEND PROPERTY LINK_OPTIONS "${MLC_VISIBILITY_FLAG}")
 
+find_program(CARGO_EXECUTABLE cargo)
+
+if(NOT CARGO_EXECUTABLE)
+    message(FATAL_ERROR "Cargo is not found! Please install cargo.")
+endif()
+
 # when this option is on,
 # we install all static lib deps into lib
 if (MLC_LLM_INSTALL_STATIC_LIB)
