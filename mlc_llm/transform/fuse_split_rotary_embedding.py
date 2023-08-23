@@ -77,7 +77,6 @@ def get_split_rotary(num_attention_heads, head_dim, max_sequence_length=2048):
 
 def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size, max_sequence_length=2048):
     head_dim = hidden_size // num_attention_heads
-    print(f"fuse_split_rotary_embedding {max_sequence_length}")
 
     mod["split_rotary"] = get_split_rotary(num_attention_heads, head_dim, max_sequence_length)
 
