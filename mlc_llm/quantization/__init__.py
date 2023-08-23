@@ -229,4 +229,5 @@ quantization_schemes = {
         embedding_table="same_as_linear_weight",
         final_fc_weight="same_as_linear_weight",
     ),
+    "smq_a8q8f16": QuantizationScheme("smq_a8q8f16", NoQuantizationSpec("float16")),
 }

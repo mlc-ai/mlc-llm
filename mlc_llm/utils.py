@@ -5,7 +5,7 @@ import json
 import math
 import os
 import shutil
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
@@ -312,6 +312,31 @@ def load_params(artifact_path: str, device) -> List[tvm.nd.NDArray]:
     for i in range(size):
         plist.append(params[f"param_{i}"])
     return plist
+
+
+def split_transform_deploy_mod(
+    mod: tvm.IRModule, model_names: List[str]
+) -> Tuple[tvm.IRModule, tvm.IRModule]:
+    mod_transform = tvm.IRModule()
+    mod_deploy = tvm.IRModule()
+    transform_func_name = "transform_params"
+    transform_func_names=[]
+
+    for gv in mod.functions:
+        func = mod[gv]
+        if isinstance(func, tvm.tir.PrimFunc):
+            mod_transform[gv] = func
+            mod_deploy[gv] = func
+        elif transform_func_name in gv.name_hint:
+            mod_transform[gv] = func
+            transform_func_names.append(gv.name_hint)
+        else:
+            mod_deploy[gv] = func
+
+    mod_transform = relax.transform.DeadCodeElimination(transform_func_names)(mod_transform)
+    mod_deploy = relax.transform.DeadCodeElimination(model_names)(mod_deploy)
+
+    return mod_transform, mod_deploy
 
 
 def copy_tokenizer(args: argparse.Namespace) -> None:

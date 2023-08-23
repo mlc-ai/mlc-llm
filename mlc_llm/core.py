@@ -38,6 +38,7 @@ from tvm import relax
 from tvm.contrib.nvcc import parse_compute_version
 from tvm.relax.backend import get_patterns_with_prefix
 from tvm.relax.backend.contrib.cutlass import annotate_workspace
+from mlc_llm.quantization.smoothquant_utils import smoothquant, smoothquant_transform_params
 
 
 @dataclass
@@ -559,8 +560,12 @@ def mod_transform_before_build(
         if args.model.lower().startswith("rwkv-"):
             model_names += ["reset_kv_cache"]
 
-    mod = param_manager.transform_dequantize()(mod)
-    mod = relax.transform.BundleModelParams()(mod)
+    if args.quantization.name == "smq_a8q8f16":
+        mod = smoothquant(args, mod, model_names)
+        utils.debug_dump_script(mod, "mod_smoothquant.py", args)
+    else:
+        mod = param_manager.transform_dequantize()(mod)
+        mod = relax.transform.BundleModelParams()(mod)
 
     use_ft_quant = args.quantization.name in [
         "q4f16_ft",
@@ -649,7 +654,13 @@ def mod_transform_before_build(
     mod = mlc_llm.transform.FuseDecodeTake()(mod)
     mod = relax.transform.DeadCodeElimination(model_names)(mod)
     mod = mlc_llm.transform.CleanUpTIRAttrs()(mod)
-    mod_deploy = mod
+    if args.quantization.name == "smq_a8q8f16":
+        mod = relax.transform.LiftTransformParams()(mod)
+        mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
+        new_params = smoothquant_transform_params(args, mod_transform)
+        utils.save_params(new_params, args.artifact_path)
+    else:
+        mod_deploy = mod
 
     utils.debug_dump_script(mod_deploy, "mod_deploy.py", args)
 
