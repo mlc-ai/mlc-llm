@@ -18,25 +18,6 @@ _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/mai
 # pylint: enable=line-too-long
 
 
-def quantization_keys():
-    r"""Get the keys of all quantization schemes."""
-    return [
-        "autogptq_llama_q4f16_0",
-        "q0f16",
-        "q0f32",
-        "q3f16_0",
-        "q3f16_1",
-        "q4f16_0",
-        "q4f16_1",
-        "q4f16_2",
-        "q4f16_ft",
-        "q4f32_0",
-        "q4f32_1",
-        "q8f16_0",
-        "q8f16_ft",
-    ]
-
-
 @dataclass
 class ConvConfig:
     r"""A dataclass that represents user-defined partial configuration for conversation template.
@@ -543,7 +524,7 @@ class ChatModule:
     ):
         device_err_msg = (
             f"Invalid device name: {device}. Please enter the device in the form "
-            "'device_name:device_id' or 'device_name', where 'device_name' need to be "
+            "'device_name:device_id' or 'device_name', where 'device_name' needs to be "
             "one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto'."
         )
 
