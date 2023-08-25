@@ -53,6 +53,10 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
 
     model_conv_templates = {
         "llama-2": "llama-2",
+        "codellama-7b-instruct": "codellama_instruct",
+        "codellama-13b-instruct": "codellama_instruct",
+        "codellama-34b-instruct": "codellama_instruct",
+        "codellama": "codellama_completion",
         "vicuna-": "vicuna_v1.1",
         "dolly-": "dolly",
         "stablelm-": "stablelm",
