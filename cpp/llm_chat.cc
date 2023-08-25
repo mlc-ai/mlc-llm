@@ -909,7 +909,9 @@ class LLMChat {
   // Clear kv cache
   void ResetKVCache() { reset_kv_cache_func_(kv_cache_); }
 
-  void ProcessSystemPrompts() { this->PrefillStep(/*inp=*/"", /*append_conversation=*/false); }
+  void ProcessSystemPrompts() {
+    this->PrefillStep(/*inp=*/"", /*append_conversation=*/false, /*decode_next_token=*/false);
+  }
 
   // Utils
   static double GetRandomNumber() {
