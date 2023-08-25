@@ -91,15 +91,19 @@ class FindMatMul(tvm.relax.PyExprMutator):
         return tvm.IRModule(mod_second_mutatot)
 
     def visit_call_(self, call_node: relax.Call) -> relax.Call:
+        is_fused_matmul = "matmul" in str(call_node.op) and isinstance(
+            call_node.op, tvm.ir.expr.GlobalVar
+        )
+        is_fused_linear = "fused_relax_permute_dims_relax_matmul" in str(call_node.op)
 
-        if "matmul" in str(call_node.op) and isinstance(call_node.op, tvm.ir.expr.GlobalVar):
+        if is_fused_matmul:
             process_group = self._init_process_group()
             # rank = process_group.struct_info.values[0]
             rank = process_group.struct_info.values[0]
             # rank = 0
             world_size = self.args.num_gpus
 
-            if "linear" in str(call_node.args[0]):
+            if is_fused_linear:
                 axes_to_slice = 0
                 weights, activation, *bias = call_node.args
 
@@ -195,7 +199,7 @@ class FindMatMul(tvm.relax.PyExprMutator):
                 end=[((rank + 1) * outfeatures) // world_size],
             )
             sharded_weights = stop_lift_params(sharded_weights)
-            if "linear" in str(call_node.args[0]):
+            if is_fused_linear:
                 if bias:
                     sharded_bias = tvm.relax.op.strided_slice(
                         bias[0],
