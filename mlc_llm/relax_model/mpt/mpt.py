@@ -1,11 +1,11 @@
 import math
 import warnings
 from typing import Optional, Tuple, List, Dict
-import numpy as np
 
 import tvm
-from tvm import relax
+from tvm import relax, tir, te
 from tvm.relax.testing import nn
+from tvm.script import relax as R
 
 from .mpt_config import MPTConfig, attn_config_defaults
 from ...utils import load_torch_pname2binname_map
@@ -57,107 +57,141 @@ def _reset_is_causal(num_query_tokens: int, num_key_tokens: int, original_is_cau
   return original_is_causal
 
 
-def reshape_and_permute(hidden_states: relax.Expr, n_heads: int, d_model: int, indeces: List[int] = [0, 2, 1, 3]):
-  '''
-  Transform shape of input: b s (h d) -> b s h d -> b h s d  or  b h d s
-  '''
-  batch_size, seqlen, _ = hidden_states.struct_info.shape
-  inter = nn.emit(relax.op.reshape(
-      hidden_states,
-      (batch_size, seqlen, n_heads, int(d_model / n_heads)),
-  ))
-  return nn.emit(relax.op.permute_dims(inter, indeces))
-
-
-def reverse_reshape_and_permute(hidden_states: relax.Expr):
-  '''
-  Transform shape of input: b h s d -> b s (h d)
-  '''
-  batch_size, n_heads, seqlen, head_len = hidden_states.struct_info.shape
-  inter = nn.emit(relax.op.permute_dims(hidden_states, [0, 2, 1, 3]))
-  return nn.emit(relax.op.reshape(
-      inter,
-      (batch_size, seqlen, n_heads*head_len),
-  ))
-
-
 ######################### FLASH ATTENTION IMPLEMENTATION TYPE TORCH (BEGIN) ##########################
 
 def scaled_multihead_dot_product_attention(
-    query,
-    key,
-    value,
-    n_heads,
-    d_model,
-    past_key_value=None,
-    softmax_scale=None,
-    attn_bias=None,
-    key_padding_mask=None,
-    is_causal=False,
-    needs_weights=False,
-    multiquery=False,
+    query: relax.Expr,
+    key: relax.Expr,
+    value: relax.Expr,
+    n_heads: int,
+    d_model: int,
+    all_seq_len_shape: Optional[relax.Expr]=None,
+    past_key_value: Optional[Tuple[relax.Expr]]=None,
+    softmax_scale: Optional[float]=None,
+    attn_bias: Optional[relax.Expr]=None,
+    key_padding_mask: Optional[relax.Expr]=None,
+    is_causal: bool=False,
+    needs_weights: bool=False,
 ):
+  head_dim = d_model // n_heads
   dtype = query.struct_info.dtype
-  q = reshape_and_permute(query, n_heads, d_model)
-  kv_n_heads = 1 if multiquery else n_heads
-  k = reshape_and_permute(key, kv_n_heads, d_model, [0, 2, 3, 1])
-  v = reshape_and_permute(value, kv_n_heads, d_model)
+
+  b, s_q, _ = query.struct_info.shape
+  assert b == 1, "Only support batch size 1 at this moment."
+
+  q = nn.emit(relax.op.reshape(query, (b, s_q, n_heads, head_dim)))
+  k = nn.emit(relax.op.reshape(key, (b, -1, n_heads, head_dim)))
+  v = nn.emit(relax.op.reshape(value, (b, -1, n_heads, head_dim)))
+
   if past_key_value is not None:
-    if len(past_key_value) != 0:
-      k = nn.emit(relax.op.concat([past_key_value[0], k], axis=3))
-      v = nn.emit(relax.op.concat([past_key_value[1], v], axis=2))
-    past_key_value = (k, v)
-  (b, _, s_q, d) = q.struct_info.shape
-  s_k = k.struct_info.shape[-1]
+    kv_seq_len = all_seq_len_shape.struct_info.values[0]
+
+    kv_shape = k.struct_info.shape
+    kv_dtype = k.struct_info.dtype
+    assert kv_shape[0] == 1  # batch size
+    kv_shape = R.shape(
+        [kv_shape[0], kv_seq_len, kv_shape[2], kv_shape[3]]
+    )
+    kv_cache_shape = R.shape([kv_seq_len, kv_shape[2], kv_shape[3]])
+
+    # There is requirement b == 1 used
+    squeezed_key = nn.emit(relax.op.squeeze(k, axis=0))
+    squeezed_value = nn.emit(relax.op.squeeze(v, axis=0))
+    k_cache, v_cache = past_key_value
+    f_kv_cache_append = relax.extern("vm.builtin.attention_kv_cache_append")
+    k_cache = nn.emit(
+        relax.Call(
+            f_kv_cache_append,
+            args=[k_cache, squeezed_key],
+            sinfo_args=[relax.ObjectStructInfo()],
+        )
+    )
+    v_cache = nn.emit(
+        relax.Call(
+            f_kv_cache_append,
+            args=[v_cache, squeezed_value],
+            sinfo_args=[relax.ObjectStructInfo()],
+        )
+    )
+    past_key_value = (k_cache, v_cache)
+    f_kv_cache_view = relax.extern("vm.builtin.attention_kv_cache_view")
+    k_cache = nn.emit(
+        relax.Call(
+            f_kv_cache_view,
+            args=[k_cache, kv_cache_shape],
+            sinfo_args=[R.Tensor(kv_cache_shape, kv_dtype)],
+        )
+    )
+    v_cache = nn.emit(
+        relax.Call(
+            f_kv_cache_view,
+            args=[v_cache, kv_cache_shape],
+            sinfo_args=[R.Tensor(kv_cache_shape, kv_dtype)],
+        )
+    )
+    k = nn.emit(relax.op.reshape(k_cache, kv_shape))
+    v = nn.emit(relax.op.reshape(v_cache, kv_shape))
+  s_k = k.struct_info.shape[1]
   if softmax_scale is None:
-    softmax_scale = 1 / math.sqrt(d)
+    softmax_scale = 1 / math.sqrt(head_dim)
   # TODO(vchernov): matmul(q, k) generates inf when float16 is used. There is workaround
   if dtype != "float32":
     q = nn.emit(relax.op.astype(q, "float32"))
     k = nn.emit(relax.op.astype(k, "float32"))
   softmax_scale = relax.op.astype(relax.const(softmax_scale), q.struct_info.dtype)
-  attn_weight = nn.emit(relax.op.matmul(q, k) * softmax_scale)
-  _, _, s_q_end, s_k_end = attn_bias.struct_info.shape
+
+  q = nn.emit(relax.op.permute_dims(q, [0, 2, 1, 3]))
+  k = nn.emit(relax.op.permute_dims(k, [0, 2, 1, 3]))
+  v = nn.emit(relax.op.permute_dims(v, [0, 2, 1, 3]))
+
+  attn_weight = nn.emit(relax.op.matmul(q, relax.op.permute_dims(k, [0, 1, 3, 2])) * softmax_scale)
+  # TODO(vchernov): attn_bias.shape is None due to it is not calculated in strided_slice with dynamic input
+  # _, _, s_q_end, s_k_end = attn_bias.struct_info.shape # shape = [1, 32, 1, seq_len]
   if attn_bias is not None:
-    _s_q = np.maximum(0, s_q_end - s_q)
-    _s_k = np.maximum(0, s_k_end - s_k)
+    # s_q = 1 for use_cache = True and = seq_len otherwise
+    # s_k = seq_len always
+    # TODO(vchernov): _s_q, _s_k can not be calculated due to reason above, but
+    # Trivial symbolic arithmetic shows that:
+    # _s_q = 0 always (s_q_end - s_q <= 0)
+    # _s_k = 0
+    # _s_q = relax.op.maximum(0, s_q_end - s_q)
+    # _s_k = relax.op.maximum(0, s_k_end - s_k)
+    # TODO(vchernov): due to _s_q = 0 and _s_k = 0 the below slicing can be skipped
     # slicing attn_bias[:, :, _s_q:, _s_k:]
-    attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [2, 3], [_s_q, _s_k], [s_q_end, s_k_end]))
-    if (attn_bias.struct_info.shape[-1] != 1 and
-        attn_bias.struct_info.shape[-1] != s_k or # dynamic condition?
-        (attn_bias.struct_info.shape[-2] != 1 and
-          attn_bias.struct_info.shape[-2] != s_q)): # dynamic condition?
-      raise RuntimeError(f'attn_bias (shape: {attn_bias.struct_info.shape}) is expected to broadcast to shape: {attn_weight.struct_info.shape}.')
+    # attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [2, 3], [_s_q, _s_k], [s_q_end, s_k_end]))
     # TODO(vchernov): matmul(q, k) generates inf when float16 is used.
     if dtype != "float32":
       attn_bias = nn.emit(relax.op.astype(attn_bias, "float32"))
-    attn_weight = attn_weight + attn_bias
+    attn_weight = nn.emit(attn_weight + attn_bias)
   min_val = get_type_min_val(q)
   if key_padding_mask is not None:
     if attn_bias is not None:
       warnings.warn('Propogating key_padding_mask to the attention module ' + 'and applying it within the attention module can cause ' + 'unneccessary computation/memory usage. Consider integrating ' + 'into attn_bias once and passing that to each attention ' + 'module instead.')
-    key_mask = nn.emit(relax.op.bitwise_not(relax.op.reshape(key_padding_mask, (b, 1, 1, s_k))))
+    key_mask = nn.emit(relax.op.logical_not(relax.op.reshape(key_padding_mask, (b, 1, 1, s_k))))
     attn_weight = nn.emit(relax.op.masked_fill(attn_weight, key_mask, min_val))
-  if is_causal and (not q.struct_info.shape[2] == 1):
-      s = relax.op.maximum(s_q, s_k)
-      causal_mask = nn.emit(relax.op.ones((s, s,), dtype="float16"))
-      causal_mask = nn.emit(relax.op.tril(causal_mask))
-      causal_mask = nn.emit(relax.op.astype(causal_mask, "bool"))
-      causal_mask = nn.emit(relax.op.bitwise_not(causal_mask))
-      # slicing causal_mask[-s_q:, -s_k:]
-      s_q_end, s_k_end = causal_mask.struct_info.shape
-      causal_mask = nn.emit(relax.op.strided_slice(causal_mask, [0, 1], [s_q_end - s_q, s_k_end - s_k], [s_q_end, s_k_end]))
-      causal_mask = nn.emit(relax.op.reshape(causal_mask, (1, 1, s_q, s_k)))
-      attn_weight = nn.emit(relax.op.masked_fill(attn_weight, causal_mask, min_val))
+  if is_causal and (not s_q == 1):
+    # It is the case where is no kv cache, thus s_q == s_k
+    # s = relax.op.maximum(s_q, s_k)
+    s = s_q
+    causal_mask = nn.emit(relax.op.ones((s, s,), dtype="bool"))
+    causal_mask = nn.emit(relax.op.triu(causal_mask, 1))
+    # Due to the case the slicing below can be skipped
+    # slicing causal_mask[-s_q:, -s_k:]
+    # s_q_end, s_k_end = causal_mask.struct_info.shape
+    # causal_mask = nn.emit(relax.op.strided_slice(causal_mask, [0, 1], [s_q_end - s_q, s_k_end - s_k], [s_q_end, s_k_end]))
+    causal_mask = nn.emit(relax.op.broadcast_to(causal_mask, (b, n_heads, s, s)))
+    attn_weight = nn.emit(relax.op.masked_fill(attn_weight, causal_mask, min_val))
   # TODO(vchernov): matmul(q, k) generates inf when float16 is used.
   # There is uncast after workaround with float calculation due to softmax range = [0, 1]
   attn_weight = nn.emit(relax.op.nn.softmax(attn_weight))
   if dtype != "float32":
     attn_weight = nn.emit(relax.op.astype(attn_weight, dtype))
   out = nn.emit(relax.op.matmul(attn_weight, v))
-  out = reverse_reshape_and_permute(out)
 
-  return (out, past_key_value)
+  out = nn.emit(relax.op.permute_dims(out, [0, 2, 1, 3]))
+  out = nn.emit(relax.op.reshape(out, (b, tir.const(1, dtype="int64"), tir.const(d_model, dtype="int64"))))
+
+  return out, past_key_value
 
 ######################### FLASH ATTENTION IMPLEMENTATION TYPE TORCH (END) ##########################
 
@@ -291,7 +325,7 @@ def flash_attn_fn(
 #     (b_size, s_k) = key_padding_mask.struct_info.shape[:2]
 #     if attn_bias is None:
 #       attn_bias = nn.emit(relax.op.zeros((b_size, 1, 1, s_k), dtype=query.struct_info.dtype))
-#     key_mask = nn.emit(relax.op.bitwise_not(relax.op.reshape(key_padding_mask, (b_size, 1, 1, s_k))))
+#     key_mask = nn.emit(relax.op.logical_not(relax.op.reshape(key_padding_mask, (b_size, 1, 1, s_k))))
 #     attn_bias = nn.emit(relax.op.masked_fill(attn_bias, key_mask, get_type_min_val(query)))
 
 #   batch_size, seq_len, _ = query.struct_info.shape
@@ -371,7 +405,15 @@ class MultiheadAttention(nn.Module):
       raise ValueError(f'attn_impl={attn_impl!r} is an invalid setting.')
     self.out_proj = Linear(self.d_model, self.d_model, dtype, bias=False)
 
-  def forward(self, x, past_key_value=None, attn_bias=None, attention_mask=None, is_causal=True):
+  def forward(
+      self,
+      x: relax.Expr,
+      all_seq_len_shape: Optional[relax.Expr]=None,
+      past_key_value: Optional[Tuple[relax.Expr]]=None,
+      attn_bias: Optional[relax.Expr]=None,
+      attention_mask: Optional[relax.Expr] = None,
+      is_causal: bool=True,
+  ):
     qkv = self.Wqkv(x)
     if self.clip_qkv:
       qkv = nn.emit(relax.op.clip(qkv, min=relax.const(-self.clip_qkv), max=relax.const(self.clip_qkv)))
@@ -384,12 +426,13 @@ class MultiheadAttention(nn.Module):
       dtype = query.struct_info.dtype
       query = nn.emit(relax.op.astype(self.q_ln(query), dtype))
       key = nn.emit(relax.op.astype(self.k_ln(key), dtype))
-    attn_out = self.attn_fn(
+    attn_out, past_key_value = self.attn_fn(
         query,
         key,
         value,
         self.n_heads,
         self.d_model,
+        all_seq_len_shape=all_seq_len_shape,
         past_key_value=past_key_value,
         softmax_scale=self.softmax_scale,
         attn_bias=attn_bias,
@@ -397,7 +440,7 @@ class MultiheadAttention(nn.Module):
         is_causal=is_causal,
         needs_weights=False,
     )
-    return (self.out_proj(attn_out[0]), attn_out[1])
+    return self.out_proj(attn_out), past_key_value
 
 ATTN_CLASS_REGISTRY = {'multihead_attention': MultiheadAttention}
 
@@ -442,7 +485,8 @@ class MPTBlock(nn.Module):
   def forward(
       self,
       hidden_states: relax.Expr,
-      past_key_value: Tuple[relax.Expr],
+      all_seq_len_shape: Optional[relax.Expr]=None,
+      past_key_value: Optional[Tuple[relax.Expr]]=None,
       attn_bias: Optional[relax.Expr] = None,
       attention_mask: Optional[relax.Expr] = None,
       is_causal: bool=True,
@@ -451,8 +495,9 @@ class MPTBlock(nn.Module):
     hidden_states = self.norm_1(hidden_states)
 
     # Self Attention
-    (hidden_states, present_key_value) = self.attn(
+    hidden_states, present_key_value = self.attn(
       hidden_states,
+      all_seq_len_shape=all_seq_len_shape,
       past_key_value=past_key_value,
       attn_bias=attn_bias,
       attention_mask=attention_mask,
@@ -465,7 +510,7 @@ class MPTBlock(nn.Module):
     hidden_states = self.ffn(hidden_states)
     hidden_states = nn.emit(residual + hidden_states)
 
-    return (hidden_states, present_key_value)
+    return hidden_states, present_key_value
 
 
 def attn_bias_shape(attn_impl, n_heads, seq_len, alibi, prefix_lm, causal, use_sequence_id):
@@ -493,9 +538,9 @@ def gen_slopes(n_heads, alibi_bias_max=8):
       slopes_len = slopes.struct_info.shape[0]
       slopes = nn.emit(relax.op.strided_slice(
           relax.op.concat(
-            [relax.op.strided_slice(slopes, [0], [relax.const(1)], [slopes_len], [relax.const(2)]), # [1::2]
-             relax.op.strided_slice(slopes, [0], [relax.const(0)], [slopes_len], [relax.const(2)])] # [::2]
-          ), [0], [relax.const(0)], [relax.const(n_heads)]) # slicing [:n_heads]
+            [relax.op.strided_slice(slopes, [0], [relax.const(1, dtype="int64")], [slopes_len], [relax.const(2)]), # [1::2]
+             relax.op.strided_slice(slopes, [0], [relax.const(0, dtype="int64")], [slopes_len], [relax.const(2)])] # [::2]
+          ), [0], [relax.const(0, dtype="int64")], [relax.const(n_heads, dtype="int64")]) # slicing [:n_heads]
       )
     return nn.emit(relax.op.reshape(slopes, (1, n_heads, 1, 1)))
 
@@ -528,7 +573,7 @@ def build_attn_bias(attn_impl, attn_bias, n_heads, seq_len, causal=False, alibi=
 
 def get_type_min_val(tensor):
   return relax.const(
-      tvm.tir.min_value(tensor.struct_info.dtype).value,
+      tir.min_value(tensor.struct_info.dtype).value,
       tensor.struct_info.dtype,
   )
 
@@ -547,7 +592,6 @@ class MPTModel(nn.Module):
     self.n_heads = config.n_heads
     self.n_layers = config.n_layers
     self.max_seq_len = config.max_seq_len
-    self.return_dict = config.return_dict
     self.use_cache = config.use_cache
 
     self._attn_bias_initialized = False
@@ -575,7 +619,7 @@ class MPTModel(nn.Module):
     self.blocks = ModuleList([MPTBlock(config) for _ in range(config.n_layers)])
     self.norm_f = norm_class(config.d_model, dtype=config.dtype)
 
-  def _attn_bias(self, dtype, attention_mask: Optional[relax.Expr]=None, prefix_mask: Optional[relax.Expr]=None, sequence_id: Optional[relax.Expr]=None):
+  def _attn_bias(self, dtype, attention_mask: Optional[relax.Expr]=None):
     if not self._attn_bias_initialized:
       if self.attn_bias_shape:
         self.attn_bias = nn.emit(relax.op.zeros(self.attn_bias_shape, dtype=dtype))
@@ -588,92 +632,38 @@ class MPTModel(nn.Module):
     if self.attn_bias is not None:
       self.attn_bias = nn.emit(relax.op.astype(self.attn_bias, dtype))
     attn_bias = self.attn_bias
-    if self.prefix_lm:
-        assert isinstance(attn_bias, relax.Expr)
-        assert isinstance(prefix_mask, relax.Expr)
-        attn_bias = self._apply_prefix_mask(attn_bias, prefix_mask)
-    if self.attn_uses_sequence_id and sequence_id is not None:
-        assert isinstance(attn_bias, relax.Expr)
-        attn_bias = self._apply_sequence_id(attn_bias, sequence_id)
     if attention_mask is not None:
-      s_k = attention_mask.struct_info.shape[-1]
+      s_k = attention_mask.struct_info.shape[1] # seq_len
       if attn_bias is None:
         attn_bias = nn.emit(relax.op.zeros((1, 1, 1, s_k), dtype=dtype))
       else:
-        _s_k = relax.op.maximum(relax.const(0), attn_bias.struct_info.shape[-1] - s_k)
+        def attn_bias_te_slicing(x: te.Tensor, seq_len: tvm.tir.Var):
+          return te.compute(
+              shape=(x.shape[0], x.shape[1], x.shape[2], seq_len),
+              fcompute=lambda i, j, k, m: x[i, j, k, x.shape[3] - seq_len + m],
+              name="attn_bias_slice",
+          )
+
+        s_k_end = attn_bias.struct_info.shape[3]  # config.max_seq_len = 2048
+        # TODO(vchernov): it can not be calculated in relax
+        # _s_k = relax.op.maximum(relax.const(0), s_k_end - s_k)
         # slicing attn_bias[:, :, :, _s_k:]
-        s_k_end = attn_bias.struct_info.shape[3]
-        attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [3], [_s_k], [s_k_end]))
-      if prefix_mask is not None and attention_mask.struct_info.shape != prefix_mask.struct_info.shape:
-        raise ValueError(f'attention_mask shape={attention_mask.shape} ' + f'and prefix_mask shape={prefix_mask.shape} are not equal.')
+        # Need to use _s_k instead of s_k_end - s_k (attn_bias.shape = [1, 32, 1, seq_len])
+        # attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [3], [s_k_end - s_k], [s_k_end]))
+        attn_bias = nn.emit_te(attn_bias_te_slicing, attn_bias, s_k, primfunc_name_hint="attn_bias_slice")
       min_val = get_type_min_val(attn_bias)
-      attn_mask = nn.emit(relax.op.bitwise_not(relax.op.reshape(attention_mask, (-1, 1, 1, s_k))))
+      attn_mask = nn.emit(relax.op.logical_not(relax.op.reshape(attention_mask, (-1, 1, 1, s_k))))
       attn_bias = nn.emit(relax.op.masked_fill(attn_bias, attn_mask, min_val))
     return (attn_bias, None)
-
-  def _apply_prefix_mask(self, attn_bias: relax.Expr, prefix_mask: relax.Expr):
-    s_k = attn_bias.struct_info.shape[-2]
-    s_q = attn_bias.struct_info.shape[-1]
-    if s_k != self.max_seq_len or s_q != self.max_seq_len:
-      raise ValueError('attn_bias does not match the expected shape. ' + f'The last two dimensions should both be {self.max_seq_len} ' + f'but are {s_k} and {s_q}.')
-    seq_len = prefix_mask.struct_info.shape[-1]
-    if seq_len > self.max_seq_len:
-      raise ValueError(f'prefix_mask sequence length cannot exceed max_seq_len={self.max_seq_len}')
-    # slicing attn_bias[..., :seq_len, :seq_len]
-    dims_len = attn_bias.struct_info.ndim
-    attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [dims_len - 2, dims_len - 1], [relax.const(0), relax.const(0)], [seq_len, seq_len]))
-    causal = nn.emit(relax.op.reshape(relax.op.tril(relax.op.ones((seq_len, seq_len), dtype="bool")), (1, 1, seq_len, seq_len)))
-    prefix = nn.emit(relax.op.reshape(prefix_mask, (-1, 1, 1, seq_len)))
-    cannot_attend = nn.emit(relax.op.bitwise_not(relax.op.logical_or(causal, relax.op.astype(prefix, "bool"))))
-    min_val = get_type_min_val(attn_bias)
-    attn_bias = nn.emit(relax.op.masked_fill(attn_bias, cannot_attend, min_val))
-    return attn_bias
-
-  def _apply_sequence_id(self, attn_bias: relax.Expr, sequence_id: relax.Expr):
-    seq_len = sequence_id.struct_info.shape[-1]
-    if seq_len > self.max_seq_len:
-      raise ValueError(f'sequence_id sequence length cannot exceed max_seq_len={self.max_seq_len}')
-    # slicing attn_bias[..., :seq_len, :seq_len]
-    dims_len = attn_bias.struct_info.ndim
-    attn_bias = nn.emit(relax.op.strided_slice(attn_bias, [dims_len - 2, dims_len - 1], [relax.const(0), relax.const(0)], [seq_len, seq_len]))
-    seq_id_l = nn.emit(relax.op.reshape(sequence_id, (-1, seq_len, 1)))
-    seq_id_r = nn.emit(relax.op.reshape(sequence_id, (-1, 1, seq_len)))
-    cannot_attend = nn.emit(relax.op.expand_dims(relax.op.logical_not(relax.op.equal(seq_id_l, seq_id_r)), axis=1))
-    min_val = get_type_min_val(attn_bias)
-    attn_bias = nn.emit(relax.op.masked_fill(attn_bias, cannot_attend, min_val))
-    return attn_bias
 
   def forward(
       self,
       input_ids: relax.Expr,
-      past_key_values: Optional[List[Tuple[relax.Expr]]]=None,
+      all_seq_len_shape: Optional[relax.Expr]=None,
+      past_key_values: Optional[relax.Expr]=None,
       attention_mask: Optional[relax.Expr]=None,
-      prefix_mask: Optional[relax.Expr]=None,
-      sequence_id: Optional[relax.Expr]=None,
-      return_dict: Optional[bool]=None,
       use_cache: Optional[bool]=None
   ):
-    # return_dict = return_dict if return_dict is not None else self.return_dict
-    use_cache = use_cache if use_cache is not None else self.use_cache
-    if attention_mask is not None:
-      attention_mask = nn.emit(relax.op.astype(attention_mask, "bool"))
-      # TODO(vchernov): I'm not sure we should calculate it and can compare in Relax
-      # It is part from prepare_inputs_for_generation
-      dim1_len = attention_mask.struct_info.shape[1]
-      if relax.op.sum(
-        relax.op.strided_slice(attention_mask, [1], [dim1_len - 1], [dim1_len])
-      ) != attention_mask.struct_info.shape[0]:
-        raise NotImplementedError('MPT does not support generation with right padding.')
-    # if prefix_mask is not None:
-    #   prefix_mask = nn.emit(relax.op.astype(prefix_mask, "bool"))
-    # if not return_dict:
-    #   raise NotImplementedError('return_dict False is not implemented yet for MPT')
-    # if self.prefix_lm and prefix_mask is None:
-    #   raise ValueError('prefix_mask is a required argument when MPT is configured with prefix_lm=True.')
-
-    S = input_ids.struct_info.shape[1]
-    assert S <= self.max_seq_len, f'Cannot forward input with seq_len={S}, this model only supports seq_len<={self.max_seq_len}'
-
     tok_emb = self.wte(input_ids)
     if self.alibi:
       x = tok_emb
@@ -696,16 +686,30 @@ class MPTModel(nn.Module):
     #     pos = nn.emit(relax.op.clip(pos - pos_diff, min=0))
     #   pos_emb = self.wpe(pos)
     #   x = tok_emb + pos_emb
-    (attn_bias, attention_mask) = self._attn_bias(dtype=x.struct_info.dtype, attention_mask=attention_mask, prefix_mask=prefix_mask, sequence_id=sequence_id)
-    if use_cache and past_key_values is None:
-      past_key_values = [() for _ in range(self.n_layers)]
+    (attn_bias, attention_mask) = self._attn_bias(dtype=x.struct_info.dtype, attention_mask=attention_mask)
+
+    # decoder layers
+    if past_key_values is not None:
+      next_decoder_cache = ()
+    else:
+      next_decoder_cache = None
+
     for (b_idx, block) in enumerate(self.blocks):
-      past_key_value = past_key_values[b_idx] if past_key_values is not None else None
-      (x, past_key_value) = block(x, past_key_value=past_key_value, attn_bias=attn_bias, attention_mask=attention_mask, is_causal=self.is_causal)
+      past_key_value = (past_key_values[b_idx * 2], past_key_values[b_idx * 2 + 1]) if past_key_values is not None else None
+      x, key_value_cache = block(
+        x,
+        all_seq_len_shape=all_seq_len_shape,
+        past_key_value=past_key_value,
+        attn_bias=attn_bias,
+        attention_mask=attention_mask,
+        is_causal=self.is_causal
+      )
       if past_key_values is not None:
-        past_key_values[b_idx] = past_key_value
+        next_decoder_cache += key_value_cache
     x = self.norm_f(x)
-    return x, past_key_values
+    if past_key_values is not None:
+      assert len(next_decoder_cache) == len(self.blocks) * 2
+    return x, next_decoder_cache
 
 
 class MPTForCausalLM(nn.Module):
@@ -715,50 +719,126 @@ class MPTForCausalLM(nn.Module):
     self.transformer = MPTModel(config)
     self.dtype = config.dtype
 
-    self.return_dict = config.return_dict
     self.use_cache = config.use_cache
+
+  def prepare_attention_mask_for_generation(self, input_ids=None, src_len=None):
+    if src_len is not None:
+      seq_len = src_len.struct_info.values[0]
+      shape = R.shape([1, seq_len])
+      return nn.emit(relax.op.ones(shape, dtype="bool"))
+    else:
+      return nn.emit(relax.op.astype(relax.op.ones_like(input_ids), dtype="bool"))
 
   def forward(
       self,
       input_ids: relax.Expr,
-      past_key_values: Optional[List[Tuple[relax.Expr]]]=None,
-      attention_mask: Optional[relax.Expr]=None,
-      prefix_mask: Optional[relax.Expr]=None,
-      sequence_id: Optional[relax.Expr]=None,
-      return_dict: Optional[bool]=None,
-      use_cache: Optional[bool]=None
+      all_seq_len_shape: Optional[relax.Expr]=None,
+      past_key_values: Optional[relax.Expr]=None,
   ):
-    # return_dict = return_dict if return_dict is not None else self.return_dict
-    use_cache = use_cache if use_cache is not None else self.use_cache
+    attention_mask = self.prepare_attention_mask_for_generation(input_ids, all_seq_len_shape)
 
-    # It is part from prepare_inputs_for_generation
-    if past_key_values is not None:
-      # slicing input_ids[:, -1]
-      dim1_len = input_ids.struct_info.shape[1]
-      input_ids_slice = nn.emit(relax.op.strided_slice(input_ids, [1], [dim1_len - 1], [dim1_len]))
-      input_ids = nn.emit(relax.op.expand_dims(input_ids_slice, axis=-1))
-    outputs = self.transformer(
-        input_ids=input_ids,
-        past_key_values=past_key_values,
-        attention_mask=attention_mask,
-        prefix_mask=prefix_mask,
-        sequence_id=sequence_id,
-        return_dict=self.return_dict,
-        use_cache=use_cache
+    logits, key_value_cache = self.transformer(
+      input_ids=input_ids,
+      all_seq_len_shape=all_seq_len_shape,
+      past_key_values=past_key_values,
+      attention_mask=attention_mask,
+      use_cache = self.use_cache,
     )
 
-    logits = nn.emit(relax.op.linear(outputs[0], self.transformer.wte.weight))
+    def te_slicing(x: te.Tensor):
+      return te.compute(
+        shape=(1, 1, x.shape[-1]),
+        fcompute=lambda i, j, k: x[i, x.shape[1] - 1, k],
+        name="slice",
+      )
+
+    logits = nn.emit_te(te_slicing, logits, primfunc_name_hint="slice")
+
+    logits = nn.emit(relax.op.linear(logits, self.transformer.wte.weight))
 
     if logits.struct_info.dtype != "float32":
       logits = nn.emit(relax.op.astype(logits, "float32"))
 
-    return logits, outputs[1]
+    return logits, key_value_cache
 
-def create_decoding_func(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int, str]:
+
+def create_kv_cache_func(bb: relax.BlockBuilder, config: MPTConfig) -> None:
+    init_shape = relax.ShapeExpr(
+        (
+            config.max_seq_len,
+            config.n_heads,
+            config.d_model // config.n_heads,
+        )
+    )
+    with bb.function("create_kv_cache", []):
+        with bb.dataflow():
+            zeros = bb.emit(relax.op.zeros(init_shape, config.dtype))
+            caches = []
+            f_kv_cache_create = relax.extern("vm.builtin.attention_kv_cache_create")
+            for _ in range(config.n_layers * 2):
+                caches.append(
+                    bb.emit(
+                        relax.Call(
+                            f_kv_cache_create,
+                            args=[zeros, init_shape, relax.PrimValue(0)],
+                            sinfo_args=[relax.ObjectStructInfo()],
+                        )
+                    )
+                )
+            gv = bb.emit_output(caches)
+        bb.emit_func_output(gv)
+
+
+def create_decoding_func_with_kv_cache(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int, str]:
   pidx2pname: Dict[int, str] = {}
+  bsz = 1
+  all_seq_len = tvm.tir.Var("n", "int64")
+
   with bb.function("decode"):
     model = MPTForCausalLM(config)
-    input_ids = nn.Placeholder((1, 1), dtype="int32", name="input_ids")
+    input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
+    all_seq_len_shape = relax.Var(
+        "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
+    )
+    past_key_values = relax.Var(
+        "kv_cache",
+        relax.TupleStructInfo(
+            [relax.ObjectStructInfo() for _ in range(config.n_layers * 2)]
+        ),
+    )
+    with bb.dataflow():
+      logits, key_value_cache = model(
+          input_ids, all_seq_len_shape, past_key_values=past_key_values
+      )
+      params = [
+          input_ids,
+          all_seq_len_shape,
+          past_key_values,
+      ] + model.parameters()
+
+      named_params = named_parameters(model)
+      for i, (name, param) in enumerate(named_params.items()):
+        pidx2pname[i] = name
+        assert param.same_as(params[i + 3])
+
+      gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
+    bb.emit_func_output(gv, params)
+
+  mod = bb.get()
+  gv = mod.get_global_var("decode")
+  bb.update_func(gv, mod[gv].with_attr("num_input", 3))
+
+  return pidx2pname
+
+
+def create_decoding_func_wo_kv_cache(bb: relax.BlockBuilder, config: MPTConfig) -> Dict[int, str]:
+  pidx2pname: Dict[int, str] = {}
+  bsz = 1
+  seq_len = tvm.tir.Var("n", "int64")
+
+  with bb.function("decode"):
+    model = MPTForCausalLM(config)
+    input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
 
     with bb.dataflow():
       logits, states = model(input_ids)
@@ -801,40 +881,47 @@ def get_model(args, hf_config):
 
   model_path = args.model_path
   dtype = args.quantization.model_dtype
-  # Recommendation from https://huggingface.co/mosaicml/mpt-7b-instruct
-  max_seq_len = args.max_seq_len if args.max_seq_len is not None and args.max_seq_len > 0 else 4096  # 4096 recommended
+
+  if args.max_seq_len is not None and args.max_seq_len > 0:
+    max_seq_len = args.max_seq_len
+  elif hf_config["max_seq_len"] > 0:
+    max_seq_len = hf_config["max_seq_len"]
+  else:
+    # Recommendation from https://huggingface.co/mosaicml/mpt-7b-instruct
+    max_seq_len = 4096
 
   hf_config.update({"max_seq_len": max_seq_len})
-  # hf_config.update({"max_new_tokens": args.seq_len})
+  hf_config.update({"use_cache": args.use_kv_cache})
 
   config = MPTConfig(**hf_config, dtype=dtype)
 
   bb = relax.BlockBuilder()
-  pidx2pname = create_decoding_func(bb, config)
+  pidx2pname = None
+  if config.use_cache:
+    create_kv_cache_func(bb, config)
+    pidx2pname = create_decoding_func_with_kv_cache(bb, config)
+  else:
+    pidx2pname = create_decoding_func_wo_kv_cache(bb, config)
   create_softmax_func(bb, config)
   create_metadata_func(
       bb,
       model_name=model_name,
-      max_window_size=128,     # TODO: temporal limit for max output length, change to -1 after tests
+      max_window_size=-1,
       stop_tokens=[0],
-      add_prefix_space=False, # TODO: what is it?
+      add_prefix_space=False,
   )
 
   mod = bb.get()
 
-  def f_convert_pname_fwd(pname: str) -> str:
-    return pname
-
   pname2binname = load_torch_pname2binname_map(
-      model_path, set(pidx2pname.values()), f_convert_pname_fwd
+      model_path, set(pidx2pname.values())
   )
-
-  def f_convert_param_bkwd(torch_pname: str, raw_param):
-    return [(torch_pname, raw_param)]
 
   args.pidx2pname = pidx2pname
   args.pname2binname = pname2binname
-  args.f_convert_pname_fwd = f_convert_pname_fwd
-  args.f_convert_param_bkwd = f_convert_param_bkwd
+  args.f_convert_pname_fwd = lambda pname: pname
+  args.f_convert_param_bkwd = lambda torch_pname, raw_param: [
+      (torch_pname, raw_param.astype(dtype))
+  ]
 
   return mod, [None] * len(pidx2pname)
