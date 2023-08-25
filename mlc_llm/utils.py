@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring,invalid-name
 import argparse
 import json
+import math
 import os
 import shutil
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Sequence
@@ -334,6 +335,17 @@ def save_lifted_params(
                 args,
                 transform_args=[tvm.runtime.ShapeTuple(transform_args_list)],
             )
+            if world_size > 1:
+                num_params_total = sum(math.prod(param.shape) for param in params)
+                num_params_sharded = sum(math.prod(param.shape) for param in sharded_params)
+                num_expected_params = num_params_total // world_size
+                # Some parameters may remain unsharded, so there's a
+                # 10% fudge-factor.
+                assert num_params_sharded < num_expected_params * 1.1, (
+                    f"After sharding {num_params_total} into {world_size} shards, "
+                    f"each shard should have {num_expected_params} parameters.  "
+                    f"However, rank {rank} had {num_params_sharded}"
+                )
             save_params(sharded_params, args.artifact_path, rank, world_size)
     else:
         params = convert_weights(mod_transform, param_mgr, params, args)
