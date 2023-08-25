@@ -1,6 +1,6 @@
 import enum
 from dataclasses import dataclass
-from typing import Callable, List, Literal, Optional, Type, Union
+from typing import Any, Callable, List, Literal, Optional, Tuple, Type, Union
 
 import tvm
 from tvm import relax, te
@@ -36,17 +36,17 @@ class QuantizationSpec:
     dtype: str
 
     def get_loaded_tensor_info(
-        self, param_info: relax.TensorStructInfo
-    ) -> List[relax.TensorStructInfo]:
-        """Returns the shape and dtype of the tensors that need to be loaded
-        from the disk.
+        self, pname: str, param_info: relax.TensorStructInfo
+    ) -> Tuple[List[str], List[relax.TensorStructInfo]]:
+        """Returns the names and shapes and dtypes of the tensors that need to
+        be loaded from the disk.
 
         It is useful when the parameter is pre-quantized. In such cases, we need
         to know how many tensors the parameter is quantized into, and together
         with the dtype and shape of each tensor, so that we can load the
         pre-quantized tensors in.
         """
-        return [param_info]
+        return [pname], [param_info]
 
     def get_quantize_func(self, param_info: relax.TensorStructInfo) -> Optional[FQuantize]:
         """Returns the function which computes quantization.
@@ -126,42 +126,11 @@ class QuantizationScheme:
     embedding_table: QuantizationSpec
     final_fc_weight: QuantizationSpec
     others: QuantizationSpec
-    pre_quantized: bool
 
     qspec_updater_class: Optional[Type["QuantSpecUpdater"]]
-
-    """_base_model_prefix is used to match the parameter names when loading from pre-quantized pytorch checkpoints.
-    Its value can vary depending on the transformer models used. For example, it can be "model" for Llama, "levit" for LeViT.
-    see more candidates in huggingchat [modeling](https://github.com/huggingface/transformers/blob/src/transformers/models/llama/modeling_llama.py#L344)
-    """
-    _base_model_prefix: str
-
-    """_layers_block_name is used to match the parameter names when loading from pre-quantized pytorch checkpoints.
-    the parameter names usually to be {_base_model_prefix}.{_layers_block_name}.{parameter_name}
-
-    For example, the parameter names of the linear layers in Llama are "model.model.encoder.layers.0.linear1.weight",
-    "model.model.encoder.layers.0.linear1.bias", etc.
-    """
-    _layers_block_name: str
-
-    """_inside_layer_modules defines the names of the layers that are inside the quantize process.
-
-    For example, the autogptq scheme:
-        ```python
-            _inside_layer_modules=[
-                ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"],
-                ["self_attn.o_proj"],
-                ["mlp.gate_proj", "mlp.down_proj", "mlp.up_proj"],
-            ]
-        ```
-    represents the q, k, v projection layers, the output projection layer, and the mlp layers are quantized.
-    """
-    _inside_layer_modules: List[List[str]]
-
-    """This optional callable function is used to load quantized parameters from the checkpoints.
-    If the scheme is used for pre-quantized, this function must be provided.
-    """
-    _load_quantized_params_func: Optional[Callable]
+    f_convert_param_bkwd: Optional[Callable[[str, Any], Optional[List[Tuple[str, Any]]]]]
+    f_compute_relax_param: Optional[Callable[[str, List[Any]], Any]]
+    f_run_prequantize: Optional[Callable[[str], str]]
 
     def __init__(
         self,
@@ -172,11 +141,6 @@ class QuantizationScheme:
         final_fc_weight: Optional[Union[QuantizationSpec, Literal["same_as_linear_weight"]]] = None,
         others: Optional[QuantizationSpec] = None,
         qspec_updater_class: Optional[Type["QuantSpecUpdater"]] = None,
-        pre_quantized: bool = False,
-        _base_model_prefix: str = "",
-        _layers_block_name: str = "",
-        _inside_layer_modules: List[List[str]] = None,
-        _load_quantized_params_func: Optional[Callable] = None,
     ) -> None:
         self.name = name
         self.linear_weight = linear_weight
@@ -197,12 +161,17 @@ class QuantizationScheme:
             self.final_fc_weight = final_fc_weight
 
         self.qspec_updater_class = qspec_updater_class
+        self.f_convert_param_bkwd = None
+        self.f_compute_relax_param = None
+        self.f_run_prequantize = None
 
-        self.pre_quantized = pre_quantized
-        self._base_model_prefix = _base_model_prefix
-        self._layers_block_name = _layers_block_name
-        self._inside_layer_modules = [] if _inside_layer_modules is None else _inside_layer_modules
-        self._load_quantized_params_func = _load_quantized_params_func
+        for spec in [self.linear_weight, self.embedding_table, self.final_fc_weight, self.others]:
+            if hasattr(spec, "convert_param_bkwd"):
+                self.f_convert_param_bkwd = spec.convert_param_bkwd
+            if hasattr(spec, "compute_relax_param"):
+                self.f_compute_relax_param = spec.compute_relax_param
+            if hasattr(spec, "run_prequantize"):
+                self.f_run_prequantize = spec.run_prequantize
 
     @property
     def model_dtype(self) -> str:
@@ -210,21 +179,6 @@ class QuantizationScheme:
         the linear layers.
         """
         return self.linear_weight.dtype
-
-    def is_inside_layer_modules(self, name: str) -> bool:
-        return any(module in name for module in sum(self._inside_layer_modules, []))
-
-    def load_quantized_params(self, *args, **kwargs) -> Optional[List[relax.Var]]:
-        if self.pre_quantized:
-            return self._load_quantized_params_func(*args, **kwargs)
-        else:
-            raise RuntimeError("The model is not pre-quantized.")
-
-    def get_layers_block_name(self) -> str:
-        return self._layers_block_name
-
-    def get_base_model_prefix(self) -> str:
-        return self._base_model_prefix
 
 
 def convert_TE_func(te_func: Union[FTEQuantize, FTEDequantize], func_name: str) -> FQuantize:
