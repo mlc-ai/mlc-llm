@@ -57,6 +57,12 @@ def _parse_args():
         default=1,
         help="Whether to use previously pickled IRModule and skip trace.",
     )
+    args.add_argument(
+        "--use-kv-cache",
+        action="store_false",
+        default=True,
+        help="Forcely replace use_cache hyperparameter in model config",
+    )
     args.add_argument("--debug-dump", action="store_true", default=False)
     args.add_argument("--debug-load-script", action="store_true", default=False)
     args.add_argument(
@@ -275,11 +281,19 @@ def mod_transform_before_build(
             "reset_kv_cache",
         ]
     elif ARGS.model.startswith("mpt-"):
-        model_names = [
-            "decode",
-            "softmax_with_temperature",
-            "get_metadata",
-        ]
+        if ARGS.use_kv_cache:
+            model_names = [
+                "decode",
+                "create_kv_cache",
+                "softmax_with_temperature",
+                "get_metadata",
+            ]
+        else:
+            model_names = [
+                "decode",
+                "softmax_with_temperature",
+                "get_metadata",
+            ]
     else:
         model_names = [
             "prefill",
