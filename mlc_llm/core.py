@@ -224,6 +224,13 @@ class BuildArgs:
             "action": "store_true",
         },
     )
+    assert_well_formed: bool = field(
+        default=False,
+        metadata={
+            "help": "If set, check for well-formed-ness before/after each ir.transform.Pass",
+            "action": "store_true",
+        },
+    )
 
 
 def convert_build_args_to_argparser() -> argparse.ArgumentParser:

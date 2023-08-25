@@ -2,7 +2,9 @@
 import contextlib
 import sys
 
+import tvm
 from mlc_llm import core
+from tvm.relax.ir.instrument import WellFormedInstrument
 
 
 @contextlib.contextmanager
@@ -38,6 +40,10 @@ def main():
 
         # Post processing of arguments
         parsed_args = core._parse_args(parsed_args)  # pylint: disable=protected-access
+
+        # Enter any additional debug contexts
+        if parsed_args.assert_well_formed:
+            stack.enter_context(tvm.transform.PassContext(instruments=[WellFormedInstrument()]))
 
         core.build_model_from_args(parsed_args)
 
