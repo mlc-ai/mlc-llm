@@ -516,7 +516,7 @@ def get_model(args):
         mod = bb.get()
 
         if args.build_model_only:
-            return mod, param_manager, None
+            return mod, param_manager, None, config
 
         param_manager.set_param_loading_func(
             args.model_path, args.use_safetensors, no_lazy_param_loading=True
@@ -577,7 +577,7 @@ def get_model(args):
                 tvm.nd.array(llama_state_dict[key].numpy().astype(config.dtype), device)
             )
 
-        return mod, param_manager, param_list
+        return mod, param_manager, param_list, config
 
     raise ValueError(f"Unsupported model: {model_name}")
 

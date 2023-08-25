@@ -358,10 +358,12 @@ def mod_transform_before_build(
     )  # pylint: disable=not-callable
 
     if "num_attention_heads" in config and "hidden_size" in config:
-        max_seq_len = config["max_sequence_length"]
-
+        if "max_sequence_length" in config:
+            max_seq_len = config["max_sequence_length"]
         if args.max_seq_len > 0:
             max_seq_len = args.max_seq_len
+        if not max_seq_len:
+            raise ValueError(f"fuse_split_rotary_embedding not supported without max_seq_len defined.")
 
         mod = fuse_split_rotary_embedding(mod, config["num_attention_heads"], config["hidden_size"],
                                           max_seq_len)
@@ -541,19 +543,19 @@ def build_model_from_args(args: argparse.Namespace):
             config = json.load(i_f)
     if not use_cache or args.convert_weight_only:
         if args.model_category == "llama":
-            mod, param_manager, params = llama.get_model(args, config)
+            mod, param_manager, params, model_config = llama.get_model(args, config)
         elif args.model_category == "gpt_neox":
-            mod, param_manager, params = gpt_neox.get_model(args, config)
+            mod, param_manager, params, model_config = gpt_neox.get_model(args, config)
         elif args.model_category == "gpt_bigcode":
-            mod, param_manager, params = gpt_bigcode.get_model(args, config)
+            mod, param_manager, params, model_config= gpt_bigcode.get_model(args, config)
         elif args.model_category == "minigpt":
-            mod, param_manager, params = minigpt.get_model(args)
+            mod, param_manager, params, model_config = minigpt.get_model(args)
         elif args.model_category == "gptj":
-            mod, param_manager, params = gptj.get_model(args, config)
+            mod, param_manager, params, model_config = gptj.get_model(args, config)
         elif args.model_category == "rwkv":
-            mod, param_manager, params = rwkv.get_model(args, config)
+            mod, param_manager, params, model_config = rwkv.get_model(args, config)
         elif args.model_category == "chatglm":
-            mod, param_manager, params = chatglm.get_model(args, config)
+            mod, param_manager, params, model_config = chatglm.get_model(args, config)
         else:
             raise ValueError(f"Model {args.model} not supported")
 
@@ -575,7 +577,7 @@ def build_model_from_args(args: argparse.Namespace):
         if args.convert_weight_only:
             exit(0)
 
-        mod = mod_transform_before_build(mod, param_manager, args, config)
+        mod = mod_transform_before_build(mod, param_manager, args, model_config)
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)
         print(f"Save a cached module to {cache_path}.")

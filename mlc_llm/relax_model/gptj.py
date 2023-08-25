@@ -671,7 +671,7 @@ def get_model(args, hf_config):
             )
 
     if args.build_model_only:
-        return mod, param_manager, None
+        return mod, param_manager, None, config
 
     def f_convert_pname_fwd(pname: str) -> List[str]:
         import re
@@ -708,4 +708,4 @@ def get_model(args, hf_config):
     param_manager.set_param_loading_func(
         args.model_path, args.use_safetensors, f_convert_pname_fwd, f_convert_param_bkwd
     )
-    return mod, param_manager, [None] * len(param_manager.param_names)
+    return mod, param_manager, [None] * len(param_manager.param_names), config
