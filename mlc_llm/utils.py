@@ -109,11 +109,13 @@ def debug_dump_benchmark_script(
     args: argparse.Namespace,
 ) -> None:
     """Extract model level benchmark workloads from relax model."""
-    from tvm.dlight.benchmark import extract_all_func_info_from_relax
-
     if not args.debug_dump:
         return
-    # pylint: disable=import-error,import-outside-toplevel
+
+    from tvm.dlight.benchmark import (  # pylint: disable=import-error,import-outside-toplevel
+        extract_all_func_info_from_relax,
+    )
+
     dump_path = os.path.join(args.artifact_path, "debug", name + ".py")
     with open(dump_path, "w", encoding="utf-8") as outfile:
         outfile.write(
