@@ -824,7 +824,7 @@ def get_model(args, hf_config):
             )
 
     if args.build_model_only:
-        return mod, param_manager, None
+        return mod, param_manager, None, config
 
     def f_convert_pname_fwd(pname: str) -> List[str]:
         if not config.combine_matmul:
@@ -900,4 +900,4 @@ def get_model(args, hf_config):
     param_list[-2] = tvm.nd.array(np.cos(emb).astype(config.dtype), device)
     param_list[-1] = tvm.nd.array(np.sin(emb).astype(config.dtype), device)
 
-    return mod, param_manager, param_list
+    return mod, param_manager, param_list, config

@@ -667,7 +667,7 @@ def get_model(args: argparse.Namespace, hf_config):
                 )
 
         if args.build_model_only:
-            return mod, param_manager, None
+            return mod, param_manager, None, config
 
         param_manager.set_param_loading_func(
             args.model_path,
@@ -676,6 +676,6 @@ def get_model(args: argparse.Namespace, hf_config):
                 (torch_pname, torch_param.astype(dtype))
             ],
         )
-        return mod, param_manager, [None] * len(param_manager.param_names)
+        return mod, param_manager, [None] * len(param_manager.param_names), config
 
     raise ValueError(f"Unsupported model {model}")

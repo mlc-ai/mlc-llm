@@ -26,7 +26,7 @@ class RWKVConfig:
     intermediate_size: int
     rescale_every: int = 0
     layer_norm_epsilon: float = 1e-5
-    context_length: int = 1024
+    max_sequence_length: int = 1024
     dtype: str = "float32"
 
     def __init__(
@@ -47,7 +47,7 @@ class RWKVConfig:
         self.intermediate_size = intermediate_size
         self.rescale_every = rescale_every
         self.layer_norm_epsilon = layer_norm_epsilon
-        self.context_length = context_length
+        self.max_sequence_length = context_length
         self.dtype = dtype
         self.kwargs = kwargs
 
@@ -491,7 +491,7 @@ def create_func(
     gv = mod.get_global_var(func_name)
     f = mod[gv].with_attr("num_input", 3)
     if func_name == "prefill":
-        f = f.with_attr("tir_var_upper_bound", {"n": config.context_length})
+        f = f.with_attr("tir_var_upper_bound", {"n": config.max_sequence_length})
     bb.update_func(gv, f)
 
 
@@ -574,7 +574,7 @@ def get_model(args, hf_config):
 
     config = RWKVConfig(**hf_config, dtype=dtype)
     if max_seq_len != -1:
-        config.context_length = max_seq_len
+        config.max_sequence_length = max_seq_len
 
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
@@ -594,7 +594,7 @@ def get_model(args, hf_config):
     mod = bb.get()
 
     if args.build_model_only:
-        return mod, param_manager, None
+        return mod, param_manager, None, config
 
     def f_convert_pname_fwd(pname: str) -> List[str]:
         if (
@@ -637,4 +637,4 @@ def get_model(args, hf_config):
     param_manager.set_param_loading_func(
         args.model_path, args.use_safetensors, f_convert_pname_fwd, f_convert_param_bkwd
     )
-    return mod, param_manager, [None] * len(param_manager.param_names)
+    return mod, param_manager, [None] * len(param_manager.param_names), config
