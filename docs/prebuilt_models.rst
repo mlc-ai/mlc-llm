@@ -119,13 +119,13 @@ To download and run one model with CLI, follow the instructions below:
   cd dist/prebuilt
   git clone https://huggingface.co/mlc-ai/mlc-chat-[model-code]
   cd ../..
-  mlc_chat_cli --local-id [model-code]
+  mlc_chat_cli --model [model-code]
 
   # e.g.,
   # cd dist/prebuilt
   # git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0
   # cd ../..
-  # mlc_chat_cli --local-id rwkv-raven-7b-q8f16_0
+  # mlc_chat_cli --model rwkv-raven-7b-q8f16_0
 
 
 .. _prebuilt-models-ios:

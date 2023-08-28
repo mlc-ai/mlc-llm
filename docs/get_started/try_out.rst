@@ -101,6 +101,10 @@ and you can try out prebuilt models on the following platforms:
     We have prepared Conda packages for MLC Chat CLI. If you haven't installed Conda yet,
     please refer to :doc:`this tutorial </install/conda>` to install Conda.
 
+    .. note::
+      If you are using Windows or Linux. Make sure you have the latest Vulkan driver installed.
+      Please follow the instructions in :doc:`/install/gpu` tutorial to prepare the environment.
+
     .. code:: bash
 
       # Create a new conda environment, install CLI app, and activate the environment.
@@ -125,23 +129,20 @@ and you can try out prebuilt models on the following platforms:
       # or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)
       # git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1
       cd ../..
-      mlc_chat_cli --local-id Llama-2-7b-chat-hf-q4f16_1
+      mlc_chat_cli --model Llama-2-7b-chat-hf-q4f16_1
       # or the 13B model
-      # mlc_chat_cli --local-id Llama-2-13b-chat-hf-q4f16_1
+      # mlc_chat_cli --model Llama-2-13b-chat-hf-q4f16_1
       # or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)
-      # mlc_chat_cli --local-id Llama-2-70b-chat-hf-q4f16_1
+      # mlc_chat_cli --model Llama-2-70b-chat-hf-q4f16_1
 
       # You can try more models, for example:
       # download prebuilt weights of RedPajama-3B
       cd dist/prebuilt
       git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
       cd ../..
-      mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_1
+      mlc_chat_cli --model RedPajama-INCITE-Chat-3B-v1-q4f16_1
 
-    .. note::
-      If you are using Windows or Linux. Make sure you have the latest Vulkan driver installed.
-      Please follow the instructions in :doc:`/install/gpu` tutorial to prepare the environment.
-
+    
     You can also checkout the :doc:`/prebuilt_models` page to run other models.
 
     .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif

@@ -1,50 +1,9 @@
 from dataclasses import dataclass
-from typing import List, Literal, Optional, Dict
-import tvm
-import numpy as np
-from tvm._ffi.runtime_ctypes import Device
+from typing import Any, List, Literal, Optional, Tuple
 from tvm import relax, te, tir, topi
-
 from . import tir_utils
 from .quantization import QuantizationSpec
 from .quantization import FQuantize, FTEDequantize, convert_TE_func
-
-
-def load_autogptq_params(
-    model_path: str,
-    use_safetensors: bool,
-    param_list: List[relax.Var],
-    pidx2pname: Dict[int, str],
-    device: Device,
-    excluded_params: List[str] = ["cos_cached", "sin_cached"],
-) -> List[relax.Var]:
-    try:
-        import auto_gptq  # pylint: disable=import-outside-toplevel
-    except ImportError:
-        raise ImportError(
-            "Please install auto_gptq package to use AutoGPTQ quantization."
-        )
-
-    from auto_gptq import AutoGPTQForCausalLM
-
-    model = AutoGPTQForCausalLM.from_quantized(
-        model_path, use_safetensors=use_safetensors
-    ).cpu()
-    param_dict = model.state_dict()
-    for pidx, pname in pidx2pname.items():
-        if any(excluded_param in pname for excluded_param in excluded_params):
-            continue
-
-        np_array = param_dict[pname].numpy()
-        if np_array.dtype == np.int32:
-            param_list[pidx] = tvm.nd.array(
-                np_array.astype(np.uint32),
-                device,
-            )
-        else:
-            param_list[pidx] = tvm.nd.array(np_array, device)
-
-    return param_list
 
 
 @dataclass
@@ -53,89 +12,101 @@ class AutogptqQuantizationSpec(QuantizationSpec):
 
     mode: Literal["int2", "int3", "int4", "int8"]
     sym: bool
-    storage_nbit: int
     group_size: int
-    transpose: bool
-    pre_quantized: bool = True
+    storage_nbit: int = 32
 
-    _quantized_params = ["qweight", "qzeros", "scales", "g_idx"]
+    quantized_suffix = ["qweight", "qzeros", "scales", "g_idx"]
 
-    def get_quantized_params(self, name: str, param: relax.Var) -> bool:
-        quantized_params = {}
-        for quantized_param in self._quantized_params:
-            quantized_name = name.replace("weight", quantized_param)
-            quantized_param = self.convert_param(quantized_name, param)
-            quantized_params[quantized_name] = quantized_param
-        return quantized_params
-
-    def get_bits(self):
-        return int(self.mode[-1])
-
-    def convert_param(self, name: str, param: relax.Var) -> relax.Var:
+    def get_loaded_tensor_info(
+        self, pname: str, param_info: relax.TensorStructInfo
+    ) -> Tuple[List[str], List[relax.TensorStructInfo]]:
         assert self.storage_nbit == 32, "Only support 32bit storage currently"
-        assert param.struct_info.ndim == 2, "Only support 2D param currently"
-        assert (
-            self.transpose == True
-        ), "Auto-GPTQ Framework only support kxn layout currently"
 
-        # by default, torch stores weight in [outfeatures, infeatures]
-        outfeatures, infeatures = param.struct_info.shape
-        group_size = self.group_size if self.group_size != -1 else infeatures
+        quantized_pnames = self.quant_convert_pname_fwd(pname)
+        if len(quantized_pnames) == 1:
+            return quantized_pnames, [param_info]
+        else:
+            assert len(quantized_pnames) == 4
+            assert param_info.ndim == 2
+            nbit = int(self.mode[-1])
+            tensor_info = []
+            outfeatures, infeatures = param_info.shape.values
+            group_size = self.group_size if self.group_size != -1 else infeatures
 
-        PARAM_CONFIGS = {
-            "qweight": {
-                "shape_fn": lambda self, infeatures, outfeatures: (
-                    (infeatures // self.storage_nbit * self.bits, outfeatures)
-                    if self.transpose
-                    else (outfeatures, infeatures // self.storage_nbit * self.bits)
-                ),
-                "dtype": "uint32",
-            },
-            "qzeros": {
-                "shape_fn": lambda self, infeatures, outfeatures: (
-                    (
+            def get_quantized_shape_dtype(quantized_pname: str):
+                if quantized_pname.endswith("qweight"):
+                    return (infeatures // self.storage_nbit * nbit, outfeatures), "uint32"
+                elif quantized_pname.endswith("qzeros"):
+                    return (
                         infeatures // group_size,
-                        outfeatures // self.storage_nbit * self.bits,
-                    )
-                    if self.transpose
-                    else (
-                        outfeatures // self.storage_nbit * self.bits,
-                        infeatures // group_size,
-                    )
-                ),
-                "dtype": "uint32",
-            },
-            "scales": {
-                "shape_fn": lambda self, infeatures, outfeatures: (
-                    (infeatures // group_size, outfeatures)
-                    if self.transpose
-                    else (outfeatures, infeatures // group_size)
-                ),
-                "dtype": "float16",
-            },
-            "g_idx": {
-                "shape_fn": lambda self, infeatures, outfeatures: (infeatures,),
-                "dtype": "uint32",
-            },
-        }
+                        outfeatures // self.storage_nbit * nbit,
+                    ), "uint32"
+                elif quantized_pname.endswith("scales"):
+                    return (infeatures // group_size, outfeatures), "float16"
+                elif quantized_pname.endswith("g_idx"):
+                    return (infeatures,), "uint32"
+                else:
+                    raise ValueError(f"Unrecognized quantized parameter name {quantized_pname}")
 
-        def get_param_config(self, name, infeatures, outfeatures):
-            for prefix, config in PARAM_CONFIGS.items():
-                if prefix in name:
-                    _shape = config["shape_fn"](self, infeatures, outfeatures)
-                    _dtype = config["dtype"]
-                    return _shape, _dtype
+            for quantized_pname in quantized_pnames:
+                shape, dtype = get_quantized_shape_dtype(quantized_pname)
+                tensor_info.append(relax.TensorStructInfo(shape, dtype))
 
-            raise ValueError(f"Unknown quantized param name {name}")
+        return quantized_pnames, tensor_info
 
-        self.bits = self.get_bits()
-        _shape, _dtype = get_param_config(self, name, infeatures, outfeatures)
-        new_param = relax.Var(name, relax.TensorStructInfo(_shape, _dtype))
-        return new_param
+    def quant_convert_pname_fwd(self, torch_pname: str) -> List[str]:
+        # For Llama:
+        if "_proj.weight" in torch_pname:
+            return [torch_pname.replace("weight", suffix) for suffix in self.quantized_suffix]
+        return [torch_pname]
 
-    def get_quantize_func(
-        self, param_info: relax.TensorStructInfo
-    ) -> Optional[FQuantize]:
+    def run_prequantize(self, model_path: str) -> str:
+        # with auto-gptq >= 0.2.0
+        try:
+            import auto_gptq  # pylint: disable=import-outside-toplevel
+            import transformers  # pylint: disable=import-outside-toplevel
+        except ImportError:
+            raise ImportError(
+                "Please install auto_gptq package (version >= 0.2.0) and "
+                "transformers package to use AutoGPTQ quantization."
+            )
+        import os
+        from transformers import AutoTokenizer
+        from auto_gptq import AutoGPTQForCausalLM, BaseQuantizeConfig
+
+        quantized_model_path = (
+            model_path
+            + f"-gptq-i{self.mode[-1]}"
+            + ("-sym" if self.sym else "")
+            + f"-g{self.group_size}"
+        )
+        if os.path.isdir(quantized_model_path):
+            return quantized_model_path
+
+        tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
+        examples = [
+            tokenizer(
+                "MLC LLM is a universal solution that allows any language models "
+                "to be deployed natively on a diverse set of hardware backends and "
+                "native applications, plus a productive framework for everyone to "
+                "further optimize model performance for their own use cases."
+            )
+        ]
+        quantize_config = BaseQuantizeConfig(
+            bits=int(self.mode[-1]),  # quantize bits
+            desc_act=False,  # disable activation description
+            group_size=self.group_size,  # disable group quantization
+        )
+
+        model = AutoGPTQForCausalLM.from_pretrained(model_path, quantize_config)
+        model.quantize(examples)
+
+        # save quantized model
+        model.save_quantized(quantized_model_path)
+        tokenizer.save_pretrained(quantized_model_path)
+        return quantized_model_path
+
+    def get_quantize_func(self, param_info: relax.TensorStructInfo) -> Optional[FQuantize]:
         return None
 
     def get_dequantize_func(
@@ -143,32 +114,51 @@ class AutogptqQuantizationSpec(QuantizationSpec):
         param_info: relax.TensorStructInfo,
         qparam_info: List[relax.TensorStructInfo],
     ) -> Optional[FQuantize]:
-        infeatures = param_info.shape.struct_info  # type: ignore
         return convert_TE_func(
             decoding_func(
                 sym=self.sym,
-                group_size=self.group_size if self.group_size != -1 else infeatures,
                 nbit=int(self.mode[-1]),
-                mode=self.mode,
                 storage_nbit=self.storage_nbit,
                 dim_length=param_info.shape.values[-1],
-                data_transposed=self.transpose,
-                transpose_output=self.transpose,
                 dtype=self.dtype,
             ),
             func_name="decode",
         )
 
+    def convert_param_bkwd(self, torch_pname: str, torch_param):
+        target_dtype = (
+            self.dtype if "_proj." not in torch_pname or "scales" in torch_pname else "uint32"
+        )
+
+        # For Llama
+        combined_layers = ["q_proj", "k_proj", "v_proj", "gate_proj", "up_proj"]
+        if any([name in torch_pname for name in combined_layers]):
+            return None
+        return [(torch_pname, torch_param.astype(target_dtype))]
+
+    def compute_relax_param(self, relax_pname: str, torch_params: List[Any]):
+        import numpy as np
+
+        # For Llama
+        if "query_key_value_proj" in relax_pname:
+            assert len(torch_params) == 3
+        elif "gate_up_proj" in relax_pname:
+            assert len(torch_params) == 2
+        else:
+            raise ValueError("Unexpected param loading")
+
+        if "g_idx" in relax_pname:
+            return torch_params[0].astype("uint32")
+        else:
+            target_dtype = self.dtype if "scales" in relax_pname else "uint32"
+            return np.concatenate(torch_params, axis=-1).astype(target_dtype)
+
 
 def decoding_func(
     sym: bool,
-    group_size: int,
     nbit: int,
-    mode: str,
     storage_nbit: int,
     dim_length: tir.PrimExpr,
-    data_transposed: bool = True,
-    transpose_output: bool = False,
     dtype: str = "float16",
 ) -> FTEDequantize:
     assert dtype in ["float16"], "Only support float16 currently"
@@ -179,45 +169,25 @@ def decoding_func(
         n_float_per_u32 = 32 // nbit
 
         def f_decode_asym(i, j):
-            if data_transposed:
-                zeros = tir_utils._tir_u32_to_int_to_float(
-                    nbit,
-                    qzeros[g_idx[i], j // n_float_per_u32],
-                    j % n_float_per_u32,
-                    dtype=dtype,
-                )
-                data_float = tir_utils._tir_u32_to_int_to_float(
-                    nbit,
-                    qweight[i // n_float_per_u32, j],
-                    i % n_float_per_u32,
-                    dtype=dtype,
-                )
-                scale_float, bias_float = scales[g_idx[i], j], zeros + 1
-            else:
-                zeros = tir_utils._tir_u32_to_int_to_float(
-                    nbit,
-                    qzeros[i // n_float_per_u32, g_idx[j]],
-                    i % n_float_per_u32,
-                    dtype=dtype,
-                )
-                data_float = tir_utils._tir_u32_to_int_to_float(
-                    nbit,
-                    qweight[i, j // n_float_per_u32],
-                    j % n_float_per_u32,
-                    dtype=dtype,
-                )
-                scale_float, bias_float = scales[i, g_idx[j]], zeros + 1
+            zeros = tir_utils._tir_u32_to_int_to_float(
+                nbit,
+                qzeros[g_idx[i], j // n_float_per_u32],
+                j % n_float_per_u32,
+                dtype=dtype,
+            )
+            data_float = tir_utils._tir_u32_to_int_to_float(
+                nbit,
+                qweight[i // n_float_per_u32, j],
+                i % n_float_per_u32,
+                dtype=dtype,
+            )
+            scale_float, bias_float = scales[g_idx[i], j], zeros + 1
             w = (data_float - bias_float) * scale_float
             return w
 
-        shape = (
-            (dim_length, qweight.shape[1])
-            if data_transposed
-            else (qweight.shape[0], dim_length)
-        )
+        shape = (dim_length, qweight.shape[1])
         w = te.compute(shape=shape, fcompute=f_decode_asym, name="decode")
-        if transpose_output:
-            w = topi.transpose(w)
+        w = topi.transpose(w)
         return w
 
     return te_decode_asym

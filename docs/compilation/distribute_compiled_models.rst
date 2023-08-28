@@ -153,7 +153,7 @@ The steps needed to run models in CLI are similar to the steps to download the p
     git clone https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo RedPajama-INCITE-Instruct-3B-v1-q4f16_1
     cd ../..
     # Run CLI
-    mlc_chat_cli --local-id RedPajama-INCITE-Instruct-3B-v1-q4f16_1
+    mlc_chat_cli --model RedPajama-INCITE-Instruct-3B-v1-q4f16_1
 
 
 Download the Distributed Models and Run in iOS App
