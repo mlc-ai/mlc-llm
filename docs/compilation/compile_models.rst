@@ -148,7 +148,7 @@ We can check the output with the commands below:
         .. code:: shell
 
             # Run CLI
-            mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_1
+            mlc_chat_cli --model RedPajama-INCITE-Chat-3B-v1-q4f16_1
 
        The CLI will use the config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json``
        and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so``.
@@ -177,7 +177,7 @@ We can check the output with the commands below:
         .. code:: shell
 
             # Run CLI
-            mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_1
+            mlc_chat_cli --model RedPajama-INCITE-Chat-3B-v1-q4f16_1
 
         The CLI app using config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json``
         and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so``.
@@ -205,7 +205,7 @@ We can check the output with the commands below:
         .. code:: shell
 
             # Run CLI
-            mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_1
+            mlc_chat_cli --model RedPajama-INCITE-Chat-3B-v1-q4f16_1
 
         CLI app will use config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json``
         and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so`` (or ``.dll``).

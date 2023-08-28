@@ -157,7 +157,7 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
 
   # `local_id` is `$(model_name)-$(quantize_mode)`
   # In this example, `model_name` is `Llama-2-7b-chat-hf`, and `quantize_mode` is `q4f16_1`
-  >>> mlc_chat_cli --local-id Llama-2-7b-chat-hf-q4f16_1
+  >>> mlc_chat_cli --model Llama-2-7b-chat-hf-q4f16_1
   Use MLC config: "....../mlc-chat-config.json"
   Use model weights: "....../ndarray-cache.json"
   Use model library: "....../Llama-2-7b-chat-hf-q4f16_1-metal.so"
