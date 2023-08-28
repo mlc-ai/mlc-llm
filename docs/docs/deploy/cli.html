@@ -445,7 +445,7 @@ params_shard_*.bin
 <p><strong>Run the Model.</strong> Next run <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> in command line:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># `local_id` is `$(model_name)-$(quantize_mode)`</span>
 <span class="c1"># In this example, `model_name` is `Llama-2-7b-chat-hf`, and `quantize_mode` is `q4f16_1`</span>
-&gt;&gt;&gt;<span class="w"> </span>mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>Llama-2-7b-chat-hf-q4f16_1
+&gt;&gt;&gt;<span class="w"> </span>mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>Llama-2-7b-chat-hf-q4f16_1
 Use<span class="w"> </span>MLC<span class="w"> </span>config:<span class="w"> </span><span class="s2">&quot;....../mlc-chat-config.json&quot;</span>
 Use<span class="w"> </span>model<span class="w"> </span>weights:<span class="w"> </span><span class="s2">&quot;....../ndarray-cache.json&quot;</span>
 Use<span class="w"> </span>model<span class="w"> </span>library:<span class="w"> </span><span class="s2">&quot;....../Llama-2-7b-chat-hf-q4f16_1-metal.so&quot;</span>

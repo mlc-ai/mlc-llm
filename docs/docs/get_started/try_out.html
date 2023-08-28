@@ -368,6 +368,11 @@ and run it in Colab.</p>
 <p>To run the models on your PC, you can try out the CLI version of MLC LLM.</p>
 <p>We have prepared Conda packages for MLC Chat CLI. If you haven’t installed Conda yet,
 please refer to <a class="reference internal" href="../install/conda.html"><span class="doc">this tutorial</span></a> to install Conda.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you are using Windows or Linux. Make sure you have the latest Vulkan driver installed.
+Please follow the instructions in <a class="reference internal" href="../install/gpu.html"><span class="doc">GPU Drivers and SDKs</span></a> tutorial to prepare the environment.</p>
+</div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a new conda environment, install CLI app, and activate the environment.</span>
 conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-cli-nightly
 conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
@@ -390,24 +395,19 @@ git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/m
 <span class="c1"># or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)</span>
 <span class="c1"># git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1</span>
 <span class="nb">cd</span><span class="w"> </span>../..
-mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>Llama-2-7b-chat-hf-q4f16_1
+mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>Llama-2-7b-chat-hf-q4f16_1
 <span class="c1"># or the 13B model</span>
-<span class="c1"># mlc_chat_cli --local-id Llama-2-13b-chat-hf-q4f16_1</span>
+<span class="c1"># mlc_chat_cli --model Llama-2-13b-chat-hf-q4f16_1</span>
 <span class="c1"># or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)</span>
-<span class="c1"># mlc_chat_cli --local-id Llama-2-70b-chat-hf-q4f16_1</span>
+<span class="c1"># mlc_chat_cli --model Llama-2-70b-chat-hf-q4f16_1</span>
 
 <span class="c1"># You can try more models, for example:</span>
 <span class="c1"># download prebuilt weights of RedPajama-3B</span>
 <span class="nb">cd</span><span class="w"> </span>dist/prebuilt
 git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
 <span class="nb">cd</span><span class="w"> </span>../..
-mlc_chat_cli<span class="w"> </span>--local-id<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1
+mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1
 </pre></div>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If you are using Windows or Linux. Make sure you have the latest Vulkan driver installed.
-Please follow the instructions in <a class="reference internal" href="../install/gpu.html"><span class="doc">GPU Drivers and SDKs</span></a> tutorial to prepare the environment.</p>
 </div>
 <p>You can also checkout the <a class="reference internal" href="../prebuilt_models.html"><span class="doc">Model Prebuilts</span></a> page to run other models.</p>
 <figure class="align-center" id="id3">

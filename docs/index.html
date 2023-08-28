@@ -166,13 +166,13 @@ git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 <span class="nb">cd </span>dist/prebuilt
 git clone https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0
 <span class="nb">cd</span> ../..
-mlc_chat_cli <span class="nt">--local-id</span> vicuna-v1-7b-q3f16_0
+mlc_chat_cli <span class="nt">--model</span> vicuna-v1-7b-q3f16_0
 
 <span class="c"># Download prebuilt weights of RedPajama-3B</span>
 <span class="nb">cd </span>dist/prebuilt
 git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
 <span class="nb">cd</span> ../..
-mlc_chat_cli <span class="nt">--local-id</span> RedPajama-INCITE-Chat-3B-v1-q4f16_0
+mlc_chat_cli <span class="nt">--model</span> RedPajama-INCITE-Chat-3B-v1-q4f16_0
 
 <span class="c"># Download prebuilt weights of RWKV-raven-1.5B/3B/7B</span>
 <span class="nb">cd </span>dist/prebuilt
@@ -180,7 +180,7 @@ git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0
 <span class="c"># or git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0</span>
 <span class="c"># or git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0</span>
 <span class="nb">cd</span> ../..
-mlc_chat_cli <span class="nt">--local-id</span> rwkv-raven-1b5-q8f16_0  <span class="c"># Replace your local id if you use 3b or 7b model.</span>
+mlc_chat_cli <span class="nt">--model</span> rwkv-raven-1b5-q8f16_0  <span class="c"># Replace your local id if you use 3b or 7b model.</span>
 </code></pre></div></div>
 
 <p align="center">
