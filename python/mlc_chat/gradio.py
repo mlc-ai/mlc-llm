@@ -30,7 +30,7 @@ def _parse_args():
                         is provided, it will be set to 0 by default.",
     )
     args.add_argument("--port", type=int, default=7860, help="The port number to run gradio.")
-    args.add_argument("--host", type=int, default="127.0.0.1", help="The port number to run gradio.")
+    args.add_argument("--host", type=int, default="127.0.0.1", help="The host number to run gradio.")
     args.add_argument(
         "--share",
         action="store_true",
