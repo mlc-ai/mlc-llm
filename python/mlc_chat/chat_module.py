@@ -2,6 +2,7 @@
 #! pylint: disable=unused-import, invalid-name
 import inspect
 import json
+import logging
 import os
 import sys
 from dataclasses import dataclass, fields, asdict
@@ -214,8 +215,8 @@ def _get_model_path(model: str) -> (str, str):
     for candidate in candidate_paths:
         chat_file = os.path.join(candidate, "mlc-chat-config.json")
         if os.path.isfile(chat_file):
-            print(f"Using model folder: {os.path.abspath(candidate)}")
-            print(f"Using mlc chat config: {os.path.abspath(chat_file)}")
+            logging.info(f"Using model folder: {os.path.abspath(candidate)}")
+            logging.info(f"Using mlc chat config: {os.path.abspath(chat_file)}")
             return candidate, chat_file
 
     # Failed to find a valid model_path, analyzing error for user
@@ -323,7 +324,7 @@ def _get_lib_module(
     # 1. Use user's lib_path if provided
     if lib_path is not None:
         if os.path.isfile(lib_path):
-            print(f"Using library model: {lib_path}")
+            logging.info(f"Using library model: {lib_path}")
             return tvm.runtime.load_module(lib_path)
         else:
             err_msg = (
@@ -369,7 +370,7 @@ def _get_lib_module(
     # 4. Search for model library
     for candidate in candidate_paths:
         if os.path.isfile(candidate):
-            print(f"Using library model: {os.path.abspath(candidate)}\n")
+            logging.info(f"Using library model: {os.path.abspath(candidate)}\n")
             return tvm.runtime.load_module(candidate)
 
     # 5. Error
@@ -454,7 +455,7 @@ def _detect_local_device(device_id: int = 0):
     if tvm.opencl().exist:
         return tvm.opencl(device_id), "opencl"
 
-    print(
+    logging.info(
         "None of the following device is detected: metal, rocm, cuda, vulkan, opencl. Switch to llvm instead."
     )
     return tvm.cpu(device_id), "llvm"
@@ -550,7 +551,7 @@ class ChatModule:
             self.device = tvm.opencl(device_id)
         elif device_name == "auto":
             self.device, device_name = _detect_local_device(device_id)
-            print(f"System automatically detected device: {device_name}")
+            logging.info(f"System automatically detected device: {device_name}")
         else:
             raise ValueError(device_err_msg)
         device_type = self.device.device_type
