@@ -78,13 +78,13 @@ git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 cd dist/prebuilt
 git clone https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0
 cd ../..
-mlc_chat_cli --local-id vicuna-v1-7b-q3f16_0
+mlc_chat_cli --model vicuna-v1-7b-q3f16_0
 
 # Download prebuilt weights of RedPajama-3B
 cd dist/prebuilt
 git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
 cd ../..
-mlc_chat_cli --local-id RedPajama-INCITE-Chat-3B-v1-q4f16_0
+mlc_chat_cli --model RedPajama-INCITE-Chat-3B-v1-q4f16_0
 
 # Download prebuilt weights of RWKV-raven-1.5B/3B/7B
 cd dist/prebuilt
@@ -92,7 +92,7 @@ git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0
 # or git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0
 # or git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0
 cd ../..
-mlc_chat_cli --local-id rwkv-raven-1b5-q8f16_0  # Replace your local id if you use 3b or 7b model.
+mlc_chat_cli --model rwkv-raven-1b5-q8f16_0  # Replace your local id if you use 3b or 7b model.
 ```
 
 <p align="center">
