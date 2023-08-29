@@ -52,11 +52,11 @@ class BuildModelTest(unittest.TestCase):
     @patch("builtins.open", new_callable=mock_open, read_data="data")
     @patch("json.load", MagicMock(side_effect = [ { 
         "use_parallel_residual": False,
-        "hidden_size": 4096,
-        "intermediate_size": 1024,
+        "hidden_size": 32,
+        "intermediate_size": 32,
         "num_attention_heads": 32,
         "num_hidden_layers": 28,
-        "vocab_size": 65024,
+        "vocab_size": 1024,
         "rotary_pct": 1,
         "rotary_emb_base": 1,
         "layer_norm_eps": 1,
@@ -86,9 +86,9 @@ class BuildModelTest(unittest.TestCase):
     
     @patch("builtins.open", new_callable=mock_open, read_data="data")
     @patch("json.load", MagicMock(side_effect = [ { 
-        "vocab_size": 65024,
-        "n_embd": 4096,
-        "n_inner": 4096,
+        "vocab_size": 1024,
+        "n_embd": 32,
+        "n_inner": 32,
         "n_head": 32,
         "n_layer": 28,
         "bos_token_id": 28,
@@ -105,9 +105,9 @@ class BuildModelTest(unittest.TestCase):
 
     @patch("builtins.open", new_callable=mock_open, read_data="data")
     @patch("json.load", MagicMock(side_effect = [ { 
-        "num_hidden_layers": 4096,
-        "vocab_size": 65024,
-        "hidden_size": 4096,
+        "num_hidden_layers": 16,
+        "vocab_size": 1024,
+        "hidden_size": 16,
         "intermediate_size": 32,
     }  ]))
     def test_rwkv_model(self, mock_file):
