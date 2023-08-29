@@ -71,6 +71,7 @@ tvm_file_glob(GLOB_RECURSE MLC_LLM_SRCS cpp/*.cc)
 tvm_file_glob(GLOB_RECURSE MLC_CLI_SRCS cpp/cli_main.cc)
 list(REMOVE_ITEM MLC_LLM_SRCS ${MLC_CLI_SRCS})
 
+
 add_library(mlc_llm_objs OBJECT ${MLC_LLM_SRCS})
 add_library(mlc_cli_objs OBJECT ${MLC_CLI_SRCS})
 
