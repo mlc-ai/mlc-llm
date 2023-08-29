@@ -349,7 +349,7 @@ def mod_transform_before_build(
         ]
         if args.sep_embed:
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
-        if args.model.startswith("rwkv-"):
+        if args.model.lower().startswith("rwkv-"):
             model_names += ["reset_kv_cache"]
 
     mod = param_manager.transform_dequantize(mod)
@@ -359,7 +359,8 @@ def mod_transform_before_build(
         mod
     )  # pylint: disable=not-callable
 
-    if "num_attention_heads" in config and "hidden_size" in config:
+
+    if hasattr(config, "num_attention_heads") and hasattr(config, "hidden_size"):
         max_seq_len = None
         if args.max_seq_len > 0:
             max_seq_len = args.max_seq_len

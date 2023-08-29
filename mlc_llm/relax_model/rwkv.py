@@ -569,7 +569,7 @@ def get_model(args, hf_config):
     max_seq_len = args.max_seq_len
     dtype = args.quantization.model_dtype
 
-    if not model_name.startswith("rwkv-"):
+    if not model_name.lower().startswith("rwkv-"):
         raise ValueError(f"Unsupported model name: {model_name}")
 
     config = RWKVConfig(**hf_config, dtype=dtype)
