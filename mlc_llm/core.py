@@ -369,7 +369,7 @@ def mod_transform_before_build(
 
         if max_seq_len:
             mod = fuse_split_rotary_embedding(
-                mod, config["num_attention_heads"], config["hidden_size"], max_seq_len
+                mod, config.num_attention_heads, config.hidden_size, max_seq_len
             )
 
     if args.target_kind == "cuda":
