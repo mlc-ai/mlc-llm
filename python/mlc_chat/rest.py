@@ -5,7 +5,6 @@ import subprocess
 import sys
 from contextlib import asynccontextmanager
 
-import tvm
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
@@ -14,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dataclasses import dataclass, field, fields
 from typing import Optional
 
-from .chat_module import ChatModule, PlaceInPrompt
+from .chat_module import ChatModule
 from .interface.openai_api import *
 
 import numpy as np
