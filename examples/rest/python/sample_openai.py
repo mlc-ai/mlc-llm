@@ -17,27 +17,29 @@ class color:
    UNDERLINE = '\033[4m'
    END = '\033[0m'
 
-# Chat completion example without streaming
-print(f"{color.BOLD}OpenAI chat completion example without streaming:{color.END}\n")
-completion = openai.ChatCompletion.create(
-  model=model,
-  messages=[{"role": "user", "content": "Write a poem about OpenAI"}]
-)
-print(f"{color.GREEN}{completion.choices[0].message.content}{color.END}\n\n")
+# # Chat completion example without streaming
+# print(f"{color.BOLD}OpenAI chat completion example without streaming:{color.END}\n")
+# completion = openai.ChatCompletion.create(
+#   model=model,
+#   messages=[{"role": "user", "content": "Write a poem about OpenAI"}]
+# )
+# print(f"{color.GREEN}{completion.choices[0].message.content}{color.END}\n\n")
 
-# Chat completion example with streaming
-print(f"{color.BOLD}OpenAI chat completion example with streaming:{color.END}\n")
-res = openai.ChatCompletion.create(
-  model=model,
-  messages=[{"role": "user", "content": "Write a poem about OpenAI"}],
-  stream=True
-)
-for chunk in res:
-    content = chunk["choices"][0]["delta"].get("content", "")
-    print(f"{color.GREEN}{content}{color.END}", end="", flush=True)
-print("\n")
+# # Chat completion example with streaming
+# print(f"{color.BOLD}OpenAI chat completion example with streaming:{color.END}\n")
+# res = openai.ChatCompletion.create(
+#   model=model,
+#   messages=[{"role": "user", "content": "Write a poem about OpenAI"}],
+#   stream=True
+# )
+# for chunk in res:
+#     content = chunk["choices"][0]["delta"].get("content", "")
+#     print(f"{color.GREEN}{content}{color.END}", end="", flush=True)
+# print("\n")
 
-# Completion example
-print(f"{color.BOLD}OpenAI completion example:{color.END}\n")
-res = openai.Completion.create(prompt="Write a poem about OpenAI", model=model)
-print(f"{color.GREEN}{res.choices[0].text}{color.END}\n\n")
+# # Completion example
+# print(f"{color.BOLD}OpenAI completion example:{color.END}\n")
+# res = openai.Completion.create(prompt="Write a poem about OpenAI", model=model)
+# print(f"{color.GREEN}{res.choices[0].text}{color.END}\n\n")
+
+res = openai.Embedding.create(input=["hello world", "hello world 2"], model="")
