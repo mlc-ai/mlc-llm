@@ -436,7 +436,7 @@ class LLMChat {
     // get estimate of the fragment
     size_t ctx_length = this->tokenizer_->Encode(all_prompts[0]).size();
     size_t start_re_encode_pos = 0;
-    for (int i = all_prompts.size() - 1; i > 0; i -= 2) {
+    for (int i = all_prompts.size() - 1; i > 0; --i) {
       ctx_length += this->tokenizer_->Encode(all_prompts[i]).size();
       if (ctx_length >= this->shift_fill_factor_ * this->max_window_size_ &&
           i + 2 < all_prompts.size()) {
@@ -446,9 +446,9 @@ class LLMChat {
     }
     // keep system
     if (this->conversation_.system.empty()) {
-      all_prompt = GetConcatPrompt(prompts, 0, start_re_encode_pos);
+      all_prompt = GetConcatPrompt(all_prompts, 0, start_re_encode_pos);
     } else {
-      all_prompt = GetConcatPrompt(prompts, 1, start_re_encode_pos);
+      all_prompt = GetConcatPrompt(all_prompts, 1, start_re_encode_pos);
     }
     encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
