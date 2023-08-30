@@ -47,7 +47,7 @@ class ChatGLMConfig:
         multi_query_group_num: int = 2,
         num_attention_heads: int = 32,
         num_layers: int = 28,
-        seq_length: int = 2048,
+        max_sequence_length: int = 2048,
         padded_vocab_size: int = 65024,
         eos_token_id: int = 2,
         bos_token_id: int = 0,
@@ -63,7 +63,7 @@ class ChatGLMConfig:
         self.multi_query_group_num = multi_query_group_num
         self.num_attention_heads = num_attention_heads
         self.num_layers = num_layers
-        self.seq_length = min(2048, seq_length)
+        self.max_sequence_length = min(2048, max_sequence_length)
         self.padded_vocab_size = padded_vocab_size
         self.bos_token_id = bos_token_id
         self.eos_token_id = eos_token_id
@@ -481,14 +481,14 @@ class ChatGLMModel(nn.Module):
             dtype=config.dtype,
         )
 
-        self.seq_length = config.seq_length
+        self.seq_length = config.max_sequence_length
         rotary_dim = config.kv_channels // 2
 
         self.rotary_pos_emb = RotaryEmbedding(
             hidden_size=config.hidden_size,
             num_attention_heads=config.num_attention_heads,
             position_embedding_base=10000,
-            max_sequence_length=config.seq_length,
+            max_sequence_length=config.max_sequence_length,
             rotary_dim=rotary_dim,
             swizzle_style="glm",
             dtype=config.dtype,
@@ -726,7 +726,7 @@ def create_decoding_func(
 def create_kv_cache_func(bb: relax.BlockBuilder, config: ChatGLMConfig) -> None:
     init_shape = relax.ShapeExpr(
         (
-            config.seq_length,
+            config.max_sequence_length,
             config.multi_query_group_num,
             config.hidden_size // config.num_attention_heads,
         )
@@ -782,7 +782,7 @@ def get_model(args: argparse.Namespace, hf_config):
         create_metadata_func(
             bb,
             model_name=model,
-            max_window_size=config.seq_length,
+            max_window_size=config.max_sequence_length,
             stop_tokens=[0],
             add_prefix_space=False,
         )
@@ -794,8 +794,8 @@ def get_model(args: argparse.Namespace, hf_config):
                 mod[gv] = func.with_attr(
                     "tir_var_upper_bound",
                     {
-                        "n": config.seq_length,
-                        "m": config.seq_length,
+                        "n": config.max_sequence_length,
+                        "m": config.max_sequence_length,
                     },
                 )
 

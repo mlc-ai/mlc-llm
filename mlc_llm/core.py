@@ -364,12 +364,12 @@ def mod_transform_before_build(
         max_seq_len = None
         if args.max_seq_len > 0:
             max_seq_len = args.max_seq_len
-        elif "max_sequence_length" in config:
-            max_seq_len = config["max_sequence_length"]
+        elif hasattr(config, "max_sequence_length"):
+            max_seq_len = config.max_sequence_length
 
         if max_seq_len:
             mod = fuse_split_rotary_embedding(
-                mod, config["num_attention_heads"], config["hidden_size"], max_seq_len
+                mod, config.num_attention_heads, config.hidden_size, max_seq_len
             )
 
     if args.target_kind == "cuda":
