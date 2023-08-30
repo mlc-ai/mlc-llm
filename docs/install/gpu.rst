@@ -157,6 +157,7 @@ Installation
 * Download OpenCL ICD loader and manually add libmali to ICD
 
 .. code-block:: bash
+
    sudo apt update
    sudo apt install mesa-opencl-icd
    sudo mkdir -p /etc/OpenCL/vendors

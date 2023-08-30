@@ -5,7 +5,6 @@ import subprocess
 import sys
 from contextlib import asynccontextmanager
 
-import tvm
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
@@ -17,6 +16,7 @@ from typing import Optional
 from .chat_module import ChatModule
 from .interface.openai_api import *
 
+import numpy as np
 
 @dataclass
 class RestAPIArgs:
@@ -229,7 +229,30 @@ async def request_embeddings(request: EmbeddingsRequest):
     """
     Gets embedding for some text.
     """
-    assert "Endpoint not implemented."
+    inps = []
+    if type(request.input) == str:
+        inps.append(request.input)
+    elif type(request.input) == list:
+        inps = request.input
+    else:
+        assert f"Invalid input type {type(request.input)}"
+    
+    data = []
+    for i, inp in enumerate(inps):
+        session["chat_mod"].reset_chat()
+        emb = session["chat_mod"].embed_text(input=inp).numpy()
+        mean_emb = np.squeeze(np.mean(emb, axis=1), axis=0)
+        norm_emb = mean_emb / np.linalg.norm(mean_emb)
+        data.append({"object": "embedding", "embedding": norm_emb.tolist(), "index": i})
+    # TODO: Fill in correct usage info
+    return EmbeddingsResponse(
+        data=data,
+        usage=UsageInfo(
+            prompt_tokens=0,
+            completion_tokens=0,
+            total_tokens=0
+        )
+    )
 
 
 @app.post("/chat/reset")

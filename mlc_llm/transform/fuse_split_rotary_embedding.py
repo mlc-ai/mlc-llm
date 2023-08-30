@@ -15,6 +15,7 @@ from tvm.script import relax as R
 
 def get_split_rotary(num_attention_heads, head_dim, max_sequence_length=2048):
     hidden_size = num_attention_heads * head_dim
+    max_sequence_length = max(max_sequence_length, 2048)
 
     @T.prim_func
     def split_rotary(
@@ -77,6 +78,7 @@ def get_split_rotary(num_attention_heads, head_dim, max_sequence_length=2048):
 
 def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size, max_sequence_length=2048):
     head_dim = hidden_size // num_attention_heads
+    max_sequence_length = max(max_sequence_length, 2048)
 
     mod["split_rotary"] = get_split_rotary(num_attention_heads, head_dim, max_sequence_length)
 
