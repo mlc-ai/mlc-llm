@@ -8,8 +8,8 @@ from typing import List, Dict, Any
 import tvm
 from tvm import relax
 
+import mlc_llm
 from mlc_llm.utils import load_params
-from mlc_llm.transform import FuseTransposeMatmul
 
 
 def get_runtime_func(funcs: List[str], mod: tvm.IRModule):
@@ -109,10 +109,9 @@ def _smooth(
     dataset: List[tvm.nd.NDArray],
     config: Dict[str, Any],
 ):
-    mod = relax.transform.Annotate(funcs)(mod)
-    mod = relax.transform.DeadCodeElimination(funcs)(mod)
-    stat_mod = relax.transform.CollectStat()(mod)
-    stat_mod = FuseTransposeMatmul()(stat_mod)
+    mod = mlc_llm.transform.SmoothQuantAnnotator()(mod)
+    stat_mod = mlc_llm.transform.SmoothQuantStatCollector()(mod)
+    stat_mod = mlc_llm.transform.FuseTransposeMatmul()(stat_mod)
 
     prefill, decode, kvc, _, _ = get_runtime_func(funcs, stat_mod)
 
@@ -159,7 +158,7 @@ def _smooth(
         scale_params = _calculate_scale_params(fname, stat, config, tvm.cpu(0))
         mod = relax.transform.BindParams(fname, scale_params)(mod)
 
-    mod = relax.transform.SmoothQuantLegalize("multiply")(mod)
+    mod = mlc_llm.transform.SmoothQuantOpConverter("multiply")(mod)
     return mod
 
 
@@ -170,10 +169,9 @@ def _calibrate(
     dataset: List[tvm.nd.NDArray],
     config: Dict[str, Any],
 ):
-    mod = relax.transform.Annotate(funcs, "quantize")(mod)
-    mod = relax.transform.DeadCodeElimination(funcs)(mod)
-    stat_mod = relax.transform.CollectStat()(mod)
-    stat_mod = FuseTransposeMatmul()(stat_mod)
+    mod = mlc_llm.transform.SmoothQuantAnnotator("quantize")(mod)
+    stat_mod = mlc_llm.transform.SmoothQuantStatCollector()(mod)
+    stat_mod = mlc_llm.transform.FuseTransposeMatmul()(stat_mod)
 
     prefill, decode, kvc, _, _ = get_runtime_func(funcs, stat_mod)
 
@@ -220,8 +218,8 @@ def _calibrate(
         scale_params = _calculate_quant_scale_params(fname, stat, config, tvm.cpu(0))
         mod = relax.transform.BindParams(fname, scale_params)(mod)
 
-    legalized_mod = relax.transform.SmoothQuantLegalize("quantize")(mod)
-    mod = relax.transform.SmoothQuantRealize()(legalized_mod)
+    mod = mlc_llm.transform.SmoothQuantOpConverter("quantize")(mod)
+    mod = mlc_llm.transform.SmoothQuantLegalizer()(mod)
     mod = relax.transform.DeadCodeElimination(funcs)(mod)
     return mod
 
