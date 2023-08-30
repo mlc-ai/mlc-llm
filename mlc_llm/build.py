@@ -5,6 +5,7 @@ import sys
 import tvm
 from mlc_llm import core
 from tvm.relax.ir.instrument import WellFormedInstrument
+from mlc_llm.utils import DumpBeforeAfter
 
 
 @contextlib.contextmanager
@@ -42,8 +43,15 @@ def main():
         parsed_args = core._parse_args(parsed_args)  # pylint: disable=protected-access
 
         # Enter any additional debug contexts
+        instruments = []
+        if parsed_args.debug_dump:
+            instruments.append(DumpBeforeAfter(parsed_args, excludes_list=['tir']))   
+            
         if parsed_args.assert_well_formed:
-            stack.enter_context(tvm.transform.PassContext(instruments=[WellFormedInstrument()]))
+            instruments.append(WellFormedInstrument())  
+            
+        if instruments:
+            stack.enter_context(tvm.transform.PassContext(instruments=instruments))
 
         core.build_model_from_args(parsed_args)
 
