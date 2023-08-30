@@ -13,7 +13,7 @@
 namespace mlc {
 namespace llm {
 
-RWKVWorldTokenizer::Tokenizer(const std::string &path) {
+RWKVWorldTokenizer::RWKVWorldTokenizer(const std::string &path) {
   std::ifstream infile;
   infile.open(path, std::ios::binary | std::ios::in);
   infile.seekg(0, std::ios::end);

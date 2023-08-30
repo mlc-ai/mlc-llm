@@ -99,6 +99,8 @@ target_include_directories(mlc_llm_objs PRIVATE ${MLC_LLM_INCLUDES})
 target_compile_definitions(mlc_llm_objs PRIVATE ${MLC_LLM_COMPILE_DEFS})
 target_include_directories(mlc_llm_objs PRIVATE ${TOKENZIER_CPP_PATH}/include)
 target_compile_definitions(mlc_llm_objs PRIVATE -DMLC_LLM_EXPORTS)
+target_link_libraries(mlc_llm_objs PRIVATE msgpack-cxx)
+
 
 add_library(mlc_llm SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
 add_library(mlc_llm_static STATIC $<TARGET_OBJECTS:mlc_llm_objs>)
@@ -106,7 +108,7 @@ add_dependencies(mlc_llm_static tokenizers_cpp sentencepiece-static tokenizers_c
 set_target_properties(mlc_llm_static PROPERTIES OUTPUT_NAME mlc_llm)
 
 target_link_libraries(mlc_llm PUBLIC tvm_runtime)
-target_link_libraries(mlc_llm PRIVATE msgpack-cxx tokenizers_cpp)
+target_link_libraries(mlc_llm PRIVATE tokenizers_cpp)
 
 if (BUILD_CPP_TEST)
   message(STATUS "Building cpp unittests")
