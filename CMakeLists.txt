@@ -106,7 +106,7 @@ add_dependencies(mlc_llm_static tokenizers_cpp sentencepiece-static tokenizers_c
 set_target_properties(mlc_llm_static PROPERTIES OUTPUT_NAME mlc_llm)
 
 target_link_libraries(mlc_llm PUBLIC tvm_runtime)
-target_link_libraries(mlc_llm PRIVATE tokenizers_cpp)
+target_link_libraries(mlc_llm PRIVATE msgpack-cxx tokenizers_cpp)
 
 if (BUILD_CPP_TEST)
   message(STATUS "Building cpp unittests")
