@@ -12,6 +12,8 @@ else()
   set(CMAKE_CUDA_STANDARD 17)
 endif()
 
+include(FetchContent)
+
 if(EXISTS ${CMAKE_BINARY_DIR}/config.cmake)
   include(${CMAKE_BINARY_DIR}/config.cmake)
 else()
@@ -67,6 +69,15 @@ set(TOKENZIER_CPP_PATH 3rdparty/tokenizers-cpp)
 add_subdirectory(${TOKENZIER_CPP_PATH} tokenizers EXCLUDE_FROM_ALL)
 
 
+FetchContent_Declare(
+        msgpack
+        GIT_REPOSITORY https://github.com/msgpack/msgpack-c
+        GIT_TAG cpp-6.1.0
+        SYSTEM
+        )
+option(MSGPACK_USE_BOOST "" OFF)
+FetchContent_MakeAvailable(msgpack)
+
 tvm_file_glob(GLOB_RECURSE MLC_LLM_SRCS cpp/*.cc)
 tvm_file_glob(GLOB_RECURSE MLC_CLI_SRCS cpp/cli_main.cc)
 list(REMOVE_ITEM MLC_LLM_SRCS ${MLC_CLI_SRCS})
@@ -88,6 +99,8 @@ target_include_directories(mlc_llm_objs PRIVATE ${MLC_LLM_INCLUDES})
 target_compile_definitions(mlc_llm_objs PRIVATE ${MLC_LLM_COMPILE_DEFS})
 target_include_directories(mlc_llm_objs PRIVATE ${TOKENZIER_CPP_PATH}/include)
 target_compile_definitions(mlc_llm_objs PRIVATE -DMLC_LLM_EXPORTS)
+target_link_libraries(mlc_llm_objs PRIVATE msgpack-cxx)
+
 
 add_library(mlc_llm SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
 add_library(mlc_llm_static STATIC $<TARGET_OBJECTS:mlc_llm_objs>)

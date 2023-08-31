@@ -28,6 +28,7 @@
 #include <unordered_set>
 
 #include "conversation.h"
+#include "rwkv_world_tokenizer.h"
 
 namespace mlc {
 namespace llm {
@@ -84,6 +85,12 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
     return Tokenizer::FromBlobJSON(LoadBytesFromFile(huggingface.string()));
   }
   LOG(FATAL) << "Cannot find any tokenizer under: " << _path;
+}
+
+bool containsRWKV(const std::string& str) {
+    std::string lowerStr = str;
+    std::transform(lowerStr.begin(), lowerStr.end(), lowerStr.begin(), ::tolower);
+    return lowerStr.find("rwkv") != std::string::npos;
 }
 
 //------------------------------
@@ -235,7 +242,14 @@ class LLMChat {
    */
   void Reload(tvm::runtime::Module executable, String model_path, String app_config_json = "") {
     // Step 1. Set tokenizer.
-    this->tokenizer_ = TokenizerFromPath(model_path);
+    if (containsRWKV(model_path)) {
+      std::string model_path_str = model_path.c_str();
+      model_path_str = model_path_str + "tokenizer_model";
+      this->rwkv_world_tokenizer_ = std::make_unique<RWKVWorldTokenizer>(RWKVWorldTokenizer(model_path_str));
+    }
+    else{
+      this->tokenizer_ = TokenizerFromPath(model_path);
+    }
 
     // Step 2. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
@@ -416,7 +430,16 @@ class LLMChat {
     }
     // first try to encode all
     std::string all_prompt = GetConcatPrompt(prompts, 0, 0);
-    std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
+    std::vector<int32_t> encoded;
+    if(this->tokenizer_){
+      encoded = this->tokenizer_->Encode(all_prompt);
+    }
+    else if(this->rwkv_world_tokenizer_){
+      encoded = this->rwkv_world_tokenizer_->encode(all_prompt);
+    }
+    else{
+      LOG(FATAL)  << "No tokenizer is set.";
+    }
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
     if (this->total_seq_len_ + tokens.size() + this->mean_gen_len_ < this->max_window_size_) {
       return tokens;
@@ -434,10 +457,27 @@ class LLMChat {
     }
     std::vector<std::string> all_prompts = this->conversation_.GetPromptArray();
     // get estimate of the fragment
-    size_t ctx_length = this->tokenizer_->Encode(all_prompts[0]).size();
+    size_t ctx_length;
+    if (this->tokenizer_){
+      ctx_length = this->tokenizer_->Encode(all_prompts[0]).size();
+    }
+    else if(this->rwkv_world_tokenizer_){
+      ctx_length = this->rwkv_world_tokenizer_->encode(all_prompts[0]).size();
+    }
+    else{
+      LOG(FATAL)  << "No tokenizer is set.";
+    }
     size_t start_re_encode_pos = 0;
-    for (int i = all_prompts.size() - 1; i > 0; --i) {
-      ctx_length += this->tokenizer_->Encode(all_prompts[i]).size();
+    for (int i = all_prompts.size() - 1; i > 0; i -= 2) {
+      if (this->tokenizer_){
+        ctx_length += this->tokenizer_->Encode(all_prompts[i]).size();
+      }
+      else if(this->rwkv_world_tokenizer_){
+        ctx_length += this->rwkv_world_tokenizer_->encode(all_prompts[i]).size();
+      }
+      else{
+        LOG(FATAL)  << "No tokenizer is set.";
+      }
       if (ctx_length >= this->shift_fill_factor_ * this->max_window_size_ &&
           i + 2 < all_prompts.size()) {
         start_re_encode_pos = i;
@@ -450,7 +490,15 @@ class LLMChat {
     } else {
       all_prompt = GetConcatPrompt(all_prompts, 1, start_re_encode_pos);
     }
-    encoded = this->tokenizer_->Encode(all_prompt);
+    if (this->tokenizer_){
+      encoded = this->tokenizer_->Encode(all_prompt);
+    }
+    else if(this->rwkv_world_tokenizer_){
+      encoded = this->rwkv_world_tokenizer_->encode(all_prompt);
+    }
+    else{
+      LOG(FATAL)  << "No tokenizer is set.";
+    }
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
     if (tokens.size() >= this->max_window_size_) {
       LOG(WARNING)
@@ -978,6 +1026,7 @@ class LLMChat {
   //----------------------------
   // internal tokenizer
   std::unique_ptr<Tokenizer> tokenizer_;
+  std::unique_ptr<RWKVWorldTokenizer> rwkv_world_tokenizer_;
   // bos token
   int32_t bos_token_id_{1};
   // eos token id
