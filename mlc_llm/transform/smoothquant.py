@@ -194,9 +194,9 @@ class SmoothQuantLegalizer:
     """
     Pass that converts matmul(fp16, fp16) -> quantize + matmul(int8, int8) + dequantize.
     """
-    def __init__(self):
-        self.dtype_act = "int8"
-        self.dtype_weight = "int8"
+    def __init__(self, adtype="int8", wdtype="int8"):
+        self.dtype_act = adtype
+        self.dtype_weight = wdtype
 
     def transform_module(self, mod: tvm.IRModule, ctx: tvm.transform.PassContext) -> tvm.IRModule:
         attrs = {"mode": "quantize"}

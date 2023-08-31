@@ -9,6 +9,7 @@ import tvm
 from tvm import relax
 
 import mlc_llm
+from mlc_llm import utils
 from mlc_llm.utils import load_params
 
 
@@ -24,6 +25,10 @@ def get_runtime_func(funcs: List[str], mod: tvm.IRModule):
     vm = relax.VirtualMachine(exe, vm_device)
     runtime_funcs = [vm[fname] for fname in funcs]
     return runtime_funcs[0] if len(funcs) == 1 else runtime_funcs
+
+
+def to_device(params, device):
+    return [param.copyto(device) for param in params]
 
 
 def _accumulate_outlier_stat(stat, data):
@@ -219,7 +224,7 @@ def _calibrate(
         mod = relax.transform.BindParams(fname, scale_params)(mod)
 
     mod = mlc_llm.transform.SmoothQuantOpConverter("quantize")(mod)
-    mod = mlc_llm.transform.SmoothQuantLegalizer()(mod)
+    mod = mlc_llm.transform.SmoothQuantLegalizer(config["adtype"], config["wdtype"])(mod)
     mod = relax.transform.DeadCodeElimination(funcs)(mod)
     return mod
 
@@ -249,7 +254,8 @@ def smoothquant(args, mod, model_names):
 
 def smoothquant_transform_params(
     args: argparse.Namespace,
-    mod_transform: tvm.IRModule
+    mod_transform: tvm.IRModule,
+    params: List[tvm.nd.NDArray] = None,
 ) -> List[tvm.nd.NDArray]:
     mod_transform = relax.transform.ToNonDataflow()(mod_transform)
     mod_transform = relax.transform.LazyTransformParams()(mod_transform)
@@ -258,8 +264,9 @@ def smoothquant_transform_params(
     smq_device=tvm.device(target.kind.default_keys[0])
 
     new_params: List[tvm.nd.NDArray] = []
-    assert args.build_model_only is False, "build_model_only in True is not supported in SMQ"
-    params = load_params(args.artifact_path, device=smq_device)
+    if params is None:
+        assert args.build_model_only is False, "build_model_only in True is not supported in SMQ"
+        params = load_params(args.artifact_path, device=smq_device)
 
     @tvm.register_func("get_item", override=True)
     def get_item(i):
@@ -281,6 +288,17 @@ def smoothquant_transform_params(
     vm = relax.vm.VirtualMachine(ex, smq_device)
     vm["decode_transform_params"]()
     return new_params
+
+
+def smoothquant_quantize_params(
+    mod: tvm.IRModule,
+    model_names: List[str],
+    args: argparse.Namespace,
+):
+    mod = relax.transform.LiftTransformParams()(mod)
+    mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
+    new_params = smoothquant_transform_params(args, mod_transform)
+    return mod_deploy, new_params
 
 
 def _get_dummy_dataset(artifact_path, device, num=3):
