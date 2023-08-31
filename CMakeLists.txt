@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.18)
 project(mlc_llm C CXX)
 
+link_directories(/home/masahi/projects/dev/tvm/build/3rdparty/libflash_attn/src)
+
 include(CheckCXXCompilerFlag)
 if(NOT MSVC)
   check_cxx_compiler_flag("-std=c++17" SUPPORT_CXX17)
@@ -94,7 +96,7 @@ add_library(mlc_llm_static STATIC $<TARGET_OBJECTS:mlc_llm_objs>)
 add_dependencies(mlc_llm_static tokenizers_cpp sentencepiece-static tokenizers_c tvm_runtime)
 set_target_properties(mlc_llm_static PROPERTIES OUTPUT_NAME mlc_llm)
 
-target_link_libraries(mlc_llm PUBLIC tvm_runtime)
+target_link_libraries(mlc_llm PUBLIC tvm_runtime -Wl,--no-as-needed flash_attn)
 target_link_libraries(mlc_llm PRIVATE tokenizers_cpp)
 
 if (BUILD_CPP_TEST)

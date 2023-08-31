@@ -8,8 +8,8 @@ def rewrite_attention(f):
     V = wildcard()
 
     Q_BNSH = is_op("relax.permute_dims")(Q)
-    K_BNSH = is_op("relax.permute_dims")(K)
-    V_BNSH = is_op("relax.permute_dims")(V)
+    K_BNSH = is_op("relax.permute_dims")(is_op("relax.repeat")(K))
+    V_BNSH = is_op("relax.permute_dims")(is_op("relax.repeat")(V))
 
     K_BNSH_T = is_op("relax.permute_dims")(K_BNSH)
 
