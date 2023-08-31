@@ -73,7 +73,6 @@ FetchContent_Declare(
         msgpack
         GIT_REPOSITORY https://github.com/msgpack/msgpack-c
         GIT_TAG cpp-6.1.0
-        SYSTEM
         )
 option(MSGPACK_USE_BOOST "" OFF)
 FetchContent_MakeAvailable(msgpack)

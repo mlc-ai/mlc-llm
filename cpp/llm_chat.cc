@@ -244,7 +244,7 @@ class LLMChat {
     // Step 1. Set tokenizer.
     if (containsRWKV(model_path)) {
       std::string model_path_str = model_path.c_str();
-      model_path_str = model_path_str + "tokenizer_model";
+      model_path_str = model_path_str + "/tokenizer_model";
       this->rwkv_world_tokenizer_ = std::make_unique<RWKVWorldTokenizer>(RWKVWorldTokenizer(model_path_str));
     }
     else{
@@ -845,7 +845,15 @@ class LLMChat {
       appeared_token_ids_.insert(next_token);
     }
 
-    output_message_ = tokenizer_->Decode(output_ids_);
+    if (tokenizer_){
+      output_message_ = tokenizer_->Decode(output_ids_);
+    }
+    else if(rwkv_world_tokenizer_) {
+      output_message_ = rwkv_world_tokenizer_->decode(output_ids_);
+    }
+    else{
+      LOG(FATAL)  << "No tokenizer is set.";
+    }
 
     if (!conversation_.stop_str.empty()) {
       size_t stop_pos = output_message_.rfind(conversation_.stop_str);
