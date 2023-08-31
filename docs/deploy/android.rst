@@ -164,7 +164,7 @@ weights you build, please follow the steps below.
 
     .. code:: bash
 
-      adb push dist/models/vicuna-v1-7b/ /data/local/tmp/vicuna-v1-7b/
+      adb push dist/vicuna-v1-7b-q4f16_1/params /data/local/tmp/vicuna-v1-7b/
       adb shell "mkdir -p /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/"
       adb shell "mv /data/local/tmp/vicuna-v1-7b /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/vicuna-v1-7b"
 
