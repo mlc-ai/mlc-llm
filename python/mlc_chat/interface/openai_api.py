@@ -2,7 +2,7 @@
 Adapted from FastChat's OpenAI protocol: https://github.com/lm-sys/FastChat/blob/main/fastchat/protocol/openai_api_protocol.py
 """
 
-from typing import Literal, Dict, Any
+from typing import Literal, Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 import shortuuid
 import time
@@ -78,12 +78,12 @@ class CompletionResponse(BaseModel):
     usage: UsageInfo
 
 class EmbeddingsRequest(BaseModel):
-    model: str
-    input: str
-    user: str | None = None
+    model: Optional[str] = None
+    input: Union[str, List[Any]]
+    user: Optional[str] = None
 
 class EmbeddingsResponse(BaseModel):
     object: str = "list"
-    data: list[Dict[str, Any]]
-    model: str | None = None
+    data: List[Dict[str, Any]]
+    model: Optional[str] = None
     usage: UsageInfo

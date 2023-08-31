@@ -24,7 +24,7 @@ Build Android Package from Source
 ---------------------------------
 
 If you're a developer looking to integrate new functionality or support different model architectures in the Android Package, you may need to build it from source. To do so, please follow the instructions provided below on building the Android package from source. 
-Before you begin, clone this repository and initialize the submodules, as well as install and initalize rustup.
+Before you begin, clone this repository and initialize the submodules, as well as install and initialize rustup.
 
 App Build Instructions
 ^^^^^^^^^^^^^^^^^^^^^^
