@@ -549,7 +549,6 @@ Conversation GLM() {
 using ConvFactory = Conversation (*)();
 
 Conversation Conversation::FromTemplate(const std::string& name) {
-  std::cout << name << std::endl;
   static std::unordered_map<std::string, ConvFactory> factory = {
       {"llama_default", LlamaDefault},
       {"llama-2", Llama2},
