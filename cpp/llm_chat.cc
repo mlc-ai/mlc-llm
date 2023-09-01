@@ -78,7 +78,7 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
   } else {
     sentencepiece = path.parent_path() / "tokenizer.model";
     huggingface = path.parent_path() / "tokenizer.json";
-    rwkvworld = path.parent_path() / "tokenizer_model"
+    rwkvworld = path.parent_path() / "tokenizer_model";
   }
   if (std::filesystem::exists(sentencepiece)) {
     return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece.string()));
@@ -121,6 +121,14 @@ inline std::string Concat(const std::vector<std::string>& inputs) {
   return os.str();
 }
 
+bool containsBothWords(const std::string& str) {
+    std::string lowerStr = str;
+    std::transform(str.begin(), str.end(), lowerStr.begin(), ::tolower);
+
+    return (lowerStr.find("rwkv") != std::string::npos) && 
+           (lowerStr.find("world") != std::string::npos);
+}
+
 //------------------------------
 // Chat module
 //------------------------------
@@ -159,6 +167,11 @@ class LLMChat {
    */
   void LoadJSONOverride(const picojson::value& config_json, bool partial_update = false) {
     picojson::object config = config_json.get<picojson::object>();
+    std::string model_name;
+    if (config.count("model_name")) {
+      CHECK(config["model_name"].is<std::string>());
+      model_name = config["model_name"].get<std::string>();
+    }
     if (config.count("temperature")) {
       CHECK(config["temperature"].is<double>());
       this->temperature_ = config["temperature"].get<double>();
@@ -199,7 +212,13 @@ class LLMChat {
     if (config.count("conv_template")) {
       ICHECK(config["conv_template"].is<std::string>());
       std::string conv_template = config["conv_template"].get<std::string>();
-      this->conversation_ = Conversation::FromTemplate(conv_template);
+      // The RWKV World series of models have different prompts compared to other models like RWKV Raven.
+      if (containsBothWords(model_name)){
+        this->conversation_ = Conversation::FromTemplate("rwkv_world");
+      }
+      else{
+        this->conversation_ = Conversation::FromTemplate(conv_template);
+      }
       if (config.count("conv_config")) {
         // conv_config can override conv_template
         this->conversation_.LoadJSONOverride(config["conv_config"], true);
@@ -360,7 +379,13 @@ class LLMChat {
     if (this->max_window_size_ == -1) {
       this->max_window_size_ = std::numeric_limits<int64_t>::max();
     }
-    this->conversation_ = Conversation::FromTemplate(conv_template);
+    // The RWKV World series of models have different prompts compared to other models like RWKV Raven.
+    if(containsBothWords(this->model_name_)){
+      this->conversation_ = Conversation::FromTemplate("rwkv-world");
+    }
+    else{
+      this->conversation_ = Conversation::FromTemplate(conv_template);
+    }
     this->temperature_ = temperature;
     this->top_p_ = top_p;
     this->mean_gen_len_ = mean_gen_len;
