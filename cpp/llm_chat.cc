@@ -28,7 +28,6 @@
 #include <unordered_set>
 
 #include "conversation.h"
-#include "rwkv_world_tokenizer.h"
 
 namespace mlc {
 namespace llm {
@@ -57,10 +56,12 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
   std::filesystem::path path(_path);
   std::filesystem::path sentencepiece;
   std::filesystem::path huggingface;
+  std::filesystem::path rwkvworld;
   CHECK(std::filesystem::exists(path)) << "Cannot find tokenizer via path: " << _path;
   if (std::filesystem::is_directory(path)) {
     sentencepiece = path / "tokenizer.model";
     huggingface = path / "tokenizer.json";
+    rwkvworld = path / "tokenizer_model";
     // Check ByteLevelBPE
     {
       std::filesystem::path merges_path = path / "merges.txt";
@@ -77,6 +78,7 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
   } else {
     sentencepiece = path.parent_path() / "tokenizer.model";
     huggingface = path.parent_path() / "tokenizer.json";
+    rwkvworld = path.parent_path() / "tokenizer_model"
   }
   if (std::filesystem::exists(sentencepiece)) {
     return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece.string()));
@@ -84,13 +86,10 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
   if (std::filesystem::exists(huggingface)) {
     return Tokenizer::FromBlobJSON(LoadBytesFromFile(huggingface.string()));
   }
+  if (std::filesystem::exists(rwkvworld)) {
+    return Tokenizer::FromBlobRWKVWorld(rwkvworld.string());
+  }
   LOG(FATAL) << "Cannot find any tokenizer under: " << _path;
-}
-
-bool containsRWKV(const std::string& str) {
-    std::string lowerStr = str;
-    std::transform(lowerStr.begin(), lowerStr.end(), lowerStr.begin(), ::tolower);
-    return lowerStr.find("rwkv") != std::string::npos;
 }
 
 //------------------------------
@@ -242,14 +241,7 @@ class LLMChat {
    */
   void Reload(tvm::runtime::Module executable, String model_path, String app_config_json = "") {
     // Step 1. Set tokenizer.
-    if (containsRWKV(model_path)) {
-      std::string model_path_str = model_path.c_str();
-      model_path_str = model_path_str + "/tokenizer_model";
-      this->rwkv_world_tokenizer_ = std::make_unique<RWKVWorldTokenizer>(RWKVWorldTokenizer(model_path_str));
-    }
-    else{
-      this->tokenizer_ = TokenizerFromPath(model_path);
-    }
+    this->tokenizer_ = TokenizerFromPath(model_path);
 
     // Step 2. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
@@ -430,16 +422,7 @@ class LLMChat {
     }
     // first try to encode all
     std::string all_prompt = GetConcatPrompt(prompts, 0, 0);
-    std::vector<int32_t> encoded;
-    if(this->tokenizer_){
-      encoded = this->tokenizer_->Encode(all_prompt);
-    }
-    else if(this->rwkv_world_tokenizer_){
-      encoded = this->rwkv_world_tokenizer_->encode(all_prompt);
-    }
-    else{
-      LOG(FATAL)  << "No tokenizer is set.";
-    }
+    std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
     if (this->total_seq_len_ + tokens.size() + this->mean_gen_len_ < this->max_window_size_) {
       return tokens;
@@ -457,27 +440,10 @@ class LLMChat {
     }
     std::vector<std::string> all_prompts = this->conversation_.GetPromptArray();
     // get estimate of the fragment
-    size_t ctx_length;
-    if (this->tokenizer_){
-      ctx_length = this->tokenizer_->Encode(all_prompts[0]).size();
-    }
-    else if(this->rwkv_world_tokenizer_){
-      ctx_length = this->rwkv_world_tokenizer_->encode(all_prompts[0]).size();
-    }
-    else{
-      LOG(FATAL)  << "No tokenizer is set.";
-    }
+    size_t ctx_length = this->tokenizer_->Encode(all_prompts[0]).size();
     size_t start_re_encode_pos = 0;
-    for (int i = all_prompts.size() - 1; i > 0; i -= 2) {
-      if (this->tokenizer_){
-        ctx_length += this->tokenizer_->Encode(all_prompts[i]).size();
-      }
-      else if(this->rwkv_world_tokenizer_){
-        ctx_length += this->rwkv_world_tokenizer_->encode(all_prompts[i]).size();
-      }
-      else{
-        LOG(FATAL)  << "No tokenizer is set.";
-      }
+    for (int i = all_prompts.size() - 1; i > 0; --i) {
+      ctx_length += this->tokenizer_->Encode(all_prompts[i]).size();
       if (ctx_length >= this->shift_fill_factor_ * this->max_window_size_ &&
           i + 2 < all_prompts.size()) {
         start_re_encode_pos = i;
@@ -490,15 +456,7 @@ class LLMChat {
     } else {
       all_prompt = GetConcatPrompt(all_prompts, 1, start_re_encode_pos);
     }
-    if (this->tokenizer_){
-      encoded = this->tokenizer_->Encode(all_prompt);
-    }
-    else if(this->rwkv_world_tokenizer_){
-      encoded = this->rwkv_world_tokenizer_->encode(all_prompt);
-    }
-    else{
-      LOG(FATAL)  << "No tokenizer is set.";
-    }
+    encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
     if (tokens.size() >= this->max_window_size_) {
       LOG(WARNING)
@@ -845,15 +803,7 @@ class LLMChat {
       appeared_token_ids_.insert(next_token);
     }
 
-    if (tokenizer_){
-      output_message_ = tokenizer_->Decode(output_ids_);
-    }
-    else if(rwkv_world_tokenizer_) {
-      output_message_ = rwkv_world_tokenizer_->decode(output_ids_);
-    }
-    else{
-      LOG(FATAL)  << "No tokenizer is set.";
-    }
+    output_message_ = tokenizer_->Decode(output_ids_);
 
     if (!conversation_.stop_str.empty()) {
       size_t stop_pos = output_message_.rfind(conversation_.stop_str);
@@ -1034,7 +984,6 @@ class LLMChat {
   //----------------------------
   // internal tokenizer
   std::unique_ptr<Tokenizer> tokenizer_;
-  std::unique_ptr<RWKVWorldTokenizer> rwkv_world_tokenizer_;
   // bos token
   int32_t bos_token_id_{1};
   // eos token id
