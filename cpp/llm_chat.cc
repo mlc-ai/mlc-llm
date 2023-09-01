@@ -121,14 +121,6 @@ inline std::string Concat(const std::vector<std::string>& inputs) {
   return os.str();
 }
 
-bool containsBothWords(const std::string& str) {
-    std::string lowerStr = str;
-    std::transform(str.begin(), str.end(), lowerStr.begin(), ::tolower);
-
-    return (lowerStr.find("rwkv") != std::string::npos) && 
-           (lowerStr.find("world") != std::string::npos);
-}
-
 //------------------------------
 // Chat module
 //------------------------------
@@ -212,13 +204,7 @@ class LLMChat {
     if (config.count("conv_template")) {
       ICHECK(config["conv_template"].is<std::string>());
       std::string conv_template = config["conv_template"].get<std::string>();
-      // The RWKV World series of models have different prompts compared to other models like RWKV Raven.
-      if (containsBothWords(model_name)){
-        this->conversation_ = Conversation::FromTemplate("rwkv_world");
-      }
-      else{
-        this->conversation_ = Conversation::FromTemplate(conv_template);
-      }
+      this->conversation_ = Conversation::FromTemplate(conv_template, model_name);
       if (config.count("conv_config")) {
         // conv_config can override conv_template
         this->conversation_.LoadJSONOverride(config["conv_config"], true);
@@ -379,13 +365,7 @@ class LLMChat {
     if (this->max_window_size_ == -1) {
       this->max_window_size_ = std::numeric_limits<int64_t>::max();
     }
-    // The RWKV World series of models have different prompts compared to other models like RWKV Raven.
-    if(containsBothWords(this->model_name_)){
-      this->conversation_ = Conversation::FromTemplate("rwkv-world");
-    }
-    else{
-      this->conversation_ = Conversation::FromTemplate(conv_template);
-    }
+    this->conversation_ = Conversation::FromTemplate(conv_template, this->model_name_);
     this->temperature_ = temperature;
     this->top_p_ = top_p;
     this->mean_gen_len_ = mean_gen_len;
