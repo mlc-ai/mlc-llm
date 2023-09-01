@@ -305,20 +305,9 @@ def _get_dummy_dataset(artifact_path, device, num=3):
     prompts_dataset = [
         "The capital of Canada is",
         "2+2=?",
-        "What is the capital of Russia?",
+        "What is the capital of France?",
         "Who is the president of the USA?",
     ]
-
-    """
-    qqq = [
-        [1, 450, 7483, 310, 7400, 338],
-        [1, 29871, 29906, 29974, 29906, 29922, 29973],
-        [1, 1724, 338, 278, 7483, 310, 12710, 29973],
-        [1, 11644, 338, 278, 6673, 310, 278, 8278, 29973],
-    ]
-    qidx = 0
-    """
-
     dataset = []
     print("[SmoothQuant] Starting to initialize tokenizer...")
     tokenizer_path = os.path.join(artifact_path, "params")
@@ -326,11 +315,8 @@ def _get_dummy_dataset(artifact_path, device, num=3):
     print("[SmoothQuant] Initialization of tokenizer was completed...")
     for prompt in prompts_dataset:
         prompt_tokens = tokenizer.encode(prompt)
-        #prompt_tokens = qqq[qidx]
-        #qidx += 1
         data = tvm.nd.array(np.array([prompt_tokens]).astype("int32"), device=device)
         dataset.append(data)
     stop_tokens = ([tokenizer.eos_token_id])
-    #stop_tokens = ([2])
 
     return dataset, stop_tokens
