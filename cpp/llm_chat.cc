@@ -159,11 +159,6 @@ class LLMChat {
    */
   void LoadJSONOverride(const picojson::value& config_json, bool partial_update = false) {
     picojson::object config = config_json.get<picojson::object>();
-    std::string model_name;
-    if (config.count("model_name")) {
-      CHECK(config["model_name"].is<std::string>());
-      model_name = config["model_name"].get<std::string>();
-    }
     if (config.count("temperature")) {
       CHECK(config["temperature"].is<double>());
       this->temperature_ = config["temperature"].get<double>();
