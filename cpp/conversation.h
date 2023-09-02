@@ -129,9 +129,8 @@ class Conversation {
   /**
    * \brief Create conversation from existing registered template.
    * \param name The template name.
-   * \param model_name The model name.
    */
-  static Conversation FromTemplate(const std::string& name, const std::string& model_name);
+  static Conversation FromTemplate(const std::string& name);
 
   /*!
    * \brief Load JSON config in raw string and overrides options.

@@ -546,23 +546,9 @@ Conversation GLM() {
 
 }  // namespace
 
-bool containsBothWordsInRWKVWorld(const std::string& str) {
-    std::string lowerStr = str;
-    std::transform(str.begin(), str.end(), lowerStr.begin(), ::tolower);
-
-    return (lowerStr.find("rwkv") != std::string::npos) && 
-           (lowerStr.find("world") != std::string::npos);
-}
-
 using ConvFactory = Conversation (*)();
 
-Conversation Conversation::FromTemplate(const std::string& name, const std::string& model_name) {
-  std::string new_name = name;
-  // The RWKV World series of models have different prompts compared to other models like RWKV Raven.
-  if (containsBothWordsInRWKVWorld(model_name)){
-    new_name = "rwkv_world";
-  }
-      
+Conversation Conversation::FromTemplate(const std::string& name) {
   static std::unordered_map<std::string, ConvFactory> factory = {
       {"llama_default", LlamaDefault},
       {"llama-2", Llama2},
@@ -588,9 +574,9 @@ Conversation Conversation::FromTemplate(const std::string& name, const std::stri
       {"wizard_coder_or_math", WizardCoderOrMATH},
       {"glm", GLM},
   };
-  auto it = factory.find(new_name);
+  auto it = factory.find(name);
   if (it == factory.end()) {
-    LOG(FATAL) << "Unknown conversation template: " << new_name;
+    LOG(FATAL) << "Unknown conversation template: " << name;
   }
   return it->second();
 }

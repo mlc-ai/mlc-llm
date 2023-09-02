@@ -204,7 +204,7 @@ class LLMChat {
     if (config.count("conv_template")) {
       ICHECK(config["conv_template"].is<std::string>());
       std::string conv_template = config["conv_template"].get<std::string>();
-      this->conversation_ = Conversation::FromTemplate(conv_template, model_name);
+      this->conversation_ = Conversation::FromTemplate(conv_template);
       if (config.count("conv_config")) {
         // conv_config can override conv_template
         this->conversation_.LoadJSONOverride(config["conv_config"], true);
@@ -365,7 +365,7 @@ class LLMChat {
     if (this->max_window_size_ == -1) {
       this->max_window_size_ = std::numeric_limits<int64_t>::max();
     }
-    this->conversation_ = Conversation::FromTemplate(conv_template, this->model_name_);
+    this->conversation_ = Conversation::FromTemplate(conv_template);
     this->temperature_ = temperature;
     this->top_p_ = top_p;
     this->mean_gen_len_ = mean_gen_len;
