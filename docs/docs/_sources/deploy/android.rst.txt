@@ -91,7 +91,17 @@ App Build Instructions
       # e.g. for Linux: export JAVA_HOME=/home/user/Downloads/jdk-20
       export JAVA_HOME=/path/to/jdk
 
-6. Build the libs for Android app and then copy the built files to the ``android/MLCChat/app/src/main/src/libs``:
+6. Install rustup if not yet installed. Run the command to install it.
+
+   .. code:: bash
+
+      # error
+      # ./prepare_libs.sh: line 4: rustup: command not found.
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+      # and set up the PATH
+      source "$HOME/.cargo/env"
+
+7. Build the libs for Android app and then copy the built files to the ``android/MLCChat/app/src/main/src/libs``:
 
    .. code:: bash
 
@@ -104,9 +114,9 @@ App Build Instructions
       # libtvm4j_runtime_packed.so
       cp -a build/output/. MLCChat/app/src/main/libs
 
-7.  Open folder ``android/MLCChat`` as the project with Android Studio. And connect your Android device to your machine. In the menu bar of Android Studio, click ``Build - Make Project``.
+8.  Open folder ``android/MLCChat`` as the project with Android Studio. And connect your Android device to your machine. In the menu bar of Android Studio, click ``Build - Make Project``.
 
-8. Once the build is finished, click ``Run - Run 'app'``, and you will see the app launched on your phone.
+9. Once the build is finished, click ``Run - Run 'app'``, and you will see the app launched on your phone.
 
 .. image:: https://github.com/mlc-ai/mlc-llm/raw/main/site/img/android/android-studio.png
 

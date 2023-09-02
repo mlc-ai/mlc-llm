@@ -373,6 +373,15 @@ python3<span class="w"> </span>build.py<span class="w"> </span>--model<span clas
 </pre></div>
 </div>
 </li>
+<li><p>Install rustup if not yet installed. Run the command to install it.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># error</span>
+<span class="c1"># ./prepare_libs.sh: line 4: rustup: command not found.</span>
+curl<span class="w"> </span>--proto<span class="w"> </span><span class="s1">&#39;=https&#39;</span><span class="w"> </span>--tlsv1.2<span class="w"> </span>-sSf<span class="w"> </span>https://sh.rustup.rs<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
+<span class="c1"># and set up the PATH</span>
+<span class="nb">source</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/.cargo/env&quot;</span>
+</pre></div>
+</div>
+</li>
 <li><p>Build the libs for Android app and then copy the built files to the <code class="docutils literal notranslate"><span class="pre">android/MLCChat/app/src/main/src/libs</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>android<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./prepare_libs.sh
 <span class="c1"># If building successfully, there should be a `tvm4j_core.jar` and `arm64-v8a/libtvm4j_runtime_packed.so` in `build/output` dir.</span>
