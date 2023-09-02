@@ -36,15 +36,21 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "moss-moon-003-sft": "gptj",
         "moss-moon-003-base": "gptj",
         "rwkv-": "rwkv",
+        "rwkv_world": "rwkv_world",
         "minigpt": "minigpt",
     }
     try:
         with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
             config = json.load(i_f)
             args.model_category = config["model_type"]
+        model_path_lower = args.model_path.lower()
+        if "rwkv" in model_path_lower and "world" in model_path_lower:
+            args.model_category = "rwkv_world"
     except Exception:
         args.model_category = ""
     model = args.model.lower()
+    if "rwkv" in model and "world" in model:
+        model = "rwkv_world"
     for prefix, override_category in model_category_override.items():
         if model.startswith(prefix):
             args.model_category = override_category
@@ -67,6 +73,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "gpt-j-": "LM",
         "open_llama": "LM",
         "rwkv-": "rwkv",
+        "rwkv_world": "rwkv_world",
         "gorilla-": "gorilla",
         "guanaco": "guanaco",
         "wizardlm-7b": "wizardlm_7b",  # first get rid of 7b
