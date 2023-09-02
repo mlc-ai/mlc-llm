@@ -436,7 +436,7 @@ device.</p></li>
 <li><p>Step 13. Push the model dir to your phone through
 ADB.</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>adb<span class="w"> </span>push<span class="w"> </span>dist/models/vicuna-v1-7b/<span class="w"> </span>/data/local/tmp/vicuna-v1-7b/
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>adb<span class="w"> </span>push<span class="w"> </span>dist/vicuna-v1-7b-q4f16_1/params<span class="w"> </span>/data/local/tmp/vicuna-v1-7b/
 adb<span class="w"> </span>shell<span class="w"> </span><span class="s2">&quot;mkdir -p /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/&quot;</span>
 adb<span class="w"> </span>shell<span class="w"> </span><span class="s2">&quot;mv /data/local/tmp/vicuna-v1-7b /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/vicuna-v1-7b&quot;</span>
 </pre></div>
