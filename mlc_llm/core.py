@@ -147,6 +147,10 @@ class BuildArgs:
         default="",
         metadata={"help": "/path/to/llvm-mingw-root, use llvm-mingw to cross compile to windows."},
     )
+    cc_path: str = field(
+        default="",
+        metadata={"help": "/path/to/cross_compiler_path, Currently only used for cross-compile for nvidia/jetson device."},
+    )
     system_lib: bool = field(
         default=False,
         metadata={"help": "A parameter to `relax.build`.", "action": "store_true"},
