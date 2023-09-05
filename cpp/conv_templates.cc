@@ -215,6 +215,31 @@ Conversation RWKV() {
   return conv;
 }
 
+Conversation RWKVWorld() {
+  const std::string kUserPrefix = "User: ";
+  const std::string kAssistantPrefix = "Assistant: Hi. I am your assistant and I will provide expert "
+                                       "full response in full details. Please feel free to ask any question and I will always answer it.";
+  const std::string kDoubleNewLine = "\n\n";
+  const std::string prompt =
+        "(" + kUserPrefix + "hi" + kDoubleNewLine + kAssistantPrefix + kDoubleNewLine + ")";
+  Conversation conv;
+  conv.name = "rwkv-world";
+  conv.system = prompt;
+  conv.roles = {"User", "Assistant"};
+  conv.messages = {};
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.offset = 0;
+  conv.seps = {"\n\n"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  conv.stop_str = "\n\n";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {0};
+  conv.add_bos = false;
+  return conv;
+}
+
 Conversation Gorilla() {
   Conversation conv;
   conv.name = "gorilla_v0";
@@ -532,6 +557,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"vicuna_v1.1", VicunaV11},
       {"conv_one_shot", ConvOneShot},
       {"redpajama_chat", RedPajamaChat},
+      {"rwkv_world", RWKVWorld},
       {"rwkv", RWKV},
       {"gorilla", Gorilla},
       {"guanaco", Guanaco},

@@ -595,6 +595,16 @@ def build_model_from_args(args: argparse.Namespace):
             params,
             args,
         )
+        if not args.build_model_only:
+            new_params = utils.convert_weights(param_manager, params, args)
+            utils.save_params(new_params, args.artifact_path)
+            if args.model_category != "minigpt":
+                utils.copy_tokenizer(args)
+            if args.model_category == "rwkv" or args.model_category == "rwkv_world":
+                # TODO: refactor config into model definition
+                dump_mlc_chat_config(args, top_p=0.6, temperature=1.2, repetition_penalty=0.996)
+            else:
+                dump_mlc_chat_config(args)
 
         # mod_transform_before_build is not permitted to change the
         # input arguments.
