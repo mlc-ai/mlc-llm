@@ -676,6 +676,6 @@ def get_model(args: argparse.Namespace, hf_config):
                 (torch_pname, torch_param.astype(dtype))
             ],
         )
-        return mod, param_manager, [None] * len(param_manager.param_names), config
+        return mod, param_manager, [None] * len(param_manager.param_names), config, lambda mod:mod
 
     raise ValueError(f"Unsupported model {model}")

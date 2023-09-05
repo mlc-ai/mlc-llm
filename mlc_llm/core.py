@@ -353,6 +353,13 @@ def mod_transform_before_build(
     """First-stage: Legalize ops and trace"""
     if args.model.startswith("minigpt"):
         model_names = ["embed"]
+    elif args.model.startswith("llama"):
+        model_names = [
+            "prefill",
+            "create_kv_cache",
+            "softmax_with_temperature",
+            "get_metadata",
+        ]
     else:
         model_names = [
             "prefill",
@@ -558,19 +565,19 @@ def build_model_from_args(args: argparse.Namespace):
             config = json.load(i_f)
     if not use_cache or args.convert_weight_only:
         if args.model_category == "llama":
-            mod, param_manager, params, model_config = llama.get_model(args, config)
+            mod, param_manager, params, model_config, finalizer = llama.get_model(args, config)
         elif args.model_category == "gpt_neox":
-            mod, param_manager, params, model_config = gpt_neox.get_model(args, config)
+            mod, param_manager, params, model_config, finalizer = gpt_neox.get_model(args, config)
         elif args.model_category == "gpt_bigcode":
-            mod, param_manager, params, model_config= gpt_bigcode.get_model(args, config)
+            mod, param_manager, params, model_config, finalizer= gpt_bigcode.get_model(args, config)
         elif args.model_category == "minigpt":
-            mod, param_manager, params, model_config = minigpt.get_model(args)
+            mod, param_manager, params, model_config, finalizer = minigpt.get_model(args)
         elif args.model_category == "gptj":
-            mod, param_manager, params, model_config = gptj.get_model(args, config)
+            mod, param_manager, params, model_config, finalizer = gptj.get_model(args, config)
         elif args.model_category == "rwkv":
-            mod, param_manager, params, model_config = rwkv.get_model(args, config)
+            mod, param_manager, params, model_config, finalizer = rwkv.get_model(args, config)
         elif args.model_category == "chatglm":
-            mod, param_manager, params, model_config = chatglm.get_model(args, config)
+            mod, param_manager, params, model_config, finalizer = chatglm.get_model(args, config)
         else:
             raise ValueError(f"Model {args.model} not supported")
 
@@ -598,7 +605,8 @@ def build_model_from_args(args: argparse.Namespace):
         # `func(activations,weights)` into a series of two function
         # calls `func(activations, preprocess(weights))`.
         mod = relax.transform.LiftTransformParams()(mod)
-        mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod)
+        mod_transform, mod = utils.split_transform_deploy_mod(mod)
+        mod = finalizer(mod)
 
         utils.save_lifted_params(mod_transform, param_manager, params, args)
 

@@ -662,8 +662,12 @@ def create_encoding_func(
     func_name = "prefill_with_embed" if sep_embed else "prefill"
 
     bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")
-    all_seq_len = tvm.tir.Var("m", "int64")
+    # Length of this invocation's input token sequence.  Excludes
+    # tokens that were previously processed.
+    seq_len = tvm.tir.SizeVar("seq_len", "int64")
+    # Total length of the key/value sequences, including all cached
+    # values from previously provided inputs.
+    all_seq_len = tvm.tir.SizeVar("all_seq_len", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = LlamaForCausalLM(config, sep_embed)
@@ -780,6 +784,11 @@ def create_softmax_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
             gv = bb.emit_output(softmax)
         bb.emit_func_output(gv, [logits, temperature])
 
+
+def auto_define_decode_function(mod):
+    mod["decode"] = tvm.relax.utils.copy_with_new_vars(mod["prefill"].bind_symbolic_vars({"seq_len": 1}).with_attr("global_symbol", "decode"))
+    return mod 
+    
 
 def get_model(args, hf_config):
     model_name = args.model
@@ -900,4 +909,4 @@ def get_model(args, hf_config):
     param_list[-2] = tvm.nd.array(np.cos(emb).astype(config.dtype), device)
     param_list[-1] = tvm.nd.array(np.sin(emb).astype(config.dtype), device)
 
-    return mod, param_manager, param_list, config
+    return mod, param_manager, param_list, config, auto_define_decode_function

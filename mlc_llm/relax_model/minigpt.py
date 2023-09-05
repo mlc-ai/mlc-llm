@@ -577,7 +577,7 @@ def get_model(args):
                 tvm.nd.array(llama_state_dict[key].numpy().astype(config.dtype), device)
             )
 
-        return mod, param_manager, param_list, config
+        return mod, param_manager, param_list, config, lambda mod:mod
 
     raise ValueError(f"Unsupported model: {model_name}")
 
