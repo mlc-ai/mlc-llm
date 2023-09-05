@@ -616,11 +616,8 @@ def build_model_from_args(args: argparse.Namespace):
         # calls `func(activations, preprocess(weights))`.
         mod = relax.transform.LiftTransformParams()(mod)
         mod_transform, mod = utils.split_transform_deploy_mod(mod)
-<<<<<<< HEAD
         mod = finalizer(mod)
-=======
         mod = relax.transform.BundleModelParams()(mod)
->>>>>>> 5b13b42... Split out parameter bundling from ParamManager.transform_quantize
 
         utils.save_lifted_params(mod_transform, param_manager, params, args)
 
