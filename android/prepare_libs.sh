@@ -23,8 +23,8 @@ cmake .. \
       -DUSE_HEXAGON_SDK=OFF \
       -DMLC_LLM_INSTALL_STATIC_LIB=ON \
       -DCMAKE_SKIP_INSTALL_ALL_DEPENDENCY=ON \
-      -DUSE_OPENCL=ON
+      -DUSE_OPENCL=ON \
+      -DUSE_CUSTOM_LOGGING=ON \
 
-make tvm4j_runtime_packed -j8
+make tvm4j_runtime_packed -j${nproc}
 cmake --build . --target install --config release -j
-

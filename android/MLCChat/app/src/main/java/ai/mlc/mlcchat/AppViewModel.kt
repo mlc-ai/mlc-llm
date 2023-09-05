@@ -498,7 +498,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         private fun mainResetChat() {
             executorService.submit {
-                backend.resetChat()
+                callBackend { backend.resetChat() }
                 viewModelScope.launch {
                     clearHistory()
                     switchToReady()
@@ -526,6 +526,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         private fun switchToReady() {
             modelChatState.value = ModelChatState.Ready
+        }
+
+        private fun switchToFailed() {
+            modelChatState.value = ModelChatState.Falied
+        }
+
+        private fun callBackend(callback: () -> Unit): Boolean {
+            try {
+                callback()
+            } catch (e: Exception) {
+                viewModelScope.launch {
+                    val stackTrace = e.stackTraceToString()
+                    val errorMessage = e.localizedMessage
+                    appendMessage(
+                        MessageRole.Bot,
+                        "MLCChat failed\n\nStack trace:\n$stackTrace\n\nError message:\n$errorMessage"
+                    )
+                    switchToFailed()
+                }
+                return false
+            }
+            return true
         }
 
         fun requestResetChat() {
@@ -571,7 +593,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         private fun mainTerminateChat(callback: () -> Unit) {
             executorService.submit {
-                backend.unload()
+                callBackend { backend.unload() }
                 viewModelScope.launch {
                     clearHistory()
                     switchToReady()
@@ -609,8 +631,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 viewModelScope.launch {
                     Toast.makeText(application, "Initialize...", Toast.LENGTH_SHORT).show()
                 }
-                backend.unload()
-                backend.reload(modelLib, modelPath)
+                if (!callBackend {
+                        backend.unload()
+                        backend.reload(modelLib, modelPath)
+                    }) return@submit
                 viewModelScope.launch {
                     Toast.makeText(application, "Ready to chat", Toast.LENGTH_SHORT).show()
                     switchToReady()
@@ -624,11 +648,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             executorService.submit {
                 appendMessage(MessageRole.User, prompt)
                 appendMessage(MessageRole.Bot, "")
-                backend.prefill(prompt)
+                if (!callBackend { backend.prefill(prompt) }) return@submit
                 while (!backend.stopped()) {
-                    backend.decode()
-                    val newText = backend.getMessage()
-                    viewModelScope.launch { updateMessage(MessageRole.Bot, newText) }
+                    if (!callBackend {
+                            backend.decode()
+                            val newText = backend.message
+                            viewModelScope.launch { updateMessage(MessageRole.Bot, newText) }
+                        }) return@submit
                     if (modelChatState.value != ModelChatState.Generating) return@submit
                 }
                 val runtimeStats = backend.runtimeStatsText()
@@ -653,7 +679,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         fun interruptable(): Boolean {
-            return modelChatState.value == ModelChatState.Ready || modelChatState.value == ModelChatState.Generating
+            return modelChatState.value == ModelChatState.Ready
+                    || modelChatState.value == ModelChatState.Generating
+                    || modelChatState.value == ModelChatState.Falied
         }
     }
 }
@@ -674,7 +702,8 @@ enum class ModelChatState {
     Resetting,
     Reloading,
     Terminating,
-    Ready
+    Ready,
+    Falied
 }
 
 enum class MessageRole {

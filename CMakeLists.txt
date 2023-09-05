@@ -82,7 +82,7 @@ set(
   ${TVM_HOME}/3rdparty/picojson
 )
 
-set(MLC_LLM_COMPILE_DEFS DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
+set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 
 target_include_directories(mlc_llm_objs PRIVATE ${MLC_LLM_INCLUDES})
 target_compile_definitions(mlc_llm_objs PRIVATE ${MLC_LLM_COMPILE_DEFS})
