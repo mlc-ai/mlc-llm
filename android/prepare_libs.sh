@@ -26,5 +26,5 @@ cmake .. \
       -DUSE_OPENCL=ON \
       -DUSE_CUSTOM_LOGGING=ON \
 
-make tvm4j_runtime_packed -j${nproc}
+make tvm4j_runtime_packed -j10
 cmake --build . --target install --config release -j
