@@ -78,8 +78,10 @@ DLDevice GetDevice(const std::string& device_name, int device_id) {
   if (device_name == "rocm") return DLDevice{kDLROCM, device_id};
   if (device_name == "vulkan") return DLDevice{kDLVulkan, device_id};
   if (device_name == "opencl" || device_name == "mali") return DLDevice{kDLOpenCL, device_id};
-  LOG(FATAL) << "Invalid device name: " << device_name << ". Please enter the device in the form 'device_name:device_id'"
-    " or 'device_name', where 'device_name' needs to be one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto'.";
+  LOG(FATAL) << "Invalid device name: " << device_name
+             << ". Please enter the device in the form 'device_name:device_id'"
+                " or 'device_name', where 'device_name' needs to be one of 'cuda', 'metal', "
+                "'vulkan', 'rocm', 'opencl', 'auto'.";
   return DLDevice{kDLCPU, 0};
 }
 
@@ -234,9 +236,8 @@ class ChatModule {
     std::string new_model_path = model.config.parent_path().string();
     if (this->lib_path_ != new_lib_path) {
       this->lib_path_ = new_lib_path;
-      this->executable_ = tvm::runtime::Module::LoadFromFile(this->lib_path_);
     }
-    reload_(this->executable_, tvm::runtime::String(new_model_path));
+    reload_(tvm::runtime::String(lib_path_), tvm::runtime::String(new_model_path));
     std::cout << "Loading finished" << std::endl << std::flush;
   }
 
@@ -304,10 +305,10 @@ class ChatModule {
 std::optional<std::filesystem::path> TryInferMLCChatConfig(const std::string& local_id) {
   return FindFile(
       {
-          local_id, // full path, or just the name
-          "dist/prebuilt/" + local_id, // Using prebuilt workflow
-          "dist/" + local_id + "/params", // Default directory after mlc_llm.build_model()
-          "dist/prebuilt/mlc-chat-" + local_id, // Also prebuilt workflow, but missed prefix
+          local_id,                              // full path, or just the name
+          "dist/prebuilt/" + local_id,           // Using prebuilt workflow
+          "dist/" + local_id + "/params",        // Default directory after mlc_llm.build_model()
+          "dist/prebuilt/mlc-chat-" + local_id,  // Also prebuilt workflow, but missed prefix
       },
       {"mlc-chat-config"}, {".json"});
 }
@@ -336,13 +337,17 @@ ModelPaths ModelPaths::Find(const std::string& device_name, const std::string& l
   if (auto path = TryInferMLCChatConfig(local_id)) {
     config_path = path.value();
   } else {
-    LOG(FATAL) << "The model folder provided does not seem to refer to a valid mlc-llm model folder. "
-    "Specifically, we cannot find `mlc-chat-config.json`, a required file. You should provide a path that contains the file. "
-    "According to your input `" << local_id << "`, we looked at folder(s):\n"
-    << "- " + local_id << "\n"
-    << "- dist/prebuilt/" + local_id << "\n"
-    << "- dist/" + local_id + "/params" << "\n"
-    << "- dist/prebuilt/mlc-chat-" + local_id;
+    LOG(FATAL)
+        << "The model folder provided does not seem to refer to a valid mlc-llm model folder. "
+           "Specifically, we cannot find `mlc-chat-config.json`, a required file. You should "
+           "provide a path that contains the file. "
+           "According to your input `"
+        << local_id << "`, we looked at folder(s):\n"
+        << "- " + local_id << "\n"
+        << "- dist/prebuilt/" + local_id << "\n"
+        << "- dist/" + local_id + "/params"
+        << "\n"
+        << "- dist/prebuilt/mlc-chat-" + local_id;
     exit(1);
   }
   std::cout << "Use MLC config: " << config_path << std::endl;
@@ -360,26 +365,22 @@ ModelPaths ModelPaths::Find(const std::string& device_name, const std::string& l
   std::string lib_local_id = ReadStringFromJSONFile(config_path, "model_lib");
   std::string lib_name = lib_local_id + "-" + device_name;
   std::filesystem::path lib_path;
-  if (auto path = FindFile(
-          {
-              lib_local_id,
-              "dist/prebuilt/lib", // Using prebuilt workflow
-              "dist/" + local_id,
-              "dist/prebuilt/" + lib_local_id
-          },
-          {
-              lib_name + GetArchSuffix(),
-              lib_name,
-          },
-          GetLibSuffixes())) {
+  if (auto path = FindFile({lib_local_id,
+                            "dist/prebuilt/lib",  // Using prebuilt workflow
+                            "dist/" + local_id, "dist/prebuilt/" + lib_local_id},
+                           {
+                               lib_name + GetArchSuffix(),
+                               lib_name,
+                           },
+                           GetLibSuffixes())) {
     lib_path = path.value();
   } else {
     LOG(FATAL) << "Cannot find the model library that corresponds to `" << lib_local_id << "`.\n"
-    << "We searched over the following possible paths: \n"
-    << "- " + lib_local_id << "\n"
-    << "- dist/prebuilt/lib \n"
-    << "- dist/" + local_id << "\n"
-    << "- dist/prebuilt/" + lib_local_id;
+               << "We searched over the following possible paths: \n"
+               << "- " + lib_local_id << "\n"
+               << "- dist/prebuilt/lib \n"
+               << "- dist/" + local_id << "\n"
+               << "- dist/prebuilt/" + lib_local_id;
     exit(1);
   }
   std::cout << "Use model library: " << lib_path << std::endl;
@@ -419,7 +420,8 @@ void Converse(ChatModule* chat, const std::string& input, int stream_interval,
  * \param local_id The model path which contains the model config, tokenizer and parameters.
  * \param stream_interval The interval that should be used for streaming the response.
  */
-void Chat(ChatModule* chat, const std::string& device_name, std::string local_id, int stream_interval = 2) {
+void Chat(ChatModule* chat, const std::string& device_name, std::string local_id,
+          int stream_interval = 2) {
   ModelPaths model = ModelPaths::Find(device_name, local_id);
   PrintSpecialCommands();
   chat->Reload(model);
