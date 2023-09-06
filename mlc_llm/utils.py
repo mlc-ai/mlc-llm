@@ -449,6 +449,22 @@ def parse_target(args: argparse.Namespace) -> None:
         args.target_kind = args.target.kind.default_keys[0]
         if multiarch:
             args.target_kind += "-multiarch"
+    elif args.target.startswith("nvidia/jetson"):
+        try:
+            args.target = tvm.target.Target(args.target)
+        except ValueError:
+            raise ValueError("Cannot find configuration of given nvidia/jetson board target!")
+        if not hasattr(args, "cc_path") or args.cc_path == "":
+            args.cc_path = "/usr/bin/aarch64-linux-gnu-g++"
+        from tvm.contrib.cc import (  # pylint: disable=import-outside-toplevel
+            cross_compiler,
+        )
+        args.export_kwargs = {
+            "fcompile": cross_compiler(
+                args.cc_path,
+            ),
+        }
+        args.target_kind = args.target.kind.default_keys[0]
     elif args.target == "metal":
         target = _detect_local_metal()
         if target is None:
