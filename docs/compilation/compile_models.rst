@@ -414,6 +414,13 @@ This section lists compile commands for more models that you can try out.
 
                     python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target iphone --max-seq-len 768 --quantization q3f16_1
 
+            .. tab:: Android
+
+                .. code:: shell
+
+                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target android --max-seq-len 768 --quantization q4f16_1
+
+
     .. tab:: Vicuna-v1-7B
 
         Please check this page on :doc:`how to get the Vicuna model weights </compilation/get-vicuna-weight>`.
@@ -470,7 +477,7 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target android --max-seq-len 768 --quantization q4f16_0
+                    python3 -m mlc_llm.build --model vicuna-v1-7b --target android --max-seq-len 768 --quantization q4f16_1
 
     .. tab:: RedPajama-v1-3B
 
