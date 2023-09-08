@@ -787,9 +787,18 @@ def get_model(args, hf_config):
     max_seq_len = args.max_seq_len
     sep_embed = args.sep_embed
 
+    position_embedding_base = 10000
+    max_position_embeddings = 2048
+    if "rope_theta" in hf_config:
+        position_embedding_base = hf_config["rope_theta"]
+    if "max_position_embeddings" in hf_config:
+        max_position_embeddings = hf_config["max_position_embeddings"]
+    
     config = LlamaConfig(
         **hf_config,
         dtype=dtype,
+        max_sequence_length=max_position_embeddings,
+        position_embedding_base=position_embedding_base,
         combine_matmul=True,
     )
     if max_seq_len != -1:
