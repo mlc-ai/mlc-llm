@@ -809,7 +809,6 @@ def get_model(args, hf_config):
     if sep_embed:
         create_embed_func(bb, param_manager, config, args.quantization)
     create_encoding_func(bb, param_manager, config, args.quantization, sep_embed)
-    create_decoding_func(bb, param_manager, config, args.quantization)
     create_kv_cache_func(bb, config)
     create_softmax_func(bb, config)
     create_metadata_func(
