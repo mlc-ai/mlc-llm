@@ -361,25 +361,13 @@ class ParamManager:
 
             qparams: List[relax.Var] = []
 
-            if var in self.raw_quantized_name_map:
-                quantized_params = self.raw_quantized_name_map[var]
-            elif var in self.func_raw_param_map:
-                quantized_params = [var]
-            else:
-                raise RuntimeError(
-                    f"Variable {var} was not found in either "
-                    f"the pre-quantized parameters (self.raw_quantized_map), "
-                    f"nor the quantization function parameters (self.func_raw_param_map)."
-                )
-
-            for var in quantized_params:
-                func_name, param = self.func_raw_param_map[var]
-                quantized_tuple = func_name_to_quantized_params[func_name]
-                for qparam_idx in self.param2qrange[param]:
-                    qparam = quantized_tuple[qparam_idx]
-                    if qparam.struct_info_ is None:
-                        qparam = bb.emit(qparam)
-                    qparams.append(qparam)
+            func_name, param = self.func_raw_param_map[var]
+            quantized_tuple = func_name_to_quantized_params[func_name]
+            for qparam_idx in self.param2qrange[param]:
+                qparam = quantized_tuple[qparam_idx]
+                if qparam.struct_info_ is None:
+                    qparam = bb.emit(qparam)
+                qparams.append(qparam)
 
             dequantized = self._dequantize(param, qparams, bb)
             dequantized_cache[var] = dequantized

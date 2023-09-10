@@ -123,7 +123,6 @@ def get_model_names(mod: tvm.IRModule) -> List[str]:
 def split_transform_deploy_mod(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
     mod_transform = tvm.IRModule()
     mod_deploy = tvm.IRModule()
-
     transform_func_names = [
         gv.name_hint for gv in mod.get_global_vars() if gv.name_hint.endswith("_transform_params")
     ]
@@ -262,7 +261,6 @@ def convert_weights(
     # We first create an initial one, then reorder it according to each
     # weight's location in the binary files, in the purpose of reducing
     # memory usage when loading torch weights as well as acceleration.
-    mod_transform = param_manager.create_quantize_func(param_mgr)
     transform_func_names = [
         gv.name_hint
         for gv in mod_transform.get_global_vars()
@@ -270,7 +268,6 @@ def convert_weights(
     ]
     assert len(transform_func_names) == 1
     transform_func_name = transform_func_names[0]
-
     # Reorder the provided transformation according to each weight's
     # location in the binary files, in the purpose of reducing memory
     # usage when loading torch weights as well as acceleration.
@@ -283,7 +280,6 @@ def convert_weights(
     # so that the LazyTransformParams pass can be applied.
     mod_transform = relax.transform.ToNonDataflow()(mod_transform)
     mod_transform = relax.transform.LazyTransformParams()(mod_transform)
-
     debug_dump_script(mod_transform, "mod_convert_weights.py", args)
 
     target = detect_local_target()
@@ -313,7 +309,6 @@ def convert_weights(
     if target.kind.name != "llvm":
         with tvm.target.Target(target):
             mod_transform = tvm.tir.transform.DefaultGPUSchedule()(mod_transform)
-
     ex = relax.build(mod_transform, target=target)
     vm = relax.vm.VirtualMachine(ex, device)
     print("Start computing and quantizing weights... This may take a while.")

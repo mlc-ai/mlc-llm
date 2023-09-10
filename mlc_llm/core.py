@@ -20,7 +20,6 @@ from mlc_llm.relax_model import (
     rwkv,
     chatglm,
 )
-
 from tvm import dlight as dl
 from tvm import relax
 from tvm.contrib.nvcc import parse_compute_version
@@ -589,27 +588,10 @@ def build_model_from_args(args: argparse.Namespace):
         # arguments of the end-to-end model, such that the function
         # now accepts transformed arguments.
         mod = param_manager.transform_dequantize(mod)
-        params = utils.convert_weights(
-            mlc_llm.relax_model.param_manager.create_quantize_func(param_manager),
-            param_manager,
-            params,
-            args,
-        )
-        if not args.build_model_only:
-            new_params = utils.convert_weights(param_manager, params, args)
-            utils.save_params(new_params, args.artifact_path)
-            if args.model_category != "minigpt":
-                utils.copy_tokenizer(args)
-            if args.model_category == "rwkv" or args.model_category == "rwkv_world":
-                # TODO: refactor config into model definition
-                dump_mlc_chat_config(args, top_p=0.6, temperature=1.2, repetition_penalty=0.996)
-            else:
-                dump_mlc_chat_config(args)
-
+        
         # mod_transform_before_build is not permitted to change the
         # input arguments.
         mod = mod_transform_before_build(mod, args, config)
-
         # LiftTransformParams is not permitted to change the
         # input arguments, only to break up a single function call
         # `func(activations,weights)` into a series of two function
@@ -618,16 +600,24 @@ def build_model_from_args(args: argparse.Namespace):
         mod_transform, mod = utils.split_transform_deploy_mod(mod)
         mod = finalizer(mod)
         mod = relax.transform.BundleModelParams()(mod)
+        if not args.build_model_only:
+            params = utils.convert_weights(
+            mlc_llm.relax_model.param_manager.create_quantize_func(param_manager),
+            param_manager,
+            params,
+            args,
+            )
+            utils.save_lifted_params(mod_transform, param_manager, params, args)
+            if args.model_category != "minigpt":
+                utils.copy_tokenizer(args)
+            if args.model_category == "rwkv" or args.model_category == "rwkv_world":
+                # TODO: refactor config into model definition
+                dump_mlc_chat_config(args, top_p=0.6, temperature=1.2, repetition_penalty=0.996)
+            else:
+                dump_mlc_chat_config(args)
 
-        utils.save_lifted_params(mod_transform, param_manager, params, args)
-
-        if args.model_category != "minigpt":
-            utils.copy_tokenizer(args)
-        if args.model_category == "rwkv":
-            # TODO: refactor config into model definition
-            dump_mlc_chat_config(args, top_p=0.6, temperature=1.2, repetition_penalty=0.996)
-        else:
-            dump_mlc_chat_config(args)
+        if args.convert_weight_only:
+            exit(0)
 
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)

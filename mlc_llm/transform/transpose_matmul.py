@@ -110,6 +110,7 @@ class TransposeMatmulCodeGenerator(relax.PyExprMutator):
         if isinstance(call.op, relax.GlobalVar):
             function = self.builder_.get()[call.op]
             if (
+                function.attrs and 
                 "Composite" in function.attrs
                 and function.attrs["Composite"] == "transpose_matmul_fuse"
             ):
