@@ -17,12 +17,14 @@ class ChatCompletionRequest(BaseModel):
     model: str
     messages: list[ChatMessage]
     stream: bool | None = False
+    temperature: float = None
+    top_p: float = None
+    repetition_penalty: float = None
+    mean_gen_len: int = None
+    max_gen_len: int = None
     # TODO: Implement support for the following fields
-    # temperature: Optional[float] = 1.0
-    # top_p: Optional[float] = 1.0
     # n: Optional[int] = 1
     # stop: Optional[Union[str, List[str]]] = None
-    # max_tokens: Optional[int] = None
     # presence_penalty: Optional[float] = 0.0
     # frequency_penalty: Optional[float] = 0.0
     # user: Optional[str] = None
@@ -63,6 +65,22 @@ class ChatCompletionStreamResponse(BaseModel):
 class CompletionRequest(BaseModel):
     model: str
     prompt: str | list[str]
+    temperature: float = None
+    repetition_penalty: float = None
+    top_p: float = None
+    mean_gen_len: int = None
+    max_gen_len: int = None
+    system_prompt: str = None
+    chat_roles: List[str] = None
+    messages: List[List[str]] = None
+    offset: str = None
+    separator_style: int = None
+    seps: List[str] = None
+    role_msg_sep: str = None
+    role_empty_sep: str = None
+    stop_str: str = None
+    stop_tokens: List[int] = None
+    add_bos: bool = None
 
 class CompletionResponseChoice(BaseModel):
     index: int
