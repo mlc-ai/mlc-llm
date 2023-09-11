@@ -149,7 +149,9 @@ class BuildArgs:
     )
     cc_path: str = field(
         default="",
-        metadata={"help": "/path/to/cross_compiler_path, Currently only used for cross-compile for nvidia/jetson device."},
+        metadata={
+            "help": "/path/to/cross_compiler_path, Currently only used for cross-compile for nvidia/jetson device."
+        },
     )
     system_lib: bool = field(
         default=False,
@@ -363,8 +365,11 @@ def mod_transform_before_build(
         mod
     )  # pylint: disable=not-callable
 
-
-    if hasattr(config, "num_attention_heads") and hasattr(config, "hidden_size"):
+    if (
+        hasattr(config, "num_attention_heads")
+        and hasattr(config, "hidden_size")
+        and hasattr(config, "position_embedding_base")
+    ):
         max_seq_len = None
         if args.max_seq_len > 0:
             max_seq_len = args.max_seq_len
@@ -373,7 +378,7 @@ def mod_transform_before_build(
 
         if max_seq_len:
             mod = fuse_split_rotary_embedding(
-                mod, config.num_attention_heads, config.hidden_size, max_seq_len
+                mod, config.num_attention_heads, config.hidden_size, config.position_embedding_base
             )
 
     if args.target_kind == "cuda":
@@ -555,7 +560,7 @@ def build_model_from_args(args: argparse.Namespace):
         elif args.model_category == "gpt_neox":
             mod, param_manager, params, model_config = gpt_neox.get_model(args, config)
         elif args.model_category == "gpt_bigcode":
-            mod, param_manager, params, model_config= gpt_bigcode.get_model(args, config)
+            mod, param_manager, params, model_config = gpt_bigcode.get_model(args, config)
         elif args.model_category == "minigpt":
             mod, param_manager, params, model_config = minigpt.get_model(args)
         elif args.model_category == "gptj":
