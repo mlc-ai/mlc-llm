@@ -36,7 +36,7 @@ namespace llm {
 
 using tvm::Device;
 using namespace tvm::runtime;
-
+namespace {
 //----------------------------
 // Tokenizers
 //----------------------------
@@ -295,6 +295,25 @@ struct FunctionTable {
   bool support_backtracking_kv_;
   PackedFunc fkvcache_array_popn_;
 };
+
+class RandomGenerator {
+ private:
+  std::mt19937 gen;
+  std::uniform_real_distribution<> dis;
+
+  RandomGenerator(int seed) : gen(seed), dis(0.0, 1.0) {}
+
+ public:
+  static RandomGenerator& GetInstance(int seed = std::random_device{}()) {
+    static RandomGenerator instance(seed);
+    return instance;
+  }
+
+  double GetRandomNumber() { return dis(gen); }
+
+  void SetSeed(int seed) { gen.seed(seed); }
+};
+} // namespace
 
 //------------------------------
 // Chat module
@@ -1038,11 +1057,11 @@ class LLMChat {
     this->PrefillStep(/*inp=*/"", /*append_conversation=*/false, /*decode_next_token=*/false);
   }
 
+
+
   // Utils
   static double GetRandomNumber() {
-    static std::mt19937 gen(std::random_device{}());
-    static std::uniform_real_distribution<> dis(0.0, 1.0);
-    return dis(gen);
+    return RandomGenerator::GetInstance().GetRandomNumber();
   }
 
   int32_t SampleFromLogitsOnCPU() {
@@ -1350,6 +1369,10 @@ tvm::runtime::Module CreateChatModule(DLDevice device) {
 // register as a system function that can be queried
 TVM_REGISTER_GLOBAL("mlc.llm_chat_create").set_body_typed([](int device_type, int device_id) {
   return CreateChatModule(DLDevice{static_cast<DLDeviceType>(device_type), device_id});
+});
+
+TVM_REGISTER_GLOBAL("mlc.random.set_seed").set_body_typed([](int seed) {
+  RandomGenerator::GetInstance().SetSeed(seed);
 });
 
 }  // namespace llm
