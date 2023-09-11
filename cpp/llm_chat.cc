@@ -344,30 +344,6 @@ class LLMChat {
     this->ResetChat();
   }
 
-  // TODO: remove the legacy initialization func after updating app and web sides.
-  void InitChatLegacy(String conv_template, double temperature, double top_p, int64_t mean_gen_len,
-                      double shift_fill_factor) {
-    // Process metadata
-    std::string metadata_str = this->GetMetadata();
-    picojson::value metadata_info;
-    picojson::parse(metadata_info, metadata_str);
-    auto metadata = metadata_info.get<picojson::object>();
-    ICHECK(metadata["model_name"].is<std::string>());
-    ICHECK(metadata["max_window_size"].is<int64_t>());
-    ICHECK(metadata["add_prefix_space"].is<bool>());
-    this->model_name_ = metadata["model_name"].get<std::string>();
-    this->max_window_size_ = metadata["max_window_size"].get<int64_t>();
-    if (this->max_window_size_ == -1) {
-      this->max_window_size_ = std::numeric_limits<int64_t>::max();
-    }
-    this->conversation_ = Conversation::FromTemplate(conv_template);
-    this->temperature_ = temperature;
-    this->top_p_ = top_p;
-    this->mean_gen_len_ = mean_gen_len;
-    this->shift_fill_factor_ = shift_fill_factor;
-    this->ResetChat();
-  }
-
   void ResetChat() {
     // TODO(mlc-team): add conversation_.Reset to preserve system prompt
     // and initial message.
@@ -1118,12 +1094,6 @@ class LLMChatModule : public ModuleNode {
     } else if (name == "decode") {
       return PackedFunc(
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->DecodeStep(); });
-    } else if (name == "init_chat_legacy") {
-      // TODO: remove the legacy initialization func after updating app and web sides.
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.size(), 5);
-        GetChat()->InitChatLegacy(args[0], args[1], args[2], args[3], args[4]);
-      });
     } else if (name == "reset_chat") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 0);
@@ -1175,60 +1145,6 @@ class LLMChatModule : public ModuleNode {
   LLMChat* GetChat() {
     ICHECK(chat_ != nullptr) << "Chat is not initialized via reload";
     return chat_.get();
-  }
-
-  // TODO: legacy function to be removed
-  void InitLegacy(tvm::runtime::Module executable, std::unique_ptr<Tokenizer> tokenizer,
-                  const tvm::runtime::String& param_path, DLDevice device) {
-    chat_ = std::make_unique<LLMChat>(LLMChat(device_));
-    // setup members
-    device_ = device;
-    chat_->device_ = device;
-    chat_->tokenizer_ = std::move(tokenizer);
-
-    // load in nd-array cache
-    const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
-    ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
-    (*fload_cache)(param_path, static_cast<int32_t>(device_.device_type), device.device_id);
-
-    // initialize vm, we use the packed function mechanism
-    // so there is no explicit abi dependency on these extra
-    // classes other than basic tvm runtime.
-    auto fload_exec = executable->GetFunction("vm_load_executable");
-    ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
-    chat_->vm_ = fload_exec();
-
-    chat_->vm_->GetFunction("vm_initialization")(
-        static_cast<int>(device.device_type), device.device_id,
-        static_cast<int>(relax_vm::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-        static_cast<int>(relax_vm::AllocatorType::kPooled));
-
-    chat_->prefill_func_ = chat_->vm_->GetFunction("prefill");
-    chat_->decode_func_ = chat_->vm_->GetFunction("decode");
-    chat_->encoding_without_cache_func_ = chat_->vm_->GetFunction("encoding_without_cache");
-    chat_->softmax_func_ = chat_->vm_->GetFunction("softmax_with_temperature");
-    chat_->get_metadata_func_ = chat_->vm_->GetFunction("get_metadata");
-    auto kv_cache_func = chat_->vm_->GetFunction("create_kv_cache");
-
-    auto fsample_topp_from_prob_ptr =
-        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
-    ICHECK(fsample_topp_from_prob_ptr)
-        << "Cannot find env function vm.builtin.sample_top_p_from_prob";
-    chat_->fsample_topp_from_prob_ = *fsample_topp_from_prob_ptr;
-    auto fsample_topp_from_logits_ptr =
-        tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_logits");
-    ICHECK(fsample_topp_from_logits_ptr)
-        << "Cannot find env function vm.builtin.sample_top_p_from_logits";
-    chat_->fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
-
-    // parameter loading
-    const PackedFunc* fload_params =
-        tvm::runtime::Registry::Get("vm.builtin.param_array_from_cache");
-    ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
-    chat_->params_ = (*fload_params)("param", -1);
-
-    // KV cache creation
-    chat_->kv_cache_ = chat_->vm_->GetFunction("create_kv_cache")();
   }
 
   const char* type_key() const final { return "mlc.llm_chat"; }
@@ -1308,34 +1224,6 @@ tvm::runtime::Module CreateChatModule(DLDevice device) {
 TVM_REGISTER_GLOBAL("mlc.llm_chat_create").set_body_typed([](int device_type, int device_id) {
   return CreateChatModule(DLDevice{static_cast<DLDeviceType>(device_type), device_id});
 });
-
-// TODO: legacy function to be removed
-tvm::runtime::Module CreateChatModuleLegacy(tvm::runtime::Module executable,
-                                            std::unique_ptr<Tokenizer> tokenizer,
-                                            const tvm::runtime::String& param_path,
-                                            DLDevice device) {
-  ObjectPtr<LLMChatModule> n = make_object<LLMChatModule>();
-  n->InitLegacy(executable, std::move(tokenizer), param_path, device);
-  return Module(n);
-}
-
-// TODO: legacy function to be removed
-tvm::runtime::Module CreateChatModuleLegacy(tvm::runtime::Module executable,
-                                            const tvm::runtime::String& tokenizer_path,
-                                            const tvm::runtime::String& param_path,
-                                            DLDevice device) {
-  // tokenizer stored in single files.
-  return CreateChatModuleLegacy(executable, TokenizerFromPath(tokenizer_path), param_path, device);
-}
-
-// TODO: legacy function to be removed
-// register as a system function that can be queried
-TVM_REGISTER_GLOBAL("mlc.llm_chat_create_legacy")
-    .set_body_typed([](tvm::runtime::Module executable, const tvm::runtime::String& tokenizer_path,
-                       const tvm::runtime::String& param_path, int device_type, int device_id) {
-      return CreateChatModuleLegacy(executable, tokenizer_path, param_path,
-                                    DLDevice{static_cast<DLDeviceType>(device_type), device_id});
-    });
 
 }  // namespace llm
 }  // namespace mlc

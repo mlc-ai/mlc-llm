@@ -5,3 +5,25 @@
 #include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
+
+#include <android/log.h>
+
+static_assert(TVM_LOG_CUSTOMIZE == 1, "TVM_LOG_CUSTOMIZE must be 1");
+
+namespace tvm {
+namespace runtime {
+namespace detail {
+// Override logging mechanism
+[[noreturn]] void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+  std::string m = file + ":" + std::to_string(lineno) + ": " + message;
+  __android_log_write(ANDROID_LOG_FATAL, "TVM_RUNTIME", m.c_str());
+  throw InternalError(file, lineno, message);
+}
+void LogMessageImpl(const std::string& file, int lineno, int level, const std::string& message) {
+  std::string m = file + ":" + std::to_string(lineno) + ": " + message;
+  __android_log_write(ANDROID_LOG_DEBUG + level, "TVM_RUNTIME", m.c_str());
+}
+
+}  // namespace detail
+}  // namespace runtime
+}  // namespace tvm
