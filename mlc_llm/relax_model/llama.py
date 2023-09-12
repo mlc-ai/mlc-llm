@@ -20,7 +20,7 @@ class LlamaConfig:
         self,
         dtype="float32",
         max_sequence_length=2048,
-        vocab_size=32000,
+        vocab_size=32000,  # some models like WizardMath can have 32001
         hidden_size=4096,
         intermediate_size=11008,
         num_hidden_layers=32,
@@ -475,8 +475,8 @@ def _make_causal_mask(input_ids_shape, dtype, src_len):
 
 
 class LlamaEmbedTokens(nn.Module):
-    def __init__(self, config: LlamaConfig):
-        self.embed_tokens = Embedding(config.vocab_size, config.hidden_size, dtype=config.dtype)
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var):
+        self.embed_tokens = Embedding(vocab_size_var, config.hidden_size, dtype=config.dtype)
 
     def forward(self, input_ids: relax.Expr):
         inputs_embeds = self.embed_tokens(input_ids)
@@ -484,9 +484,9 @@ class LlamaEmbedTokens(nn.Module):
 
 
 class LlamaEmbedTokensWrapper(nn.Module):
-    def __init__(self, config: LlamaConfig):
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var):
         # build a wrapper to ensure that the naming of the embed_tokens parameter is consistent
-        self.model = LlamaEmbedTokens(config)
+        self.model = LlamaEmbedTokens(config, vocab_size_var)
 
     def forward(self, input_ids: relax.Expr):
         inputs_embeds = self.model(input_ids)
@@ -494,13 +494,12 @@ class LlamaEmbedTokensWrapper(nn.Module):
 
 
 class LlamaModel(nn.Module):
-    def __init__(self, config: LlamaConfig, sep_embed: bool = False):
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
         self.padding_idx = config.pad_token_id
-        self.vocab_size = config.vocab_size
         self.embed_tokens = None
 
         if not sep_embed:
-            self.embed_tokens = Embedding(config.vocab_size, config.hidden_size, dtype=config.dtype)
+            self.embed_tokens = Embedding(vocab_size_var, config.hidden_size, dtype=config.dtype)
 
         self.layers = ModuleList(
             [LlamaDecoderLayer(config) for _ in range(config.num_hidden_layers)]
@@ -570,9 +569,9 @@ class LlamaModel(nn.Module):
 
 
 class LlamaForCausalLM(nn.Module):
-    def __init__(self, config: LlamaConfig, sep_embed: bool = False):
-        self.model = LlamaModel(config, sep_embed)
-        self.lm_head = Linear(config.hidden_size, config.vocab_size, dtype=config.dtype, bias=False)
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
+        self.model = LlamaModel(config, vocab_size_var, sep_embed)
+        self.lm_head = Linear(config.hidden_size, vocab_size_var, dtype=config.dtype, bias=False)
 
         ############ Rotary embedding constants ############
         assert config.hidden_size % config.num_attention_heads == 0
@@ -633,7 +632,7 @@ def create_embed_func(
     bsz = 1
     seq_len = tvm.tir.Var("n", "int64")
     with bb.function(func_name):
-        model = LlamaEmbedTokensWrapper(config)
+        model = LlamaEmbedTokensWrapper(config, tvm.tir.Var("v", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
@@ -662,7 +661,7 @@ def create_encoding_func(
     all_seq_len = tvm.tir.Var("m", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
-        model = LlamaForCausalLM(config, sep_embed)
+        model = LlamaForCausalLM(config, tvm.tir.Var("v", "int64"), sep_embed)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         inputs = (
@@ -706,7 +705,7 @@ def create_decoding_func(
     all_seq_len = tvm.tir.Var("n", "int64")
 
     with bb.function(func_name):
-        model = LlamaForCausalLM(config)
+        model = LlamaForCausalLM(config, tvm.tir.Var("v", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
@@ -768,7 +767,7 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
 
 def create_softmax_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     with bb.function("softmax_with_temperature"):
-        logits = nn.Placeholder((1, 1, config.vocab_size), dtype="float32", name="logits")
+        logits = nn.Placeholder((1, 1, tvm.tir.Var("v", "int64")), dtype="float32", name="logits")
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
             div = bb.emit(relax.op.divide(logits, temperature))
