@@ -5,6 +5,7 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 import tvm
 from tvm import relax, te
+from tvm.relax.op import ccl
 from tvm.relax.testing import nn
 from tvm.script import relax as R
 
@@ -35,6 +36,9 @@ class LlamaConfig:
         tie_word_embeddings=False,
         position_embedding_base=10000,
         combine_matmul=True,
+        num_shards=1,
+        build_model_only=False,
+        convert_weight_only=False,
         **kwargs,
     ):
         self.dtype = dtype
@@ -54,6 +58,10 @@ class LlamaConfig:
         self.tie_word_embeddings = tie_word_embeddings
         self.position_embedding_base = position_embedding_base
         self.combine_matmul = combine_matmul
+        if build_model_only and num_shards > 1:
+            self.num_shards = num_shards
+        else:
+            self.num_shards = 1
         self.kwargs = kwargs
 
 
@@ -137,18 +145,23 @@ class LlamaRMSNorm(nn.Module):
 
 class LlamaMLP(nn.Module):
     def __init__(self, config: LlamaConfig):
-        hidden_size = config.hidden_size
-        intermediate_size = config.intermediate_size
-        dtype = config.dtype
-
         self.combine_matmul = config.combine_matmul
+        self.num_shards = config.num_shards
+        hidden_size = config.hidden_size
+        intermediate_size = config.intermediate_size // self.num_shards
+        dtype = config.dtype
         if self.combine_matmul:
             self.gate_up_proj = Linear(hidden_size, 2 * intermediate_size, dtype=dtype, bias=False)
             self.down_proj = Linear(intermediate_size, hidden_size, dtype=dtype, bias=False)
+            self.gate_up_proj.weight.shard_dim = 0
+            self.down_proj.weight.shard_dim = 1
         else:
             self.gate_proj = Linear(hidden_size, intermediate_size, dtype=dtype, bias=False)
             self.down_proj = Linear(intermediate_size, hidden_size, dtype=dtype, bias=False)
             self.up_proj = Linear(hidden_size, intermediate_size, dtype=dtype, bias=False)
+            self.gate_proj.weight.shard_dim = 0
+            self.up_proj.weight.shard_dim = 0
+            self.down_proj.weight.shard_dim = 1
 
     def forward(self, x):
         if self.combine_matmul:
@@ -165,7 +178,10 @@ class LlamaMLP(nn.Module):
             gate_result = self.gate_proj(x)
             up_result = self.up_proj(x)
 
-        return self.down_proj(relax.op.nn.silu(gate_result) * up_result)
+        result = self.down_proj(relax.op.nn.silu(gate_result) * up_result)
+        if self.num_shards > 1:
+            result = nn.emit(ccl.allreduce(result, "sum"))
+        return result
 
 
 def apply_rotary_pos_emb(q, k, position_embedding_base, offset: int = 0):
@@ -204,14 +220,15 @@ class LlamaAttention(nn.Module):
 
     def __init__(self, config: LlamaConfig):
         dtype = config.dtype
+        self.num_shards = config.num_shards
         self.hidden_size = config.hidden_size
         self.num_key_value_heads = (
             config.num_key_value_heads is None
             and config.num_attention_heads
             or config.num_key_value_heads
-        )
-        self.num_query_heads = config.num_attention_heads
-        self.head_dim = self.hidden_size // self.num_query_heads
+        ) // config.num_shards
+        self.num_query_heads = config.num_attention_heads // self.num_shards
+        self.head_dim = self.hidden_size // config.num_attention_heads
         self.position_embedding_base = config.position_embedding_base
 
         self.combine_matmul = config.combine_matmul
@@ -222,6 +239,7 @@ class LlamaAttention(nn.Module):
                 dtype=dtype,
                 bias=False,
             )
+            self.query_key_value_proj.weight.shard_dim = 0
         else:
             self.q_proj = Linear(
                 self.hidden_size,
@@ -241,8 +259,14 @@ class LlamaAttention(nn.Module):
                 dtype=dtype,
                 bias=False,
             )
+            self.q_proj.weight.shard_dim = 0
+            self.k_proj.weight.shard_dim = 0
+            self.v_proj.weight.shard_dim = 0
 
-        self.o_proj = Linear(self.hidden_size, self.hidden_size, dtype=dtype, bias=False)
+        self.o_proj = Linear(
+            self.head_dim * self.num_query_heads, self.hidden_size, dtype=dtype, bias=False
+        )
+        self.o_proj.weight.shard_dim = 1
 
     def forward(
         self,
@@ -395,10 +419,14 @@ class LlamaAttention(nn.Module):
             attn_weights = astype(attn_weights, query_states.struct_info.dtype)
         attn_output = nn.emit(matmul(attn_weights, value_states))
 
-        attn_output = permute_dims(attn_output, [0, 2, 1, 3])
-        attn_output = reshape(attn_output, (bsz, q_len, self.hidden_size))
+        attn_output = nn.emit(permute_dims(attn_output, [0, 2, 1, 3]))
+        attn_output = nn.emit(
+            reshape(attn_output, (bsz, q_len, self.head_dim * self.num_query_heads))
+        )
 
         attn_output = self.o_proj(attn_output)
+        if self.num_shards > 1:
+            attn_output = nn.emit(ccl.allreduce(attn_output, "sum"))
         return attn_output, ((None, None) if past_key_value is None else past_key_value)
 
 
@@ -495,6 +523,7 @@ class LlamaEmbedTokensWrapper(nn.Module):
 
 class LlamaModel(nn.Module):
     def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
+        self.num_shards = config.num_shards
         self.padding_idx = config.pad_token_id
         self.embed_tokens = None
 
@@ -531,6 +560,8 @@ class LlamaModel(nn.Module):
         all_seq_len_shape: relax.Expr,
         past_key_values: relax.Expr,
     ):
+        if self.num_shards > 1:
+            inputs = nn.emit(ccl.broadcast_from_worker0(inputs))
         if self.embed_tokens:
             inputs_embeds = self.embed_tokens(inputs)
         else:
@@ -738,7 +769,7 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
         config.num_attention_heads
         if config.num_key_value_heads is None
         else config.num_key_value_heads
-    )
+    ) // config.num_shards
     init_shape = relax.ShapeExpr(
         (
             config.max_sequence_length,
@@ -776,6 +807,38 @@ def create_softmax_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
         bb.emit_func_output(gv, [logits, temperature])
 
 
+def emit_shard3d(bb: relax.BlockBuilder) -> None:
+    from tvm.script import tir as T
+
+    def _emit(dtype: str, global_symbol: str):
+        @T.prim_func
+        def shard_3d(a: T.handle, num_shards: T.int64, b: T.handle):
+            T.func_attr(
+                {
+                    "tir.noalias": T.bool(True),
+                    "global_symbol": global_symbol,
+                }
+            )
+            s_0, s_1, s_2 = T.int64(), T.int64(), T.int64()
+            # pylint: disable=invalid-name
+            A = T.match_buffer(a, (s_0, s_1, s_2), dtype)
+            B = T.match_buffer(b, (num_shards, s_0, s_1 // num_shards, s_2), dtype)
+            # pylint: enable=invalid-name
+            for j_o, i, j_i, k in T.grid(num_shards, s_0, s_1 // num_shards, s_2):
+                with T.block("B"):
+                    v_j_o = T.axis.spatial(num_shards, j_o)
+                    v_i = T.axis.spatial(s_0, i)
+                    v_j_i = T.axis.spatial(s_1 // num_shards, j_i)
+                    v_k = T.axis.spatial(s_2, k)
+                    B[v_j_o, v_i, v_j_i, v_k] = A[v_i, v_j_o * (s_1 // num_shards) + v_j_i, v_k]
+
+        bb.add_func(shard_3d, global_symbol)
+
+    _emit("float32", "shard3d_fp32")
+    _emit("float16", "shard3d_fp16")
+    _emit("uint32", "shard3d_uint32")
+
+
 def get_model(args, hf_config):
     model_name = args.model
     dtype = args.quantization.model_dtype
@@ -795,12 +858,17 @@ def get_model(args, hf_config):
         max_sequence_length=max_position_embeddings,
         position_embedding_base=position_embedding_base,
         combine_matmul=True,
+        num_shards=args.num_shards,
+        build_model_only=args.build_model_only,
+        convert_weight_only=args.convert_weight_only,
     )
     if max_seq_len != -1:
         config.max_sequence_length = max_seq_len
 
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
+    emit_shard3d(bb)
+
     if sep_embed:
         create_embed_func(bb, param_manager, config, args.quantization)
     create_encoding_func(bb, param_manager, config, args.quantization, sep_embed)
@@ -870,16 +938,32 @@ def get_model(args, hf_config):
                 "Matmul combination is not turned on, and the function "
                 "is not expected to be entered"
             )
-
-        import numpy as np
+        num_shards = args.num_shards
+        hidden_size = config.hidden_size
+        head_dim = config.hidden_size // config.num_attention_heads
 
         if "query_key_value_proj" in relax_pname:
-            assert len(torch_params) == 3
-        elif "gate_up_proj" in relax_pname:
-            assert len(torch_params) == 2
-        else:
-            raise ValueError("Unexpected param loading")
-        return np.concatenate(torch_params, axis=0).astype(dtype)
+            q_heads = config.num_attention_heads
+            kv_heads = config.num_key_value_heads
+            q, k, v = torch_params
+            assert q.shape == (q_heads * head_dim, hidden_size)
+            assert k.shape == (kv_heads * head_dim, hidden_size)
+            assert v.shape == (kv_heads * head_dim, hidden_size)
+            q = q.reshape((num_shards, q_heads // num_shards, head_dim, hidden_size))
+            k = k.reshape((num_shards, kv_heads // num_shards, head_dim, hidden_size))
+            v = v.reshape((num_shards, kv_heads // num_shards, head_dim, hidden_size))
+            qkv = np.concatenate([q, k, v], axis=1)
+            qkv = qkv.reshape((-1, hidden_size)).astype(dtype)
+            return qkv
+        if "gate_up_proj" in relax_pname:
+            intermediate_size = config.intermediate_size
+            gate, up = torch_params
+            gate = gate.reshape((num_shards, intermediate_size // num_shards, hidden_size))
+            up = up.reshape((num_shards, intermediate_size // num_shards, hidden_size))
+            gate_up = np.concatenate([gate, up], axis=1)
+            gate_up = gate_up.reshape((-1, hidden_size)).astype(dtype)
+            return gate_up
+        raise ValueError("Unexpected param loading")
 
     param_manager.set_param_loading_func(
         args.model_path,

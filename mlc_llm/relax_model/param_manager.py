@@ -2,14 +2,14 @@ import json
 import os
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
-from torch import Tensor as torchTensor
 import tvm
+from torch import Tensor as torchTensor
 from tvm import relax, tir
 from tvm._ffi.runtime_ctypes import Device
-from tvm.relax.expr import Expr, Function, Var
-from tvm.relax.testing import nn
 from tvm.relax.analysis import remove_all_unused
+from tvm.relax.expr import Expr, Function, Var
 from tvm.relax.expr_functor import PyExprMutator, mutator
+from tvm.relax.testing import nn
 
 from .. import quantization
 from .modules import named_parameters
@@ -46,20 +46,26 @@ class Parameter:
         The quantization specification of this parameter.
         It specifies the algorithm to quantize and dequantize this parameter (or
         this parameter does not need quantization).
+
+    shard_dim : Optional[int]
+        The dimension to be sharded.
     """
 
     name: str
     param_info_dict: Dict[str, relax.TensorStructInfo]
     quant_spec: quantization.QuantizationSpec
+    shard_dim: Optional[int]
 
     def __init__(
         self,
         name: str,
         quant_spec: quantization.QuantizationSpec,
+        shard_dim: Optional[int],
     ) -> None:
         self.name = name
         self.param_info_dict = dict()
         self.quant_spec = quant_spec
+        self.shard_dim = shard_dim
 
     def register_func(self, func_name: str, param_info: relax.TensorStructInfo):
         self.param_info_dict[func_name] = param_info
@@ -256,6 +262,7 @@ class ParamManager:
                 relax_param,
                 getattr(quantization_scheme, quant_kind.name),
                 func_name,
+                getattr(relax_param, "shard_dim", None),
             )
 
             self.params_in_func[func_name].append(param)
@@ -311,7 +318,9 @@ class ParamManager:
         self.use_safetensors = use_safetensors
         if self.use_safetensors:
             # Use a pointer here to prevent repeated import in tvm registered function
-            from safetensors.torch import load_file  # pylint: disable=import-outside-toplevel
+            from safetensors.torch import (
+                load_file,  # pylint: disable=import-outside-toplevel
+            )
 
             self.safetensors_load_func = load_file
 
@@ -577,6 +586,7 @@ class ParamManager:
         var: relax.Var,
         quant_spec: quantization.QuantizationSpec,
         func_name: str,
+        shard_dim: Optional[int],
     ) -> Parameter:
         """Register a single parameter in the parameter manager.
         In most cases, this method is not directly used outside this class:
@@ -598,12 +608,14 @@ class ParamManager:
             The name of the function the input var is in.
             For example, the "prefill" function or the "decode" function.
 
+        shard_dim : int
+            The dimension along which the parameter is sharded.
+
         Returns
         -------
         param : Parameter
             The registered Parameter.
         """
-
         assert (
             var not in self.func_raw_param_map
         ), "The input var is not supposed to be already registered."
@@ -633,7 +645,7 @@ class ParamManager:
                     ), "Shape mismatch of one parameter in two functions."
         else:
             # Otherwise, the parameter is registered for the first time.
-            param = Parameter(name, quant_spec)
+            param = Parameter(name, quant_spec, shard_dim)
             self.params[name] = param
             self.param_names.append(name)
 

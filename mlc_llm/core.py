@@ -6,11 +6,18 @@ import pickle
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Dict, Optional
 
-import mlc_llm
 import tvm
+import tvm.relax.backend.contrib.cublas as _
+from tvm import dlight as dl
+from tvm import relax
+from tvm.contrib.nvcc import parse_compute_version
+from tvm.relax.backend import get_patterns_with_prefix
+from tvm.relax.backend.contrib.cutlass import annotate_workspace
+
+import mlc_llm
 from mlc_llm import utils
-from mlc_llm.transform import rewrite_attention, fuse_split_rotary_embedding
 from mlc_llm.relax_model import (
+    chatglm,
     gpt_bigcode,
     gpt_neox,
     gptj,
@@ -18,15 +25,8 @@ from mlc_llm.relax_model import (
     minigpt,
     param_manager,
     rwkv,
-    chatglm,
 )
-
-from tvm import dlight as dl
-from tvm import relax
-from tvm.contrib.nvcc import parse_compute_version
-from tvm.relax.backend import get_patterns_with_prefix
-from tvm.relax.backend.contrib.cutlass import annotate_workspace
-import tvm.relax.backend.contrib.cublas as _
+from mlc_llm.transform import fuse_split_rotary_embedding, rewrite_attention
 
 
 @dataclass
@@ -217,6 +217,15 @@ class BuildArgs:
                 "projection between two attention layers are put into a graph."
             ),
             "action": "store_true",
+        },
+    )
+    num_shards: int = field(
+        default=1,
+        metadata={
+            "help": (
+                "Number of shards to split the model into in tensor parallelism multi-gpu "
+                "inference"
+            ),
         },
     )
 
@@ -450,6 +459,7 @@ def dump_mlc_chat_config(
     mean_gen_len: int = 128,
     max_gen_len: int = 512,
     shift_fill_factor: float = 0.3,
+    vocab_size: int = None,
 ):
     args.params_path = os.path.join(args.artifact_path, "params")
     config: Dict[str, Any] = {}
@@ -468,10 +478,13 @@ def dump_mlc_chat_config(
     config["top_p"] = top_p
     config["mean_gen_len"] = mean_gen_len
     config["max_gen_len"] = max_gen_len
+    config["max_window_size"] = args.max_seq_len
+    config["num_shards"] = args.num_shards
     config["shift_fill_factor"] = shift_fill_factor
     config["tokenizer_files"] = utils.get_tokenizer_files(args.params_path)
     config["model_category"] = args.model_category
     config["model_name"] = args.model
+    config["vocab_size"] = vocab_size
 
     args.chat_config_path = os.path.join(args.params_path, "mlc-chat-config.json")
     with open(args.chat_config_path, "w", encoding="utf-8") as outfile:
@@ -537,12 +550,39 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     print(f"Finish exporting to {args.lib_path}")
 
 
+def dump_shard_info(args, param_manager):
+    if not args.build_model_only:
+        return
+    os.makedirs(os.path.join(args.artifact_path, "params"), exist_ok=True)
+    shard_info_path = os.path.join(args.artifact_path, "params", "shard_info.json")
+    shard_info_dict = {}
+    for _, param in param_manager.params.items():
+        shard_dim = param.shard_dim
+        if shard_dim is None:
+            continue
+        for i in param_manager.param2qrange[param]:
+            param_name = f"param_{i}"
+            shard_info_dict[param_name] = shard_dim
+    print(f"Finish exporting sharding information to {shard_info_path}")
+    with open(shard_info_path, "w", encoding="utf-8") as o_f:
+        json.dump(shard_info_dict, o_f)
+
+
 def build_model_from_args(args: argparse.Namespace):
     if args.quantization == "q4f16_0":
         print(
             "WARNING: q4f16_1 is preferred to q4f16_0, "
             "and it is highly recommended to use q4f16_1 instaed"
         )
+    if args.num_shards > 1:
+        if (args.build_model_only and args.convert_weight_only) or (
+            not args.build_model_only and not args.convert_weight_only
+        ):
+            raise ValueError(
+                "When num_shards > 1, precisely one of `build_model_only` and"
+                " `convert_weight_only` are expected to be set"
+            )
+
     os.makedirs(args.artifact_path, exist_ok=True)
     if args.debug_dump:
         os.makedirs(os.path.join(args.artifact_path, "debug"), exist_ok=True)
@@ -583,14 +623,21 @@ def build_model_from_args(args: argparse.Namespace):
                 utils.copy_tokenizer(args)
             if args.model_category == "rwkv" or args.model_category == "rwkv_world":
                 # TODO: refactor config into model definition
-                dump_mlc_chat_config(args, top_p=0.6, temperature=1.2, repetition_penalty=0.996)
+                dump_mlc_chat_config(
+                    args,
+                    top_p=0.6,
+                    temperature=1.2,
+                    repetition_penalty=0.996,
+                    vocab_size=config["vocab_size"],
+                )
             else:
-                dump_mlc_chat_config(args)
+                dump_mlc_chat_config(args, vocab_size=config["vocab_size"])
 
         if args.convert_weight_only:
             exit(0)
 
         mod = mod_transform_before_build(mod, param_manager, args, model_config)
+        dump_shard_info(args, param_manager)
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)
         print(f"Save a cached module to {cache_path}.")
