@@ -13,23 +13,18 @@ from tvm.relax.dpl import (
 from tvm.script import relax as R
 
 
-def get_split_rotary(num_attention_heads, head_dim, max_sequence_length=2048):
+def get_split_rotary(num_attention_heads, head_dim, position_embedding_base):
     hidden_size = num_attention_heads * head_dim
-    max_sequence_length = max(max_sequence_length, 2048)
 
     @T.prim_func
     def split_rotary(
         qkv: T.handle,
-        cos_h: T.handle,
-        sin_h: T.handle,
         split_0: T.handle,
         split_1: T.handle,
         split_2: T.handle,
         n: T.int64,
     ):
         A = T.match_buffer(qkv, [1, 1, hidden_size * 3], dtype="float16")
-        cos = T.match_buffer(cos_h, [max_sequence_length, head_dim], dtype="float16")
-        sin = T.match_buffer(sin_h, [max_sequence_length, head_dim], dtype="float16")
         T_split = T.match_buffer(split_0, [1, 1, hidden_size], dtype="float16")
         T_split_1 = T.match_buffer(split_1, [1, 1, hidden_size], dtype="float16")
         T_split_2 = T.match_buffer(split_2, [1, 1, hidden_size], dtype="float16")
@@ -48,27 +43,27 @@ def get_split_rotary(num_attention_heads, head_dim, max_sequence_length=2048):
                     T_split_1[v_ax0, v_ax1, v_ax2],
                     T_split_2[v_ax0, v_ax1, v_ax2],
                 )
-                T_split[v_ax0, v_ax1, v_ax2] = cos[n - T.int64(1), v_ax2 % head_dim] * A[
+                pos: T.float32 = T.Cast("float32", n - T.int64(1))
+                inv_freq: T.float32 = T.float32(1) / T.pow(
+                    T.float32(position_embedding_base),
+                    T.Cast("float32", (v_ax2 * 2) % head_dim) / T.float32(head_dim),
+                )
+                freq: T.float32 = pos * inv_freq
+                cos_value: T.float16 = T.Cast("float16", T.cos(freq))
+                sin_value: T.float16 = T.Cast("float16", T.sin(freq))
+                T_split[v_ax0, v_ax1, v_ax2] = cos_value * A[
                     v_ax0, v_ax1, v_ax2
-                ] + sin[n - T.int64(1), v_ax2 % head_dim] * T.Select(
+                ] + sin_value * T.Select(
                     T.int64(head_dim // 2) <= v_ax2 % head_dim,
                     A[v_ax0, v_ax1, v_ax2 - T.int64(head_dim // 2)],
                     A[v_ax0, v_ax1, v_ax2 + T.int64(head_dim // 2)] * T.float16(-1),
                 )
-                T_split_1[v_ax0, v_ax1, v_ax2] = cos[n - T.int64(1), v_ax2 % head_dim] * A[
+                T_split_1[v_ax0, v_ax1, v_ax2] = cos_value * A[
                     v_ax0, v_ax1, v_ax2 + T.int64(hidden_size)
-                ] + sin[n - T.int64(1), v_ax2 % head_dim] * T.Select(
+                ] + sin_value * T.Select(
                     T.int64(head_dim // 2) <= v_ax2 % head_dim,
-                    A[
-                        v_ax0,
-                        v_ax1,
-                        v_ax2 + T.int64(hidden_size) - T.int64(head_dim // 2),
-                    ],
-                    A[
-                        v_ax0,
-                        v_ax1,
-                        v_ax2 + T.int64(hidden_size) + T.int64(head_dim // 2),
-                    ]
+                    A[v_ax0, v_ax1, v_ax2 + T.int64(hidden_size) - T.int64(head_dim // 2)],
+                    A[v_ax0, v_ax1, v_ax2 + T.int64(hidden_size) + T.int64(head_dim // 2)]
                     * T.float16(-1),
                 )
                 T_split_2[v_ax0, v_ax1, v_ax2] = A[v_ax0, v_ax1, v_ax2 + T.int64(hidden_size * 2)]
@@ -76,11 +71,9 @@ def get_split_rotary(num_attention_heads, head_dim, max_sequence_length=2048):
     return split_rotary
 
 
-def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size, max_sequence_length=2048):
+def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size, position_embedding_base):
     head_dim = hidden_size // num_attention_heads
-    max_sequence_length = max(max_sequence_length, 2048)
-
-    mod["split_rotary"] = get_split_rotary(num_attention_heads, head_dim, max_sequence_length)
+    mod["split_rotary"] = get_split_rotary(num_attention_heads, head_dim, position_embedding_base)
 
     gvar = mod.get_global_var("split_rotary")
     relax.expr._update_struct_info(gvar, mod.get_global_var("rotary_embedding1").struct_info)
@@ -98,8 +91,6 @@ def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size, max_seque
         # lv_1 = R.call_tir(cls.rotary_embedding1, (lv1522, cos_cached1, sin_cached1), out_sinfo=R.Tensor((1, 1, 32, 128), dtype="float16"), tir_vars=R.shape(
 
         inp_pat = wildcard()
-        cos_cached = wildcard()
-        sin_cached = wildcard()
         offset = wildcard()
 
         lv3 = is_op("relax.split")(inp_pat)
@@ -120,16 +111,10 @@ def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size, max_seque
         lv1527.used_by(V)
 
         Q = is_op("relax.call_tir")(
-            GlobalVarPattern(),
-            TuplePattern([lv1522, cos_cached, sin_cached]),
-            offset,
-            add_constraint=False,
+            GlobalVarPattern(), TuplePattern([lv1522]), offset, add_constraint=False
         )
         K = is_op("relax.call_tir")(
-            GlobalVarPattern(),
-            TuplePattern([lv1525, cos_cached, sin_cached]),
-            offset,
-            add_constraint=False,
+            GlobalVarPattern(), TuplePattern([lv1525]), offset, add_constraint=False
         )
 
         lv3.used_by(lv1521)
@@ -137,13 +122,9 @@ def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size, max_seque
         lv3.used_by(lv1527)
         lv1522.used_by(Q)
         lv1525.used_by(K)
-        cos_cached.used_by(Q)
-        sin_cached.used_by(Q)
 
     def rewriter(matchings, bindings):
         inp = matchings[inp_pat]
-        cos = matchings[cos_cached]
-        sin = matchings[sin_cached]
         call_tir = matchings[Q]
         n = bindings[call_tir].args[-1]
         out_sinfo = [
@@ -152,10 +133,7 @@ def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size, max_seque
             R.Tensor((1, 1, num_attention_heads * head_dim), dtype="float16"),
         ]
         lv3_new = R.call_tir(
-            mod.get_global_var("split_rotary"),
-            (inp, cos, sin),
-            out_sinfo=out_sinfo,
-            tir_vars=n,
+            mod.get_global_var("split_rotary"), (inp,), out_sinfo=out_sinfo, tir_vars=n
         )
         lv1521_new = lv3_new[0]
         lv1522_new = R.reshape(lv1521_new, R.shape([1, 1, num_attention_heads, head_dim]))

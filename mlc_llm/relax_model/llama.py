@@ -21,7 +21,7 @@ class LlamaConfig:
         self,
         dtype="float32",
         max_sequence_length=2048,
-        vocab_size=32000,
+        vocab_size=32000,  # some models like WizardMath can have 32001
         hidden_size=4096,
         intermediate_size=11008,
         num_hidden_layers=32,
@@ -184,13 +184,25 @@ class LlamaMLP(nn.Module):
         return result
 
 
-def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
-    def f_rotary_embedding(tensor, cos, sin, offset):
+def apply_rotary_pos_emb(q, k, position_embedding_base, offset: int = 0):
+    def f_rotary_embedding(tensor, offset):
+        dtype = tensor.dtype
+        head_dim = tensor.shape[-1]
         n_feat_half = tensor.shape[-1] // 2
 
         def rotary_compute(*idx):
             i, j = idx[-3], idx[-1]
-            return cos[offset + i, j] * tensor(*idx) + sin[offset + i, j] * tvm.tir.Select(
+            pos = (offset + i).astype("float32")
+            inv_freq = te.const(1, "float32") / (
+                te.power(
+                    te.const(position_embedding_base, "float32"),
+                    ((2 * j) % head_dim).astype("float32") / head_dim.astype("float32"),
+                )
+            )
+            freq = pos * inv_freq
+            return te.cos(freq).astype(dtype) * tensor(*idx) + te.sin(freq).astype(
+                dtype
+            ) * tvm.tir.Select(
                 j >= n_feat_half,
                 tensor[idx[0], i, idx[2], j - n_feat_half],
                 -tensor[idx[0], i, idx[2], j + n_feat_half],
@@ -198,12 +210,8 @@ def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
 
         return tvm.te.compute(tensor.shape, rotary_compute, name="rotary")
 
-    q_embed = nn.emit_te(
-        f_rotary_embedding, q, cos, sin, offset, primfunc_name_hint="rotary_embedding"
-    )
-    k_embed = nn.emit_te(
-        f_rotary_embedding, k, cos, sin, offset, primfunc_name_hint="rotary_embedding"
-    )
+    q_embed = nn.emit_te(f_rotary_embedding, q, offset, primfunc_name_hint="rotary_embedding")
+    k_embed = nn.emit_te(f_rotary_embedding, k, offset, primfunc_name_hint="rotary_embedding")
     return q_embed, k_embed
 
 
@@ -221,6 +229,7 @@ class LlamaAttention(nn.Module):
         ) // config.num_shards
         self.num_query_heads = config.num_attention_heads // self.num_shards
         self.head_dim = self.hidden_size // config.num_attention_heads
+        self.position_embedding_base = config.position_embedding_base
 
         self.combine_matmul = config.combine_matmul
         if self.combine_matmul:
@@ -262,8 +271,6 @@ class LlamaAttention(nn.Module):
     def forward(
         self,
         hidden_states: relax.Expr,
-        cos_cached: relax.Expr,
-        sin_cached: relax.Expr,
         all_seq_len_shape: relax.Expr,
         past_key_value: Tuple[relax.Expr],
         attention_mask: Optional[relax.Expr] = None,
@@ -322,9 +329,11 @@ class LlamaAttention(nn.Module):
 
         kv_seq_len = all_seq_len_shape.struct_info.values[0]
         offset = kv_seq_len - q_len
-        assert query_states.struct_info.dtype == cos_cached.struct_info.dtype
         query_states, key_states = apply_rotary_pos_emb(
-            query_states, key_states, cos_cached, sin_cached, offset=offset
+            query_states,
+            key_states,
+            self.position_embedding_base,
+            offset=offset,
         )
         # [bsz, t, nh, hd]
 
@@ -436,8 +445,6 @@ class LlamaDecoderLayer(nn.Module):
     def forward(
         self,
         hidden_states: relax.Expr,
-        cos_cached: relax.Expr,
-        sin_cached: relax.Expr,
         all_seq_len_shape: relax.Expr,
         past_key_value: Tuple[relax.Expr],
         attention_mask: Optional[relax.Expr] = None,
@@ -449,8 +456,6 @@ class LlamaDecoderLayer(nn.Module):
         # Self Attention
         hidden_states, present_key_value = self.self_attn(
             hidden_states=hidden_states,
-            cos_cached=cos_cached,
-            sin_cached=sin_cached,
             past_key_value=past_key_value,
             attention_mask=attention_mask,
             all_seq_len_shape=all_seq_len_shape,
@@ -498,8 +503,8 @@ def _make_causal_mask(input_ids_shape, dtype, src_len):
 
 
 class LlamaEmbedTokens(nn.Module):
-    def __init__(self, config: LlamaConfig):
-        self.embed_tokens = Embedding(config.vocab_size, config.hidden_size, dtype=config.dtype)
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var):
+        self.embed_tokens = Embedding(vocab_size_var, config.hidden_size, dtype=config.dtype)
 
     def forward(self, input_ids: relax.Expr):
         inputs_embeds = self.embed_tokens(input_ids)
@@ -507,9 +512,9 @@ class LlamaEmbedTokens(nn.Module):
 
 
 class LlamaEmbedTokensWrapper(nn.Module):
-    def __init__(self, config: LlamaConfig):
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var):
         # build a wrapper to ensure that the naming of the embed_tokens parameter is consistent
-        self.model = LlamaEmbedTokens(config)
+        self.model = LlamaEmbedTokens(config, vocab_size_var)
 
     def forward(self, input_ids: relax.Expr):
         inputs_embeds = self.model(input_ids)
@@ -517,14 +522,13 @@ class LlamaEmbedTokensWrapper(nn.Module):
 
 
 class LlamaModel(nn.Module):
-    def __init__(self, config: LlamaConfig, sep_embed: bool = False):
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
         self.num_shards = config.num_shards
         self.padding_idx = config.pad_token_id
-        self.vocab_size = config.vocab_size
         self.embed_tokens = None
 
         if not sep_embed:
-            self.embed_tokens = Embedding(config.vocab_size, config.hidden_size, dtype=config.dtype)
+            self.embed_tokens = Embedding(vocab_size_var, config.hidden_size, dtype=config.dtype)
 
         self.layers = ModuleList(
             [LlamaDecoderLayer(config) for _ in range(config.num_hidden_layers)]
@@ -553,8 +557,6 @@ class LlamaModel(nn.Module):
     def forward(
         self,
         inputs: relax.Expr,
-        cos_cached: relax.Expr,
-        sin_cached: relax.Expr,
         all_seq_len_shape: relax.Expr,
         past_key_values: relax.Expr,
     ):
@@ -585,8 +587,6 @@ class LlamaModel(nn.Module):
 
             hidden_states, key_value_cache = decoder_layer(
                 hidden_states,
-                cos_cached=cos_cached,
-                sin_cached=sin_cached,
                 attention_mask=attention_mask,
                 past_key_value=past_key_value,
                 all_seq_len_shape=all_seq_len_shape,
@@ -600,9 +600,9 @@ class LlamaModel(nn.Module):
 
 
 class LlamaForCausalLM(nn.Module):
-    def __init__(self, config: LlamaConfig, sep_embed: bool = False):
-        self.model = LlamaModel(config, sep_embed)
-        self.lm_head = Linear(config.hidden_size, config.vocab_size, dtype=config.dtype, bias=False)
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
+        self.model = LlamaModel(config, vocab_size_var, sep_embed)
+        self.lm_head = Linear(config.hidden_size, vocab_size_var, dtype=config.dtype, bias=False)
 
         ############ Rotary embedding constants ############
         assert config.hidden_size % config.num_attention_heads == 0
@@ -610,12 +610,9 @@ class LlamaForCausalLM(nn.Module):
 
         # Set the cached sin/cos to the maximum of 2048 and max seq len.
         # This will be eliminated further with online rotary embedding calculation.
-        self.cos_cached = nn.Parameter(
-            (max(config.max_sequence_length, 2048), head_dim), dtype=config.dtype, name="cos_cached"
-        )
-        self.sin_cached = nn.Parameter(
-            (max(config.max_sequence_length, 2048), head_dim), dtype=config.dtype, name="sin_cached"
-        )
+        cache_len = te.var("cache_len", "int64")
+        self.cos_cached = nn.Parameter((cache_len, head_dim), dtype=config.dtype, name="cos_cached")
+        self.sin_cached = nn.Parameter((cache_len, head_dim), dtype=config.dtype, name="sin_cached")
         ############ End ############
 
     def forward(
@@ -626,8 +623,6 @@ class LlamaForCausalLM(nn.Module):
     ):
         hidden_states, key_value_cache = self.model(
             inputs=inputs,
-            cos_cached=self.cos_cached,
-            sin_cached=self.sin_cached,
             all_seq_len_shape=all_seq_len_shape,
             past_key_values=past_key_values,
         )
@@ -668,7 +663,7 @@ def create_embed_func(
     bsz = 1
     seq_len = tvm.tir.Var("n", "int64")
     with bb.function(func_name):
-        model = LlamaEmbedTokensWrapper(config)
+        model = LlamaEmbedTokensWrapper(config, tvm.tir.Var("v", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
@@ -697,7 +692,7 @@ def create_encoding_func(
     all_seq_len = tvm.tir.Var("m", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
-        model = LlamaForCausalLM(config, sep_embed)
+        model = LlamaForCausalLM(config, tvm.tir.Var("v", "int64"), sep_embed)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         inputs = (
@@ -741,7 +736,7 @@ def create_decoding_func(
     all_seq_len = tvm.tir.Var("n", "int64")
 
     with bb.function(func_name):
-        model = LlamaForCausalLM(config)
+        model = LlamaForCausalLM(config, tvm.tir.Var("v", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
@@ -803,7 +798,7 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
 
 def create_softmax_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     with bb.function("softmax_with_temperature"):
-        logits = nn.Placeholder((1, 1, config.vocab_size), dtype="float32", name="logits")
+        logits = nn.Placeholder((1, 1, tvm.tir.Var("v", "int64")), dtype="float32", name="logits")
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
             div = bb.emit(relax.op.divide(logits, temperature))
@@ -856,7 +851,7 @@ def get_model(args, hf_config):
         position_embedding_base = hf_config["rope_theta"]
     if "max_position_embeddings" in hf_config:
         max_position_embeddings = hf_config["max_position_embeddings"]
-    
+
     config = LlamaConfig(
         **hf_config,
         dtype=dtype,
@@ -985,9 +980,9 @@ def get_model(args, hf_config):
     inv_freq = 1.0 / (
         config.position_embedding_base ** (np.arange(0, head_dim, 2).astype("float32") / head_dim)
     )
-    # Set the cached sin/cos to the maximum of 2048 and max sequence length.
-    # This will be eliminated further with online rotary embedding calculation.
-    t = np.arange(max(config.max_sequence_length, 2048), dtype=inv_freq.dtype)
+
+    # The following cos/sin values can be removed but **are kept for compatibility issues**.
+    t = np.arange(2048, dtype=inv_freq.dtype)
     freqs = np.einsum("i,j->ij", t, inv_freq)
     emb = np.concatenate((freqs, freqs), axis=-1)
     param_list[-2] = tvm.nd.array(np.cos(emb).astype(config.dtype), device)
