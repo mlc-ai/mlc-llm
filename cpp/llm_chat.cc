@@ -206,8 +206,8 @@ struct FunctionTable {
   ObjectRef LoadParams(const std::string& model_path, Device device) {
     if (this->use_disco) {
       std::filesystem::path fs_model_path = model_path;
-      std::string shard_info_path = (fs_model_path / "shard_info.json").operator std::string();
-      std::string metadata_path = (fs_model_path / "ndarray-cache.json").operator std::string();
+      std::string shard_info_path = (fs_model_path / "shard_info.json").string();
+      std::string metadata_path = (fs_model_path / "ndarray-cache.json").string();
       std::string ndarray_cache_metadata = LoadBytesFromFile(metadata_path);
       std::string shard_info = LoadBytesFromFile(shard_info_path);
       PackedFunc loader_create = this->get_global_func("runtime.disco.ShardLoader");
