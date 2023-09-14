@@ -83,12 +83,12 @@ class RestAPIArgs:
     random_seed: int = field(
         default=None,
         metadata={
-            "help": {
+            "help": (
                 """
                 The random seed to initialize all the RNG used in mlc-chat. By default,
                 no seed is set.
                 """
-            }
+            )
         }
     )
 
