@@ -1157,10 +1157,10 @@ class LLMChatModule : public ModuleNode {
         chat_ = std::make_unique<LLMChat>(LLMChat(device_));
         ICHECK(2 <= args.size() && args.size() <= 3);
         if (args.size() == 2) {
-          // args: executable, model_path
+          // args: lib_path, model_path
           chat_->Reload(args[0], args[1]);
         } else if (args.size() == 3) {
-          // args: executable, model_path, app_config_json (used for overriding config)
+          // args: lib_path, model_path, app_config_json (used for overriding config)
           chat_->Reload(args[0], args[1], args[2]);
         }
       });

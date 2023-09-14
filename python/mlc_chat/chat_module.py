@@ -80,6 +80,7 @@ class ConvConfig:
         if self.messages is not None and self.offset is None:
             self.offset = len(self.messages)
 
+
 @dataclass
 class ChatConfig:
     r"""A dataclass that represents user-defined partial configuration for the
@@ -159,10 +160,13 @@ class ChatConfig:
 
     @classmethod
     def _from_json(chat_config_cls, json_obj: dict):
-        return chat_config_cls(**{
-            k: v for k, v in json_obj.items()
-            if k in inspect.signature(chat_config_cls).parameters
-        })
+        return chat_config_cls(
+            **{
+                k: v
+                for k, v in json_obj.items()
+                if k in inspect.signature(chat_config_cls).parameters
+            }
+        )
 
 
 class PlaceInPrompt(Enum):
@@ -287,14 +291,14 @@ def _get_chat_config(config_file_path: str, user_chat_config: Optional[ChatConfi
     return final_chat_config
 
 
-def _get_lib_module(
+def _get_lib_module_path(
     model: str,
     model_path: str,
     chat_config: ChatConfig,
     lib_path: Optional[str],
     device_name: str,
     config_file_path: str,
-) -> tvm.runtime.Module:
+) -> str:
     """Look up the model library. Then return a corresponding ``tvm`` runtime Module.
 
     Parameters
@@ -314,8 +318,8 @@ def _get_lib_module(
 
     Returns
     ------
-    lib_module : tvm.runtime.Module
-        A tvm runtime module corresponding to the model library we find.
+    lib_path : str
+        The path pointing to the model library we find.
 
     Raises
     ------
@@ -325,7 +329,7 @@ def _get_lib_module(
     if lib_path is not None:
         if os.path.isfile(lib_path):
             logging.info(f"Using library model: {lib_path}")
-            return tvm.runtime.load_module(lib_path)
+            return lib_path
         else:
             err_msg = (
                 f"The `lib_path` you passed in is not a file: {lib_path}.\nPlease checkout "
@@ -371,7 +375,7 @@ def _get_lib_module(
     for candidate in candidate_paths:
         if os.path.isfile(candidate):
             logging.info(f"Using library model: {os.path.abspath(candidate)}\n")
-            return tvm.runtime.load_module(candidate)
+            return candidate
 
     # 5. Error
     err_msg = (
@@ -588,7 +592,7 @@ class ChatModule:
         self.chat_config = _get_chat_config(self.config_file_path, chat_config)
 
         # 5. Look up model library
-        self.lib_path = _get_lib_module(
+        self.lib_path = _get_lib_module_path(
             model, self.model_path, self.chat_config, lib_path, device_name, self.config_file_path
         )
 
