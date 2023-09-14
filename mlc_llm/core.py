@@ -449,13 +449,14 @@ def mod_transform_before_build(
 
 def dump_mlc_chat_config(
     args: argparse.Namespace,
+    vocab_size: int,
+    max_window_size: int,
     temperature: float = 0.7,
     repetition_penalty: float = 1.0,
     top_p: float = 0.95,
     mean_gen_len: int = 128,
     max_gen_len: int = 512,
     shift_fill_factor: float = 0.3,
-    vocab_size: int = None,
 ):
     args.params_path = os.path.join(args.artifact_path, "params")
     config: Dict[str, Any] = {}
@@ -474,7 +475,7 @@ def dump_mlc_chat_config(
     config["top_p"] = top_p
     config["mean_gen_len"] = mean_gen_len
     config["max_gen_len"] = max_gen_len
-    config["max_window_size"] = args.max_seq_len
+    config["max_window_size"] = max_window_size
     config["num_shards"] = args.num_shards
     config["shift_fill_factor"] = shift_fill_factor
     config["tokenizer_files"] = utils.get_tokenizer_files(args.params_path)
@@ -615,13 +616,18 @@ def build_model_from_args(args: argparse.Namespace):
                 # TODO: refactor config into model definition
                 dump_mlc_chat_config(
                     args,
+                    vocab_size=config["vocab_size"],
+                    max_window_size=model_config.max_sequence_length,
                     top_p=0.6,
                     temperature=1.2,
                     repetition_penalty=0.996,
-                    vocab_size=config["vocab_size"],
                 )
             else:
-                dump_mlc_chat_config(args, vocab_size=config["vocab_size"])
+                dump_mlc_chat_config(
+                    args,
+                    vocab_size=config["vocab_size"],
+                    max_window_size=model_config.max_sequence_length,
+                )
 
         if args.convert_weight_only:
             exit(0)
