@@ -1,4 +1,4 @@
-# pylint: disable=missing-docstring, redefined-outer-name
+# pylint: disable=missing-docstring, redefined-outer-name, not-callable
 import argparse
 import json
 import os
@@ -370,9 +370,7 @@ def mod_transform_before_build(
     mod = param_manager.transform_dequantize(mod)
 
     use_ft_quant = args.quantization.name in ["q4f16_ft", "q8f16_ft"]
-    mod = mlc_llm.transform.FuseDecodeTranspose(skip_gemm=not use_ft_quant)(
-        mod
-    )  # pylint: disable=not-callable
+    mod = mlc_llm.transform.FuseDecodeTranspose(skip_gemm=not use_ft_quant)(mod)
 
     if (
         hasattr(config, "num_attention_heads")
@@ -436,11 +434,9 @@ def mod_transform_before_build(
                 ]
             )(mod)
 
-    mod = mlc_llm.transform.FuseTransposeMatmul()(mod)  # pylint: disable=not-callable
+    mod = mlc_llm.transform.FuseTransposeMatmul()(mod)
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
-    mod = mlc_llm.transform.FuseDecodeMatmulEwise(  # pylint: disable=not-callable
-        args.quantization.name, args.target_kind
-    )(mod)
+    mod = mlc_llm.transform.FuseDecodeMatmulEwise()(mod)
     mod = mlc_llm.transform.FuseDecodeTake()(mod)
     mod = relax.transform.DeadCodeElimination(model_names)(mod)
     mod = mlc_llm.transform.CleanUpTIRAttrs()(mod)
@@ -509,12 +505,6 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
             else tvm.target.Target("apple/m1-gpu-restricted")
         )
         with dispatch_target:
-            if args.target_kind == "android":
-                mod_deploy = (
-                    mlc_llm.dispatch.DispatchTIROperatorAdreno()(  # pylint: disable=not-callable
-                        mod_deploy
-                    )
-                )
             mod_deploy = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
                 dl.gpu.Matmul(),
                 dl.gpu.GEMV(),
