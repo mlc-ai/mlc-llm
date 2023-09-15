@@ -5,14 +5,14 @@ import json
 import logging
 import os
 import sys
-from dataclasses import dataclass, fields, asdict
+from dataclasses import asdict, dataclass, fields
 from enum import Enum
 from typing import List, Optional
 
 import tvm
+from tvm.runtime import disco
 
 from . import callback
-
 
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
