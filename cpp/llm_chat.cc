@@ -145,22 +145,18 @@ struct FunctionTable {
   void Init(const std::string& lib_path, Device device, int num_shards) {
     Device null_device{DLDeviceType(0), 0};
     if (num_shards > 1) {
-      this->use_disco = true;
-      this->sess = Session::ThreadedSession(num_shards);
-      // Initialize NCCL
-      {
-        DRef f_nccl_init = sess->GetGlobalFunc("runtime.disco.nccl.init_ccl");
-        std::vector<TVMValue> tvm_values(num_shards + 3);
-        std::vector<int> tvm_type_codes(num_shards + 3);
-        TVMArgsSetter setter(tvm_values.data(), tvm_type_codes.data());
-        setter(0, static_cast<int>(DiscoAction::kCallPacked));
-        setter(1, 0);
-        setter(2, f_nccl_init);
-        for (int i = 0; i < num_shards; ++i) {
-          setter(i + 3, i);
-        }
-        sess->CallWithPacked(TVMArgs(tvm_values.data(), tvm_type_codes.data(), num_shards + 3));
+      constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
+      if (Registry::Get(f_create_process_pool) == nullptr) {
+        LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
+                   << "Multi-GPU inference depends on MLC LLM Python API to launch process.";
       }
+      std::vector<int64_t> device_ids(num_shards);
+      for (int i = 0; i < num_shards; ++i) {
+        device_ids[i] = i;
+      }
+      this->use_disco = true;
+      this->sess = Session::ProcessSession(num_shards, f_create_process_pool);
+      this->sess->InitCCL("nccl", ShapeTuple(device_ids));
       this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
                                          lib_path, null_device);
       this->mod_get_func = [this, fmodule_get_function =
@@ -313,7 +309,7 @@ class RandomGenerator {
 
   void SetSeed(int seed) { gen.seed(seed); }
 };
-} // namespace
+}  // namespace
 
 //------------------------------
 // Chat module
@@ -1057,12 +1053,8 @@ class LLMChat {
     this->PrefillStep(/*inp=*/"", /*append_conversation=*/false, /*decode_next_token=*/false);
   }
 
-
-
   // Utils
-  static double GetRandomNumber() {
-    return RandomGenerator::GetInstance().GetRandomNumber();
-  }
+  static double GetRandomNumber() { return RandomGenerator::GetInstance().GetRandomNumber(); }
 
   int32_t SampleFromLogitsOnCPU() {
     ICHECK(logits_on_cpu_.defined()) << "logits_on_cpu_ is not defined";
