@@ -504,6 +504,16 @@ class LLMChat {
     this->params_ = ft_.LoadParams(model_path, device_);
     // Step 5. KV cache creation.
     this->kv_cache_ = ft_.create_kv_cache_func_();
+    // Step 6. Pre-allocate fixed size ndarray
+    this->temperature_arr_ = NDArray::Empty({}, DataType::Float(32), device_);
+    float temperature = static_cast<float>(this->temperature_);
+    this->temperature_arr_.CopyFromBytes(&temperature, sizeof(float));
+    if (ft_.use_disco){
+      Device null_device{DLDeviceType(0), 0};
+      this->input_tokens_decode_ =
+            Downcast<DRef>(ft_.Empty(ShapeTuple({1, 1}), DataType::Int(32), null_device));
+    }
+    // Step 7. Reset chat
     this->ResetChat();
   }
 
@@ -985,7 +995,13 @@ class LLMChat {
     } else {
       // running decode function when prefill is not available
       for (int i = 0; i < input_tokens.size(); ++i) {
-        ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray({input_tokens[i]}));
+        ObjectRef input_data;
+        if (ft_.use_disco) {
+          ft_.sess->CopyToWorker0(this->GetInputTokenNDArray({input_tokens[i]}), input_tokens_decode_);
+          input_data = input_tokens_decode_;
+        } else {
+          input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray({input_tokens[i]}));
+        }
         int64_t pos = cur_pos + i + 1 - input_tokens.size();
         ShapeTuple pos_shape = ShapeTuple({cur_pos});
         ret = ft_.decode_func_(input_data, pos_shape, kv_cache_, params_);
@@ -1012,10 +1028,8 @@ class LLMChat {
   }
 
   NDArray Softmax(NDArray input, float temperature) {
-    NDArray temperature_arr = NDArray::Empty({}, DataType::Float(32), device_);
-    temperature_arr.CopyFromBytes(&temperature, sizeof(float));
     NDArray ret;
-    ret = ft_.softmax_func_(input, temperature_arr);
+    ret = ft_.softmax_func_(input, temperature_arr_);
     return ret;
   }
 
@@ -1116,6 +1130,8 @@ class LLMChat {
   double shift_fill_factor_{0.3};
   // temperature
   double temperature_{0.8};
+  // pre-allocated ndarray for temperature
+  NDArray temperature_arr_;
   // repetition penalty
   double repetition_penalty_{1.0};
   // top_p
@@ -1156,6 +1172,8 @@ class LLMChat {
   ObjectRef kv_cache_;
   // Temp logits on cpu
   NDArray logits_on_cpu_{nullptr};
+  // pre-allocated ndarray for decode function's input tokens
+  DRef input_tokens_decode_{nullptr};
 };
 
 /*!
