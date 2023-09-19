@@ -504,12 +504,16 @@ class LLMChat {
     this->params_ = ft_.LoadParams(model_path, device_);
     // Step 5. KV cache creation.
     this->kv_cache_ = ft_.create_kv_cache_func_();
+    // Step 6. Pre-allocate fixed size ndarray
     this->temperature_arr_ = NDArray::Empty({}, DataType::Float(32), device_);
     float temperature = static_cast<float>(this->temperature_);
     this->temperature_arr_.CopyFromBytes(&temperature, sizeof(float));
-    Device null_device{DLDeviceType(0), 0};
-    this->input_tokens_decode_ =
-          Downcast<DRef>(ft_.Empty(ShapeTuple({1, 1}), DataType::Int(32), null_device));
+    if (ft_.use_disco){
+      Device null_device{DLDeviceType(0), 0};
+      this->input_tokens_decode_ =
+            Downcast<DRef>(ft_.Empty(ShapeTuple({1, 1}), DataType::Int(32), null_device));
+    }
+    // Step 7. Reset chat
     this->ResetChat();
   }
 
