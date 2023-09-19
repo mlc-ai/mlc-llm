@@ -65,4 +65,5 @@ target_link_libraries(tvm4j_runtime_packed
 target_compile_definitions(tvm4j_runtime_packed PUBLIC TVM4J_ANDROID)
 add_dependencies(tvm4j_runtime_packed tvm4j_core)
 
+install_jar(tvm4j_core output)
 install(TARGETS tvm4j_runtime_packed LIBRARY DESTINATION output/${ANDROID_ABI})
