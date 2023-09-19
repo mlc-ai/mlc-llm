@@ -945,6 +945,8 @@ def get_model(args, hf_config):
         if "query_key_value_proj" in relax_pname:
             q_heads = config.num_attention_heads
             kv_heads = config.num_key_value_heads
+            if kv_heads is None:
+                kv_heads = q_heads
             q, k, v = torch_params
             assert q.shape == (q_heads * head_dim, hidden_size)
             assert k.shape == (kv_heads * head_dim, hidden_size)
