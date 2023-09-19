@@ -15,6 +15,7 @@ class Annotator(PyExprMutator):
         self.mod = irmod
         self.sm_counter = 0
         self.new_params = []
+        # Mode of operation of the annotator: "smoothing" or "quantization"
         self.mode = mode
 
     def transform(self) -> tvm.IRModule:
@@ -49,6 +50,12 @@ class Annotator(PyExprMutator):
             return call
 
         def make_scale_param(shape: relax.ShapeExpr, dtype: str) -> tvm.relax.Var:
+            """
+            Create scale parameter.
+            In case of quantization: scale is a Tensor with the single element.
+            In case of smoothing: scale is a 1D Tensor with the size == dimension of reduction axis
+                                  in matmul op (shape[-1]).
+            """
             n = 1 if self.mode == "quantize" else shape[-1]
             scale = relax.Var(f"sq_scale_{self.sm_counter}", relax.TensorStructInfo([n], dtype))
             self.sm_counter += 1

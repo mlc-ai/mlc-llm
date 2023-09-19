@@ -335,7 +335,12 @@ def split_transform_deploy_mod(
 
     mod_transform = relax.transform.DeadCodeElimination(transform_func_names)(mod_transform)
     mod_deploy = relax.transform.DeadCodeElimination(model_names)(mod_deploy)
-
+    mod_deploy = mod_deploy.with_attrs(
+        {
+            "external_mods": mod.get_attr("external_mods"),
+            "const_name_to_constant": mod.get_attr("const_name_to_constant"),
+        }
+    )
     return mod_transform, mod_deploy
 
 
