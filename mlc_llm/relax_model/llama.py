@@ -457,7 +457,7 @@ class LlamaDecoderLayer(nn.Module):
             all_seq_len_shape=all_seq_len_shape,
         )
         if self.self_attn.num_shards > 1:
-            residual = nn.emit(residual / R.const(self.self_attn.num_shards, dtype="float16"))
+            residual = nn.emit(residual / R.const(self.self_attn.num_shards, dtype=residual.struct_info.dtype))
         hidden_states = nn.emit(residual + hidden_states)
         if self.self_attn.num_shards > 1:
             hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
@@ -467,7 +467,7 @@ class LlamaDecoderLayer(nn.Module):
         hidden_states = self.post_attention_layernorm(hidden_states)
         hidden_states = self.mlp(hidden_states)
         if self.mlp.num_shards > 1:
-            residual = nn.emit(residual / R.const(self.mlp.num_shards, dtype="float16"))
+            residual = nn.emit(residual / R.const(self.mlp.num_shards, dtype=residual.struct_info.dtype))
         hidden_states = nn.emit(residual + hidden_states)
         if self.mlp.num_shards > 1:
             hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
