@@ -3,7 +3,6 @@ set -euxo pipefail
 
 rustup target add aarch64-linux-android
 
-rm -rf build
 mkdir -p build/model_lib
 
 python prepare_model_lib.py
