@@ -10,9 +10,11 @@
 
 #include <picojson.h>
 #include <tokenizers_cpp.h>
+#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/memory_manager.h>
 
@@ -142,9 +144,18 @@ struct FunctionTable {
     });
   }
 
-  void Init(const std::string& lib_path, Device device, int num_shards) {
+  void Init(TVMArgValue reload_lib, Device device, int num_shards) {
     Device null_device{DLDeviceType(0), 0};
     if (num_shards > 1) {
+      String lib_path{nullptr};
+      try {
+        lib_path = reload_lib.operator String();
+      } catch (...) {
+        LOG(FATAL)
+            << "ValueError: In multi-GPU inference, we expect the first argument to Reload to be a "
+               "string path to the model library (.so on Linux or .dll on Windows), but got: "
+            << ArgTypeCode2Str(reload_lib.type_code());
+      }
       constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
       if (Registry::Get(f_create_process_pool) == nullptr) {
         LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
@@ -178,8 +189,14 @@ struct FunctionTable {
         this->softmax_func_ = mod->GetFunction("softmax_with_temperature");
       }
     } else {
+      Module executable{nullptr};
+      if (reload_lib.type_code() == kTVMModuleHandle) {
+        executable = reload_lib.operator Module();
+      } else {
+        String lib_path = reload_lib.operator String();
+        executable = tvm::runtime::Module::LoadFromFile(lib_path);
+      }
       this->use_disco = false;
-      Module executable = tvm::runtime::Module::LoadFromFile(lib_path);
       auto fload_exec = executable->GetFunction("vm_load_executable");
       ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
       this->local_vm = fload_exec();
@@ -453,7 +470,7 @@ class LLMChat {
    * \param app_config_json The JSON string used to partially override the configuration loaded from
    * disk, default to empty string.
    */
-  void Reload(String lib_path, String model_path, String app_config_json = "") {
+  void Reload(TVMArgValue reload_lib, String model_path, String app_config_json = "") {
     // Step 1. Process config json string.
     {
       std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
@@ -472,7 +489,7 @@ class LLMChat {
     // Step 3. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
-    this->ft_.Init(lib_path, device_, this->num_shards_);
+    this->ft_.Init(reload_lib, device_, this->num_shards_);
     auto fsample_topp_from_prob_ptr =
         tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
     ICHECK(fsample_topp_from_prob_ptr)
@@ -1168,10 +1185,10 @@ class LLMChatModule : public ModuleNode {
         chat_ = std::make_unique<LLMChat>(LLMChat(device_));
         ICHECK(2 <= args.size() && args.size() <= 3);
         if (args.size() == 2) {
-          // args: lib_path, model_path
+          // args: reload_lib, model_path
           chat_->Reload(args[0], args[1]);
         } else if (args.size() == 3) {
-          // args: lib_path, model_path, app_config_json (used for overriding config)
+          // args: reload_lib, model_path, app_config_json (used for overriding config)
           chat_->Reload(args[0], args[1], args[2]);
         }
       });
