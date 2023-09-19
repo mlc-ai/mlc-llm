@@ -71,9 +71,94 @@ def get_split_rotary(num_attention_heads, head_dim, position_embedding_base):
     return split_rotary
 
 
-def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size, position_embedding_base):
-    head_dim = hidden_size // num_attention_heads
-    mod["split_rotary"] = get_split_rotary(num_attention_heads, head_dim, position_embedding_base)
+def get_split_rotary_group_query_attention(
+    num_query_heads, num_kv_heads, head_dim, position_embedding_base
+):
+    query_hidden_size = num_query_heads * head_dim
+    kv_hidden_size = num_kv_heads * head_dim
+    total_size = query_hidden_size + kv_hidden_size * 2
+
+    @T.prim_func
+    def split_rotary(
+        qkv: T.handle,
+        split_0: T.handle,
+        split_1: T.handle,
+        split_2: T.handle,
+        n: T.int64,
+    ):
+        A = T.match_buffer(qkv, [1, 1, total_size], dtype="float16")
+        T_split = T.match_buffer(split_0, [1, 1, query_hidden_size], dtype="float16")
+        T_split_1 = T.match_buffer(split_1, [1, 1, kv_hidden_size], dtype="float16")
+        T_split_2 = T.match_buffer(split_2, [1, 1, kv_hidden_size], dtype="float16")
+
+        T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+        for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(query_hidden_size)):
+            with T.block("T_split"):
+                v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                T.reads(
+                    A[v_ax0, v_ax1, v_ax2],
+                )
+                T.writes(T_split[v_ax0, v_ax1, v_ax2])
+                pos: T.float32 = T.Cast("float32", n - T.int64(1))
+                inv_freq: T.float32 = T.float32(1) / T.pow(
+                    T.float32(position_embedding_base),
+                    T.Cast("float32", (v_ax2 * 2) % head_dim) / T.float32(head_dim),
+                )
+                freq: T.float32 = pos * inv_freq
+                cos_value: T.float16 = T.Cast("float16", T.cos(freq))
+                sin_value: T.float16 = T.Cast("float16", T.sin(freq))
+                T_split[v_ax0, v_ax1, v_ax2] = cos_value * A[
+                    v_ax0, v_ax1, v_ax2
+                ] + sin_value * T.Select(
+                    T.int64(head_dim // 2) <= v_ax2 % head_dim,
+                    A[v_ax0, v_ax1, v_ax2 - T.int64(head_dim // 2)],
+                    A[v_ax0, v_ax1, v_ax2 + T.int64(head_dim // 2)] * T.float16(-1),
+                )
+        for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(kv_hidden_size)):
+            with T.block("T_split"):
+                v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                T.reads(
+                    A[v_ax0, v_ax1, v_ax2 + T.int64(query_hidden_size)],
+                    A[v_ax0, v_ax1, v_ax2 + T.int64(query_hidden_size + kv_hidden_size)],
+                )
+                T.writes(
+                    T_split_1[v_ax0, v_ax1, v_ax2],
+                    T_split_2[v_ax0, v_ax1, v_ax2],
+                )
+                pos: T.float32 = T.Cast("float32", n - T.int64(1))
+                inv_freq: T.float32 = T.float32(1) / T.pow(
+                    T.float32(position_embedding_base),
+                    T.Cast("float32", (v_ax2 * 2) % head_dim) / T.float32(head_dim),
+                )
+                freq: T.float32 = pos * inv_freq
+                cos_value: T.float16 = T.Cast("float16", T.cos(freq))
+                sin_value: T.float16 = T.Cast("float16", T.sin(freq))
+                T_split_1[v_ax0, v_ax1, v_ax2] = cos_value * A[
+                    v_ax0, v_ax1, v_ax2 + T.int64(query_hidden_size)
+                ] + sin_value * T.Select(
+                    T.int64(head_dim // 2) <= v_ax2 % head_dim,
+                    A[v_ax0, v_ax1, v_ax2 + T.int64(query_hidden_size) - T.int64(head_dim // 2)],
+                    A[v_ax0, v_ax1, v_ax2 + T.int64(query_hidden_size) + T.int64(head_dim // 2)]
+                    * T.float16(-1),
+                )
+                T_split_2[v_ax0, v_ax1, v_ax2] = A[
+                    v_ax0, v_ax1, v_ax2 + T.int64(query_hidden_size + kv_hidden_size)
+                ]
+
+    return split_rotary
+
+
+def fuse_split_rotary_embedding(
+    mod, num_query_heads, num_kv_heads, hidden_size, position_embedding_base
+):
+    head_dim = hidden_size // num_query_heads
+    mod["split_rotary"] = (
+        get_split_rotary(num_query_heads, head_dim, position_embedding_base)
+        if num_query_heads == num_kv_heads
+        else get_split_rotary_group_query_attention(
+            num_query_heads, num_kv_heads, head_dim, position_embedding_base
+        )
+    )
 
     gvar = mod.get_global_var("split_rotary")
     relax.expr._update_struct_info(gvar, mod.get_global_var("rotary_embedding1").struct_info)
@@ -96,17 +181,17 @@ def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size, position_
         lv3 = is_op("relax.split")(inp_pat)
         lv1521 = is_tuple_get_item(lv3, 0)
         lv1522 = is_op("relax.reshape")(
-            lv1521, is_shape([1, 1, num_attention_heads, head_dim]), add_constraint=False
+            lv1521, is_shape([1, 1, num_query_heads, head_dim]), add_constraint=False
         )
         lv1521.used_by(lv1522)
         lv1524 = is_tuple_get_item(lv3, 1)
         lv1525 = is_op("relax.reshape")(
-            lv1524, is_shape([1, 1, num_attention_heads, head_dim]), add_constraint=False
+            lv1524, is_shape([1, 1, num_kv_heads, head_dim]), add_constraint=False
         )
         lv1524.used_by(lv1525)
         lv1527 = is_tuple_get_item(lv3, 2)
         V = is_op("relax.reshape")(
-            lv1527, is_shape([1, 1, num_attention_heads, head_dim]), add_constraint=False
+            lv1527, is_shape([1, 1, num_kv_heads, head_dim]), add_constraint=False
         )
         lv1527.used_by(V)
 
@@ -128,19 +213,19 @@ def fuse_split_rotary_embedding(mod, num_attention_heads, hidden_size, position_
         call_tir = matchings[Q]
         n = bindings[call_tir].args[-1]
         out_sinfo = [
-            R.Tensor((1, 1, num_attention_heads * head_dim), dtype="float16"),
-            R.Tensor((1, 1, num_attention_heads * head_dim), dtype="float16"),
-            R.Tensor((1, 1, num_attention_heads * head_dim), dtype="float16"),
+            R.Tensor((1, 1, num_query_heads * head_dim), dtype="float16"),
+            R.Tensor((1, 1, num_kv_heads * head_dim), dtype="float16"),
+            R.Tensor((1, 1, num_kv_heads * head_dim), dtype="float16"),
         ]
         lv3_new = R.call_tir(
             mod.get_global_var("split_rotary"), (inp,), out_sinfo=out_sinfo, tir_vars=n
         )
         lv1521_new = lv3_new[0]
-        lv1522_new = R.reshape(lv1521_new, R.shape([1, 1, num_attention_heads, head_dim]))
+        lv1522_new = R.reshape(lv1521_new, R.shape([1, 1, num_query_heads, head_dim]))
         lv1524_new = lv3_new[1]
-        lv1525_new = R.reshape(lv1524_new, R.shape([1, 1, num_attention_heads, head_dim]))
+        lv1525_new = R.reshape(lv1524_new, R.shape([1, 1, num_kv_heads, head_dim]))
         lv1527_new = lv3_new[2]
-        lv1528_new = R.reshape(lv1527_new, R.shape([1, 1, num_attention_heads, head_dim]))
+        lv1528_new = R.reshape(lv1527_new, R.shape([1, 1, num_kv_heads, head_dim]))
 
         return {
             matchings[lv3]: lv3_new,
