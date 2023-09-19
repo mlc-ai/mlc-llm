@@ -70,10 +70,14 @@ def get_split_rotary(num_attention_heads, head_dim, position_embedding_base):
 
     return split_rotary
 
-def get_split_rotary_group_query_attention(num_query_heads, num_kv_heads,  head_dim, position_embedding_base):
+
+def get_split_rotary_group_query_attention(
+    num_query_heads, num_kv_heads, head_dim, position_embedding_base
+):
     query_hidden_size = num_query_heads * head_dim
     kv_hidden_size = num_kv_heads * head_dim
     total_size = query_hidden_size + kv_hidden_size * 2
+
     @T.prim_func
     def split_rotary(
         qkv: T.handle,
@@ -94,9 +98,7 @@ def get_split_rotary_group_query_attention(num_query_heads, num_kv_heads,  head_
                 T.reads(
                     A[v_ax0, v_ax1, v_ax2],
                 )
-                T.writes(
-                    T_split[v_ax0, v_ax1, v_ax2]
-                )
+                T.writes(T_split[v_ax0, v_ax1, v_ax2])
                 pos: T.float32 = T.Cast("float32", n - T.int64(1))
                 inv_freq: T.float32 = T.float32(1) / T.pow(
                     T.float32(position_embedding_base),
@@ -117,7 +119,7 @@ def get_split_rotary_group_query_attention(num_query_heads, num_kv_heads,  head_
                 v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                 T.reads(
                     A[v_ax0, v_ax1, v_ax2 + T.int64(query_hidden_size)],
-                    A[v_ax0, v_ax1, v_ax2 + T.int64(query_hidden_size+kv_hidden_size)],
+                    A[v_ax0, v_ax1, v_ax2 + T.int64(query_hidden_size + kv_hidden_size)],
                 )
                 T.writes(
                     T_split_1[v_ax0, v_ax1, v_ax2],
@@ -139,15 +141,24 @@ def get_split_rotary_group_query_attention(num_query_heads, num_kv_heads,  head_
                     A[v_ax0, v_ax1, v_ax2 + T.int64(query_hidden_size) + T.int64(head_dim // 2)]
                     * T.float16(-1),
                 )
-                T_split_2[v_ax0, v_ax1, v_ax2] = A[v_ax0, v_ax1, v_ax2 + T.int64(query_hidden_size+kv_hidden_size)]
+                T_split_2[v_ax0, v_ax1, v_ax2] = A[
+                    v_ax0, v_ax1, v_ax2 + T.int64(query_hidden_size + kv_hidden_size)
+                ]
 
     return split_rotary
 
 
-
-def fuse_split_rotary_embedding(mod, num_query_heads, num_kv_heads, hidden_size, position_embedding_base):
+def fuse_split_rotary_embedding(
+    mod, num_query_heads, num_kv_heads, hidden_size, position_embedding_base
+):
     head_dim = hidden_size // num_query_heads
-    mod["split_rotary"] = get_split_rotary(num_query_heads, head_dim, position_embedding_base) if num_query_heads == num_kv_heads else get_split_rotary_group_query_attention(num_query_heads, num_kv_heads, head_dim, position_embedding_base)
+    mod["split_rotary"] = (
+        get_split_rotary(num_query_heads, head_dim, position_embedding_base)
+        if num_query_heads == num_kv_heads
+        else get_split_rotary_group_query_attention(
+            num_query_heads, num_kv_heads, head_dim, position_embedding_base
+        )
+    )
 
     gvar = mod.get_global_var("split_rotary")
     relax.expr._update_struct_info(gvar, mod.get_global_var("rotary_embedding1").struct_info)
