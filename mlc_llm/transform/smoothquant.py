@@ -83,10 +83,12 @@ class SmoothQuantAnnotator:
 class SmoothQuantStatCollector:
     """
     This pass modifies IRModule to enable statistics collection. It does several modifications:
-    1) Inserts R.annotate.absmax just after R.annotate.smooth.
+    1) Insert chain of simple ops (abs, max, squeeze) just after R.annotate.smooth. This is done
+       for memory footprint optimization only. Since we do not want to dump the whole tensor and
+       and dump already preprocessed information (abs->max(axis=-2)->squeeze).
     2) Substitute scale params in R.annotate.smooth with dummy ones and remove these params
        from relax.Function.
-    3) Add new outputs in relax.Function that correspond to R.annotate.absmax ops.
+    3) Add new outputs in relax.Function that correspond to the last op from 1).
     """
     def transform_module(self, mod: tvm.IRModule, ctx: tvm.transform.PassContext) -> tvm.IRModule:
         @mutator
@@ -99,10 +101,8 @@ class SmoothQuantStatCollector:
                 self.params_to_remove = []
 
                 attrs = {"mode": "identity"}
-                self.a_scale = wildcard()
-                self.w_scale = wildcard()
-                self.lhs_sm = is_op("relax.annotate.smooth")(wildcard(), self.a_scale).has_attr(attrs)
-                self.rhs_sm = is_op("relax.annotate.smooth")(wildcard(), self.w_scale).has_attr(attrs)
+                self.lhs_sm = is_op("relax.annotate.smooth")(wildcard(), wildcard()).has_attr(attrs)
+                self.rhs_sm = is_op("relax.annotate.smooth")(wildcard(), wildcard()).has_attr(attrs)
                 self.permute = is_op("relax.permute_dims")(self.rhs_sm)
                 self.pattern = is_op("relax.matmul")(self.lhs_sm, self.permute)
             
@@ -143,24 +143,32 @@ class SmoothQuantStatCollector:
                 matchings = self.pattern.extract_matched_expr(call, self.var2val)
                 if matchings:
                     m_smq1 = matchings[self.lhs_sm]
+                    a_smq = self._emit_annotate_op(m_smq1, kind=1)
+                    a_out = self._emit_abs_max_ops_chain(a_smq)
                     m_smq2 = matchings[self.rhs_sm]
-                    a_info = matchings[self.a_scale].struct_info
-                    w_info = matchings[self.w_scale].struct_info
-                    a_scale = tvm.runtime.ndarray.empty(a_info.shape, a_info.dtype, tvm.cpu())
-                    w_scale = tvm.runtime.ndarray.empty(w_info.shape, w_info.dtype, tvm.cpu())
-                    a_smq = self.builder_.emit(
-                        R.smooth(m_smq1.args[0], relax.Constant(a_scale), kind=1, mode="identity")
-                    )
-                    w_smq = self.builder_.emit(
-                        R.smooth(m_smq2.args[0], relax.Constant(w_scale), kind=2, mode="identity")
-                    )
-                    a_out = self.builder_.emit(R.absmax(a_smq, kind=1), "a_out")
-                    w_out = self.builder_.emit(R.absmax(w_smq, kind=2), "w_out")
+                    w_smq = self._emit_annotate_op(m_smq2, kind=2)
+                    w_out = self._emit_abs_max_ops_chain(w_smq)
                     self.profile_points.extend([a_out, w_out])
                     self.params_to_remove.extend([m_smq1.args[1], m_smq2.args[1]])
                     return self.builder_.emit(R.linear(a_smq, w_smq))
 
                 return call
+
+            def _emit_annotate_op(self, call: relax.Call, kind: int) -> relax.Var:
+                tinfo = call.args[1].struct_info
+                scale = tvm.runtime.ndarray.empty(tinfo.shape, tinfo.dtype, tvm.cpu())
+                smq = self.builder_.emit(
+                    R.smooth(call.args[0], relax.Constant(scale), kind=kind, mode="identity")
+                )
+                return smq
+
+            def _emit_abs_max_ops_chain(self, expr: relax.Var) -> relax.Var:
+                assert expr.struct_info.ndim >= 2, "Tensor dim num should be >= 2"
+                abs_expr = self.builder_.emit(R.abs(expr))
+                max_expr = self.builder_.emit(R.max(abs_expr, axis=-2))
+                if expr.struct_info.ndim > 2:
+                    max_expr = self.builder_.emit(R.squeeze(max_expr))
+                return max_expr
 
         return ParamsAndOutputsMutator(mod).transform()
 
