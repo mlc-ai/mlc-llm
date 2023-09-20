@@ -188,7 +188,6 @@ your own app. The package is located under `ios/MLCSwift`.
       -Wl,-all_load
       -lmodel_iphone
       -lmlc_llm -ltvm_runtime
-      -Wl,-noall_load
       -ltokenizers_cpp
       -lsentencepiece
       -ltokenizers_c
