@@ -1,3 +1,4 @@
+import numpy as np
 import tvm
 from tvm import relax
 from tvm.relax.analysis import remove_all_unused
@@ -64,19 +65,29 @@ class Annotator(PyExprMutator):
 
         a_scale = make_scale_param(act.struct_info.shape, act.struct_info.dtype)
         w_scale = make_scale_param(weights.struct_info.shape, weights.struct_info.dtype)
-        lhs = R.smooth(act, a_scale, kind=1, mode="identity")
-        rhs = R.smooth(weights, w_scale, kind=2, mode="identity")
+        if self.mode == "quantize":
+            lhs = R.smooth(act, a_scale, kind=1, mode="identity")
+            rhs = R.smooth(weights, w_scale, kind=2, mode="identity")
+        else:
+            lhs = R.divide(act, a_scale)
+            rhs = R.multiply(weights, w_scale)
         return R.linear(lhs, rhs)
 
 
 @tvm.transform.module_pass(opt_level=0, name="SmoothQuantAnnotator")
 class SmoothQuantAnnotator:
     """
-    Insert R.smooth ops with "identity" attribute before R.linear. Add scales (second argument of 
-    R.smooth) to the list of relax.Function parameters. Example:
-    R.linear(lhs, rhs)  -->  op1 = R.smooth(lhs, scale1, kind=1, mode="identity")
-                             op2 = R.smooth(rhs, scale2, kind=2, mode="identity")
-                             R.linear(op1, op2)
+    Insert R.multiply and R.divide (or R.smooth in case of mode == "quantize") ops before R.linear.
+    Add scales (second argument of R.multiply or R.smooth) to the list of relax.Function parameters.
+    Example:
+      R.linear(lhs, rhs)  -->  op1 = R.divide(lhs, scale1)
+                               op2 = R.multiply(rhs, scale2)
+                               R.linear(op1, op2)
+
+      for the self.mode == "quantize" case:
+      R.linear(lhs, rhs)  -->  op1 = R.smooth(lhs, scale1, kind=1, mode="identity")
+                               op2 = R.smooth(rhs, scale2, kind=2, mode="identity")
+                               R.linear(op1, op2)
     """
     def __init__(self, mode: str = "") -> None:
         self.mode = mode
@@ -90,11 +101,13 @@ class SmoothQuantAnnotator:
 class SmoothQuantStatCollector:
     """
     This pass modifies IRModule to enable statistics collection. It does several modifications:
-    1) Insert chain of simple ops (abs, max, squeeze) just after R.annotate.smooth. This is done
-       for memory footprint optimization only. Since we do not want to dump the whole tensor and
-       and dump already preprocessed information (abs->max(axis=-2)->squeeze).
-    2) Substitute scale params in R.annotate.smooth with dummy ones and remove these params
-       from relax.Function.
+    1) Insert chain of simple ops (abs, max, squeeze) just after annotate operation
+       (R.annotate.smooth/R.divide/R.multiply). This is done for memory footprint optimization only.
+       Since we do not want to dump the whole tensor and dump already preprocessed information
+       (abs->max(axis=-2)->squeeze).
+    2) Substitute scale param in R.annotate.smooth (or second arguemnt in R.divide/R.multiply) with
+       dummy ones and remove these params from relax.Function. Dummy param is np.ones array in this
+       case.
     3) Add new outputs in relax.Function that correspond to the last op from 1).
     """
     def transform_module(self, mod: tvm.IRModule, ctx: tvm.transform.PassContext) -> tvm.IRModule:
@@ -108,8 +121,14 @@ class SmoothQuantStatCollector:
                 self.params_to_remove = []
 
                 attrs = {"mode": "identity"}
-                self.lhs_sm = is_op("relax.annotate.smooth")(wildcard(), wildcard()).has_attr(attrs)
-                self.rhs_sm = is_op("relax.annotate.smooth")(wildcard(), wildcard()).has_attr(attrs)
+                self.lhs_sm = (
+                    is_op("relax.annotate.smooth")(wildcard(), wildcard()).has_attr(attrs) |
+                    is_op("relax.divide")(wildcard(), wildcard())
+                )
+                self.rhs_sm = (
+                    is_op("relax.annotate.smooth")(wildcard(), wildcard()).has_attr(attrs) |
+                    is_op("relax.multiply")(wildcard(), wildcard())
+                )
                 self.permute = is_op("relax.permute_dims")(self.rhs_sm)
                 self.pattern = is_op("relax.matmul")(self.lhs_sm, self.permute)
             
@@ -163,10 +182,16 @@ class SmoothQuantStatCollector:
 
             def _emit_annotate_op(self, call: relax.Call, kind: int) -> relax.Var:
                 tinfo = call.args[1].struct_info
-                scale = tvm.runtime.ndarray.empty(tinfo.shape, tinfo.dtype, tvm.cpu())
-                smq = self.builder_.emit(
-                    R.smooth(call.args[0], relax.Constant(scale), kind=kind, mode="identity")
-                )
+                data = np.ones([int(dim) for dim in tinfo.shape], tinfo.dtype)
+                scale = tvm.runtime.ndarray.array(data, device=tvm.cpu())
+                if call.op == tvm.ir.Op.get("relax.multiply"):
+                    smq = self.builder_.emit(R.multiply(call.args[0], relax.Constant(scale)))
+                elif call.op == tvm.ir.Op.get("relax.divide"):
+                    smq = self.builder_.emit(R.divide(call.args[0], relax.Constant(scale)))
+                else:
+                    smq = self.builder_.emit(
+                        R.smooth(call.args[0], relax.Constant(scale), kind=kind, mode="identity")
+                    )
                 return smq
 
             def _emit_abs_max_ops_chain(self, expr: relax.Var) -> relax.Var:

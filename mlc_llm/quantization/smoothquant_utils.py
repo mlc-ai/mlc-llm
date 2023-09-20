@@ -162,8 +162,6 @@ def _smooth(
     for fname in funcs:
         scale_params = _calculate_scale_params(fname, stat, config, tvm.cpu(0))
         mod = relax.transform.BindParams(fname, scale_params)(mod)
-
-    mod = mlc_llm.transform.SmoothQuantOpConverter("multiply")(mod)
     return mod
 
 
