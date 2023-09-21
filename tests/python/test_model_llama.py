@@ -16,12 +16,6 @@ def main():
         rms_norm_eps=1e-05,
         vocab_size=4096,
         position_embedding_base=10000,
-        bos_token_id=0,
-        eos_token_id=0,
-        pad_token_id=0,
-        initializer_range=0.02,
-        model_type="llama",
-        torch_dtype="float32",
     )
     batch_size, total_seq_len, dtype = 1, 32, "float32"
 
