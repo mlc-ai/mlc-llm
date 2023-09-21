@@ -4,6 +4,7 @@ from tqdm import tqdm
 import argparse
 from transformers import AutoTokenizer
 from typing import List, Dict, Any
+from datasets import load_dataset
 
 import tvm
 from tvm import relax
@@ -12,6 +13,9 @@ import mlc_llm
 from mlc_llm import utils
 from mlc_llm.utils import load_params
 
+
+# List of supported calibration datasets.
+dataset_list = ["dummy", "piqa"]
 
 def get_runtime_func(funcs: List[str], mod: tvm.IRModule):
     lowered_mod = relax.transform.LegalizeOps()(mod)
@@ -233,7 +237,7 @@ def smoothquant(args, mod, model_names):
     assert args.build_model_only is False, "build_model_only in True is not supported in SMQ"
     params = load_params(args.artifact_path, device=smq_device)
 
-    dataset, stop_tokens = _get_dummy_dataset(args.artifact_path, device=smq_device)
+    dataset, stop_tokens = _get_dataset(args.dataset, args.artifact_path, device=smq_device)
     smq_config: Dict[str, Any] = {}
     smq_config["decoder_invoke_num"] = 5
     smq_config["alpha"] = 0.5
@@ -247,6 +251,7 @@ def smoothquant(args, mod, model_names):
         mod = _calibrate(mod, params, model_names, dataset, smq_config)
     # Free memory:
     params.clear()
+    print("[SmoothQuant] Smoothing and calibration were done!")
     return mod
 
 
@@ -318,3 +323,52 @@ def _get_dummy_dataset(artifact_path, device, num=3):
     stop_tokens = ([tokenizer.eos_token_id])
 
     return dataset, stop_tokens
+
+
+def _prepare_dummy_dataset(artifact_path: str):
+    """
+    Return path to file with dummy dataset. This dataset consists of 4 simple questions.
+    "train", "test" and "validation" datasets use the same dummy file.
+    """
+    file_name = "dummy_calibration_dataset.txt"
+    file_path = os.path.join(artifact_path, file_name)
+    data_files = {"train": file_path, "test": file_path, "validation": file_path}
+    if os.path.exists(file_path):
+        return data_files
+
+    prompts = [
+        "The capital of Canada is",
+        "2+2=?",
+        "What is the capital of France?",
+        "Who is the president of the USA?",
+    ]
+    f = open(file_path, "w+")
+    for prompt in prompts:
+        f.write(prompt + "\n")
+    return data_files
+
+
+def _get_dataset(name: str, artifact_path: str, device: tvm.runtime.Device):
+    print("[SmoothQuant] Starting to initialize tokenizer...")
+    tokenizer_path = os.path.join(artifact_path, "params")
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
+    print("[SmoothQuant] Initialization of tokenizer was completed...")
+
+    if name not in dataset_list:
+        raise ValueError(f"Dataset {name} is not supported")
+    if name == "piqa":
+        data_files = None
+        text_name = "goal"
+    else:
+        # Dummy dataset consisting of 4 simple questions.
+        name = text_name = "text"
+        data_files = _prepare_dummy_dataset(artifact_path)
+
+    dataset = load_dataset(name, data_files=data_files, split="validation")
+    calibration_dataset = []
+    for record in dataset:
+        data = tokenizer(record[text_name], return_tensors="np")
+        calibration_dataset.append(tvm.nd.array(data["input_ids"].astype("int32"), device=device))
+    stop_tokens = ([tokenizer.eos_token_id])
+
+    return calibration_dataset, stop_tokens
