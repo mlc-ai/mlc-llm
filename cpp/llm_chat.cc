@@ -1091,7 +1091,7 @@ class LLMChat {
     ICHECK(logits_on_cpu_.defined()) << "logits_on_cpu_ is not defined";
     ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
     ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
-    return fsample_topp_from_logits_(logits_on_cpu_, top_p_, temperature_, GetRandomNumber());
+    return fsample_topp_from_logits_(logits_on_cpu_, temperature_, top_p_, GetRandomNumber());
   }
 
   int32_t SampleFromProbOnCPU() {
