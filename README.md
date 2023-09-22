@@ -2,7 +2,7 @@
 
 # MLC LLM
 
-[Project Page](https://mlc.ai/mlc-llm/) | [Documentation](https://mlc.ai/mlc-llm/docs/) | [Blog](https://mlc.ai/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [WebLLM](https://webllm.mlc.ai/) | [WebStableDiffusion](https://websd.mlc.ai/) | [Discord][discord-url]
+[Project Page](https://mlc.ai/mlc-llm/) | [Documentation](https://llm.mlc.ai/) | [Blog](https://mlc.ai/blog/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) | [WebLLM](https://webllm.mlc.ai/) | [WebStableDiffusion](https://websd.mlc.ai/) | [Discord][discord-url]
 
 MLC LLM is a **universal solution** that allows **any language models** to be **deployed natively** on a diverse set of hardware backends and native applications, plus a **productive framework** for everyone to further optimize model performance for their own use cases.
 
@@ -17,7 +17,7 @@ Everything runs locally  with no server support and accelerated with local GPUs 
 * NVIDIA GPUs via CUDA on Windows and Linux;
 * WebGPU on browsers (through companion project [WebLLM](https://github.com/mlc-ai/web-llm/tree/main)).
 
-<ins>**[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/docs/get_started/try_out.html)**</ins>
+<ins>**[Check out our instruction page to try out!](https://llm.mlc.ai/get_started/try_out.html)**</ins>
 
 <p align="center">
   <img src="site/gif/ios-demo.gif" height="700">
@@ -59,7 +59,7 @@ We heavily rely on open-source ecosystem, more specifically, [TVM Unity](https:/
 
 ## Get Started with MLC-LLM
 
-Please check our [documentation](https://mlc.ai/mlc-llm/docs/get_started/try_out.html) to start the journey with MLC-LLM.
+Please check our [documentation](https://llm.mlc.ai/get_started/try_out.html) to start the journey with MLC-LLM.
 
 ## Links
 
