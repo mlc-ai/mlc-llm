@@ -1,0 +1,551 @@
+
+
+
+
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>GPU Drivers and SDKs &mdash; mlc-llm 0.1.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/tlcpack_theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+  
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script src="../_static/tabs.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Install Wasm Build Environment" href="emcc.html" />
+    <link rel="prev" title="Install Conda" href="conda.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    
+<header class="header">
+    <div class="innercontainer">
+      <div class="headerInner d-flex justify-content-between align-items-center">
+          <div class="headerLogo">
+          </div>
+
+          <div id="headMenu" class="headerNav">
+            <button type="button" id="closeHeadMenu" class="navCloseBtn"><img src="../_static/img/close-icon.svg" alt="Close"></button>
+             <ul class="nav">
+                <li class="nav-item">
+                   <a class="nav-link" href=https://mlc.ai/mlc-llm>Home</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://github.com/mlc-ai/mlc-llm>Github</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://discord.gg/9Xpy2HGBuD>Discord Server</a>
+                </li>
+             </ul>
+               <div class="responsivetlcdropdown">
+                 <button type="button" class="btn-link">
+                   Other Resources
+                 </button>
+                 <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/blog>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://webllm.mlc.ai/>Web LLM</a>
+                     </li>
+                 </ul>
+               </div>
+          </div>
+            <div class="responsiveMenuIcon">
+              <button type="button" id="menuBtn" class="btn-menu"><img src="../_static/img/menu-icon.svg" alt="Menu Icon"></button>
+            </div>
+
+            <div class="tlcDropdown">
+              <div class="dropdown">
+                <button type="button" class="btn-link dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Other Resources
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                  <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://mlc.ai/blog>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://webllm.mlc.ai/>Web LLM</a>
+                     </li>
+                  </ul>
+                </div>
+              </div>
+          </div>
+       </div>
+    </div>
+ </header>
+ 
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side fixed">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html">
+          
+
+          
+            
+            <img src="../_static/mlc-logo-with-text-landscape.svg" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+                <div class="version">
+                  0.1.0
+                </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/try_out.html">Try out MLC Chat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/project_overview.html">Project Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/javascript.html">WebLLM and Javascript API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">Rest API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI and C++ API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/python.html">Python API and Gradio Frontend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS App and Swift API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Models via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/python.html">Python API for Model Compilation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/customize/define_new_models.html">Define New Model Architectures</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Unity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conda.html">Install Conda</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">GPU Drivers and SDKs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#cuda">CUDA</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#installation">Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#validate-installation">Validate Installation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#rocm">ROCm</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id1">Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id2">Validate Installation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#vulkan-driver">Vulkan Driver</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id3">Installation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#amd-radeon-and-radeon-pro">AMD Radeon and Radeon PRO</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id4">Validate Installation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#vulkan-sdk">Vulkan SDK</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#opencl-sdk">OpenCL SDK</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#orange-pi-5-rk3588-based-sbc">Orange Pi 5 (RK3588 based SBC)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id5">Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id6">Validate Installation</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="emcc.html">Install Wasm Build Environment</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Community</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../community/guideline.html">Community Guideline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../community/faq.html">Frequently Asked Questions</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      
+      <nav class="wy-nav-top" aria-label="top navigation" data-toggle="wy-nav-top">
+        
+            <div class="togglemenu">
+
+            </div>
+            <div class="nav-content">
+              <!-- mlc-llm -->
+              Table of Contents
+            </div>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
+        
+      <li>GPU Drivers and SDKs</li>
+    
+    
+      
+      
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/install/gpu.rst" class="fa fa-github"> Edit on GitHub</a>
+            
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <section id="gpu-drivers-and-sdks">
+<h1><a class="toc-backref" href="#id7" role="doc-backlink">GPU Drivers and SDKs</a><a class="headerlink" href="#gpu-drivers-and-sdks" title="Permalink to this heading">¶</a></h1>
+<nav class="contents" id="table-of-contents">
+<p class="topic-title">Table of Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#gpu-drivers-and-sdks" id="id7">GPU Drivers and SDKs</a></p>
+<ul>
+<li><p><a class="reference internal" href="#cuda" id="id8">CUDA</a></p></li>
+<li><p><a class="reference internal" href="#rocm" id="id9">ROCm</a></p></li>
+<li><p><a class="reference internal" href="#vulkan-driver" id="id10">Vulkan Driver</a></p></li>
+<li><p><a class="reference internal" href="#vulkan-sdk" id="id11">Vulkan SDK</a></p></li>
+<li><p><a class="reference internal" href="#opencl-sdk" id="id12">OpenCL SDK</a></p></li>
+<li><p><a class="reference internal" href="#orange-pi-5-rk3588-based-sbc" id="id13">Orange Pi 5 (RK3588 based SBC)</a></p></li>
+</ul>
+</li>
+</ul>
+</nav>
+<p>MLC LLM is a universal deployment solution that allows efficient CPU/GPU code generation without AutoTVM-based performance tuning. This section focuses on generic GPU environment setup and troubleshooting.</p>
+<section id="cuda">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">CUDA</a><a class="headerlink" href="#cuda" title="Permalink to this heading">¶</a></h2>
+<p>CUDA is required to compile and run models with CUDA backend.</p>
+<section id="installation">
+<h3>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">¶</a></h3>
+<p>If you have a NVIDIA GPU and you want to use models compiled with CUDA
+backend, you should install CUDA, which can be downloaded from
+<a class="reference external" href="https://developer.nvidia.com/cuda-downloads">here</a>.</p>
+</section>
+<section id="validate-installation">
+<h3>Validate Installation<a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h3>
+<p>To verify you have correctly installed CUDA runtime and NVIDIA driver, run <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span></code> in command line and see if you can get the GPU information.</p>
+</section>
+</section>
+<section id="rocm">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">ROCm</a><a class="headerlink" href="#rocm" title="Permalink to this heading">¶</a></h2>
+<p>ROCm is required to compile and run models with ROCm backend.</p>
+<section id="id1">
+<h3>Installation<a class="headerlink" href="#id1" title="Permalink to this heading">¶</a></h3>
+<p>Right now MLC LLM only supports ROCm 5.6.
+If you have AMD GPU and you want to use models compiled with ROCm
+backend, you should install ROCm 5.6 from <a class="reference external" href="https://docs.amd.com/en/docs-5.6.0/deploy/linux/installer/install.html">here</a>.</p>
+</section>
+<section id="id2">
+<h3>Validate Installation<a class="headerlink" href="#id2" title="Permalink to this heading">¶</a></h3>
+<p>To verify you have correctly installed ROCm 5.6, run <code class="docutils literal notranslate"><span class="pre">rocm-smi</span></code> in command line.
+If you see the list of AMD devices printed out in a table, it means the ROCm is correctly installed.</p>
+</section>
+</section>
+<section id="vulkan-driver">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Vulkan Driver</a><a class="headerlink" href="#vulkan-driver" title="Permalink to this heading">¶</a></h2>
+<section id="id3">
+<h3>Installation<a class="headerlink" href="#id3" title="Permalink to this heading">¶</a></h3>
+<p>To run pre-trained models (e.g. pulled from MLC-AI’s Hugging Face repository) compiled with Vulkan backend, you are expected to install Vulkan driver on your machine.</p>
+<p>Please check <a class="reference external" href="https://www.vulkan.org/tools#vulkan-gpu-resources">this
+page</a> and find the
+Vulkan driver according to your GPU vendor.</p>
+<section id="amd-radeon-and-radeon-pro">
+<h4>AMD Radeon and Radeon PRO<a class="headerlink" href="#amd-radeon-and-radeon-pro" title="Permalink to this heading">¶</a></h4>
+<p>For AMD Radeon and Radeon PRO users, please download AMD’s drivers from official website (<a class="reference external" href="https://www.amd.com/en/support/linux-drivers">Linux</a> / <a class="reference external" href="https://www.amd.com/en/support">Windows</a>).
+For Linux users, after you installed the <code class="docutils literal notranslate"><span class="pre">amdgpu-install</span></code> package, you can follow the instructions in its <a class="reference external" href="https://amdgpu-install.readthedocs.io/en/latest/install-script.html">documentation</a> to install
+the driver. We recommend you installing ROCr OpenCL and PRO Vulkan (proprietary) for best performance, which can be done by running the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>amdgpu-install<span class="w"> </span>--usecase<span class="o">=</span>graphics,opencl<span class="w"> </span>--opencl<span class="o">=</span>rocr<span class="w"> </span>--vulkan<span class="o">=</span>pro<span class="w"> </span>--no-32
+</pre></div>
+</div>
+</section>
+</section>
+<section id="id4">
+<h3>Validate Installation<a class="headerlink" href="#id4" title="Permalink to this heading">¶</a></h3>
+<p>To verify whether Vulkan installation is successful or not, you are encouraged to install <code class="docutils literal notranslate"><span class="pre">vulkaninfo</span></code>, below are the instructions to install <code class="docutils literal notranslate"><span class="pre">vulkaninfo</span></code> on different platforms:</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-VWJ1bnR1L0RlYmlhbg==" aria-selected="true" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-VWJ1bnR1L0RlYmlhbg==" name="VWJ1bnR1L0RlYmlhbg==" role="tab" tabindex="0">Ubuntu/Debian</button><button aria-controls="panel-0-V2luZG93cw==" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-V2luZG93cw==" name="V2luZG93cw==" role="tab" tabindex="-1">Windows</button><button aria-controls="panel-0-RmVkb3Jh" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-RmVkb3Jh" name="RmVkb3Jh" role="tab" tabindex="-1">Fedora</button><button aria-controls="panel-0-QXJjaCBMaW51eA==" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-QXJjaCBMaW51eA==" name="QXJjaCBMaW51eA==" role="tab" tabindex="-1">Arch Linux</button><button aria-controls="panel-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" name="T3RoZXIgRGlzdHJpYnV0aW9ucw==" role="tab" tabindex="-1">Other Distributions</button></div><div aria-labelledby="tab-0-VWJ1bnR1L0RlYmlhbg==" class="sphinx-tabs-panel code-tab group-tab" id="panel-0-VWJ1bnR1L0RlYmlhbg==" name="VWJ1bnR1L0RlYmlhbg==" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
+sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>vulkan-tools
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-0-V2luZG93cw==" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-0-V2luZG93cw==" name="V2luZG93cw==" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># It comes with your GPU driver</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-0-RmVkb3Jh" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-0-RmVkb3Jh" name="RmVkb3Jh" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>vulkan-tools
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-0-QXJjaCBMaW51eA==" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-0-QXJjaCBMaW51eA==" name="QXJjaCBMaW51eA==" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>pacman<span class="w"> </span>-S<span class="w"> </span>vulkan-tools
+<span class="c1"># Arch Linux has maintained an awesome wiki page for Vulkan which you can refer to for troubleshooting: https://wiki.archlinux.org/title/Vulkan</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-0-T3RoZXIgRGlzdHJpYnV0aW9ucw==" name="T3RoZXIgRGlzdHJpYnV0aW9ucw==" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Please install Vulkan SDK for your platform</span>
+<span class="c1"># https://vulkan.lunarg.com/sdk/home</span>
+</pre></div>
+</div>
+</div></div>
+<p>After installation, you can run <code class="docutils literal notranslate"><span class="pre">vulkaninfo</span></code> in command line and see if you can get the GPU information.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>WSL support for Windows is work-in-progress at the moment. Please do not use WSL on Windows to run Vulkan.</p>
+</div>
+</section>
+</section>
+<section id="vulkan-sdk">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Vulkan SDK</a><a class="headerlink" href="#vulkan-sdk" title="Permalink to this heading">¶</a></h2>
+<p>Vulkan SDK is required for compiling models to Vulkan backend. To build TVM Unity compiler from source, you will need to install Vulkan SDK as a dependency, but our <a class="reference external" href="https://mlc.ai/package">pre-built wheels</a> already ships with Vulkan SDK.</p>
+<p>Check Vulkan SDK installation guide according to your platform:</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">Windows</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">Linux</button><button aria-controls="panel-1-1-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-2" name="1-2" role="tab" tabindex="-1">Mac</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><p><a class="reference external" href="https://vulkan.lunarg.com/doc/sdk/latest/windows/getting_started.html">Getting Started with the Windows Tarball Vulkan SDK</a></p>
+</div><div aria-labelledby="tab-1-1-1" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-1" name="1-1" role="tabpanel" tabindex="0"><p>For Ubuntu user, please check
+<a class="reference external" href="https://vulkan.lunarg.com/doc/sdk/latest/linux/getting_started_ubuntu.html">Getting Started with the Ubuntu Vulkan SDK</a></p>
+<p>For other Linux distributions, please check
+<a class="reference external" href="https://vulkan.lunarg.com/doc/sdk/latest/linux/getting_started.html">Getting Started with the Linux Tarball Vulkan SDK</a></p>
+</div><div aria-labelledby="tab-1-1-2" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-2" name="1-2" role="tabpanel" tabindex="0"><p><a class="reference external" href="https://vulkan.lunarg.com/doc/sdk/latest/mac/getting_started.html">Getting Started with the macOS Vulkan SDK</a></p>
+</div></div>
+<p>Please refer to installation and setup page for next steps to build TVM-Unity from source.</p>
+</section>
+<section id="opencl-sdk">
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">OpenCL SDK</a><a class="headerlink" href="#opencl-sdk" title="Permalink to this heading">¶</a></h2>
+<p>OpenCL SDK is only required when you want to build your own models for OpenCL backend. Please refer to <a class="reference external" href="https://github.com/KhronosGroup/OpenCL-SDK">OpenCL’s Github Repository</a> for installation guide of OpenCL-SDK.</p>
+</section>
+<section id="orange-pi-5-rk3588-based-sbc">
+<h2><a class="toc-backref" href="#id13" role="doc-backlink">Orange Pi 5 (RK3588 based SBC)</a><a class="headerlink" href="#orange-pi-5-rk3588-based-sbc" title="Permalink to this heading">¶</a></h2>
+<p>OpenCL SDK and Mali GPU driver is required to compile and run models for OpenCL backend.</p>
+<section id="id5">
+<h3>Installation<a class="headerlink" href="#id5" title="Permalink to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Download and install the Ubuntu 22.04 for your board from <a class="reference external" href="https://github.com/Joshua-Riek/ubuntu-rockchip/releases/tag/v1.22">here</a></p></li>
+<li><p>Download and install <code class="docutils literal notranslate"><span class="pre">libmali-g610.so</span></code></p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/usr/lib<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>sudo<span class="w"> </span>wget<span class="w"> </span>https://github.com/JeffyCN/mirrors/raw/libmali/lib/aarch64-linux-gnu/libmali-valhall-g610-g6p0-x11-wayland-gbm.so
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>Check if file <code class="docutils literal notranslate"><span class="pre">mali_csffw.bin</span></code> exist under path <code class="docutils literal notranslate"><span class="pre">/lib/firmware</span></code>, if not download it with command:</p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/lib/firmware<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>sudo<span class="w"> </span>wget<span class="w"> </span>https://github.com/JeffyCN/mirrors/raw/libmali/firmware/g610/mali_csffw.bin
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>Download OpenCL ICD loader and manually add libmali to ICD</p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>update
+sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>mesa-opencl-icd
+sudo<span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span>/etc/OpenCL/vendors
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;/usr/lib/libmali-valhall-g610-g6p0-x11-wayland-gbm.so&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w"> </span>/etc/OpenCL/vendors/mali.icd
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>Download and install <code class="docutils literal notranslate"><span class="pre">libOpenCL</span></code></p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>ocl-icd-opencl-dev
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>Download and install dependencies for Mali OpenCL</p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>libxcb-dri2-0<span class="w"> </span>libxcb-dri3-0<span class="w"> </span>libwayland-client0<span class="w"> </span>libwayland-server0<span class="w"> </span>libx11-xcb1
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>Download and install clinfo to check if OpenCL successfully installed</p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>clinfo
+</pre></div>
+</div>
+</section>
+<section id="id6">
+<h3>Validate Installation<a class="headerlink" href="#id6" title="Permalink to this heading">¶</a></h3>
+<p>To verify you have correctly installed OpenCL runtime and Mali GPU driver, run <code class="docutils literal notranslate"><span class="pre">clinfo</span></code> in command line and see if you can get the GPU information.
+You are expect to see the following information:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>clinfo
+arm_release_ver:<span class="w"> </span>g13p0-01eac0,<span class="w"> </span>rk_so_ver:<span class="w"> </span><span class="m">3</span>
+Number<span class="w"> </span>of<span class="w"> </span>platforms<span class="w">                               </span><span class="m">2</span>
+<span class="w">   </span>Platform<span class="w"> </span>Name<span class="w">                                   </span>ARM<span class="w"> </span>Platform
+<span class="w">   </span>Platform<span class="w"> </span>Vendor<span class="w">                                 </span>ARM
+<span class="w">   </span>Platform<span class="w"> </span>Version<span class="w">                                </span>OpenCL<span class="w"> </span><span class="m">2</span>.1<span class="w"> </span>v1.g6p0-01eac0.2819f9d4dbe0b5a2f89c835d8484f9cd
+<span class="w">   </span>Platform<span class="w"> </span>Profile<span class="w">                                </span>FULL_PROFILE
+<span class="w">   </span>...
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+
+           </div>
+           
+          </div>
+          
+
+<footer>
+
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="emcc.html" class="btn btn-neutral float-right" title="Install Wasm Build Environment" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="conda.html" class="btn btn-neutral float-left" title="Install Conda" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+
+<div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
+<section class="footerSec">
+    <div class="footerHeader">
+      <div class="d-flex align-md-items-center justify-content-between flex-column flex-md-row">
+        <div class="copywrite d-flex align-items-center">
+          <h5 id="copy-right-info">© 2023 MLC LLM</h5>
+        </div>
+      </div>
+
+    </div>
+
+    <div>
+      <div class="footernote"> </div>
+    </div>
+
+</section>
+</footer>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+  </body>
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
