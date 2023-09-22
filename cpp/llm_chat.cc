@@ -761,7 +761,7 @@ class LLMChat {
         this->PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
     if (token_len == 0) return;
-    if(ft_.use_disco){
+    if (ft_.use_disco) {
       // exclude load shard time from prefill
       this->ft_.sess->SyncWorker(0);
     }
