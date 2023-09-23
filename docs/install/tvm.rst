@@ -16,6 +16,8 @@ Install TVM Unity
 
 TVM Unity can be installed directly from a prebuilt developer package, or built from source.
 
+.. _tvm-unity-prebuilt-package:
+
 Option 1. Prebuilt Package
 --------------------------
 

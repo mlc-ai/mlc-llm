@@ -34,7 +34,7 @@ Prerequisite
 
 - ``TVM_HOME`` so that its headers are available under ``$TVM_HOME/include/tvm/runtime``.
 
-(Optional) **TVM Unity compiler** Python package (`install <https://mlc.ai/mlc-llm/docs/install/tvm.html#option-1-prebuilt-package>`__) or (`build from source <https://mlc.ai/mlc-llm/docs/install/tvm.html#option-2-build-from-source>`__). It is *NOT* required if models are prebuilt, but to compile PyTorch models from HuggingFace in the following section, the compiler is a must-dependency.
+(Optional) **TVM Unity compiler** Python package (:ref:`install <tvm-unity-prebuilt-package>` or :ref:`build from source <tvm-unity-build-from-source>`). It is *NOT* required if models are prebuilt, but to compile PyTorch models from HuggingFace in the following section, the compiler is a must-dependency.
 
 .. note::
     ❗ Whenever using Python, it is highly recommended to use **conda** to manage an isolated Python environment to avoid missing dependencies, incompatible versions, and package conflicts.
@@ -70,9 +70,9 @@ To deploy models on Android with reasonable performance, one has to cross-compil
 
 .. code-block:: bash
 
-  # To display the help message about each argument
+  # Show help message
   python3 -m mlc_llm.build --help
-  # Build
+  # Compile a PyTorch model
   python3 -m mlc_llm.build \
           --target android \
           --max-seq-len 768 \
@@ -87,8 +87,8 @@ This generates directory ``./dist/$MODEL_NAME-$QUANTIZATION`` which contains the
 - Model lib: The compiled library that uses mobile GPU. It is usually named as ``${MODEL_NAME}-${QUANTIZATION}-android.tar``, for example, ``Llama-2-7b-chat-hf-q4f16_0-android.tar``.
 - Model weights: the model weights are sharded as ``params_shard_*.bin`` under ``params/`` and the metadata is stored in ``ndarray-cache.json``.
 
-Deploy MLC-Compiled Models to Android APK
-------------------------------------------
+Create Android Project using Compiled Models
+--------------------------------------------
 
 The source code for MLC LLM is available under ``android/``, including scripts to build dependencies and the main app under ``android/MLCChat/`` that could be opened by Android studio. Enter the directory first:
 
