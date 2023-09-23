@@ -7,177 +7,144 @@ Android App
    :local:
    :depth: 2
 
+Prerequisite
+------------
 
-The MLC LLM Android package can be installed in two ways: either from the pre-built package or by building it from source. If you're an Android user interested in trying out models, the pre-built package is the way to go. On the other hand, if you're a developer aiming to incorporate new features into the package, building the Android package from source is necessary.
+**Rust** (`install <https://www.rust-lang.org/tools/install>`__) is needed to cross-compile HuggingFace tokenizers to Android. Make sure rustc, cargo, and rustup are available in ``$PATH``.
 
-Use Pre-built Android Package
------------------------------
+**Android Studio** (`install <https://developer.android.com/studio>`__) with NDK and CMake. To install NDK and CMake, in the Android Studio welcome page, click "Projects → SDK Manager → SDK Tools". Set up the following environment variables:
 
-The MLC LLM Android app is free and available for download and can be tried out by simply clicking the button below:
+- ``ANDROID_NDK`` so that ``$ANDROID_NDK/build/cmake/android.toolchain.cmake`` is available.
+- ``TVM_NDK_CC`` that points to NDK's clang compiler.
 
-.. image:: https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png
-   :width: 135
-   :target: https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk
+.. code-block:: bash
 
+  # Example on macOS
+  ANDROID_NDK: $HOME/Library/Android/sdk/ndk/25.2.9519653
+  TVM_NDK_CC: $ANDROID_NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
+  # Example on Windows
+  ANDROID_NDK: $HOME/Library/Android/sdk/ndk/25.2.9519653
+  TVM_NDK_CC: $ANDROID_NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
 
-Build Android Package from Source
----------------------------------
+**JDK**, such as OpenJDK >= 17, to compile Java bindings of TVM Unity runtime. It could be installed via Homebrew on macOS, apt on Ubuntu or other package managers. Set up the following environment variable:
 
-If you're a developer looking to integrate new functionality or support different model architectures in the Android Package, you may need to build it from source. To do so, please follow the instructions provided below on building the Android package from source. 
-Before you begin, clone this repository and initialize the submodules, as well as install and initialize rustup.
+- ``JAVA_HOME`` so that Java is available in ``$JAVA_HOME/bin/java``.
 
-App Build Instructions
-^^^^^^^^^^^^^^^^^^^^^^
+**TVM Unity runtime** is placed under `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`__ in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:
 
-1. Follow the instructions in :doc:`/compilation/compile_models` to
-   either build the model using a Hugging Face URL, or a local
-   directory. For Vicuna weights, please follow our :doc:`/compilation/get-vicuna-weight` tutorial.
+- ``TVM_HOME`` so that its headers are available under ``$TVM_HOME/include/tvm/runtime``.
 
-   .. code:: shell
+(Optional) **TVM Unity compiler** Python package (`install <https://mlc.ai/mlc-llm/docs/install/tvm.html#option-1-prebuilt-package>`__) or (`build from source <https://mlc.ai/mlc-llm/docs/install/tvm.html#option-2-build-from-source>`__). It is *NOT* required if models are prebuilt, but to compile PyTorch models from HuggingFace in the following section, the compiler is a must-dependency.
 
-      # From mlc-llm project directory
-      python3 build.py --model path/to/vicuna-v1-7b --quantization q4f16_1 --target android --max-seq-len 768
+.. note::
+    ❗ Whenever using Python, it is highly recommended to use **conda** to manage an isolated Python environment to avoid missing dependencies, incompatible versions, and package conflicts.
 
-      # If the model path is `dist/models/vicuna-v1-7b`,
-      # we can simplify the build command to
-      # python build.py --model vicuna-v1-7b --quantization q4f16_1 --target android --max-seq-len 768
+Compile PyTorch Models from HuggingFace
+---------------------------------------
 
-2. Configure the ``model_libs`` in ``android/MLCChat/app/src/main/assets/app-config.json``:
-   
-   If there is a ``local_id`` in ``model_libs`` list, then there should be a ``local_id-target.tar`` in ``dist/local_id`` compiled in Step 1.
+To deploy models on Android with reasonable performance, one has to cross-compile to and fully utilize mobile GPUs using TVM Unity. MLC provides a few pre-compiled models, or one could compile the models on their own.
 
-   For example, if you have ``vicuna-v1-7b-q4f16_1`` in the ``model_libs``:
+**Cloning MLC LLM from GitHub**. Download MLC LLM via the following command:
 
-   .. code:: bash
+.. code-block:: bash
 
-      cat android/MLCChat/app/src/main/assets/app-config.json
-      # "model_libs": [
-      #   ...
-      #   "vicuna-v1-7b-q4f16_1",
-      #   ...
-      # ],
-   
-   then there should be a ``dist/vicuna-v1-7b-q4f16_1/vicuna-v1-7b-q4f16_1-android.tar`` file:
+  git clone --recursive https://github.com/mlc-ai/mlc-llm/
+            ^^^^^^^^^^^
+  cd ./mlc-llm/
 
-   .. code:: bash
+.. note::
+    ❗ The ``--recursive`` flag is necessary to download submodules like `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`__. If you see any file missing during compilation, please double check if git submodules are properly cloned.
 
-      ls dist/vicuna-v1-7b-q4f16_1
-      # ...
-      # vicuna-v1-7b-q4f16_1-android.tar,
-      # ...
+**Download the PyTorch model** using Git Large File Storage (LFS), and by default, under ``./dist/models/``:
 
-3. Download `Android Studio <https://developer.android.com/studio>`_, install the ``NDK`` and ``CMake`` via `SDK Manager <https://developer.android.com/studio/projects/install-ndk>`_.
+.. code-block:: bash
 
-4. Setup ``ANDROID_NDK`` and ``TVM_NDK_CC`` environment variable to the installed NDK compiler path:
+  MODEL_NAME=Llama-2-7b-chat-hf
+  QUANTIZATION=q4f16_1
 
-   .. code:: bash
+  git lfs install
+  git clone https://huggingface.co/meta-llama/$MODEL_NAME \
+            ./dist/models/
 
-      # replace the /path/to/android/ndk to your NDK path
-      # e.g. for MacOS: export ANDROID_NDK=/Users/me/Library/Android/sdk/ndk/25.2.9519653
-      # e.g. for Linux: export ANDROID_NDK=/home/user/Downloads/android-studio/plugins/android-ndk
-      export ANDROID_NDK=/path/to/android/ndk
+**Compile Android-capable models**. Install TVM Unity compiler as a Python package, and then run the command below:
 
-      # replace the /path/to/android/ndk/clang to your NDK compiler path
-      # e.g. for MacOS: export TVM_NDK_CC=/Users/me/Library/Android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
-      # e.g. for Linux: export TVM_NDK_CC=/home/user/Downloads/android-studio/plugins/c-clangd/bin/clang/linux/x64/clangd
-      export TVM_NDK_CC=/path/to/android/ndk/clang
+.. code-block:: bash
 
-5. Setup ``JAVA_HOME`` environment variable:
+  # To display the help message about each argument
+  python3 -m mlc_llm.build --help
+  # Build
+  python3 -m mlc_llm.build \
+          --target android \
+          --max-seq-len 768 \
+          --model ./dist/models/$MODEL_NAME \
+          --quantization $QUANTIZATION
 
-   .. code:: bash
+This generates directory ``./dist/$MODEL_NAME-$QUANTIZATION`` which contains the necessary components to run the model, as explained below.
 
-      # replace the /path/to/jdk to your JDK path
-      # e.g. for MacOS: export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home
-      # e.g. for Linux: export JAVA_HOME=/home/user/Downloads/jdk-20
-      export JAVA_HOME=/path/to/jdk
+**Expected output format**. By default models are placed under ``./dist/${MODEL_NAME}-${QUANTIZATION}``, and the result consists of 3 major components:
 
-6. Install rustup if not yet installed. Run the command to install it.
+- Runtime configuration: It configures conversation templates including system prompts, repetition repetition penalty, sampling including temperature and top-p probability, maximum sequence length, etc. It is usually named as ``mlc-chat-config.json`` under ``params/`` along side with tokenizer configurations.
+- Model lib: The compiled library that uses mobile GPU. It is usually named as ``${MODEL_NAME}-${QUANTIZATION}-android.tar``, for example, ``Llama-2-7b-chat-hf-q4f16_0-android.tar``.
+- Model weights: the model weights are sharded as ``params_shard_*.bin`` under ``params/`` and the metadata is stored in ``ndarray-cache.json``.
 
-   .. code:: bash
+Deploy MLC-Compiled Models to Android APK
+------------------------------------------
 
-      # error
-      # ./prepare_libs.sh: line 4: rustup: command not found.
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-      # and set up the PATH
-      source "$HOME/.cargo/env"
+The source code for MLC LLM is available under ``android/``, including scripts to build dependencies and the main app under ``android/MLCChat/`` that could be opened by Android studio. Enter the directory first:
 
-7. Build the libs for Android app and then copy the built files to the ``android/MLCChat/app/src/main/src/libs``:
+.. code-block:: bash
 
-   .. code:: bash
+  cd ./android/
 
-      cd android && ./prepare_libs.sh
-      # If building successfully, there should be a `tvm4j_core.jar` and `arm64-v8a/libtvm4j_runtime_packed.so` in `build/output` dir.
-      ls ./build/output
-      # tvm4j_core.jar
-      # arm64-v8a
-      ls ./build/output/arm64-v8a
-      # libtvm4j_runtime_packed.so
-      cp -a build/output/. MLCChat/app/src/main/libs
+**Build necessary dependencies.** Configure the list of models the app comes with using the JSON file below, which by default, is configured to use both Llama2-7B and RedPajama-3B:
 
-8.  Open folder ``android/MLCChat`` as the project with Android Studio. And connect your Android device to your machine. In the menu bar of Android Studio, click ``Build - Make Project``.
+.. code-block:: bash
 
-9. Once the build is finished, click ``Run - Run 'app'``, and you will see the app launched on your phone.
+  vim ./MLCChat/app/src/main/assets/app-config.json
 
-.. image:: https://github.com/mlc-ai/mlc-llm/raw/main/site/img/android/android-studio.png
+Then bundle the android library ``${MODEL_NAME}-${QUANTIZATION}-android.tar`` compiled from ``mlc_llm.build`` in the previous steps, with TVM Unity's Java runtime by running the commands below:
 
-Use Your Own Model Weights
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: bash
 
-By following the instructions above, the installed app will download
-weights from our pre-uploaded HuggingFace repository. If you do not want
-to download the weights from Internet and instead wish to use the
-weights you build, please follow the steps below.
+  ./prepare_libs.sh
 
--  Step 1 - step 8: same as `section ”App Build
-   Instructions” <#app-build-instructions>`__.
+which generates the two files below:
 
--  Step 9. In ``Build - Generate Signed Bundle / APK``, build the
-   project to an APK for release. If it is the first time you generate
-   an APK, you will need to create a key. Please follow `the official
-   guide from
-   Android <https://developer.android.com/studio/publish/app-signing#generate-key>`__
-   for more instructions on this. After generating the release APK, you
-   will get the APK file ``app-release.apk`` under
-   ``android/MLCChat/app/release/``.
+.. code-block:: bash
 
--  Step 10. Enable “USB debugging” in the developer options your phone
-   settings.
+  >>> find ./build/output -type f
+  ./build/output/arm64-v8a/libtvm4j_runtime_packed.so
+  ./build/output/tvm4j_core.jar
 
--  Step 11. Install `Android SDK
-   Platform-Tools <https://developer.android.com/studio/releases/platform-tools>`_
-   for ADB (Android Debug Bridge) via `SDK Manager <https://developer.android.com/studio/projects/install-ndk>`_. The platform tools will be already
-   available under your Android SDK path if you have installed SDK
-   (e.g., at ``/path/to/android-sdk/platform-tools/``). Add the
-   platform-tool path to your ``PATH`` environment. Run ``adb devices`` to
-   verify that ADB is installed correctly your phone is listed as a
-   device.
+The model execution logic in mobile GPUs is incorporated into ``libtvm4j_runtime_packed.so``, while ``tvm4j_core.jar`` is a lightweight (~60 kb) `Java binding <https://tvm.apache.org/docs/reference/api/javadoc/>`_ to it. Copy them to the right path to be found by the Android project:
 
--  Step 12. In command line, run the following command to install APK to your phone:
+.. code-block:: bash
 
-  .. code:: bash
+  cp -a ./build/output/. ./MLCChat/app/src/main/libs
 
-     adb install android/MLCChat/app/release/app-release.apk
+**Build the Android app**. Open folder ``./android/MLCChat`` as an Android Studio Project. Connect your Android device to your machine. In the menu bar of Android Studio, click "Build → Make Project". Once the build is finished, click "Run → Run 'app'" and you will see the app launched on your phone.
 
+.. note::
+    ❗ This app cannot be run in an emulator and thus a physical phone is required, because MLC LLM needs an actual mobile GPU to meaningfully run at accelerated speed.
 
-  .. note::
+Incorporate Model Weights
+-------------------------
 
-   If it errors with message
+Instructions have been provided to build an Android App with MLC LLM in previous sections, but it requires run-time weight downloading from HuggingFace, as configured in `app-config.json` in previous steps under `model_url`. However, it could be desirable to bundle weights together into the app to avoid downloading over the network. In this section, we provide a simple ADB-based walkthrough that hopefully helps with further development.
 
-   .. code:: bash
+**Generating APK**. Enter Android Studio, click "Build → Generate Signed Bundle/APK" to build an APK for release. If it is the first time you generate an APK, you will need to create a key according to `the official guide from Android <https://developer.android.com/studio/publish/app-signing#generate-key>`_. This APK will be placed under ``android/MLCChat/app/release/app-release.apk``.
 
-     adb: failed to install android/MLCChat/app/release/app-release.apk: Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package ai.mlc.mlcchat signatures do not match newer version; ignoring!]
+**Install ADB and USB debugging**. Enable "USB debugging" in the developer mode in your phone settings. In SDK manager, install `Android SDK Platform-Tools <https://developer.android.com/studio/releases/platform-tools>`_. Add the path to platform-tool path to environment variable ``PATH``. Run the following commands, and if ADB is installed correctly, your phone will appear as a device:
 
-   please uninstall the existing app and try ``adb install`` again.
+.. code-block:: bash
 
--  Step 13. Push the model dir to your phone through
-   ADB.
+  adb devices
 
-    .. code:: bash
+**Install the APK and weights to your phone**. Run the commands below replacing ``${MODEL_NAME}`` and ``${QUANTIZATION}`` with the actual model name (e.g. Llama-2-7b-chat-hf) and quantization format (e.g. q4f16_1).
 
-      adb push dist/vicuna-v1-7b-q4f16_1/params /data/local/tmp/vicuna-v1-7b/
-      adb shell "mkdir -p /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/"
-      adb shell "mv /data/local/tmp/vicuna-v1-7b /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/vicuna-v1-7b"
+.. code-block:: bash
 
--  Step 14. Everything is ready. Launch the MLCChat on your phone and
-   you will be able to use the app with your own weights. You will find
-   that no weight download is needed.
+  adb install android/MLCChat/app/release/app-release.apk
+  adb push dist/${MODEL_NAME}-${QUANTIZATION}/params /data/local/tmp/${MODEL_NAME}/
+  adb shell "mkdir -p /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/"
+  adb shell "mv /data/local/tmp/${MODEL_NAME} /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/${MODEL_NAME}"
