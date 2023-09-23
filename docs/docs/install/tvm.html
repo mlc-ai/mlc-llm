@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Install TVM Unity &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Install TVM Unity Compiler &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -196,7 +196,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Install TVM Unity</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Install TVM Unity Compiler</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#option-1-prebuilt-package">Option 1. Prebuilt Package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#option-2-build-from-source">Option 2. Build from Source</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#validate-installation">Validate Installation</a></li>
@@ -266,7 +266,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Install TVM Unity</li>
+      <li>Install TVM Unity Compiler</li>
     
     
       
@@ -291,14 +291,14 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="install-tvm-unity">
-<span id="id1"></span><h1>Install TVM Unity<a class="headerlink" href="#install-tvm-unity" title="Permalink to this heading">¶</a></h1>
+  <section id="install-tvm-unity-compiler">
+<span id="install-tvm-unity"></span><h1>Install TVM Unity Compiler<a class="headerlink" href="#install-tvm-unity-compiler" title="Permalink to this heading">¶</a></h1>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#option-1-prebuilt-package" id="id6">Option 1. Prebuilt Package</a></p></li>
-<li><p><a class="reference internal" href="#option-2-build-from-source" id="id7">Option 2. Build from Source</a></p></li>
-<li><p><a class="reference internal" href="#validate-installation" id="id8">Validate Installation</a></p></li>
+<li><p><a class="reference internal" href="#option-1-prebuilt-package" id="id5">Option 1. Prebuilt Package</a></p></li>
+<li><p><a class="reference internal" href="#option-2-build-from-source" id="id6">Option 2. Build from Source</a></p></li>
+<li><p><a class="reference internal" href="#validate-installation" id="id7">Validate Installation</a></p></li>
 </ul>
 </nav>
 <p><a class="reference external" href="https://discuss.tvm.apache.org/t/establish-tvm-unity-connection-a-technical-strategy/13344">TVM Unity</a>, the latest development in Apache TVM, is required to build MLC LLM. Its features include:</p>
@@ -310,7 +310,7 @@
 </ul>
 <p>TVM Unity can be installed directly from a prebuilt developer package, or built from source.</p>
 <section id="option-1-prebuilt-package">
-<span id="tvm-unity-prebuilt-package"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading">¶</a></h2>
+<span id="tvm-unity-prebuilt-package"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading">¶</a></h2>
 <p>A nightly prebuilt Python package of Apache TVM Unity is provided.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -388,7 +388,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </s
 </div></div>
 </section>
 <section id="option-2-build-from-source">
-<span id="tvm-unity-build-from-source"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
+<span id="tvm-unity-build-from-source"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
 <p>While it is generally recommended to always use the prebuilt TVM Unity, if you require more customization, you may need to build it from source. <strong>NOTE.</strong> this should only be attempted if you are familiar with the intricacies of C++, CMake, LLVM, Python, and other related systems.</p>
 <details class="summary-details">
 <summary>Details</summary><p><strong>Step 1. Set up build dependency.</strong> To build from source, you need to ensure that the following build dependencies are met:</p>
@@ -411,8 +411,8 @@ python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </s
 </ul>
 </div>
 <p>To easiest way to manage dependency is via conda, which maintains a set of toolchains including LLVM across platforms. To create the environment of those build dependencies, one may simply use:</p>
-<div class="literal-block-wrapper docutils container" id="id2">
-<div class="code-block-caption"><span class="caption-text">Set up build dependencies in conda</span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">Set up build dependencies in conda</span><a class="headerlink" href="#id1" title="Permalink to this code">¶</a></div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># make sure to start with a fresh environment</span>
 conda<span class="w"> </span>env<span class="w"> </span>remove<span class="w"> </span>-n<span class="w"> </span>tvm-build-venv
 <span class="c1"># create the conda environment with build dependency</span>
@@ -426,8 +426,8 @@ conda<span class="w"> </span>activate<span class="w"> </span>tvm-build-venv
 </div>
 </div>
 <p><strong>Step 2. Configure and build.</strong> Standard git-based workflow are recommended to download Apache TVM Unity, and then specify build requirements in <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code>:</p>
-<div class="literal-block-wrapper docutils container" id="id3">
-<div class="code-block-caption"><span class="caption-text">Download TVM Unity from GitHub</span><a class="headerlink" href="#id3" title="Permalink to this code">¶</a></div>
+<div class="literal-block-wrapper docutils container" id="id2">
+<div class="code-block-caption"><span class="caption-text">Download TVM Unity from GitHub</span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># clone from GitHub</span>
 git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>git@github.com:mlc-ai/relax.git<span class="w"> </span>tvm-unity<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tvm-unity
 <span class="c1"># create the build directory</span>
@@ -442,8 +442,8 @@ cp<span class="w"> </span>../cmake/config.cmake<span class="w"> </span>.
 <p>We are temporarily using <a class="reference external" href="https://github.com/mlc-ai/relax">mlc-ai/relax</a> instead, which comes with several temporary outstanding changes that we will upstream to Apache TVM’s <a class="reference external" href="https://github.com/apache/tvm/tree/unity">unity branch</a>.</p>
 </div>
 <p>We want to specifically tweak the following flags by appending them to the end of the configuration file:</p>
-<div class="literal-block-wrapper docutils container" id="id4">
-<div class="code-block-caption"><span class="caption-text">Configure build in <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code></span><a class="headerlink" href="#id4" title="Permalink to this code">¶</a></div>
+<div class="literal-block-wrapper docutils container" id="id3">
+<div class="code-block-caption"><span class="caption-text">Configure build in <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code></span><a class="headerlink" href="#id3" title="Permalink to this code">¶</a></div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># controls default compilation flags</span>
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(CMAKE_BUILD_TYPE RelWithDebInfo)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
 <span class="c1"># LLVM is a must dependency</span>
@@ -468,8 +468,8 @@ cp<span class="w"> </span>../cmake/config.cmake<span class="w"> </span>.
 </ul>
 </div>
 <p>Once <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code> is edited accordingly, kick off build with the commands below:</p>
-<div class="literal-block-wrapper docutils container" id="id5">
-<div class="code-block-caption"><span class="caption-text">Build <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> using cmake and cmake</span><a class="headerlink" href="#id5" title="Permalink to this code">¶</a></div>
+<div class="literal-block-wrapper docutils container" id="id4">
+<div class="code-block-caption"><span class="caption-text">Build <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> using cmake and cmake</span><a class="headerlink" href="#id4" title="Permalink to this code">¶</a></div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cmake<span class="w"> </span>--build<span class="w"> </span>.<span class="w"> </span>--parallel<span class="w"> </span><span class="k">$(</span>nproc<span class="k">)</span>
 </pre></div>
 </div>
@@ -492,7 +492,7 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 </div>
 </section>
 <section id="validate-installation">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h2>
 <p>Using a compiler infrastructure with multiple language bindings could be error-prone.
 Therefore, it is highly recommended to validate TVM Unity installation before use.</p>
 <p><strong>Step 1. Locate TVM Python package.</strong> The following command can help confirm that TVM is properly installed as a python package and provide the location of the TVM python package:</p>
