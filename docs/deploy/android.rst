@@ -7,6 +7,15 @@ Android App
    :local:
    :depth: 2
 
+Demo App
+--------
+
+The demo APK below is built for Samsung S23 with Snapdragon 8 Gen 2 chip.
+
+.. image:: https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png
+  :width: 135
+  :target: https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk
+
 Prerequisite
 ------------
 
@@ -38,6 +47,16 @@ Prerequisite
 
 .. note::
     ❗ Whenever using Python, it is highly recommended to use **conda** to manage an isolated Python environment to avoid missing dependencies, incompatible versions, and package conflicts.
+
+Check if **environment variable** are properly set as the last check. One way to ensure this is to place them in ``$HOME/.zshrc``, ``$HOME/.bashrc`` or environment management tools.
+
+.. code-block:: bash
+
+  source $HOME/.cargo/env # Rust
+  export ANDROID_NDK=...  # Android NDK toolchain
+  export TVM_NDK_CC=...   # Android NDK clang
+  export JAVA_HOME=...    # Java
+  export TVM_HOME=...     # TVM Unity runtime
 
 Compile PyTorch Models from HuggingFace
 ---------------------------------------

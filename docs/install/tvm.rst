@@ -1,7 +1,7 @@
 .. _install-tvm-unity:
 
-Install TVM Unity
-=================
+Install TVM Unity Compiler
+==========================
 
 .. contents:: Table of Contents
     :local:
