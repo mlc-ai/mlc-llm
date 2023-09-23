@@ -21,9 +21,123 @@ TVM Unity can be installed directly from a prebuilt developer package, or built 
 Option 1. Prebuilt Package
 --------------------------
 
-To help our community to use Apache TVM Unity, a nightly prebuilt developer package is provided with everything packaged.
+A nightly prebuilt Python package of Apache TVM Unity is provided.
 
-Please visit the installation page for installation instructions: https://mlc.ai/package/.
+.. note::
+    ❗ Whenever using Python, it is highly recommended to use **conda** to manage an isolated Python environment to avoid missing dependencies, incompatible versions, and package conflicts.
+
+.. tabs::
+
+   .. tab:: Linux
+
+      .. tabs::
+
+         .. tab:: CPU
+
+            .. code-block:: bash
+
+              conda activate your-environment
+              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly
+
+         .. tab:: CUDA 11.6
+
+            .. code-block:: bash
+
+              conda activate your-environment
+              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-cu116
+
+         .. tab:: CUDA 11.7
+
+            .. code-block:: bash
+
+              conda activate your-environment
+              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-cu117
+
+         .. tab:: CUDA 11.8
+
+            .. code-block:: bash
+
+              conda activate your-environment
+              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-cu118
+
+         .. tab:: CUDA 12.1
+
+            .. code-block:: bash
+
+              conda activate your-environment
+              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-cu121
+
+         .. tab:: ROCm 5.6
+
+            .. code-block:: bash
+
+              conda activate your-environment
+              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-rocm
+
+         .. tab:: Vulkan
+
+            Supported in all Linux packages.
+
+   .. tab:: macOS
+
+      .. tabs::
+
+         .. tab:: CPU
+
+            .. code-block:: bash
+
+              conda activate your-environment
+              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly
+
+            Always check if conda is installed properly in macOS using the command below:
+
+            - Mac with Intel chip: "osx-64"
+            - Mac with Apple chip: "osx-arm64"
+
+            .. code-block:: bash
+
+              conda info | grep platform
+
+         .. tab:: Metal
+
+            .. code-block:: bash
+
+              conda activate your-environment
+              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly
+
+            Always check if conda is installed properly in macOS using the command below:
+
+            - Mac with Intel chip: "osx-64"
+            - Mac with Apple chip: "osx-arm64"
+
+            .. code-block:: bash
+
+              conda info | grep platform
+
+   .. tab:: Windows
+
+      .. tabs::
+
+         .. tab:: CPU
+
+            .. code-block:: bash
+
+              conda activate your-environment
+              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly
+
+         .. tab:: Vulkan
+
+            Supported in all Windows packages.
+
+      .. note::
+        If encountering the error below:
+
+        .. code-block:: bash
+
+            FileNotFoundError: Could not find module 'path\to\site-packages\tvm\tvm.dll' (or one of its dependencies). Try using the full path with constructor syntax.
+
+        It is likely `zstd`, a dependency to LLVM, was missing. Please `download <https://github.com/facebook/zstd/releases/tag/v1.5.5>`__ the precompiled binary, rename it to `zstd.dll` and copy to the same folder as `tvm.dll`.
+
 
 .. _tvm-unity-build-from-source:
 
