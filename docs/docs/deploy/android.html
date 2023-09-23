@@ -180,7 +180,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Android App</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#prerequisite">Prerequisite</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#compile-pytorch-models-from-huggingface">Compile PyTorch Models from HuggingFace</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#deploy-mlc-compiled-models-to-android-apk">Deploy MLC-Compiled Models to Android APK</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#create-android-project-using-compiled-models">Create Android Project using Compiled Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#incorporate-model-weights">Incorporate Model Weights</a></li>
 </ul>
 </li>
@@ -298,7 +298,7 @@
 <ul class="simple">
 <li><p><a class="reference internal" href="#prerequisite" id="id1">Prerequisite</a></p></li>
 <li><p><a class="reference internal" href="#compile-pytorch-models-from-huggingface" id="id2">Compile PyTorch Models from HuggingFace</a></p></li>
-<li><p><a class="reference internal" href="#deploy-mlc-compiled-models-to-android-apk" id="id3">Deploy MLC-Compiled Models to Android APK</a></p></li>
+<li><p><a class="reference internal" href="#create-android-project-using-compiled-models" id="id3">Create Android Project using Compiled Models</a></p></li>
 <li><p><a class="reference internal" href="#incorporate-model-weights" id="id4">Incorporate Model Weights</a></p></li>
 </ul>
 </nav>
@@ -326,7 +326,7 @@ TVM_NDK_CC:<span class="w"> </span><span class="nv">$ANDROID_NDK</span>/toolchai
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">TVM_HOME</span></code> so that its headers are available under <code class="docutils literal notranslate"><span class="pre">$TVM_HOME/include/tvm/runtime</span></code>.</p></li>
 </ul>
-<p>(Optional) <strong>TVM Unity compiler</strong> Python package (<a class="reference external" href="https://mlc.ai/mlc-llm/docs/install/tvm.html#option-1-prebuilt-package">install</a>) or (<a class="reference external" href="https://mlc.ai/mlc-llm/docs/install/tvm.html#option-2-build-from-source">build from source</a>). It is <em>NOT</em> required if models are prebuilt, but to compile PyTorch models from HuggingFace in the following section, the compiler is a must-dependency.</p>
+<p>(Optional) <strong>TVM Unity compiler</strong> Python package (<a class="reference internal" href="../install/tvm.html#tvm-unity-prebuilt-package"><span class="std std-ref">install</span></a> or <a class="reference internal" href="../install/tvm.html#tvm-unity-build-from-source"><span class="std std-ref">build from source</span></a>). It is <em>NOT</em> required if models are prebuilt, but to compile PyTorch models from HuggingFace in the following section, the compiler is a must-dependency.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>❗ Whenever using Python, it is highly recommended to use <strong>conda</strong> to manage an isolated Python environment to avoid missing dependencies, incompatible versions, and package conflicts.</p>
@@ -355,9 +355,9 @@ git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/m
 </pre></div>
 </div>
 <p><strong>Compile Android-capable models</strong>. Install TVM Unity compiler as a Python package, and then run the command below:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># To display the help message about each argument</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Show help message</span>
 python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--help
-<span class="c1"># Build</span>
+<span class="c1"># Compile a PyTorch model</span>
 python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>--target<span class="w"> </span>android<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span><span class="se">\</span>
@@ -373,8 +373,8 @@ python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span clas
 <li><p>Model weights: the model weights are sharded as <code class="docutils literal notranslate"><span class="pre">params_shard_*.bin</span></code> under <code class="docutils literal notranslate"><span class="pre">params/</span></code> and the metadata is stored in <code class="docutils literal notranslate"><span class="pre">ndarray-cache.json</span></code>.</p></li>
 </ul>
 </section>
-<section id="deploy-mlc-compiled-models-to-android-apk">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">Deploy MLC-Compiled Models to Android APK</a><a class="headerlink" href="#deploy-mlc-compiled-models-to-android-apk" title="Permalink to this heading">¶</a></h2>
+<section id="create-android-project-using-compiled-models">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Create Android Project using Compiled Models</a><a class="headerlink" href="#create-android-project-using-compiled-models" title="Permalink to this heading">¶</a></h2>
 <p>The source code for MLC LLM is available under <code class="docutils literal notranslate"><span class="pre">android/</span></code>, including scripts to build dependencies and the main app under <code class="docutils literal notranslate"><span class="pre">android/MLCChat/</span></code> that could be opened by Android studio. Enter the directory first:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>./android/
 </pre></div>
