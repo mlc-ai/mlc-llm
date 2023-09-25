@@ -855,7 +855,6 @@ def get_model(args, hf_config):
     config = LlamaConfig(
         **hf_config,
         dtype=dtype,
-        max_sequence_length=max_position_embeddings,
         position_embedding_base=position_embedding_base,
         combine_matmul=True,
         num_shards=args.num_shards,
