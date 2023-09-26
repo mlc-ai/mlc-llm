@@ -179,8 +179,6 @@ class LlamaMLP(nn.Module):
             up_result = self.up_proj(x)
 
         result = self.down_proj(relax.op.nn.silu(gate_result) * up_result)
-        if self.num_shards > 1:
-            result = nn.emit(ccl.allreduce(result, "sum"))
         return result
 
 
@@ -425,8 +423,6 @@ class LlamaAttention(nn.Module):
         )
 
         attn_output = self.o_proj(attn_output)
-        if self.num_shards > 1:
-            attn_output = nn.emit(ccl.allreduce(attn_output, "sum"))
         return attn_output, ((None, None) if past_key_value is None else past_key_value)
 
 
@@ -460,14 +456,21 @@ class LlamaDecoderLayer(nn.Module):
             attention_mask=attention_mask,
             all_seq_len_shape=all_seq_len_shape,
         )
+        if self.self_attn.num_shards > 1:
+            residual = nn.emit(residual / R.const(self.self_attn.num_shards, dtype=residual.struct_info.dtype))
         hidden_states = nn.emit(residual + hidden_states)
-
+        if self.self_attn.num_shards > 1:
+            hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
+            
         # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
         hidden_states = self.mlp(hidden_states)
+        if self.mlp.num_shards > 1:
+            residual = nn.emit(residual / R.const(self.mlp.num_shards, dtype=residual.struct_info.dtype))
         hidden_states = nn.emit(residual + hidden_states)
-
+        if self.mlp.num_shards > 1:
+            hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
         return hidden_states, present_key_value
 
 
