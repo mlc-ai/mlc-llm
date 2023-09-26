@@ -1,7 +1,8 @@
-import numpy as np
 import os
-from tqdm import tqdm
 import argparse
+import numpy as np
+from tqdm import tqdm
+from enum import Enum
 from transformers import AutoTokenizer
 from typing import List, Dict, Any
 from datasets import load_dataset
@@ -87,6 +88,12 @@ def _calculate_scale_params(
     return scale_params
 
 
+# Quantization algorithm for activations or weights.
+class QAlgo(Enum):
+    PER_CHANNEL = 1,
+    PER_TENSOR = 2,
+
+
 def _calculate_quant_scale_params(
         func_name: str,
         stats,
@@ -98,14 +105,24 @@ def _calculate_quant_scale_params(
 
     a_dtype = config["adtype"]
     w_dtype = config["wdtype"]
+    a_qscheme = QAlgo.PER_TENSOR
+    w_qscheme = QAlgo.PER_CHANNEL if config["qscheme"] == "smq_q8i8f16_1" else QAlgo.PER_TENSOR
+
+    def _calculate_quant_scale(arr: np.ndarray, dtype: str, algo: str) -> np.ndarray:
+        if algo is QAlgo.PER_CHANNEL:
+            scale = arr / arr.dtype.type(np.iinfo(dtype).max)
+        else:
+            assert algo is QAlgo.PER_TENSOR
+            scale = np.array([np.max(arr) / arr.dtype.type(np.iinfo(dtype).max)])
+        return scale
 
     idx = 0
     scale_params = {}
     for a_element, w_element in zip(*stats[func_name]):
-        a_scale = np.max(a_element) / a_element.dtype.type(np.iinfo(a_dtype).max)
-        w_scale = np.max(w_element) / w_element.dtype.type(np.iinfo(w_dtype).max)
-        scale_params[f"sq_scale_{idx}"] = tvm.nd.array(np.array([a_scale]), dev)
-        scale_params[f"sq_scale_{idx+1}"] = tvm.nd.array(np.array([w_scale]), dev)
+        a_scale = _calculate_quant_scale(a_element, a_dtype, a_qscheme)
+        scale_params[f"sq_scale_{idx}"] = tvm.nd.array(a_scale, dev)
+        w_scale = _calculate_quant_scale(w_element, w_dtype, w_qscheme)
+        scale_params[f"sq_scale_{idx+1}"] = tvm.nd.array(w_scale, dev)
         idx += 2
 
     return scale_params
@@ -176,8 +193,9 @@ def _calibrate(
     dataset: List[tvm.nd.NDArray],
     config: Dict[str, Any],
 ):
-    mod = mlc_llm.transform.SmoothQuantAnnotator("quantize")(mod)
-    stat_mod = mlc_llm.transform.SmoothQuantStatCollector()(mod)
+    qscheme: str = config["qscheme"]
+    mod = mlc_llm.transform.SmoothQuantAnnotator(qscheme)(mod)
+    stat_mod = mlc_llm.transform.SmoothQuantStatCollector(qscheme)(mod)
     stat_mod = mlc_llm.transform.FuseTransposeMatmul()(stat_mod)
 
     prefill, decode, kvc, _, _ = get_runtime_func(funcs, stat_mod)
@@ -225,8 +243,8 @@ def _calibrate(
         scale_params = _calculate_quant_scale_params(fname, stat, config, tvm.cpu(0))
         mod = relax.transform.BindParams(fname, scale_params)(mod)
 
-    mod = mlc_llm.transform.SmoothQuantOpConverter("quantize")(mod)
-    mod = mlc_llm.transform.SmoothQuantLegalizer(config["adtype"], config["wdtype"])(mod)
+    mod = mlc_llm.transform.SmoothQuantOpConverter(qscheme)(mod)
+    mod = mlc_llm.transform.SmoothQuantLegalizer(qscheme, config["adtype"], config["wdtype"])(mod)
     mod = relax.transform.DeadCodeElimination(funcs)(mod)
     return mod
 
@@ -244,6 +262,7 @@ def smoothquant(args, mod, model_names):
     smq_config["stop_tokens"] = stop_tokens
     smq_config["adtype"] = "int8"
     smq_config["wdtype"] = "int8"
+    smq_config["qscheme"] = args.quantization.name
     with target:
         print("[SmoothQuant] Run smoothing...")
         mod = _smooth(mod, params, model_names, dataset, smq_config)

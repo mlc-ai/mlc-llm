@@ -566,7 +566,7 @@ def mod_transform_before_build(
         if args.model.lower().startswith("rwkv-"):
             model_names += ["reset_kv_cache"]
 
-    if args.quantization.name == "smq_a8q8f16":
+    if args.quantization.name.startswith("smq_q8i8f16"):
         mod = smoothquant(args, mod, model_names)
         utils.debug_dump_script(mod, "mod_smoothquant.py", args)
     else:
@@ -660,7 +660,7 @@ def mod_transform_before_build(
     mod = mlc_llm.transform.FuseDecodeTake()(mod)
     mod = relax.transform.DeadCodeElimination(model_names)(mod)
     mod = mlc_llm.transform.CleanUpTIRAttrs()(mod)
-    if args.quantization.name == "smq_a8q8f16":
+    if args.quantization.name.startswith("smq_q8i8f16"):
         mod_deploy, new_params = smoothquant_quantize_params(mod, model_names, args)
         utils.save_params(new_params, args.artifact_path)
     else:

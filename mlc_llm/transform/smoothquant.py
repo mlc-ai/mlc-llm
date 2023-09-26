@@ -9,15 +9,19 @@ from tvm.script import relax as R
 from typing import Dict
 
 
+QSCHEMES = ("smq_q8i8f16_0", "smq_q8i8f16_1")
+OPMODES = ("smoothing", *QSCHEMES)
+
 @mutator
 class Annotator(PyExprMutator):
-    def __init__(self, irmod: tvm.IRModule, mode: str) -> None:
+    def __init__(self, irmod: tvm.IRModule, op_mode: str) -> None:
         super().__init__(irmod)
         self.mod = irmod
         self.sm_counter = 0
         self.new_params = []
-        # Mode of operation of the annotator: "smoothing" or "quantization"
-        self.mode = mode
+        # Operation mode of the annotator: "smoothing" or "quantization"
+        assert op_mode in OPMODES, f"unsupported operation mode: '{op_mode}'"
+        self.op_mode = op_mode
 
     def transform(self) -> tvm.IRModule:
         for gv, func in self.mod.functions.items():
@@ -50,22 +54,32 @@ class Annotator(PyExprMutator):
         if act.struct_info.ndim != 2 and act.struct_info.ndim != 3:
             return call
 
-        def make_scale_param(shape: relax.ShapeExpr, dtype: str) -> tvm.relax.Var:
+        def make_scale_param(shape: relax.ShapeExpr, dtype: str, kind: int) -> tvm.relax.Var:
             """
             Create scale parameter.
-            In case of quantization: scale is a Tensor with the single element.
-            In case of smoothing: scale is a 1D Tensor with the size == dimension of reduction axis
-                                  in matmul op (shape[-1]).
+
+            In case of quantization:
+              scale is a Tensor with the single element for per-tensor quantization scheme
+              (smq_q8i8f16_0) or 1D Tensor for weights in per-channel quantization scheme.
+
+            In case of smoothing:
+              scale is a 1D Tensor with the size == dimension of reduction axis in matmul op
+              (shape[-1]).
             """
-            n = 1 if self.mode == "quantize" else shape[-1]
+            if self.op_mode == "smq_q8i8f16_0":
+                n = 1 # per-tensor quantization for activations and weights
+            elif self.op_mode == "smq_q8i8f16_1":
+                n = 1 if kind == 1 else shape[-2]  # per-channel quantization for weights
+            else:
+                n = shape[-1]  # smoothing scale
             scale = relax.Var(f"sq_scale_{self.sm_counter}", relax.TensorStructInfo([n], dtype))
             self.sm_counter += 1
             self.new_params.append(scale)
             return scale
 
-        a_scale = make_scale_param(act.struct_info.shape, act.struct_info.dtype)
-        w_scale = make_scale_param(weights.struct_info.shape, weights.struct_info.dtype)
-        if self.mode == "quantize":
+        a_scale = make_scale_param(act.struct_info.shape, act.struct_info.dtype, kind=1)
+        w_scale = make_scale_param(weights.struct_info.shape, weights.struct_info.dtype, kind=2)
+        if self.op_mode.startswith("smq_q8i8f16"):
             lhs = R.smooth(act, a_scale, kind=1, mode="identity")
             rhs = R.smooth(weights, w_scale, kind=2, mode="identity")
         else:
@@ -77,24 +91,25 @@ class Annotator(PyExprMutator):
 @tvm.transform.module_pass(opt_level=0, name="SmoothQuantAnnotator")
 class SmoothQuantAnnotator:
     """
-    Insert R.multiply and R.divide (or R.smooth in case of mode == "quantize") ops before R.linear.
-    Add scales (second argument of R.multiply or R.smooth) to the list of relax.Function parameters.
+    Insert R.multiply and R.divide (or R.smooth in case of op_mode == "smq_q8i8f16_*") ops before
+    R.linear. Add scales (second argument of R.multiply or R.smooth) to the list of relax.Function
+    parameters.
     Example:
-      R.linear(lhs, rhs)  -->  op1 = R.divide(lhs, scale1)
-                               op2 = R.multiply(rhs, scale2)
-                               R.linear(op1, op2)
-
-      for the self.mode == "quantize" case:
       R.linear(lhs, rhs)  -->  op1 = R.smooth(lhs, scale1, kind=1, mode="identity")
                                op2 = R.smooth(rhs, scale2, kind=2, mode="identity")
                                R.linear(op1, op2)
+
+      for the self.op_mode == "smoothing" case:
+      R.linear(lhs, rhs)  -->  op1 = R.divide(lhs, scale1)
+                               op2 = R.multiply(rhs, scale2)
+                               R.linear(op1, op2)
     """
-    def __init__(self, mode: str = "") -> None:
-        self.mode = mode
+    def __init__(self, op_mode: str = "smoothing") -> None:
+        self.op_mode = op_mode
         pass
 
     def transform_module(self, irmod: tvm.IRModule, ctx: tvm.transform.PassContext) -> tvm.IRModule:
-        return Annotator(irmod, self.mode).transform()
+        return Annotator(irmod, self.op_mode).transform()
 
 
 @tvm.transform.module_pass(opt_level=0, name="SmoothQuantStatCollector")
@@ -104,18 +119,26 @@ class SmoothQuantStatCollector:
     1) Insert chain of simple ops (abs, max, squeeze) just after annotate operation
        (R.annotate.smooth/R.divide/R.multiply). This is done for memory footprint optimization only.
        Since we do not want to dump the whole tensor and dump already preprocessed information
-       (abs->max(axis=-2)->squeeze).
+       (abs -> max -> squeeze).
     2) Substitute scale param in R.annotate.smooth (or second arguemnt in R.divide/R.multiply) with
        dummy ones and remove these params from relax.Function. Dummy param is np.ones array in this
        case.
     3) Add new outputs in relax.Function that correspond to the last op from 1).
     """
+    def __init__(self, op_mode: str = "smoothing") -> None:
+        # Operation mode of the collector: "smoothing" or "quantization"
+        assert op_mode in OPMODES, f"unsupported operation mode: '{op_mode}'"
+        self.op_mode = op_mode
+
     def transform_module(self, mod: tvm.IRModule, ctx: tvm.transform.PassContext) -> tvm.IRModule:
         @mutator
         class ParamsAndOutputsMutator(PyExprMutator):
-            def __init__(self, mod: tvm.IRModule) -> None:
+            def __init__(self, mod: tvm.IRModule, op_mode: str) -> None:
                 super().__init__(mod)
                 self.mod = mod
+                # Operation mode of the annotator: "smoothing" or "quantization"
+                assert op_mode in OPMODES, f"unsupported operation mode: '{op_mode}'"
+                self.op_mode = op_mode
                 self.var2val: Dict[relax.Var, relax.Expr] = {}
                 self.profile_points = []
                 self.params_to_remove = []
@@ -170,10 +193,10 @@ class SmoothQuantStatCollector:
                 if matchings:
                     m_smq1 = matchings[self.lhs_sm]
                     a_smq = self._emit_annotate_op(m_smq1, kind=1)
-                    a_out = self._emit_abs_max_ops_chain(a_smq)
+                    a_out = self._emit_abs_max_ops_chain(a_smq, kind=1)
                     m_smq2 = matchings[self.rhs_sm]
                     w_smq = self._emit_annotate_op(m_smq2, kind=2)
-                    w_out = self._emit_abs_max_ops_chain(w_smq)
+                    w_out = self._emit_abs_max_ops_chain(w_smq, kind=2)
                     self.profile_points.extend([a_out, w_out])
                     self.params_to_remove.extend([m_smq1.args[1], m_smq2.args[1]])
                     return self.builder_.emit(R.linear(a_smq, w_smq))
@@ -194,21 +217,27 @@ class SmoothQuantStatCollector:
                     )
                 return smq
 
-            def _emit_abs_max_ops_chain(self, expr: relax.Var) -> relax.Var:
+            def _emit_abs_max_ops_chain(self, expr: relax.Var, kind: str) -> relax.Var:
                 assert expr.struct_info.ndim >= 2, "Tensor dim num should be >= 2"
                 abs_expr = self.builder_.emit(R.abs(expr))
-                max_expr = self.builder_.emit(R.max(abs_expr, axis=-2))
+                if self.op_mode == "smq_q8i8f16_1":
+                    if kind == 1:
+                        max_expr = self.builder_.emit(R.max(abs_expr, axis=-2))
+                    else:
+                        max_expr = self.builder_.emit(R.max(abs_expr, axis=-1))
+                else:
+                    max_expr = self.builder_.emit(R.max(abs_expr, axis=-2))
                 if expr.struct_info.ndim > 2:
                     max_expr = self.builder_.emit(R.squeeze(max_expr))
                 return max_expr
 
-        return ParamsAndOutputsMutator(mod).transform()
+        return ParamsAndOutputsMutator(mod, self.op_mode).transform()
 
 
 @tvm.transform.module_pass(opt_level=0, name="SmoothQuantOpConverter")
 class SmoothQuantOpConverter:
-    def __init__(self, op_name: str) -> None:
-        self.op_name = op_name
+    def __init__(self, op_mode: str) -> None:
+        self.op_name = "quantize" if op_mode in QSCHEMES else op_mode
 
     def transform_module(self, mod: tvm.IRModule, ctx: tvm.transform.PassContext) -> tvm.IRModule:
         attrs = {"mode": "identity"}
@@ -234,9 +263,12 @@ class SmoothQuantLegalizer:
     """
     Pass that converts matmul(fp16, fp16) -> quantize + matmul(int8, int8) + dequantize.
     """
-    def __init__(self, adtype="int8", wdtype="int8"):
+    def __init__(self, op_mode: str, adtype: str = "int8", wdtype: str = "int8"):
         self.dtype_act = adtype
         self.dtype_weight = wdtype
+        # Operation mode of the legalizer: "smoothing" or "quantization"
+        assert op_mode in OPMODES, f"unsupported operation mode: '{op_mode}'"
+        self.op_mode = op_mode
 
     def transform_module(self, mod: tvm.IRModule, ctx: tvm.transform.PassContext) -> tvm.IRModule:
         attrs = {"mode": "quantize"}
@@ -249,9 +281,13 @@ class SmoothQuantLegalizer:
 
         def rewriter(_, matchings):
             def _make_quantize(call: tvm.relax.Call, out_dtype: str):
-                min_value = tvm.tir.min_value(out_dtype)
-                max_value = tvm.tir.max_value(out_dtype)
-                data = R.round(R.divide(call.args[0], call.args[1]))
+                in_dtype = call.args[0].struct_info.dtype
+                min_value = tvm.tir.min_value(out_dtype).astype(in_dtype)
+                max_value = tvm.tir.max_value(out_dtype).astype(in_dtype)
+                scale = call.args[1]
+                if self.op_mode == "smq_q8i8f16_1":
+                    scale = R.expand_dims(scale, axis=[1])
+                data = R.round(R.divide(call.args[0], scale))
                 return R.astype(R.clip(data, min_value, max_value), dtype=out_dtype)
             
             def _make_dequantize(
@@ -264,8 +300,8 @@ class SmoothQuantLegalizer:
                     return R.multiply(R.astype(call, dtype=out_dtype), R.multiply(scale1, scale2))
                 else:
                     assert out_dtype == "float16"
-                    min_value = tvm.tir.min_value(out_dtype)
-                    max_value = tvm.tir.max_value(out_dtype)
+                    min_value = tvm.tir.min_value(out_dtype).astype("float32")
+                    max_value = tvm.tir.max_value(out_dtype).astype("float32")
                     dq_scale = R.multiply(R.astype(scale1, "float32"), R.astype(scale2, "float32"))
                     out = R.multiply(R.astype(call, dtype="float32"), dq_scale)
                     return R.astype(R.clip(out, min_value, max_value), dtype=out_dtype)
