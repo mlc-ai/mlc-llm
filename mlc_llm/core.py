@@ -877,6 +877,13 @@ def build_model_from_args(args: argparse.Namespace):
                     repetition_penalty=0.996,
                     rwkv_world=True,
                 )
+            elif args.model_category == "chatglm":
+                dump_mlc_chat_config(
+                    args,
+                    vocab_size=config["padded_vocab_size"],
+                    max_window_size=model_config.max_sequence_length,
+                    max_gen_len=model_config.max_sequence_length,
+                )
             else:
                 dump_mlc_chat_config(
                     args,
