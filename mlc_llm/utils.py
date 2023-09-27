@@ -13,7 +13,7 @@ from .relax_model import param_manager
 from .transform import ReorderTransformFunc
 
 supported_model_types = set(
-    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj", "chatglm"]
+    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj", "chatglm", "mistral"]
 )
 
 

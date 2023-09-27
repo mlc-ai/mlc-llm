@@ -46,6 +46,22 @@ Conversation Llama2() {
   return conv;
 }
 
+Conversation MistralDefault() {
+  Conversation conv;
+  conv.name = "mistral_default";
+  conv.roles = {"[INST]", "[/INST]"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {" "};
+  conv.role_msg_sep = " ";
+  conv.role_empty_sep = " ";
+  conv.stop_tokens = {2};
+  conv.stop_str = "</s>";
+  conv.add_bos = true;
+  return conv;
+}
+
 Conversation CodeLlamaCompletion() {
   Conversation conv;
   conv.name = "codellama_completion";
@@ -546,6 +562,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
   static std::unordered_map<std::string, ConvFactory> factory = {
       {"llama_default", LlamaDefault},
       {"llama-2", Llama2},
+      {"mistral_default", MistralDefault},
       {"codellama_completion", CodeLlamaCompletion},
       {"codellama_instruct", CodeLlamaInstruct},
       {"vicuna_v1.1", VicunaV11},
