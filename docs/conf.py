@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-import tlcpack_sphinx_addon
 import os
 import sys
+
+import tlcpack_sphinx_addon
 
 # -- General configuration ------------------------------------------------
 
@@ -62,7 +63,7 @@ html_theme_options = {
 }
 
 header_links = [
-    ("Home", "https://mlc.ai/mlc-llm"),
+    ("Home", "https://llm.mlc.ai/"),
     ("Github", "https://github.com/mlc-ai/mlc-llm"),
     ("Discord Server", "https://discord.gg/9Xpy2HGBuD"),
 ]
@@ -71,7 +72,7 @@ header_dropdown = {
     "name": "Other Resources",
     "items": [
         ("MLC Course", "https://mlc.ai/"),
-        ("MLC Blog", "https://mlc.ai/blog"),
+        ("MLC Blog", "https://blog.mlc.ai/"),
         ("Web LLM", "https://webllm.mlc.ai/"),
     ],
 }

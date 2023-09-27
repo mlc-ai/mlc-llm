@@ -160,7 +160,7 @@ and you can try out prebuilt models on the following platforms:
 
     A WebGPU-compatible browser and a local GPU are needed to run WebLLM. You can download the latest Google Chrome and use `WebGPU Report <https://webgpureport.org/>`__ to verify the functionality of WebGPU on your browser.
 
-    .. figure:: https://mlc.ai/blog/img/redpajama/web.gif
+    .. figure:: https://blog.mlc.ai/img/redpajama/web.gif
       :width: 300
       :align: center
 
@@ -186,7 +186,7 @@ and you can try out prebuilt models on the following platforms:
 
     Memory requirements vary across different models. The Llama2-7B model necessitates an iPhone device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an iPhone with at least 4GB RAM.
 
-    .. figure:: https://mlc.ai/blog/img/redpajama/ios.gif
+    .. figure:: https://blog.mlc.ai/img/redpajama/ios.gif
       :width: 300
       :align: center
 
@@ -206,7 +206,7 @@ and you can try out prebuilt models on the following platforms:
 
     Memory requirements vary across different models. The Vicuna-7B model necessitates an Android device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an Android device with at least 4GB RAM.
 
-    .. figure:: https://mlc.ai/blog/img/android/android-recording.gif
+    .. figure:: https://blog.mlc.ai/img/android/android-recording.gif
       :width: 300
       :align: center
 

@@ -26,7 +26,7 @@ setup(
     name="mlc_llm",
     version=__version__,
     description="MLC LLM: Universal Compilation of Large Language Models",
-    url="https://mlc.ai/mlc-llm/",
+    url="https://llm.mlc.ai/",
     author="MLC LLM Contributors",
     license="Apache 2.0",
     # See https://pypi.org/classifiers/
