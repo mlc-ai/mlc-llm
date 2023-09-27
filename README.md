@@ -2,7 +2,7 @@
 
 # MLC LLM
 
-[Documentation](https://mlc.ai/mlc-llm/docs/) | [Blog](https://mlc.ai/blog/) | [WebLLM](https://webllm.mlc.ai/) | [WebStableDiffusion](https://websd.mlc.ai/) | [Discord][discord-url]
+[Documentation](https://llm.mlc.ai/docs) | [Blog](https://blog.mlc.ai/) | [WebLLM](https://webllm.mlc.ai/) | [WebStableDiffusion](https://websd.mlc.ai/) | [Discord][discord-url]
 
 Machine Learning Compilation for Large Language Models (MLC LLM) is a high-performance **universal deployment** solution that allows native deployment of any large language models with native APIs with compiler acceleration. The mission of this project is to enable everyone to develop, optimize and deploy AI models natively on everyone's devices with ML compilation techniques.
 
@@ -59,17 +59,17 @@ MLC LLM supports the following platforms and hardware:
 
 ## Getting Started
 
-<ins>**[Check out our instruction page to try out!](https://mlc.ai/mlc-llm/docs/get_started/try_out.html)**</ins>
+<ins>**[Check out our instruction page to try out!](https://llm.mlc.ai/docs/get_started/try_out.html)**</ins>
 
 ## Universal Deployment APIs
 
 MLC LLM provides multiple sets of APIs across platforms and environments. These include
-* [Python API](https://mlc.ai/mlc-llm/docs/deploy/python.html)
-* [OpenAI-compatible Rest-API](https://mlc.ai/mlc-llm/docs/deploy/rest.html)
-* [C++ API](https://mlc.ai/mlc-llm/docs/deploy/cli.html)
-* [JavaScript API](https://mlc.ai/mlc-llm/docs/deploy/javascript.html) and [Web LLM](https://github.com/mlc-ai/web-llm)
-* [Swift API for iOS App](https://mlc.ai/mlc-llm/docs/deploy/ios.html)
-* [Java API and Android App](https://mlc.ai/mlc-llm/docs/deploy/android.html)
+* [Python API](https://llm.mlc.ai/docs/deploy/python.html)
+* [OpenAI-compatible Rest-API](https://llm.mlc.ai/docs/deploy/rest.html)
+* [C++ API](https://llm.mlc.ai/docs/deploy/cli.html)
+* [JavaScript API](https://llm.mlc.ai/docs/deploy/javascript.html) and [Web LLM](https://github.com/mlc-ai/web-llm)
+* [Swift API for iOS App](https://llm.mlc.ai/docs/deploy/ios.html)
+* [Java API and Android App](https://llm.mlc.ai/docs/deploy/android.html)
 
 ## Citation
 

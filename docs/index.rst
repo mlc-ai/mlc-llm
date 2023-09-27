@@ -154,3 +154,11 @@ If you are interested in using Machine Learning Compilation in practice, we high
 
    community/guideline.rst
    community/faq.rst
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Privacy
+   :hidden:
+
+   privacy.rst
