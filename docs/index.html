@@ -10,10 +10,10 @@
               crossorigin="anonymous">
         <link rel="stylesheet"
               href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
-        <link rel="stylesheet" href="/mlc-llm/assets/css/main.css">
-        <link rel="stylesheet" href="/mlc-llm/assets/css/group.css">
-        <!-- <link rel="stylesheet" href="/mlc-llm/css/table.css">          -->
-        <link rel="shortcut icon" href="/mlc-llm/assets/img/logo/mlc-favicon.png">
+        <link rel="stylesheet" href="//assets/css/main.css">
+        <link rel="stylesheet" href="//assets/css/group.css">
+        <!-- <link rel="stylesheet" href="//css/table.css">          -->
+        <link rel="shortcut icon" href="//assets/img/logo/mlc-favicon.png">
         
     </head>
     <body>
@@ -23,7 +23,7 @@
                         flex-column
                         flex-md-row justify-content-md-between">
               <a href="/" id="navtitle">
-                  <img src="/mlc-llm/assets/img/logo/mlc-logo-with-text-landscape.svg" height="70px"
+                  <img src="//assets/img/logo/mlc-logo-with-text-landscape.svg" height="70px"
                        alt="MLC" id="logo">
               </a>
               <ul id="topbar" class="nav nav-pills justify-content-center">
@@ -39,7 +39,7 @@
                       <li class="nav-item">
                          
                             <a class="nav-link active"
-                               href="/mlc-llm/">
+                               href="//">
                                 Home
                             </a>
                          
@@ -56,7 +56,7 @@
                       <li class="nav-item">
                          
                             <a class="nav-link "
-                               href="/mlc-llm/docs">
+                               href="//docs">
                                 Docs
                             </a>
                          
@@ -91,45 +91,38 @@
             
                 <h1 id="mlc-llm">MLC LLM</h1>
 
-<p>MLC LLM is a universal solution that allows any language model to be deployed natively on a diverse set of hardware backends and native applications, plus a productive framework for everyone to further optimize model performance for their own use cases.
-<strong>Everything runs locally  with no server support and accelerated with local GPUs on your phone and laptop</strong>.
-Check out our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repository</a> to see how we did it.
-Check out <a href="https://mlc.ai/mlc-llm/docs/index.html">documentation</a> if you are interested in exploring more possibilities of MLC LLM.</p>
+<p>MLC LLM is a universal solution that allows any language model to be deployed natively on a diverse set of hardware backends and native applications.</p>
 
-<p align="center">
-<img src="gif/ios-demo.gif" height="700" />
-</p>
+<p>Please visit <strong><a href="https://llm.mlc.ai/docs/get_started/try_out.html">Getting Started</a></strong> for detailed instructions.</p>
 
-<h2 id="try-it-out">Try it out</h2>
-
-<p><strong><a href="https://mlc.ai/mlc-llm/docs/get_started/try_out.html">Visit our instruction page to try out MLC LLM!</a></strong></p>
-
-<p>This section also contains some brief instructions to run large-language models and chatbot natively on your environment.
-For more information, please visit our <a href="https://mlc.ai/mlc-llm/docs/get_started/try_out.html">instruction page</a>.</p>
+<h2 id="demos">Demos</h2>
 
 <ul>
-  <li><a href="#iphone">iPhone</a></li>
+  <li><a href="#ios">iOS</a></li>
   <li><a href="#android">Android</a></li>
   <li><a href="#windows-linux-mac">Windows Linux Mac</a></li>
   <li><a href="#web-browser">Web browser</a></li>
 </ul>
 
-<h3 id="iphone">iPhone</h3>
+<h3 id="ios">iOS</h3>
 
-<p>The MLC-Chat app is available on App Store, try it out <a href="https://apps.apple.com/us/app/mlc-chat/id6448482937">here</a> to install and use it for iOS devices (iPhone/iPad).
-Vicuna-7B takes 4GB of RAM and RedPajama-3B takes 2.2GB to run. Considering the iOS and other running applications, we will need a recent iPhone with 6GB for Vicuna-7B or 4GB for RedPajama-3B to run the app. The application is only tested on iPhone 14 Pro Max, iPhone 14 Pro and iPhone 12 Pro.</p>
+<p>Our iOS app, MLCChat, is available on <a href="https://apps.apple.com/us/app/mlc-chat/id6448482937">App Store</a> for iPhone and iPad.
+This app is tested on iPhone 15 Pro Max, iPhone 14 Pro Max, iPhone 14 Pro and iPhone 12 Pro.
+Besides the <strong><a href="https://llm.mlc.ai/docs/get_started/try_out.html">Getting Started</a></strong> page,
+<a href="https://llm.mlc.ai/docs/deploy/ios.html">documentation</a> is available for building iOS apps with MLC LLM.</p>
 
-<p>To build the iOS app from source, You can also check out our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repo</a>.</p>
+<p align="center">
+<img src="gif/ios-demo.gif" height="700" />
+</p>
 
-<p>Note: The text generation speed on the iOS app can be unstable from time to time. It might run slow in the beginning and recover to a normal speed then.</p>
+<p>Note: Llama-7B takes 4GB of RAM and RedPajama-3B takes 2.2GB to run. We recommend a latest device with 6GB RAM for Llama-7B, or 4GB RAM for RedPajama-3B, to run the app. The text generation speed could vary from time to time, for example, slow in the beginning but recover to a normal speed then.</p>
 
 <h3 id="android">Android</h3>
 
-<p>Download the APK file <a href="https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk">here</a> and install on your phone. You can then start a chat with LLM. When you first open the app, parameters need to be downloaded and the loading process could be slow. In future run, the parameters will be loaded from cache (which is fast) and you can use the app offline. Our current demo relies on OpenCL support on the phone and takes about 6GB of RAM, if you have a phone with the latest Snapdragon chip, you can try out out demo.</p>
-
-<p>We tested our demo on Samsung Galaxy S23. It does not yet work on Google Pixel due to limited OpenCL support. We will continue to bring support and welcome contributions from the open source community. You can also check out our <a href="https://github.com/mlc-ai/mlc-llm/tree/main/android">GitHub repo</a> to build the Android app from source.</p>
-
-<p>Check out our <a href="https://mlc.ai/blog/2023/05/08/bringing-hardware-accelerated-language-models-to-android-devices">blog post</a> for the technical details throughout our process of making MLC-LLM possible for Android.</p>
+<p>The demo APK is available to <a href="https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk">download</a>.
+The demo is tested on Samsung S23 with Snapdragon 8 Gen 2 chip, Redmi Note 12 Pro with Snapdragon 685 and Google Pixel phones.
+Besides the <strong><a href="https://llm.mlc.ai/docs/get_started/try_out.html">Getting Started</a></strong> page,
+<a href="https://llm.mlc.ai/docs/deploy/android.html">documentation</a> is available for building android apps with MLC LLM.</p>
 
 <p align="center">
 <img src="gif/android-demo.gif" height="700" />
@@ -137,51 +130,9 @@ Vicuna-7B takes 4GB of RAM and RedPajama-3B takes 2.2GB to run. Considering the 
 
 <h3 id="windows-linux-mac">Windows Linux Mac</h3>
 
-<p>We provide a CLI (command-line interface) app to chat with the bot in your terminal. Before installing
-the CLI app, we should install some dependencies first.</p>
-<ol>
-  <li>We use Conda to manage our app, so we need to install a version of conda. We can install <a href="https://docs.conda.io/en/latest/miniconda.html">Miniconda</a> or <a href="https://github.com/conda-forge/miniforge">Miniforge</a>.</li>
-  <li>On Windows and Linux, the chatbot application runs on GPU via the Vulkan platform. For Windows and Linux users,
-please install the latest <a href="https://developer.nvidia.com/vulkan-driver">Vulkan driver</a>. For NVIDIA GPU users, please make sure to install
-Vulkan driver, as the CUDA driver may not be good.</li>
-</ol>
-
-<p>After installing all the dependencies, just follow the instructions below the install the CLI app:</p>
-
-<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Create a new conda environment, install CLI app, and activate the environment.</span>
-conda create <span class="nt">-n</span> mlc-chat-venv <span class="nt">-c</span> mlc-ai <span class="nt">-c</span> conda-forge mlc-chat-cli-nightly
-conda activate mlc-chat-venv
-
-<span class="c"># Install Git and Git-LFS if you haven't already.</span>
-<span class="c"># They are used for downloading the model weights from HuggingFace.</span>
-conda <span class="nb">install </span>git git-lfs
-git lfs <span class="nb">install</span>
-
-<span class="c"># Create a directory, download the model weights from HuggingFace, and download the binary libraries</span>
-<span class="c"># from GitHub.</span>
-<span class="nb">mkdir</span> <span class="nt">-p</span> dist/prebuilt
-git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
-
-<span class="c"># Download prebuilt weights of Vicuna-7B</span>
-<span class="nb">cd </span>dist/prebuilt
-git clone https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0
-<span class="nb">cd</span> ../..
-mlc_chat_cli <span class="nt">--model</span> vicuna-v1-7b-q3f16_0
-
-<span class="c"># Download prebuilt weights of RedPajama-3B</span>
-<span class="nb">cd </span>dist/prebuilt
-git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0
-<span class="nb">cd</span> ../..
-mlc_chat_cli <span class="nt">--model</span> RedPajama-INCITE-Chat-3B-v1-q4f16_0
-
-<span class="c"># Download prebuilt weights of RWKV-raven-1.5B/3B/7B</span>
-<span class="nb">cd </span>dist/prebuilt
-git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0
-<span class="c"># or git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0</span>
-<span class="c"># or git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0</span>
-<span class="nb">cd</span> ../..
-mlc_chat_cli <span class="nt">--model</span> rwkv-raven-1b5-q8f16_0  <span class="c"># Replace your local id if you use 3b or 7b model.</span>
-</code></pre></div></div>
+<p>Our cpp interface runs on AMD, Intel, Apple and NVIDIA GPUs.
+Besides the <strong><a href="https://llm.mlc.ai/docs/get_started/try_out.html">Getting Started</a></strong> page,
+<a href="https://llm.mlc.ai/docs/deploy/cli.html">documentation</a> is available for building C++ apps with MLC LLM.</p>
 
 <p align="center">
 <img src="gif/linux-demo.gif" width="80%" />
@@ -189,28 +140,27 @@ mlc_chat_cli <span class="nt">--model</span> rwkv-raven-1b5-q8f16_0  <span class
 
 <h3 id="web-browser">Web Browser</h3>
 
-<p>Please check out <a href="https://webllm.mlc.ai/">WebLLM</a>, our companion project that deploys models natively to browsers. Everything here runs inside the browser with no server support and accelerated with WebGPU.</p>
+<p><a href="https://webllm.mlc.ai/">WebLLM</a> is our companion project that deploys MLC LLM natively to browsers using WebGPU and WebAssembly. Still everything runs inside the browser without server resources, and accelerated by local GPUs (e.g. AMD, Intel, Apple or NVIDIA).</p>
 
 <h2 id="links">Links</h2>
 
 <ul>
-  <li>Check out our <a href="https://github.com/mlc-ai/mlc-llm">GitHub repo</a> to see how we build, optimize and deploy the bring large-language models to various devices and backends.</li>
-  <li>Check out our companion project <a href="https://webllm.mlc.ai/">WebLLM</a> to run the chatbot purely in your browser.</li>
-  <li>You might also be interested in <a href="https://websd.mlc.ai/">Web Stable Diffusion</a>, which runs the stable-diffusion model purely in the browser.</li>
-  <li>You might want to check out our online public <a href="https://mlc.ai">Machine Learning Compilation course</a> for a systematic
-walkthrough of our approaches.</li>
+  <li>Our official <a href="https://github.com/mlc-ai/mlc-llm">GitHub repo</a>;</li>
+  <li>Our companion project <a href="https://webllm.mlc.ai/">WebLLM</a> that enables running LLMs purely in browser.</li>
+  <li><a href="https://websd.mlc.ai/">Web Stable Diffusion</a> is another MLC-series that runs the diffusion models purely in the browser.</li>
+  <li><a href="https://mlc.ai">Machine Learning Compilation course</a> is available for a systematic walkthrough of our approach to universal deployment.</li>
 </ul>
 
 <h2 id="disclaimer">Disclaimer</h2>
 
-<p>The pre-packaged demos are for research purposes only, subject to the model License.</p>
+<p>The pre-packaged demos are subject to the model License.</p>
 
             
         </div> <!-- /container -->
 
         <!-- Support retina images. -->
         <script type="text/javascript"
-                src="/mlc-llm/assets/js/srcset-polyfill.js"></script>
+                src="//assets/js/srcset-polyfill.js"></script>
     </body>
 
 </html>
