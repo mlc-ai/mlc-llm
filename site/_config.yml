@@ -23,7 +23,7 @@ permalink: /blog/:year/:month/:day/:title.html
 front_page_news: 8
 
 # Base pathname for links.
-base: '/'
+base: ''
 
 # make pages for the _projects folder
 collections:
