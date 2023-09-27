@@ -1,8 +1,7 @@
-
 name: "MLC LLM"
 short_name: "MLC LLM"
 
-url: https://mlc.ai/mlc-llm
+url: https://llm.mlc.ai/
 
 exclude: [README.md, serve_local.sh]
 
@@ -24,7 +23,7 @@ permalink: /blog/:year/:month/:day/:title.html
 front_page_news: 8
 
 # Base pathname for links.
-base: '/mlc-llm'
+base: '/'
 
 # make pages for the _projects folder
 collections:
