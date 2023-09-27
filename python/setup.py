@@ -4,10 +4,8 @@ import os
 import shutil
 import sys
 
-from setuptools import find_packages
+from setuptools import find_packages, setup
 from setuptools.dist import Distribution
-from setuptools import setup
-
 
 CURRENT_DIR = os.path.dirname(__file__)
 CONDA_BUILD = os.getenv("CONDA_BUILD") is not None
@@ -71,7 +69,7 @@ setup(
     name="mlc_chat",
     version=__version__,
     description="MLC Chat: an universal runtime running LLMs",
-    url="https://mlc.ai/mlc-llm/",
+    url="https://llm.mlc.ai/",
     author="MLC LLM Contributors",
     license="Apache 2.0",
     # See https://pypi.org/classifiers/
