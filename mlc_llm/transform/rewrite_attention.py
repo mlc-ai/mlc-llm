@@ -7,13 +7,14 @@ def rewrite_attention(f, use_flash_mqa=False):
     K = wildcard()
     V = wildcard()
 
-    if use_flash_mqa:
-        K = is_op("relax.repeat")(K)
-        V = is_op("relax.repeat")(V)
-
     Q_BNSH = is_op("relax.permute_dims")(Q)
-    K_BNSH = is_op("relax.permute_dims")(K)
-    V_BNSH = is_op("relax.permute_dims")(V)
+
+    if use_flash_mqa:
+        K_BNSH = is_op("relax.permute_dims")(is_op("relax.repeat")(K))
+        V_BNSH = is_op("relax.permute_dims")(is_op("relax.repeat")(V))
+    else:
+        K_BNSH = is_op("relax.permute_dims")(K)
+        V_BNSH = is_op("relax.permute_dims")(V)
 
     K_BNSH_T = is_op("relax.permute_dims")(K_BNSH)
 
