@@ -8,7 +8,7 @@ notitle: true
 
 MLC LLM is a universal solution that allows any language model to be deployed natively on a diverse set of hardware backends and native applications.
 
-Please visit **[Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html)** for detailed instructions.
+Please visit [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html) for detailed instructions.
 
 ## Demos
 
@@ -21,7 +21,7 @@ Please visit **[Getting Started](https://llm.mlc.ai/docs/get_started/try_out.htm
 
 Our iOS app, MLCChat, is available on [App Store](https://apps.apple.com/us/app/mlc-chat/id6448482937) for iPhone and iPad.
 This app is tested on iPhone 15 Pro Max, iPhone 14 Pro Max, iPhone 14 Pro and iPhone 12 Pro.
-Besides the **[Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html)** page,
+Besides the [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html) page,
 [documentation](https://llm.mlc.ai/docs/deploy/ios.html) is available for building iOS apps with MLC LLM.
 
 <p align="center">
@@ -34,7 +34,7 @@ Note: Llama-7B takes 4GB of RAM and RedPajama-3B takes 2.2GB to run. We recommen
 
 The demo APK is available to [download](https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk).
 The demo is tested on Samsung S23 with Snapdragon 8 Gen 2 chip, Redmi Note 12 Pro with Snapdragon 685 and Google Pixel phones.
-Besides the **[Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html)** page,
+Besides the [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html) page,
 [documentation](https://llm.mlc.ai/docs/deploy/android.html) is available for building android apps with MLC LLM.
 
 <p align="center">
@@ -44,7 +44,7 @@ Besides the **[Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html
 ### Windows Linux Mac
 
 Our cpp interface runs on AMD, Intel, Apple and NVIDIA GPUs.
-Besides the **[Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html)** page,
+Besides the [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html) page,
 [documentation](https://llm.mlc.ai/docs/deploy/cli.html) is available for building C++ apps with MLC LLM.
 
 <p align="center">
