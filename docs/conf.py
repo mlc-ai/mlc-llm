@@ -26,7 +26,12 @@ extensions = [
     "sphinxcontrib.httpdomain",
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
+    "sphinx_reredirects",
 ]
+
+redirects = {
+     "get_started/try_out": "../index.html#getting-started"
+}
 
 source_suffix = [".rst"]
 
