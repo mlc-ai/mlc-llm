@@ -3,102 +3,216 @@
 
 `Discord <https://discord.gg/9Xpy2HGBuD>`_ | `GitHub <https://github.com/mlc-ai/mlc-llm>`_
 
-👉 👉 :doc:`Get started by trying out the MLC Chat. </get_started/try_out>`
+Machine Learning Compilation for Large Language Models (MLC LLM) is a high-performance **universal deployment** solution that allows native deployment of any large language models with native APIs with compiler acceleration. The mission of this project is to enable everyone to develop, optimize and deploy AI models natively on everyone's devices with ML compilation techniques.
 
-Machine Learning Compilation for LLM (MLC LLM) is a high-performance universal deployment for large-language models.
+.. _get_started:
 
-.. table:: MLC LLM: A universal deployment solution for large language models
-   :widths: 200, 250, 250, 250, 250
-   :align: center
+Getting Started
+---------------
 
-   +-------------------+-------------------+-------------------+-------------------+---------------------+
-   |                   |  AMD GPU          | NVIDIA GPU        | Apple M1/M2 GPU   | Intel GPU           |
-   +===================+===================+===================+===================+=====================+
-   |   Linux / Win     | ✅ Vulkan, ROCm   | ✅ Vulkan, CUDA   |  N/A              | ✅ Vulkan           |
-   +-------------------+-------------------+-------------------+-------------------+---------------------+
-   |   macOS           | ✅ Metal          | N/A               | ✅ Metal          | ✅ Metal            |
-   +-------------------+-------------------+-------------------+-------------------+---------------------+
-   |   Web Browser     | ✅ WebGPU         | ✅ WebGPU         | ✅ WebGPU         | ✅ WebGPU           |
-   +-------------------+-------------------+-------------------+-------------------+---------------------+
-   |   iOS / iPadOS    | ✅ Metal on Apple M1/M2 GPU                                                     |
-   +-------------------+-------------------+-------------------+-------------------+---------------------+
-   |   Android         | ✅ OpenCL on Adreno GPU               | ✅  OpenCL on Mali GPU                  |
-   +-------------------+-------------------+-------------------+-------------------+---------------------+
+To begin with, try out MLC LLM support for Llama2 7B, 13B or 70B on various platforms.
 
----------------------------------------
+.. tabs::
 
-If you find MLC LLM useful in your work, please consider citing the project using the following format:
+  .. tab:: Python
 
-.. code:: bibtex
+    We provide a `Jupyter notebook <https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb>`_ for you to try MLC Chat Python API in Colab.
+    You can also follow the instructions below and try out the Python API in you native environment.
 
-   @software{mlc-llm,
-      author = {MLC team},
-      title = {{MLC-LLM}},
-      url = {https://github.com/mlc-ai/mlc-llm},
-      year = {2023}
-   }
+    To run LLMs using MLC LLM in Python, please visit https://mlc.ai/package/ to install
+    the chat package using pip. With the Python package installed, run the following
+    for preparation.
 
-The underlying compiler techniques employed by MLC LLM are outlined in the following papers:
+    .. code:: bash
 
-.. collapse:: References (Click to expand)
+      # Verify the installation of the Python package.
+      # You are expected to see "<class 'mlc_chat.chat_module.ChatModule'>" printed out.
+      python -c "from mlc_chat import ChatModule; print(ChatModule)"
 
-   .. code:: bibtex
+      # Install Git and Git-LFS if you haven't already. Then run
+      git lfs install
 
-      @inproceedings{tensorir,
-         author = {Feng, Siyuan and Hou, Bohan and Jin, Hongyi and Lin, Wuwei and Shao, Junru and Lai, Ruihang and Ye, Zihao and Zheng, Lianmin and Yu, Cody Hao and Yu, Yong and Chen, Tianqi},
-         title = {TensorIR: An Abstraction for Automatic Tensorized Program Optimization},
-         year = {2023},
-         isbn = {9781450399166},
-         publisher = {Association for Computing Machinery},
-         address = {New York, NY, USA},
-         url = {https://doi.org/10.1145/3575693.3576933},
-         doi = {10.1145/3575693.3576933},
-         booktitle = {Proceedings of the 28th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2},
-         pages = {804–817},
-         numpages = {14},
-         keywords = {Tensor Computation, Machine Learning Compiler, Deep Neural Network},
-         location = {Vancouver, BC, Canada},
-         series = {ASPLOS 2023}
-      }
+      # Create a directory, download the model weights from HuggingFace, and download the binary libraries
+      # from GitHub.
+      mkdir -p dist/prebuilt
+      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
 
-      @inproceedings{metaschedule,
-         author = {Shao, Junru and Zhou, Xiyou and Feng, Siyuan and Hou, Bohan and Lai, Ruihang and Jin, Hongyi and Lin, Wuwei and Masuda, Masahiro and Yu, Cody Hao and Chen, Tianqi},
-         booktitle = {Advances in Neural Information Processing Systems},
-         editor = {S. Koyejo and S. Mohamed and A. Agarwal and D. Belgrave and K. Cho and A. Oh},
-         pages = {35783--35796},
-         publisher = {Curran Associates, Inc.},
-         title = {Tensor Program Optimization with Probabilistic Programs},
-         url = {https://proceedings.neurips.cc/paper_files/paper/2022/file/e894eafae43e68b4c8dfdacf742bcbf3-Paper-Conference.pdf},
-         volume = {35},
-         year = {2022}
-      }
+      # Download prebuilt weights of Llama-2-7B, Llama-2-13B or Llama-2-70B
+      cd dist/prebuilt
+      git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
+      # or the 13B model
+      # git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1
+      # or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)
+      # git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1
+      cd ../..
 
-      @inproceedings{tvm,
-         author = {Tianqi Chen and Thierry Moreau and Ziheng Jiang and Lianmin Zheng and Eddie Yan and Haichen Shen and Meghan Cowan and Leyuan Wang and Yuwei Hu and Luis Ceze and Carlos Guestrin and Arvind Krishnamurthy},
-         title = {{TVM}: An Automated {End-to-End} Optimizing Compiler for Deep Learning},
-         booktitle = {13th USENIX Symposium on Operating Systems Design and Implementation (OSDI 18)},
-         year = {2018},
-         isbn = {978-1-939133-08-3},
-         address = {Carlsbad, CA},
-         pages = {578--594},
-         url = {https://www.usenix.org/conference/osdi18/presentation/chen},
-         publisher = {USENIX Association},
-         month = oct,
-      }
+    Then create a Python file ``sample_mlc_chat.py`` paste the following lines:
 
-|
+    .. code:: python
 
+      from mlc_chat import ChatModule
+      from mlc_chat.callback import StreamToStdout
 
-If you are interested in using Machine Learning Compilation in practice, we highly recommend the following course:
+      # From the mlc-llm directory, run
+      # $ python sample_mlc_chat.py
 
-- `Machine Learning Compilation <https://mlc.ai/>`__
+      # Create a ChatModule instance
+      cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
+      # You can change to other models that you downloaded, for example,
+      # cm = ChatModule(model="Llama-2-13b-chat-hf-q4f16_1")  # Llama2 13b model
+
+      output = cm.generate(
+          prompt="What is the meaning of life?",
+          progress_callback=StreamToStdout(callback_interval=2),
+      )
+
+      # Print prefill and decode performance statistics
+      print(f"Statistics: {cm.stats()}\n")
+
+      output = cm.generate(
+          prompt="How many points did you list out?",
+          progress_callback=StreamToStdout(callback_interval=2),
+      )
+
+      # Reset the chat module by
+      # cm.reset_chat()
+
+    Now run the Python file to start the chat
+
+    .. code:: bash
+
+      python sample_mlc_chat.py
+
+    You can also checkout the :doc:`/prebuilt_models` page to run other models.
+
+    To use Python API interactively, you are welcome to check out the
+    `Jupyter notebook <https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb>`_
+    and run it in Colab.
+
+    .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg
+      :width: 600
+      :align: center
+
+      MLC LLM Python API
+
+  .. tab:: Command Line
+
+    To run the models on your PC, you can try out the CLI version of MLC LLM.
+
+    We have prepared Conda packages for MLC Chat CLI. If you haven't installed Conda yet,
+    please refer to :doc:`this tutorial </install/conda>` to install Conda.
+
+    .. note::
+      If you are using Windows or Linux. Make sure you have the latest Vulkan driver installed.
+      Please follow the instructions in :doc:`/install/gpu` tutorial to prepare the environment.
+
+    .. code:: bash
+
+      # Create a new conda environment, install CLI app, and activate the environment.
+      conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-cli-nightly
+      conda activate mlc-chat-venv
+
+      # Install Git and Git-LFS if you haven't already.
+      # They are used for downloading the model weights from HuggingFace.
+      conda install git git-lfs
+      git lfs install
+
+      # Create a directory, download the model weights from HuggingFace, and download the binary libraries
+      # from GitHub.
+      mkdir -p dist/prebuilt
+      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
+
+      # Download prebuilt weights of Llama-2-7B, Llama-2-13B or Llama-2-70B
+      cd dist/prebuilt
+      git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
+      # or the 13B model
+      # git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1
+      # or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)
+      # git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1
+      cd ../..
+      mlc_chat_cli --model Llama-2-7b-chat-hf-q4f16_1
+      # or the 13B model
+      # mlc_chat_cli --model Llama-2-13b-chat-hf-q4f16_1
+      # or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)
+      # mlc_chat_cli --model Llama-2-70b-chat-hf-q4f16_1
+
+      # You can try more models, for example:
+      # download prebuilt weights of RedPajama-3B
+      cd dist/prebuilt
+      git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
+      cd ../..
+      mlc_chat_cli --model RedPajama-INCITE-Chat-3B-v1-q4f16_1
+
+    
+    You can also checkout the :doc:`/prebuilt_models` page to run other models.
+
+    .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif
+      :width: 500
+      :align: center
+
+      MLC LLM on CLI
+
+  .. tab:: Web Browser
+
+    With the advancements of WebGPU, we can now run LLM completely in the web browser environment.
+    You can try out the web version of MLC LLM in `WebLLM <https://webllm.mlc.ai/#chat-demo>`__.
+
+    In WebLLM, once the model weights are fetched and stored in the local cache in the first run, you can start to interact with the model without Internet connection.
+
+    A WebGPU-compatible browser and a local GPU are needed to run WebLLM. You can download the latest Google Chrome and use `WebGPU Report <https://webgpureport.org/>`__ to verify the functionality of WebGPU on your browser.
+
+    .. figure:: https://blog.mlc.ai/img/redpajama/web.gif
+      :width: 300
+      :align: center
+
+      MLC LLM on Web
+
+  .. tab:: iOS
+
+    The MLC Chat app is now available in App Store at no cost. You can download and explore it by simply clicking the button below:
+
+    .. image:: https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg
+      :width: 135
+      :target: https://apps.apple.com/us/app/mlc-chat/id6448482937
+
+    |
+
+    Once the app is installed, you can download the models and then engage in chat with the model without requiring an internet connection.
+
+    Memory requirements vary across different models. The Llama2-7B model necessitates an iPhone device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an iPhone with at least 4GB RAM.
+
+    .. figure:: https://blog.mlc.ai/img/redpajama/ios.gif
+      :width: 300
+      :align: center
+
+      MLC Chat on iOS
+
+  .. tab:: Android
+
+    The MLC Chat Android app is free and available for download, and you can try out by simply clicking the button below:
+
+    .. image:: https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png
+      :width: 135
+      :target: https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk
+
+    |
+
+    Once the app is installed, you can engage in a chat with the model without the need for an internet connection:
+
+    Memory requirements vary across different models. The Vicuna-7B model necessitates an Android device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an Android device with at least 4GB RAM.
+
+    .. figure:: https://blog.mlc.ai/img/android/android-recording.gif
+      :width: 300
+      :align: center
+
+      MLC LLM on Android
+
 
 .. toctree::
    :maxdepth: 1
    :caption: Get Started
    :hidden:
 
-   get_started/try_out.rst
    get_started/project_overview.rst
    get_started/mlc_chat_config.rst
 
@@ -122,6 +236,7 @@ If you are interested in using Machine Learning Compilation in practice, we high
    compilation/compile_models.rst
    compilation/distribute_compiled_models.rst
    compilation/python.rst
+   compilation/configure_quantization.rst
 
 .. toctree::
    :maxdepth: 1
