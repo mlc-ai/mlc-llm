@@ -226,11 +226,11 @@ class BuildArgs:
             ),
         },
     )
-    no_flash_attn_mqa: bool = field(
+    use_flash_attn_mqa: bool = field(
         default=False,
         metadata={
             "help": (
-                "Disable offloading multi-query attention workload to Flash Attention."
+                "Offload multi-query attention workload to Flash Attention."
             ),
             "action": "store_true",
         },
@@ -406,9 +406,7 @@ def mod_transform_before_build(
         has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
 
         if has_cutlass and not args.no_cutlass_attn:
-            use_flash_mqa = not args.no_flash_attn_mqa
-
-            if use_flash_mqa:
+            if args.use_flash_attn_mqa:
                 mod["prefill"] = rewrite_attention(mod["prefill"], use_flash_mqa=True)
                 mod["decode"] = rewrite_attention(mod["decode"], use_flash_mqa=True)
 
