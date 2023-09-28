@@ -593,6 +593,8 @@ def build_model_from_args(args: argparse.Namespace):
     if not use_cache or args.convert_weight_only:
         if args.model_category == "llama":
             mod, param_manager, params, model_config = llama.get_model(args, config)
+        elif args.model_category == "mistral":
+            mod, param_manager, params, model_config = llama.get_model(args, config)
         elif args.model_category == "gpt_neox":
             mod, param_manager, params, model_config = gpt_neox.get_model(args, config)
         elif args.model_category == "gpt_bigcode":
