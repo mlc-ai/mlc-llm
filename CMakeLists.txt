@@ -100,7 +100,7 @@ target_link_libraries(mlc_llm PRIVATE tokenizers_cpp)
 find_library(FLASH_ATTN_LIBRARY flash_attn)
 
 if (FLASH_ATTN_LIBRARY STREQUAL "FLASH_ATTN_LIBRARY-NOTFOUND")
-  message(WARNING "Cannot find libflash_attn.")
+  message(WARNING "Cannot find libflash_attn. The model must not have been built with --use-flash-attn-mqa option.")
 else ()
   target_link_libraries(mlc_llm PUBLIC -Wl,--no-as-needed ${FLASH_ATTN_LIBRARY})
 endif()
