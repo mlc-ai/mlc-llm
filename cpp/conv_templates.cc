@@ -581,6 +581,7 @@ using ConvFactory = Conversation (*)();
 
 Conversation Conversation::FromTemplate(const std::string& name) {
   static std::unordered_map<std::string, ConvFactory> factory = {
+      {"chatml", ChatML},
       {"llama_default", LlamaDefault},
       {"llama-2", Llama2},
       {"mistral_default", MistralDefault},
