@@ -2,11 +2,11 @@
 
 # MLC LLM
 
-[Documentation](https://llm.mlc.ai/docs) | [Blog](https://blog.mlc.ai/) | [WebLLM](https://webllm.mlc.ai/) | [WebStableDiffusion](https://websd.mlc.ai/) | [Discord][discord-url]
+[Documentation](https://llm.mlc.ai/docs) | [Blog](https://blog.mlc.ai/) | [Discord][discord-url]
 
-Machine Learning Compilation for Large Language Models (MLC LLM) is a high-performance **universal deployment** solution that allows native deployment of any large language models with native APIs with compiler acceleration. The mission of this project is to enable everyone to develop, optimize and deploy AI models natively on everyone's devices with ML compilation techniques.
+Machine Learning Compilation for Large Language Models (MLC LLM) is a high-performance universal deployment solution that allows native deployment of any large language models with native APIs with compiler acceleration. The mission of this project is to enable everyone to develop, optimize and deploy AI models natively on everyone's devices with ML compilation techniques.
 
-MLC LLM supports the following platforms and hardware:
+**Universal deployment.** MLC LLM supports the following platforms and hardware:
 
 <table style="width:100%">
   <thead>
@@ -54,12 +54,19 @@ MLC LLM supports the following platforms and hardware:
 
 ## News
 
-* [08/02/2023] [Dockerfile](https://github.com/junrushao/llm-perf-bench/) released for CUDA performance benchmarking
-* [07/19/2023] Supports 7B/13B/70B Llama-2
+* [08/25/2023] CodeLlama support is up.
+* [08/14/2023] [[Post]](https://blog.mlc.ai/2023/08/09/GPU-Accelerated-LLM-on-Orange-Pi) Mali GPU support is up on Orange Pi.
+* [08/09/2023] [[Post]](https://blog.mlc.ai/2023/08/09/Making-AMD-GPUs-competitive-for-LLM-inference) ROCm backend is mature to use.
+* [08/02/2023] [Dockerfile](https://github.com/mlc-ai/llm-perf-bench/) is released for CUDA performance benchmarking.
+* [07/19/2023] Support for Llama2-7B/13B/70B is up.
+* [05/22/2023] [[Post]](https://blog.mlc.ai/2023/05/22/bringing-open-large-language-models-to-consumer-devices) RedPajama support is up.
+* [05/08/2023] [[Post]](https://blog.mlc.ai/2023/05/08/bringing-hardware-accelerated-language-models-to-android-devices) MLC LLM is now available on Android.
+* [05/01/2023] [[Post]](https://blog.mlc.ai/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) MLC LLM is released with Metal, Vulkan and CUDA backends.
+* [04/14/2023] [WebLLM](https://github.com/mlc-ai/web-llm) is released prior to MLC LLM with WebGPU and WebAssembly backend.
 
 ## Getting Started
 
-<ins>**[Check out our instruction page to try out!](https://llm.mlc.ai/docs/get_started/try_out.html)**</ins>
+Please visit our [this page](https://llm.mlc.ai/docs/index.html#getting-started) for detailed instructions.
 
 ## Universal Deployment APIs
 
@@ -138,6 +145,8 @@ The underlying techniques of MLC LLM include:
 
 - You might want to check out our online public [Machine Learning Compilation course](https://mlc.ai) for a systematic
 walkthrough of our approaches.
+- [WebLLM](https://webllm.mlc.ai/) is a companion project using MLC LLM's WebGPU and WebAssembly backend.
+- [WebStableDiffusion](https://websd.mlc.ai/) is a companion project for diffusion models with the WebGPU backend.
 
 ## Acknowledgements
 
