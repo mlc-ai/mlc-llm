@@ -78,6 +78,14 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
 
             Supported in all Linux packages.
 
+      .. note::
+
+        If encountering issues with GLIBC not found, please install the latest glibc in conda:
+
+        .. code-block:: bash
+
+          conda install -c conda-forge libgcc-ng
+
    .. tab:: macOS
 
       .. tabs::
@@ -89,15 +97,6 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
               conda activate your-environment
               python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly
 
-            Always check if conda is installed properly in macOS using the command below:
-
-            - Mac with Intel chip: "osx-64"
-            - Mac with Apple chip: "osx-arm64"
-
-            .. code-block:: bash
-
-              conda info | grep platform
-
          .. tab:: Metal
 
             .. code-block:: bash
@@ -105,14 +104,15 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
               conda activate your-environment
               python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly
 
-            Always check if conda is installed properly in macOS using the command below:
+        .. note::
 
-            - Mac with Intel chip: "osx-64"
-            - Mac with Apple chip: "osx-arm64"
+          Always check if conda is installed properly in macOS using the command below:
 
-            .. code-block:: bash
+          .. code-block:: bash
 
-              conda info | grep platform
+            conda info | grep platform
+
+          It should return "osx-64" for Mac with Intel chip, and "osx-arm64" for Mac with Apple chip.
 
    .. tab:: Windows
 

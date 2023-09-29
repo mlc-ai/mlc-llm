@@ -348,32 +348,33 @@ python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </s
 </div>
 </div><div aria-labelledby="tab-1-1-6" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-6" name="1-6" role="tabpanel" tabindex="0"><p>Supported in all Linux packages.</p>
 </div></div>
-</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">CPU</button><button aria-controls="panel-2-2-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-1" name="2-1" role="tab" tabindex="-1">Metal</button></div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
-python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>--force-reinstall<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-ai-nightly
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If encountering issues with GLIBC not found, please install the latest glibc in conda:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>libgcc-ng
 </pre></div>
 </div>
-<p>Always check if conda is installed properly in macOS using the command below:</p>
-<ul class="simple">
-<li><p>Mac with Intel chip: “osx-64”</p></li>
-<li><p>Mac with Apple chip: “osx-arm64”</p></li>
-</ul>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>info<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>platform
+</div>
+</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">CPU</button><button aria-controls="panel-2-2-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-1" name="2-1" role="tab" tabindex="-1">Metal</button></div><blockquote>
+<div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
+python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>--force-reinstall<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-ai-nightly
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-2-2-1" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-1" name="2-1" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
 python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>--force-reinstall<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-ai-nightly
 </pre></div>
 </div>
+</div></div></blockquote>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
 <p>Always check if conda is installed properly in macOS using the command below:</p>
-<ul class="simple">
-<li><p>Mac with Intel chip: “osx-64”</p></li>
-<li><p>Mac with Apple chip: “osx-arm64”</p></li>
-</ul>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>info<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>platform
 </pre></div>
 </div>
-</div></div>
+<p>It should return “osx-64” for Mac with Intel chip, and “osx-arm64” for Mac with Apple chip.</p>
+</div>
+</div>
 </div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-3-3-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-3-3-0" name="3-0" role="tab" tabindex="0">CPU</button><button aria-controls="panel-3-3-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-1" name="3-1" role="tab" tabindex="-1">Vulkan</button></div><div aria-labelledby="tab-3-3-0" class="sphinx-tabs-panel" id="panel-3-3-0" name="3-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
 python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>--force-reinstall<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-ai-nightly
