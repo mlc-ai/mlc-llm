@@ -13,7 +13,7 @@ from .relax_model import param_manager
 from .transform import ReorderTransformFunc
 
 supported_model_types = set(
-    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj", "chatglm", "mistral"]
+    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj", "chatglm", "mistral", "stablelm_epoch"]
 )
 
 
@@ -64,6 +64,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "codellama": "codellama_completion",
         "vicuna-": "vicuna_v1.1",
         "dolly-": "dolly",
+        "stablelm-3b-": "stablelm-3b",
         "stablelm-": "stablelm",
         "redpajama-": "redpajama_chat",
         "minigpt": "minigpt",
