@@ -245,6 +245,57 @@ We provide an example below.
    specified by the field ``conv_template`` in chat configuration. Learn more about it in
    :ref:`Configure MLCChat in JSON<configure-mlc-chat-json>`.
 
+Raw Text Generation in Python
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Raw text generation allows the user to have more flexibility over his prompts, 
+without being forced to create a new conversational template, making prompt customization easier.
+This serves other demands for APIs to handle LLM generation without the usual system prompts and other items.
+
+We provide an example below.
+
+.. code:: python
+
+   from mlc_chat import ChatModule, ChatConfig, ConvConfig
+   from mlc_chat.callback import StreamToStdout
+
+   # Use a `ConvConfig` to define the generation settings
+   # Since the "LM" template only supports raw text generation,
+   # system prompts will not be executed even if provided
+   conv_config = ConvConfig(stop_tokens=[2,], add_bos=True, stop_str="[INST]")
+
+   # Note that `conv_config` is an optional subfield of `chat_config`
+   # The "LM" template serves the basic purposes of raw text generation
+   chat_config = ChatConfig(conv_config=conv_config, conv_template="LM")
+
+   # Using the `chat_config` we created, instantiate a `ChatModule`
+   cm = ChatModule('Llama-2-7b-chat-hf-q4f16_1', chat_config=chat_config)
+
+   # To make the model follow conversations a chat structure should be provided
+   # This allows users to build their own prompts without building a new template
+   system_prompt = "<<SYS>>\nYou are a helpful, respectful and honest assistant.\n<</SYS>>\n\n"
+   inst_prompt = "What is mother nature?"
+
+   # Concatenate system and instruction prompts, and add instruction tags
+   output = cm.generate(
+      prompt=f"[INST] {system_prompt+inst_prompt} [/INST]",
+      progress_callback=StreamToStdout(callback_interval=2),
+   )
+
+   # The LM template has no memory, so it will be reset every single generation
+   # In this case the model will just follow normal text completion
+   # because there isn't a chat structure
+   output = cm.generate(
+      prompt="Life is a quality that distinguishes",
+      progress_callback=StreamToStdout(callback_interval=2),
+   )
+
+.. note:: 
+   The ``LM`` is a template without memory, which means that every execution will be cleared.
+   Additionally, system prompts will not be run when instantiating a `mlc_chat.ChatModule`,
+   unless explicitly given inside the prompt.
+
+
 API Reference
 -------------
 
