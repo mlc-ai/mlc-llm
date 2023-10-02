@@ -26,20 +26,20 @@ Prerequisite: Model Libraries and Compiled Weights
 
 In order to run a specific model on MLC-LLM, you roughly need two parts:
 
-**1. A model library:** a binary file containing the end-to-end functionality to inference a model. This is a single file that ends in `.so` or other suffix depending on the platform. Such a file is model-architecture-specific (e.g. Llama vs. rwkv). See the full list of precompiled model libraries `here <https://github.com/mlc-ai/binary-mlc-llm-libs>`__. 
+**1. A model library:** a binary file containing the end-to-end functionality to inference a model. This is a single file that ends in ``.so`` or other suffix depending on the platform. Such a file is model-architecture-specific (e.g. Llama vs. RWKV). See the full list of precompiled model libraries `here <https://github.com/mlc-ai/binary-mlc-llm-libs>`__. 
 
-**2. Compiled weights:** a folder containing multiple files that store the compiled and quantized weights of a model. Besides the weights, there are also config files required by MLC-LLM such as ``mlc-chat-config.json``. Such a folder is model-variant-specific (e.g. Code Llama vs. WizardCoder). See the list of precompiled weights `here <https://huggingface.co/mlc-ai>`__.
+**2. Compiled weights:** a folder containing multiple files that store the compiled and quantized weights of a model. Besides the weights, there are also config files required by MLC-LLM's runtime such as ``mlc-chat-config.json``. Such a folder is model-variant-specific (e.g. CodeLlama vs. WizardCoder). See the list of precompiled weights `here <https://huggingface.co/mlc-ai>`__.
 
 
 How We Organize this Page 
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Accordingly, we organize our page with three levels of hierarchy here (from high to low):
+Accordingly, to demonstrate what prebuilt model libraries and weights you could use off-the-shelf, we organize our page with three levels of hierarchy here (from high to low):
 
-**1. Supported model architectures**: The **all-in-one** table demonstrating what model architectures we support and what variants belong to each architecture. Each entry hyperlinks to the corresponding model library table and model variant table. 
+**1. Supported model architectures** The **all-in-one** table demonstrating what model architectures we support and what variants belong to each architecture. Each entry hyperlinks to the corresponding model library table and model variant table. 
 
-**2. Model library tables**: For each table, we describe the **model libraries** we have pre-compiled for a specific model architecture (e.g. Llama). Specifically, it is categorized as the platform, parameters count, and quantization scheme. We link to the corresponding github link.
+**2. Model library tables** For each table, we describe the **model libraries** we have pre-compiled for a specific model architecture (e.g. Llama). Specifically, it is categorized by the platform, parameters count, and quantization scheme. We link to the corresponding github link.
 
-**3. Model variant tables**: For each table, we describe the **weights** we have pre-compiled for a specific model variant (e.g. Code Llama). Specifically, it is categorized by model size and quantization scheme. We link to the corresponding hugging face link.
+**3. Model variant tables** For each table, we describe the **weights** we have pre-compiled for a specific model variant (e.g. CodeLlama, WizardLM). Specifically, it is categorized by model size and quantization scheme. We link to the corresponding hugging face link.
 
 
 Afterwards, we address how to use our prebuilt models in CLI (command line interface), iOS, and Android.
@@ -47,10 +47,10 @@ The models have undergone extensive testing on various devices, and their perfor
 
 .. _supported-model-architectures:
 
-Level 1: Supported Model Architectures (All-In-One)
----------------------------------------------------
+Level 1: Supported Model Architectures (The All-In-One Table)
+-------------------------------------------------------------
 
-For each model architecture (e.g. Llama), there are multiple variants (e.g. Code Llama, WizardLM). The variants share the same code for inference and only differ in their weights. In other words, running Code Llama and WizardLM can use the same model library file (specified in Level 2 tables), but different precompiled weights (specified in Level 3 tables). Note that we have not provided prebuilt weights for all model variants.
+For each model architecture (e.g. Llama), there are multiple variants (e.g. CodeLlama, WizardLM). The variants share the same code for inference and only differ in their weights. In other words, running CodeLlama and WizardLM can use the same model library file (specified in Level 2 tables), but different precompiled weights (specified in Level 3 tables). Note that we have not provided prebuilt weights for all model variants.
 
 Each entry below hyperlinks to the corresponding level 2 and level 3 tables.
 
@@ -137,10 +137,9 @@ MLC-LLM supports the following model architectures:
     - * `ChatGLM2 <https://huggingface.co/THUDM/chatglm2-6b>`__
       * `CodeGeeX2 <https://huggingface.co/THUDM/codegeex2-6b>`__
 
+If the model variant you are interested in is in one of these model architectures we support (but we have not provided the prebuilt weights yet), you can check the :doc:`model compilation page </compilation/compile_models>` on how to compile your own models. Note that you only need to compile the weights for your model variant and reuse the library file found in Level 2 tables.
 
-For models structured in these model architectures, you can check the :doc:`model compilation page </compilation/compile_models>` on how to compile your own models.
-
-For models structed in a different architecture, you could:
+For models structed in an architecture we have not supported yet, you could:
 
 - Either `create a new issue <https://github.com/mlc-ai/mlc-llm/issues/new/choose>`_ to request a new model architecture.
 
@@ -151,7 +150,7 @@ For models structed in a different architecture, you could:
 Level 2: Model Library Tables (Precompiled Binary Files)
 --------------------------------------------------------
 
-As mentioned earlier, each model architecture corresponds to a different model library file. That is, you cannot use the same model library file to run ``RedPajam`` and ``Llama-2``.
+As mentioned earlier, each model architecture corresponds to a different model library file. That is, you cannot use the same model library file to run ``RedPajam`` and ``Llama-2``. However, you can use the same ``Llama`` model library file to run ``Llama-2``, ``WizardLM``, ``CodeLlama``, etc, but just with different weight files (from tables in Level 3).
 
 Each table below demonstrates the pre-compiled model library files for each model architecture. This is catageroized by:
 
@@ -404,7 +403,7 @@ Level 3: Model Variant Tables (Precompiled Weights)
 
 Finally, for each model variant, we provide the precompiled weights we uploaded to huggingface.
 
-Each precompiled weight is categorized by its model size (e.g. 7B vs. 13B) and the quantization scheme (e.g. ``q3f16_1`` vs. ``q4f16_1``). We note that the weights are platfrom-agnostic.
+Each precompiled weight is categorized by its model size (e.g. 7B vs. 13B) and the quantization scheme (e.g. ``q3f16_1`` vs. ``q4f16_1``). We note that the weights are **platform-agnostic**.
 
 Some of these files are uploaded by our community contributors--thank you!
 
@@ -616,7 +615,7 @@ Some of these files are uploaded by our community contributors--thank you!
   * - 15B
     - `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f16_1>`__
 
-z.. _using-prebuilt-models-cli:
+.. _using-prebuilt-models-cli:
 
 Using Prebuilt Models for CLI
 -----------------------------
