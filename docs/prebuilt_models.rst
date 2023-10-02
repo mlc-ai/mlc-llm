@@ -88,6 +88,78 @@ Please `create a new issue <https://github.com/mlc-ai/mlc-llm/issues/new/choose>
 Our tutorial :doc:`Define New Models </tutorials/customize/define_new_models>` introduces how to bring a new model architecture to MLC-LLM.
 
 
+
+Model Library Tables
+--------------------
+
+Llama
+^^^^^
+.. list-table:: Llama
+  :widths: 8 8 8 8 8 8 8 8 8 8
+  :header-rows: 1
+  :stub-columns: 1
+
+  * -
+    - CUDA
+    - ROCm
+    - Vulkan
+
+      (Linux)
+    - Vulkan
+
+      (Windows)
+    - Metal
+
+      (M1/M2)
+    - Metal
+
+      (Intel)
+    - iphone
+    - webgpu
+    - mali
+  * - 7B
+    - a
+    - A
+    - a
+    - a
+    - a
+    - A
+    - A
+    - a
+    - a
+  * - 13B
+    - a
+    - A
+    - a
+    - a
+    - a
+    - A
+    - A
+    - a
+    - a
+  * - 34B
+    - a
+    - A
+    - a
+    - a
+    - a
+    - A
+    - A
+    - a
+    - a
+  * - 70B
+    - a
+    - A
+    - a
+    - a
+    - a
+    - A
+    - A
+    - a
+    - a
+
+
+
 .. _prebuilt-models-cli:
 
 Prebuilt Models for CLI
