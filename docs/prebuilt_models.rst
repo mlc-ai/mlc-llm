@@ -23,17 +23,19 @@ Supported Model Architectures
 MLC-LLM supports the following model architectures:
 
 .. list-table:: Supported Model Architectures
-  :widths: 10 10 10 15 15
+  :widths: 10 10 15 15
   :header-rows: 1
 
-  * - Category Code
-    - Series
-    - Model Definition
+  * - Code
+    - Architecture
     - Variants w/ MLC prebuilts
     - Variants w/o MLC prebuilts
   * - ``llama``
-    - `LLaMa <https://github.com/facebookresearch/llama>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/llama.py>`__
+    - LLaMa
+
+      * :ref:`Prebuilt library table <llama_library_table>`
+      * `Official link <https://github.com/facebookresearch/llama>`__
+      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/llama.py>`__
     - * `Llama-2 <https://ai.meta.com/llama/>`__
       * CodeLlama
       * `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
@@ -48,36 +50,54 @@ MLC-LLM supports the following model architectures:
       * `YuLan-Chat <https://github.com/RUC-GSAI/YuLan-Chat>`__
       * WizardCoder (new version)
   * - ``gpt-neox``
-    - `GPT-NeoX <https://github.com/EleutherAI/gpt-neox>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_neox.py>`__
+    - GPT-NeoX 
+
+      * :ref:`Prebuilt library table <gpt_neox_library_table>`
+      * `Official link <https://github.com/EleutherAI/gpt-neox>`__
+      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_neox.py>`__
     - * `RedPajama <https://www.together.xyz/blog/redpajama>`__
     - * `Dolly <https://github.com/databrickslabs/dolly>`__
       * `Pythia <https://huggingface.co/EleutherAI/pythia-1.4b>`__
       * `StableCode <https://huggingface.co/stabilityai/stablecode-instruct-alpha-3b>`__
   * - ``gptj``
-    - `GPT-J <https://huggingface.co/EleutherAI/gpt-j-6b>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gptj.py>`__
+    - GPT-J
+
+      * Prebuilt not compiled yet
+      * `Official link <https://huggingface.co/EleutherAI/gpt-j-6b>`__
+      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gptj.py>`__
     - 
     - * `MOSS <https://github.com/OpenLMLab/MOSS>`__
   * - ``rwkv``
-    - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py>`__
+    - RWKV 
+
+      * :ref:`Prebuilt library table <rwkv_library_table>`
+      * `Official link <https://github.com/BlinkDL/RWKV-LM>`__
+      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py>`__
     - * `RWKV-raven <https://github.com/BlinkDL/RWKV-LM>`__
     - 
   * - ``minigpt``
-    - `MiniGPT <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/minigpt.py>`__
+    - MiniGPT
+
+      * Prebuilt not compiled yet
+      * `Official link <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
+      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/minigpt.py>`__
     - 
     - 
   * - ``gpt_bigcode``
-    - `GPTBigCode <https://huggingface.co/docs/transformers/model_doc/gpt_bigcode>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_bigcode.py>`__
+    - GPTBigCode
+
+      * :ref:`Prebuilt library table <gpt_big_code_library_table>`
+      * `Official link <https://huggingface.co/docs/transformers/model_doc/gpt_bigcode>`__
+      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_bigcode.py>`__
     - * WizardCoder (old version)
     - * `StarCoder <https://huggingface.co/bigcode/starcoder>`__
       * `SantaCoder <https://huggingface.co/bigcode/gpt_bigcode-santacoder>`__
   * - ``chatglm``
-    - `ChatGLM <https://github.com/THUDM/ChatGLM-6B/blob/main/README_en.md>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/chatglm.py>`__
+    - ChatGLM
+
+      * Prebuilt not compiled yet
+      * `Official link <https://github.com/THUDM/ChatGLM-6B/blob/main/README_en.md>`__
+      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/chatglm.py>`__
     - 
     - * `ChatGLM2 <https://huggingface.co/THUDM/chatglm2-6b>`__
       * `CodeGeeX2 <https://huggingface.co/THUDM/codegeex2-6b>`__
@@ -91,6 +111,8 @@ Our tutorial :doc:`Define New Models </tutorials/customize/define_new_models>` i
 
 Model Library Tables
 --------------------
+
+.. _llama_library_table:
 
 Llama
 ^^^^^
@@ -164,6 +186,7 @@ Llama
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf-q4f16_1-webgpu.wasm>`__
     - 
 
+.. _gpt_neox_library_table:
   
 GPT-NeoX (RedPajama-INCITE)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -217,6 +240,7 @@ GPT-NeoX (RedPajama-INCITE)
       `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f32_1-webgpu.wasm>`__
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-mali.so>`__
 
+.. _rwkv_library_table:
 
 RWKV
 ^^^^
@@ -273,6 +297,8 @@ RWKV
     -
     -
     -
+
+.. _gpt_big_code_library_table:
 
 GPTBigCode
 ^^^^^^^^^^
