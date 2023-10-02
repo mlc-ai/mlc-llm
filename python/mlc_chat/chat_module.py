@@ -142,6 +142,10 @@ class ChatConfig:
         The category of the model's architecture (e.g. ``llama``, ``gpt_neox``, ``rwkv``).
     model_name : Optional[str]
         Name of the model (e.g. ``Llama-2-7b-chat-hf``).
+    num_shards: Optional[str]
+        Tensor parallel degree.
+    max_window_size: Optional[str]
+        Maximum kv cache window size.
     """
 
     model_lib: Optional[str] = None
@@ -157,6 +161,8 @@ class ChatConfig:
     conv_config: Optional[ConvConfig] = None
     model_category: Optional[str] = None
     model_name: Optional[str] = None
+    num_shards: Optional[int] = None
+    max_window_size: Optional[int] = None
 
     @classmethod
     def _from_json(chat_config_cls, json_obj: dict):
@@ -598,7 +604,7 @@ class ChatModule:
 
         # 6. Call reload
         user_chat_config_json_str = _convert_chat_config_to_json_str(
-            chat_config, self.chat_config.conv_template
+            self.chat_config, self.chat_config.conv_template
         )
         self._reload(self.lib_path, self.model_path, user_chat_config_json_str)
 
