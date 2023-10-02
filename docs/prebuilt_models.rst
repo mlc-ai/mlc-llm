@@ -7,18 +7,52 @@ Model Prebuilts
     :depth: 3
     :local:
 
+.. _model-prebuilts-overview:
+
+Overview
+--------
+
 MLC-LLM is a universal solution for deploying different language models. Any language models that can be described in `TVM Relax <https://mlc.ai/chapter_graph_optimization/index.html>`__ (a general representation for Neural Networks and can be imported from models written in PyTorch) can be recognized by MLC-LLM and thus deployed to different backends with the help of :doc:`TVM Unity </install/tvm>`.
 
 The community has already supported several LLM architectures (LLaMA, GPT-NeoX, etc.) and have prebuilt some models (Vicuna, RedPajama, etc.) which you can use off the shelf.
 With the goal of democratizing the deployment of LLMs, we eagerly anticipate further contributions from the community to expand the range of supported model architectures.
 
-This page contains the list of prebuilt models for our CLI (command line interface) app, iOS and Android apps.
+This pages tracks the model architectures and variants that MLC-LLM currently supports.
+
+You can check `MLC-LLM pull requests <https://github.com/mlc-ai/mlc-llm/pulls?q=is%3Aopen+is%3Apr+label%3Anew-models>`__ to track the ongoing efforts of new models. We encourage users to upload their compiled models to Hugging Face and share with the community.
+
+Prerequisite: Model Libraries and Compiled Weights
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In order to run a specific model on MLC-LLM, you roughly need two parts:
+
+**1. A model library:** a binary file containing the end-to-end functionality to inference a model. This is a single file that ends in `.so` or other suffix depending on the platform. Such a file is model-architecture-specific (e.g. Llama vs. rwkv). See the full list of precompiled model libraries `here <https://github.com/mlc-ai/binary-mlc-llm-libs>`__. 
+
+**2. Compiled weights:** a folder containing multiple files that store the compiled and quantized weights of a model. Besides the weights, there are also config files required by MLC-LLM such as ``mlc-chat-config.json``. Such a folder is model-variant-specific (e.g. Code Llama vs. WizardCoder). See the list of precompiled weights `here <https://huggingface.co/mlc-ai>`__.
+
+
+How We Organize this Page 
+^^^^^^^^^^^^^^^^^^^^^^^^^
+Accordingly, we organize our page with three levels of hierarchy here (from high to low):
+
+**1. Supported model architectures**: The **all-in-one** table demonstrating what model architectures we support and what variants belong to each architecture. Each entry hyperlinks to the corresponding model library table and model variant table. 
+
+**2. Model library tables**: For each table, we describe the **model libraries** we have pre-compiled for a specific model architecture (e.g. Llama). Specifically, it is categorized as the platform, parameters count, and quantization scheme. We link to the corresponding github link.
+
+**3. Model variant tables**: For each table, we describe the **weights** we have pre-compiled for a specific model variant (e.g. Code Llama). Specifically, it is categorized by model size and quantization scheme. We link to the corresponding hugging face link.
+
+
+Afterwards, we address how to use our prebuilt models in CLI (command line interface), iOS, and Android.
 The models have undergone extensive testing on various devices, and their performance has been optimized by developers with the help of TVM.
 
 .. _supported-model-architectures:
 
-Supported Model Architectures
------------------------------
+Level 1: Supported Model Architectures (All-In-One)
+---------------------------------------------------
+
+For each model architecture (e.g. Llama), there are multiple variants (e.g. Code Llama, WizardLM). The variants share the same code for inference and only differ in their weights. In other words, running Code Llama and WizardLM can use the same model library file (specified in Level 2 tables), but different precompiled weights (specified in Level 3 tables). Note that we have not provided prebuilt weights for all model variants.
+
+Each entry below hyperlinks to the corresponding level 2 and level 3 tables.
 
 MLC-LLM supports the following model architectures:
 
@@ -104,14 +138,30 @@ MLC-LLM supports the following model architectures:
       * `CodeGeeX2 <https://huggingface.co/THUDM/codegeex2-6b>`__
 
 
-For models structured in these model architectures, you can check the :doc:`model compilation page </compilation/compile_models>` on how to compile models.
-Please `create a new issue <https://github.com/mlc-ai/mlc-llm/issues/new/choose>`_ if you want to request a new model architecture.
-Our tutorial :doc:`Define New Models </tutorials/customize/define_new_models>` introduces how to bring a new model architecture to MLC-LLM.
+For models structured in these model architectures, you can check the :doc:`model compilation page </compilation/compile_models>` on how to compile your own models.
+
+For models structed in a different architecture, you could:
+
+- Either `create a new issue <https://github.com/mlc-ai/mlc-llm/issues/new/choose>`_ to request a new model architecture.
+
+- Or follow our tutorial :doc:`Define New Models </tutorials/customize/define_new_models>`, which introduces how to bring a new model architecture to MLC-LLM.
 
 
 
-Model Library Tables
---------------------
+Level 2: Model Library Tables (Precompiled Binary Files)
+--------------------------------------------------------
+
+As mentioned earlier, each model architecture corresponds to a different model library file. That is, you cannot use the same model library file to run ``RedPajam`` and ``Llama-2``.
+
+Each table below demonstrates the pre-compiled model library files for each model architecture. This is catageroized by:
+
+- **Size**: each size of model has its own distinct model library file (e.g. 7B or 13B number of parameters)
+
+- **Platform**: the backend that the model library is intended to be run on (e.g. CUDA, ROCm, iphone, etc.)
+
+- **Quantization scheme**: the model library file also differs due to the quantization scheme used. For more on this, please see the :doc:`model compilation page </compilation/compile_models>` (e.g. ``q3f16_1`` vs. ``q4f16_1``)
+
+Each entry links to the specific model library file found in `this github repo <https://github.com/mlc-ai/binary-mlc-llm-libs>`__.
 
 .. _llama_library_table:
 
@@ -349,8 +399,14 @@ However, any GPTBigCode model variants should be able to reuse these (e.g. StarC
     - 
   
 
-Model Variant Tables
---------------------
+Level 3: Model Variant Tables (Precompiled Weights)
+---------------------------------------------------
+
+Finally, for each model variant, we provide the precompiled weights we uploaded to huggingface.
+
+Each precompiled weight is categorized by its model size (e.g. 7B vs. 13B) and the quantization scheme (e.g. ``q3f16_1`` vs. ``q4f16_1``). We note that the weights are platfrom-agnostic.
+
+Some of these files are uploaded by our community contributors--thank you!
 
 .. _llama2_variant_table:
 
@@ -560,96 +616,10 @@ Model Variant Tables
   * - 15B
     - `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f16_1>`__
 
-.. _prebuilt-models-cli:
+z.. _using-prebuilt-models-cli:
 
-Prebuilt Models for CLI
------------------------
-
-.. list-table::
-  :widths: 15 15 15 15
-  :header-rows: 1
-
-  * - Model code
-    - Original Model
-    - Quantization Mode
-    - Hugging Face repo
-  * - `Llama-2-{7, 13, 70}b-chat-hf-q4f16_1`
-    - `Llama-2 <https://ai.meta.com/llama/>`__
-    - * Weight storage data type: int4
-      * Running data type: float16
-      * Symmetric quantization
-    - * `7B link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
-      * `13B link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1>`__
-      * `70B link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1>`__
-  * - `vicuna-v1-7b-q3f16_0`
-    - `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
-    - * Weight storage data type: int3
-      * Running data type: float16
-      * Symmetric quantization
-    - `link <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0>`__
-  * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
-    - `RedPajama <https://www.together.xyz/blog/redpajama>`__
-    - * Weight storage data type: int4
-      * Running data type: float16
-      * Symmetric quantization
-    - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
-  * - `rwkv-raven-{1b5, 3b, 7b}-q8f16_0`
-    - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
-    - * Weight storage data type: uint8
-      * Running data type: float16
-      * Symmetric quantization
-    - * `1b5 link <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0>`__
-      * `3b link <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0>`__
-      * `7b link <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0>`__
-  * - `WizardLM-13B-V1.2-{q4f16_1, q4f32_1}`
-    - `WizardLM <https://github.com/nlpxucan/WizardLM>`__
-    - * Weight storage data type: int4
-      * Running data type: float{16, 32}
-      * Symmetric quantization
-    - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-13B-V1.2-q4f16_1>`__
-      * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-13B-V1.2-q4f32_1>`__
-  * - `WizardCoder-15B-V1.0-{q4f16_1, q4f32_1}`
-    - `WizardCoder <https://github.com/nlpxucan/WizardLM>`__
-    - * Weight storage data type: int4
-      * Running data type: float{16, 32}
-      * Symmetric quantization
-    - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f16_1>`__
-      * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f32_1>`__
-  * - `WizardMath-{7, 13, 70}B-V1.0-q4f16_1`
-    - `WizardMath <https://github.com/nlpxucan/WizardLM>`__
-    - * Weight storage data type: int4
-      * Running data type: float16
-      * Symmetric quantization
-    - * `7B link <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-7B-V1.0-q4f16_1>`__
-      * `13B link <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-13B-V1.0-q4f16_1>`__
-      * `70B link <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-70B-V1.0-q4f16_1>`__
-  * - `llama2-7b-chat-uncensored-{q4f16_1, q4f32_1}`
-    - `georgesung <https://huggingface.co/georgesung/llama2_7b_chat_uncensored>`__
-    - * Weight storage data type: int4
-      * Running data type: float{16, 32}
-      * Symmetric quantization
-    - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-georgesung-llama2-7b-chat-uncensored-q4f16_1>`__
-      * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-georgesung-llama2-7b-chat-uncensored-q4f32_1>`__
-  * - `Llama2-Chinese-7b-Chat-{q4f16_1, q4f32_1}`
-    - `FlagAlpha <https://github.com/FlagAlpha/Llama2-Chinese>`__
-    - * Weight storage data type: int4
-      * Running data type: float{16, 32}
-      * Symmetric quantization
-    - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-FlagAlpha-Llama2-Chinese-7b-Chat-q4f16_1>`__
-      * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-FlagAlpha-Llama2-Chinese-7b-Chat-q4f32_1>`__
-  * - `GOAT-7B-Community-{q4f16_1, q4f32_1}`
-    - `GOAT-AI <https://huggingface.co/GOAT-AI/GOAT-7B-Community>`__
-    - * Weight storage data type: int4
-      * Running data type: float{16, 32}
-      * Symmetric quantization
-    - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-GOAT-7B-Community-q4f16_1>`__
-      * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-GOAT-7B-Community-q4f32_1>`__
-  * - `OpenOrca-Platypus2-13B-q4f16_1`
-    - `Llama-2 <https://ai.meta.com/llama/>`__
-    - * Weight storage data type: int4
-      * Running data type: float16
-      * Symmetric quantization
-    - `link <https://huggingface.co/DavidSharma/mlc-chat-OpenOrca-Platypus2-13B-q4f16_1>`__
+Using Prebuilt Models for CLI
+-----------------------------
 
 To download and run one model with CLI, follow the instructions below:
 
@@ -678,10 +648,12 @@ To download and run one model with CLI, follow the instructions below:
   # mlc_chat_cli --model rwkv-raven-7b-q8f16_0
 
 
-.. _prebuilt-models-ios:
+.. _using-prebuilt-models-ios:
 
-Prebuilt Models for iOS
------------------------
+Using Prebuilt Models for iOS
+-----------------------------
+
+For more, please see :doc:`the iOS page </deploy/ios>`.
 
 .. list-table:: Prebuilt models for iOS
   :widths: 15 15 15 15
@@ -784,8 +756,10 @@ For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/op
 
 .. _prebuilt-models-android:
 
-Prebuilt Models for Android
----------------------------
+Using Prebuilt Models for Android
+---------------------------------
+
+For more, please see :doc:`the Android page </deploy/android>`.
 
 .. list-table:: Prebuilt models for Android
   :widths: 15 15 15 15
@@ -809,8 +783,6 @@ Prebuilt Models for Android
     - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0>`__
 
 ------------------
-
-You can check `MLC-LLM pull requests <https://github.com/mlc-ai/mlc-llm/pulls?q=is%3Aopen+is%3Apr+label%3Anew-models>`__ to track the ongoing efforts of new models. We encourage users to upload their compiled models to Hugging Face and share with the community.
 
 
 .. _contribute-models-to-mlc-llm:
