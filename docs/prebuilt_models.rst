@@ -41,6 +41,7 @@ MLC-LLM supports the following model architectures:
       * `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
       * `WizardLM <https://github.com/nlpxucan/WizardLM>`__
       * `WizardMath <https://github.com/nlpxucan/WizardLM/tree/main/WizardMath>`__
+      * OpenOrca Platypus2
       * `FlagAlpha Llama-2 Chinese <https://github.com/FlagAlpha/Llama2-Chinese>`__
       * Llama2 uncensored (georgesung)
     - * `Alpaca <https://github.com/tatsu-lab/stanford_alpaca>`__
@@ -347,6 +348,40 @@ However, any GPTBigCode model variants should be able to reuse these (e.g. StarC
       `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f32_1-webgpu.wasm>`__
     - 
   
+
+Model Variant Tables
+--------------------
+
+.. _llama2_variant_table:
+
+`Llama-2 <https://ai.meta.com/llama/>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: Llama-2
+  :widths: 30 30
+  :header-rows: 1
+
+  * - Size
+    - Hugging Face Repo Link
+  * - 7B
+    - `q3f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q3f16_1>`__
+
+      `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
+
+      `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f32_1>`__
+
+  * - 13B
+    - `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1>`__
+
+      `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f32_1>`__
+
+
+  * - 70B
+    - `q3f16 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q3f16_1>`__
+
+      `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1>`__
+
+
 
 .. _prebuilt-models-cli:
 
