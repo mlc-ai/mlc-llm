@@ -26,6 +26,7 @@ from mlc_llm.relax_model import (
     param_manager,
     rwkv,
 )
+from mlc_llm.relax_model.commons import create_shard_info_func
 from mlc_llm.transform import fuse_split_rotary_embedding, rewrite_attention
 
 
@@ -224,7 +225,7 @@ class BuildArgs:
         metadata={
             "help": (
                 "Number of shards to split the model into in tensor parallelism multi-gpu "
-                "inference"
+                "inference. Only useful when --build-model-only is set."
             ),
         },
     )
@@ -390,7 +391,11 @@ def mod_transform_before_build(
                 or config.num_key_value_heads
             )
             mod = fuse_split_rotary_embedding(
-                mod, config.num_attention_heads // args.num_shards, num_key_value_heads//args.num_shards, config.hidden_size // args.num_shards, config.position_embedding_base
+                mod,
+                config.num_attention_heads // args.num_shards,
+                num_key_value_heads // args.num_shards,
+                config.hidden_size // args.num_shards,
+                config.position_embedding_base,
             )
 
     if args.target_kind == "cuda":
@@ -546,39 +551,12 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     print(f"Finish exporting to {args.lib_path}")
 
 
-def dump_shard_info(args, param_manager):
-    if not args.build_model_only:
-        return
-    os.makedirs(os.path.join(args.artifact_path, "params"), exist_ok=True)
-    shard_info_path = os.path.join(args.artifact_path, "params", "shard_info.json")
-    shard_info_dict = {}
-    for _, param in param_manager.params.items():
-        shard_dim = param.shard_dim
-        if shard_dim is None:
-            continue
-        for i in param_manager.param2qrange[param]:
-            param_name = f"param_{i}"
-            shard_info_dict[param_name] = shard_dim
-    print(f"Finish exporting sharding information to {shard_info_path}")
-    with open(shard_info_path, "w", encoding="utf-8") as o_f:
-        json.dump(shard_info_dict, o_f)
-
-
 def build_model_from_args(args: argparse.Namespace):
     if args.quantization == "q4f16_0":
         print(
             "WARNING: q4f16_1 is preferred to q4f16_0, "
             "and it is highly recommended to use q4f16_1 instaed"
         )
-    if args.num_shards > 1:
-        if (args.build_model_only and args.convert_weight_only) or (
-            not args.build_model_only and not args.convert_weight_only
-        ):
-            raise ValueError(
-                "When num_shards > 1, precisely one of `build_model_only` and"
-                " `convert_weight_only` are expected to be set"
-            )
-
     os.makedirs(args.artifact_path, exist_ok=True)
     if args.debug_dump:
         os.makedirs(os.path.join(args.artifact_path, "debug"), exist_ok=True)
@@ -640,7 +618,8 @@ def build_model_from_args(args: argparse.Namespace):
             exit(0)
 
         mod = mod_transform_before_build(mod, param_manager, args, model_config)
-        dump_shard_info(args, param_manager)
+        if args.num_shards > 1:
+            create_shard_info_func(mod, param_manager, args, model_config)
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)
         print(f"Save a cached module to {cache_path}.")
@@ -663,7 +642,7 @@ def build_model(args: BuildArgs) -> (Optional[str], Optional[str], Optional[str]
     Parameters
     ----------
     args : :class:`BuildArgs`
-        A dataclass of arguments for building models.
+        A dataclass of arguments for building models.mlc_llm/core.py
 
     Returns
     ----------
