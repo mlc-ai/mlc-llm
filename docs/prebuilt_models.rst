@@ -114,7 +114,7 @@ Llama
     - Metal
 
       (Intel)
-    - iphone
+    - iOS
     - webgpu
     - mali
   * - 7B
@@ -157,6 +157,59 @@ Llama
     - A
     - a
     - a
+
+  
+GPT-NeoX (RedPajama-INCITE)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. list-table:: GPT-NeoX (RedPajama-INCITE)
+  :widths: 8 8 8 8 8 8 8 8 8 8
+  :header-rows: 1
+  :stub-columns: 1
+
+  * -
+    - CUDA
+    - ROCm
+    - Vulkan
+
+      (Linux)
+    - Vulkan
+
+      (Windows)
+    - Metal
+
+      (M1/M2)
+    - Metal
+
+      (Intel)
+    - iOS
+    - webgpu
+    - mali
+  * - 3B
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-rocm.so>`__
+    - `q4f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_0-vulkan.so>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so>`__
+    - `q4f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_0-vulkan.dll>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.dll>`__
+    - `q4f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_0-metal.so>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so>`__
+    - `q4f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_0-metal_x86_64.dylib>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal_x86_64.dylib>`__
+    - `q4f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_0-iphone.tar>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar>`__
+    - `q4f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_0-webgpu-v1.wasm>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm>`__
+
+      `q4f32_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f32_0-webgpu-v1.wasm>`__
+
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f32_1-webgpu.wasm>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-mali.so>`__
 
 
 
