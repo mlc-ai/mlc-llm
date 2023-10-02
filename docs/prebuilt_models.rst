@@ -218,6 +218,63 @@ GPT-NeoX (RedPajama-INCITE)
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-mali.so>`__
 
 
+RWKV
+^^^^
+.. list-table:: RWKV
+  :widths: 8 8 8 8 8 8 8 8 8 8
+  :header-rows: 1
+  :stub-columns: 1
+
+  * -
+    - CUDA
+    - ROCm
+    - Vulkan
+
+      (Linux)
+    - Vulkan
+
+      (Windows)
+    - Metal
+
+      (M1/M2)
+    - Metal
+
+      (Intel)
+    - iOS
+    - webgpu
+    - mali
+  * - 1B5
+    -
+    -
+    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-1b5-q8f16_0-vulkan.so>`__
+    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-1b5-q8f16_0-vulkan.dll>`__
+    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-1b5-q8f16_0-metal.so>`__
+    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-1b5-q8f16_0-metal_x86_64.dylib>`__
+    -
+    -
+    -
+  * - 3B
+    -
+    -
+    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-3b-q8f16_0-vulkan.so>`__
+    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-3b-q8f16_0-vulkan.dll>`__
+    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-3b-q8f16_0-metal.so>`__
+    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-3b-q8f16_0-metal_x86_64.dylib>`__
+    -
+    -
+    -
+  * - 7B
+    -
+    -
+    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-7b-q8f16_0-vulkan.so>`__
+    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-7b-q8f16_0-vulkan.dll>`__
+    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-7b-q8f16_0-metal.so>`__
+    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-7b-q8f16_0-metal_x86_64.dylib>`__
+    -
+    -
+    -
+
+
 
 .. _prebuilt-models-cli:
 
