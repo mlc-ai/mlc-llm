@@ -38,18 +38,20 @@ def to_device(params, device):
 
 def _accumulate_outlier_stat(stat, data):
     if stat is None:
-        stat = [[] for i in range(len(data))]
-    for idx, out in enumerate(data):
-        stat[idx].append(out.numpy())
+        stat = [element.numpy() for element in data]
+    else:
+        assert len(data) == len(stat)
+        for idx in range(len(stat)):
+            stat[idx] = np.maximum(stat[idx], data[idx].numpy())
     return stat
 
 
-def _accumulate_act_outlier_stat(stat, data):
+def _accumulate_act_outlier_stat(stat: List[np.ndarray], data: List[tvm.nd.NDArray]):
     a_data = data[::2]
     return _accumulate_outlier_stat(stat, a_data)
 
 
-def _accumulate_weight_outlier_stat(stat, data):
+def _accumulate_weight_outlier_stat(stat: List[np.ndarray], data: List[tvm.nd.NDArray]):
     # Optimization step: no need to accumulate weights for each new element in dataset since
     # weights are the same.
     if stat is not None:
@@ -142,12 +144,8 @@ def _smooth(
     prefill, decode, kvc, _, _ = get_runtime_func(funcs, stat_mod)
 
     # Calculate max statistics
-    # Number of dimension in a_stat/w_stat is equal to 3, where:
-    #  * 1st dimension - number of outputs in compute graph / 2
-    #  * 2nd dimension - number of elements in dataset
-    #  * 3rd dimension - scale(multiplier) dimension.
-    a_stat = None
-    w_stat = None
+    a_stat: List[np.ndarray] = None
+    w_stat: List[np.ndarray] = None
 
     target = tvm.target.Target.current(allow_none=False)
     for data in tqdm(dataset, desc="Smoothing"):
@@ -174,8 +172,6 @@ def _smooth(
             a_stat = _accumulate_act_outlier_stat(a_stat, outputs)
             w_stat = _accumulate_weight_outlier_stat(w_stat, outputs)
 
-    a_stat = [np.max(s, axis=0) for s in a_stat]
-    w_stat = [np.max(s, axis=0) for s in w_stat]
     # Use the same statistics for "prefill"/"decode"
     stat = dict.fromkeys(funcs)
     stat["prefill"] = (a_stat, w_stat)
@@ -201,12 +197,8 @@ def _calibrate(
     prefill, decode, kvc, _, _ = get_runtime_func(funcs, stat_mod)
 
     # Calculate max statistics
-    # Number of dimension in a_stat/w_stat is equal to 3, where:
-    #  * 1st dimension - number of outputs in compute graph / 2
-    #  * 2nd dimension - number of elements in dataset
-    #  * 3rd dimension - scale(multiplier) dimension.
-    a_stat = None
-    w_stat = None
+    a_stat: List[np.ndarray] = None
+    w_stat: List[np.ndarray] = None
 
     target = tvm.target.Target.current(allow_none=False)
     for data in tqdm(dataset, desc="Calibration"):
@@ -233,8 +225,6 @@ def _calibrate(
             a_stat = _accumulate_act_outlier_stat(a_stat, outputs)
             w_stat = _accumulate_weight_outlier_stat(w_stat, outputs)
 
-    a_stat = [np.max(s, axis=0) for s in a_stat]
-    w_stat = [np.max(s, axis=0) for s in w_stat]
     # Use the same statistics for "prefill"/"decode"
     stat = dict.fromkeys(funcs)
     stat["prefill"] = (a_stat, w_stat)
