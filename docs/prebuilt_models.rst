@@ -274,7 +274,53 @@ RWKV
     -
     -
 
+GPTBigCode
+^^^^^^^^^^
+Note that these all links to model libraries for WizardCoder (the older version released in Jun. 2023). 
+However, any GPTBigCode model variants should be able to reuse these (e.g. StarCoder, SantaCoder).
 
+.. list-table:: GPTBigCode
+  :widths: 8 8 8 8 8 8 8 8 8 8
+  :header-rows: 1
+  :stub-columns: 1
+
+  * -
+    - CUDA
+    - ROCm
+    - Vulkan
+
+      (Linux)
+    - Vulkan
+
+      (Windows)
+    - Metal
+
+      (M1/M2)
+    - Metal
+
+      (Intel)
+    - iOS
+    - webgpu
+    - mali
+  * - 15B
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f16_1-cuda.so>`__
+
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f32_1-cuda.so>`__
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f16_1-vulkan.so>`__
+      
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f32_1-vulkan.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f16_1-vulkan.dll>`__
+    
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f32_1-vulkan.dll>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f16_1-metal.so>`__
+    - 
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f16_1-webgpu.wasm>`__
+
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f32_1-webgpu.wasm>`__
+    - 
+  
 
 .. _prebuilt-models-cli:
 
