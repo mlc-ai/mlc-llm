@@ -364,22 +364,141 @@ Model Variant Tables
   * - Size
     - Hugging Face Repo Link
   * - 7B
-    - `q3f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q3f16_1>`__
+    - * `q3f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q3f16_1>`__
 
-      `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
+      * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
 
-      `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f32_1>`__
+      * `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f32_1>`__
 
   * - 13B
-    - `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1>`__
+    - * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1>`__
 
-      `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f32_1>`__
-
+      * `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f32_1>`__
 
   * - 70B
-    - `q3f16 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q3f16_1>`__
+    - * `q3f16 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q3f16_1>`__
 
-      `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1>`__
+      * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1>`__
+
+
+.. _wizard_math_variant_table:
+
+`WizardMath <https://github.com/nlpxucan/WizardLM/tree/main/WizardMath>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: WizardMath
+  :widths: 30 30
+  :header-rows: 1
+
+  * - Size
+    - Hugging Face Repo Link
+  * - 7B
+    - * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-7B-V1.0-q4f16_1>`__
+      * `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-7B-V1.0-q4f32_1>`__
+  * - 13B
+    - `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-13B-V1.0-q4f16_1>`__
+  * - 70B
+    - `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-70B-V1.0-q4f16_1>`__
+
+
+.. _open_orca_variant_table:
+
+`OpenOrca Platypus2 <https://huggingface.co/Open-Orca/OpenOrca-Platypus2-13B>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: OpenOrca Platypus2
+  :widths: 30 30
+  :header-rows: 1
+
+  * - Size
+    - Hugging Face Repo Link
+  * - 13B
+    - `q4f16_1 <https://huggingface.co/DavidSharma/mlc-chat-OpenOrca-Platypus2-13B-q4f16_1>`__
+
+
+.. _flag_alpha_llama2_variant_table:
+
+`FlagAlpha Llama-2 Chinese <https://github.com/FlagAlpha/Llama2-Chinese>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: FlagAlpha Llama-2 Chinese
+  :widths: 30 30
+  :header-rows: 1
+
+  * - Size
+    - Hugging Face Repo Link
+  * - 7B
+    - * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-FlagAlpha-Llama2-Chinese-7b-Chat-q4f16_1>`__
+      * `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-FlagAlpha-Llama2-Chinese-7b-Chat-q4f32_1>`__
+
+
+.. _llama2_uncensored_variant_table:
+
+`Llama2 uncensored (georgesung) <https://huggingface.co/georgesung/llama2_7b_chat_uncensored>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: Llama2 uncensored
+  :widths: 30 30
+  :header-rows: 1
+
+  * - Size
+    - Hugging Face Repo Link
+  * - 7B
+    - * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-georgesung-llama2-7b-chat-uncensored-q4f16_1>`__
+      * `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-georgesung-llama2-7b-chat-uncensored-q4f32_1>`__
+
+.. _red_pajama_variant_table:
+
+`RedPajama <https://www.together.xyz/blog/redpajama>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: RWKV-raven
+  :widths: 30 30
+  :header-rows: 1
+
+  * - Size
+    - Hugging Face Repo Link
+  * - 3B
+    - * `Instruct q4f16_0 <https://huggingface.co/mlc-ai/RedPajama-INCITE-Instruct-3B-v1-q4f16_0>`__
+      * `Chat q4f16_0 <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0>`__
+      * `Chat q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
+      * `Chat q4f32_0 <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f32_0>`__
+
+
+.. _rwkv_raven_variant_table:
+
+`RWKV-raven <https://github.com/BlinkDL/RWKV-LM>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: RWKV-raven
+  :widths: 30 30
+  :header-rows: 1
+
+  * - Size
+    - Hugging Face Repo Link
+  * - 1B5
+    - `q8f16_0 <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0>`__
+
+  * - 3B
+    - `q8f16_0 <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0>`__
+
+  * - 7B
+    - `q8f16_0 <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0>`__
+
+
+.. _wizard_coder_variant_table:
+
+`WizardCoder <https://github.com/nlpxucan/WizardLM>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: WizardCoder
+  :widths: 30 30
+  :header-rows: 1
+
+  * - Size
+    - Hugging Face Repo Link
+  * - 15B
+    - `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f16_1>`__
 
 
 
