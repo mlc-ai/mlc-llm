@@ -365,26 +365,86 @@ Model Variant Tables
     - Hugging Face Repo Link
   * - 7B
     - * `q3f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q3f16_1>`__
-
       * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
-
       * `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f32_1>`__
 
   * - 13B
     - * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1>`__
-
       * `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f32_1>`__
 
   * - 70B
-    - * `q3f16 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q3f16_1>`__
-
+    - * `q3f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q3f16_1>`__
       * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1>`__
+
+.. _code_llama_variant_table:
+
+`Code Llama <https://about.fb.com/news/2023/08/code-llama-ai-for-coding/>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: Code Llama
+  :widths: 30 30
+  :header-rows: 1
+
+  * - Size
+    - Hugging Face Repo Link
+  * - 7B
+    - * `q4f16_1 (Base) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-7b-hf-q4f16_1>`__
+      * `q4f16_1 (Instruct) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-7b-Instruct-hf-q4f16_1>`__
+      * `q4f16_1 (Python) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-7b-Python-hf-q4f16_1>`__
+
+  * - 13B
+    - * `q4f16_1 (Base) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-13b-hf-q4f16_1>`__
+      * `q4f16_1 (Instruct) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-13b-Instruct-hf-q4f16_1>`__
+      * `q4f16_1 (Python) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-13b-Python-hf-q4f16_1>`__
+
+  * - 34B
+    - * `q4f16_1 (Base) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-34b-hf-q4f16_1>`__
+      * `q4f16_1 (Instruct) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-34b-Instruct-hf-q4f16_1>`__
+      * `q4f16_1 (Python) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-34b-Python-hf-q4f16_1>`__
+
+
+.. _vicuna_variant_table:
+
+`Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: Vicuna
+  :widths: 30 30
+  :header-rows: 1
+
+  * - Size
+    - Hugging Face Repo Link
+  * - 7B
+    - * `q3f16_0 <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0>`__
+      * `q4f32_0 <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q4f32_0>`__
+      * `int3 (demo) <https://huggingface.co/mlc-ai/demo-vicuna-v1-7b-int3>`__
+      * `int4 (demo) <https://huggingface.co/mlc-ai/demo-vicuna-v1-7b-int4>`__
+
+
+.. _WizardLM_variant_table:
+
+`WizardLM <https://github.com/nlpxucan/WizardLM>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: WizardLM
+  :widths: 30 30
+  :header-rows: 1
+
+  * - Size
+    - Hugging Face Repo Link
+  * - 13B
+    - * `q4f16_1 (V1.2) <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-13B-V1.2-q4f16_1>`__
+      * `q4f32_1 (V1.2) <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-13B-V1.2-q4f32_1>`__
+
+  * - 70B
+    - * `q3f16_1 (V1.0) <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-70B-V1.0-q3f16_1>`__
+      * `q4f16_1 (V1.0) <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-70B-V1.0-q4f16_1>`__
 
 
 .. _wizard_math_variant_table:
 
 `WizardMath <https://github.com/nlpxucan/WizardLM/tree/main/WizardMath>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table:: WizardMath
   :widths: 30 30
@@ -404,7 +464,7 @@ Model Variant Tables
 .. _open_orca_variant_table:
 
 `OpenOrca Platypus2 <https://huggingface.co/Open-Orca/OpenOrca-Platypus2-13B>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table:: OpenOrca Platypus2
   :widths: 30 30
@@ -419,7 +479,7 @@ Model Variant Tables
 .. _flag_alpha_llama2_variant_table:
 
 `FlagAlpha Llama-2 Chinese <https://github.com/FlagAlpha/Llama2-Chinese>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table:: FlagAlpha Llama-2 Chinese
   :widths: 30 30
@@ -435,7 +495,7 @@ Model Variant Tables
 .. _llama2_uncensored_variant_table:
 
 `Llama2 uncensored (georgesung) <https://huggingface.co/georgesung/llama2_7b_chat_uncensored>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table:: Llama2 uncensored
   :widths: 30 30
@@ -450,7 +510,7 @@ Model Variant Tables
 .. _red_pajama_variant_table:
 
 `RedPajama <https://www.together.xyz/blog/redpajama>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table:: RWKV-raven
   :widths: 30 30
@@ -459,10 +519,10 @@ Model Variant Tables
   * - Size
     - Hugging Face Repo Link
   * - 3B
-    - * `Instruct q4f16_0 <https://huggingface.co/mlc-ai/RedPajama-INCITE-Instruct-3B-v1-q4f16_0>`__
-      * `Chat q4f16_0 <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0>`__
-      * `Chat q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
-      * `Chat q4f32_0 <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f32_0>`__
+    - * `q4f16_0 (Instruct) <https://huggingface.co/mlc-ai/RedPajama-INCITE-Instruct-3B-v1-q4f16_0>`__
+      * `q4f16_0 (Chat) <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0>`__
+      * `q4f16_1 (Chat) <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
+      * `q4f32_0 (Chat) <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f32_0>`__
 
 
 .. _rwkv_raven_variant_table:
@@ -499,8 +559,6 @@ Model Variant Tables
     - Hugging Face Repo Link
   * - 15B
     - `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f16_1>`__
-
-
 
 .. _prebuilt-models-cli:
 
