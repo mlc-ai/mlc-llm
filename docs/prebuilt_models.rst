@@ -36,27 +36,27 @@ MLC-LLM supports the following model architectures:
       * :ref:`Prebuilt library table <llama_library_table>`
       * `Official link <https://github.com/facebookresearch/llama>`__
       * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/llama.py>`__
-    - * `Llama-2 <https://ai.meta.com/llama/>`__
-      * CodeLlama
-      * `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
-      * `WizardLM <https://github.com/nlpxucan/WizardLM>`__
-      * `WizardMath <https://github.com/nlpxucan/WizardLM/tree/main/WizardMath>`__
-      * OpenOrca Platypus2
-      * `FlagAlpha Llama-2 Chinese <https://github.com/FlagAlpha/Llama2-Chinese>`__
-      * Llama2 uncensored (georgesung)
+    - * :ref:`Llama-2 <llama2_variant_table>`
+      * :ref:`Code Llama <code_llama_variant_table>`
+      * :ref:`Vicuna <vicuna_variant_table>`
+      * :ref:`WizardLM <WizardLM_variant_table>` 
+      * :ref:`WizardMath <wizard_math_variant_table>`
+      * :ref:`OpenOrca Platypus2 <open_orca_variant_table>`
+      * :ref:`FlagAlpha Llama-2 Chinese <flag_alpha_llama2_variant_table>` 
+      * :ref:`georgesung Llama-2 Uncensored <llama2_uncensored_variant_table>`
     - * `Alpaca <https://github.com/tatsu-lab/stanford_alpaca>`__
       * `Guanaco <https://github.com/artidoro/qlora>`__
       * `OpenLLaMA <https://github.com/openlm-research/open_llama>`__
       * `Gorilla <https://huggingface.co/gorilla-llm/gorilla-7b-hf-delta-v0>`__
       * `YuLan-Chat <https://github.com/RUC-GSAI/YuLan-Chat>`__
-      * WizardCoder (new version)
+      * `WizardCoder (new) <https://github.com/nlpxucan/WizardLM/tree/main/WizardCoder>`__
   * - ``gpt-neox``
     - GPT-NeoX 
 
       * :ref:`Prebuilt library table <gpt_neox_library_table>`
       * `Official link <https://github.com/EleutherAI/gpt-neox>`__
       * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_neox.py>`__
-    - * `RedPajama <https://www.together.xyz/blog/redpajama>`__
+    - * :ref:`RedPajama <red_pajama_variant_table>` 
     - * `Dolly <https://github.com/databrickslabs/dolly>`__
       * `Pythia <https://huggingface.co/EleutherAI/pythia-1.4b>`__
       * `StableCode <https://huggingface.co/stabilityai/stablecode-instruct-alpha-3b>`__
@@ -74,7 +74,7 @@ MLC-LLM supports the following model architectures:
       * :ref:`Prebuilt library table <rwkv_library_table>`
       * `Official link <https://github.com/BlinkDL/RWKV-LM>`__
       * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py>`__
-    - * `RWKV-raven <https://github.com/BlinkDL/RWKV-LM>`__
+    - * :ref:`RWKV-raven <rwkv_raven_variant_table>` 
     - 
   * - ``minigpt``
     - MiniGPT
@@ -83,14 +83,14 @@ MLC-LLM supports the following model architectures:
       * `Official link <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
       * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/minigpt.py>`__
     - 
-    - 
+    - * `MiniGPT-4 <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
   * - ``gpt_bigcode``
     - GPTBigCode
 
       * :ref:`Prebuilt library table <gpt_big_code_library_table>`
       * `Official link <https://huggingface.co/docs/transformers/model_doc/gpt_bigcode>`__
       * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_bigcode.py>`__
-    - * WizardCoder (old version)
+    - * :ref:`WizardCoder (old) <wizard_coder_variant_table>` 
     - * `StarCoder <https://huggingface.co/bigcode/starcoder>`__
       * `SantaCoder <https://huggingface.co/bigcode/gpt_bigcode-santacoder>`__
   * - ``chatglm``
@@ -512,7 +512,7 @@ Model Variant Tables
 `RedPajama <https://www.together.xyz/blog/redpajama>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. list-table:: RWKV-raven
+.. list-table:: Red Pajama
   :widths: 30 30
   :header-rows: 1
 
