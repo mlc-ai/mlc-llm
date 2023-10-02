@@ -118,45 +118,51 @@ Llama
     - webgpu
     - mali
   * - 7B
-    - a
-    - A
-    - a
-    - a
-    - a
-    - A
-    - A
-    - a
-    - a
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-cuda.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-rocm.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-vulkan.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-vulkan.dll>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-metal.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-metal_x86_64.dylib>`__
+    - `q3f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q3f16_1-iphone.tar>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-webgpu.wasm>`__
+
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f32_1-webgpu.wasm>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-mali.so>`__
   * - 13B
-    - a
-    - A
-    - a
-    - a
-    - a
-    - A
-    - A
-    - a
-    - a
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-cuda.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-rocm.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-vulkan.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-vulkan.dll>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-metal.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-metal_x86_64.dylib>`__
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-webgpu.wasm>`__
+    
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f32_1-webgpu.wasm>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-mali.so>`__
   * - 34B
-    - a
-    - A
-    - a
-    - a
-    - a
-    - A
-    - A
-    - a
-    - a
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/CodeLlama-34b-hf-q4f16_1-cuda.so>`__
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/CodeLlama-34b-hf-q4f16_1-vulkan.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/CodeLlama-34b-hf-q4f16_1-vulkan.dll>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/CodeLlama-34b-hf-q4f16_1-metal.so>`__
+    - 
+    - 
+    - 
+    - 
   * - 70B
-    - a
-    - A
-    - a
-    - a
-    - a
-    - A
-    - A
-    - a
-    - a
+    - 
+    - 
+    - 
+    - 
+    - `q3f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf-q3f16_1-metal.so>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf-q4f16_1-metal.so>`__
+    - 
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf-q4f16_1-webgpu.wasm>`__
+    - 
 
   
 GPT-NeoX (RedPajama-INCITE)
