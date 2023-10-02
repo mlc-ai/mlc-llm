@@ -15,6 +15,79 @@ With the goal of democratizing the deployment of LLMs, we eagerly anticipate fur
 This page contains the list of prebuilt models for our CLI (command line interface) app, iOS and Android apps.
 The models have undergone extensive testing on various devices, and their performance has been optimized by developers with the help of TVM.
 
+.. _supported-model-architectures:
+
+Supported Model Architectures
+-----------------------------
+
+MLC-LLM supports the following model architectures:
+
+.. list-table:: Supported Model Architectures
+  :widths: 10 10 10 15 15
+  :header-rows: 1
+
+  * - Category Code
+    - Series
+    - Model Definition
+    - Variants w/ MLC prebuilts
+    - Variants w/o MLC prebuilts
+  * - ``llama``
+    - `LLaMa <https://github.com/facebookresearch/llama>`__
+    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/llama.py>`__
+    - * `Llama-2 <https://ai.meta.com/llama/>`__
+      * CodeLlama
+      * `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
+      * `WizardLM <https://github.com/nlpxucan/WizardLM>`__
+      * `WizardMath <https://github.com/nlpxucan/WizardLM/tree/main/WizardMath>`__
+      * `FlagAlpha Llama-2 Chinese <https://github.com/FlagAlpha/Llama2-Chinese>`__
+      * Llama2 uncensored (georgesung)
+    - * `Alpaca <https://github.com/tatsu-lab/stanford_alpaca>`__
+      * `Guanaco <https://github.com/artidoro/qlora>`__
+      * `OpenLLaMA <https://github.com/openlm-research/open_llama>`__
+      * `Gorilla <https://huggingface.co/gorilla-llm/gorilla-7b-hf-delta-v0>`__
+      * `YuLan-Chat <https://github.com/RUC-GSAI/YuLan-Chat>`__
+      * WizardCoder (new version)
+  * - ``gpt-neox``
+    - `GPT-NeoX <https://github.com/EleutherAI/gpt-neox>`__
+    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_neox.py>`__
+    - * `RedPajama <https://www.together.xyz/blog/redpajama>`__
+    - * `Dolly <https://github.com/databrickslabs/dolly>`__
+      * `Pythia <https://huggingface.co/EleutherAI/pythia-1.4b>`__
+      * `StableCode <https://huggingface.co/stabilityai/stablecode-instruct-alpha-3b>`__
+  * - ``gptj``
+    - `GPT-J <https://huggingface.co/EleutherAI/gpt-j-6b>`__
+    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gptj.py>`__
+    - 
+    - * `MOSS <https://github.com/OpenLMLab/MOSS>`__
+  * - ``rwkv``
+    - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
+    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py>`__
+    - * `RWKV-raven <https://github.com/BlinkDL/RWKV-LM>`__
+    - 
+  * - ``minigpt``
+    - `MiniGPT <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
+    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/minigpt.py>`__
+    - 
+    - 
+  * - ``gpt_bigcode``
+    - `GPTBigCode <https://huggingface.co/docs/transformers/model_doc/gpt_bigcode>`__
+    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_bigcode.py>`__
+    - * WizardCoder (old version)
+    - * `StarCoder <https://huggingface.co/bigcode/starcoder>`__
+      * `SantaCoder <https://huggingface.co/bigcode/gpt_bigcode-santacoder>`__
+  * - ``chatglm``
+    - `ChatGLM <https://github.com/THUDM/ChatGLM-6B/blob/main/README_en.md>`__
+    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/chatglm.py>`__
+    - 
+    - * `ChatGLM2 <https://huggingface.co/THUDM/chatglm2-6b>`__
+      * `CodeGeeX2 <https://huggingface.co/THUDM/codegeex2-6b>`__
+
+
+For models structured in these model architectures, you can check the :doc:`model compilation page </compilation/compile_models>` on how to compile models.
+Please `create a new issue <https://github.com/mlc-ai/mlc-llm/issues/new/choose>`_ if you want to request a new model architecture.
+Our tutorial :doc:`Define New Models </tutorials/customize/define_new_models>` introduces how to bring a new model architecture to MLC-LLM.
+
+
 .. _prebuilt-models-cli:
 
 Prebuilt Models for CLI
@@ -267,69 +340,6 @@ Prebuilt Models for Android
 
 You can check `MLC-LLM pull requests <https://github.com/mlc-ai/mlc-llm/pulls?q=is%3Aopen+is%3Apr+label%3Anew-models>`__ to track the ongoing efforts of new models. We encourage users to upload their compiled models to Hugging Face and share with the community.
 
-.. _supported-model-architectures:
-
-Supported Model Architectures
------------------------------
-
-MLC-LLM supports the following model architectures:
-
-.. list-table:: Supported Model Architectures
-  :widths: 15 15 15 15
-  :header-rows: 1
-
-  * - Category Code
-    - Series
-    - Model Definition
-    - Variants
-  * - ``llama``
-    - `LLaMa <https://github.com/facebookresearch/llama>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/llama.py>`__
-    - * `Llama-2 <https://ai.meta.com/llama/>`__
-      * `Alpaca <https://github.com/tatsu-lab/stanford_alpaca>`__
-      * `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
-      * `Guanaco <https://github.com/artidoro/qlora>`__
-      * `OpenLLaMA <https://github.com/openlm-research/open_llama>`__
-      * `Gorilla <https://huggingface.co/gorilla-llm/gorilla-7b-hf-delta-v0>`__
-      * `WizardLM <https://github.com/nlpxucan/WizardLM>`__
-      * `YuLan-Chat <https://github.com/RUC-GSAI/YuLan-Chat>`__
-      * `WizardMath <https://github.com/nlpxucan/WizardLM/tree/main/WizardMath>`__
-      * `FlagAlpha Llama-2 Chinese <https://github.com/FlagAlpha/Llama2-Chinese>`__
-  * - ``gpt-neox``
-    - `GPT-NeoX <https://github.com/EleutherAI/gpt-neox>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_neox.py>`__
-    - * `RedPajama <https://www.together.xyz/blog/redpajama>`__
-      * `Dolly <https://github.com/databrickslabs/dolly>`__
-      * `Pythia <https://huggingface.co/EleutherAI/pythia-1.4b>`__
-      * `StableCode <https://huggingface.co/stabilityai/stablecode-instruct-alpha-3b>`__
-  * - ``gptj``
-    - `GPT-J <https://huggingface.co/EleutherAI/gpt-j-6b>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gptj.py>`__
-    - * `MOSS <https://github.com/OpenLMLab/MOSS>`__
-  * - ``rwkv``
-    - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py>`__
-    - * `RWKV-raven <https://github.com/BlinkDL/RWKV-LM>`__
-  * - ``minigpt``
-    - `MiniGPT <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/minigpt.py>`__
-    -
-  * - ``gpt_bigcode``
-    - `GPTBigCode <https://huggingface.co/docs/transformers/model_doc/gpt_bigcode>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_bigcode.py>`__
-    - * `StarCoder <https://huggingface.co/bigcode/starcoder>`__
-      * `WizardCoder <https://huggingface.co/WizardLM/WizardCoder-15B-V1.0>`__
-      * `SantaCoder <https://huggingface.co/bigcode/gpt_bigcode-santacoder>`__
-  * - ``chatglm``
-    - `ChatGLM <https://github.com/THUDM/ChatGLM-6B/blob/main/README_en.md>`__
-    - `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/chatglm.py>`__
-    - * `ChatGLM2 <https://huggingface.co/THUDM/chatglm2-6b>`__
-      * `CodeGeeX2 <https://huggingface.co/THUDM/codegeex2-6b>`__
-
-
-For models structured in these model architectures, you can check the :doc:`model compilation page </compilation/compile_models>` on how to compile models.
-Please `create a new issue <https://github.com/mlc-ai/mlc-llm/issues/new/choose>`_ if you want to request a new model architecture.
-Our tutorial :doc:`Define New Models </tutorials/customize/define_new_models>` introduces how to bring a new model architecture to MLC-LLM.
 
 .. _contribute-models-to-mlc-llm:
 
