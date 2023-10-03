@@ -219,16 +219,13 @@ struct FunctionTable {
   ObjectRef LoadParams(const std::string& model_path, Device device) {
     if (this->use_disco) {
       std::filesystem::path fs_model_path = model_path;
-      std::string shard_info_path = (fs_model_path / "shard_info.json").string();
       std::string metadata_path = (fs_model_path / "ndarray-cache.json").string();
       std::string ndarray_cache_metadata = LoadBytesFromFile(metadata_path);
-      std::string shard_info = LoadBytesFromFile(shard_info_path);
       PackedFunc loader_create = this->get_global_func("runtime.disco.ShardLoader");
       PackedFunc loader_load_all = this->get_global_func("runtime.disco.ShardLoaderLoadAll");
       CHECK(loader_create != nullptr);
       CHECK(loader_load_all != nullptr);
-      DRef loader =
-          loader_create(metadata_path, ndarray_cache_metadata, shard_info, this->disco_mod);
+      DRef loader = loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod);
       DRef params = loader_load_all(loader);
       return params;
     } else {
@@ -508,10 +505,10 @@ class LLMChat {
     this->temperature_arr_ = NDArray::Empty({}, DataType::Float(32), device_);
     float temperature = static_cast<float>(this->temperature_);
     this->temperature_arr_.CopyFromBytes(&temperature, sizeof(float));
-    if (ft_.use_disco){
+    if (ft_.use_disco) {
       Device null_device{DLDeviceType(0), 0};
       this->input_tokens_decode_ =
-            Downcast<DRef>(ft_.Empty(ShapeTuple({1, 1}), DataType::Int(32), null_device));
+          Downcast<DRef>(ft_.Empty(ShapeTuple({1, 1}), DataType::Int(32), null_device));
     }
     // Step 7. Reset chat
     this->ResetChat();
@@ -1000,7 +997,8 @@ class LLMChat {
       for (int i = 0; i < input_tokens.size(); ++i) {
         ObjectRef input_data;
         if (ft_.use_disco) {
-          ft_.sess->CopyToWorker0(this->GetInputTokenNDArray({input_tokens[i]}), input_tokens_decode_);
+          ft_.sess->CopyToWorker0(this->GetInputTokenNDArray({input_tokens[i]}),
+                                  input_tokens_decode_);
           input_data = input_tokens_decode_;
         } else {
           input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray({input_tokens[i]}));
@@ -1360,7 +1358,7 @@ std::vector<std::string> CountUTF8(const std::string& s) {
  * \param curr_message The current message.
  * \param new_message The new message
  * \return The delta message.
- * \note The main complication here is that new_msg can be different from previous message, so we
+ * \note The main complication here is that new_mdg can be different from previous message, so we
  need to find the diff, delete previous messages that are different, then print it out.
  This logic is only needed for simple stdout.
 

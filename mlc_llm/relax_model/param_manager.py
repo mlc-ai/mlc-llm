@@ -49,23 +49,29 @@ class Parameter:
 
     shard_dim : Optional[int]
         The dimension to be sharded.
+
+    shard_strategy : Optional[Tuple[str, int, ...]]
+        The strategy to shard the parameter.
     """
 
     name: str
     param_info_dict: Dict[str, relax.TensorStructInfo]
     quant_spec: quantization.QuantizationSpec
     shard_dim: Optional[int]
+    shard_strategy: Optional[Tuple[str, int, ...]]
 
     def __init__(
         self,
         name: str,
         quant_spec: quantization.QuantizationSpec,
         shard_dim: Optional[int],
+        shard_strategy: Optional[Tuple[str, int, ...]],
     ) -> None:
         self.name = name
         self.param_info_dict = dict()
         self.quant_spec = quant_spec
         self.shard_dim = shard_dim
+        self.shard_strategy = shard_strategy
 
     def register_func(self, func_name: str, param_info: relax.TensorStructInfo):
         self.param_info_dict[func_name] = param_info
@@ -263,6 +269,7 @@ class ParamManager:
                 getattr(quantization_scheme, quant_kind.name),
                 func_name,
                 getattr(relax_param, "shard_dim", None),
+                getattr(relax_param, "shard_strategy", None),
             )
 
             self.params_in_func[func_name].append(param)
@@ -589,6 +596,7 @@ class ParamManager:
         quant_spec: quantization.QuantizationSpec,
         func_name: str,
         shard_dim: Optional[int],
+        shard_strategy: Optional[Tuple[str, int, ...]],
     ) -> Parameter:
         """Register a single parameter in the parameter manager.
         In most cases, this method is not directly used outside this class:
@@ -610,8 +618,11 @@ class ParamManager:
             The name of the function the input var is in.
             For example, the "prefill" function or the "decode" function.
 
-        shard_dim : int
+        shard_dim : Optional[int]
             The dimension along which the parameter is sharded.
+
+        shard_strategy : Optional[Tuple[str, int, ...]]
+            The strategy of sharding the parameter.
 
         Returns
         -------
@@ -647,7 +658,7 @@ class ParamManager:
                     ), "Shape mismatch of one parameter in two functions."
         else:
             # Otherwise, the parameter is registered for the first time.
-            param = Parameter(name, quant_spec, shard_dim)
+            param = Parameter(name, quant_spec, shard_dim, shard_strategy)
             self.params[name] = param
             self.param_names.append(name)
 
