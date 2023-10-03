@@ -24,9 +24,8 @@ def create_metadata_func(
 
 
 def create_shard_info_func(mod, param_manager, args, model_config):
-    hidden_size = model_config.hidden_size
     num_shards = args.num_shards
-    head_dim = hidden_size // model_config.num_attention_heads
+    head_dim = model_config.hidden_size // model_config.num_attention_heads
     q_heads = model_config.num_attention_heads
     kv_heads = model_config.num_key_value_heads
 

@@ -161,13 +161,22 @@ struct FunctionTable {
         LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
                    << "Multi-GPU inference depends on MLC LLM Python API to launch process.";
       }
+      std::string ccl;
+      if (device.device_type == kDLCUDA) {
+        ccl = "nccl";
+      } else if (device.device_type == kDLROCM) {
+        ccl = "rccl";
+      } else {
+        LOG(FATAL) << "ValueError: Multi-GPU on device " << DLDeviceType2Str(device.device_type)
+                   << " is not supported. Currently, only NCCL and RCCL are integrated.";
+      }
       std::vector<int64_t> device_ids(num_shards);
       for (int i = 0; i < num_shards; ++i) {
         device_ids[i] = i;
       }
       this->use_disco = true;
       this->sess = Session::ProcessSession(num_shards, f_create_process_pool);
-      this->sess->InitCCL("nccl", ShapeTuple(device_ids));
+      this->sess->InitCCL(ccl, ShapeTuple(device_ids));
       this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
                                          lib_path, null_device);
       this->mod_get_func = [this, fmodule_get_function =
