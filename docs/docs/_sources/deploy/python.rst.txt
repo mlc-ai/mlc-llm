@@ -174,6 +174,8 @@ recommend you to checkout the following tutorials in Python notebook (all runnab
   how to use Python APIs to compile models with the MLC-LLM workflow
 - `Extensions to More Model Variants <https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_extensions_to_more_model_variants.ipynb>`_:
   how to use Python APIs to compile and chat with any model variant you'd like
+- `Raw Text Generation with MLC-LLM <https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_raw_text_generation.ipynb>`_:
+  how to perform raw text generation with MLC-LLM in Python
 
 Configure MLCChat in Python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
