@@ -557,6 +557,12 @@ def build_model_from_args(args: argparse.Namespace):
             "WARNING: q4f16_1 is preferred to q4f16_0, "
             "and it is highly recommended to use q4f16_1 instaed"
         )
+    if args.num_shards > 1:
+        if (not args.build_model_only) and (not args.convert_weight_only):
+            raise ValueError(
+                "`num_shards` should be used together with "
+                "`--build-model-only` and `--convert-weight-only`"
+            )
     os.makedirs(args.artifact_path, exist_ok=True)
     if args.debug_dump:
         os.makedirs(os.path.join(args.artifact_path, "debug"), exist_ok=True)
