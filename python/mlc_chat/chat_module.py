@@ -607,6 +607,12 @@ class ChatModule:
             self.chat_config, self.chat_config.conv_template
         )
         self._reload(self.lib_path, self.model_path, user_chat_config_json_str)
+        
+        # 7. Save default config values.
+        self.default_chat_config = asdict(self.chat_config)
+        if "conv_config" in self.default_chat_config:
+            self.default_chat_config.pop("conv_config")
+        self.default_conv_config = json.loads(self._get_config_json())["conv_config"]
 
     def generate(self, prompt: str, progress_callback=None) -> str:
         r"""A high-level method that returns the full response from the chat module given a user prompt.
@@ -688,6 +694,45 @@ class ChatModule:
             )
             # Second argument is `partial_update = True`
             self._load_json_override_func(user_chat_config_json_str, True)
+
+    def update_chat_config(self, new_chat_config: ChatConfig):
+        r"""Update the chat config, or use the currently used default values if
+        values are None.
+
+        Parameters
+        ----------
+        chat_config : ChatConfig
+            A ``ChatConfig`` instance partially filled. The chat module will
+            override the default values with it.
+
+        Note
+        ----
+        This is inteneded for use in the completions api to allow users to specify
+        config values and use defaults if they are not passed to the request. 
+        """
+
+        new_chat_config_dict = asdict(new_chat_config)
+        
+        # Override chat config values if they are present. Use default values if not. 
+        config_updates_dict = {}
+        for k, default_value in self.default_chat_config.items():
+            new_value = new_chat_config_dict.get(k)
+            config_updates_dict[k] = new_value if new_value else default_value
+        
+        # Add conv_config values if there are ones.
+        new_conv_config_dict = new_chat_config_dict.get("conv_config")
+        if new_conv_config_dict:
+            conv_config_updates_dict = {}
+            for k, default_value in self.default_conv_config.items():
+                new_value = new_conv_config_dict.get(k)
+                conv_config_updates_dict[k] = new_value if new_value else default_value
+            config_updates_dict["conv_config"] = conv_config_updates_dict
+
+        # Current logic does not allow partial ChatConfig without specifying the
+        # conv_template. Hence we use the conv_template after considering potential overrides.
+        user_chat_config_json_str = json.dumps(config_updates_dict)
+        # Second argument is `partial_update = True`
+        self._load_json_override_func(user_chat_config_json_str, True)
 
     def embed_text(self, input: str):
         r"""Given a text input, returns its embedding in the LLM.
