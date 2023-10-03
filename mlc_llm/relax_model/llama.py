@@ -670,7 +670,7 @@ def create_embed_func(
     bsz = 1
     seq_len = tvm.tir.Var("n", "int64")
     with bb.function(func_name):
-        model = LlamaEmbedTokensWrapper(config, tvm.tir.Var("v", "int64"))
+        model = LlamaEmbedTokensWrapper(config, tvm.tir.Var("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
@@ -699,7 +699,7 @@ def create_encoding_func(
     all_seq_len = tvm.tir.Var("m", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
-        model = LlamaForCausalLM(config, tvm.tir.Var("v", "int64"), sep_embed)
+        model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), sep_embed)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         inputs = (
