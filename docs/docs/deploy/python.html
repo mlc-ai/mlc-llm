@@ -192,6 +192,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.generate"><code class="docutils literal notranslate"><span class="pre">ChatModule.generate()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reset_chat"><code class="docutils literal notranslate"><span class="pre">ChatModule.reset_chat()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.stats"><code class="docutils literal notranslate"><span class="pre">ChatModule.stats()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.update_chat_config"><code class="docutils literal notranslate"><span class="pre">ChatModule.update_chat_config()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -789,6 +790,24 @@ of the chat module in text form.</p>
 <dd class="field-even"><p>str</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_chat.ChatModule.update_chat_config">
+<span class="sig-name descname"><span class="pre">update_chat_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_chat_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ChatConfig</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.update_chat_config" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update the chat config, or use the currently used default values if
+values are None.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>chat_config</strong> (<em>ChatConfig</em>) – A <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> instance partially filled. The chat module will
+override the default values with it.</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This is inteneded for use in the completions api to allow users to specify
+config values and use defaults if they are not passed to the request.</p>
+</div>
 </dd></dl>
 
 </dd></dl>
