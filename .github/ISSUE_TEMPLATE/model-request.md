@@ -10,7 +10,7 @@ assignees: ''
 ## ⚙️  Request New Models
 
 - Link to an existing implementation (e.g. Hugging Face/Github): <!-- Link to the model -->
-- Is this model architecture supported by MLC-LLM? (the list of [supported models](https://mlc.ai/mlc-llm/docs/prebuilt_models.html)) <!-- Yes/No -->
+- Is this model architecture supported by MLC-LLM? (the list of [supported models](https://llm.mlc.ai/docs/prebuilt_models.html)) <!-- Yes/No -->
 
 ## Additional context
 

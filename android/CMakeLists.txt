@@ -33,7 +33,7 @@ add_jar(tvm4j_core ${javasources} GENERATE_NATIVE_HEADERS tvm4jheaders DESTINATI
 
 add_custom_command(
   TARGET tvm4j_core POST_BUILD 
-  COMMAND ${CMAKE_COMMAND} -E rename ${JNI_HEADER}/org_apache_tvm_LibInfo.h ${JNI_HEADER}/org_apache_tvm_native_c_api.h
+  COMMAND ${CMAKE_COMMAND} -E copy ${JNI_HEADER}/org_apache_tvm_LibInfo.h ${JNI_HEADER}/org_apache_tvm_native_c_api.h
 )
 
 add_library(model_android STATIC IMPORTED)

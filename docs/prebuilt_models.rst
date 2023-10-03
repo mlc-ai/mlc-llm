@@ -99,7 +99,12 @@ Prebuilt Models for CLI
       * Symmetric quantization
     - * `q4f16_1 link <https://huggingface.co/mlc-ai/mlc-chat-GOAT-7B-Community-q4f16_1>`__
       * `q4f32_1 link <https://huggingface.co/mlc-ai/mlc-chat-GOAT-7B-Community-q4f32_1>`__
-
+  * - `OpenOrca-Platypus2-13B-q4f16_1`
+    - `Llama-2 <https://ai.meta.com/llama/>`__
+    - * Weight storage data type: int4
+      * Running data type: float16
+      * Symmetric quantization
+    - `link <https://huggingface.co/DavidSharma/mlc-chat-OpenOrca-Platypus2-13B-q4f16_1>`__
 
 To download and run one model with CLI, follow the instructions below:
 

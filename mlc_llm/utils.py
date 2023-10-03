@@ -12,9 +12,8 @@ from .quantization import quantization_schemes
 from .relax_model import param_manager
 from .transform import ReorderTransformFunc
 
-
 supported_model_types = set(
-    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj", "chatglm"]
+    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj", "chatglm", "mistral"]
 )
 
 
@@ -221,6 +220,7 @@ def convert_weights(
     # so that the LazyTransformParams pass can be applied.
     mod_transform = relax.transform.ToNonDataflow()(mod_transform)
     mod_transform = relax.transform.LazyTransformParams()(mod_transform)
+    mod_transform = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_transform)
 
     debug_dump_script(mod_transform, "mod_convert_weights.py", args)
 
@@ -459,6 +459,7 @@ def parse_target(args: argparse.Namespace) -> None:
         from tvm.contrib.cc import (  # pylint: disable=import-outside-toplevel
             cross_compiler,
         )
+
         args.export_kwargs = {
             "fcompile": cross_compiler(
                 args.cc_path,

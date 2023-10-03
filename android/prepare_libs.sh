@@ -3,13 +3,13 @@ set -euxo pipefail
 
 rustup target add aarch64-linux-android
 
-rm -rf build
 mkdir -p build/model_lib
 
 python prepare_model_lib.py
 
 cd build
 touch config.cmake
+echo "set(TVM_HOME ${TVM_HOME})" >> config.cmake
 cmake .. \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \

@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from dataclasses import dataclass, field, fields
 
+from .base import set_global_random_seed
 from .chat_module import ChatModule
 from .interface.openai_api import *
 
@@ -91,6 +92,18 @@ class RestAPIArgs:
             )
         }
     )
+    random_seed: int = field(
+        default=None,
+        metadata={
+            "help": (
+                """
+                The random seed to initialize all the RNG used in mlc-chat. By default,
+                no seed is set.
+                """
+            )
+        }
+    )
+
 
 def convert_args_to_argparser() -> argparse.ArgumentParser:
     """Convert from RestAPIArgs to an equivalent ArgumentParser."""
@@ -110,6 +123,7 @@ def convert_args_to_argparser() -> argparse.ArgumentParser:
 
 session = {}
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     chat_config_overrides = None
@@ -117,6 +131,8 @@ async def lifespan(app: FastAPI):
         with open(ARGS.config_overrides_path, mode="rt", encoding="utf-8") as f:
             json_object = json.load(f)
             chat_config_overrides = ChatConfig._from_json(json_object)
+    if ARGS.random_seed is not None:
+        set_global_random_seed(ARGS.random_seed)
     chat_mod = ChatModule(
         model=ARGS.model,
         device=ARGS.device,

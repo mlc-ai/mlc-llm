@@ -3,14 +3,6 @@ from tvm import IRModule, relax, tir
 from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcard
 
 
-def check_x_1dim(ctx: relax.transform.PatternCheckContext) -> bool:
-    x = ctx.annotated_expr["x"]
-    if len(x.struct_info.shape) == 1:
-        return True
-    n = x.struct_info.shape[-2]
-    return isinstance(n, tir.IntImm) and n.value == 1
-
-
 def check_decoding(ctx: relax.transform.PatternCheckContext) -> bool:
     call = ctx.annotated_expr["w"]
     if not isinstance(call, relax.Call):
@@ -36,16 +28,14 @@ def check_matmul(ctx: relax.transform.PatternCheckContext) -> bool:
     )
 
 
-def pattern_check(gemv_only: bool):
+def pattern_check():
     def f_pattern_check(ctx: relax.transform.PatternCheckContext) -> bool:
-        if gemv_only and not check_x_1dim(ctx):
-            return False
         return check_decoding(ctx) and check_matmul(ctx)
 
     return f_pattern_check
 
 
-def decode_matmul_pattern(match_ewise: int, n_aux_tensor: int, gemv_only: bool):
+def decode_matmul_pattern(match_ewise: int, n_aux_tensor: int):
     assert n_aux_tensor == 1 or n_aux_tensor == 2 or n_aux_tensor == 3 or n_aux_tensor == 4
 
     w_scaled = wildcard()
@@ -69,17 +59,13 @@ def decode_matmul_pattern(match_ewise: int, n_aux_tensor: int, gemv_only: bool):
         "x": x,
         "w_scaled": w_scaled,
     }
-    return matmul, annotations, pattern_check(gemv_only)
+    return matmul, annotations, pattern_check()
 
 
 @tvm.transform.module_pass(opt_level=0, name="FuseDecodeMatmulEwise")
 class FuseDecodeMatmulEwise:
-    def __init__(self, quantization_name: str, target_kind: str) -> None:
-        # TODO: Need to remove it as we are moving to DLight schedule
-        self.gemv_only = quantization_name not in ["q4f16_1", "q4f16_2"] and target_kind != "android"
-
     def transform_module(
-        self, mod: IRModule, ctx: tvm.transform.PassContext
+        self, mod: IRModule, ctx: tvm.transform.PassContext  # pylint: disable=unused-argument
     ) -> IRModule:
         for n_aux_tensor in [1, 2, 3, 4]:
             for match_ewise in [0, 1, 2, 6]:
@@ -89,9 +75,7 @@ class FuseDecodeMatmulEwise:
                     [
                         (
                             "decode_matmul",
-                            *decode_matmul_pattern(
-                                match_ewise, n_aux_tensor, self.gemv_only
-                            ),
+                            *decode_matmul_pattern(match_ewise, n_aux_tensor),
                         )
                     ]
                 )(mod)

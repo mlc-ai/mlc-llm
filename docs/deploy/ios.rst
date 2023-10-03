@@ -15,7 +15,7 @@ Use Pre-built iOS App
 ---------------------
 The MLC Chat app is now available in App Store at no cost. You can download and explore it by simply clicking the button below:
 
-    .. image:: https://linkmaker.itunes.apple.com/assets/shared/badges/en-us/appstore-lrg.svg
+    .. image:: https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg
       :width: 135
       :target: https://apps.apple.com/us/app/mlc-chat/id6448482937
 
@@ -188,7 +188,6 @@ your own app. The package is located under `ios/MLCSwift`.
       -Wl,-all_load
       -lmodel_iphone
       -lmlc_llm -ltvm_runtime
-      -Wl,-noall_load
       -ltokenizers_cpp
       -lsentencepiece
       -ltokenizers_c

@@ -32,15 +32,7 @@ Conversation Llama2() {
   Conversation conv;
   conv.name = "llama-2";
   conv.system =
-      ("[INST] <<SYS>>\n\nYou are a helpful, respectful and honest assistant. "
-       "Always answer as helpfully as possible, while being safe. "
-       "Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, "
-       "or illegal content. "
-       "Please ensure that your responses are socially unbiased and positive in nature.\n\n"
-       "If a question does not make any sense, or is not factually coherent, explain why instead "
-       "of answering something not correct. "
-       "If you don't know the answer to a question, please don't share false "
-       "information.\n<</SYS>>\n\n ");
+      ("[INST] <<SYS>>\n\nYou are a helpful, respectful and honest assistant.\n<</SYS>>\n\n ");
   conv.roles = {"[INST]", "[/INST]"};
   conv.messages = {};
   conv.offset = 0;
@@ -50,6 +42,22 @@ Conversation Llama2() {
   conv.role_empty_sep = " ";
   conv.stop_tokens = {2};
   conv.stop_str = "[INST]";
+  conv.add_bos = true;
+  return conv;
+}
+
+Conversation MistralDefault() {
+  Conversation conv;
+  conv.name = "mistral_default";
+  conv.roles = {"[INST]", "[/INST]"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {" "};
+  conv.role_msg_sep = " ";
+  conv.role_empty_sep = " ";
+  conv.stop_tokens = {2};
+  conv.stop_str = "</s>";
   conv.add_bos = true;
   return conv;
 }
@@ -217,11 +225,13 @@ Conversation RWKV() {
 
 Conversation RWKVWorld() {
   const std::string kUserPrefix = "User: ";
-  const std::string kAssistantPrefix = "Assistant: Hi. I am your assistant and I will provide expert "
-                                       "full response in full details. Please feel free to ask any question and I will always answer it.";
+  const std::string kAssistantPrefix =
+      "Assistant: Hi. I am your assistant and I will provide expert "
+      "full response in full details. Please feel free to ask any question and I will always "
+      "answer it.";
   const std::string kDoubleNewLine = "\n\n";
   const std::string prompt =
-        "(" + kUserPrefix + "hi" + kDoubleNewLine + kAssistantPrefix + kDoubleNewLine + ")";
+      "(" + kUserPrefix + "hi" + kDoubleNewLine + kAssistantPrefix + kDoubleNewLine + ")";
   Conversation conv;
   conv.name = "rwkv-world";
   conv.system = prompt;
@@ -552,6 +562,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
   static std::unordered_map<std::string, ConvFactory> factory = {
       {"llama_default", LlamaDefault},
       {"llama-2", Llama2},
+      {"mistral_default", MistralDefault},
       {"codellama_completion", CodeLlamaCompletion},
       {"codellama_instruct", CodeLlamaInstruct},
       {"vicuna_v1.1", VicunaV11},
