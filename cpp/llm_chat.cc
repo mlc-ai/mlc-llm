@@ -347,11 +347,15 @@ class LLMChat {
    */
   std::string RuntimeStatsText() {
     std::ostringstream os;
-    os << "prefill: " << std::setprecision(1) << std::fixed
-       << this->prefill_total_tokens / (this->prefill_total_time + this->embed_total_time)
-       << " tok/s"
-       << ", decode: " << std::setprecision(1) << std::fixed
-       << this->decode_total_tokens / this->decode_total_time << " tok/s";
+    os << "-----------prefill-----------\n"
+       << "throughput: "
+       << std::setprecision(1) << std::fixed
+       << this->prefill_total_tokens / (this->prefill_total_time + this->embed_total_time) << " tok/s\n"
+       << "total tokens: " << this->prefill_total_tokens << " tok\n"
+       << "------------decode------------\n"
+       << "throughput: "
+       << std::setprecision(1) << std::fixed << this->decode_total_tokens / this->decode_total_time << " tok/s\n"
+       << "total tokens: " << this->decode_total_tokens << " tok\n";
     return os.str();
   }
 
