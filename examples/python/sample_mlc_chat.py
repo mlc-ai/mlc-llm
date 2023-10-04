@@ -16,7 +16,7 @@ output = cm.generate(
 )
 
 # Print prefill and decode performance statistics
-print(f"Statistics: \n{cm.stats()}\n")
+print(f"Statistics: {cm.stats()}\n")
 
 output = cm.generate(
     prompt="How many points did you list out?",

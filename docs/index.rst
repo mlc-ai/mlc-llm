@@ -67,7 +67,7 @@ To begin with, try out MLC LLM support for Llama2 7B, 13B or 70B on various plat
       )
 
       # Print prefill and decode performance statistics
-      print(f"Statistics: \n{cm.stats()}\n")
+      print(f"Statistics: {cm.stats()}\n")
 
       output = cm.generate(
           prompt="How many points did you list out?",

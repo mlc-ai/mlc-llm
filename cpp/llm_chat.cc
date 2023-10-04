@@ -347,15 +347,21 @@ class LLMChat {
    */
   std::string RuntimeStatsText() {
     std::ostringstream os;
-    os << "-----------prefill-----------\n"
-       << "throughput: "
-       << std::setprecision(1) << std::fixed
-       << this->prefill_total_tokens / (this->prefill_total_time + this->embed_total_time) << " tok/s\n"
-       << "total tokens: " << this->prefill_total_tokens << " tok\n"
-       << "------------decode------------\n"
-       << "throughput: "
-       << std::setprecision(1) << std::fixed << this->decode_total_tokens / this->decode_total_time << " tok/s\n"
-       << "total tokens: " << this->decode_total_tokens << " tok\n";
+    os << "prefill: " << std::setprecision(1) << std::fixed
+       << this->prefill_total_tokens / (this->prefill_total_time + this->embed_total_time)
+       << " tok/s"
+       << ", decode: " << std::setprecision(1) << std::fixed
+       << this->decode_total_tokens / this->decode_total_time << " tok/s";
+    return os.str();
+  }
+
+  /*!
+   * \return Text describing token stats.
+   */
+  std::string TokenStatsText() {
+    std::ostringstream os;
+    os << "prefill: " << this->prefill_total_tokens << " tok"
+       << ", decode: " << this->decode_total_tokens << " tok";
     return os.str();
   }
 
@@ -1303,6 +1309,10 @@ class LLMChatModule : public ModuleNode {
     } else if (name == "runtime_stats_text") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         *rv = GetChat()->RuntimeStatsText();
+      });
+    } else if (name == "token_stats_text") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        *rv = GetChat()->TokenStatsText();
       });
     } else if (name == "reset_runtime_stats") {
       return PackedFunc(
