@@ -716,12 +716,6 @@ class ChatModule:
             self.chat_config, self.chat_config.conv_template
         )
         self._reload(self.lib_path, self.model_path, user_chat_config_json_str)
-        
-        # 7. Save default config values.
-        self.default_chat_config = asdict(self.chat_config)
-        if "conv_config" in self.default_chat_config:
-            self.default_chat_config.pop("conv_config")
-        self.default_conv_config = json.loads(self._get_config_json())["conv_config"]
 
     def generate(
         self,
@@ -766,22 +760,18 @@ class ChatModule:
           )
           print(output)
         """
-        # process generation settings
-        generation_config = _get_generation_config(self.chat_config, generation_config)
-        user_generation_config_json_str = _convert_generation_config_to_json_str(generation_config)
-
-        self._prefill(prompt, generation_config_json=user_generation_config_json_str)
+        self._prefill(prompt, generation_config=generation_config)
 
         if not progress_callback:
             while not self._stopped():
-                self._decode(user_generation_config_json_str)
+                self._decode(generation_config=generation_config)
             new_msg = self._get_message()
             return new_msg
 
         # apply callback with a rate of callback_interval
         i, new_msg = 0, ""
         while not self._stopped():
-            self._decode(user_generation_config_json_str)
+            self._decode(generation_config=generation_config)
             if i % progress_callback.callback_interval == 0 or self._stopped():
                 new_msg = self._get_message()
                 progress_callback(new_msg)
@@ -816,45 +806,6 @@ class ChatModule:
             )
             # Second argument is `partial_update = True`
             self._load_json_override_func(user_chat_config_json_str, True)
-
-    def update_chat_config(self, new_chat_config: ChatConfig):
-        r"""Update the chat config, or use the currently used default values if
-        values are None.
-
-        Parameters
-        ----------
-        chat_config : ChatConfig
-            A ``ChatConfig`` instance partially filled. The chat module will
-            override the default values with it.
-
-        Note
-        ----
-        This is inteneded for use in the completions api to allow users to specify
-        config values and use defaults if they are not passed to the request. 
-        """
-
-        new_chat_config_dict = asdict(new_chat_config)
-        
-        # Override chat config values if they are present. Use default values if not. 
-        config_updates_dict = {}
-        for k, default_value in self.default_chat_config.items():
-            new_value = new_chat_config_dict.get(k)
-            config_updates_dict[k] = new_value if new_value else default_value
-        
-        # Add conv_config values if there are ones.
-        new_conv_config_dict = new_chat_config_dict.get("conv_config")
-        if new_conv_config_dict:
-            conv_config_updates_dict = {}
-            for k, default_value in self.default_conv_config.items():
-                new_value = new_conv_config_dict.get(k)
-                conv_config_updates_dict[k] = new_value if new_value else default_value
-            config_updates_dict["conv_config"] = conv_config_updates_dict
-
-        # Current logic does not allow partial ChatConfig without specifying the
-        # conv_template. Hence we use the conv_template after considering potential overrides.
-        user_chat_config_json_str = json.dumps(config_updates_dict)
-        # Second argument is `partial_update = True`
-        self._load_json_override_func(user_chat_config_json_str, True)
 
     def embed_text(self, input: str):
         r"""Given a text input, returns its embedding in the LLM.
@@ -965,7 +916,7 @@ class ChatModule:
         input: str,
         decode_next_token: bool = True,
         place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
-        generation_config_json: str = "",
+        generation_config: Optional[GenerationConfig] = None,
     ):
         r"""Run prefill stage for a given input and optionally decode the first output token.
         User can decide where to place the input in the prompt.
@@ -978,10 +929,13 @@ class ChatModule:
             Whether to decode the next token after prefilling.
         place_in_prompt: PlaceInPrompt
             The place of the input message in the prompt. See `class PlaceInPrompt` for details.
-        generation_config_json: str
+        generation_config: Optional[GenerationConfig]
             The generation config to override the ChatConfig generation settings.
         """
-        self._prefill_func(input, decode_next_token, place_in_prompt.value, generation_config_json)
+        generation_config = _get_generation_config(self.chat_config, generation_config)
+        generation_config_str = _convert_generation_config_to_json_str(generation_config)
+
+        self._prefill_func(input, decode_next_token, place_in_prompt.value, generation_config_str)
 
     def _embed(self, input: str, place_in_prompt: PlaceInPrompt = PlaceInPrompt.All):
         r"""A more fine-grained embedding API. Given a text input, get the embedding of the tokenized prompt.
@@ -1006,7 +960,7 @@ class ChatModule:
         self,
         embedding: tvm.runtime.NDArray,
         decode_next_token: bool = True,
-        generation_config_json: str = "",
+        generation_config: Optional[GenerationConfig] = None,
     ):
         r"""Given an embedding, run the prefill stage and optionally decode the first output token.
 
@@ -1016,21 +970,27 @@ class ChatModule:
             The embedding of user input.
         decode_next_token : bool
             Whether to decode the next token after prefilling.
-        generation_config_json: str
+        generation_config: Optional[GenerationConfig]
             The generation config to override the ChatConfig generation settings.
         """
-        self._prefill_with_embed_func(embedding, decode_next_token, generation_config_json)
+        generation_config = _get_generation_config(self.chat_config, generation_config)
+        generation_config_str = _convert_generation_config_to_json_str(generation_config)
 
-    def _decode(self, generation_config_json: str = ""):
+        self._prefill_with_embed_func(embedding, decode_next_token, generation_config_str)
+
+    def _decode(self, generation_config: Optional[GenerationConfig] = None):
         r"""Decode the next token, the decoding result is stored in a buffer and
         can be retrieved by :func:`get_message`.
 
         Parameters
         ----------
-        generation_config_json: str
+        generation_config: Optional[GenerationConfig]
             The generation config to override the ChatConfig generation settings.
         """
-        self._decode_func(generation_config_json)
+        generation_config = _get_generation_config(self.chat_config, generation_config)
+        generation_config_str = _convert_generation_config_to_json_str(generation_config)
+
+        self._decode_func(generation_config_str)
 
     def _stopped(self) -> bool:
         r"""Check if the stop condition is met for the current round.
