@@ -375,7 +375,7 @@ class LLMChat {
     picojson::parse(metadata_info, std::string(metadata_str));
     auto metadata = metadata_info.get<picojson::object>();
     ICHECK(metadata["max_window_size"].is<int64_t>());
-    max_window_size_ = metadata["max_window_size"].get<int64_t>();
+    max_window_size_ = std::min(max_window_size_, metadata["max_window_size"].get<int64_t>());
     return true;
   }
 
@@ -418,7 +418,7 @@ class LLMChat {
     bool has_max_window_size = false;
     if (config.count("max_window_size")) {
       CHECK(config["max_window_size"].is<int64_t>());
-      this->max_window_size_ = config["max_window_size"].get<int64_t>();
+      this->max_window_size_ = std::min(this->max_window_size_, config["max_window_size"].get<int64_t>());
       has_max_window_size = true;
     }
     has_max_window_size |= UpdateMaxWindowSizeFromMetadata();
@@ -1152,7 +1152,7 @@ class LLMChat {
   // total sequence len,
   int64_t total_seq_len_{0};
   // max window size, mean generation length
-  int64_t max_window_size_{768}, mean_gen_len_{128}, max_gen_len_{512};
+  int64_t max_window_size_{INT64_MAX}, mean_gen_len_{128}, max_gen_len_{512};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference
