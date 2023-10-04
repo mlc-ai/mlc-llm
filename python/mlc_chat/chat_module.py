@@ -584,7 +584,7 @@ class ChatModule:
         self._stopped_func = chat_mod["stopped"]
         self._get_message_func = chat_mod["get_message"]
         self._runtime_stats_text_func = chat_mod["runtime_stats_text"]
-        self._token_stats_text_func = chat_mod["token_stats_text"]
+        self._verbose_runtime_stats_text_func = chat_mod["verbose_runtime_stats_text"]
         self._reset_runtime_stats_func = chat_mod["reset_runtime_stats"]
         self._get_config_json_func = chat_mod["get_config_json"]
         self._process_system_prompts_func = chat_mod["process_system_prompts"]
@@ -724,7 +724,7 @@ class ChatModule:
         """
         stats = self._runtime_stats_text_func()
         if verbose:
-            stats += f"\n {self._token_stats_text_func()}"
+            stats += f"\n {self._verbose_runtime_stats_text_func()}"
 
         return stats
 

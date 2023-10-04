@@ -356,9 +356,9 @@ class LLMChat {
   }
 
   /*!
-   * \return Text describing token stats.
+   * \return Text describing verbose runtime stats.
    */
-  std::string TokenStatsText() {
+  std::string VerboseRuntimeStatsText() {
     std::ostringstream os;
     os << "prefill: " << this->prefill_total_tokens << " tok"
        << ", decode: " << this->decode_total_tokens << " tok";
@@ -1310,9 +1310,9 @@ class LLMChatModule : public ModuleNode {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         *rv = GetChat()->RuntimeStatsText();
       });
-    } else if (name == "token_stats_text") {
+    } else if (name == "verbose_runtime_stats_text") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        *rv = GetChat()->TokenStatsText();
+        *rv = GetChat()->VerboseRuntimeStatsText();
       });
     } else if (name == "reset_runtime_stats") {
       return PackedFunc(
