@@ -183,8 +183,7 @@ class BuildArgs:
         default=False,
         metadata={
             "help": (
-                "Offload attention operations to CUTLASS when the target is CUDA"
-                "and TVM has been built with CUTLASS enabled."
+                "Disable offloading attention operations to CUTLASS."
             ),
             "action": "store_true",
         },
@@ -193,8 +192,7 @@ class BuildArgs:
         default=False,
         metadata={
             "help": (
-                "Offload layer and RMS norm operations to CUTLASS when the target is CUDA"
-                "and TVM has been built with CUTLASS enabled."
+                "Disable offloading layer and RMS norm operations to CUTLASS."
             ),
             "action": "store_true",
         },
@@ -227,6 +225,15 @@ class BuildArgs:
                 "Number of shards to split the model into in tensor parallelism multi-gpu "
                 "inference. Only useful when --build-model-only is set."
             ),
+        },
+    )
+    use_flash_attn_mqa: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Offload multi-query attention workload to Flash Attention."
+            ),
+            "action": "store_true",
         },
     )
 
@@ -404,8 +411,13 @@ def mod_transform_before_build(
         has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
 
         if has_cutlass and not args.no_cutlass_attn:
-            mod["prefill"] = rewrite_attention(mod["prefill"])
-            mod["decode"] = rewrite_attention(mod["decode"])
+            if args.use_flash_attn_mqa:
+                mod["prefill"] = rewrite_attention(mod["prefill"], use_flash_mqa=True)
+                mod["decode"] = rewrite_attention(mod["decode"], use_flash_mqa=True)
+
+            mod["prefill"] = rewrite_attention(mod["prefill"], use_flash_mqa=False)
+            mod["decode"] = rewrite_attention(mod["decode"], use_flash_mqa=False)
+
             patterns += get_patterns_with_prefix("cutlass.attention")
 
         if has_cutlass and not args.no_cutlass_norm:
