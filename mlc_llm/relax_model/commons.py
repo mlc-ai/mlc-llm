@@ -73,49 +73,41 @@ def create_shard_info_func(mod, param_manager, args, model_config):
     shard_info_dict = {}
     shard_funcs = {}
 
-    def add_to_shard_info(i: int, func_name: str):
+    def add_to_shard_info(param_name: str, func_name: str):
         func = shard_funcs[func_name]
         buffer = func.buffer_map[func.params[-1]]
         shape = [int(i) for i in buffer.shape]
         dtype = str(buffer.dtype)
-        shard_info_dict[f"param_{i}"] = [(func_name, [shape, dtype])]
+        shard_info_dict[param_name] = [(func_name, [shape, dtype])]
 
     q_params = param_manager.get_quantized_param_info("prefill").fields
     for _, param in param_manager.params.items():
         if param.shard_strategy is None:
             pass
         elif param.shard_strategy == "shard_qkv":
-            weight, scale = param_manager.param2qrange[param]
-            if "shard_qkv_weight" not in shard_funcs:
-                shard_funcs["shard_qkv_weight"] = shard_qkv_weight_scale(q_params[weight])
-            if "shard_qkv_scale" not in shard_funcs:
-                shard_funcs["shard_qkv_scale"] = shard_qkv_weight_scale(q_params[scale])
-            add_to_shard_info(weight, "shard_qkv_weight")
-            add_to_shard_info(scale, "shard_qkv_scale")
+            for i, weight in enumerate(param_manager.param2qrange[param]):
+                name = f"shard_qkv_{i}"
+                if name not in shard_funcs:
+                    shard_funcs[name] = shard_qkv_weight_scale(q_params[weight])
+                add_to_shard_info(f"param_{weight}", name)
         elif param.shard_strategy == "shard_mlp_k":
-            weight, scale = param_manager.param2qrange[param]
-            if "shard_mlp_k_weight" not in shard_funcs:
-                shard_funcs["shard_mlp_k_weight"] = shard_k_weight_scale(q_params[weight])
-            if "shard_mlp_k_scale" not in shard_funcs:
-                shard_funcs["shard_mlp_k_scale"] = shard_k_weight_scale(q_params[scale])
-            add_to_shard_info(weight, "shard_mlp_k_weight")
-            add_to_shard_info(scale, "shard_mlp_k_scale")
+            for i, weight in enumerate(param_manager.param2qrange[param]):
+                name = f"shard_mlp_k_{i}"
+                if name not in shard_funcs:
+                    shard_funcs[name] = shard_k_weight_scale(q_params[weight])
+                add_to_shard_info(f"param_{weight}", name)
         elif param.shard_strategy == "shard_o_proj_k":
-            weight, scale = param_manager.param2qrange[param]
-            if "shard_o_proj_k_weight" not in shard_funcs:
-                shard_funcs["shard_o_proj_k_weight"] = shard_k_weight_scale(q_params[weight])
-            if "shard_o_proj_k_scale" not in shard_funcs:
-                shard_funcs["shard_o_proj_k_scale"] = shard_k_weight_scale(q_params[scale])
-            add_to_shard_info(weight, "shard_o_proj_k_weight")
-            add_to_shard_info(scale, "shard_o_proj_k_scale")
+            for i, weight in enumerate(param_manager.param2qrange[param]):
+                name = f"shard_o_proj_k_{i}"
+                if name not in shard_funcs:
+                    shard_funcs[name] = shard_k_weight_scale(q_params[weight])
+                add_to_shard_info(f"param_{weight}", name)
         elif param.shard_strategy == "shard_gate_up":
-            weight, scale = param_manager.param2qrange[param]
-            if "shard_gate_up_weight" not in shard_funcs:
-                shard_funcs["shard_gate_up_weight"] = shard_gate_up_weight_scale(q_params[weight])
-            if "shard_gate_up_scale" not in shard_funcs:
-                shard_funcs["shard_gate_up_scale"] = shard_gate_up_weight_scale(q_params[scale])
-            add_to_shard_info(weight, "shard_gate_up_weight")
-            add_to_shard_info(scale, "shard_gate_up_scale")
+            for i, weight in enumerate(param_manager.param2qrange[param]):
+                name = f"shard_gate_up_{i}"
+                if name not in shard_funcs:
+                    shard_funcs[name] = shard_gate_up_weight_scale(q_params[weight])
+                add_to_shard_info(f"param_{weight}", name)
         else:
             raise NotImplementedError(f"Shard strategy not implemented: {param.shard_strategy}")
     for name, func in shard_funcs.items():
