@@ -442,6 +442,11 @@ def mod_transform_before_build(
             else:
                 sm = 10 * major + minor
 
+            options = {"cutlass": {"sm": sm, "find_first_valid": False}}
+
+            if hasattr(config, "rms_norm_eps"):
+                options["cutlass"]["rms_eps"] = config.rms_norm_eps
+
             mod = tvm.transform.Sequential(
                 [
                     relax.transform.FuseOpsByPattern(
@@ -449,10 +454,7 @@ def mod_transform_before_build(
                     ),
                     annotate_workspace,
                     relax.transform.AllocateWorkspace(),
-                    relax.transform.RunCodegen(
-                        {"cutlass": {"sm": sm, "find_first_valid": False}},
-                        entry_functions=model_names,
-                    ),
+                    relax.transform.RunCodegen(options, entry_functions=model_names)
                 ]
             )(mod)
 
