@@ -361,6 +361,24 @@ class LLMChat {
     return os.str();
   }
 
+  bool UpdateMaxWindowSizeFromMetadata() {
+    if (ft_.use_disco) {
+      return false;
+    }
+    PackedFunc fget_metadata = ft_.mod_get_func("get_metadata");
+    if (fget_metadata == nullptr) {
+      return false;
+    }
+    ObjectRef ret = fget_metadata();
+    std::string metadata_str = std::string(Downcast<String>(ret));
+    picojson::value metadata_info;
+    picojson::parse(metadata_info, std::string(metadata_str));
+    auto metadata = metadata_info.get<picojson::object>();
+    ICHECK(metadata["max_window_size"].is<int64_t>());
+    max_window_size_ = std::min(max_window_size_, metadata["max_window_size"].get<int64_t>());
+    return true;
+  }
+
   /*!
    * \brief Load JSON config and override options.
    * \param config_json A json config in picojson type that is partially specifies
@@ -397,12 +415,14 @@ class LLMChat {
     } else {
       this->num_shards_ = 1;
     }
+    bool has_max_window_size = false;
     if (config.count("max_window_size")) {
       CHECK(config["max_window_size"].is<int64_t>());
-      this->max_window_size_ = config["max_window_size"].get<int64_t>();
-    } else {
-      CHECK(partial_update) << "Key \"max_window_size\" not found.";
+      this->max_window_size_ = std::min(this->max_window_size_, config["max_window_size"].get<int64_t>());
+      has_max_window_size = true;
     }
+    has_max_window_size |= UpdateMaxWindowSizeFromMetadata();
+    CHECK(partial_update || has_max_window_size) << "Key \"max_window_size\" not found.";
     if (config.count("model_name")) {
       CHECK(config["model_name"].is<std::string>());
       this->model_name_ = config["model_name"].get<std::string>();
@@ -477,7 +497,13 @@ class LLMChat {
    * disk, default to empty string.
    */
   void Reload(TVMArgValue reload_lib, String model_path, String app_config_json = "") {
-    // Step 1. Process config json string.
+    // Step 1. Set tokenizer.
+    this->tokenizer_ = TokenizerFromPath(model_path);
+    // Step 2. Initialize vm, we use the packed function mechanism
+    // so there is no explicit abi dependency on these extra
+    // classes other than basic tvm runtime.
+    this->ft_.Init(reload_lib, device_, this->num_shards_);
+    // Step 3. Process config json string.
     {
       std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
       std::ostringstream config_ostream;
@@ -490,12 +516,7 @@ class LLMChat {
         LoadJSONOverride(app_config_json, true);
       }
     }
-    // Step 2. Set tokenizer.
-    this->tokenizer_ = TokenizerFromPath(model_path);
-    // Step 3. Initialize vm, we use the packed function mechanism
-    // so there is no explicit abi dependency on these extra
-    // classes other than basic tvm runtime.
-    this->ft_.Init(reload_lib, device_, this->num_shards_);
+    // Step 4. Initialize sample functions.
     auto fsample_topp_from_prob_ptr =
         tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
     ICHECK(fsample_topp_from_prob_ptr)
@@ -506,11 +527,11 @@ class LLMChat {
     ICHECK(fsample_topp_from_logits_ptr)
         << "Cannot find env function vm.builtin.sample_top_p_from_logits";
     fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
-    // Step 4. Load params in nd-array cache.
+    // Step 5. Load params in nd-array cache.
     this->params_ = ft_.LoadParams(model_path, device_);
-    // Step 5. KV cache creation.
+    // Step 6. KV cache creation.
     this->kv_cache_ = ft_.create_kv_cache_func_();
-    // Step 6. Pre-allocate fixed size ndarray
+    // Step 7. Pre-allocate fixed size ndarray
     this->temperature_arr_ = NDArray::Empty({}, DataType::Float(32), device_);
     float temperature = static_cast<float>(this->temperature_);
     this->temperature_arr_.CopyFromBytes(&temperature, sizeof(float));
@@ -519,7 +540,7 @@ class LLMChat {
       this->input_tokens_decode_ =
           Downcast<DRef>(ft_.Empty(ShapeTuple({1, 1}), DataType::Int(32), null_device));
     }
-    // Step 7. Reset chat
+    // Step 8. Reset chat
     this->ResetChat();
   }
 
@@ -1131,7 +1152,7 @@ class LLMChat {
   // total sequence len,
   int64_t total_seq_len_{0};
   // max window size, mean generation length
-  int64_t max_window_size_{768}, mean_gen_len_{128}, max_gen_len_{512};
+  int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128}, max_gen_len_{512};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference
