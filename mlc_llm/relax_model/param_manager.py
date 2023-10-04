@@ -50,7 +50,7 @@ class Parameter:
     shard_dim : Optional[int]
         The dimension to be sharded.
 
-    shard_strategy : Optional[Tuple[str, int, ...]]
+    shard_strategy : Optional[str]
         The strategy to shard the parameter.
     """
 
@@ -58,14 +58,14 @@ class Parameter:
     param_info_dict: Dict[str, relax.TensorStructInfo]
     quant_spec: quantization.QuantizationSpec
     shard_dim: Optional[int]
-    shard_strategy: Optional[Tuple[str, int, ...]]
+    shard_strategy: Optional[str]
 
     def __init__(
         self,
         name: str,
         quant_spec: quantization.QuantizationSpec,
         shard_dim: Optional[int],
-        shard_strategy: Optional[Tuple[str, int, ...]],
+        shard_strategy: Optional[str],
     ) -> None:
         self.name = name
         self.param_info_dict = dict()
@@ -596,7 +596,7 @@ class ParamManager:
         quant_spec: quantization.QuantizationSpec,
         func_name: str,
         shard_dim: Optional[int],
-        shard_strategy: Optional[Tuple[str, int, ...]],
+        shard_strategy: Optional[str],
     ) -> Parameter:
         """Register a single parameter in the parameter manager.
         In most cases, this method is not directly used outside this class:
@@ -621,7 +621,7 @@ class ParamManager:
         shard_dim : Optional[int]
             The dimension along which the parameter is sharded.
 
-        shard_strategy : Optional[Tuple[str, int, ...]]
+        shard_strategy : Optional[str]
             The strategy of sharding the parameter.
 
         Returns
