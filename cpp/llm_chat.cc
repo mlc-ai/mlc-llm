@@ -1152,7 +1152,7 @@ class LLMChat {
   // total sequence len,
   int64_t total_seq_len_{0};
   // max window size, mean generation length
-  int64_t max_window_size_{INT64_MAX}, mean_gen_len_{128}, max_gen_len_{512};
+  int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128}, max_gen_len_{512};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference
