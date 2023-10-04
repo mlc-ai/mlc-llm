@@ -1,9 +1,12 @@
 import argparse
 import asyncio
+import json
 import os
 import subprocess
 import sys
 from contextlib import asynccontextmanager
+
+from mlc_chat.chat_module import ChatConfig, ConvConfig
 
 import uvicorn
 from fastapi import FastAPI
@@ -11,7 +14,6 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from dataclasses import dataclass, field, fields
-from typing import Optional
 
 from .base import set_global_random_seed
 from .chat_module import ChatModule
@@ -42,6 +44,16 @@ class RestAPIArgs:
             "help": (
                 """
                 The full path to the model library file to use (e.g. a ``.so`` file).
+                """
+            )
+        }
+    )
+    config_overrides_path: str = field(
+        default=None,
+        metadata={
+            "help": (
+                """
+                The full path to the model config file to use for overriding the default (e.g. a ``.json`` file).
                 """
             )
         }
@@ -114,12 +126,18 @@ session = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    chat_config_overrides = None
+    if ARGS.config_overrides_path and os.path.isfile(ARGS.config_overrides_path):
+        with open(ARGS.config_overrides_path, mode="rt", encoding="utf-8") as f:
+            json_object = json.load(f)
+            chat_config_overrides = ChatConfig._from_json(json_object)
     if ARGS.random_seed is not None:
         set_global_random_seed(ARGS.random_seed)
     chat_mod = ChatModule(
         model=ARGS.model,
         device=ARGS.device,
-        lib_path=ARGS.lib_path
+        lib_path=ARGS.lib_path,
+        chat_config=chat_config_overrides
     )
     session["chat_mod"] = chat_mod
 
@@ -168,6 +186,16 @@ async def request_completion(request: ChatCompletionRequest):
     """
     Creates model response for the given chat conversation.
     """
+
+    chat_config = ChatConfig(
+        temperature=request.temperature,
+        repetition_penalty=request.repetition_penalty,
+        top_p=request.top_p,
+        mean_gen_len=request.mean_gen_len,
+        max_gen_len=request.max_gen_len,
+    )
+    session["chat_mod"].update_chat_config(chat_config)
+
     if len(request.messages) > 1:
             raise ValueError(
                 """
@@ -218,7 +246,32 @@ async def request_completion(request: CompletionRequest):
     """
     Creates a completion for a given prompt.
     """
+
+    conv_config = ConvConfig(
+        system=request.system_prompt,
+        roles=request.chat_roles,
+        messages=request.messages,
+        offset=request.offset,
+        separator_style=request.separator_style,
+        seps=request.seps,
+        role_msg_sep=request.role_msg_sep,
+        role_empty_sep=request.role_empty_sep,
+        stop_str=request.stop_str,
+        stop_tokens=request.stop_tokens,
+        add_bos=request.add_bos,
+    )
+
+    chat_config = ChatConfig(
+        temperature=request.temperature,
+        repetition_penalty=request.repetition_penalty,
+        top_p=request.top_p,
+        mean_gen_len=request.mean_gen_len,
+        max_gen_len=request.max_gen_len,
+        conv_config=conv_config,
+    )
+
     session["chat_mod"].reset_chat()
+    session["chat_mod"].update_chat_config(chat_config)
     # Langchain's load_qa_chain.run expects the input to be a list with the query
     if isinstance(request.prompt, list):
         if len(request.prompt) > 1:
