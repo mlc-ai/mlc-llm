@@ -97,6 +97,14 @@ set_target_properties(mlc_llm_static PROPERTIES OUTPUT_NAME mlc_llm)
 target_link_libraries(mlc_llm PUBLIC tvm_runtime)
 target_link_libraries(mlc_llm PRIVATE tokenizers_cpp)
 
+find_library(FLASH_ATTN_LIBRARY flash_attn)
+
+if (FLASH_ATTN_LIBRARY STREQUAL "FLASH_ATTN_LIBRARY-NOTFOUND")
+  message(WARNING "Cannot find libflash_attn. The model must not have been built with --use-flash-attn-mqa option.")
+else ()
+  target_link_libraries(mlc_llm PUBLIC -Wl,--no-as-needed ${FLASH_ATTN_LIBRARY})
+endif()
+
 if (BUILD_CPP_TEST)
   message(STATUS "Building cpp unittests")
   add_subdirectory(3rdparty/googletest)
