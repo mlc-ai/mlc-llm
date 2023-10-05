@@ -415,14 +415,10 @@ class LLMChat {
     } else {
       this->num_shards_ = 1;
     }
-    bool has_max_window_size = false;
     if (config.count("max_window_size")) {
       CHECK(config["max_window_size"].is<int64_t>());
       this->max_window_size_ = std::min(this->max_window_size_, config["max_window_size"].get<int64_t>());
-      has_max_window_size = true;
     }
-    has_max_window_size |= UpdateMaxWindowSizeFromMetadata();
-    CHECK(partial_update || has_max_window_size) << "Key \"max_window_size\" not found.";
     if (config.count("model_name")) {
       CHECK(config["model_name"].is<std::string>());
       this->model_name_ = config["model_name"].get<std::string>();
@@ -497,13 +493,7 @@ class LLMChat {
    * disk, default to empty string.
    */
   void Reload(TVMArgValue reload_lib, String model_path, String app_config_json = "") {
-    // Step 1. Set tokenizer.
-    this->tokenizer_ = TokenizerFromPath(model_path);
-    // Step 2. Initialize vm, we use the packed function mechanism
-    // so there is no explicit abi dependency on these extra
-    // classes other than basic tvm runtime.
-    this->ft_.Init(reload_lib, device_, this->num_shards_);
-    // Step 3. Process config json string.
+    // Step 1. Process config json string.
     {
       std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
       std::ostringstream config_ostream;
@@ -516,6 +506,14 @@ class LLMChat {
         LoadJSONOverride(app_config_json, true);
       }
     }
+    // Step 2. Set tokenizer.
+    this->tokenizer_ = TokenizerFromPath(model_path);
+    // Step 3. Initialize vm, we use the packed function mechanism
+    // so there is no explicit abi dependency on these extra
+    // classes other than basic tvm runtime.
+    this->ft_.Init(reload_lib, device_, this->num_shards_);
+    UpdateMaxWindowSizeFromMetadata();
+    CHECK(max_window_size_!=std::numeric_limits<int64_t>::max()) << "Key \"max_window_size\" not found.";
     // Step 4. Initialize sample functions.
     auto fsample_topp_from_prob_ptr =
         tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
