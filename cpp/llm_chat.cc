@@ -385,16 +385,16 @@ class LLMChat {
   std::string VerboseRuntimeStatsText() {
     std::ostringstream os;
     os << "----------- prefill -----------\n"
-       << "throughput: "
-       << std::setprecision(1) << std::fixed
-       << this->prefill_total_tokens / (this->prefill_total_time + this->embed_total_time) << " tok/s\n"
+       << "throughput: " << std::setprecision(1) << std::fixed
+       << this->prefill_total_tokens / (this->prefill_total_time + this->embed_total_time)
+       << " tok/s\n"
        << "total tokens: " << this->prefill_total_tokens << " tok\n"
        << "total time: " << this->prefill_total_time << " s\n"
        << "------------ decode ------------\n"
-       << "throughput: "
-       << std::setprecision(1) << std::fixed << this->decode_total_tokens / this->decode_total_time << " tok/s\n"
-       << "total tokens: " << this->decode_total_tokens << " tok\n";
-       << "total time: " << this->decode_total_time << " s\n"
+       << "throughput: " << std::setprecision(1) << std::fixed
+       << this->decode_total_tokens / this->decode_total_time << " tok/s\n"
+       << "total tokens: " << this->decode_total_tokens << " tok\n"
+       << "total time: " << this->decode_total_time << " s\n";
     return os.str();
   }
 
@@ -436,7 +436,8 @@ class LLMChat {
     }
     if (config.count("max_window_size")) {
       CHECK(config["max_window_size"].is<int64_t>());
-      this->max_window_size_ = std::min(this->max_window_size_, config["max_window_size"].get<int64_t>());
+      this->max_window_size_ =
+          std::min(this->max_window_size_, config["max_window_size"].get<int64_t>());
     }
     if (config.count("model_name")) {
       CHECK(config["model_name"].is<std::string>());
@@ -532,7 +533,8 @@ class LLMChat {
     // classes other than basic tvm runtime.
     this->ft_.Init(reload_lib, device_, this->num_shards_);
     UpdateMaxWindowSizeFromMetadata();
-    CHECK(max_window_size_!=std::numeric_limits<int64_t>::max()) << "Key \"max_window_size\" not found.";
+    CHECK(max_window_size_ != std::numeric_limits<int64_t>::max())
+        << "Key \"max_window_size\" not found.";
     // Step 4. Initialize sample functions.
     auto fsample_topp_from_prob_ptr =
         tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
@@ -1169,7 +1171,8 @@ class LLMChat {
   // total sequence len,
   int64_t total_seq_len_{0};
   // max window size, mean generation length
-  int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128}, max_gen_len_{512};
+  int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128},
+      max_gen_len_{512};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference
