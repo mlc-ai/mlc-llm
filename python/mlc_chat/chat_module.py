@@ -584,6 +584,7 @@ class ChatModule:
         self._stopped_func = chat_mod["stopped"]
         self._get_message_func = chat_mod["get_message"]
         self._runtime_stats_text_func = chat_mod["runtime_stats_text"]
+        self._verbose_runtime_stats_text_func = chat_mod["verbose_runtime_stats_text"]
         self._reset_runtime_stats_func = chat_mod["reset_runtime_stats"]
         self._get_config_json_func = chat_mod["get_config_json"]
         self._process_system_prompts_func = chat_mod["process_system_prompts"]
@@ -757,7 +758,7 @@ class ChatModule:
         """
         return self._embed_func(input, PlaceInPrompt.Middle.value)
 
-    def stats(self) -> str:
+    def stats(self, verbose=False) -> str:
         r"""Get the runtime stats of the encoding step, decoding step, (and embedding step if exists)
         of the chat module in text form.
 
@@ -766,7 +767,10 @@ class ChatModule:
         stats : str
             The runtime stats text.
         """
-        return self._runtime_stats_text_func()
+        if verbose:
+            return self._verbose_runtime_stats_text_func()
+        else:
+            return self._runtime_stats_text_func()
 
     def benchmark_generate(self, prompt: str, generate_length: int) -> str:
         r"""Controlled generation with input prompt and fixed number of

@@ -212,6 +212,7 @@ class ChatModule {
     this->get_role0_ = this->chat_mod_->GetFunction("get_role0");
     this->get_role1_ = this->chat_mod_->GetFunction("get_role1");
     this->runtime_stats_text_ = this->chat_mod_->GetFunction("runtime_stats_text");
+    this->verbose_runtime_stats_text_ = this->chat_mod_->GetFunction("verbose_runtime_stats_text");
     this->reset_chat_ = this->chat_mod_->GetFunction("reset_chat");
     this->process_system_prompts_ = this->chat_mod_->GetFunction("process_system_prompts");
     this->lib_path_ = "";
@@ -224,6 +225,7 @@ class ChatModule {
     ICHECK(get_role0_ != nullptr);
     ICHECK(get_role1_ != nullptr);
     ICHECK(runtime_stats_text_ != nullptr);
+    ICHECK(verbose_runtime_stats_text_ != nullptr);
     ICHECK(reset_chat_ != nullptr);
   }
   /*!
@@ -263,6 +265,9 @@ class ChatModule {
   /*! \return A text describing the runtime statistics. */
   std::string RuntimeStatsText() { return runtime_stats_text_(); }
 
+  /*! \return A text describing the token statistics. */
+  std::string VerboseRuntimeStatsText() { return verbose_runtime_stats_text_(); }
+
   /*!
    * \brief Run prefill stage for a given input and decode the first output token.
    * \param input the user input.
@@ -295,6 +300,7 @@ class ChatModule {
   tvm::runtime::PackedFunc get_role0_;
   tvm::runtime::PackedFunc get_role1_;
   tvm::runtime::PackedFunc runtime_stats_text_;
+  tvm::runtime::PackedFunc verbose_runtime_stats_text_;
   tvm::runtime::PackedFunc reset_chat_;
   tvm::runtime::PackedFunc process_system_prompts_;
 

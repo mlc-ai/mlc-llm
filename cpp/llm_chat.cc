@@ -380,6 +380,25 @@ class LLMChat {
   }
 
   /*!
+   * \return Text describing verbose runtime stats.
+   */
+  std::string VerboseRuntimeStatsText() {
+    std::ostringstream os;
+    os << "----------- prefill -----------\n"
+       << "throughput: "
+       << std::setprecision(1) << std::fixed
+       << this->prefill_total_tokens / (this->prefill_total_time + this->embed_total_time) << " tok/s\n"
+       << "total tokens: " << this->prefill_total_tokens << " tok\n"
+       << "total time: " << this->prefill_total_time << " s\n"
+       << "------------ decode ------------\n"
+       << "throughput: "
+       << std::setprecision(1) << std::fixed << this->decode_total_tokens / this->decode_total_time << " tok/s\n"
+       << "total tokens: " << this->decode_total_tokens << " tok\n";
+       << "total time: " << this->decode_total_time << " s\n"
+    return os.str();
+  }
+
+  /*!
    * \brief Load JSON config and override options.
    * \param config_json A json config in picojson type that is partially specifies
    *        some of the options.
@@ -1325,6 +1344,10 @@ class LLMChatModule : public ModuleNode {
     } else if (name == "runtime_stats_text") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         *rv = GetChat()->RuntimeStatsText();
+      });
+    } else if (name == "verbose_runtime_stats_text") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        *rv = GetChat()->VerboseRuntimeStatsText();
       });
     } else if (name == "reset_runtime_stats") {
       return PackedFunc(
