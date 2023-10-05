@@ -43,7 +43,7 @@ def main():
     chat_module = ChatModule(model=args.model, device=args.device)
     output = chat_module.benchmark_generate(args.prompt, generate_length=args.generate_length)
     print(f"Generated text:\n{output}\n")
-    print(f"Statistics: {chat_module.stats()}")
+    print(f"Statistics: {chat_module.stats(verbose=True)}")
 
 
 if __name__ == "__main__":
