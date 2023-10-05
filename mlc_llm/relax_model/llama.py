@@ -63,6 +63,12 @@ class LlamaConfig:
             self.num_shards = 1
         self.kwargs = kwargs
 
+    def get_num_key_value_heads(self):
+        if self.num_key_value_heads is None:
+            return self.num_attention_heads
+
+        return self.num_key_value_heads
+
 
 class Linear(nn.Module):
     def __init__(self, in_features, out_features, dtype: str, bias=True):
@@ -218,11 +224,7 @@ class LlamaAttention(nn.Module):
         dtype = config.dtype
         self.num_shards = config.num_shards
         self.hidden_size = config.hidden_size
-        self.num_key_value_heads = (
-            config.num_key_value_heads is None
-            and config.num_attention_heads
-            or config.num_key_value_heads
-        ) // config.num_shards
+        self.num_key_value_heads = config.get_num_key_value_heads() // config.num_shards
         self.num_query_heads = config.num_attention_heads // self.num_shards
         self.head_dim = self.hidden_size // config.num_attention_heads
         self.position_embedding_base = config.position_embedding_base
@@ -772,11 +774,7 @@ def create_decoding_func(
 
 
 def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
-    num_key_value_heads = (
-        config.num_attention_heads
-        if config.num_key_value_heads is None
-        else config.num_key_value_heads
-    ) // config.num_shards
+    num_key_value_heads = config.get_num_key_value_heads() // config.num_shards
     init_shape = relax.ShapeExpr(
         (
             config.max_sequence_length,
@@ -917,9 +915,7 @@ def get_model(args, hf_config):
 
         if "query_key_value_proj" in relax_pname:
             q_heads = config.num_attention_heads
-            kv_heads = config.num_key_value_heads
-            if kv_heads is None:
-                kv_heads = q_heads
+            kv_heads = config.get_num_key_value_heads()
             q, k, v = torch_params
             assert q.shape == (q_heads * head_dim, hidden_size)
             assert k.shape == (kv_heads * head_dim, hidden_size)
