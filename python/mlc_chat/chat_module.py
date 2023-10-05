@@ -722,11 +722,10 @@ class ChatModule:
         stats : str
             The runtime stats text.
         """
-        stats = self._runtime_stats_text_func()
         if verbose:
-            stats += f"\n {self._verbose_runtime_stats_text_func()}"
-
-        return stats
+            return self._verbose_runtime_stats_text_func()
+        else:
+            return self._runtime_stats_text_func()
 
     def benchmark_generate(self, prompt: str, generate_length: int) -> str:
         r"""Controlled generation with input prompt and fixed number of

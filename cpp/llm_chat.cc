@@ -360,8 +360,17 @@ class LLMChat {
    */
   std::string VerboseRuntimeStatsText() {
     std::ostringstream os;
-    os << "prefill: " << this->prefill_total_tokens << " tok"
-       << ", decode: " << this->decode_total_tokens << " tok";
+    os << "----------- prefill -----------\n"
+       << "throughput: "
+       << std::setprecision(1) << std::fixed
+       << this->prefill_total_tokens / (this->prefill_total_time + this->embed_total_time) << " tok/s\n"
+       << "total tokens: " << this->prefill_total_tokens << " tok\n"
+       << "total time: " << this->prefill_total_time << " s\n"
+       << "------------ decode ------------\n"
+       << "throughput: "
+       << std::setprecision(1) << std::fixed << this->decode_total_tokens / this->decode_total_time << " tok/s\n"
+       << "total tokens: " << this->decode_total_tokens << " tok\n";
+       << "total time: " << this->decode_total_time << " s\n"
     return os.str();
   }
 
