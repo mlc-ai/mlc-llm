@@ -27,7 +27,7 @@ def create_shard_info_func(mod, param_manager, args, model_config):
     num_shards = args.num_shards
     head_dim = model_config.hidden_size // model_config.num_attention_heads
     q_heads = model_config.num_attention_heads
-    kv_heads = model_config.num_key_value_heads
+    kv_heads = model_config.get_num_key_value_heads()
 
     # pylint: disable=invalid-name
     def shard_qkv_weight_scale(weight: relax.TensorStructInfo):
