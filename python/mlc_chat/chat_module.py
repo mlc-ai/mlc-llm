@@ -216,7 +216,6 @@ class GenerationConfig:
         post: https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling.
     mean_gen_len : Optional[int]
     max_gen_len : Optional[int]
-    shift_fill_factor : Optional[float]
     """
 
     temperature: Optional[float] = None
@@ -224,7 +223,6 @@ class GenerationConfig:
     top_p: Optional[float] = None
     mean_gen_len: Optional[int] = None
     max_gen_len: Optional[int] = None
-    shift_fill_factor: Optional[float] = None
 
     @classmethod
     def _from_chat_config(generation_config_cls, chat_config_obj: ChatConfig):
@@ -937,7 +935,12 @@ class ChatModule:
 
         self._prefill_func(input, decode_next_token, place_in_prompt.value, generation_config_str)
 
-    def _embed(self, input: str, place_in_prompt: PlaceInPrompt = PlaceInPrompt.All):
+    def _embed(
+        self,
+        input: str,
+        place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
+        generation_config: Optional[GenerationConfig] = None,
+    ):
         r"""A more fine-grained embedding API. Given a text input, get the embedding of the tokenized prompt.
         User can decide where to place the input in the prompt. This functionality usually aids the subsequent
         call to :func:`_prefill_with_embed`.
@@ -948,13 +951,18 @@ class ChatModule:
             The user input string.
         place_in_prompt: PlaceInPrompt
             The place of the input message in the prompt. See `class PlaceInPrompt` for details.
+        generation_config: Optional[GenerationConfig]
+            The generation config to override the ChatConfig generation settings.
 
         Returns
         -------
         embedding : tvm.runtime.NDArray
             The embedding of the text.
         """
-        return self._embed_func(input, place_in_prompt.value)
+        generation_config = _get_generation_config(self.chat_config, generation_config)
+        generation_config_str = _convert_generation_config_to_json_str(generation_config)
+
+        return self._embed_func(input, place_in_prompt.value, generation_config_str)
 
     def _prefill_with_embed(
         self,
