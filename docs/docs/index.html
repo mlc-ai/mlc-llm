@@ -295,163 +295,112 @@
 <p>Machine Learning Compilation for Large Language Models (MLC LLM) is a high-performance universal deployment solution that allows native deployment of any large language models with native APIs with compiler acceleration. The mission of this project is to enable everyone to develop, optimize and deploy AI models natively on everyone’s devices with ML compilation techniques.</p>
 <section id="getting-started">
 <span id="get-started"></span><h2>Getting Started<a class="headerlink" href="#getting-started" title="Permalink to this heading">¶</a></h2>
-<p>To begin with, try out MLC LLM support for Llama2 7B, 13B or 70B on various platforms.</p>
+<p>To begin with, try out MLC LLM support for int4-quantized Llama2 7B.
+It is recommended to have at least 4.5GB of free VRAM to run it.</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Python</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Command Line</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-0-0-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-4" name="0-4" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>We provide a <a class="reference external" href="https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb">Jupyter notebook</a> for you to try MLC Chat Python API in Colab.
-You can also follow the instructions below and try out the Python API in you native environment.</p>
-<p>To run LLMs using MLC LLM in Python, please visit <a class="reference external" href="https://mlc.ai/package/">https://mlc.ai/package/</a> to install
-the chat package using pip. With the Python package installed, run the following
-for preparation.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Verify the installation of the Python package.</span>
-<span class="c1"># You are expected to see &quot;&lt;class &#39;mlc_chat.chat_module.ChatModule&#39;&gt;&quot; printed out.</span>
-python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from mlc_chat import ChatModule; print(ChatModule)&quot;</span>
-
-<span class="c1"># Install Git and Git-LFS if you haven&#39;t already. Then run</span>
-git<span class="w"> </span>lfs<span class="w"> </span>install
-
-<span class="c1"># Create a directory, download the model weights from HuggingFace, and download the binary libraries</span>
-<span class="c1"># from GitHub.</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt/lib
-
-<span class="c1"># Download prebuilt weights of Llama-2-7B, Llama-2-13B or Llama-2-70B</span>
-<span class="nb">cd</span><span class="w"> </span>dist/prebuilt
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
-<span class="c1"># or the 13B model</span>
-<span class="c1"># git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1</span>
-<span class="c1"># or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)</span>
-<span class="c1"># git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1</span>
-<span class="nb">cd</span><span class="w"> </span>../..
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Python</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Command Line</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-0-0-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-4" name="0-4" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p><strong>Install MLC Chat</strong>. <a class="reference external" href="https://mlc.ai/package/">MLC Chat</a> is available via pip.
+It is always recommended to install it in an isolated conda virtual environment.</p>
+<p><strong>Download pre-quantized weights</strong>. The comamnds below download the int4-quantized Llama2-7B from HuggingFace:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>lfs<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1<span class="w"> </span><span class="se">\</span>
+<span class="w">                          </span>dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
 </pre></div>
 </div>
-<p>Then create a Python file <code class="docutils literal notranslate"><span class="pre">sample_mlc_chat.py</span></code> paste the following lines:</p>
+<p><strong>Download pre-compiled model library</strong>. The pre-compiled model library is available as below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt/lib
+</pre></div>
+</div>
+<p><strong>Run in Python.</strong> The following Python script showcases the Python API of MLC LLM and its stream capability:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_chat</span> <span class="kn">import</span> <span class="n">ChatModule</span>
 <span class="kn">from</span> <span class="nn">mlc_chat.callback</span> <span class="kn">import</span> <span class="n">StreamToStdout</span>
 
-<span class="c1"># From the mlc-llm directory, run</span>
-<span class="c1"># $ python sample_mlc_chat.py</span>
-
-<span class="c1"># Create a ChatModule instance</span>
 <span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f16_1&quot;</span><span class="p">)</span>
-<span class="c1"># You can change to other models that you downloaded, for example,</span>
-<span class="c1"># cm = ChatModule(model=&quot;Llama-2-13b-chat-hf-q4f16_1&quot;)  # Llama2 13b model</span>
-
-<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">,</span>
-    <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
-<span class="p">)</span>
-
-<span class="c1"># Print prefill and decode performance statistics</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Statistics: </span><span class="si">{</span><span class="n">cm</span><span class="o">.</span><span class="n">stats</span><span class="p">()</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
-
-<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;How many points did you list out?&quot;</span><span class="p">,</span>
-    <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
-<span class="p">)</span>
-
-<span class="c1"># Reset the chat module by</span>
-<span class="c1"># cm.reset_chat()</span>
+<span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">,</span> <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
 </pre></div>
 </div>
-<p>Now run the Python file to start the chat</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>sample_mlc_chat.py
-</pre></div>
-</div>
-<p>You can also checkout the <a class="reference internal" href="prebuilt_models.html"><span class="doc">Model Prebuilts</span></a> page to run other models.</p>
-<p>To use Python API interactively, you are welcome to check out the
-<a class="reference external" href="https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb">Jupyter notebook</a>
-and run it in Colab.</p>
-<figure class="align-center" id="id2">
+<p><strong>Colab walkthrough.</strong>  A Jupyter notebook on <a class="reference external" href="https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb">Colab</a>
+is provided with detailed walkthrough of the Python API.</p>
+<figure class="align-center" id="id1">
 <a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg" style="width: 600px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM Python API</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM Python API</span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
-</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p>To run the models on your PC, you can try out the CLI version of MLC LLM.</p>
-<p>We have prepared Conda packages for MLC Chat CLI. If you haven’t installed Conda yet,
-please refer to <a class="reference internal" href="install/conda.html"><span class="doc">this tutorial</span></a> to install Conda.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If you are using Windows or Linux. Make sure you have the latest Vulkan driver installed.
-Please follow the instructions in <a class="reference internal" href="install/gpu.html"><span class="doc">GPU Drivers and SDKs</span></a> tutorial to prepare the environment.</p>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a new conda environment, install CLI app, and activate the environment.</span>
-conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-cli-nightly
+</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p><strong>Install MLC Chat CLI.</strong> MLC Chat CLI is available via conda using the command below.
+It is always recommended to install it in an isolated conda virtual environment.
+For Windows/Linux users, make sure to have latest <a class="reference internal" href="install/gpu.html#vulkan-driver"><span class="std std-ref">Vulkan driver</span></a> installed.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-cli-nightly
 conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
-
-<span class="c1"># Install Git and Git-LFS if you haven&#39;t already.</span>
-<span class="c1"># They are used for downloading the model weights from HuggingFace.</span>
-conda<span class="w"> </span>install<span class="w"> </span>git<span class="w"> </span>git-lfs
-git<span class="w"> </span>lfs<span class="w"> </span>install
-
-<span class="c1"># Create a directory, download the model weights from HuggingFace, and download the binary libraries</span>
-<span class="c1"># from GitHub.</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt/lib
-
-<span class="c1"># Download prebuilt weights of Llama-2-7B, Llama-2-13B or Llama-2-70B</span>
-<span class="nb">cd</span><span class="w"> </span>dist/prebuilt
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
-<span class="c1"># or the 13B model</span>
-<span class="c1"># git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1</span>
-<span class="c1"># or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)</span>
-<span class="c1"># git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1</span>
-<span class="nb">cd</span><span class="w"> </span>../..
-mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>Llama-2-7b-chat-hf-q4f16_1
-<span class="c1"># or the 13B model</span>
-<span class="c1"># mlc_chat_cli --model Llama-2-13b-chat-hf-q4f16_1</span>
-<span class="c1"># or the 70B model (require at least 50GB VRAM on Apple Silicon Mac to run.)</span>
-<span class="c1"># mlc_chat_cli --model Llama-2-70b-chat-hf-q4f16_1</span>
-
-<span class="c1"># You can try more models, for example:</span>
-<span class="c1"># download prebuilt weights of RedPajama-3B</span>
-<span class="nb">cd</span><span class="w"> </span>dist/prebuilt
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
-<span class="nb">cd</span><span class="w"> </span>../..
-mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1
 </pre></div>
 </div>
-<p>You can also checkout the <a class="reference internal" href="prebuilt_models.html"><span class="doc">Model Prebuilts</span></a> page to run other models.</p>
-<figure class="align-center" id="id3">
+<p><strong>Download pre-quantized weights</strong>. The comamnds below download the int4-quantized Llama2-7B from HuggingFace:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>lfs<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1<span class="w"> </span><span class="se">\</span>
+<span class="w">                          </span>dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
+</pre></div>
+</div>
+<p><strong>Download pre-compiled model library</strong>. The pre-compiled model library is available as below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt/lib
+</pre></div>
+</div>
+<p><strong>Run in command line</strong>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>Llama-2-7b-chat-hf-q4f16_1
+</pre></div>
+</div>
+<figure class="align-center" id="id2">
 <a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif" style="width: 500px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on CLI</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on CLI</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
-</div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><p>With the advancements of WebGPU, we can now run LLM completely in the web browser environment.
-You can try out the web version of MLC LLM in <a class="reference external" href="https://webllm.mlc.ai/#chat-demo">WebLLM</a>.</p>
-<p>In WebLLM, once the model weights are fetched and stored in the local cache in the first run, you can start to interact with the model without Internet connection.</p>
-<p>A WebGPU-compatible browser and a local GPU are needed to run WebLLM. You can download the latest Google Chrome and use <a class="reference external" href="https://webgpureport.org/">WebGPU Report</a> to verify the functionality of WebGPU on your browser.</p>
-<figure class="align-center" id="id4">
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The MLC Chat CLI package is only built with Vulkan (Windows/Linux) and Metal (macOS).
+To use other GPU backends such as CUDA and ROCm, please use the prebuilt Python package or build from source.</p>
+</div>
+</div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><p><a class="reference external" href="https://webllm.mlc.ai/#chat-demo">WebLLM</a>. MLC LLM generates performant code for WebGPU and WebAssembly,
+so that LLMs can be run locally in a web browser without server resources.</p>
+<p><strong>Download pre-quantized weights</strong>. This step is self-contained in WebLLM.</p>
+<p><strong>Download pre-compiled model library</strong>. WebLLM automatically downloads WebGPU code to execute.</p>
+<p><strong>Check browser compatibility</strong>. The latest Google Chrome provides WebGPU runtime and <a class="reference external" href="https://webgpureport.org/">WebGPU Report</a> as a useful tool to verify WebGPU capabilities of your browser.</p>
+<figure class="align-center" id="id3">
 <a class="reference internal image-reference" href="https://blog.mlc.ai/img/redpajama/web.gif"><img alt="https://blog.mlc.ai/img/redpajama/web.gif" src="https://blog.mlc.ai/img/redpajama/web.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on Web</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on Web</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
-</div><div aria-labelledby="tab-0-0-3" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-3" name="0-3" role="tabpanel" tabindex="0"><p>The MLC Chat app is now available in App Store at no cost. You can download and explore it by simply clicking the button below:</p>
+</div><div aria-labelledby="tab-0-0-3" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-3" name="0-3" role="tabpanel" tabindex="0"><p><strong>Install MLC Chat iOS</strong>. It is available on AppStore:</p>
 <a class="reference external image-reference" href="https://apps.apple.com/us/app/mlc-chat/id6448482937"><img alt="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" width="135" /></a>
 <div class="line-block">
 <div class="line"><br /></div>
 </div>
-<p>Once the app is installed, you can download the models and then engage in chat with the model without requiring an internet connection.</p>
-<p>Memory requirements vary across different models. The Llama2-7B model necessitates an iPhone device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an iPhone with at least 4GB RAM.</p>
-<figure class="align-center" id="id5">
+<p><strong>Requirement</strong>. Llama2-7B model needs an iOS device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.</p>
+<p><strong>Tutorial and source code</strong>. The source code of the iOS app is fully <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/ios">open source</a>,
+and a <a class="reference internal" href="deploy/ios.html"><span class="doc">tutorial</span></a> is included in documentation.</p>
+<figure class="align-center" id="id4">
 <a class="reference internal image-reference" href="https://blog.mlc.ai/img/redpajama/ios.gif"><img alt="https://blog.mlc.ai/img/redpajama/ios.gif" src="https://blog.mlc.ai/img/redpajama/ios.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC Chat on iOS</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC Chat on iOS</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
-</div><div aria-labelledby="tab-0-0-4" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-4" name="0-4" role="tabpanel" tabindex="0"><p>The MLC Chat Android app is free and available for download, and you can try out by simply clicking the button below:</p>
+</div><div aria-labelledby="tab-0-0-4" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-4" name="0-4" role="tabpanel" tabindex="0"><p><strong>Install MLC Chat Android</strong>. A prebuilt is available as an APK:</p>
 <a class="reference external image-reference" href="https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk"><img alt="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" src="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" style="width: 135px;" /></a>
 <div class="line-block">
 <div class="line"><br /></div>
 </div>
-<p>Once the app is installed, you can engage in a chat with the model without the need for an internet connection:</p>
-<p>Memory requirements vary across different models. The Vicuna-7B model necessitates an Android device with a minimum of 6GB RAM, whereas the RedPajama-3B model can run on an Android device with at least 4GB RAM.</p>
-<figure class="align-center" id="id6">
+<p><strong>Requirement</strong>. Llama2-7B model needs an iOS device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.
+The demo is tested on</p>
+<ul class="simple">
+<li><p>Samsung S23 with Snapdragon 8 Gen 2 chip</p></li>
+<li><p>Redmi Note 12 Pro with Snapdragon 685</p></li>
+<li><p>Google Pixel phones</p></li>
+</ul>
+<p><strong>Tutorial and source code</strong>. The source code of the iOS app is fully <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/android">open source</a>,
+and a <a class="reference internal" href="deploy/android.html"><span class="doc">tutorial</span></a> is included in documentation.</p>
+<figure class="align-center" id="id5">
 <a class="reference internal image-reference" href="https://blog.mlc.ai/img/android/android-recording.gif"><img alt="https://blog.mlc.ai/img/android/android-recording.gif" src="https://blog.mlc.ai/img/android/android-recording.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on Android</span><a class="headerlink" href="#id6" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on Android</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div></div>
