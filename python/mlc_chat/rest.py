@@ -1,12 +1,8 @@
 import argparse
 import asyncio
-import json
-import os
-import subprocess
-import sys
 from contextlib import asynccontextmanager
 
-from mlc_chat.chat_module import ChatConfig, ConvConfig, GenerationConfig
+from mlc_chat.chat_module import GenerationConfig
 
 import uvicorn
 from fastapi import FastAPI

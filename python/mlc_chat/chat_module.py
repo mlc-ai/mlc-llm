@@ -7,7 +7,7 @@ import os
 import sys
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
-from typing import List, Optional, Union
+from typing import List, Optional
 
 import tvm
 from tvm.runtime import disco
