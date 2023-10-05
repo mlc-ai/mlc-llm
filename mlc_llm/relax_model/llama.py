@@ -120,30 +120,50 @@ class LlamaRMSNorm(nn.Module):
             def f_square(x):
                 return tir.Cast("float32", x) * tir.Cast("float32", x) if not is_float32 else x * x
 
-            k = te.reduce_axis((0, x.shape[2]), name="k")
-            square_sum = te.compute(
-                (x.shape[0], x.shape[1]),
-                lambda bsz, i: te.sum(f_square(x[bsz, i, k]), axis=k),
-                name=x.op.name + "red_temp",
-            )
-
-            def f_div_cast(bsz, i, k):
-                x_val = x[bsz, i, k]
-                if not is_float32:
-                    x_val = tir.Cast("float32", x_val)
-                return x_val / tir.sqrt(square_sum[bsz, i] / x.shape[2] + self.variance_epsilon)
-
             def f_mul_cast(x, y):
                 value = x * y
                 if not is_float32:
                     value = tir.Cast(x.dtype, value)
                 return value
 
-            return te.compute(
-                x.shape,
-                lambda bsz, i, k: f_mul_cast(weight(k), f_div_cast(bsz, i, k)),
-                name="rms_norm",
-            )
+            def f_div_cast_2d(i, k):
+                x_val = x[i, k]
+                if not is_float32:
+                    x_val = tir.Cast("float32", x_val)
+                return x_val / tir.sqrt(square_sum[i] / x.shape[1] + self.variance_epsilon)
+
+            def f_div_cast_3d(bsz, i, k):
+                x_val = x[bsz, i, k]
+                if not is_float32:
+                    x_val = tir.Cast("float32", x_val)
+                return x_val / tir.sqrt(square_sum[bsz, i] / x.shape[2] + self.variance_epsilon)
+
+            k = te.reduce_axis((0, x.shape[-1]), name="k")
+
+            if len(x.shape) == 2:
+                square_sum = te.compute(
+                    (x.shape[0],),
+                    lambda i: te.sum(f_square(x[i, k]), axis=k),
+                    name=x.op.name + "red_temp",
+                )
+
+                return te.compute(
+                    x.shape,
+                    lambda i, k: f_mul_cast(weight(k), f_div_cast_2d(i, k)),
+                    name="rms_norm",
+                )
+            else:
+                square_sum = te.compute(
+                    (x.shape[0], x.shape[1]),
+                    lambda bsz, i: te.sum(f_square(x[bsz, i, k]), axis=k),
+                    name=x.op.name + "red_temp",
+                )
+
+                return te.compute(
+                    x.shape,
+                    lambda bsz, i, k: f_mul_cast(weight(k), f_div_cast_3d(bsz, i, k)),
+                    name="rms_norm",
+                )
 
         return nn.emit_te(f_rms_norm, hidden_states, self.weight, primfunc_name_hint="rms_norm")
 
@@ -186,28 +206,36 @@ class LlamaMLP(nn.Module):
         return result
 
 
+def rotary_modulate_by_freq(tensor, idx, pos, position_embedding_base):
+    head_dim = tensor.shape[-1]
+    dtype = tensor.dtype
+    n_feat_half = head_dim // 2
+    feat_idx = idx[-1]
+    inv_freq = te.const(1, "float32") / (
+        te.power(
+            te.const(position_embedding_base, "float32"),
+            ((2 * feat_idx) % head_dim).astype("float32") / head_dim.astype("float32"),
+        )
+    )
+    freq = pos * inv_freq
+    left_indices = idx[:-1] + (feat_idx - n_feat_half,)
+    right_indices = idx[:-1] + (feat_idx + n_feat_half,)
+    return te.cos(freq).astype(dtype) * tensor(*idx) + te.sin(freq).astype(dtype) * tvm.tir.Select(
+        feat_idx >= n_feat_half,
+        tensor[*left_indices],
+        -tensor[*right_indices],
+    )
+
+
 def apply_rotary_pos_emb(q, k, position_embedding_base, offset: int = 0):
     def f_rotary_embedding(tensor, offset):
-        dtype = tensor.dtype
-        head_dim = tensor.shape[-1]
-        n_feat_half = tensor.shape[-1] // 2
-
         def rotary_compute(*idx):
-            i, j = idx[-3], idx[-1]
-            pos = (offset + i).astype("float32")
-            inv_freq = te.const(1, "float32") / (
-                te.power(
-                    te.const(position_embedding_base, "float32"),
-                    ((2 * j) % head_dim).astype("float32") / head_dim.astype("float32"),
-                )
-            )
-            freq = pos * inv_freq
-            return te.cos(freq).astype(dtype) * tensor(*idx) + te.sin(freq).astype(
-                dtype
-            ) * tvm.tir.Select(
-                j >= n_feat_half,
-                tensor[idx[0], i, idx[2], j - n_feat_half],
-                -tensor[idx[0], i, idx[2], j + n_feat_half],
+            pos = (offset + idx[-3]).astype("float32")
+            return rotary_modulate_by_freq(
+                tensor,
+                idx,
+                pos,
+                position_embedding_base,
             )
 
         return tvm.te.compute(tensor.shape, rotary_compute, name="rotary")
@@ -814,62 +842,7 @@ def create_softmax_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
         bb.emit_func_output(gv, [logits, temperature])
 
 
-def get_model(args, hf_config):
-    model_name = args.model
-    dtype = args.quantization.model_dtype
-    max_seq_len = args.max_seq_len
-    sep_embed = args.sep_embed
-
-    position_embedding_base = 10000
-    max_position_embeddings = 2048
-    if "rope_theta" in hf_config:
-        position_embedding_base = hf_config["rope_theta"]
-    if "max_position_embeddings" in hf_config:
-        max_position_embeddings = hf_config["max_position_embeddings"]
-
-    config = LlamaConfig(
-        **hf_config,
-        dtype=dtype,
-        position_embedding_base=position_embedding_base,
-        combine_matmul=True,
-        num_shards=args.num_shards,
-        build_model_only=args.build_model_only,
-    )
-    if max_seq_len != -1:
-        config.max_sequence_length = max_seq_len
-
-    param_manager = ParamManager()
-    bb = relax.BlockBuilder()
-
-    if sep_embed:
-        create_embed_func(bb, param_manager, config, args.quantization)
-    create_encoding_func(bb, param_manager, config, args.quantization, sep_embed)
-    create_decoding_func(bb, param_manager, config, args.quantization)
-    create_kv_cache_func(bb, config)
-    create_softmax_func(bb, config)
-    create_metadata_func(
-        bb,
-        model_name=model_name,
-        max_window_size=config.max_sequence_length,
-        stop_tokens=[2],
-        add_prefix_space=False,
-    )
-
-    mod = bb.get()
-    for gv in mod.functions:
-        func = mod[gv]
-        if isinstance(func, relax.Function):
-            mod[gv] = func.with_attr(
-                "tir_var_upper_bound",
-                {
-                    "n": config.max_sequence_length,
-                    "m": config.max_sequence_length,
-                },
-            )
-
-    if args.build_model_only:
-        return mod, param_manager, None, config
-
+def setup_params(mod, param_manager, dtype, config, args):
     def f_convert_pname_fwd(pname: str) -> List[str]:
         if not config.combine_matmul:
             return [pname]
@@ -952,3 +925,62 @@ def get_model(args, hf_config):
     param_list[-1] = tvm.nd.array(np.sin(emb).astype(config.dtype), device)
 
     return mod, param_manager, param_list, config
+
+
+def get_model(args, hf_config):
+    model_name = args.model
+    dtype = args.quantization.model_dtype
+    max_seq_len = args.max_seq_len
+    sep_embed = args.sep_embed
+
+    position_embedding_base = 10000
+    max_position_embeddings = 2048
+    if "rope_theta" in hf_config:
+        position_embedding_base = hf_config["rope_theta"]
+    if "max_position_embeddings" in hf_config:
+        max_position_embeddings = hf_config["max_position_embeddings"]
+
+    config = LlamaConfig(
+        **hf_config,
+        dtype=dtype,
+        position_embedding_base=position_embedding_base,
+        combine_matmul=True,
+        num_shards=args.num_shards,
+        build_model_only=args.build_model_only,
+    )
+    if max_seq_len != -1:
+        config.max_sequence_length = max_seq_len
+
+    param_manager = ParamManager()
+    bb = relax.BlockBuilder()
+
+    if sep_embed:
+        create_embed_func(bb, param_manager, config, args.quantization)
+    create_encoding_func(bb, param_manager, config, args.quantization, sep_embed)
+    create_decoding_func(bb, param_manager, config, args.quantization)
+    create_kv_cache_func(bb, config)
+    create_softmax_func(bb, config)
+    create_metadata_func(
+        bb,
+        model_name=model_name,
+        max_window_size=config.max_sequence_length,
+        stop_tokens=[2],
+        add_prefix_space=False,
+    )
+
+    mod = bb.get()
+    for gv in mod.functions:
+        func = mod[gv]
+        if isinstance(func, relax.Function):
+            mod[gv] = func.with_attr(
+                "tir_var_upper_bound",
+                {
+                    "n": config.max_sequence_length,
+                    "m": config.max_sequence_length,
+                },
+            )
+
+    if args.build_model_only:
+        return mod, param_manager, None, config
+
+    return setup_params(mod, param_manager, dtype, config, args)

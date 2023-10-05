@@ -22,6 +22,7 @@ from mlc_llm.relax_model import (
     gpt_neox,
     gptj,
     llama,
+    llama_batched,
     minigpt,
     param_manager,
     rwkv,
@@ -233,6 +234,12 @@ class BuildArgs:
             "help": (
                 "Offload multi-query attention workload to Flash Attention."
             ),
+        },
+    )
+    batched: bool = field(
+        default=False,
+        metadata={
+            "help": ("Build the model with batched inference support."),
             "action": "store_true",
         },
     )
@@ -275,6 +282,9 @@ def _parse_args(parsed) -> argparse.Namespace:
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
     )
+
+    if parsed.batched:
+        parsed.artifact_path += "-batched"
 
     return parsed
 
@@ -366,10 +376,14 @@ def mod_transform_before_build(
         model_names = [
             "prefill",
             "decode",
-            "create_kv_cache",
-            "softmax_with_temperature",
-            "get_metadata",
         ]
+
+        if not args.batched:
+            model_names += [
+                "create_kv_cache",
+                "softmax_with_temperature",
+                "get_metadata",
+            ]
         if args.sep_embed:
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
         if args.model.lower().startswith("rwkv-"):
@@ -381,7 +395,8 @@ def mod_transform_before_build(
     mod = mlc_llm.transform.FuseDecodeTranspose(skip_gemm=not use_ft_quant)(mod)
 
     if (
-        hasattr(config, "num_attention_heads")
+        not args.batched
+        and hasattr(config, "num_attention_heads")
         and hasattr(config, "hidden_size")
         and hasattr(config, "position_embedding_base")
     ):
@@ -585,7 +600,9 @@ def build_model_from_args(args: argparse.Namespace):
         with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
             config = json.load(i_f)
     if not use_cache or args.convert_weight_only:
-        if args.model_category == "llama":
+        if args.model_category == "llama" and args.batched:
+            mod, param_manager, params, model_config = llama_batched.get_model(args, config)
+        elif args.model_category == "llama":
             mod, param_manager, params, model_config = llama.get_model(args, config)
         elif args.model_category == "mistral":
             mod, param_manager, params, model_config = llama.get_model(args, config)
