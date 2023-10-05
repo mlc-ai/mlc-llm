@@ -41,6 +41,8 @@ Validate Installation
 To verify you have correctly installed ROCm 5.6, run ``rocm-smi`` in command line.
 If you see the list of AMD devices printed out in a table, it means the ROCm is correctly installed.
 
+.. _vulkan_driver:
+
 Vulkan Driver
 -------------
 
