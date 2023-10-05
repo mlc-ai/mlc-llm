@@ -19,14 +19,20 @@ class ChatCompletionRequest(BaseModel):
     stream: bool | None = False
     temperature: float = None
     top_p: float = None
+    # TODO: replace by presence_penalty and frequency_penalty
     repetition_penalty: float = None
     mean_gen_len: int = None
+    # TODO: replace by max_tokens
     max_gen_len: int = None
-    # TODO: Implement support for the following fields
+    # TODO: Implement support for the OpenAI API parameters
+    # function []
+    # function_call
     # n: Optional[int] = 1
     # stop: Optional[Union[str, List[str]]] = None
+    # max_tokens: Optional[int]
     # presence_penalty: Optional[float] = 0.0
     # frequency_penalty: Optional[float] = 0.0
+    # logit_bias
     # user: Optional[str] = None
 
 class UsageInfo(BaseModel):
@@ -65,22 +71,25 @@ class ChatCompletionStreamResponse(BaseModel):
 class CompletionRequest(BaseModel):
     model: str
     prompt: str | list[str]
+    stream: bool | None = False
     temperature: float = None
     repetition_penalty: float = None
     top_p: float = None
     mean_gen_len: int = None
+    # TODO: replace by max_tokens
     max_gen_len: int = None
-    system_prompt: str = None
-    chat_roles: List[str] = None
-    messages: List[List[str]] = None
-    offset: str = None
-    separator_style: int = None
-    seps: List[str] = None
-    role_msg_sep: str = None
-    role_empty_sep: str = None
-    stop_str: str = None
-    stop_tokens: List[int] = None
-    add_bos: bool = None
+    # TODO: Implement support for the OpenAI API parameters
+    # suffix
+    # max_tokens: Optional[int]
+    # n: Optional[int] = 1
+    # logprobs
+    # echo
+    # stop: Optional[Union[str, List[str]]] = None
+    # presence_penalty: Optional[float] = 0.0
+    # frequency_penalty: Optional[float] = 0.0
+    # best_of
+    # logit_bias
+    # user: Optional[str] = None
 
 class CompletionResponseChoice(BaseModel):
     index: int
@@ -94,6 +103,17 @@ class CompletionResponse(BaseModel):
     created: int = Field(default_factory=lambda: int(time.time()))
     choices: list[CompletionResponseChoice]
     usage: UsageInfo
+
+class CompletionResponseStreamChoice(BaseModel):
+    index: int
+    text: str
+    finish_reason: Optional[Literal["stop", "length"]] = None
+
+class CompletionStreamResponse(BaseModel):
+    id: str = Field(default_factory=lambda: f"cmpl-{shortuuid.random()}")
+    object: str = "text_completion"
+    created: int = Field(default_factory=lambda: int(time.time()))
+    choices: List[CompletionResponseStreamChoice]
 
 class EmbeddingsRequest(BaseModel):
     model: Optional[str] = None
