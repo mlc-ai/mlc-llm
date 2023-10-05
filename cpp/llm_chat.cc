@@ -559,7 +559,20 @@ class LLMChat {
    * \brief Get input tokens based on history
    * \param place_in_prompt The place of the input message in the prompt.
    */
-  std::vector<int32_t> GetInputTokens(PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
+  std::vector<int32_t> GetInputTokens(PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
+                                      picojson::object generation_config = picojson::object()) {
+    // prepare generation settings
+    // the generation_config will not override the original config
+    // since is only used for this generation
+    int64_t gen_mean_gen_len;
+    if (generation_config.count("mean_gen_len")) {
+      CHECK(generation_config["mean_gen_len"].is<int64_t>());
+      gen_mean_gen_len = generation_config["mean_gen_len"].get<int64_t>();
+    } else {
+      gen_mean_gen_len = this->mean_gen_len_;
+    }
+
+    // work on input tokens
     std::vector<int32_t> tokens;
     std::vector<std::string> prompts;
 
@@ -579,7 +592,7 @@ class LLMChat {
     std::string all_prompt = GetConcatPrompt(prompts, 0, 0);
     std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
-    if (this->total_seq_len_ + tokens.size() + this->mean_gen_len_ < this->max_window_size_) {
+    if (this->total_seq_len_ + tokens.size() + gen_mean_gen_len < this->max_window_size_) {
       return tokens;
     }
     // need shift window and re-encode
@@ -616,11 +629,11 @@ class LLMChat {
     if (tokens.size() >= this->max_window_size_) {
       LOG(WARNING)
           << "The prompt tokens are more than `max_window_size`, the input will be truncated.";
-      ICHECK_GT(this->max_window_size_, this->mean_gen_len_);
+      ICHECK_GT(this->max_window_size_, gen_mean_gen_len);
       std::vector<int32_t> truncated_tokens(
-          tokens.end() - (this->max_window_size_ - this->mean_gen_len_), tokens.end());
+          tokens.end() - (this->max_window_size_ - gen_mean_gen_len), tokens.end());
       return truncated_tokens;
-    } else if (tokens.size() + this->mean_gen_len_ >= this->max_window_size_) {
+    } else if (tokens.size() + gen_mean_gen_len >= this->max_window_size_) {
       LOG(WARNING)
           << "The prompt tokens are too long and the generated text may be incomplete, due to "
              "limited `max_window_size`. ";
@@ -656,7 +669,8 @@ class LLMChat {
   }
 
   std::vector<int32_t> PrepareBeforeEmbedding(std::string inp, bool append_conversation = true,
-                                              PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
+                                              PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
+                                              picojson::object generation_config = picojson::object()) {
     if (conversation_.separator_style == SeparatorStyle::kLM ||
         conversation_.separator_style == SeparatorStyle::kCodeCompletion) {
       this->ResetChat();
@@ -673,7 +687,7 @@ class LLMChat {
       conversation_.AppendReplyHeader(conversation_.roles[1]);
     }
 
-    return this->GetInputTokens(place_in_prompt);
+    return this->GetInputTokens(place_in_prompt, generation_config);
   }
 
   /*!
@@ -684,9 +698,18 @@ class LLMChat {
    * \return the embedding of the tokenized prompt.
    */
   ObjectRef EmbedStep(std::string inp, bool append_conversation = true,
-                      PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
+                      PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
+                      String generation_config_str = "") {
+    // process generation settings
+    picojson::object generation_config = picojson::object();
+    if(!generation_config_str.empty()) {
+      picojson::value generation_config_json;
+      picojson::parse(generation_config_json, generation_config_str);
+      generation_config = generation_config_json.get<picojson::object>();
+    }
+
     std::vector<int32_t> prompt_tokens =
-        PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt);
+        PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt, generation_config);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
     if (token_len == 0) {
       return NDArray::Empty({}, DataType::Float(32), device_);
@@ -734,7 +757,15 @@ class LLMChat {
       return;
     }
 
-    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config_str);
+    // process generation settings
+    picojson::object generation_config = picojson::object();
+    if(!generation_config_str.empty()) {
+      picojson::value generation_config_json;
+      picojson::parse(generation_config_json, generation_config_str);
+      generation_config = generation_config_json.get<picojson::object>();
+    }
+
+    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config);
 
     auto tend = std::chrono::high_resolution_clock::now();
 
@@ -759,13 +790,21 @@ class LLMChat {
       if (ft_.use_disco) {
         LOG(FATAL) << "NotImplementedError: Distributed inference is not supported for this model";
       }
-      NDArray embedding = Downcast<NDArray>(EmbedStep(inp, append_conversation, place_in_prompt));
+      NDArray embedding = Downcast<NDArray>(EmbedStep(inp, append_conversation, place_in_prompt, generation_config_str));
       PrefillWithEmbedStep(embedding, decode_next_token, generation_config_str);
       return;
     }
 
+    // process generation settings
+    picojson::object generation_config = picojson::object();
+    if(!generation_config_str.empty()) {
+      picojson::value generation_config_json;
+      picojson::parse(generation_config_json, generation_config_str);
+      generation_config = generation_config_json.get<picojson::object>();
+    }
+
     std::vector<int32_t> prompt_tokens =
-        this->PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt);
+        this->PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt, generation_config);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
     if (token_len == 0) return;
     if (ft_.use_disco) {
@@ -785,7 +824,7 @@ class LLMChat {
       return;
     }
 
-    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config_str);
+    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config);
 
     auto tend = std::chrono::high_resolution_clock::now();
 
@@ -795,6 +834,14 @@ class LLMChat {
   }
 
   void DecodeStep(String generation_config_str = "") {
+    // process generation settings
+    picojson::object generation_config = picojson::object();
+    if(!generation_config_str.empty()) {
+      picojson::value generation_config_json;
+      picojson::parse(generation_config_json, generation_config_str);
+      generation_config = generation_config_json.get<picojson::object>();
+    }
+
     ICHECK(!output_ids_.empty());
     int32_t last_token = output_ids_.back();
     tvm::runtime::NDArray input_data = GetInputTokenNDArray({last_token});
@@ -804,7 +851,7 @@ class LLMChat {
     NDArray logits_on_device = this->ForwardTokens({last_token}, total_seq_len_ + 1);
     total_seq_len_ += 1;
 
-    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config_str);
+    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config);
 
     auto tend = std::chrono::high_resolution_clock::now();
 
@@ -921,35 +968,41 @@ class LLMChat {
   /*!
    * \brief Sample output token from logits on device
    */
-  int32_t SampleTokenFromLogits(NDArray logits_on_device, String generation_config_str = "") {
+  int32_t SampleTokenFromLogits(NDArray logits_on_device,
+                                picojson::object generation_config = picojson::object()) {
     // prepare generation settings
     // the generation_config will not override the original config
     // since is only used for this generation
     double gen_temperature;
     NDArray gen_temperature_arr;
+    double gen_repetition_penalty;
     double gen_top_p;
-    if (!generation_config_str.empty()) {
-      picojson::value generation_config_json;
-      picojson::parse(generation_config_json, generation_config_str);
-      picojson::object config = generation_config_json.get<picojson::object>();
-
-      CHECK(config["temperature"].is<double>());
-      gen_temperature = config["temperature"].get<double>();
+    if (generation_config.count("temperature")) {
+      CHECK(generation_config["temperature"].is<double>());
+      gen_temperature = generation_config["temperature"].get<double>();
 
       gen_temperature_arr = NDArray::Empty({}, DataType::Float(32), device_);
       float temperature_cast = static_cast<float>(gen_temperature);
       gen_temperature_arr.CopyFromBytes(&temperature_cast, sizeof(float));
-
-      CHECK(config["top_p"].is<double>());
-      gen_top_p = config["top_p"].get<double>();
     } else {
       gen_temperature = this->temperature_;
       gen_temperature_arr = this->temperature_arr_;
+    }
+    if (generation_config.count("repetition_penalty")) {
+      CHECK(generation_config["repetition_penalty"].is<double>());
+      gen_repetition_penalty = generation_config["repetition_penalty"].get<double>();
+    } else {
+      gen_repetition_penalty = this->repetition_penalty_;
+    }
+    if (generation_config.count("top_p")) {
+      CHECK(generation_config["top_p"].is<double>());
+      gen_top_p = generation_config["top_p"].get<double>();
+    } else {
       gen_top_p = this->top_p_;
     }
 
     // update logits
-    if (repetition_penalty_ == 1.0f) {
+    if (gen_repetition_penalty == 1.0f) {
       if (gen_temperature < 1e-6f) {
         this->UpdateLogitsOrProbOnCPUSync(logits_on_device);
       } else {
@@ -957,7 +1010,7 @@ class LLMChat {
       }
     } else {
       this->UpdateLogitsOrProbOnCPUSync(logits_on_device);
-      this->ApplyRepetitionPenaltyOnCPU();
+      this->ApplyRepetitionPenaltyOnCPU(gen_repetition_penalty);
       if (gen_temperature >= 1e-6f) {
         this->ApplySoftmaxWithTemperatureOnCPU(gen_temperature);
       }
@@ -966,7 +1019,6 @@ class LLMChat {
     // perform sampling
     auto tstart = std::chrono::high_resolution_clock::now();
     int next_token;
-    std::cout << gen_temperature << "\n";
     if (gen_temperature < 1e-6f) {
       next_token = this->SampleFromLogitsOnCPU(gen_temperature, gen_top_p);
     } else {
@@ -981,7 +1033,19 @@ class LLMChat {
    * \brief Add a generated token and check for stop condition.
    * \param next_token The next token.
    */
-  void ProcessNextToken(int32_t next_token) {
+  void ProcessNextToken(int32_t next_token,
+                        picojson::object generation_config = picojson::object()) {
+    // prepare generation settings
+    // the generation_config will not override the original config
+    // since is only used for this generation
+    int64_t gen_max_gen_len;
+    if (generation_config.count("max_gen_len")) {
+      CHECK(generation_config["max_gen_len"].is<int64_t>());
+      gen_max_gen_len = generation_config["max_gen_len"].get<int64_t>();
+    } else {
+      gen_max_gen_len = this->max_gen_len_;
+    }
+
     ICHECK(!stop_triggered_) << "Cannot call process when it is stopped";
 
     stop_triggered_ =
@@ -1015,7 +1079,7 @@ class LLMChat {
       }
     }
 
-    if (static_cast<int64_t>(output_ids_.size()) >= max_gen_len_) {
+    if (static_cast<int64_t>(output_ids_.size()) >= gen_max_gen_len) {
       stop_triggered_ = true;
     } else if (total_seq_len_ >= max_window_size_) {
       stop_triggered_ = true;
@@ -1074,15 +1138,15 @@ class LLMChat {
     return ret;
   }
 
-  void ApplyRepetitionPenaltyOnCPU() {
+  void ApplyRepetitionPenaltyOnCPU(float repetition_penalty) {
     CHECK(logits_on_cpu_.defined()) << "Logits on CPU not defined!";
     CHECK(logits_on_cpu_.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
     float* logits_raw_data = static_cast<float*>(logits_on_cpu_->data);
     for (const int32_t& token_id : this->appeared_token_ids_) {
       if (logits_raw_data[token_id] <= 0) {
-        logits_raw_data[token_id] *= this->repetition_penalty_;
+        logits_raw_data[token_id] *= repetition_penalty;
       } else {  // logits > 0
-        logits_raw_data[token_id] /= this->repetition_penalty_;
+        logits_raw_data[token_id] /= repetition_penalty;
       }
     }
   }
@@ -1288,7 +1352,7 @@ class LLMChatModule : public ModuleNode {
       });
     } else if (name == "embed") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK(1 <= args.size() && args.size() <= 2);
+        ICHECK(1 <= args.size() && args.size() <= 3);
         if (args.size() == 1) {
           // args: inp (with place_in_prompt = kAll)
           *rv = GetChat()->EmbedStep(args[0]);
@@ -1296,6 +1360,10 @@ class LLMChatModule : public ModuleNode {
           // args: inp, place_in_prompt
           PlaceInPrompt place_in_prompt = static_cast<PlaceInPrompt>(static_cast<int>(args[1]));
           *rv = GetChat()->EmbedStep(args[0], true, place_in_prompt);
+        } else if (args.size() == 3) {
+          // args: inp, place_in_prompt, generation_config_str
+          PlaceInPrompt place_in_prompt = static_cast<PlaceInPrompt>(static_cast<int>(args[1]));
+          *rv = GetChat()->EmbedStep(args[0], true, place_in_prompt, args[2]);
         }
       });
     } else if (name == "prefill_with_embed") {
