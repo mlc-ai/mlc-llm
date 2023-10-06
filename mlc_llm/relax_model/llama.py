@@ -825,8 +825,19 @@ def get_model(args, hf_config):
         position_embedding_base = hf_config["rope_theta"]
 
     # Llama-2 variants use `max_position_embeddings` to encode maximum sequence length in their hf model cards,
-    # while Llama-1 variants use `max_sequence_length`. Thus, pass `max_sequence_length` explicitly for Llama-2 family.
-    if "max_position_embeddings" in hf_config:
+    # while Llama-1 variants use `max_sequence_length`.
+    # Thus, use `max_sequence_length` if defined. Otherwise, use `max_position_embeddings`.
+    # If none of them is defined, throw an error.
+    if "max_sequence_length" in hf_config:
+        config = LlamaConfig(
+            **hf_config,
+            dtype=dtype,
+            position_embedding_base=position_embedding_base,
+            combine_matmul=True,
+            num_shards=args.num_shards,
+            build_model_only=args.build_model_only,
+        )
+    elif "max_position_embeddings" in hf_config:
         config = LlamaConfig(
             **hf_config,
             dtype=dtype,
@@ -837,14 +848,8 @@ def get_model(args, hf_config):
             build_model_only=args.build_model_only,
         )
     else:
-        config = LlamaConfig(
-            **hf_config,
-            dtype=dtype,
-            position_embedding_base=position_embedding_base,
-            combine_matmul=True,
-            num_shards=args.num_shards,
-            build_model_only=args.build_model_only,
-        )
+        raise Exception("The model config should contain information about maximum sequence length.")
+
     # If there is a user-provided maximum sequence length, override hf config.
     if args.max_seq_len != -1:
         config.max_sequence_length = args.max_seq_len
