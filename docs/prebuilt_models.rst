@@ -602,7 +602,7 @@ Finally, for each model variant, we provide the precompiled weights we uploaded 
 
 Each precompiled weight is categorized by its model size (e.g. 7B vs. 13B) and the quantization scheme (e.g. ``q3f16_1`` vs. ``q4f16_1``). We note that the weights are **platform-agnostic**.
 
-Each model variant comes with a pre-defined :ref:`conversation template <load-predefined-conv-template>` that defines conversation configurations. Please refer to `conv_templates.cc <https://github.com/mlc-ai/mlc-llm/blob/main/cpp/conv_templates.cc>`_.
+Each model variant also loads its conversation configuration from a pre-defined :ref:`conversation template<load-predefined-conv-template>`. Note that multiple model variants can share a common conversation template.
 
 Some of these files are uploaded by our community contributors--thank you!
 
