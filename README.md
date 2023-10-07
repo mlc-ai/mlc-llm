@@ -64,15 +64,29 @@ use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_mode
   </thead>
   <tbody>
     <tr>
-      <td>Llama</td>
-      <td>Llama-2<br>
-      Code Llama<br> 
-      Vicuna<br>
-      WizardLM<br>
-      WizardMath<br>
-      OpenOrca Platypus2<br>
-      FlagAlpha Llama-2 Chinese<br>
-      georgesung Llama-2 Uncensored</td>
+      <td rowspan=8>Llama</td>
+      <td>Llama-2</td>
+    </tr>
+    <tr>
+      <td>Code Llama</td>
+    </tr>
+    <tr>
+      <td>Vicuna</td>
+    </tr>
+    <tr>
+      <td>WizardLM</td>
+    </tr>
+    <tr>
+      <td>WizardMath</td>
+    </tr>
+    <tr>
+      <td>OpenOrca Platypus2</td>
+    </tr>
+    <tr>
+      <td>FlagAlpha Llama-2 Chinese</td>
+    </tr>
+    <tr>
+      <td>georgesung Llama-2 Uncensored</td>
     </tr>
     <tr>
       <td>GPT-NeoX</td>
