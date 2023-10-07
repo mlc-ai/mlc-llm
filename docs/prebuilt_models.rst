@@ -414,7 +414,7 @@ Some of these files are uploaded by our community contributors--thank you!
 `Llama-2 <https://ai.meta.com/llama/>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: llama-2
+Conversation template: ``llama-2``
 
 .. list-table:: Llama-2
   :widths: 30 30
@@ -440,7 +440,7 @@ Conversation template: llama-2
 `Code Llama <https://about.fb.com/news/2023/08/code-llama-ai-for-coding/>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: codellama_completion
+Conversation template: ``codellama_completion``
 
 .. list-table:: Code Llama
   :widths: 30 30
@@ -469,7 +469,7 @@ Conversation template: codellama_completion
 `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: vicuna_v1.1
+Conversation template: ``vicuna_v1.1``
 
 .. list-table:: Vicuna
   :widths: 30 30
@@ -489,7 +489,7 @@ Conversation template: vicuna_v1.1
 `WizardLM <https://github.com/nlpxucan/WizardLM>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: vicuna_v1.1
+Conversation template: ``vicuna_v1.1``
 
 .. list-table:: WizardLM
   :widths: 30 30
@@ -511,7 +511,7 @@ Conversation template: vicuna_v1.1
 `WizardMath <https://github.com/nlpxucan/WizardLM/tree/main/WizardMath>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: wizard_coder_or_math
+Conversation template: ``wizard_coder_or_math``
 
 .. list-table:: WizardMath
   :widths: 30 30
@@ -533,7 +533,7 @@ Conversation template: wizard_coder_or_math
 `OpenOrca Platypus2 <https://huggingface.co/Open-Orca/OpenOrca-Platypus2-13B>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: llama-2
+Conversation template: ``llama-2``
 
 .. list-table:: OpenOrca Platypus2
   :widths: 30 30
@@ -550,7 +550,7 @@ Conversation template: llama-2
 `FlagAlpha Llama-2 Chinese <https://github.com/FlagAlpha/Llama2-Chinese>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: llama-2
+Conversation template: ``llama-2``
 
 .. list-table:: FlagAlpha Llama-2 Chinese
   :widths: 30 30
@@ -568,7 +568,7 @@ Conversation template: llama-2
 `Llama2 uncensored (georgesung) <https://huggingface.co/georgesung/llama2_7b_chat_uncensored>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: llama-default
+Conversation template: ``llama-default``
 
 .. list-table:: Llama2 uncensored
   :widths: 30 30
@@ -585,7 +585,7 @@ Conversation template: llama-default
 `RedPajama <https://www.together.xyz/blog/redpajama>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: LM
+Conversation template: ``LM``
 
 .. list-table:: Red Pajama
   :widths: 30 30
@@ -605,7 +605,7 @@ Conversation template: LM
 `RWKV-raven <https://github.com/BlinkDL/RWKV-LM>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: rwkv
+Conversation template: ``rwkv``
 
 .. list-table:: RWKV-raven
   :widths: 30 30
@@ -628,7 +628,7 @@ Conversation template: rwkv
 `WizardCoder <https://github.com/nlpxucan/WizardLM>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: wizard_coder_or_math
+Conversation template: ``wizard_coder_or_math``
 
 .. list-table:: WizardCoder
   :widths: 30 30
