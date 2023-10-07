@@ -39,7 +39,7 @@ Accordingly, to demonstrate what prebuilt model libraries and weights you could 
 
 **2. Model library tables** For each table, we describe the **model libraries** we have pre-compiled for a specific model architecture (e.g. Llama). Specifically, it is categorized by the platform, parameters count, and quantization scheme. We link to the corresponding github link.
 
-**3. Model variant tables** For each table, we describe the **weights** we have pre-compiled for a specific model variant (e.g. CodeLlama, WizardLM). Specifically, it is categorized by model size and quantization scheme. We link to the corresponding hugging face link.
+**3. Model variant tables** For each table, we describe the **weights** we have pre-compiled and the **conversation template** we have pre-defined for a specific model variant (e.g. CodeLlama, WizardLM). Specifically, it is categorized by model size and quantization scheme. We link to the corresponding hugging face link.
 
 
 Afterwards, we address how to use our prebuilt models in CLI (command line interface), iOS, and Android.
@@ -405,12 +405,16 @@ Finally, for each model variant, we provide the precompiled weights we uploaded 
 
 Each precompiled weight is categorized by its model size (e.g. 7B vs. 13B) and the quantization scheme (e.g. ``q3f16_1`` vs. ``q4f16_1``). We note that the weights are **platform-agnostic**.
 
+Each model variant comes with a pre-defined :ref:`conversation template <load-predefined-conv-template>` that defines conversation configurations. Please refer to `conv_templates.cc <https://github.com/mlc-ai/mlc-llm/blob/main/cpp/conv_templates.cc>`_.
+
 Some of these files are uploaded by our community contributors--thank you!
 
 .. _llama2_variant_table:
 
 `Llama-2 <https://ai.meta.com/llama/>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Conversation template: llama-2
 
 .. list-table:: Llama-2
   :widths: 30 30
@@ -435,6 +439,8 @@ Some of these files are uploaded by our community contributors--thank you!
 
 `Code Llama <https://about.fb.com/news/2023/08/code-llama-ai-for-coding/>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Conversation template: codellama_completion
 
 .. list-table:: Code Llama
   :widths: 30 30
@@ -463,6 +469,8 @@ Some of these files are uploaded by our community contributors--thank you!
 `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Conversation template: vicuna_v1.1
+
 .. list-table:: Vicuna
   :widths: 30 30
   :header-rows: 1
@@ -480,6 +488,8 @@ Some of these files are uploaded by our community contributors--thank you!
 
 `WizardLM <https://github.com/nlpxucan/WizardLM>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Conversation template: vicuna_v1.1
 
 .. list-table:: WizardLM
   :widths: 30 30
@@ -501,6 +511,8 @@ Some of these files are uploaded by our community contributors--thank you!
 `WizardMath <https://github.com/nlpxucan/WizardLM/tree/main/WizardMath>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Conversation template: wizard_coder_or_math
+
 .. list-table:: WizardMath
   :widths: 30 30
   :header-rows: 1
@@ -521,6 +533,8 @@ Some of these files are uploaded by our community contributors--thank you!
 `OpenOrca Platypus2 <https://huggingface.co/Open-Orca/OpenOrca-Platypus2-13B>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Conversation template: llama-2
+
 .. list-table:: OpenOrca Platypus2
   :widths: 30 30
   :header-rows: 1
@@ -535,6 +549,8 @@ Some of these files are uploaded by our community contributors--thank you!
 
 `FlagAlpha Llama-2 Chinese <https://github.com/FlagAlpha/Llama2-Chinese>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Conversation template: llama-2
 
 .. list-table:: FlagAlpha Llama-2 Chinese
   :widths: 30 30
@@ -552,6 +568,8 @@ Some of these files are uploaded by our community contributors--thank you!
 `Llama2 uncensored (georgesung) <https://huggingface.co/georgesung/llama2_7b_chat_uncensored>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Conversation template: llama-default
+
 .. list-table:: Llama2 uncensored
   :widths: 30 30
   :header-rows: 1
@@ -566,6 +584,8 @@ Some of these files are uploaded by our community contributors--thank you!
 
 `RedPajama <https://www.together.xyz/blog/redpajama>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Conversation template: LM
 
 .. list-table:: Red Pajama
   :widths: 30 30
@@ -584,6 +604,8 @@ Some of these files are uploaded by our community contributors--thank you!
 
 `RWKV-raven <https://github.com/BlinkDL/RWKV-LM>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Conversation template: rwkv
 
 .. list-table:: RWKV-raven
   :widths: 30 30
@@ -605,6 +627,8 @@ Some of these files are uploaded by our community contributors--thank you!
 
 `WizardCoder <https://github.com/nlpxucan/WizardLM>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Conversation template: wizard_coder_or_math
 
 .. list-table:: WizardCoder
   :widths: 30 30
