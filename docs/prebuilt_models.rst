@@ -12,38 +12,27 @@ Model Prebuilts
 Overview
 --------
 
-MLC-LLM is a universal solution for deploying different language models. Any language models that can be described in `TVM Relax <https://mlc.ai/chapter_graph_optimization/index.html>`__ (a general representation for Neural Networks and can be imported from models written in PyTorch) can be recognized by MLC-LLM and thus deployed to different backends with the help of :doc:`TVM Unity </install/tvm>`.
+MLC-LLM is a universal solution for deploying different language models. Any models that can be described in `TVM Relax <https://mlc.ai/chapter_graph_optimization/index.html>`__ 
+(a general representation for Neural Networks and can be imported from models written in PyTorch) can be recognized by MLC-LLM and thus deployed to different backends with the 
+help of :doc:`TVM Unity </install/tvm>`.
 
-The community has already supported several LLM architectures (LLaMA, GPT-NeoX, etc.) and have prebuilt some models (Vicuna, RedPajama, etc.) which you can use off the shelf.
-With the goal of democratizing the deployment of LLMs, we eagerly anticipate further contributions from the community to expand the range of supported model architectures.
+The community has already supported several LLM architectures (LLaMA, GPT-NeoX, etc.) and have prebuilt some models (Vicuna, RedPajama, etc.) for immediate use. These models have 
+undergone extensive testing on various devices, and their performance has been optimized by developers with the help of TVM. This pages tracks the model architectures and variants 
+that MLC-LLM currently supports. Visit `MLC-LLM pull requests <https://github.com/mlc-ai/mlc-llm/pulls?q=is%3Aopen+is%3Apr+label%3Anew-models>`__ to track the support of new models.
 
-This pages tracks the model architectures and variants that MLC-LLM currently supports.
-
-You can check `MLC-LLM pull requests <https://github.com/mlc-ai/mlc-llm/pulls?q=is%3Aopen+is%3Apr+label%3Anew-models>`__ to track the ongoing efforts of new models. We encourage users to upload their compiled models to Hugging Face and share with the community.
+With the goal of democratizing the deployment of LLMs, we eagerly anticipate further contributions from the community to expand the range of supported model architectures and variants.
 
 Prerequisite: Model Libraries and Compiled Weights
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-In order to run a specific model on MLC-LLM, you roughly need two parts:
+In order to run a specific model on MLC-LLM, you need:
 
-**1. A model library:** a binary file containing the end-to-end functionality to inference a model. This is a single file that ends in ``.so`` or other suffix depending on the platform. Such a file is model-architecture-specific (e.g. Llama vs. RWKV). See the full list of precompiled model libraries `here <https://github.com/mlc-ai/binary-mlc-llm-libs>`__. 
+**1. A model library:** a binary file containing the end-to-end functionality to inference a model 
+(`example <https://github.com/rickzx/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-cuda.so>`_). See the full list of all precompiled model libraries `here <https://github.com/mlc-ai/binary-mlc-llm-libs>`__. 
 
-**2. Compiled weights:** a folder containing multiple files that store the compiled and quantized weights of a model. Besides the weights, there are also config files required by MLC-LLM's runtime such as ``mlc-chat-config.json``. Such a folder is model-variant-specific (e.g. CodeLlama vs. WizardCoder). See the list of precompiled weights `here <https://huggingface.co/mlc-ai>`__.
+**2. Compiled weights:** a folder containing multiple files that store the compiled and quantized weights of a model 
+(`example <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1/tree/main>`_).  See the full list of all precompiled weights `here <https://huggingface.co/mlc-ai>`__.
 
-
-How We Organize this Page 
-^^^^^^^^^^^^^^^^^^^^^^^^^
-Accordingly, to demonstrate what prebuilt model libraries and weights you could use off-the-shelf, we organize our page with three levels of hierarchy here (from high to low):
-
-**1. Supported model architectures** The **all-in-one** table demonstrating what model architectures we support and what variants belong to each architecture. Each entry hyperlinks to the corresponding model library table and model variant table. 
-
-**2. Model library tables** For each table, we describe the **model libraries** we have pre-compiled for a specific model architecture (e.g. Llama). Specifically, it is categorized by the platform, parameters count, and quantization scheme. We link to the corresponding github link.
-
-**3. Model variant tables** For each table, we describe the **weights** we have pre-compiled and the **conversation template** we have pre-defined for a specific model variant (e.g. CodeLlama, WizardLM). Specifically, it is categorized by model size and quantization scheme. We link to the corresponding hugging face link.
-
-
-Afterwards, we address how to use our prebuilt models in CLI (command line interface), iOS, and Android.
-The models have undergone extensive testing on various devices, and their performance has been optimized by developers with the help of TVM.
 
 .. _supported-model-architectures:
 
