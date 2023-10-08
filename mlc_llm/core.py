@@ -236,6 +236,13 @@ class BuildArgs:
             "action": "store_true",
         },
     )
+    pdb: bool = field(
+        default=False,
+        metadata={
+            "help": ("If set, drop into a pdb debugger on error"),
+            "action": "store_true",
+        },
+    )
 
 
 def convert_build_args_to_argparser() -> argparse.ArgumentParser:
