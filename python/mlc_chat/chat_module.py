@@ -8,7 +8,7 @@ import sys
 import warnings
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import tvm
 from tvm.runtime import disco
@@ -779,7 +779,7 @@ class ChatModule:
 
     def generate(
         self,
-        prompt: str,
+        prompt: Union[str, List[str]],
         generation_config: Optional[GenerationConfig] = None,
         progress_callback=None,
     ) -> str:
@@ -976,7 +976,7 @@ class ChatModule:
 
     def _prefill(
         self,
-        input: str,
+        input: Union[str, List[str]],
         decode_next_token: bool = True,
         place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
         generation_config: Optional[GenerationConfig] = None,
@@ -998,7 +998,32 @@ class ChatModule:
         generation_config = _get_generation_config(self.chat_config, generation_config)
         generation_config_str = _convert_generation_config_to_json_str(generation_config)
 
-        self._prefill_func(input, decode_next_token, place_in_prompt.value, generation_config_str)
+        if isinstance(input, list):
+            # Populate conversation.messages using load_json_override
+            if len(input) > 1:
+                conv_config = json.loads(self._get_config_json())["conv_config"]
+                messages = []
+                role0 = self._get_role_0()
+                role1 = self._get_role_1()
+                for idx, msg in enumerate(input[:-1]):
+                    role = msg.role
+                    content = msg.content
+                    if role == "user":
+                        messages.append([role0, content])
+                    elif role == "assistant":
+                        messages.append([role1, content])
+                    else:
+                        raise ValueError("Only user and assistant roles are supported.")
+                    
+                conv_config["messages"] = messages
+                conv_config["offset"] = 0 # Otherwise, the offset will be set to the length of the conversation, which means history will be retained even after calling reset_chat
+                self._load_json_override(json.dumps({"conv_config": conv_config}), partial_update=True)
+            input_str = input[-1].content
+        else:
+            input_str = input
+        
+
+        self._prefill_func(input_str, decode_next_token, place_in_prompt.value, generation_config_str)
 
     def _embed(
         self,

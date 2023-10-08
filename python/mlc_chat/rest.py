@@ -178,17 +178,11 @@ async def request_completion(request: ChatCompletionRequest):
         max_gen_len=request.max_gen_len,
     )
 
-    if len(request.messages) > 1:
-        raise ValueError(
-            """
-                The /v1/chat/completions endpoint currently only supports single message prompts.
-                Please ensure your request contains only one message
-                """
-        )
+    session["chat_mod"].reset_chat() # Reset previous history, KV cache, etc.
 
     if request.stream:
         session["chat_mod"]._prefill(
-            input=request.messages[0].content, generation_config=generation_config
+            input=request.messages, generation_config=generation_config
         )
 
         async def iter_response():
@@ -212,7 +206,7 @@ async def request_completion(request: ChatCompletionRequest):
         return StreamingResponse(iter_response(), media_type="text/event-stream")
     else:
         msg = session["chat_mod"].generate(
-            prompt=request.messages[0].content, generation_config=generation_config
+            prompt=request.messages, generation_config=generation_config
         )
         return ChatCompletionResponse(
             choices=[
