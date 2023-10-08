@@ -1107,10 +1107,9 @@ class LLMChat {
           // back tracking, find the first set of token that is smaller
           // than the length
           size_t backoff = 0;
-          for (; backoff < output_ids_.size(); ++backoff) {
+          for (; (output_ids_.size() > 0) && (output_message_.length() > stop_pos); ++backoff) {
             output_ids_.pop_back();
             output_message_ = tokenizer_->Decode(output_ids_);
-            if (output_message_.length() <= stop_pos) break;
           }
           // resize kv to remove the context
           ft_.fkvcache_array_popn_(kv_cache_, backoff);
