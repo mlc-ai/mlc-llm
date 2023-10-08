@@ -30,7 +30,7 @@ The easiest way is to use MLC-LLM is to clone the repository, and compile models
 .. code:: bash
 
     # clone the repository
-    git clone git@github.com:mlc-ai/mlc-llm.git --recursive
+    git clone https://github.com/mlc-ai/mlc-llm.git --recursive
     # enter to root directory of the repo
     cd mlc-llm
     # install mlc-llm
