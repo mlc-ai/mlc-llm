@@ -9,7 +9,10 @@ python prepare_model_lib.py
 
 cd build
 touch config.cmake
-echo "set(TVM_HOME ${TVM_HOME})" >> config.cmake
+if [ ${TVM_HOME-0} -ne 0 ]; then
+  echo "set(TVM_HOME ${TVM_HOME})" >> config.cmake
+fi
+
 cmake .. \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \

@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -94,9 +95,14 @@ fun StartView(
                 }
             }
             if (isAddingModel) {
-                Text(
-                    text = "Add Model Variant", modifier = Modifier.padding(top = 10.dp)
-                )
+                Text(text = "Supported Base Model Libs", modifier = Modifier.padding(top = 10.dp))
+                for (lib in appViewModel.supportedModelLibs()) {
+                    Text(
+                        text = lib,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Text(text = "Add Model Variant", modifier = Modifier.padding(top = 10.dp))
                 LazyColumn() {
                     items(
                         items = appViewModel.modelSampleList
@@ -148,8 +154,34 @@ fun StartView(
                 }
             }
         }
-
+        if (appViewModel.isShowingAlert()) {
+            AlertDialog(
+                onDismissRequest = { appViewModel.dismissAlert() },
+                onConfirmation = { appViewModel.copyError() },
+                error = appViewModel.errorMessage()
+            )
+        }
     }
+}
+
+@ExperimentalMaterial3Api
+@Composable
+fun AlertDialog(
+    onDismissRequest: () -> Unit,
+    onConfirmation: () -> Unit,
+    error: String,
+) {
+    AlertDialog(
+        title = { Text(text = "Error") },
+        text = { Text(text = error) },
+        onDismissRequest = { onDismissRequest() },
+        confirmButton = {
+            TextButton(onClick = { onConfirmation() }) { Text("Copy") }
+        },
+        dismissButton = {
+            TextButton(onClick = { onDismissRequest() }) { Text("Dismiss") }
+        }
+    )
 }
 
 @Composable
