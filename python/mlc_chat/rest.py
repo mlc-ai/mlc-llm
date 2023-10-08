@@ -1,12 +1,8 @@
 import argparse
 import asyncio
-import json
-import os
-import subprocess
-import sys
 from contextlib import asynccontextmanager
 
-from mlc_chat.chat_module import ChatConfig, ConvConfig
+from mlc_chat.chat_module import GenerationConfig
 
 import uvicorn
 from fastapi import FastAPI
@@ -20,6 +16,7 @@ from .chat_module import ChatModule
 from .interface.openai_api import *
 
 import numpy as np
+
 
 @dataclass
 class RestAPIArgs:
@@ -46,17 +43,7 @@ class RestAPIArgs:
                 The full path to the model library file to use (e.g. a ``.so`` file).
                 """
             )
-        }
-    )
-    config_overrides_path: str = field(
-        default=None,
-        metadata={
-            "help": (
-                """
-                The full path to the model config file to use for overriding the default (e.g. a ``.json`` file).
-                """
-            )
-        }
+        },
     )
     device: str = field(
         default="auto",
@@ -70,7 +57,7 @@ class RestAPIArgs:
                 is provided, it will be set to 0 by default.
                 """
             )
-        }
+        },
     )
     host: str = field(
         default="127.0.0.1",
@@ -80,7 +67,7 @@ class RestAPIArgs:
                 The host at which the server should be started, defaults to ``127.0.0.1``.
                 """
             )
-        }
+        },
     )
     port: int = field(
         default=8000,
@@ -90,7 +77,7 @@ class RestAPIArgs:
                 The port on which the server should be started, defaults to ``8000``.
                 """
             )
-        }
+        },
     )
     random_seed: int = field(
         default=None,
@@ -101,7 +88,7 @@ class RestAPIArgs:
                 no seed is set.
                 """
             )
-        }
+        },
     )
 
 
@@ -126,18 +113,12 @@ session = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    chat_config_overrides = None
-    if ARGS.config_overrides_path and os.path.isfile(ARGS.config_overrides_path):
-        with open(ARGS.config_overrides_path, mode="rt", encoding="utf-8") as f:
-            json_object = json.load(f)
-            chat_config_overrides = ChatConfig._from_json(json_object)
     if ARGS.random_seed is not None:
         set_global_random_seed(ARGS.random_seed)
     chat_mod = ChatModule(
         model=ARGS.model,
         device=ARGS.device,
         lib_path=ARGS.lib_path,
-        chat_config=chat_config_overrides
     )
     session["chat_mod"] = chat_mod
 
@@ -160,13 +141,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class AsyncChatCompletionStream:
+
+class AsyncCompletionStream:
+    def __init__(self, generation_config: GenerationConfig):
+        self.generation_config = generation_config
+
     def __aiter__(self):
         return self
 
     async def get_next_msg(self):
         if not session["chat_mod"]._stopped():
-            session["chat_mod"]._decode()
+            session["chat_mod"]._decode(generation_config=self.generation_config)
             msg = session["chat_mod"]._get_message()
             return msg
         else:
@@ -187,29 +172,30 @@ async def request_completion(request: ChatCompletionRequest):
     Creates model response for the given chat conversation.
     """
 
-    chat_config = ChatConfig(
+    generation_config = GenerationConfig(
         temperature=request.temperature,
         repetition_penalty=request.repetition_penalty,
         top_p=request.top_p,
         mean_gen_len=request.mean_gen_len,
         max_gen_len=request.max_gen_len,
     )
-    session["chat_mod"].update_chat_config(chat_config)
 
     if len(request.messages) > 1:
-            raise ValueError(
-                """
+        raise ValueError(
+            """
                 The /v1/chat/completions endpoint currently only supports single message prompts.
                 Please ensure your request contains only one message
-                """)
+                """
+        )
 
     if request.stream:
-
-        session["chat_mod"]._prefill(input=request.messages[0].content)
+        session["chat_mod"]._prefill(
+            input=request.messages[0].content, generation_config=generation_config
+        )
 
         async def iter_response():
             prev_txt = ""
-            async for content in AsyncChatCompletionStream():
+            async for content in AsyncCompletionStream(generation_config=generation_config):
                 if content:
                     chunk = ChatCompletionStreamResponse(
                         choices=[
@@ -227,7 +213,9 @@ async def request_completion(request: ChatCompletionRequest):
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
     else:
-        msg = session["chat_mod"].generate(prompt=request.messages[0].content)
+        msg = session["chat_mod"].generate(
+            prompt=request.messages[0].content, generation_config=generation_config
+        )
         return ChatCompletionResponse(
             choices=[
                 ChatCompletionResponseChoice(
@@ -247,31 +235,15 @@ async def request_completion(request: CompletionRequest):
     Creates a completion for a given prompt.
     """
 
-    conv_config = ConvConfig(
-        system=request.system_prompt,
-        roles=request.chat_roles,
-        messages=request.messages,
-        offset=request.offset,
-        separator_style=request.separator_style,
-        seps=request.seps,
-        role_msg_sep=request.role_msg_sep,
-        role_empty_sep=request.role_empty_sep,
-        stop_str=request.stop_str,
-        stop_tokens=request.stop_tokens,
-        add_bos=request.add_bos,
-    )
-
-    chat_config = ChatConfig(
+    generation_config = GenerationConfig(
         temperature=request.temperature,
         repetition_penalty=request.repetition_penalty,
         top_p=request.top_p,
         mean_gen_len=request.mean_gen_len,
         max_gen_len=request.max_gen_len,
-        conv_config=conv_config,
     )
 
     session["chat_mod"].reset_chat()
-    session["chat_mod"].update_chat_config(chat_config)
     # Langchain's load_qa_chain.run expects the input to be a list with the query
     if isinstance(request.prompt, list):
         if len(request.prompt) > 1:
@@ -279,18 +251,39 @@ async def request_completion(request: CompletionRequest):
                 """
                 The /v1/completions endpoint currently only supports single message prompts.
                 Please ensure your request contains only one message
-                """)
+                """
+            )
         prompt = request.prompt[0]
     else:
         prompt = request.prompt
 
-    msg = session["chat_mod"].generate(prompt=prompt)
+    if request.stream:
+        session["chat_mod"]._prefill(input=prompt, generation_config=generation_config)
 
-    return CompletionResponse(
-        choices=[CompletionResponseChoice(index=0, text=msg)],
-        # TODO: Fill in correct usage info
-        usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
-    )
+        async def iter_response():
+            prev_txt = ""
+            async for content in AsyncCompletionStream(generation_config=generation_config):
+                if content:
+                    chunk = CompletionStreamResponse(
+                        choices=[
+                            CompletionResponseStreamChoice(
+                                index=0,
+                                text=content[len(prev_txt) :],
+                                finish_reason="stop",
+                            )
+                        ]
+                    )
+                    prev_txt = content
+                    yield f"data: {chunk.json(exclude_unset=True)}\n\n"
+
+        return StreamingResponse(iter_response(), media_type="text/event-stream")
+    else:
+        msg = session["chat_mod"].generate(prompt=prompt, generation_config=generation_config)
+        return CompletionResponse(
+            choices=[CompletionResponseChoice(index=0, text=msg)],
+            # TODO: Fill in correct usage info
+            usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+        )
 
 
 @app.post("/v1/embeddings")
@@ -305,7 +298,7 @@ async def request_embeddings(request: EmbeddingsRequest):
         inps = request.input
     else:
         assert f"Invalid input type {type(request.input)}"
-    
+
     data = []
     for i, inp in enumerate(inps):
         session["chat_mod"].reset_chat()
@@ -315,12 +308,7 @@ async def request_embeddings(request: EmbeddingsRequest):
         data.append({"object": "embedding", "embedding": norm_emb.tolist(), "index": i})
     # TODO: Fill in correct usage info
     return EmbeddingsResponse(
-        data=data,
-        usage=UsageInfo(
-            prompt_tokens=0,
-            completion_tokens=0,
-            total_tokens=0
-        )
+        data=data, usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0)
     )
 
 
