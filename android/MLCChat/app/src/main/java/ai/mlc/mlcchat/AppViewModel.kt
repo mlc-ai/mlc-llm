@@ -2,6 +2,9 @@ package ai.mlc.mlcchat
 
 import ai.mlc.mlcllm.ChatModule
 import android.app.Application
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Environment
 import android.widget.Toast
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +26,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val modelList = emptyList<ModelState>().toMutableStateList()
     val chatState = ChatState()
     val modelSampleList = emptyList<ModelRecord>().toMutableStateList()
+    private var showAlert = mutableStateOf(false)
+    private var alertMessage = mutableStateOf("")
     private var appConfig = AppConfig(
         emptyList(),
         emptyList<ModelRecord>().toMutableList(),
@@ -44,13 +49,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         loadAppConfig()
     }
 
+    fun supportedModelLibs(): List<String> {
+        return appConfig.modelLibs
+    }
+
+    fun isShowingAlert(): Boolean {
+        return showAlert.value
+    }
+
+    fun errorMessage(): String {
+        return alertMessage.value
+    }
+
+    fun dismissAlert() {
+        require(showAlert.value)
+        showAlert.value = false
+    }
+
+    fun copyError() {
+        require(showAlert.value)
+        val clipboard =
+            application.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("MLCChat", errorMessage()))
+    }
+
+    private fun issueAlert(error: String) {
+        showAlert.value = true
+        alertMessage.value = error
+    }
+
     fun requestAddModel(url: String, localId: String?) {
         if (localId != null && localIdSet.contains(localId)) {
-            Toast.makeText(
-                application,
-                "localId: $localId has been occupied",
-                Toast.LENGTH_SHORT
-            ).show()
+            issueAlert("localId: $localId has been occupied")
         } else {
             downloadModelConfig(if (url.endsWith("/")) url else "$url/", localId, false)
         }
@@ -58,11 +88,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun requestDeleteModel(localId: String) {
         deleteModel(localId)
-        Toast.makeText(
-            application,
-            "Model: $localId has been deleted",
-            Toast.LENGTH_SHORT
-        ).show()
+        issueAlert("Model: $localId has been deleted")
     }
 
 
@@ -133,11 +159,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun isModelConfigAllowed(modelConfig: ModelConfig): Boolean {
         if (appConfig.modelLibs.contains(modelConfig.modelLib)) return true;
         viewModelScope.launch {
-            Toast.makeText(
-                application,
-                "Model lib ${modelConfig.modelLib} is not supported.",
-                Toast.LENGTH_SHORT
-            ).show()
+            issueAlert("Model lib ${modelConfig.modelLib} is not supported.")
         }
         return false
     }
@@ -169,11 +191,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         if (localIdSet.contains(modelConfig.localId)) {
                             tempFile.delete()
-                            Toast.makeText(
-                                application,
-                                "${modelConfig.localId} has been used, please consider another local ID",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            issueAlert("${modelConfig.localId} has been used, please consider another local ID")
                             return@launch
                         }
                         if (!isModelConfigAllowed(modelConfig)) {
@@ -188,21 +206,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         addModelConfig(modelConfig, modelUrl, isBuiltin)
                     } catch (e: Exception) {
                         viewModelScope.launch {
-                            Toast.makeText(
-                                application,
-                                "Add model failed: ${e.localizedMessage}",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            issueAlert("Add model failed: ${e.localizedMessage}")
                         }
                     }
                 }
             } catch (e: Exception) {
                 viewModelScope.launch {
-                    Toast.makeText(
-                        application,
-                        "Download model config failed: ${e.localizedMessage}",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    issueAlert("Download model config failed: ${e.localizedMessage}")
                 }
             }
 
