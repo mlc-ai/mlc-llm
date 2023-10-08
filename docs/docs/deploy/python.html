@@ -192,7 +192,6 @@
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.generate"><code class="docutils literal notranslate"><span class="pre">ChatModule.generate()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.reset_chat"><code class="docutils literal notranslate"><span class="pre">ChatModule.reset_chat()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.stats"><code class="docutils literal notranslate"><span class="pre">ChatModule.stats()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.update_chat_config"><code class="docutils literal notranslate"><span class="pre">ChatModule.update_chat_config()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -722,7 +721,7 @@ For a more fine-grained embedding API, see <code class="xref py py-func docutils
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mlc_chat.ChatModule.generate">
-<span class="sig-name descname"><span class="pre">generate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prompt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">progress_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#mlc_chat.ChatModule.generate" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">generate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prompt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generation_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">GenerationConfig</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">progress_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#mlc_chat.ChatModule.generate" title="Permalink to this definition">¶</a></dt>
 <dd><p>A high-level method that returns the full response from the chat module given a user prompt.
 User can optionally specify which callback method to use upon receiving the response. By default,
 no callback will be applied.</p>
@@ -730,6 +729,7 @@ no callback will be applied.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>prompt</strong> (<em>str</em>) – The user input prompt, i.e. a question to ask the chat module.</p></li>
+<li><p><strong>generation_config</strong> (<em>Optional</em><em>[</em><em>GenerationConfig</em><em>]</em>) – The generation config object to override the ChatConfig generation settings.</p></li>
 <li><p><strong>progress_callback</strong> (<em>object</em>) – The optional callback method used upon receiving a newly generated message from the chat module.
 See <cite>mlc_chat/callback.py</cite> for a full list of available callback classes. Currently, only
 streaming to stdout callback method is supported, see <cite>Examples</cite> for more detailed usage.</p></li>
@@ -748,10 +748,12 @@ streaming to stdout callback method is supported, see <cite>Examples</cite> for 
 <span class="c1"># the chat module streaming to stdout piece by piece, and in the end we receive the</span>
 <span class="c1"># full response as a single string `output`.</span>
 
-<span class="kn">from</span> <span class="nn">mlc_chat</span> <span class="kn">import</span> <span class="n">ChatModule</span><span class="p">,</span> <span class="n">callback</span>
+<span class="kn">from</span> <span class="nn">mlc_chat</span> <span class="kn">import</span> <span class="n">ChatModule</span><span class="p">,</span> <span class="n">GenerationConfig</span><span class="p">,</span> <span class="n">callback</span>
 <span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span><span class="n">xxx</span><span class="p">)</span>
 <span class="n">prompt</span> <span class="o">=</span> <span class="s2">&quot;what&#39;s the color of banana?&quot;</span>
-<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">callback</span><span class="o">.</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+  <span class="n">prompt</span><span class="p">,</span> <span class="n">GenerationConfig</span><span class="p">(</span><span class="n">temperature</span><span class="o">=</span><span class="mf">0.8</span><span class="p">),</span> <span class="n">callback</span><span class="o">.</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -790,24 +792,6 @@ of the chat module in text form.</p>
 <dd class="field-even"><p>str</p>
 </dd>
 </dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_chat.ChatModule.update_chat_config">
-<span class="sig-name descname"><span class="pre">update_chat_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_chat_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ChatConfig</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_chat.ChatModule.update_chat_config" title="Permalink to this definition">¶</a></dt>
-<dd><p>Update the chat config, or use the currently used default values if
-values are None.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>chat_config</strong> (<em>ChatConfig</em>) – A <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> instance partially filled. The chat module will
-override the default values with it.</p>
-</dd>
-</dl>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>This is inteneded for use in the completions api to allow users to specify
-config values and use defaults if they are not passed to the request.</p>
-</div>
 </dd></dl>
 
 </dd></dl>
