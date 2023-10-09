@@ -314,6 +314,15 @@ The :class:`mlc_chat.ChatModule` class provides the following methods:
 
    .. automethod:: __init__
 
+.. autoclass:: ChatConfig
+   :members:
+
+.. autoclass:: ConvConfig
+   :members:
+
+.. autoclass:: GenerationConfig
+   :members:
+
 Gradio Frontend
 ---------------
 
