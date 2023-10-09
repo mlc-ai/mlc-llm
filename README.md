@@ -68,7 +68,7 @@ Machine Learning Compilation for Large Language Models (MLC LLM) is a high-perfo
 
 Please visit our [documentation](https://llm.mlc.ai/docs/index.html#getting-started) for detailed instructions.
 
-## Prebuilt model support.
+## Prebuilt model support
 
 MLC LLM supports a wide range of model architectures and variants. We have the following prebuilts which you can
 use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_models.html) to see the full list, and [Compile Models via MLC](https://llm.mlc.ai/docs/compilation/compile_models.html) to see how to use models not on this list.
