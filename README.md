@@ -74,8 +74,8 @@ use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_mode
 <table style="width:100%">
   <thead>
     <tr>
-      <th style="width:40%">Supported Model Architecture</th>
-      <th style="width:60%">Model Variants with Prebuilts</th>
+      <th style="width:40%">Architecture</th>
+      <th style="width:60%">Prebuilt Model Variants</th>
     </tr>
   </thead>
   <tbody>
