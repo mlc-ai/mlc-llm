@@ -30,6 +30,8 @@ class ChatCompletionRequest(BaseModel):
     frequency_penalty: float = None
     n: int = None
     stop: Union[str, List[str]] = None
+    presence_penalty: float = None
+    frequency_penalty: float = None
     # TODO: Implement support for the OpenAI API parameters
     # function []
     # function_call

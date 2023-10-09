@@ -202,26 +202,27 @@ class GenerationConfig:
         The temperature applied to logits before sampling. The default value is
         ``0.7``. A higher temperature encourages more diverse outputs, while a
         lower temperature produces more deterministic outputs.
+    presence_penalty : Optional[float]
+        Number between -2.0 and 2.0. Positive values penalize new tokens based on
+        whether they appear in the text so far, increasing the model's likelihood
+        to talk about new topics. Negative values can increase the likelihood of
+        repetition.
+    frequency_penalty : Optional[float]
+        Number between -2.0 and 2.0. Positive values penalize new tokens based on their
+        existing frequency in the text so far, decreasing the model's likelihood to
+        repeat the same line verbatim. Negative values can increase the likelihood of
+        repetition.
     repetition_penalty : Optional[float]
         The repetition penalty controls the likelihood of the model generating
         repeated texts. The default value is set to ``1.0``, indicating that no
         repetition penalty is applied. Increasing the value reduces the
         likelihood of repeat text generation. However, setting a high
         ``repetition_penalty`` may result in the model generating meaningless
-        texts. The ideal choice of repetition penalty may vary among models.
+        texts. The ideal choice of repetition penalty may vary among models. Only
+        Active when presence_penalty and frequency_penalty are both 0.0.
 
         For more details on how repetition penalty controls text generation, please
         check out the CTRL paper (https://arxiv.org/pdf/1909.05858.pdf).
-    presence_penalty : Optional[float]
-        Number between -2.0 and 2.0. Positive values penalize new tokens based on
-        whether they appear in the text so far, increasing the model's likelihood
-        to talk about new topics. Negative values can increase the likelihood of
-        repetition. Only active if ``repetition_penalty`` is ``1.0``.
-    frequency_penalty : Optional[float]
-        Number between -2.0 and 2.0. Positive values penalize new tokens based on their
-        existing frequency in the text so far, decreasing the model's likelihood to
-        repeat the same line verbatim. Negative values can increase the likelihood of
-        repetition. Only active if ``repetition_penalty`` is ``1.0``.
     top_p : Optional[float]
         This parameter determines the set of tokens from which we sample during
         decoding. The default value is set to ``0.95``. At each step, we select
@@ -255,6 +256,8 @@ class GenerationConfig:
     frequency_penalty: Optional[float] = 0.0
     n: Optional[int] = None
     stop: Optional[Union[str, List[str]]] = None
+    presence_penalty: Optional[float] = 0.0
+    frequency_penalty: Optional[float] = 0.0
 
     @classmethod
     def _from_chat_config(generation_config_cls, chat_config_obj: ChatConfig):

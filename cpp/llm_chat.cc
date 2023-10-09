@@ -672,12 +672,8 @@ class LLMChat {
                       PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
                       String generation_config_str = "") {
     // process generation settings
-    picojson::object generation_config = picojson::object();
-    if (!generation_config_str.empty()) {
-      picojson::value generation_config_json;
-      picojson::parse(generation_config_json, generation_config_str);
-      generation_config = generation_config_json.get<picojson::object>();
-    }
+    picojson::object generation_config =
+        this->LoadGenerationConfigFromString(generation_config_str);
 
     std::vector<int32_t> prompt_tokens =
         PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt, generation_config);
@@ -729,13 +725,8 @@ class LLMChat {
       return;
     }
 
-    // process generation settings
-    picojson::object generation_config = picojson::object();
-    if (!generation_config_str.empty()) {
-      picojson::value generation_config_json;
-      picojson::parse(generation_config_json, generation_config_str);
-      generation_config = generation_config_json.get<picojson::object>();
-    }
+    picojson::object generation_config =
+        this->LoadGenerationConfigFromString(generation_config_str);
 
     int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config);
 
@@ -768,13 +759,8 @@ class LLMChat {
       return;
     }
 
-    // process generation settings
-    picojson::object generation_config = picojson::object();
-    if (!generation_config_str.empty()) {
-      picojson::value generation_config_json;
-      picojson::parse(generation_config_json, generation_config_str);
-      generation_config = generation_config_json.get<picojson::object>();
-    }
+    picojson::object generation_config =
+        this->LoadGenerationConfigFromString(generation_config_str);
 
     std::vector<int32_t> prompt_tokens =
         this->PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt, generation_config);
@@ -807,13 +793,8 @@ class LLMChat {
   }
 
   void DecodeStep(String generation_config_str = "") {
-    // process generation settings
-    picojson::object generation_config = picojson::object();
-    if (!generation_config_str.empty()) {
-      picojson::value generation_config_json;
-      picojson::parse(generation_config_json, generation_config_str);
-      generation_config = generation_config_json.get<picojson::object>();
-    }
+    picojson::object generation_config =
+        this->LoadGenerationConfigFromString(generation_config_str);
 
     ICHECK(!output_ids_.empty());
     int32_t last_token = output_ids_.back();
@@ -940,6 +921,64 @@ class LLMChat {
     config["conv_config"] = this->conversation_.SerializeToJSON();
     return picojson::value(config);
   }
+
+  picojson::object LoadGenerationConfigFromString(const std::string& generation_config_str) {
+    picojson::object generation_config = picojson::object();
+    if (!generation_config_str.empty()) {
+      picojson::value generation_config_json;
+      picojson::parse(generation_config_json, generation_config_str);
+      generation_config = generation_config_json.get<picojson::object>();
+    }
+    return generation_config;
+  }
+
+  void ReadGenerationConfig(picojson::object generation_config, double* gen_temperature,
+                            NDArray* gen_temperature_arr, double* gen_repetition_penalty,
+                            double* gen_presence_penalty, double* gen_frequency_penalty,
+                            double* gen_top_p) {
+    if (generation_config.count("temperature")) {
+      CHECK(generation_config["temperature"].is<double>());
+      *gen_temperature = generation_config["temperature"].get<double>();
+
+      *gen_temperature_arr = NDArray::Empty({}, DataType::Float(32), device_);
+      float temperature_cast = static_cast<float>(*gen_temperature);
+      gen_temperature_arr->CopyFromBytes(&temperature_cast, sizeof(float));
+    } else {
+      *gen_temperature = this->temperature_;
+      *gen_temperature_arr = this->temperature_arr_;
+    }
+    if (generation_config.count("repetition_penalty")) {
+      CHECK(generation_config["repetition_penalty"].is<double>());
+      CHECK(generation_config["repetition_penalty"].get<double>() > 0)
+          << "Repetition penalty must be a positive number!";
+      *gen_repetition_penalty = generation_config["repetition_penalty"].get<double>();
+    } else {
+      *gen_repetition_penalty = this->repetition_penalty_;
+    }
+    if (generation_config.count("presence_penalty")) {
+      CHECK(generation_config["presence_penalty"].is<double>());
+      CHECK(abs(generation_config["presence_penalty"].get<double>()) <= 2)
+          << "Presence penalty must be in the range -2 to 2!";
+      *gen_presence_penalty = generation_config["presence_penalty"].get<double>();
+    } else {
+      *gen_presence_penalty = this->presence_penalty_;
+    }
+    if (generation_config.count("frequency_penalty")) {
+      CHECK(generation_config["frequency_penalty"].is<double>());
+      CHECK(abs(generation_config["frequency_penalty"].get<double>()) <= 2)
+          << "Frequency penalty must be in the range -2 to 2!";
+      *gen_frequency_penalty = generation_config["frequency_penalty"].get<double>();
+    } else {
+      *gen_frequency_penalty = this->frequency_penalty_;
+    }
+    if (generation_config.count("top_p")) {
+      CHECK(generation_config["top_p"].is<double>());
+      *gen_top_p = generation_config["top_p"].get<double>();
+    } else {
+      *gen_top_p = this->top_p_;
+    }
+  }
+
   /*!
    * \brief Sample output token from logits on device
    */
@@ -953,52 +992,20 @@ class LLMChat {
     double gen_presence_penalty;
     double gen_frequency_penalty;
     double gen_top_p;
-    if (generation_config.count("temperature")) {
-      CHECK(generation_config["temperature"].is<double>());
-      gen_temperature = generation_config["temperature"].get<double>();
-      if (gen_temperature != this->temperature_) {
-        this->temperature_ = gen_temperature;
-        float temperature_cast = static_cast<float>(gen_temperature);
-        this->temperature_arr_.CopyFromBytes(&temperature_cast, sizeof(float));
-      }
-    } else {
-      gen_temperature = this->temperature_;
-    }
-    if (generation_config.count("repetition_penalty")) {
-      CHECK(generation_config["repetition_penalty"].is<double>());
-      gen_repetition_penalty = generation_config["repetition_penalty"].get<double>();
-    } else {
-      gen_repetition_penalty = this->repetition_penalty_;
-    }
-    if (generation_config.count("presence_penalty")) {
-      CHECK(generation_config["presence_penalty"].is<double>());
-      gen_presence_penalty = generation_config["presence_penalty"].get<double>();
-    } else {
-      gen_presence_penalty = this->presence_penalty_;
-    }
-    if (generation_config.count("frequency_penalty")) {
-      CHECK(generation_config["frequency_penalty"].is<double>());
-      gen_frequency_penalty = generation_config["frequency_penalty"].get<double>();
-    } else {
-      gen_frequency_penalty = this->frequency_penalty_;
-    }
-    if (generation_config.count("top_p")) {
-      CHECK(generation_config["top_p"].is<double>());
-      gen_top_p = generation_config["top_p"].get<double>();
-    } else {
-      gen_top_p = this->top_p_;
-    }
+    this->ReadGenerationConfig(generation_config, &gen_temperature, &this->temperature_arr_,
+                               &gen_repetition_penalty, &gen_presence_penalty,
+                               &gen_frequency_penalty, &gen_top_p);
 
     // update logits
-    if (gen_repetition_penalty != 1.0f) {
+    if (gen_presence_penalty != 0.0f || gen_frequency_penalty != 0.0f) {
       this->UpdateLogitsOrProbOnCPUSync(logits_on_device);
-      this->ApplyRepetitionPenaltyOnCPU(gen_repetition_penalty);
+      this->ApplyPresenceAndFrequencyPenaltyOnCPU(gen_presence_penalty, gen_presence_penalty);
       if (gen_temperature >= 1e-6f) {
         this->ApplySoftmaxWithTemperatureOnCPU(gen_temperature);
       }
-    } else if (gen_presence_penalty != 0.0f || gen_frequency_penalty != 0.0f) {
+    } else if (gen_repetition_penalty != 1.0f) {
       this->UpdateLogitsOrProbOnCPUSync(logits_on_device);
-      this->ApplyPresenceAndFrequencyPenaltyOnCPU(gen_presence_penalty, gen_presence_penalty);
+      this->ApplyRepetitionPenaltyOnCPU(gen_repetition_penalty);
       if (gen_temperature >= 1e-6f) {
         this->ApplySoftmaxWithTemperatureOnCPU(gen_temperature);
       }
@@ -1042,14 +1049,14 @@ class LLMChat {
 
     std::vector<std::string> gen_stop_strs;
     gen_stop_strs.push_back(conversation_.stop_str);
-    
+
     if (generation_config.count("stop")) {
       if (!generation_config["stop"].is<picojson::null>()) {
-        CHECK(generation_config["stop"].is<std::string>() || generation_config["stop"].is<picojson::array>());
+        CHECK(generation_config["stop"].is<std::string>() ||
+              generation_config["stop"].is<picojson::array>());
         if (generation_config["stop"].is<std::string>()) {
           gen_stop_strs.push_back(generation_config["stop"].get<std::string>());
-        }
-        else {
+        } else {
           picojson::array gen_stop_strs_arr = generation_config["stop"].get<picojson::array>();
           for (const picojson::value& v : gen_stop_strs_arr) {
             CHECK(v.is<std::string>());
@@ -1177,8 +1184,7 @@ class LLMChat {
     float* logits_raw_data = static_cast<float*>(logits_on_cpu_->data);
     for (const auto& token_freq : this->appeared_token_freq_) {
       logits_raw_data[token_freq.first] -=
-          (token_freq.second * frequency_penalty +
-           static_cast<float>(token_freq.second > 0) * presence_penalty);
+          (token_freq.second * frequency_penalty + presence_penalty);
     }
   }
 
