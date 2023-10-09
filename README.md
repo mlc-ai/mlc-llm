@@ -11,11 +11,11 @@ Machine Learning Compilation for Large Language Models (MLC LLM) is a high-perfo
 <table style="width:100%">
   <thead>
     <tr>
-      <th style="width:16%"> </th>
-      <th style="width:21%">AMD GPU</th>
-      <th style="width:21%">NVIDIA GPU</th>
-      <th style="width:21%">Apple M1/M2 GPU</th>
-      <th style="width:21%">Intel GPU</th>
+      <th style="width:15%"> </th>
+      <th style="width:20%">AMD GPU</th>
+      <th style="width:20%">NVIDIA GPU</th>
+      <th style="width:20%">Apple M1/M2 GPU</th>
+      <th style="width:24%">Intel GPU</th>
     </tr>
   </thead>
   <tbody>
@@ -35,7 +35,7 @@ Machine Learning Compilation for Large Language Models (MLC LLM) is a high-perfo
     </tr>
     <tr>
       <td>Web Browser</td>
-      <td colspan=4>✅ WebGPU</td>
+      <td colspan=4>✅ WebGPU and WASM </td>
     </tr>
     <tr>
       <td>iOS / iPadOS</td>
