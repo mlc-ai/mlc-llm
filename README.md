@@ -52,6 +52,69 @@ Machine Learning Compilation for Large Language Models (MLC LLM) is a high-perfo
   </tbody>
 </table>
 
+**Prebuilt model support.** MLC LLM supports a wide range of model architectures and variants. We have the following prebuilts which you can
+use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_models.html) to see the full list.
+
+<table style="width:100%">
+  <thead>
+    <tr>
+      <th style="width:40%">Supported Model Architecture</th>
+      <th style="width:60%">Model Variants with Prebuilts</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan=8>Llama</td>
+      <td>Llama-2</td>
+    </tr>
+    <tr>
+      <td>Code Llama</td>
+    </tr>
+    <tr>
+      <td>Vicuna</td>
+    </tr>
+    <tr>
+      <td>WizardLM</td>
+    </tr>
+    <tr>
+      <td>WizardMath</td>
+    </tr>
+    <tr>
+      <td>OpenOrca Platypus2</td>
+    </tr>
+    <tr>
+      <td>FlagAlpha Llama-2 Chinese</td>
+    </tr>
+    <tr>
+      <td>georgesung Llama-2 Uncensored</td>
+    </tr>
+    <tr>
+      <td>GPT-NeoX</td>
+      <td>RedPajama</td>
+    </tr>
+    <tr>
+      <td>GPT-J</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>RWKV</td>
+      <td>RWKV-raven</td>
+    </tr>
+    <tr>
+      <td>MiniGPT</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>GPTBigCode</td>
+      <td>WizardCoder</td>
+    </tr>
+    <tr>
+      <td>ChatGLM</td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+
 ## News
 
 * [08/25/2023] CodeLlama support is up.
