@@ -7,6 +7,8 @@ import tlcpack_sphinx_addon
 # -- General configuration ------------------------------------------------
 
 sys.path.insert(0, os.path.abspath("../python"))
+sys.path.insert(0, os.path.abspath("../"))
+autodoc_mock_imports = ["torch"]
 # do not load mlc-llm.so in docs
 os.environ["SKIP_LOADING_MLCLLM_SO"] = "1"
 
@@ -29,9 +31,7 @@ extensions = [
     "sphinx_reredirects",
 ]
 
-redirects = {
-     "get_started/try_out": "../index.html#getting-started"
-}
+redirects = {"get_started/try_out": "../index.html#getting-started"}
 
 source_suffix = [".rst"]
 
