@@ -256,16 +256,13 @@ MLC-LLM supports the following model architectures:
   :widths: 10 10 15 15
   :header-rows: 1
 
-  * - Code
-    - Architecture
-    - Variants w/ MLC prebuilts
-    - Variants w/o MLC prebuilts
-  * - ``llama``
-    - LLaMa
-
-      * :ref:`Prebuilt library table <llama_library_table>`
-      * `Official link <https://github.com/facebookresearch/llama>`__
-      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/llama.py>`__
+  * - Model Architecture
+    - Support
+    - Available MLC Prebuilts
+    - Unavailable in MLC Prebuilts
+  * - `LLaMA <https://github.com/facebookresearch/llama>`__
+    - * :ref:`Prebuilt Model Library <llama_library_table>`
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/llama.py>`__
     - * :ref:`Llama-2 <llama2_variant_table>`
       * :ref:`Code Llama <code_llama_variant_table>`
       * :ref:`Vicuna <vicuna_variant_table>`
@@ -280,64 +277,51 @@ MLC-LLM supports the following model architectures:
       * `Gorilla <https://huggingface.co/gorilla-llm/gorilla-7b-hf-delta-v0>`__
       * `YuLan-Chat <https://github.com/RUC-GSAI/YuLan-Chat>`__
       * `WizardCoder (new) <https://github.com/nlpxucan/WizardLM/tree/main/WizardCoder>`__
-  * - ``gpt-neox``
-    - GPT-NeoX 
-
-      * :ref:`Prebuilt library table <gpt_neox_library_table>`
-      * `Official link <https://github.com/EleutherAI/gpt-neox>`__
-      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_neox.py>`__
+  * - `GPT-NeoX <https://github.com/EleutherAI/gpt-neox>`__
+    - * :ref:`Prebuilt Model Library <gpt_neox_library_table>`
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_neox.py>`__
     - * :ref:`RedPajama <red_pajama_variant_table>` 
     - * `Dolly <https://github.com/databrickslabs/dolly>`__
       * `Pythia <https://huggingface.co/EleutherAI/pythia-1.4b>`__
       * `StableCode <https://huggingface.co/stabilityai/stablecode-instruct-alpha-3b>`__
-  * - ``gptj``
-    - GPT-J
-
-      * Prebuilt not compiled yet
-      * `Official link <https://huggingface.co/EleutherAI/gpt-j-6b>`__
-      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gptj.py>`__
+  * - `GPT-J <https://huggingface.co/EleutherAI/gpt-j-6b>`__
+    - * Prebuilt not compiled yet
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gptj.py>`__
     - 
     - * `MOSS <https://github.com/OpenLMLab/MOSS>`__
-  * - ``rwkv``
-    - RWKV 
-
-      * :ref:`Prebuilt library table <rwkv_library_table>`
-      * `Official link <https://github.com/BlinkDL/RWKV-LM>`__
-      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py>`__
+  * - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
+    - * :ref:`Prebuilt Model Library <rwkv_library_table>`
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py>`__
     - * :ref:`RWKV-raven <rwkv_raven_variant_table>` 
     - 
-  * - ``minigpt``
-    - MiniGPT
-
-      * Prebuilt not compiled yet
-      * `Official link <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
-      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/minigpt.py>`__
+  * - `MiniGPT <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
+    - * Prebuilt not compiled yet
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/minigpt.py>`__
     - 
     - * `MiniGPT-4 <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
-  * - ``gpt_bigcode``
-    - GPTBigCode
-
-      * :ref:`Prebuilt library table <gpt_big_code_library_table>`
-      * `Official link <https://huggingface.co/docs/transformers/model_doc/gpt_bigcode>`__
-      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_bigcode.py>`__
+  * - `GPTBigCode <https://huggingface.co/docs/transformers/model_doc/gpt_bigcode>`__
+    - * :ref:`Prebuilt Model Library <gpt_big_code_library_table>`
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_bigcode.py>`__
     - * :ref:`WizardCoder (old) <wizard_coder_variant_table>` 
     - * `StarCoder <https://huggingface.co/bigcode/starcoder>`__
       * `SantaCoder <https://huggingface.co/bigcode/gpt_bigcode-santacoder>`__
-  * - ``chatglm``
-    - ChatGLM
-
-      * Prebuilt not compiled yet
-      * `Official link <https://github.com/THUDM/ChatGLM-6B/blob/main/README_en.md>`__
-      * `Relax Code <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/chatglm.py>`__
+  * - `ChatGLM <https://github.com/THUDM/ChatGLM-6B/blob/main/README_en.md>`__
+    - * Prebuilt not compiled yet
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/chatglm.py>`__
     - 
     - * `ChatGLM2 <https://huggingface.co/THUDM/chatglm2-6b>`__
       * `CodeGeeX2 <https://huggingface.co/THUDM/codegeex2-6b>`__
+  * - `StableLM <https://huggingface.co/stabilityai>`__
+    - * Prebuilt not compiled yet
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/stablelm_3b.py>`__
+    - 
+    - * `StableLM <https://huggingface.co/collections/stabilityai/stable-lm-650852cfd55dd4e15cdcb30a>`__
 
-If the model variant you are interested in is in one of these model architectures we support (but we have not provided the prebuilt weights yet), you can check the :doc:`model compilation page </compilation/compile_models>` on how to compile your own models. Note that you only need to compile the weights for your model variant and reuse the library file found in Level 2 tables.
+If the model variant you are interested in uses one of these model architectures we support (but we have not provided the prebuilt weights yet), you can check out :doc:`/compilation/compile_models` on how to compile your own models. Afterwards, you may follow :doc:`/compilation/distribute_compiled_models` to upload your prebuilt weights to hugging face, and submit a PR that adds an entry to this page, contributing to the community.
 
 For models structured in an architecture we have not supported yet, you could:
 
-- Either `create a new issue <https://github.com/mlc-ai/mlc-llm/issues/new/choose>`_ to request a new model architecture.
+- Either `create a [Model Request] issue <https://github.com/mlc-ai/mlc-llm/issues/new?assignees=&labels=new-models&projects=&template=model-request.md&title=%5BModel+Request%5D+>`__ which automatically shows up on our `Model Request Tracking Board <https://github.com/orgs/mlc-ai/projects/2>`__.
 
 - Or follow our tutorial :doc:`Define New Models </tutorials/customize/define_new_models>`, which introduces how to bring a new model architecture to MLC-LLM.
 
