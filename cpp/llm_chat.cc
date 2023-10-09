@@ -243,6 +243,7 @@ struct FunctionTable {
       support_backtracking_kv_ = false;
     }
     this->fkvcache_array_popn_ = get_global_func("vm.builtin.attention_kv_cache_array_popn");
+    this->loglikelihood_func_ = mod_get_func("loglikelihood");
   }
 
   ObjectRef Empty(ShapeTuple shape, DataType dtype, Device device) const {
@@ -285,6 +286,7 @@ struct FunctionTable {
   PackedFunc reset_kv_cache_func_;
   bool support_backtracking_kv_;
   PackedFunc fkvcache_array_popn_;
+  PackedFunc loglikelihood_func_;
   ModelMetadata model_metadata_;
 };
 
@@ -881,6 +883,40 @@ class LLMChat {
     this->ProcessNextToken(next_token, generation_config);
   }
 
+  std::pair<float, bool> LogLikelihoodStep(
+      const std::string& context, const std::string& continuation,
+      String generation_config_str = "", bool append_conversation = true,
+      PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
+    // process generation settings
+    picojson::object generation_config = picojson::object();
+    if(!generation_config_str.empty()) {
+      picojson::value generation_config_json;
+      picojson::parse(generation_config_json, generation_config_str);
+      generation_config = generation_config_json.get<picojson::object>();
+    }
+
+    std::string inp = context + continuation;
+    std::vector<int32_t> prompt_tokens =
+        this->PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt, generation_config);
+    int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
+    if (token_len == 0) return;
+    if (ft_.use_disco) {
+      // exclude load shard time from prefill
+      this->ft_.sess->SyncWorker(0);
+    }
+
+    std::vector<int32_t> cut_tokens = prompt_tokens;
+    cut_tokens.pop_back();
+
+    int32_t new_seq_len = total_seq_len_ + token_len;
+    NDArray logits_on_device = this->ForwardTokens(cut_tokens, new_seq_len);
+    total_seq_len_ = new_seq_len;
+
+    // TODO(vvchernov): remove
+    // int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config);
+    return this->SampleLogProbeFromLogits(logits_on_device, generation_config);
+  }
+
   bool Stopped() { return stop_triggered_; }
 
   std::string GetMessage() {
@@ -1095,6 +1131,15 @@ class LLMChat {
     auto tend = std::chrono::high_resolution_clock::now();
     this->sample_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
     return next_token;
+  }
+
+  /*!
+   * \brief Sample output pair of logprobs and is_greedy from logits on device
+   */
+  std::pair<float, bool> SampleLogProbeFromLogits(NDArray logits_on_device,
+                                picojson::object generation_config = picojson::object()) {
+    std::pair<float, bool> res = std::make_pair<float, bool>(float(), bool());
+    return res;
   }
 
   /*!
@@ -1571,6 +1616,16 @@ class LLMChatModule : public ModuleNode {
     } else if (name == "process_system_prompts") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         GetChat()->ProcessSystemPrompts();
+      });
+    } else if (name == "loglikelihood") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK(2 <= args.size() && args.size() <= 3);
+        if (args.size() == 2) {
+          *rv = GetChat()->LogLikelihoodStep(args[0], args[1]);
+        } else if (args.size() == 3) {
+          // args: generation_config_str
+          *rv = GetChat()->LogLikelihoodStep(args[0], args[1], args[2]);
+        }
       });
     } else {
       return PackedFunc(nullptr);
