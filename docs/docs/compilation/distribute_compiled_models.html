@@ -426,7 +426,7 @@ mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>RedPajama-INC
 <h2><a class="toc-backref" href="#id7" role="doc-backlink">Download the Distributed Models and Run in iOS App</a><a class="headerlink" href="#download-the-distributed-models-and-run-in-ios-app" title="Permalink to this heading">¶</a></h2>
 <p>For iOS app, model libraries are statically packed into the app at the time of app building.
 Therefore, the iOS app supports running any models whose model libraries are integrated into the app.
-You can check the <a class="reference internal" href="../prebuilt_models.html#prebuilt-models-ios"><span class="std std-ref">list of supported model libraries</span></a>.</p>
+You can check the <span class="xref std std-ref">list of supported model libraries</span>.</p>
 <p>To download and run the compiled RedPajama-3B instruct model on iPhone, we need to reuse the integrated <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_1</span></code> model library.
 Please revisit <a class="reference internal" href="#distribute-model-step3-specify-model-lib"><span class="std std-ref">Step 3. Specify the Model Lib</span></a> and make sure the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field of <cite>mlc-chat-config.json</cite> is set to <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_1</span></code>.</p>
 <p>Now we can download the model weights in iOS app and run the model by following the steps below:</p>
