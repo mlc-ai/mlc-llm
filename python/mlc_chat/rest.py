@@ -168,10 +168,11 @@ async def request_completion(request: ChatCompletionRequest):
     """
     Creates model response for the given chat conversation.
     """
-
     generation_config = GenerationConfig(
         temperature=request.temperature,
         repetition_penalty=request.repetition_penalty,
+        presence_penalty=request.presence_penalty,
+        frequency_penalty=request.frequency_penalty,
         top_p=request.top_p,
         mean_gen_len=request.mean_gen_len,
         max_gen_len=request.max_gen_len,
@@ -235,6 +236,8 @@ async def request_completion(request: CompletionRequest):
     generation_config = GenerationConfig(
         temperature=request.temperature,
         repetition_penalty=request.repetition_penalty,
+        presence_penalty=request.presence_penalty,
+        frequency_penalty=request.frequency_penalty,
         top_p=request.top_p,
         mean_gen_len=request.mean_gen_len,
         max_gen_len=request.max_gen_len,

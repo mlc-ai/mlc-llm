@@ -212,6 +212,16 @@ class GenerationConfig:
 
         For more details on how repetition penalty controls text generation, please
         check out the CTRL paper (https://arxiv.org/pdf/1909.05858.pdf).
+    presence_penalty : Optional[float]
+        Number between -2.0 and 2.0. Positive values penalize new tokens based on
+        whether they appear in the text so far, increasing the model's likelihood
+        to talk about new topics. Negative values can increase the likelihood of
+        repetition. Only active if ``repetition_penalty`` is ``1.0``.
+    frequency_penalty : Optional[float]
+        Number between -2.0 and 2.0. Positive values penalize new tokens based on their
+        existing frequency in the text so far, decreasing the model's likelihood to
+        repeat the same line verbatim. Negative values can increase the likelihood of
+        repetition. Only active if ``repetition_penalty`` is ``1.0``.
     top_p : Optional[float]
         This parameter determines the set of tokens from which we sample during
         decoding. The default value is set to ``0.95``. At each step, we select
@@ -233,6 +243,8 @@ class GenerationConfig:
     top_p: Optional[float] = None
     mean_gen_len: Optional[int] = None
     max_gen_len: Optional[int] = None
+    presence_penalty: Optional[float] = 0.0
+    frequency_penalty: Optional[float] = 0.0
 
     @classmethod
     def _from_chat_config(generation_config_cls, chat_config_obj: ChatConfig):
