@@ -594,6 +594,7 @@ However, any GPTBigCode model variants should be able to reuse these (e.g. StarC
       `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f32_1-webgpu.wasm>`__
     - 
   
+.. _model-variant-tables:
 
 Level 3: Model Variant Tables (Precompiled Weights)
 ---------------------------------------------------
