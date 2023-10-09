@@ -14,7 +14,7 @@
       <th style="width:15%"> </th>
       <th style="width:20%">AMD GPU</th>
       <th style="width:20%">NVIDIA GPU</th>
-      <th style="width:20%">Apple M1/M2 GPU</th>
+      <th style="width:20%">Apple GPU</th>
       <th style="width:24%">Intel GPU</th>
     </tr>
   </thead>
