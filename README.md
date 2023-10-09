@@ -35,14 +35,11 @@ Machine Learning Compilation for Large Language Models (MLC LLM) is a high-perfo
     </tr>
     <tr>
       <td>Web Browser</td>
-      <td>✅ WebGPU</td>
-      <td>✅ WebGPU</td>
-      <td>✅ WebGPU</td>
-      <td>✅ WebGPU</td>
+      <td colspan=4>✅ WebGPU</td>
     </tr>
     <tr>
       <td>iOS / iPadOS</td>
-      <td colspan=4>✅ Metal on Apple M1/M2 GPU</td>
+      <td colspan=4>✅ Metal on Apple A-series GPU</td>
     </tr>
     <tr>
       <td>Android</td>
@@ -69,7 +66,7 @@ Machine Learning Compilation for Large Language Models (MLC LLM) is a high-perfo
 
 Please visit our [documentation](https://llm.mlc.ai/docs/index.html#getting-started) for detailed instructions.
 
-## Prebuilt model support
+## Model Support
 
 MLC LLM supports a wide range of model architectures and variants. We have the following prebuilts which you can
 use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_models.html) to see the full list, and [Compile Models via MLC](https://llm.mlc.ai/docs/compilation/compile_models.html) to see how to use models not on this list.
