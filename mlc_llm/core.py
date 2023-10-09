@@ -25,6 +25,7 @@ from mlc_llm.relax_model import (
     minigpt,
     param_manager,
     rwkv,
+    stablelm_3b,
 )
 from mlc_llm.relax_model.commons import create_shard_info_func
 from mlc_llm.transform import fuse_split_rotary_embedding, rewrite_attention
@@ -592,10 +593,10 @@ def build_model_from_args(args: argparse.Namespace):
         with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
             config = json.load(i_f)
     if not use_cache or args.convert_weight_only:
-        if args.model_category == "llama":
+        if args.model_category in ("llama", "mistral"):
             mod, param_manager, params, model_config = llama.get_model(args, config)
-        elif args.model_category == "mistral":
-            mod, param_manager, params, model_config = llama.get_model(args, config)
+        elif args.model_category == "stablelm_epoch":
+            mod, param_manager, params, model_config = stablelm_3b.get_model(args, config)
         elif args.model_category == "gpt_neox":
             mod, param_manager, params, model_config = gpt_neox.get_model(args, config)
         elif args.model_category == "gpt_bigcode":
