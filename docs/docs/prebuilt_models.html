@@ -618,19 +618,17 @@ mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>rwkv-raven-7b
 <col style="width: 30%" />
 </colgroup>
 <thead>
-<tr class="row-odd"><th class="head"><p>Code</p></th>
-<th class="head"><p>Architecture</p></th>
-<th class="head"><p>Variants w/ MLC prebuilts</p></th>
-<th class="head"><p>Variants w/o MLC prebuilts</p></th>
+<tr class="row-odd"><th class="head"><p>Model Architecture</p></th>
+<th class="head"><p>Support</p></th>
+<th class="head"><p>Available MLC Prebuilts</p></th>
+<th class="head"><p>Unavailable in MLC Prebuilts</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">llama</span></code></p></td>
-<td><p>LLaMa</p>
-<ul class="simple">
-<li><p><a class="reference internal" href="#llama-library-table"><span class="std std-ref">Prebuilt library table</span></a></p></li>
-<li><p><a class="reference external" href="https://github.com/facebookresearch/llama">Official link</a></p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/llama.py">Relax Code</a></p></li>
+<tr class="row-even"><td><p><a class="reference external" href="https://github.com/facebookresearch/llama">LLaMA</a></p></td>
+<td><ul class="simple">
+<li><p><a class="reference internal" href="#llama-library-table"><span class="std std-ref">Prebuilt Model Library</span></a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/llama.py">MLC Implementation</a></p></li>
 </ul>
 </td>
 <td><ul class="simple">
@@ -654,12 +652,10 @@ mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>rwkv-raven-7b
 </ul>
 </td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gpt-neox</span></code></p></td>
-<td><p>GPT-NeoX</p>
-<ul class="simple">
-<li><p><a class="reference internal" href="#gpt-neox-library-table"><span class="std std-ref">Prebuilt library table</span></a></p></li>
-<li><p><a class="reference external" href="https://github.com/EleutherAI/gpt-neox">Official link</a></p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_neox.py">Relax Code</a></p></li>
+<tr class="row-odd"><td><p><a class="reference external" href="https://github.com/EleutherAI/gpt-neox">GPT-NeoX</a></p></td>
+<td><ul class="simple">
+<li><p><a class="reference internal" href="#gpt-neox-library-table"><span class="std std-ref">Prebuilt Model Library</span></a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_neox.py">MLC Implementation</a></p></li>
 </ul>
 </td>
 <td><ul class="simple">
@@ -673,12 +669,10 @@ mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>rwkv-raven-7b
 </ul>
 </td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gptj</span></code></p></td>
-<td><p>GPT-J</p>
-<ul class="simple">
+<tr class="row-even"><td><p><a class="reference external" href="https://huggingface.co/EleutherAI/gpt-j-6b">GPT-J</a></p></td>
+<td><ul class="simple">
 <li><p>Prebuilt not compiled yet</p></li>
-<li><p><a class="reference external" href="https://huggingface.co/EleutherAI/gpt-j-6b">Official link</a></p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gptj.py">Relax Code</a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gptj.py">MLC Implementation</a></p></li>
 </ul>
 </td>
 <td></td>
@@ -687,12 +681,10 @@ mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>rwkv-raven-7b
 </ul>
 </td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rwkv</span></code></p></td>
-<td><p>RWKV</p>
-<ul class="simple">
-<li><p><a class="reference internal" href="#rwkv-library-table"><span class="std std-ref">Prebuilt library table</span></a></p></li>
-<li><p><a class="reference external" href="https://github.com/BlinkDL/RWKV-LM">Official link</a></p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py">Relax Code</a></p></li>
+<tr class="row-odd"><td><p><a class="reference external" href="https://github.com/BlinkDL/RWKV-LM">RWKV</a></p></td>
+<td><ul class="simple">
+<li><p><a class="reference internal" href="#rwkv-library-table"><span class="std std-ref">Prebuilt Model Library</span></a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py">MLC Implementation</a></p></li>
 </ul>
 </td>
 <td><ul class="simple">
@@ -701,12 +693,10 @@ mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>rwkv-raven-7b
 </td>
 <td></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minigpt</span></code></p></td>
-<td><p>MiniGPT</p>
-<ul class="simple">
+<tr class="row-even"><td><p><a class="reference external" href="https://huggingface.co/Vision-CAIR/MiniGPT-4">MiniGPT</a></p></td>
+<td><ul class="simple">
 <li><p>Prebuilt not compiled yet</p></li>
-<li><p><a class="reference external" href="https://huggingface.co/Vision-CAIR/MiniGPT-4">Official link</a></p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/minigpt.py">Relax Code</a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/minigpt.py">MLC Implementation</a></p></li>
 </ul>
 </td>
 <td></td>
@@ -715,12 +705,10 @@ mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>rwkv-raven-7b
 </ul>
 </td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gpt_bigcode</span></code></p></td>
-<td><p>GPTBigCode</p>
-<ul class="simple">
-<li><p><a class="reference internal" href="#gpt-big-code-library-table"><span class="std std-ref">Prebuilt library table</span></a></p></li>
-<li><p><a class="reference external" href="https://huggingface.co/docs/transformers/model_doc/gpt_bigcode">Official link</a></p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_bigcode.py">Relax Code</a></p></li>
+<tr class="row-odd"><td><p><a class="reference external" href="https://huggingface.co/docs/transformers/model_doc/gpt_bigcode">GPTBigCode</a></p></td>
+<td><ul class="simple">
+<li><p><a class="reference internal" href="#gpt-big-code-library-table"><span class="std std-ref">Prebuilt Model Library</span></a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_bigcode.py">MLC Implementation</a></p></li>
 </ul>
 </td>
 <td><ul class="simple">
@@ -733,12 +721,10 @@ mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>rwkv-raven-7b
 </ul>
 </td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">chatglm</span></code></p></td>
-<td><p>ChatGLM</p>
-<ul class="simple">
+<tr class="row-even"><td><p><a class="reference external" href="https://github.com/THUDM/ChatGLM-6B/blob/main/README_en.md">ChatGLM</a></p></td>
+<td><ul class="simple">
 <li><p>Prebuilt not compiled yet</p></li>
-<li><p><a class="reference external" href="https://github.com/THUDM/ChatGLM-6B/blob/main/README_en.md">Official link</a></p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/chatglm.py">Relax Code</a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/chatglm.py">MLC Implementation</a></p></li>
 </ul>
 </td>
 <td></td>
@@ -748,12 +734,24 @@ mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>rwkv-raven-7b
 </ul>
 </td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://huggingface.co/stabilityai">StableLM</a></p></td>
+<td><ul class="simple">
+<li><p>Prebuilt not compiled yet</p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/stablelm_3b.py">MLC Implementation</a></p></li>
+</ul>
+</td>
+<td></td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/collections/stabilityai/stable-lm-650852cfd55dd4e15cdcb30a">StableLM</a></p></li>
+</ul>
+</td>
+</tr>
 </tbody>
 </table>
-<p>If the model variant you are interested in is in one of these model architectures we support (but we have not provided the prebuilt weights yet), you can check the <a class="reference internal" href="compilation/compile_models.html"><span class="doc">model compilation page</span></a> on how to compile your own models. Note that you only need to compile the weights for your model variant and reuse the library file found in Level 2 tables.</p>
+<p>If the model variant you are interested in uses one of these model architectures we support (but we have not provided the prebuilt weights yet), you can check out <a class="reference internal" href="compilation/compile_models.html"><span class="doc">Compile Models via MLC</span></a> on how to compile your own models. Afterwards, you may follow <a class="reference internal" href="compilation/distribute_compiled_models.html"><span class="doc">Distribute Compiled Models</span></a> to upload your prebuilt weights to hugging face, and submit a PR that adds an entry to this page, contributing to the community.</p>
 <p>For models structured in an architecture we have not supported yet, you could:</p>
 <ul class="simple">
-<li><p>Either <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/issues/new/choose">create a new issue</a> to request a new model architecture.</p></li>
+<li><p>Either <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/issues/new?assignees=&amp;labels=new-models&amp;projects=&amp;template=model-request.md&amp;title=%5BModel+Request%5D+">create a [Model Request] issue</a> which automatically shows up on our <a class="reference external" href="https://github.com/orgs/mlc-ai/projects/2">Model Request Tracking Board</a>.</p></li>
 <li><p>Or follow our tutorial <a class="reference internal" href="tutorials/customize/define_new_models.html"><span class="doc">Define New Models</span></a>, which introduces how to bring a new model architecture to MLC-LLM.</p></li>
 </ul>
 </section>
