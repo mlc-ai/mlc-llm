@@ -32,6 +32,9 @@
 #include <vector>
 
 #include "conversation.h"
+#include "random.h"
+#include "support.h"
+#include "tokenizers.h"
 
 namespace mlc {
 namespace llm {
@@ -39,62 +42,6 @@ namespace llm {
 using tvm::Device;
 using namespace tvm::runtime;
 namespace {
-//----------------------------
-// Tokenizers
-//----------------------------
-using tokenizers::Tokenizer;
-
-std::string LoadBytesFromFile(const std::string& path) {
-  std::ifstream fs(path, std::ios::in | std::ios::binary);
-  ICHECK(!fs.fail()) << "Cannot open " << path;
-  std::string data;
-  fs.seekg(0, std::ios::end);
-  size_t size = static_cast<size_t>(fs.tellg());
-  fs.seekg(0, std::ios::beg);
-  data.resize(size);
-  fs.read(data.data(), size);
-  return data;
-}
-
-std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
-  std::filesystem::path path(_path);
-  std::filesystem::path sentencepiece;
-  std::filesystem::path huggingface;
-  std::filesystem::path rwkvworld;
-  CHECK(std::filesystem::exists(path)) << "Cannot find tokenizer via path: " << _path;
-  if (std::filesystem::is_directory(path)) {
-    sentencepiece = path / "tokenizer.model";
-    huggingface = path / "tokenizer.json";
-    rwkvworld = path / "tokenizer_model";
-    // Check ByteLevelBPE
-    {
-      std::filesystem::path merges_path = path / "merges.txt";
-      std::filesystem::path vocab_path = path / "vocab.json";
-      std::filesystem::path added_tokens_path = path / "added_tokens.json";
-      if (std::filesystem::exists(merges_path) && std::filesystem::exists(vocab_path) &&
-          std::filesystem::exists(added_tokens_path)) {
-        std::string vocab = LoadBytesFromFile(vocab_path.string());
-        std::string merges = LoadBytesFromFile(merges_path.string());
-        std::string added_tokens = LoadBytesFromFile(added_tokens_path.string());
-        return Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens);
-      }
-    }
-  } else {
-    sentencepiece = path.parent_path() / "tokenizer.model";
-    huggingface = path.parent_path() / "tokenizer.json";
-    rwkvworld = path.parent_path() / "tokenizer_model";
-  }
-  if (std::filesystem::exists(sentencepiece)) {
-    return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece.string()));
-  }
-  if (std::filesystem::exists(huggingface)) {
-    return Tokenizer::FromBlobJSON(LoadBytesFromFile(huggingface.string()));
-  }
-  if (std::filesystem::exists(rwkvworld)) {
-    return Tokenizer::FromBlobRWKVWorld(rwkvworld.string());
-  }
-  LOG(FATAL) << "Cannot find any tokenizer under: " << _path;
-}
 
 //------------------------------
 // support functions
@@ -315,23 +262,6 @@ struct FunctionTable {
   PackedFunc fkvcache_array_popn_;
 };
 
-class RandomGenerator {
- private:
-  std::mt19937 gen;
-  std::uniform_real_distribution<> dis;
-
-  RandomGenerator(int seed) : gen(seed), dis(0.0, 1.0) {}
-
- public:
-  static RandomGenerator& GetInstance(int seed = std::random_device{}()) {
-    static RandomGenerator instance(seed);
-    return instance;
-  }
-
-  double GetRandomNumber() { return dis(gen); }
-
-  void SetSeed(int seed) { gen.seed(seed); }
-};
 }  // namespace
 
 //------------------------------
@@ -708,9 +638,10 @@ class LLMChat {
     return view;
   }
 
-  std::vector<int32_t> PrepareBeforeEmbedding(std::string inp, bool append_conversation = true,
-                                              PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
-                                              picojson::object generation_config = picojson::object()) {
+  std::vector<int32_t> PrepareBeforeEmbedding(
+      std::string inp, bool append_conversation = true,
+      PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
+      picojson::object generation_config = picojson::object()) {
     if (conversation_.separator_style == SeparatorStyle::kLM ||
         conversation_.separator_style == SeparatorStyle::kCodeCompletion) {
       this->ResetChat();
@@ -742,7 +673,7 @@ class LLMChat {
                       String generation_config_str = "") {
     // process generation settings
     picojson::object generation_config = picojson::object();
-    if(!generation_config_str.empty()) {
+    if (!generation_config_str.empty()) {
       picojson::value generation_config_json;
       picojson::parse(generation_config_json, generation_config_str);
       generation_config = generation_config_json.get<picojson::object>();
@@ -778,7 +709,8 @@ class LLMChat {
    * \param embedding The embedding to prefill with.
    * \param decode_next_token Whether to decode next token.
    */
-  void PrefillWithEmbedStep(NDArray embedding, bool decode_next_token = true, String generation_config_str = "") {
+  void PrefillWithEmbedStep(NDArray embedding, bool decode_next_token = true,
+                            String generation_config_str = "") {
     if (ft_.use_disco) {
       LOG(FATAL) << "NotImplementedError: Distributed inference is not supported for this model";
       throw;
@@ -799,7 +731,7 @@ class LLMChat {
 
     // process generation settings
     picojson::object generation_config = picojson::object();
-    if(!generation_config_str.empty()) {
+    if (!generation_config_str.empty()) {
       picojson::value generation_config_json;
       picojson::parse(generation_config_json, generation_config_str);
       generation_config = generation_config_json.get<picojson::object>();
@@ -830,14 +762,15 @@ class LLMChat {
       if (ft_.use_disco) {
         LOG(FATAL) << "NotImplementedError: Distributed inference is not supported for this model";
       }
-      NDArray embedding = Downcast<NDArray>(EmbedStep(inp, append_conversation, place_in_prompt, generation_config_str));
+      NDArray embedding = Downcast<NDArray>(
+          EmbedStep(inp, append_conversation, place_in_prompt, generation_config_str));
       PrefillWithEmbedStep(embedding, decode_next_token, generation_config_str);
       return;
     }
 
     // process generation settings
     picojson::object generation_config = picojson::object();
-    if(!generation_config_str.empty()) {
+    if (!generation_config_str.empty()) {
       picojson::value generation_config_json;
       picojson::parse(generation_config_json, generation_config_str);
       generation_config = generation_config_json.get<picojson::object>();
@@ -876,7 +809,7 @@ class LLMChat {
   void DecodeStep(String generation_config_str = "") {
     // process generation settings
     picojson::object generation_config = picojson::object();
-    if(!generation_config_str.empty()) {
+    if (!generation_config_str.empty()) {
       picojson::value generation_config_json;
       picojson::parse(generation_config_json, generation_config_str);
       generation_config = generation_config_json.get<picojson::object>();
