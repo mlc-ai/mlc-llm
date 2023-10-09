@@ -52,8 +52,26 @@ Machine Learning Compilation for Large Language Models (MLC LLM) is a high-perfo
   </tbody>
 </table>
 
-**Prebuilt model support.** MLC LLM supports a wide range of model architectures and variants. We have the following prebuilts which you can
-use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_models.html) to see the full list.
+## News
+
+* [08/25/2023] CodeLlama support is up.
+* [08/14/2023] [[Post]](https://blog.mlc.ai/2023/08/09/GPU-Accelerated-LLM-on-Orange-Pi) Mali GPU support is up on Orange Pi.
+* [08/09/2023] [[Post]](https://blog.mlc.ai/2023/08/09/Making-AMD-GPUs-competitive-for-LLM-inference) ROCm backend is mature to use.
+* [08/02/2023] [Dockerfile](https://github.com/mlc-ai/llm-perf-bench/) is released for CUDA performance benchmarking.
+* [07/19/2023] Support for Llama2-7B/13B/70B is up.
+* [05/22/2023] [[Post]](https://blog.mlc.ai/2023/05/22/bringing-open-large-language-models-to-consumer-devices) RedPajama support is up.
+* [05/08/2023] [[Post]](https://blog.mlc.ai/2023/05/08/bringing-hardware-accelerated-language-models-to-android-devices) MLC LLM is now available on Android.
+* [05/01/2023] [[Post]](https://blog.mlc.ai/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) MLC LLM is released with Metal, Vulkan and CUDA backends.
+* [04/14/2023] [WebLLM](https://github.com/mlc-ai/web-llm) is released prior to MLC LLM with WebGPU and WebAssembly backend.
+
+## Getting Started
+
+Please visit our [documentation](https://llm.mlc.ai/docs/index.html#getting-started) for detailed instructions.
+
+## Prebuilt model support
+
+MLC LLM supports a wide range of model architectures and variants. We have the following prebuilts which you can
+use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_models.html) to see the full list, and [Compile Models via MLC](https://llm.mlc.ai/docs/compilation/compile_models.html) to see how to use models not on this list.
 
 <table style="width:100%">
   <thead>
@@ -64,29 +82,8 @@ use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_mode
   </thead>
   <tbody>
     <tr>
-      <td rowspan=8>Llama</td>
-      <td>Llama-2</td>
-    </tr>
-    <tr>
-      <td>Code Llama</td>
-    </tr>
-    <tr>
-      <td>Vicuna</td>
-    </tr>
-    <tr>
-      <td>WizardLM</td>
-    </tr>
-    <tr>
-      <td>WizardMath</td>
-    </tr>
-    <tr>
-      <td>OpenOrca Platypus2</td>
-    </tr>
-    <tr>
-      <td>FlagAlpha Llama-2 Chinese</td>
-    </tr>
-    <tr>
-      <td>georgesung Llama-2 Uncensored</td>
+      <td>Llama</td>
+      <td>Llama-2, Code Llama, Vicuna, WizardLM, WizardMath, OpenOrca Platypus2, FlagAlpha Llama-2 Chinese, georgesung Llama-2 Uncensored</td>
     </tr>
     <tr>
       <td>GPT-NeoX</td>
@@ -112,24 +109,12 @@ use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_mode
       <td>ChatGLM</td>
       <td></td>
     </tr>
+    <tr>
+      <td>StableLM</td>
+      <td></td>
+    </tr>
   </tbody>
 </table>
-
-## News
-
-* [08/25/2023] CodeLlama support is up.
-* [08/14/2023] [[Post]](https://blog.mlc.ai/2023/08/09/GPU-Accelerated-LLM-on-Orange-Pi) Mali GPU support is up on Orange Pi.
-* [08/09/2023] [[Post]](https://blog.mlc.ai/2023/08/09/Making-AMD-GPUs-competitive-for-LLM-inference) ROCm backend is mature to use.
-* [08/02/2023] [Dockerfile](https://github.com/mlc-ai/llm-perf-bench/) is released for CUDA performance benchmarking.
-* [07/19/2023] Support for Llama2-7B/13B/70B is up.
-* [05/22/2023] [[Post]](https://blog.mlc.ai/2023/05/22/bringing-open-large-language-models-to-consumer-devices) RedPajama support is up.
-* [05/08/2023] [[Post]](https://blog.mlc.ai/2023/05/08/bringing-hardware-accelerated-language-models-to-android-devices) MLC LLM is now available on Android.
-* [05/01/2023] [[Post]](https://blog.mlc.ai/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) MLC LLM is released with Metal, Vulkan and CUDA backends.
-* [04/14/2023] [WebLLM](https://github.com/mlc-ai/web-llm) is released prior to MLC LLM with WebGPU and WebAssembly backend.
-
-## Getting Started
-
-Please visit our [this page](https://llm.mlc.ai/docs/index.html#getting-started) for detailed instructions.
 
 ## Universal Deployment APIs
 
