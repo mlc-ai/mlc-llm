@@ -22,7 +22,7 @@ def get_dynamic_split_rotary():
     values using `PrimFunc.specialize`.
     """
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def split_rotary(
         fused_qkv_handle: T.handle,
         embedded_query_handle: T.handle,
@@ -59,10 +59,11 @@ def get_dynamic_split_rotary():
 
         T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
 
-        for iters in T.grid(batch_size, seq_len, num_query_heads + num_kv_heads, head_dim):
-            with T.block("RotaryQueryKeyAndSplit"):
+        for iters in T.grid(batch_size, seq_len, num_query_heads + num_kv_heads * 2, head_dim):
+            with T.block("FusedRotaryEmbeddingAndSplitQKV"):
                 batch_i, seq_i, head_num, head_i = T.axis.remap("SSSS", iters)
-                pos: T.float32 = T.Cast("float32", rotary_offset - T.int64(1))
+                pos: T.float32 = T.Cast("float32", rotary_offset + seq_i - seq_len)
+
                 inv_freq: T.float32 = T.float32(1) / T.pow(
                     position_embedding_base,
                     T.Cast("float32", (head_i * 2) % head_dim) / T.float32(head_dim),
@@ -71,9 +72,8 @@ def get_dynamic_split_rotary():
                 cos_value: T.float16 = T.Cast("float16", T.cos(freq))
                 sin_value: T.float16 = T.Cast("float16", T.sin(freq))
 
-                embedded_value = cos_value * Fused_QKV[
-                    batch_i, seq_i, head_num, head_i
-                ] + sin_value * T.Select(
+                input_value = Fused_QKV[batch_i, seq_i, head_num, head_i]
+                embedded_value = cos_value * input_value + sin_value * T.Select(
                     head_i < T.int64(head_dim // 2),
                     Fused_QKV[batch_i, seq_i, head_num, head_i + T.int64(head_dim // 2)]
                     * T.float16(-1),
@@ -81,15 +81,12 @@ def get_dynamic_split_rotary():
                 )
                 if head_num < num_query_heads:
                     EmbeddedQuery[batch_i, seq_i, head_num, head_i] = embedded_value
-                else:
+                elif head_num < num_query_heads + num_kv_heads:
                     EmbeddedKey[batch_i, seq_i, head_num - num_query_heads, head_i] = embedded_value
-
-        for iters in T.grid(*Value.shape):
-            with T.block("CopyValue"):
-                batch_i, seq_i, head_num, head_i = T.axis.remap("SSSS", iters)
-                Value[batch_i, seq_i, head_num, head_i] = Fused_QKV[
-                    batch_i, seq_i, head_num + num_query_heads + num_kv_heads, head_i
-                ]
+                else:
+                    Value[
+                        batch_i, seq_i, head_num - num_query_heads - num_kv_heads, head_i
+                    ] = input_value
 
     param_sinfo = []
     for param in split_rotary.params:
