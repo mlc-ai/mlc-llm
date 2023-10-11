@@ -234,8 +234,16 @@ class GenerationConfig:
         The approximated average number of generated tokens in each round. Used
         to determine whether the maximum window size would be exceeded.
     max_gen_len : Optional[int]
-        The maximum number of tokens to be generated in each round. Would simply
-        stop generating after this number is exceeded.
+        This parameter determines the maximum length of the generated text. If it is
+        not set, the model will generate text until it encounters a stop token.
+    n : Optional[int]
+        This parameter determines the number of text samples to generate. The default
+        value is ``1``.
+    stop : Optional[Union[str, List[str]]]
+        When ``stop`` is encountered, the model will stop generating output.
+        It can be a string or a list of strings. If it is a list of strings, the model
+        will stop generating output when any of the strings in the list is encountered.
+        Note that this parameter does not override the default stop string of the model.
     """
 
     temperature: Optional[float] = None
@@ -245,6 +253,8 @@ class GenerationConfig:
     max_gen_len: Optional[int] = None
     presence_penalty: Optional[float] = 0.0
     frequency_penalty: Optional[float] = 0.0
+    n: Optional[int] = None
+    stop: Optional[Union[str, List[str]]] = None
 
     @classmethod
     def _from_chat_config(generation_config_cls, chat_config_obj: ChatConfig):
@@ -820,25 +830,36 @@ class ChatModule:
           )
           print(output)
         """
-        self._prefill(prompt, generation_config=generation_config)
+        new_msgs = []
+        num_return_sequences = 1
+        return_str = True
+        if generation_config.n:
+            num_return_sequences = generation_config.n
+            return_str = False
+        else:
+            num_return_sequences = 1
 
-        if not progress_callback:
-            while not self._stopped():
-                self._decode(generation_config=generation_config)
-            new_msg = self._get_message()
-            return new_msg
+        for _ in range(num_return_sequences):
+            self.reset_chat()
+            self._prefill(prompt, generation_config=generation_config)
 
-        # apply callback with a rate of callback_interval
-        i, new_msg = 0, ""
-        while not self._stopped():
-            self._decode(generation_config=generation_config)
-            if i % progress_callback.callback_interval == 0 or self._stopped():
+            if not progress_callback:
+                while not self._stopped():
+                    self._decode(generation_config=generation_config)
                 new_msg = self._get_message()
-                progress_callback(new_msg)
-            i += 1
-        progress_callback(stopped=True)
-
-        return new_msg
+                new_msgs.append(new_msg)
+            else:
+                # apply callback with a rate of callback_interval
+                i, new_msg = 0, ""
+                while not self._stopped():
+                    self._decode(generation_config=generation_config)
+                    if i % progress_callback.callback_interval == 0 or self._stopped():
+                        new_msg = self._get_message()
+                        progress_callback(new_msg)
+                    i += 1
+                progress_callback(stopped=True)
+                new_msgs.append(new_msg)
+        return new_msgs[0] if return_str else new_msgs
 
     def reset_chat(self, chat_config: Optional[ChatConfig] = None):
         r"""Reset the chat session, clear all chat history, and potentially
@@ -1014,16 +1035,21 @@ class ChatModule:
                         messages.append([role1, content])
                     else:
                         raise ValueError("Only user and assistant roles are supported.")
-                    
+
                 conv_config["messages"] = messages
-                conv_config["offset"] = 0 # Otherwise, the offset will be set to the length of the conversation, which means history will be retained even after calling reset_chat
-                self._load_json_override(json.dumps({"conv_config": conv_config}), partial_update=True)
+                conv_config[
+                    "offset"
+                ] = 0  # Otherwise, the offset will be set to the length of the conversation, which means history will be retained even after calling reset_chat
+                self._load_json_override(
+                    json.dumps({"conv_config": conv_config}), partial_update=True
+                )
             input_str = input[-1].content
         else:
             input_str = input
-        
 
-        self._prefill_func(input_str, decode_next_token, place_in_prompt.value, generation_config_str)
+        self._prefill_func(
+            input_str, decode_next_token, place_in_prompt.value, generation_config_str
+        )
 
     def _embed(
         self,
@@ -1087,7 +1113,6 @@ class ChatModule:
         """
         generation_config = _get_generation_config(self.chat_config, generation_config)
         generation_config_str = _convert_generation_config_to_json_str(generation_config)
-
         self._decode_func(generation_config_str)
 
     def _stopped(self) -> bool:

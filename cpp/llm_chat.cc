@@ -743,7 +743,7 @@ class LLMChat {
 
     this->prefill_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
     this->prefill_total_tokens += token_len;
-    this->ProcessNextToken(next_token);
+    this->ProcessNextToken(next_token, generation_config);
   }
 
   /*!
@@ -803,7 +803,7 @@ class LLMChat {
 
     this->prefill_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
     this->prefill_total_tokens += token_len;
-    this->ProcessNextToken(next_token);
+    this->ProcessNextToken(next_token, generation_config);
   }
 
   void DecodeStep(String generation_config_str = "") {
@@ -830,7 +830,7 @@ class LLMChat {
 
     this->decode_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
     this->decode_total_tokens += 1;
-    this->ProcessNextToken(next_token);
+    this->ProcessNextToken(next_token, generation_config);
   }
 
   bool Stopped() { return stop_triggered_; }
@@ -1040,6 +1040,25 @@ class LLMChat {
       gen_max_gen_len = this->max_gen_len_;
     }
 
+    std::vector<std::string> gen_stop_strs;
+    gen_stop_strs.push_back(conversation_.stop_str);
+    
+    if (generation_config.count("stop")) {
+      if (!generation_config["stop"].is<picojson::null>()) {
+        CHECK(generation_config["stop"].is<std::string>() || generation_config["stop"].is<picojson::array>());
+        if (generation_config["stop"].is<std::string>()) {
+          gen_stop_strs.push_back(generation_config["stop"].get<std::string>());
+        }
+        else {
+          picojson::array gen_stop_strs_arr = generation_config["stop"].get<picojson::array>();
+          for (const picojson::value& v : gen_stop_strs_arr) {
+            CHECK(v.is<std::string>());
+            gen_stop_strs.push_back(v.get<std::string>());
+          }
+        }
+      }
+    }
+
     ICHECK(!stop_triggered_) << "Cannot call process when it is stopped";
 
     stop_triggered_ =
@@ -1057,22 +1076,26 @@ class LLMChat {
 
     output_message_ = tokenizer_->Decode(output_ids_);
 
-    if (!conversation_.stop_str.empty()) {
-      size_t stop_pos = output_message_.rfind(conversation_.stop_str);
-      if (stop_pos != std::string::npos) {
-        stop_triggered_ = true;
-        if (ft_.support_backtracking_kv_) {
-          // back tracking, find the first set of token that is smaller
-          // than the length
-          size_t backoff = 0;
-          for (; (output_ids_.size() > 0) && (output_message_.length() > stop_pos); ++backoff) {
-            output_ids_.pop_back();
-            output_message_ = tokenizer_->Decode(output_ids_);
-          }
-          // resize kv to remove the context
-          ft_.fkvcache_array_popn_(kv_cache_, backoff);
-          total_seq_len_ -= backoff;
+    size_t stop_pos = std::string::npos;
+    for (const std::string& stop_str : gen_stop_strs) {
+      if (!stop_str.empty()) {
+        stop_pos = std::min(stop_pos, output_message_.rfind(stop_str));
+      }
+    }
+
+    if (stop_pos != std::string::npos) {
+      stop_triggered_ = true;
+      if (ft_.support_backtracking_kv_) {
+        // back tracking, find the first set of token that is smaller
+        // than the length
+        size_t backoff = 0;
+        for (; (output_ids_.size() > 0) && (output_message_.length() > stop_pos); ++backoff) {
+          output_ids_.pop_back();
+          output_message_ = tokenizer_->Decode(output_ids_);
         }
+        // resize kv to remove the context
+        ft_.fkvcache_array_popn_(kv_cache_, backoff);
+        total_seq_len_ -= backoff;
       }
     }
 

@@ -176,6 +176,8 @@ async def request_completion(request: ChatCompletionRequest):
         top_p=request.top_p,
         mean_gen_len=request.mean_gen_len,
         max_gen_len=request.max_gen_len,
+        n=request.n,
+        stop=request.stop,
     )
 
     session["chat_mod"].reset_chat() # Reset previous history, KV cache, etc.
@@ -208,13 +210,15 @@ async def request_completion(request: ChatCompletionRequest):
         msg = session["chat_mod"].generate(
             prompt=request.messages, generation_config=generation_config
         )
+        if isinstance(msg, str):
+            msg = [msg]
         return ChatCompletionResponse(
             choices=[
                 ChatCompletionResponseChoice(
-                    index=0,
-                    message=ChatMessage(role="assistant", content=msg),
+                    index=index,
+                    message=ChatMessage(role="assistant", content=msg[index]),
                     finish_reason="stop",
-                )
+                ) for index in range(len(msg))
             ],
             # TODO: Fill in correct usage info
             usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),

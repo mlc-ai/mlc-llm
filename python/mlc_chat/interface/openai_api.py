@@ -28,10 +28,11 @@ class ChatCompletionRequest(BaseModel):
     max_gen_len: int = None
     presence_penalty: float = None
     frequency_penalty: float = None
+    n: int = None
+    stop: Union[str, List[str]] = None
     # TODO: Implement support for the OpenAI API parameters
     # function []
     # function_call
-    # n: Optional[int] = 1
     # stop: Optional[Union[str, List[str]]] = None
     # max_tokens: Optional[int]
     # logit_bias
