@@ -167,6 +167,15 @@ class AsyncCompletionStream:
 async def request_completion(request: ChatCompletionRequest):
     """
     Creates model response for the given chat conversation.
+    The messages field contains a list of messages (describing the conversation history). eg:
+    ```"messages": [{"role": "user", "content": "What's my name?"}, 
+                    {"role": "assistant", "content": "Your name is Llama."}, 
+                    {"role": "user", "content": "No, that's your name. My name is X."},
+                    {"role": "assistant", "content": "Ah, my apologies! Your name is X! "},
+                    {"role": "user", "content": "What is the meaning of life?"},
+                ]
+    ```
+    ]
     """
     generation_config = GenerationConfig(
         temperature=request.temperature,

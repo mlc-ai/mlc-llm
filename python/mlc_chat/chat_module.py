@@ -15,6 +15,8 @@ from tvm.runtime import disco
 
 from . import callback
 
+from .interface.openai_api import ChatMessage
+
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
 # pylint: enable=line-too-long
@@ -239,7 +241,8 @@ class GenerationConfig:
         not set, the model will generate text until it encounters a stop token.
     n : Optional[int]
         This parameter determines the number of text samples to generate. The default
-        value is ``1``.
+        value is ``1``. Note that this parameter is only used when ``stream`` is set to 
+        ``False``.
     stop : Optional[Union[str, List[str]]]
         When ``stop`` is encountered, the model will stop generating output.
         It can be a string or a list of strings. If it is a list of strings, the model
@@ -256,8 +259,6 @@ class GenerationConfig:
     frequency_penalty: Optional[float] = 0.0
     n: Optional[int] = None
     stop: Optional[Union[str, List[str]]] = None
-    presence_penalty: Optional[float] = 0.0
-    frequency_penalty: Optional[float] = 0.0
 
     @classmethod
     def _from_chat_config(generation_config_cls, chat_config_obj: ChatConfig):
@@ -792,18 +793,24 @@ class ChatModule:
 
     def generate(
         self,
-        prompt: Union[str, List[str]],
+        prompt: Union[str, List[ChatMessage]],
         generation_config: Optional[GenerationConfig] = None,
         progress_callback=None,
-    ) -> str:
+    ) -> Union[str, List[str]]:
         r"""A high-level method that returns the full response from the chat module given a user prompt.
         User can optionally specify which callback method to use upon receiving the response. By default,
         no callback will be applied.
 
         Parameters
         ----------
-        prompt : str
+        prompt : Union[str, List[ChatMessage]]
             The user input prompt, i.e. a question to ask the chat module.
+            It can also be the whole conversation history (list of messages with role and content)
+            eg: ```[
+                ChatMessage(role="user", content="Hello, how are you?"),
+                ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
+                ChatMessage(role="user", content="I'm good too."),
+            ]```
         generation_config: Optional[GenerationConfig]
             The generation config object to override the ChatConfig generation settings.
         progress_callback: object
@@ -836,7 +843,7 @@ class ChatModule:
         new_msgs = []
         num_return_sequences = 1
         return_str = True
-        if generation_config.n:
+        if (generation_config is not None) and (generation_config.n is not None):
             num_return_sequences = generation_config.n
             return_str = False
         else:
@@ -1000,7 +1007,7 @@ class ChatModule:
 
     def _prefill(
         self,
-        input: Union[str, List[str]],
+        input: Union[str, List[ChatMessage]],
         decode_next_token: bool = True,
         place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
         generation_config: Optional[GenerationConfig] = None,
@@ -1010,8 +1017,14 @@ class ChatModule:
 
         Parameters
         ----------
-        input : str
-            The user input string.
+        input : Union[str, List[ChatMessage]]
+            The user input prompt, i.e. a question to ask the chat module.
+            It can also be the whole conversation history (list of messages with role and content)
+            eg: ```[
+                ChatMessage(role="user", content="Hello, how are you?"),
+                ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
+                ChatMessage(role="user", content="I'm good too."),
+            ]```
         decode_next_token : bool
             Whether to decode the next token after prefilling.
         place_in_prompt: PlaceInPrompt
@@ -1038,7 +1051,8 @@ class ChatModule:
                         messages.append([role1, content])
                     else:
                         raise ValueError("Only user and assistant roles are supported.")
-
+                if not input[-1].role == "user":
+                    raise ValueError("Last message should be from user.")
                 conv_config["messages"] = messages
                 conv_config[
                     "offset"
