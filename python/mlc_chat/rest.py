@@ -327,6 +327,12 @@ async def read_stats():
     """
     return session["chat_mod"].stats()
 
+@app.get("/verbose_stats")
+async def read_stats_verbose():
+    """
+    Get the verbose runtime stats.
+    """
+    return session["chat_mod"].stats(verbose=True)
 
 ARGS = convert_args_to_argparser().parse_args()
 if __name__ == "__main__":
