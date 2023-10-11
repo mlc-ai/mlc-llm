@@ -89,6 +89,9 @@ The REST API provides the following endpoints:
 
    Get the latest runtime stats (encode/decode speed).
 
+.. http:get:: /verbose_stats
+
+   Get the verbose runtime stats (encode/decode speed, total runtime).
 
 Use REST API in your own program
 --------------------------------
