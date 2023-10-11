@@ -52,11 +52,7 @@ class LlamaAttention(nn.Module):
         dtype = config.dtype
         self.num_shards = config.num_shards
         self.hidden_size = config.hidden_size
-        self.num_key_value_heads = (
-            config.num_key_value_heads is None
-            and config.num_attention_heads
-            or config.num_key_value_heads
-        ) // config.num_shards
+        self.num_key_value_heads = config.get_num_key_value_heads() // self.num_shards
         self.num_query_heads = config.num_attention_heads // self.num_shards
         self.head_dim = self.hidden_size // config.num_attention_heads
         self.position_embedding_base = config.position_embedding_base
@@ -113,7 +109,7 @@ class LlamaAttention(nn.Module):
         seqstart: relax.Expr,  # only for prefill
         block_tables: relax.Expr,  # only for decode
     ):
-        num_tokens, hidden_size = hidden_states.struct_info.shape
+        num_tokens, _ = hidden_states.struct_info.shape
 
         if self.combine_matmul:
             qkv_states = nn.emit(
@@ -211,7 +207,7 @@ class LlamaAttention(nn.Module):
                 )
             )
 
-        attn_output = nn.emit(reshape(attn_output, (num_tokens, hidden_size)))
+        attn_output = nn.emit(reshape(attn_output, (num_tokens, self.num_query_heads * self.head_dim)))
         attn_output = self.o_proj(attn_output)
 
         return attn_output, (k_cache, v_cache)
@@ -255,13 +251,25 @@ class LlamaDecoderLayer(nn.Module):
             seqstart=seqstart,
             block_tables=block_tables,
         )
+        if self.self_attn.num_shards > 1:
+            residual = nn.emit(
+                residual / R.const(self.self_attn.num_shards, dtype=residual.struct_info.dtype)
+            )
         hidden_states = nn.emit(residual + hidden_states)
+        if self.self_attn.num_shards > 1:
+            hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
 
         # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
         hidden_states = self.mlp(hidden_states)
+        if self.mlp.num_shards > 1:
+            residual = nn.emit(
+                residual / R.const(self.mlp.num_shards, dtype=residual.struct_info.dtype)
+            )
         hidden_states = nn.emit(residual + hidden_states)
+        if self.mlp.num_shards > 1:
+            hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
 
         return hidden_states, new_kv
 
@@ -274,17 +282,13 @@ class LlamaModel(nn.Module):
         prefill: bool,
         sep_embed: bool = False,
     ):
-        self.num_shards = config.num_shards
         self.padding_idx = config.pad_token_id
         self.embed_tokens = None
         self.prefill = prefill
 
-        num_key_value_heads = (
-            config.num_key_value_heads is None
-            and config.num_attention_heads
-            or config.num_key_value_heads
-        )
-        num_queries_per_kv = config.num_attention_heads // num_key_value_heads
+        num_query_heads = config.num_attention_heads // config.num_shards
+        num_key_value_heads = config.get_num_key_value_heads() // config.num_shards
+        num_queries_per_kv = num_query_heads // num_key_value_heads
         head_mapping = relax.const(
             tvm.nd.array(
                 np.repeat(np.arange(num_key_value_heads, dtype="int32"), num_queries_per_kv)
@@ -312,9 +316,6 @@ class LlamaModel(nn.Module):
         seqstart: relax.Expr,
         block_tables: relax.Expr,
     ):
-        if self.num_shards > 1:
-            inputs = nn.emit(ccl.broadcast_from_worker0(inputs))
-
         if self.embed_tokens:
             inputs_embeds = self.embed_tokens(inputs)
         else:
@@ -351,6 +352,7 @@ class LlamaForCausalLM(nn.Module):
         sep_embed: bool = False,
     ):
         self.prefill = prefill
+        self.num_shards = config.num_shards
         self.model = LlamaModel(config, vocab_size_var, prefill, sep_embed)
         self.lm_head = Linear(config.hidden_size, vocab_size_var, dtype=config.dtype, bias=False)
 
@@ -374,6 +376,15 @@ class LlamaForCausalLM(nn.Module):
         slot_mapping: relax.Expr,
         block_tables: relax.Expr,  # only for decode
     ):
+        if self.num_shards > 1:
+            input_ids = nn.emit(ccl.broadcast_from_worker0(input_ids))
+            positions = nn.emit(ccl.broadcast_from_worker0(positions))
+            seq_lens = nn.emit(ccl.broadcast_from_worker0(seq_lens))
+            slot_mapping = nn.emit(ccl.broadcast_from_worker0(slot_mapping))
+
+            if not self.prefill:
+                block_tables = nn.emit(ccl.broadcast_from_worker0(block_tables))
+
         if self.prefill:
             cumsum = nn.emit(
                 relax.op.call_dps_packed(
@@ -431,11 +442,7 @@ def get_inputs(num_token, num_seq, config, max_num_blocks_per_seq=None, sep_embe
     block_size = 16
 
     vec_size = 8  # 128 bit, fp16 x 8
-    num_key_value_heads = (
-        config.num_key_value_heads is None
-        and config.num_attention_heads
-        or config.num_key_value_heads
-    )
+    num_key_value_heads = config.get_num_key_value_heads() // config.num_shards
     head_size = hidden_size // config.num_attention_heads
 
     k_cache_shape = (

@@ -8,50 +8,32 @@ from dataclasses import dataclass
 
 import numpy as np
 
-import torch
-from transformers import LlamaTokenizer
-
 import tvm
 from tvm import relax
+from tvm.runtime import disco as di
+
+import torch
+from transformers import LlamaTokenizer
 
 from mlc_llm.relax_model.llama import LlamaConfig
 from mlc_llm import utils
 
 
-def init_cache_blocks(head_size, num_layers, num_heads, block_size, num_gpu_blocks, dev):
-    element_size = 2
-    x = 16 // element_size
-
-    key_block_shape = (num_heads, head_size // x, block_size, x)
-    value_block_shape = (num_heads, head_size, block_size)
-
-    gpu_cache = ()
-    for _ in range(num_layers):
-        key_blocks = tvm.nd.empty(
-            (num_gpu_blocks, *key_block_shape),
-            dtype="float16",
-            device=dev,
-        )
-        value_blocks = tvm.nd.empty(
-            (num_gpu_blocks, *value_block_shape),
-            dtype="float16",
-            device=dev,
-        )
-        gpu_cache += (key_blocks, value_blocks)
-    return gpu_cache
-
-
 class KVCache:
-    def __init__(self, num_blocks, block_size, num_layers, num_heads, head_size, dev):
-        self.cache = init_cache_blocks(
-            head_size, num_layers, num_heads, block_size, num_blocks, dev
-        )
+    def __init__(self, num_blocks, block_size, num_layers, num_heads, head_size, disco_session):
+        if disco_session:
+            init_cache_func = disco_session.get_global_func("tvm.contrib.vllm.allocate_kv_cache")
+        else:
+            init_cache_func = tvm.get_global_func("tvm.contrib.vllm.allocate_kv_cache")
+
+        self.cache = init_cache_func(head_size, num_layers, num_heads, block_size, num_blocks)
+
         self.block_tables = defaultdict(list)
         self.block_size = block_size
 
 
 class CacheManager:
-    def __init__(self, num_layers, num_heads, head_size, dev):
+    def __init__(self, num_layers, num_heads, head_size, disco_session=None):
         # TODO: Hardcoded for now
         block_size = 16
         num_blocks = 500
@@ -59,7 +41,9 @@ class CacheManager:
         self.num_blocks = num_blocks
         self.block_size = block_size
         self.free_blocks = list(range(num_blocks))
-        self.kv_cache = KVCache(num_blocks, block_size, num_layers, num_heads, head_size, dev)
+        self.kv_cache = KVCache(
+            num_blocks, block_size, num_layers, num_heads, head_size, disco_session
+        )
 
     def set_size(self, request_ids: List[int], target_sizes: List[int]):
         for id, size in zip(request_ids, target_sizes):
@@ -166,22 +150,47 @@ def sample(logits, sampling_params, vocab_size):
     return torch.multinomial(probs, 1, True).cpu().numpy()[:, 0]
 
 
-def get_tvm_model(artifact_path, model, quantization, dev):
-    const_params = utils.load_params(artifact_path, dev)
-    ex = tvm.runtime.load_module(
-        os.path.join(
-            artifact_path,
-            f"{model}-{quantization}-cuda.so",
-        )
-    )
-    vm = relax.VirtualMachine(ex, dev)
+def load_params_disco(artifact_path, lib_path, num_shards):
+    sess = di.ProcessSession(num_workers=num_shards)
+    devices = range(num_shards)
+    sess.init_ccl("nccl", *devices)
+    module = sess.load_vm_module(lib_path)
 
-    return vm, const_params
+    loader_create = sess.get_global_func("runtime.disco.ShardLoader")
+    metadata_path = os.path.join(artifact_path, "params", "ndarray-cache.json")
+    with open(metadata_path, "r", encoding="utf-8") as f:
+        ndarray_cache_metadata = f.read()
+
+    loader = loader_create(metadata_path, ndarray_cache_metadata, "", module)
+    loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadAll")
+    params = loader_load(loader)
+
+    return module, params, sess
+
+
+def copy_to_worker_0(sess: di.Session, host_array):
+    x_array = sess.empty(host_array.shape, host_array.dtype)
+    sess.copy_to_worker_0(host_array, x_array)
+    return x_array
+
+
+def get_tvm_model(artifact_path, model, quantization, num_shards, dev):
+    lib_path = os.path.join(artifact_path, f"{model}-{quantization}-cuda.so")
+
+    if num_shards == 1:
+        ex = tvm.runtime.load_module(lib_path)
+        vm = relax.VirtualMachine(ex, dev)
+        params = utils.load_params(artifact_path, dev)
+        return vm.module, params, None
+
+    return load_params_disco(artifact_path, lib_path, num_shards)
 
 
 class Model:
-    def __init__(self, artifact_path, model_name, quant, vocab_size, dev):
-        self.vm, self.params = get_tvm_model(artifact_path, model_name, quant, dev)
+    def __init__(self, artifact_path, model_name, quant, vocab_size, num_shards, dev):
+        self.mod, self.params, self.disco_session = get_tvm_model(
+            artifact_path, model_name, quant, num_shards, dev
+        )
         self.dev = dev
         self.vocab_size = vocab_size
 
@@ -191,7 +200,7 @@ class Model:
         block_tables = []
         seq_lens = []
         input_ids = []
-        slot_mappings = []
+        slot_mapping = []
         positions = []
         max_num_blocks_per_seq = 0
         block_size = cache.block_size
@@ -210,7 +219,7 @@ class Model:
                     block_number = block_table[i // block_size]
                     block_offset = i % block_size
                     slot = block_number * block_size + block_offset
-                    slot_mappings.append(slot)
+                    slot_mapping.append(slot)
             else:
                 input_ids.append(request.token_ids[-1])
                 pos = seq_lens[-1] - 1
@@ -221,18 +230,30 @@ class Model:
                 block_number = block_table[pos // block_size]
                 block_offset = pos % block_size
                 slot = block_number * block_size + block_offset
-                slot_mappings.append(slot)
+                slot_mapping.append(slot)
 
         input_ids = tvm.nd.array(np.array(input_ids, dtype="int32"), self.dev)
         positions = tvm.nd.array(np.array(positions, dtype="int32"), self.dev)
         seq_lens = tvm.nd.array(np.array(seq_lens, dtype="int32"), self.dev)
-        slot_mapping = tvm.nd.array(np.array(slot_mappings, dtype="int32"), self.dev)
+        slot_mapping = tvm.nd.array(np.array(slot_mapping, dtype="int32"), self.dev)
+
+        if self.disco_session:
+            input_ids = copy_to_worker_0(self.disco_session, input_ids)
+            positions = copy_to_worker_0(self.disco_session, positions)
+            seq_lens = copy_to_worker_0(self.disco_session, seq_lens)
+            slot_mapping = copy_to_worker_0(self.disco_session, slot_mapping)
+
         kv_cache = cache.cache
 
         if is_prompt:
-            logits, kv_cache_next = self.vm["prefill"](
+            out = self.mod["prefill"](
                 input_ids, positions, seq_lens, kv_cache, slot_mapping, self.params
             )
+
+            if self.disco_session:
+                logits, _ = out.debug_get_from_remote(0)
+            else:
+                logits = out[0]  # Ignore returned KV cache since it is updated in-place anyway.
         else:
 
             def _pad_to_max(x: List[int], max_len: int) -> List[int]:
@@ -242,15 +263,26 @@ class Model:
                 _pad_to_max(block_table, max_num_blocks_per_seq) for block_table in block_tables
             ]
 
-            block_tables = tvm.nd.array(
-                np.array(np.vstack(padded_block_tables), dtype="int32"), self.dev
+            block_tables_np = np.vstack(padded_block_tables).astype("int32")
+            block_tables = tvm.nd.array(np.array(block_tables_np, dtype="int32"), self.dev)
+
+            if self.disco_session:
+                block_tables = copy_to_worker_0(self.disco_session, block_tables)
+
+            out = self.mod["decode"](
+                input_ids,
+                positions,
+                seq_lens,
+                kv_cache,
+                slot_mapping,
+                block_tables,
+                self.params,
             )
 
-            logits, kv_cache_next = self.vm["decode"](
-                input_ids, positions, seq_lens, kv_cache, slot_mapping, block_tables, self.params
-            )
-
-        cache.cache = kv_cache_next
+            if self.disco_session:
+                logits, _ = out.debug_get_from_remote(0)
+            else:
+                logits = out[0]
 
         next_tokens = sample(logits, sampling_params, self.vocab_size)
 
@@ -262,11 +294,17 @@ class Model:
 
 def parse_args():
     # Example
-    # python build.py --model vicuna-v1-7b --quantization q4f16_ft ache=0 --max-seq-len 768 --batched
+    # python build.py --model vicuna-v1-7b --quantization q4f16_ft --use-cache=0 --max-seq-len 768 --batched
     # python tests/python/test_batched.py --local-id vicuna-v1-7b-q4f16_ft
+    #
+    # For Disco:
+    # python build.py --model vicuna-v1-7b --quantization q0f16 --use-cache=0 --max-seq-len 768  --batched --build-model-only --num-shards 2
+    # python build.py --model vicuna-v1-7b --quantization q0f16 --use-cache=0 --max-seq-len 768  --batched --convert-weight-only
+    # /opt/bin/cuda-reserve.py  --num-gpus 2 python tests/python/test_batched.py --local-id vicuna-v1-7b-q0f16 --num-shards 2
     args = argparse.ArgumentParser()
     args.add_argument("--local-id", type=str, required=True)
     args.add_argument("--artifact-path", type=str, default="dist")
+    args.add_argument("--num-shards", type=int, default=1)
     parsed = args.parse_args()
     parsed.model, parsed.quantization = parsed.local_id.rsplit("-", 1)
     utils.argparse_postproc_common(parsed)
@@ -287,7 +325,7 @@ def test(args):
     with open(os.path.join(model_path, "config.json"), encoding="utf-8") as i_f:
         config = LlamaConfig(**json.load(i_f))
 
-    model = Model(artifact_path, model_name, quantization, config.vocab_size, dev)
+    model = Model(artifact_path, model_name, quantization, config.vocab_size, args.num_shards, dev)
 
     tokenizer = LlamaTokenizer.from_pretrained(
         os.path.join(artifact_path, "params"), trust_remote_code=True
@@ -313,17 +351,13 @@ def test(args):
         target_sizes.append(len(token_ids))
         requests.append(SequenceGenerationRequest(request_id, token_ids, 0, sampling_params))
 
-    num_kv_heads = (
-        config.num_key_value_heads is None
-        and config.num_attention_heads
-        or config.num_key_value_heads
-    )
+    num_kv_heads = config.get_num_key_value_heads() // args.num_shards
 
     cache_manager = CacheManager(
         config.num_hidden_layers,
         num_kv_heads,
         config.hidden_size // config.num_attention_heads,
-        dev,
+        model.disco_session,
     )
     cache = cache_manager.get()
 
@@ -333,7 +367,7 @@ def test(args):
 
     num_steps = 20
 
-    for s in range(num_steps):
+    for _ in range(num_steps):
         for i, response in enumerate(out):
             new_token_id = response.token_id
             requests[i].token_ids.append(new_token_id)
