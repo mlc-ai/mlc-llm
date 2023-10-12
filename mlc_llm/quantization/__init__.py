@@ -231,4 +231,5 @@ quantization_schemes = {
     ),
     "smq_q8i8f16_0": QuantizationScheme("smq_q8i8f16_0", NoQuantizationSpec("float16")),
     "smq_q8i8f16_1": QuantizationScheme("smq_q8i8f16_1", NoQuantizationSpec("float16")),
+    "smq_q8i8f16_2": QuantizationScheme("smq_q8i8f16_2", NoQuantizationSpec("float16")),
 }

@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import tqdm
 from enum import Enum
 from transformers import AutoTokenizer
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union, Callable
 from datasets import load_dataset
 
 import tvm
@@ -17,6 +17,20 @@ from mlc_llm.utils import load_params
 
 # List of supported calibration datasets.
 dataset_list = ["dummy", "piqa"]
+
+SCALE_PREFIX_NAME = "sq_scale_"
+ZP_PREFIX_NAME = "sq_zp_"
+
+def _try_convert_to_scalar_const(expr: tvm.relax.Expr) -> Union[tvm.relax.Expr, float, int]:
+    if isinstance(expr, tvm.relax.Constant):
+        if expr.struct_info.ndim == 0:
+            return expr.data.numpy()[()].item()
+        elif expr.struct_info.ndim == 1:
+            dim_size = expr.struct_info.shape[0].value
+            if dim_size == 1:
+                return expr.data.numpy()[0]
+    return expr
+
 
 def get_runtime_func(funcs: List[str], mod: tvm.IRModule):
     lowered_mod = relax.transform.LegalizeOps()(mod)
@@ -36,13 +50,13 @@ def to_device(params, device):
     return [param.copyto(device) for param in params]
 
 
-def _accumulate_outlier_stat(stat, data):
+def _accumulate_outlier_stat(stat, data, func: Callable = np.maximum):
     if stat is None:
         stat = [element.numpy() for element in data]
     else:
         assert len(data) == len(stat)
         for idx in range(len(stat)):
-            stat[idx] = np.maximum(stat[idx], data[idx].numpy())
+            stat[idx] = func(stat[idx], data[idx].numpy())
     return stat
 
 
@@ -58,6 +72,36 @@ def _accumulate_weight_outlier_stat(stat: List[np.ndarray], data: List[tvm.nd.ND
         return stat
     w_data = data[1::2]
     return _accumulate_outlier_stat(stat, w_data)
+
+
+def _accumulate_max_min_stat(
+    a_max_stat: List[np.ndarray],
+    a_min_stat: List[np.ndarray],
+    w_max_stat: List[np.ndarray],
+    w_min_stat: List[np.ndarray],
+    data: List[tvm.nd.NDArray],
+):
+    """
+    "data" is a list of tvm.nd.NDArray with the following structure:
+      - Every first element in the sequence is the maximum values for activations corresponding to
+        the output #N.
+      - Every second element in the sequence is the minimum values for activations  corresponding to
+        the output #N.
+      - Every third element in the sequence is the maximum values for the weights corresponding to
+        the output #N.
+      - Every second element in the sequence is the minimum values for the weights corresponding to
+        the output #N.
+    """
+    a_max_stat = _accumulate_outlier_stat(a_max_stat, data[::4], np.maximum)
+    a_min_stat = _accumulate_outlier_stat(a_min_stat, data[1::4], np.minimum)
+
+    if w_max_stat is None:
+        w_max_stat = _accumulate_outlier_stat(w_max_stat, data[2::4], np.maximum)
+
+    if w_min_stat is None:
+        w_min_stat =  _accumulate_outlier_stat(w_min_stat, data[3::4], np.minimum)
+
+    return a_max_stat, a_min_stat, w_max_stat, w_min_stat
 
 
 def _calculate_scale_params(
@@ -92,42 +136,83 @@ def _calculate_scale_params(
 
 # Quantization algorithm for activations or weights.
 class QAlgo(Enum):
-    PER_CHANNEL = 1,
-    PER_TENSOR = 2,
+    PER_CHANNEL_SYM = 1,
+    PER_CHANNEL_ASYM = 2,
+    PER_TENSOR_SYM = 3,
+    PER_TENSOR_ASYM = 4
 
 
-def _calculate_quant_scale_params(
-        func_name: str,
-        stats,
-        config: Dict[str, Any],
-        dev: tvm.runtime.Device,
+def get_quantization_scheme(qscheme: str):
+    """
+    Return pair: quantization scheme for activations, quantization scheme for weights.
+    """
+    if qscheme == "smq_q8i8f16_0":
+        return QAlgo.PER_TENSOR_SYM, QAlgo.PER_TENSOR_SYM
+    elif qscheme == "smq_q8i8f16_1":
+        return QAlgo.PER_TENSOR_SYM, QAlgo.PER_CHANNEL_SYM
+    elif qscheme == "smq_q8i8f16_2":
+        return QAlgo.PER_TENSOR_ASYM, QAlgo.PER_CHANNEL_ASYM
+    else:
+        assert False, f"Unknown quantization scheme: {qscheme}"
+        return None, None
+
+
+def _calculate_quantization_params(
+    func_name: str,
+    stats: Dict[str, List[np.ndarray]],
+    config: Dict[str, Any],
 ):
+    """
+    Equations for asymmetric quantization (PER_TENSOR_ASYM, PER_CHANNEL_ASYM):
+      scale = (MAXf - MINf)/(MAXi - MINi)  (example for "int8": scale = (MAXf - MINf)/255)
+      zp = -round(MINf/scale) + MINi       (example for "int8": zp = -round(MINf/scale) - 128)
+
+    Equations for symmetric quantization (PER_TENSOR_SYM, PER_CHANNEL_SYM):
+      scale = max(abs(MAXf), abs(MINf)) / MAXi     (example for "int8": 
+                                                    scale = (max(abs(MAXf), abs(MINf)))/127)
+      zp = 0
+    """
     if stats[func_name] is None:
         return {}
 
-    a_dtype = config["adtype"]
-    w_dtype = config["wdtype"]
-    a_qscheme = QAlgo.PER_TENSOR
-    w_qscheme = QAlgo.PER_CHANNEL if config["qscheme"] == "smq_q8i8f16_1" else QAlgo.PER_TENSOR
+    a_dtype, w_dtype = config["adtype"], config["wdtype"]
+    a_qscheme, w_qscheme = get_quantization_scheme(config["qscheme"])
 
-    def _calculate_quant_scale(arr: np.ndarray, dtype: str, algo: str) -> np.ndarray:
-        if algo is QAlgo.PER_CHANNEL:
-            scale = arr / arr.dtype.type(np.iinfo(dtype).max)
+    def _calculate_scale_zp(arr_max: np.ndarray, arr_min: np.ndarray, dtype: str, algo: QAlgo):
+        max_value = arr_max.dtype.type(np.iinfo(dtype).max)
+        min_value = arr_max.dtype.type(np.iinfo(dtype).min)
+        if algo is QAlgo.PER_TENSOR_SYM:
+            arr = np.maximum(np.abs(arr_max), np.abs(arr_min))
+            scale = np.array([np.max(arr) / max_value])
+            zp = np.zeros_like(scale, dtype="int8")
+        elif algo is QAlgo.PER_CHANNEL_SYM:
+            arr = np.maximum(np.abs(arr_max), np.abs(arr_min))
+            scale = arr / max_value
+            zp = np.zeros_like(scale, dtype="int8")
+        elif algo is QAlgo.PER_TENSOR_ASYM:
+            scale = np.array([(np.max(arr_max) - np.min(arr_min)) / (max_value - min_value)])
+            zp = (-np.round(np.min(arr_min) / scale) + min_value).astype("int8")
+        elif algo is QAlgo.PER_CHANNEL_ASYM:
+            scale = (arr_max - arr_min) / (max_value - min_value)
+            zp = (-np.round(arr_min / scale) + min_value).astype("int8")
         else:
-            assert algo is QAlgo.PER_TENSOR
-            scale = np.array([np.max(arr) / arr.dtype.type(np.iinfo(dtype).max)])
-        return scale
+            assert False, f"Unknown quantization algorithm: {algo}"
+            return None, None
+        return scale, zp
 
     idx = 0
-    scale_params = {}
-    for a_element, w_element in zip(*stats[func_name]):
-        a_scale = _calculate_quant_scale(a_element, a_dtype, a_qscheme)
-        scale_params[f"sq_scale_{idx}"] = tvm.nd.array(a_scale, dev)
-        w_scale = _calculate_quant_scale(w_element, w_dtype, w_qscheme)
-        scale_params[f"sq_scale_{idx+1}"] = tvm.nd.array(w_scale, dev)
-        idx += 2
+    qparams = {}
+    for a_max_element, a_min_element, w_max_element, w_min_element in zip(*stats[func_name]):
+        a_scale, a_zp = _calculate_scale_zp(a_max_element, a_min_element, a_dtype, a_qscheme)
+        qparams[f"{SCALE_PREFIX_NAME}{idx}"] = tvm.nd.array(a_scale, tvm.cpu(0))
+        qparams[f"{ZP_PREFIX_NAME}{idx+2}"] = tvm.nd.array(a_zp, tvm.cpu(0))
 
-    return scale_params
+        w_scale, w_zp = _calculate_scale_zp(w_max_element, w_min_element, w_dtype, w_qscheme)
+        qparams[f"{SCALE_PREFIX_NAME}{idx+1}"] = tvm.nd.array(w_scale, tvm.cpu(0))
+        qparams[f"{ZP_PREFIX_NAME}{idx+3}"] = tvm.nd.array(w_zp, tvm.cpu(0))
+        idx += 4
+
+    return qparams
 
 
 def _smooth(
@@ -172,6 +257,7 @@ def _smooth(
             a_stat = _accumulate_act_outlier_stat(a_stat, outputs)
             w_stat = _accumulate_weight_outlier_stat(w_stat, outputs)
 
+    #debug_save_stat(a_stat, "max_activations.npy")
     # Use the same statistics for "prefill"/"decode"
     stat = dict.fromkeys(funcs)
     stat["prefill"] = (a_stat, w_stat)
@@ -197,8 +283,10 @@ def _calibrate(
     prefill, decode, kvc, _, _ = get_runtime_func(funcs, stat_mod)
 
     # Calculate max statistics
-    a_stat: List[np.ndarray] = None
-    w_stat: List[np.ndarray] = None
+    a_max_stat: List[np.ndarray] = None
+    a_min_stat: List[np.ndarray] = None
+    w_max_stat: List[np.ndarray] = None
+    w_min_stat: List[np.ndarray] = None
 
     target = tvm.target.Target.current(allow_none=False)
     for data in tqdm(dataset, desc="Calibration"):
@@ -209,8 +297,9 @@ def _calibrate(
 
         # Run Encoder and update statistics for activations/weights
         (logits, kv_caches), outputs = prefill(data, seq_len_shape, kv_caches, *params)
-        a_stat = _accumulate_act_outlier_stat(a_stat, outputs)
-        w_stat = _accumulate_weight_outlier_stat(w_stat, outputs)
+        a_max_stat, a_min_stat, w_max_stat, w_min_stat = _accumulate_max_min_stat(
+            a_max_stat, a_min_stat, w_max_stat, w_min_stat, outputs
+        )
 
         # Run Decoder and update statistics for activations/weights
         for _ in range(config["decoder_invoke_num"]):
@@ -222,19 +311,20 @@ def _calibrate(
             num_tokens += logits_max.shape[1]
             seq_len_shape = tvm.runtime.ShapeTuple([num_tokens])
             (logits, kv_caches), outputs = decode(next_token, seq_len_shape, kv_caches, *params)
-            a_stat = _accumulate_act_outlier_stat(a_stat, outputs)
-            w_stat = _accumulate_weight_outlier_stat(w_stat, outputs)
+            a_max_stat, a_min_stat, w_max_stat, w_min_stat = _accumulate_max_min_stat(
+                a_max_stat, a_min_stat, w_max_stat, w_min_stat, outputs
+            )
 
+    #debug_save_stat(w_stat, "max_weights.npy")
     # Use the same statistics for "prefill"/"decode"
     stat = dict.fromkeys(funcs)
-    stat["prefill"] = (a_stat, w_stat)
-    stat["decode"] = (a_stat, w_stat)
+    stat["prefill"] = (a_max_stat, a_min_stat, w_max_stat, w_min_stat)
+    stat["decode"] = (a_max_stat, a_min_stat, w_max_stat, w_min_stat)
     for fname in funcs:
-        scale_params = _calculate_quant_scale_params(fname, stat, config, tvm.cpu(0))
+        scale_params = _calculate_quantization_params(fname, stat, config)
         mod = relax.transform.BindParams(fname, scale_params)(mod)
 
-    mod = mlc_llm.transform.SmoothQuantOpConverter(qscheme)(mod)
-    mod = mlc_llm.transform.SmoothQuantLegalizer(qscheme, config["adtype"], config["wdtype"])(mod)
+    mod = mlc_llm.transform.SmoothQuantLegalizer(config["adtype"], config["wdtype"])(mod)
     mod = relax.transform.DeadCodeElimination(funcs)(mod)
     return mod
 
@@ -308,9 +398,17 @@ def smoothquant_quantize_params(
     args: argparse.Namespace,
 ):
     mod = relax.transform.LiftTransformParams()(mod)
+    mod = relax.transform.BundleModelParams()(mod)
     mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
     new_params = smoothquant_transform_params(args, mod_transform)
     return mod_deploy, new_params
+
+
+def smoothquant_prepare_dir(path: str):
+    files = os.listdir(path)
+    for file in files:
+        if "params_shard_" in file or file == "ndarray-cache.json":
+            os.remove(os.path.join(path, file))
 
 
 def _get_dummy_dataset(artifact_path, device, num=3):
@@ -381,3 +479,12 @@ def _get_dataset(name: str, artifact_path: str, device: tvm.runtime.Device):
     stop_tokens = ([tokenizer.eos_token_id])
 
     return calibration_dataset, stop_tokens
+
+
+def debug_save_stat(stat: List[np.ndarray], name: str):
+    folder_name = "dump_npy"
+    if not os.path.exists(folder_name):
+        os.mkdir(folder_name)
+    for idx, element in enumerate(stat):
+        with open(os.path.join(folder_name, f"f_{idx}_{name}"), "wb") as f:
+            np.save(f, element)
