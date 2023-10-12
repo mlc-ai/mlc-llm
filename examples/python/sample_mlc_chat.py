@@ -34,7 +34,7 @@ generation_thread = Thread(target=cm.generate, kwargs={"prompt": "What is the me
 generation_thread.start()
 
 output = ""
-for tok in stream:
-    output += tok
+for delta_message in stream:
+    output += delta_message
 
 generation_thread.join()

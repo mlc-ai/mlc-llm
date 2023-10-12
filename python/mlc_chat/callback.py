@@ -81,7 +81,7 @@ class StreamToStdout(DeltaCallback):
 
 class StreamIterator(DeltaCallback):
     """Stream the output using an iterator.
-       A queue stores the delta tokens"""
+       A queue stores the delta messages"""
 
     def __init__(self, callback_interval: int = 2, timeout: Optional[float] = None):
         r"""Initialize the callback class with callback interval and queue timeout.
@@ -91,10 +91,10 @@ class StreamIterator(DeltaCallback):
         callback_interval : int
             The refresh rate of the streaming process.
         timeout : Optional[float]
-            Timeout to put and get from the queue
+            Timeout for put and get from the delta messages queue
         """
         super().__init__()
-        self.text_queue = Queue()
+        self.delta_messages = Queue()
         self.callback_interval = callback_interval
         self.timeout = timeout
 
@@ -106,17 +106,17 @@ class StreamIterator(DeltaCallback):
         delta_message : str
             The delta message (the part that has not been added to queue yet).
         """
-        self.text_queue.put(delta_message, timeout=self.timeout)
+        self.delta_messages.put(delta_message, timeout=self.timeout)
 
     def stopped_callback(self):
         """Using None as the stop signal for the iterator"""
-        self.text_queue.put(None, timeout=self.timeout)
+        self.delta_messages.put(None, timeout=self.timeout)
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        value = self.text_queue.get(timeout=self.timeout)
+        value = self.delta_messages.get(timeout=self.timeout)
         if value:
             return value
         else:
