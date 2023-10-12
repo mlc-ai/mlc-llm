@@ -47,7 +47,7 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Install Conda" href="conda.html" />
+    <link rel="next" title="Install MLC LLM Python Package" href="mlc_llm.html" />
     <link rel="prev" title="Model Prebuilts" href="../prebuilt_models.html" /> 
 </head>
 
@@ -202,6 +202,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#validate-installation">Validate Installation</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="mlc_llm.html">Install MLC LLM Python Package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="gpu.html">GPU Drivers and SDKs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="emcc.html">Install Wasm Build Environment</a></li>
@@ -360,12 +361,8 @@ python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </s
 </div>
 </div>
 </div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">CPU</button><button aria-controls="panel-2-2-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-1" name="2-1" role="tab" tabindex="-1">Metal</button></div><blockquote>
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">CPU + Metal</button></div><blockquote>
 <div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
-python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>--force-reinstall<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-ai-nightly
-</pre></div>
-</div>
-</div><div aria-labelledby="tab-2-2-1" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-1" name="2-1" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
 python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>--force-reinstall<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-ai-nightly
 </pre></div>
 </div>
@@ -380,11 +377,10 @@ python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </s
 </div>
 </div>
 </div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-3-3-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-3-3-0" name="3-0" role="tab" tabindex="0">CPU</button><button aria-controls="panel-3-3-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-1" name="3-1" role="tab" tabindex="-1">Vulkan</button></div><div aria-labelledby="tab-3-3-0" class="sphinx-tabs-panel" id="panel-3-3-0" name="3-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-3-3-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-3-3-0" name="3-0" role="tab" tabindex="0">CPU + Vulkan</button></div><div aria-labelledby="tab-3-3-0" class="sphinx-tabs-panel" id="panel-3-3-0" name="3-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
 python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>--force-reinstall<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-ai-nightly
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-3-3-1" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-1" name="3-1" role="tabpanel" tabindex="0"><p>Supported in all Windows packages.</p>
 </div></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -556,7 +552,7 @@ False<span class="w"> </span><span class="c1"># or True</span>
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="conda.html" class="btn btn-neutral float-right" title="Install Conda" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="mlc_llm.html" class="btn btn-neutral float-right" title="Install MLC LLM Python Package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="../prebuilt_models.html" class="btn btn-neutral float-left" title="Model Prebuilts" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

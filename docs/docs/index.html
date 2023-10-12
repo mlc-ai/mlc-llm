@@ -196,6 +196,7 @@
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="install/tvm.html">Install TVM Unity Compiler</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install/mlc_llm.html">Install MLC LLM Python Package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install/conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install/gpu.html">GPU Drivers and SDKs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install/emcc.html">Install Wasm Build Environment</a></li>
@@ -296,9 +297,9 @@
 <section id="getting-started">
 <span id="get-started"></span><h2>Getting Started<a class="headerlink" href="#getting-started" title="Permalink to this heading">¶</a></h2>
 <p>To begin with, try out MLC LLM support for int4-quantized Llama2 7B.
-It is recommended to have at least 4.5GB of free VRAM to run it.</p>
+It is recommended to have at least 6GB free VRAM to run it.</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Python</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Command Line</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-0-0-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-4" name="0-4" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p><strong>Install MLC Chat</strong>. <a class="reference external" href="https://mlc.ai/package/">MLC Chat</a> is available via pip.
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Python</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Command Line</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-0-0-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-4" name="0-4" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p><strong>Install MLC Chat Python</strong>. <a class="reference internal" href="install/mlc_llm.html"><span class="doc">MLC LLM</span></a> is available via pip.
 It is always recommended to install it in an isolated conda virtual environment.</p>
 <p><strong>Download pre-quantized weights</strong>. The comamnds below download the int4-quantized Llama2-7B from HuggingFace:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>lfs<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt
