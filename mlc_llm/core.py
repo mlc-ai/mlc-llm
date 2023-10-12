@@ -402,11 +402,12 @@ def mod_transform_before_build(
         if max_seq_len:
             num_key_value_heads = config.get_num_key_value_heads()
             mod = fuse_split_rotary_embedding(
+                mod,
                 config.num_attention_heads // args.num_shards,
                 num_key_value_heads // args.num_shards,
                 config.hidden_size // args.num_shards,
                 config.position_embedding_base,
-            )(mod)
+            )
 
     if args.target_kind == "cuda":
         patterns = []
