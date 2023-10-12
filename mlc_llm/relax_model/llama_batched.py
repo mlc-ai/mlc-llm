@@ -48,7 +48,7 @@ def apply_rotary_pos_emb(q, k, positions, position_embedding_base, offset: int =
 class LlamaAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
-    def __init__(self, config: LlamaConfig, head_mapping, prefill):
+    def __init__(self, config: LlamaConfig, head_mapping):
         dtype = config.dtype
         self.num_shards = config.num_shards
         self.hidden_size = config.hidden_size
@@ -57,7 +57,6 @@ class LlamaAttention(nn.Module):
         self.head_dim = self.hidden_size // config.num_attention_heads
         self.position_embedding_base = config.position_embedding_base
         self.head_mapping = head_mapping
-        self.prefill = prefill
 
         self.combine_matmul = config.combine_matmul
         if self.combine_matmul:
@@ -103,11 +102,11 @@ class LlamaAttention(nn.Module):
         hidden_states: relax.Expr,
         positions: relax.Expr,
         seq_lens: relax.Expr,
-        kv_cache: relax.Expr,
-        slot_mapping: relax.Expr,
-        max_seqlen: relax.Expr,
-        seqstart: relax.Expr,  # only for prefill
-        block_tables: relax.Expr,  # only for decode
+        kv_cache: Optional[relax.Expr],
+        slot_mapping: Optional[relax.Expr],
+        max_seqlen: Optional[relax.Expr],
+        seqstart: Optional[relax.Expr],  # only for prefill
+        block_tables: Optional[relax.Expr],  # only for decode
     ):
         num_tokens, _ = hidden_states.struct_info.shape
 
@@ -153,25 +152,28 @@ class LlamaAttention(nn.Module):
             queries, keys, positions, self.position_embedding_base, offset=0
         )
 
-        # Paged KV cache update
-        k_cache, v_cache = kv_cache
+        if kv_cache:
+            # Paged KV cache update
+            k_cache, v_cache = kv_cache
 
-        # kv caches are updated inplace, but make it look like a pure operation
-        kv = nn.emit(
-            relax.op.call_pure_packed(
-                "tvm.contrib.vllm.reshape_and_cache",
-                keys,
-                values,
-                k_cache,
-                v_cache,
-                slot_mapping,
-                sinfo_args=[k_cache.struct_info, v_cache.struct_info],
+            # kv caches are updated inplace, but make it look like a pure operation
+            kv = nn.emit(
+                relax.op.call_pure_packed(
+                    "tvm.contrib.vllm.reshape_and_cache",
+                    keys,
+                    values,
+                    k_cache,
+                    v_cache,
+                    slot_mapping,
+                    sinfo_args=[k_cache.struct_info, v_cache.struct_info],
+                )
             )
-        )
 
-        k_cache, v_cache = kv[0], kv[1]
+            k_cache, v_cache = kv[0], kv[1]
+        else:
+            k_cache = v_cache = None
 
-        if self.prefill:
+        if seqstart:
             if self.num_key_value_heads != self.num_query_heads:
                 # TODO(masahi): If repeats turn out to be expensive, remove them by
                 # enabling Flash Attention MQA offload for attention_var_len.
@@ -207,16 +209,18 @@ class LlamaAttention(nn.Module):
                 )
             )
 
-        attn_output = nn.emit(reshape(attn_output, (num_tokens, self.num_query_heads * self.head_dim)))
+        attn_output = nn.emit(
+            reshape(attn_output, (num_tokens, self.num_query_heads * self.head_dim))
+        )
         attn_output = self.o_proj(attn_output)
 
         return attn_output, (k_cache, v_cache)
 
 
 class LlamaDecoderLayer(nn.Module):
-    def __init__(self, config: LlamaConfig, head_mapping, prefill: bool):
+    def __init__(self, config: LlamaConfig, head_mapping):
         self.hidden_size = config.hidden_size
-        self.self_attn = LlamaAttention(config, head_mapping, prefill)
+        self.self_attn = LlamaAttention(config, head_mapping)
         self.mlp = LlamaMLP(config)
         self.input_layernorm = LlamaRMSNorm(
             config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps
@@ -230,11 +234,11 @@ class LlamaDecoderLayer(nn.Module):
         hidden_states: relax.Expr,
         positions: relax.Expr,
         seq_lens: relax.Expr,
-        kv_cache: relax.Expr,
-        slot_mapping: relax.Expr,
-        max_seqlen: relax.Expr,
-        seqstart: relax.Expr,
-        block_tables: relax.Expr,
+        kv_cache: Optional[relax.Expr],
+        slot_mapping: Optional[relax.Expr],
+        max_seqlen: Optional[relax.Expr],
+        seqstart: Optional[relax.Expr],
+        block_tables: Optional[relax.Expr],
     ) -> Tuple[relax.Expr, Optional[Tuple[relax.Expr, relax.Expr]]]:
         residual = hidden_states
 
@@ -279,12 +283,10 @@ class LlamaModel(nn.Module):
         self,
         config: LlamaConfig,
         vocab_size_var: tvm.tir.Var,
-        prefill: bool,
         sep_embed: bool = False,
     ):
         self.padding_idx = config.pad_token_id
         self.embed_tokens = None
-        self.prefill = prefill
 
         num_query_heads = config.num_attention_heads // config.num_shards
         num_key_value_heads = config.get_num_key_value_heads() // config.num_shards
@@ -299,10 +301,7 @@ class LlamaModel(nn.Module):
             self.embed_tokens = Embedding(vocab_size_var, config.hidden_size, dtype=config.dtype)
 
         self.layers = ModuleList(
-            [
-                LlamaDecoderLayer(config, head_mapping, prefill)
-                for _ in range(config.num_hidden_layers)
-            ]
+            [LlamaDecoderLayer(config, head_mapping) for _ in range(config.num_hidden_layers)]
         )
         self.norm = LlamaRMSNorm(config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps)
 
@@ -311,10 +310,10 @@ class LlamaModel(nn.Module):
         inputs: relax.Expr,
         positions: relax.Expr,
         seq_lens: relax.Expr,
-        kv_caches: relax.Expr,
-        slot_mapping: relax.Expr,
-        seqstart: relax.Expr,
-        block_tables: relax.Expr,
+        kv_caches: Optional[relax.Expr],
+        slot_mapping: Optional[relax.Expr],
+        seqstart: Optional[relax.Expr],
+        block_tables: Optional[relax.Expr],
     ):
         if self.embed_tokens:
             inputs_embeds = self.embed_tokens(inputs)
@@ -328,11 +327,16 @@ class LlamaModel(nn.Module):
         new_kvs = ()
 
         for idx, decoder_layer in enumerate(self.layers):
+            if kv_caches:
+                cache = (kv_caches[2 * idx], kv_caches[2 * idx + 1])
+            else:
+                cache = None
+
             hidden_states, new_kv = decoder_layer(
                 hidden_states,
                 positions,
                 seq_lens,
-                (kv_caches[2 * idx], kv_caches[2 * idx + 1]),
+                cache,
                 slot_mapping,
                 max_seqlen,
                 seqstart,
@@ -348,12 +352,10 @@ class LlamaForCausalLM(nn.Module):
         self,
         config: LlamaConfig,
         vocab_size_var: tvm.tir.Var,
-        prefill: bool,
         sep_embed: bool = False,
     ):
-        self.prefill = prefill
         self.num_shards = config.num_shards
-        self.model = LlamaModel(config, vocab_size_var, prefill, sep_embed)
+        self.model = LlamaModel(config, vocab_size_var, sep_embed)
         self.lm_head = Linear(config.hidden_size, vocab_size_var, dtype=config.dtype, bias=False)
 
         ############ Rotary embedding constants ############
@@ -372,20 +374,24 @@ class LlamaForCausalLM(nn.Module):
         input_ids: relax.Expr,
         positions: relax.Expr,
         seq_lens: relax.Expr,
-        kv_caches: relax.Expr,
-        slot_mapping: relax.Expr,
-        block_tables: relax.Expr,  # only for decode
+        kv_caches: Optional[relax.Expr],  # for prefill and decode, not needed for evaluate
+        slot_mapping: Optional[relax.Expr],  # for prefill and decode, not needed for evaluate
+        block_tables: Optional[relax.Expr],  # only for decode
     ):
         if self.num_shards > 1:
             input_ids = nn.emit(ccl.broadcast_from_worker0(input_ids))
             positions = nn.emit(ccl.broadcast_from_worker0(positions))
             seq_lens = nn.emit(ccl.broadcast_from_worker0(seq_lens))
-            slot_mapping = nn.emit(ccl.broadcast_from_worker0(slot_mapping))
 
-            if not self.prefill:
+            if slot_mapping:
+                slot_mapping = nn.emit(ccl.broadcast_from_worker0(slot_mapping))
+
+            if block_tables:
                 block_tables = nn.emit(ccl.broadcast_from_worker0(block_tables))
 
-        if self.prefill:
+        is_prompt = block_tables is None
+
+        if is_prompt:  # prefill and evaluate
             cumsum = nn.emit(
                 relax.op.call_dps_packed(
                     "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.struct_info
@@ -399,7 +405,7 @@ class LlamaForCausalLM(nn.Module):
             input_ids, positions, seq_lens, kv_caches, slot_mapping, seqstart, block_tables
         )
 
-        if self.prefill:
+        if is_prompt:
 
             def get_logits_last_tokens(x, seq_len_tensor, seqstart):
                 return te.compute(
@@ -426,7 +432,9 @@ class LlamaForCausalLM(nn.Module):
         return logits, new_kvs
 
 
-def get_inputs(num_token, num_seq, config, max_num_blocks_per_seq=None, sep_embed=False):
+def get_inputs(
+    num_token, num_seq, config, max_num_blocks_per_seq=None, sep_embed=False, need_cache=True
+):
     hidden_size = config.hidden_size
 
     inputs = (
@@ -438,31 +446,38 @@ def get_inputs(num_token, num_seq, config, max_num_blocks_per_seq=None, sep_embe
     seq_lens = nn.Placeholder((num_seq,), dtype="int32", name="seq_lens")
     positions = nn.Placeholder((num_token,), dtype="int32", name="positions")
 
-    num_blocks = tvm.tir.Var("num_blocks", "int64")
-    block_size = 16
+    if need_cache:
+        num_blocks = tvm.tir.Var("num_blocks", "int64")
+        block_size = 16
 
-    vec_size = 8  # 128 bit, fp16 x 8
-    num_key_value_heads = config.get_num_key_value_heads() // config.num_shards
-    head_size = hidden_size // config.num_attention_heads
+        vec_size = 8  # 128 bit, fp16 x 8
+        num_key_value_heads = config.get_num_key_value_heads() // config.num_shards
+        head_size = hidden_size // config.num_attention_heads
 
-    k_cache_shape = (
-        num_blocks,
-        num_key_value_heads,
-        head_size // vec_size,
-        block_size,
-        vec_size,
-    )
-    v_cache_shape = (num_blocks, num_key_value_heads, head_size, block_size)
+        k_cache_shape = (
+            num_blocks,
+            num_key_value_heads,
+            head_size // vec_size,
+            block_size,
+            vec_size,
+        )
+        v_cache_shape = (num_blocks, num_key_value_heads, head_size, block_size)
 
-    get_cache_sinfo = lambda i: relax.TensorStructInfo(
-        k_cache_shape if i % 2 == 0 else v_cache_shape, dtype="float16"
-    )
+        get_cache_sinfo = lambda i: relax.TensorStructInfo(
+            k_cache_shape if i % 2 == 0 else v_cache_shape, dtype="float16"
+        )
 
-    past_key_values = relax.Var(
-        "kv_cache",
-        relax.TupleStructInfo([get_cache_sinfo(i) for i in range(config.num_hidden_layers * 2)]),
-    )
-    slot_mapping = nn.Placeholder((num_token,), dtype="int32", name="slot_mapping")
+        past_key_values = relax.Var(
+            "kv_cache",
+            relax.TupleStructInfo(
+                [get_cache_sinfo(i) for i in range(config.num_hidden_layers * 2)]
+            ),
+        )
+        slot_mapping = nn.Placeholder((num_token,), dtype="int32", name="slot_mapping")
+    else:
+        past_key_values = None
+        slot_mapping = None
+        block_tables = None
 
     if max_num_blocks_per_seq is None:
         block_tables = None
@@ -472,6 +487,48 @@ def get_inputs(num_token, num_seq, config, max_num_blocks_per_seq=None, sep_embe
         )
 
     return inputs, positions, seq_lens, past_key_values, slot_mapping, block_tables
+
+
+def create_evaluate_func(
+    bb: relax.BlockBuilder,
+    param_manager: ParamManager,
+    config: LlamaConfig,
+    quant_scheme: QuantizationScheme,
+    sep_embed: bool = False,
+) -> None:
+    func_name = "evaluate"
+
+    num_token = tvm.tir.Var("num_token", "int64")
+    num_seq = tvm.tir.Var("num_seq", "int64")
+
+    with bb.function(func_name):
+        model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), sep_embed)
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
+
+        inputs, positions, seq_lens, _, _, _ = get_inputs(
+            num_token, num_seq, config, sep_embed=sep_embed
+        )
+
+        with bb.dataflow():
+            logits, _ = model(
+                inputs,
+                positions,
+                seq_lens,
+                kv_caches=None,
+                slot_mapping=None,
+                block_tables=None,
+            )
+            params = [
+                inputs,
+                positions,
+                seq_lens,
+            ] + model.parameters()
+            gv = bb.emit_output(logits)
+        bb.emit_func_output(gv, params)
+
+    mod = bb.get()
+    gv = mod.get_global_var(func_name)
+    bb.update_func(gv, mod[gv].with_attr("num_input", 3))
 
 
 def create_encoding_func(
@@ -487,7 +544,7 @@ def create_encoding_func(
     num_seq = tvm.tir.Var("num_seq", "int64")
 
     with bb.function(func_name):
-        model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), True, sep_embed)
+        model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), sep_embed)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         inputs, positions, seq_lens, past_key_values, slot_mapping, _ = get_inputs(
@@ -530,7 +587,7 @@ def create_decoding_func(
         )
 
         with bb.dataflow():
-            model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), False)
+            model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"))
             param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
             logits, new_kvs = model(
@@ -579,6 +636,7 @@ def get_model(args, hf_config):
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
 
+    create_evaluate_func(bb, param_manager, config, args.quantization, sep_embed)
     create_encoding_func(bb, param_manager, config, args.quantization, sep_embed)
     create_decoding_func(bb, param_manager, config, args.quantization)
 

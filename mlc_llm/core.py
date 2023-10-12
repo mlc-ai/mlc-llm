@@ -384,6 +384,8 @@ def mod_transform_before_build(
                 "softmax_with_temperature",
                 "get_metadata",
             ]
+        if args.batched:
+            model_names.append("evaluate")
         if args.sep_embed:
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
         if args.model.lower().startswith("rwkv-"):
@@ -428,6 +430,9 @@ def mod_transform_before_build(
 
             mod["prefill"] = rewrite_attention(mod["prefill"], use_flash_mqa=False)
             mod["decode"] = rewrite_attention(mod["decode"], use_flash_mqa=False)
+
+            if args.batched:
+                mod["evaluate"] = rewrite_attention(mod["evaluate"], use_flash_mqa=False)
 
             patterns += get_patterns_with_prefix("cutlass.attention")
 

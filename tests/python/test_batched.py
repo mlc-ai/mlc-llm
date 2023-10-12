@@ -33,16 +33,22 @@ class KVCache:
 
 
 class CacheManager:
-    def __init__(self, num_layers, num_heads, head_size, disco_session=None):
-        # TODO: Hardcoded for now
-        block_size = 16
-        num_blocks = 500
+    block_size: int = 16
 
+    @staticmethod
+    def get_cache_block_size(num_layers, num_heads, head_size):
+        # Taken from vllm/worker/cache_engine.py
+        key_cache_block = CacheManager.block_size * num_heads * head_size
+        value_cache_block = key_cache_block
+        total = num_layers * (key_cache_block + value_cache_block)
+        dtype_size = 2  # fp16
+        return dtype_size * total
+
+    def __init__(self, num_blocks, num_layers, num_heads, head_size, disco_session=None):
         self.num_blocks = num_blocks
-        self.block_size = block_size
         self.free_blocks = list(range(num_blocks))
         self.kv_cache = KVCache(
-            num_blocks, block_size, num_layers, num_heads, head_size, disco_session
+            num_blocks, self.block_size, num_layers, num_heads, head_size, disco_session
         )
 
     def set_size(self, request_ids: List[int], target_sizes: List[int]):
@@ -194,6 +200,49 @@ class Model:
         self.dev = dev
         self.vocab_size = vocab_size
 
+    def get_used_memory(self):
+        if self.disco_session:
+            params = self.params.debug_get_from_remote(0)
+
+            get_used_memory_func = self.disco_session.get_global_func(
+                "vm.memory_manager.get_used_memory"
+            )
+            # For Disco, we explicitly query the device 0.
+            peak_memory = get_used_memory_func(tvm.device("cuda", 0)).debug_get_from_remote(0)
+
+        else:
+            params = self.params
+
+            get_used_memory_func = tvm.get_global_func("vm.memory_manager.get_used_memory")
+            peak_memory = get_used_memory_func(self.dev)
+
+        param_bytes = 0
+
+        for param in params:
+            param_bytes += param.numpy().nbytes
+
+        return peak_memory + param_bytes
+
+    def profile_memory_usage(self, seq_lens):
+        input_ids = [0] * sum(seq_lens)
+        positions = []
+
+        for s in seq_lens:
+            positions += range(s)
+
+        input_ids = tvm.nd.array(np.array(input_ids, dtype="int32"), self.dev)
+        positions = tvm.nd.array(np.array(positions, dtype="int32"), self.dev)
+        seq_lens = tvm.nd.array(np.array(seq_lens, dtype="int32"), self.dev)
+
+        if self.disco_session:
+            input_ids = copy_to_worker_0(self.disco_session, input_ids)
+            positions = copy_to_worker_0(self.disco_session, positions)
+            seq_lens = copy_to_worker_0(self.disco_session, seq_lens)
+
+        self.mod["evaluate"](input_ids, positions, seq_lens, self.params)
+
+        return self.get_used_memory()
+
     def generate(
         self, requests: List[SequenceGenerationRequest], cache: KVCache, is_prompt: bool
     ) -> List[SequenceGenerationResponse]:
@@ -301,10 +350,16 @@ def parse_args():
     # python build.py --model vicuna-v1-7b --quantization q0f16 --use-cache=0 --max-seq-len 768  --batched --build-model-only --num-shards 2
     # python build.py --model vicuna-v1-7b --quantization q0f16 --use-cache=0 --max-seq-len 768  --batched --convert-weight-only
     # /opt/bin/cuda-reserve.py  --num-gpus 2 python tests/python/test_batched.py --local-id vicuna-v1-7b-q0f16 --num-shards 2
+    #
+    # Profile the gpu memory usage, and use the maximum number of cache blocks possible:
+    # /opt/bin/cuda-reserve.py  --num-gpus 2 python tests/python/test_batched.py --local-id vicuna-v1-7b-q0f16 --num-shards 2 --max-num-batched-tokens 2560 --max-input-len 256
+
     args = argparse.ArgumentParser()
     args.add_argument("--local-id", type=str, required=True)
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument("--num-shards", type=int, default=1)
+    args.add_argument("--max-num-batched-tokens", type=int, default=-1)
+    args.add_argument("--max-input-len", type=int, default=-1)
     parsed = args.parse_args()
     parsed.model, parsed.quantization = parsed.local_id.rsplit("-", 1)
     utils.argparse_postproc_common(parsed)
@@ -312,6 +367,24 @@ def parse_args():
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}-batched"
     )
     return parsed
+
+
+def get_gpu_memory(gpu: int = 0) -> int:
+    return torch.cuda.get_device_properties(gpu).total_memory
+
+
+def get_num_cache_blocks(
+    model,
+    seq_lens,
+    num_layers,
+    num_kv_heads,
+    head_size,
+    gpu_memory_utilization=0.9,  # the default used by vllm
+):
+    used_memory_bytes = model.profile_memory_usage(seq_lens)
+    cache_block_size = CacheManager.get_cache_block_size(num_layers, num_kv_heads, head_size)
+    total_vram = get_gpu_memory()
+    return int((total_vram * gpu_memory_utilization - used_memory_bytes) // cache_block_size)
 
 
 def test(args):
@@ -330,6 +403,35 @@ def test(args):
     tokenizer = LlamaTokenizer.from_pretrained(
         os.path.join(artifact_path, "params"), trust_remote_code=True
     )
+
+    num_kv_heads = config.get_num_key_value_heads() // args.num_shards
+    head_size = config.hidden_size // config.num_attention_heads
+
+    if args.max_num_batched_tokens > 0:
+        assert args.max_input_len > 0
+        assert args.max_num_batched_tokens % args.max_input_len == 0  # for simplicity
+
+        num_seqs = args.max_num_batched_tokens // args.max_input_len
+        num_blocks = get_num_cache_blocks(
+            model,
+            [args.max_input_len] * num_seqs,
+            config.num_hidden_layers,
+            num_kv_heads,
+            head_size,
+        )
+    else:
+        num_blocks = 500
+
+    print(f"Using {num_blocks} cache blocks.")
+
+    cache_manager = CacheManager(
+        num_blocks,
+        config.num_hidden_layers,
+        num_kv_heads,
+        head_size,
+        model.disco_session,
+    )
+    cache = cache_manager.get()
 
     prompts = [
         "Hello, my name is",
@@ -350,16 +452,6 @@ def test(args):
         request_ids.append(request_id)
         target_sizes.append(len(token_ids))
         requests.append(SequenceGenerationRequest(request_id, token_ids, 0, sampling_params))
-
-    num_kv_heads = config.get_num_key_value_heads() // args.num_shards
-
-    cache_manager = CacheManager(
-        config.num_hidden_layers,
-        num_kv_heads,
-        config.hidden_size // config.num_attention_heads,
-        model.disco_session,
-    )
-    cache = cache_manager.get()
 
     cache_manager.set_size(request_ids, target_sizes)
 
