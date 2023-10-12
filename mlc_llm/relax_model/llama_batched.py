@@ -1,9 +1,9 @@
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple
 
 import numpy as np
 import tvm
 from tvm import relax, te
-from tvm.relax.op import ccl, reshape, split, expand_dims, concat, zeros, repeat
+from tvm.relax.op import ccl, reshape, expand_dims, concat, zeros, repeat
 from tvm.relax.op.nn import attention_var_len
 from tvm.relax.testing import nn
 from tvm.script import relax as R
@@ -16,7 +16,8 @@ from .llama import (
     Linear,
     Embedding,
     LlamaRMSNorm,
-    LlamaMLP,
+    LlamaAttention,
+    LlamaDecoderLayer,
     get_param_quant_kind,
     setup_params,
     rotary_modulate_by_freq,
@@ -45,57 +46,10 @@ def apply_rotary_pos_emb(q, k, positions, position_embedding_base, offset: int =
     return q_embed, k_embed
 
 
-class LlamaAttention(nn.Module):
-    """Multi-headed attention from 'Attention Is All You Need' paper"""
-
+class LlamaAttentionBatched(LlamaAttention):
     def __init__(self, config: LlamaConfig, head_mapping):
-        dtype = config.dtype
-        self.num_shards = config.num_shards
-        self.hidden_size = config.hidden_size
-        self.num_key_value_heads = config.get_num_key_value_heads() // self.num_shards
-        self.num_query_heads = config.num_attention_heads // self.num_shards
-        self.head_dim = self.hidden_size // config.num_attention_heads
-        self.position_embedding_base = config.position_embedding_base
+        super().__init__(config)
         self.head_mapping = head_mapping
-
-        self.combine_matmul = config.combine_matmul
-        if self.combine_matmul:
-            self.query_key_value_proj = Linear(
-                self.hidden_size,
-                (self.num_query_heads + 2 * self.num_key_value_heads) * self.head_dim,
-                dtype=dtype,
-                bias=False,
-            )
-            self.query_key_value_proj.weight.shard_dim = 0
-            self.query_key_value_proj.weight.shard_strategy = "shard_qkv"
-        else:
-            self.q_proj = Linear(
-                self.hidden_size,
-                self.num_query_heads * self.head_dim,
-                dtype=dtype,
-                bias=False,
-            )
-            self.k_proj = Linear(
-                self.hidden_size,
-                self.num_key_value_heads * self.head_dim,
-                dtype=dtype,
-                bias=False,
-            )
-            self.v_proj = Linear(
-                self.hidden_size,
-                self.num_key_value_heads * self.head_dim,
-                dtype=dtype,
-                bias=False,
-            )
-            self.q_proj.weight.shard_dim = 0
-            self.k_proj.weight.shard_dim = 0
-            self.v_proj.weight.shard_dim = 0
-
-        self.o_proj = Linear(
-            self.head_dim * self.num_query_heads, self.hidden_size, dtype=dtype, bias=False
-        )
-        self.o_proj.weight.shard_dim = 1
-        self.o_proj.weight.shard_strategy = "shard_o_proj_k"
 
     def forward(
         self,
@@ -110,42 +64,10 @@ class LlamaAttention(nn.Module):
     ):
         num_tokens, _ = hidden_states.struct_info.shape
 
-        if self.combine_matmul:
-            qkv_states = nn.emit(
-                split(
-                    self.query_key_value_proj(hidden_states),
-                    indices_or_sections=[
-                        self.num_query_heads * self.head_dim,
-                        (self.num_query_heads + self.num_key_value_heads) * self.head_dim,
-                    ],
-                    axis=-1,
-                )
-            )
-            query_states = relax.TupleGetItem(qkv_states, 0)
-            key_states = relax.TupleGetItem(qkv_states, 1)
-            value_states = relax.TupleGetItem(qkv_states, 2)
-        else:
-            query_states = self.q_proj(hidden_states)
-            key_states = self.k_proj(hidden_states)
-            value_states = self.v_proj(hidden_states)
-
-        queries = nn.emit(
-            reshape(
-                query_states,
-                (num_tokens, self.num_query_heads, self.head_dim),
-            ),
-        )
-        keys = nn.emit(
-            reshape(
-                key_states,
-                (num_tokens, self.num_key_value_heads, self.head_dim),
-            ),
-        )
-        values = nn.emit(
-            reshape(
-                value_states,
-                (num_tokens, self.num_key_value_heads, self.head_dim),
-            ),
+        queries, keys, values = self.project_qkv(
+            hidden_states,
+            (num_tokens, self.num_query_heads, self.head_dim),
+            (num_tokens, self.num_key_value_heads, self.head_dim),
         )
 
         queries, keys = apply_rotary_pos_emb(
@@ -217,17 +139,10 @@ class LlamaAttention(nn.Module):
         return attn_output, (k_cache, v_cache)
 
 
-class LlamaDecoderLayer(nn.Module):
+class LlamaDecoderLayerBatched(LlamaDecoderLayer):
     def __init__(self, config: LlamaConfig, head_mapping):
-        self.hidden_size = config.hidden_size
-        self.self_attn = LlamaAttention(config, head_mapping)
-        self.mlp = LlamaMLP(config)
-        self.input_layernorm = LlamaRMSNorm(
-            config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps
-        )
-        self.post_attention_layernorm = LlamaRMSNorm(
-            config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps
-        )
+        super().__init__(config)
+        self.self_attn = LlamaAttentionBatched(config, head_mapping)
 
     def forward(
         self,
@@ -255,25 +170,8 @@ class LlamaDecoderLayer(nn.Module):
             seqstart=seqstart,
             block_tables=block_tables,
         )
-        if self.self_attn.num_shards > 1:
-            residual = nn.emit(
-                residual / R.const(self.self_attn.num_shards, dtype=residual.struct_info.dtype)
-            )
-        hidden_states = nn.emit(residual + hidden_states)
-        if self.self_attn.num_shards > 1:
-            hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
 
-        # Fully Connected
-        residual = hidden_states
-        hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
-        if self.mlp.num_shards > 1:
-            residual = nn.emit(
-                residual / R.const(self.mlp.num_shards, dtype=residual.struct_info.dtype)
-            )
-        hidden_states = nn.emit(residual + hidden_states)
-        if self.mlp.num_shards > 1:
-            hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
+        hidden_states = self.post_self_attn(hidden_states, residual)
 
         return hidden_states, new_kv
 
@@ -301,7 +199,10 @@ class LlamaModel(nn.Module):
             self.embed_tokens = Embedding(vocab_size_var, config.hidden_size, dtype=config.dtype)
 
         self.layers = ModuleList(
-            [LlamaDecoderLayer(config, head_mapping) for _ in range(config.num_hidden_layers)]
+            [
+                LlamaDecoderLayerBatched(config, head_mapping)
+                for _ in range(config.num_hidden_layers)
+            ]
         )
         self.norm = LlamaRMSNorm(config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps)
 

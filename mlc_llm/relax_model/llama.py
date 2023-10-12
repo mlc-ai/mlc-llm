@@ -296,26 +296,8 @@ class LlamaAttention(nn.Module):
         self.o_proj.weight.shard_dim = 1
         self.o_proj.weight.shard_strategy = "shard_o_proj_k"
 
-    def forward(
-        self,
-        hidden_states: relax.Expr,
-        all_seq_len_shape: relax.Expr,
-        past_key_value: Tuple[relax.Expr],
-        attention_mask: Optional[relax.Expr] = None,
-    ) -> Tuple[relax.Expr, Optional[relax.Expr], Optional[Tuple[relax.Expr]]]:
-        from tvm.relax.op import (
-            astype,
-            matmul,
-            maximum,
-            permute_dims,
-            reshape,
-            split,
-            squeeze,
-        )
-        from tvm.relax.op.nn import softmax
-
-        bsz, q_len, _ = hidden_states.struct_info.shape
-        assert bsz == 1, "Only support batch size 1 at this moment."
+    def project_qkv(self, hidden_states, query_output_shape, kv_output_shape):
+        from tvm.relax.op import split, reshape
 
         if self.combine_matmul:
             qkv_states = nn.emit(
@@ -337,22 +319,41 @@ class LlamaAttention(nn.Module):
             value_states = self.v_proj(hidden_states)
 
         query_states = nn.emit(
-            reshape(
-                query_states,
-                (bsz, q_len, self.num_query_heads, self.head_dim),
-            ),
+            reshape(query_states, query_output_shape),
         )
         key_states = nn.emit(
-            reshape(
-                key_states,
-                (bsz, q_len, self.num_key_value_heads, self.head_dim),
-            ),
+            reshape(key_states, kv_output_shape),
         )
         value_states = nn.emit(
-            reshape(
-                value_states,
-                (bsz, q_len, self.num_key_value_heads, self.head_dim),
-            ),
+            reshape(value_states, kv_output_shape),
+        )
+
+        return query_states, key_states, value_states
+
+    def forward(
+        self,
+        hidden_states: relax.Expr,
+        all_seq_len_shape: relax.Expr,
+        past_key_value: Tuple[relax.Expr],
+        attention_mask: Optional[relax.Expr] = None,
+    ) -> Tuple[relax.Expr, Optional[relax.Expr], Optional[Tuple[relax.Expr]]]:
+        from tvm.relax.op import (
+            astype,
+            matmul,
+            maximum,
+            permute_dims,
+            reshape,
+            squeeze,
+        )
+        from tvm.relax.op.nn import softmax
+
+        bsz, q_len, _ = hidden_states.struct_info.shape
+        assert bsz == 1, "Only support batch size 1 at this moment."
+
+        query_states, key_states, value_states = self.project_qkv(
+            hidden_states,
+            (bsz, q_len, self.num_query_heads, self.head_dim),
+            (bsz, q_len, self.num_key_value_heads, self.head_dim),
         )
 
         kv_seq_len = all_seq_len_shape.struct_info.values[0]
@@ -468,24 +469,7 @@ class LlamaDecoderLayer(nn.Module):
             config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps
         )
 
-    def forward(
-        self,
-        hidden_states: relax.Expr,
-        all_seq_len_shape: relax.Expr,
-        past_key_value: Tuple[relax.Expr],
-        attention_mask: Optional[relax.Expr] = None,
-    ) -> Tuple[relax.Expr, Optional[Tuple[relax.Expr, relax.Expr]]]:
-        residual = hidden_states
-
-        hidden_states = self.input_layernorm(hidden_states)
-
-        # Self Attention
-        hidden_states, present_key_value = self.self_attn(
-            hidden_states=hidden_states,
-            past_key_value=past_key_value,
-            attention_mask=attention_mask,
-            all_seq_len_shape=all_seq_len_shape,
-        )
+    def post_self_attn(self, hidden_states, residual):
         if self.self_attn.num_shards > 1:
             residual = nn.emit(
                 residual / R.const(self.self_attn.num_shards, dtype=residual.struct_info.dtype)
@@ -505,6 +489,29 @@ class LlamaDecoderLayer(nn.Module):
         hidden_states = nn.emit(residual + hidden_states)
         if self.mlp.num_shards > 1:
             hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
+
+        return hidden_states
+
+    def forward(
+        self,
+        hidden_states: relax.Expr,
+        all_seq_len_shape: relax.Expr,
+        past_key_value: Tuple[relax.Expr],
+        attention_mask: Optional[relax.Expr] = None,
+    ) -> Tuple[relax.Expr, Optional[Tuple[relax.Expr, relax.Expr]]]:
+        residual = hidden_states
+
+        hidden_states = self.input_layernorm(hidden_states)
+
+        # Self Attention
+        hidden_states, present_key_value = self.self_attn(
+            hidden_states=hidden_states,
+            past_key_value=past_key_value,
+            attention_mask=attention_mask,
+            all_seq_len_shape=all_seq_len_shape,
+        )
+
+        hidden_states = self.post_self_attn(hidden_states, residual)
         return hidden_states, present_key_value
 
 
