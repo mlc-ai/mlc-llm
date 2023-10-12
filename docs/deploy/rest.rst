@@ -11,8 +11,7 @@ for user to interact with MLC-Chat in their own programs.
 Install MLC-Chat Package
 ------------------------
 
-The REST API is a part of the MLC-Chat package, which we have prepared pre-built pip wheels and you can install it by
-following the instructions in `<https://mlc.ai/package/>`_.
+The REST API is a part of the MLC-Chat package, which we have prepared pre-built :doc:`pip wheels <../install/mlc_llm>`.
 
 Verify Installation
 ^^^^^^^^^^^^^^^^^^^
