@@ -97,14 +97,7 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
 
       .. tabs::
 
-         .. tab:: CPU
-
-            .. code-block:: bash
-
-              conda activate your-environment
-              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly
-
-         .. tab:: Metal
+         .. tab:: CPU + Metal
 
             .. code-block:: bash
 
@@ -125,16 +118,12 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
 
       .. tabs::
 
-         .. tab:: CPU
+         .. tab:: CPU + Vulkan
 
             .. code-block:: bash
 
               conda activate your-environment
               python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly
-
-         .. tab:: Vulkan
-
-            Supported in all Windows packages.
 
       .. note::
         If encountering the error below:

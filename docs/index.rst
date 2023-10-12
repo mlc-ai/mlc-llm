@@ -11,13 +11,13 @@ Getting Started
 ---------------
 
 To begin with, try out MLC LLM support for int4-quantized Llama2 7B.
-It is recommended to have at least 4.5GB of free VRAM to run it.
+It is recommended to have at least 6GB free VRAM to run it.
 
 .. tabs::
 
   .. tab:: Python
 
-    **Install MLC Packages**. :ref:`MLC-AI & MLC-Chat<install-mlc-packages>` is available via pip.
+    **Install MLC Chat Python**. :doc:`MLC LLM <install/mlc_llm>` is available via pip.
     It is always recommended to install it in an isolated conda virtual environment.
 
     **Download pre-quantized weights**. The comamnds below download the int4-quantized Llama2-7B from HuggingFace:
@@ -209,10 +209,10 @@ It is recommended to have at least 4.5GB of free VRAM to run it.
    :hidden:
 
    install/tvm.rst
+   install/mlc_llm.rst
    install/conda.rst
    install/gpu.rst
    install/emcc.rst
-   install/mlc_package.rst
 
 .. toctree::
    :maxdepth: 1
