@@ -1,5 +1,5 @@
 from mlc_chat import ChatModule
-from mlc_chat.callback import StreamToStdout
+from mlc_chat.callback import StreamToStdout, StreamIterator
 
 # From the mlc-llm directory, run
 # $ python examples/python/sample_mlc_chat.py
@@ -25,3 +25,16 @@ output = cm.generate(
 
 # Reset the chat module by
 # cm.reset_chat()
+
+# Stream using an Iterator
+from threading import Thread
+
+stream = StreamIterator(callback_interval=2)
+generation_thread = Thread(target=cm.generate, kwargs={"prompt": "What is the meaning of life?", "progress_callback": stream})
+generation_thread.start()
+
+output = ""
+for tok in stream:
+    output += tok
+
+generation_thread.join()
