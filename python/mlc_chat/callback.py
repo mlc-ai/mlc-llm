@@ -81,7 +81,7 @@ class StreamToStdout(DeltaCallback):
 
 class StreamIterator(DeltaCallback):
     """Stream the output using an iterator.
-       A queue stores the delta messages"""
+    A queue stores the delta messages"""
 
     def __init__(self, callback_interval: int = 2, timeout: Optional[float] = None):
         r"""Initialize the callback class with callback interval and queue timeout.

@@ -30,7 +30,10 @@ output = cm.generate(
 from threading import Thread
 
 stream = StreamIterator(callback_interval=2)
-generation_thread = Thread(target=cm.generate, kwargs={"prompt": "What is the meaning of life?", "progress_callback": stream})
+generation_thread = Thread(
+    target=cm.generate,
+    kwargs={"prompt": "What is the meaning of life?", "progress_callback": stream},
+)
 generation_thread.start()
 
 output = ""
