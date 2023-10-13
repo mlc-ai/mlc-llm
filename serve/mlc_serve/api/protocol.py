@@ -51,24 +51,24 @@ class UsageInfo(BaseModel):
     completion_tokens: Optional[int] = 0
 
 
-class ChatCompletionRequest(BaseModel):
-    model: str
-    messages: Union[str, List[Dict[str, str]]]
-    temperature: Optional[float] = 0.7
-    top_p: Optional[float] = 1.0
-    n: Optional[int] = 1
-    max_tokens: Optional[int] = None
-    stop: Optional[Union[str, List[str]]] = Field(default_factory=list)
-    stream: Optional[bool] = False
-    presence_penalty: Optional[float] = 0.0
-    frequency_penalty: Optional[float] = 0.0
-    logit_bias: Optional[Dict[str, float]] = None
-    user: Optional[str] = None
-
-
 class ChatMessage(BaseModel):
     role: str
     content: str
+
+
+class ChatCompletionRequest(BaseModel):
+    model: str
+    messages: Union[str, List[ChatMessage]]  # according to openai chat completion spec, here should be only a list of ChatMessage
+    max_tokens: Optional[int] = None
+    temperature: Optional[float]
+    top_p: Optional[float]
+    n: Optional[int] = 1
+    stop: Optional[Union[str, List[str]]] = Field(default_factory=list)
+    stream: Optional[bool] = False
+    presence_penalty: Optional[float]
+    frequency_penalty: Optional[float]
+    logit_bias: Optional[Dict[str, float]] = None
+    user: Optional[str] = None
 
 
 class ChatCompletionResponseChoice(BaseModel):

@@ -68,9 +68,9 @@ class SamplingParams:
         n: int = 1,
         best_of: Optional[int] = None,
         presence_penalty: float = 0.0,
-        frequency_penalty: float = 0.0,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        frequency_penalty: Optional[float] = 0.0,
+        temperature: Optional[float] = 1.0,
+        top_p: Optional[float] = 1.0,
         top_k: int = -1,
         use_beam_search: bool = False,
         length_penalty: float = 1.0,
@@ -108,13 +108,14 @@ class SamplingParams:
         self.skip_special_tokens = skip_special_tokens
 
         self._verify_args()
-        if self.use_beam_search:
-            self._verify_beam_search()
-        else:
-            self._verify_non_beam_search()
-            if self.temperature < _SAMPLING_EPS:
-                # Zero temperature means greedy sampling.
-                self._verify_greedy_sampling()
+        # TODO(amalyshe): there is no param beam_search in openai API.do we need it here?
+        # if self.use_beam_search:
+        #     self._verify_beam_search()
+        # else:
+        #     self._verify_non_beam_search()
+        #     if self.temperature < _SAMPLING_EPS:
+        #         # Zero temperature means greedy sampling.
+        #         self._verify_greedy_sampling()
 
     def _verify_args(self) -> None:
         if self.n < 1:
@@ -122,16 +123,16 @@ class SamplingParams:
         if self.best_of < self.n:
             raise ValueError(f"best_of must be greater than or equal to n, "
                              f"got n={self.n} and best_of={self.best_of}.")
-        if not -2.0 <= self.presence_penalty <= 2.0:
+        if self.presence_penalty and not -2.0 <= self.presence_penalty <= 2.0:
             raise ValueError("presence_penalty must be in [-2, 2], got "
                              f"{self.presence_penalty}.")
-        if not -2.0 <= self.frequency_penalty <= 2.0:
+        if self.frequency_penalty and not -2.0 <= self.frequency_penalty <= 2.0:
             raise ValueError("frequency_penalty must be in [-2, 2], got "
                              f"{self.frequency_penalty}.")
-        if self.temperature < 0.0:
+        if self.temperature and self.temperature < 0.0:
             raise ValueError(
                 f"temperature must be non-negative, got {self.temperature}.")
-        if not 0.0 < self.top_p <= 1.0:
+        if self.top_p and not 0.0 < self.top_p <= 1.0:
             raise ValueError(f"top_p must be in (0, 1], got {self.top_p}.")
         if self.top_k < -1 or self.top_k == 0:
             raise ValueError(f"top_k must be -1 (disable), or at least 1, "

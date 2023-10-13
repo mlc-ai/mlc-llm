@@ -9,7 +9,7 @@ from .types import (InferenceEngine, Request, ModelConfig, CacheConfig, Parallel
 from .arg_utils import EngineArgs
 
 from .sampling_params import SamplingParams
-from .dummy_inference_engine import DummyLLMEngine
+from .mlc_llm_b1_inference_engine import MlcLLMb1Engine
 # logger = init_logger(__name__)
 
 
@@ -164,7 +164,7 @@ class _AsyncLLMEngine:
         parallel_config: ParallelConfig,
         scheduler_config: SchedulerConfig,
     ) -> None:
-        self.engine = DummyLLMEngine(model_config, cache_config, parallel_config, scheduler_config)
+        self.engine = MlcLLMb1Engine(model_config, cache_config, parallel_config, scheduler_config)
 
     def add(self, requests: list[Request]) -> list[str]:
         return self.engine.add(requests)

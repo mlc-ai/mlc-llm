@@ -61,6 +61,7 @@ class EngineArgs:
         )
         parser.add_argument(
             '--device',
+            default = "auto",
             help =
                 """
                 The description of the device to run on. User should provide a string in the
