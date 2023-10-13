@@ -8,6 +8,7 @@ def test_single_request():
     request_id = engine.add(
         [
             Request(
+                request_id="1",
                 prompt="test prompt",
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=20),

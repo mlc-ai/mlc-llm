@@ -10,3 +10,5 @@ from .types import (
     TextGenerationError,
     TextGenerationOutput,
 )
+
+from .async_connector import AsyncEngineConnector

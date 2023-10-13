@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from .types import (
     InferenceStepResult,
+    InferenceEngine,
     ModelExecutor,
     Request,
     RequestId,
@@ -33,7 +34,7 @@ class RequestState:
     stopping_criteria: StoppingCriteria
 
 
-class LocalProcessInferenceEngine:
+class LocalProcessInferenceEngine(InferenceEngine):
     def __init__(self, executor: ModelExecutor, tokenizer: Tokenizer):
         self.queue_lock = Lock()
         self.queue = deque[RequestState]()
@@ -45,12 +46,13 @@ class LocalProcessInferenceEngine:
         self.executor = executor
         self.tokenizer = tokenizer
 
-    def add(self, requests: list[Request]) -> list[RequestId]:
+    def add(self, requests: list[Request]):
         if not requests:
             return []
 
         new_request_states = []
         for req in requests:
+            # TODO: verify that request id is unique
             state = self._get_new_request_state(req)
             new_request_states.append(state)
 
@@ -62,11 +64,21 @@ class LocalProcessInferenceEngine:
 
     def cancel(self, request_id: RequestId):
         with self.queue_lock:
+            # TODO: consider iterating throught the queue to find if request id exist
+            # Otherwise cancel a request that's already finished will leave request_id
+            # in the `requests_to_be_cancelled` set forever.
             self.requests_to_be_cancelled.add(request_id)
+
+    def wait_for_request(self, timeout_seconds=None):
+        with self.queue_lock:
+            self.has_new_requests.wait_for(
+                self._has_request_to_process, timeout=timeout_seconds
+            )
 
     def step(self) -> InferenceStepResult:
         outputs = list[TextGenerationOutput]()
         errors = list[TextGenerationError]()
+        result = InferenceStepResult(outputs=outputs, errors=errors)
 
         previous_requests_to_be_cancelled = set(self.requests_to_be_cancelled)
         self._adjust_batch()
@@ -80,6 +92,9 @@ class LocalProcessInferenceEngine:
                         finish_reason="cancelled",
                     )
                 )
+
+        if not self.current_batch:
+            return result
 
         requests = [
             SequenceGenerationRequest(
@@ -119,7 +134,7 @@ class LocalProcessInferenceEngine:
 
             outputs.append(output)
 
-        return InferenceStepResult(outputs=outputs, errors=errors)
+        return result
 
     def _adjust_batch(self):
         with self.queue_lock:
@@ -137,16 +152,13 @@ class LocalProcessInferenceEngine:
                 self.executor.free(request_to_remove.request_id)
                 self.queue.appendleft(request_to_remove)
 
-            while True:
-                self._discard_cancelled_requests_from_queue()
-                if len(self.queue) != 0 or len(self.current_batch) != 0:
-                    break
-                self.has_new_requests.wait()
+            self._discard_cancelled_requests_from_queue()
 
             if not self._should_process_new_request():
                 return
 
             # TODO: make this 15 into config
+            # and consider the max cache size of the executor
             while self.queue and self.executor.get_max_new_tokens() > 15:
                 state = self.queue[0]
                 num_tokens = len(state.token_ids)
@@ -162,6 +174,9 @@ class LocalProcessInferenceEngine:
     def _should_process_new_request(self):
         return self.executor.get_free_space() * 1.6 > self.executor.get_kv_cache_size()
 
+    def _has_request_to_process(self) -> bool:
+        return self.queue or self.current_batch
+
     def _discard_cancelled_requests_from_queue(self):
         """
         Requires the self.queue_lock to be held before calling this function.
@@ -171,12 +186,10 @@ class LocalProcessInferenceEngine:
             self.requests_to_be_cancelled.remove(state.request_id)
 
     def _get_new_request_state(self, request: Request) -> RequestState:
-        request_id = str(uuid4())
-
         prompt_tokens = self.tokenizer.encode(request.prompt)
 
         return RequestState(
-            request_id=request_id,
+            request_id=request.request_id,
             token_ids=prompt_tokens,
             prompt_len=len(prompt_tokens),
             next_start_position=0,

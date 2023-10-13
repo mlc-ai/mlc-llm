@@ -62,7 +62,7 @@ class ChatCompletionRequest(BaseModel):
     max_tokens: Optional[int] = None
     temperature: Optional[float]
     top_p: Optional[float]
-    n: Optional[int] = 1
+    n: int = 1
     stop: Optional[Union[str, List[str]]] = Field(default_factory=list)
     stream: Optional[bool] = False
     presence_penalty: Optional[float]

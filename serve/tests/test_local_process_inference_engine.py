@@ -72,6 +72,7 @@ def test_single_request():
     request_id = engine.add(
         [
             Request(
+                request_id="1",
                 prompt="test prompt",
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=5),
@@ -92,6 +93,7 @@ def test_single_request_step_to_finish():
     request_id = engine.add(
         [
             Request(
+                request_id="1",
                 prompt="test prompt",
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=10),
@@ -112,6 +114,7 @@ def test_multiple_requests_wait_queue():
     request_id_1 = engine.add(
         [
             Request(
+                request_id="1",
                 prompt="test " * 11,  # 11 tokens
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=2),
@@ -122,6 +125,7 @@ def test_multiple_requests_wait_queue():
     request_id_2 = engine.add(
         [
             Request(
+                request_id="2",
                 prompt="test " * 11,  # 11 tokens
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=2),
@@ -148,6 +152,7 @@ def test_multiple_requests_preempt():
     request_id_1 = engine.add(
         [
             Request(
+                request_id="1",
                 prompt="test " * 10,
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=7),
@@ -158,6 +163,7 @@ def test_multiple_requests_preempt():
     request_id_2 = engine.add(
         [
             Request(
+                request_id="2",
                 prompt="test " * 10,
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=7),

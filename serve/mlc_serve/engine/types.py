@@ -9,16 +9,15 @@ class StoppingCriteria:
     max_tokens: Optional[int]
 
 
+RequestId = str
+
+
 @dataclass
 class Request:
-    request_id: str
-    model_name: str
+    request_id: RequestId
     prompt: str
     sampling_params: SamplingParams
     stopping_criteria: StoppingCriteria
-
-
-RequestId = str
 
 
 @dataclass
@@ -43,7 +42,7 @@ class InferenceStepResult:
 
 
 class InferenceEngine(Protocol):
-    def add(self, requests: list[Request]) -> list[RequestId]:
+    def add(self, requests: list[Request]):
         """
         Add requests to the queue of InferenceEngine.
 
@@ -56,6 +55,11 @@ class InferenceEngine(Protocol):
         Cancel the generation of a request.
         """
 
+    def wait_for_request(self, timeout_seconds=None):
+        """
+        Block until there is request to process
+        """
+
     def step(self) -> InferenceStepResult:
         """
         InferenceResult contains the next token for processed results,
@@ -65,9 +69,9 @@ class InferenceEngine(Protocol):
         to work on, while it should be guaranteed that all requests will be
         processed eventually.
 
-        If the engine has no requests in the queue, `step` will block until there is
-        request coming in.
+        If the engine has no requests in the queue, `step` will return immediately.
         """
+
 
 @dataclass
 class SequenceGenerationRequest:
@@ -227,6 +231,7 @@ class ModelConfig:
         # self.tokenizer_revision = tokenizer_revision
         self.max_model_len = max_model_len
 
+
 class CacheConfig:
     """Configuration for the KV cache.
 
@@ -248,6 +253,7 @@ class CacheConfig:
         self.gpu_memory_utilization = gpu_memory_utilization
         self.swap_space_bytes = swap_space * _GB
         self.sliding_window = sliding_window
+
 
 class ParallelConfig:
     """Configuration for the distributed execution.
@@ -331,12 +337,14 @@ class CompletionOutput:
         return self.finish_reason is not None
 
     def __repr__(self) -> str:
-        return (f"CompletionOutput(index={self.index}, "
-                f"text={self.text!r}, "
-                f"token_ids={self.token_ids}, "
-                f"cumulative_logprob={self.cumulative_logprob}, "
-                f"logprobs={self.logprobs}, "
-                f"finish_reason={self.finish_reason})")
+        return (
+            f"CompletionOutput(index={self.index}, "
+            f"text={self.text!r}, "
+            f"token_ids={self.token_ids}, "
+            f"cumulative_logprob={self.cumulative_logprob}, "
+            f"logprobs={self.logprobs}, "
+            f"finish_reason={self.finish_reason})"
+        )
 
 
 class RequestOutput:
@@ -365,8 +373,10 @@ class RequestOutput:
         self.finished = finished
 
     def __repr__(self) -> str:
-        return (f"RequestOutput(request_id={self.request_id}, "
-                f"prompt={self.prompt!r}, "
-                f"prompt_token_ids={self.prompt_token_ids}, "
-                f"outputs={self.outputs}, "
-                f"finished={self.finished})")
+        return (
+            f"RequestOutput(request_id={self.request_id}, "
+            f"prompt={self.prompt!r}, "
+            f"prompt_token_ids={self.prompt_token_ids}, "
+            f"outputs={self.outputs}, "
+            f"finished={self.finished})"
+        )
