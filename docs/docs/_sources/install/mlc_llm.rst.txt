@@ -29,49 +29,49 @@ Select your operating system/compute platform and run the command in your termin
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-chat-nightly mlc-ai-nightly
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly mlc-ai-nightly
 
             .. tab:: CUDA 11.7
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-chat-nightly-cu117 mlc-ai-nightly-cu117
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly-cu117 mlc-ai-nightly-cu117
 
             .. tab:: CUDA 11.8
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-chat-nightly-cu118 mlc-ai-nightly-cu118
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly-cu118 mlc-ai-nightly-cu118
 
             .. tab:: CUDA 12.1
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-chat-nightly-cu121 mlc-ai-nightly-cu121
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly-cu121 mlc-ai-nightly-cu121
 
             .. tab:: CUDA 12.2
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-chat-nightly-cu122 mlc-ai-nightly-cu122
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly-cu122 mlc-ai-nightly-cu122
 
             .. tab:: ROCm 5.6
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-chat-nightly-rocm56 mlc-ai-nightly-rocm56
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly-rocm56 mlc-ai-nightly-rocm56
     
             .. tab:: ROCm 5.7
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-chat-nightly-rocm57 mlc-ai-nightly-rocm57
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly-rocm57 mlc-ai-nightly-rocm57
 
             .. tab:: Vulkan
 
@@ -94,7 +94,7 @@ Select your operating system/compute platform and run the command in your termin
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-chat-nightly mlc-ai-nightly
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly mlc-ai-nightly
 
         .. note::
 
@@ -115,7 +115,7 @@ Select your operating system/compute platform and run the command in your termin
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-chat-nightly mlc-ai-nightly
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly mlc-ai-nightly
 
         .. note::
             If encountering the error below:
