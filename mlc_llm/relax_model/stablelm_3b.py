@@ -66,6 +66,11 @@ class StableLM3bConfig:
             self.num_shards = 1
         self.kwargs = kwargs
 
+    def get_num_key_value_heads(self):
+        if self.num_key_value_heads is None:
+            return self.num_attention_heads
+        return self.num_key_value_heads
+
 
 class LayerNorm(nn.Module):
     def __init__(
