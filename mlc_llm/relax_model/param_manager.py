@@ -763,13 +763,22 @@ class ParamManager:
         """
         mod = _create_quantize_func(self)
         if optimize_parameter_order:
-            reorder_pass = ReorderTransformFunc(
-                self.pidx2pname,
-                self.torch_pname2binname,
-                self.f_convert_pname_fwd,
-            )
-            mod = reorder_pass(mod)
+            mod = self.optimize_transform_param_order()(mod)
         return mod
+
+    def optimize_transform_param_order(self) -> tvm.transform.Pass:
+        """Produce an transformation that optimizes for minimal memory footprint
+
+        Returns
+        -------
+        tvm.transform.Pass
+            The transformation
+        """
+        return ReorderTransformFunc(
+            self.pidx2pname,
+            self.torch_pname2binname,
+            self.f_convert_pname_fwd,
+        )
 
 
 @mutator
