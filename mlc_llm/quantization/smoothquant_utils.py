@@ -28,7 +28,7 @@ def _try_convert_to_scalar_const(expr: tvm.relax.Expr) -> Union[tvm.relax.Expr, 
         elif expr.struct_info.ndim == 1:
             dim_size = expr.struct_info.shape[0].value
             if dim_size == 1:
-                return expr.data.numpy()[0]
+                return expr.data.numpy()[0].item()
     return expr
 
 

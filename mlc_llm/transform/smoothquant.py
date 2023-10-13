@@ -303,6 +303,11 @@ class SmoothQuantOpConverter:
         return new_mod
 """
 
+def is_zero(expr: Union[int, tvm.relax.Constant]) -> bool:
+    if isinstance(expr, int) and expr == 0:
+        return True
+    return False
+
 
 @tvm.transform.module_pass(opt_level=0, name="SmoothQuantLegalizer")
 class SmoothQuantLegalizer:
@@ -325,43 +330,37 @@ class SmoothQuantLegalizer:
         pattern = is_op("relax.matmul")(lhs_sm, permute)
 
         def rewriter(_, matchings):
+            reduction_axis_size: int = matchings[lhs_sm].struct_info.shape[-1].value
+            dtype = matchings[pattern].struct_info.dtype
+            mm_shape = matchings[pattern].struct_info.shape
 
-            def _try_expand_param_dim(param: tvm.relax.Constant) -> Union[tvm.relax.Constant, tvm.relax.Call]:
-                assert param.struct_info.ndim == 1
-                if param.struct_info.shape[0].value != 1:
-                    return R.expand_dims(param, axis=[1])
-                return param
-
-            def _make_quantize(call: tvm.relax.Call, out_dtype: str):
-                in_dtype = call.args[0].struct_info.dtype
-                min_value = tvm.tir.min_value(out_dtype).astype(in_dtype)
-                max_value = tvm.tir.max_value(out_dtype).astype(in_dtype)
+            def _make_quantize(call: tvm.relax.Call, axis: int, out_dtype: str):
                 scale = call.args[1]
                 zero_point = call.args[2]
-                zp_const = _try_convert_to_scalar_const(zero_point)
-                is_zp_zero = isinstance(zp_const, (int, np.integer)) and zp_const == 0
-                scale = _try_expand_param_dim(scale)
-                zero_point = _try_expand_param_dim(zero_point)
-                data = R.round(R.divide(call.args[0], scale))
-                if not is_zp_zero:
-                    data = R.add(data, R.astype(zero_point, dtype=in_dtype))
-                return R.astype(R.clip(data, min_value, max_value), dtype=out_dtype)
+                scalar_scale = _try_convert_to_scalar_const(scale)
+                scalar_zero_point = _try_convert_to_scalar_const(zero_point)
+                if isinstance(scalar_scale, float) and isinstance(scalar_zero_point, int):
+                    axis = -1
+                    size = call.struct_info.shape[axis].value
+                    scale = R.const([scalar_scale] * size, scale.struct_info.dtype)
+                    zero_point = R.const([scalar_zero_point] * size, zero_point.struct_info.dtype)
+                return R.quantize(call.args[0], scale, zero_point, axis=axis, out_dtype=out_dtype)
             
             def _make_dequantize(
                 call: tvm.relax.Call,
                 scale1: tvm.relax.Constant,
                 scale2: tvm.relax.Constant,
+                axis: int,
                 out_dtype: str,
             ):
-                if out_dtype == "float32":
-                    return R.multiply(R.astype(call, dtype=out_dtype), R.multiply(scale1, scale2))
+                scalar_scale1 = _try_convert_to_scalar_const(scale1)
+                scalar_scale2 = _try_convert_to_scalar_const(scale2)
+                if isinstance(scalar_scale1, float) and isinstance(scalar_scale2, float):
+                    size = mm_shape[axis].value
+                    scale = R.const([scalar_scale1 * scalar_scale2] * size, "float32")
                 else:
-                    assert out_dtype == "float16"
-                    min_value = tvm.tir.min_value(out_dtype).astype("float32")
-                    max_value = tvm.tir.max_value(out_dtype).astype("float32")
-                    dq_scale = R.multiply(R.astype(scale1, "float32"), R.astype(scale2, "float32"))
-                    out = R.multiply(R.astype(call, dtype="float32"), dq_scale)
-                    return R.astype(R.clip(out, min_value, max_value), dtype=out_dtype)
+                    scale = R.multiply(R.astype(scale1, "float32"), R.astype(scale2, "float32"))
+                return R.dequantize(call, scale, R.const(0, "int8"), axis=axis, out_dtype=out_dtype)
 
             def _make_linear(
                 lhs: tvm.relax.Call,
@@ -370,11 +369,8 @@ class SmoothQuantLegalizer:
                 rhs_zp: tvm.relax.Constant,
                 reduction_dim_size: int
             ):
-                #return R.linear(lhs, rhs, out_dtype="int32")
                 lhs_zp_const = _try_convert_to_scalar_const(lhs_zp)
                 rhs_zp_const = _try_convert_to_scalar_const(rhs_zp)
-                is_lhs_zp_zero = isinstance(lhs_zp_const, (int, np.integer)) and lhs_zp_const == 0
-                is_rhs_zp_zero = isinstance(rhs_zp_const, (int, np.integer)) and rhs_zp_const == 0
                 # Make term1:
                 term1 = R.linear(lhs, rhs, out_dtype="int32")
                 # Make term2:
@@ -388,21 +384,21 @@ class SmoothQuantLegalizer:
                 # Make term4:
                 term4 = R.multiply(R.multiply(lhs_zp, rhs_zp), R.const(reduction_dim_size, "int32"))
                 # Combine result:
-                if is_lhs_zp_zero and is_rhs_zp_zero:
+                if is_zero(lhs_zp_const) and is_zero(rhs_zp_const):
                     return term1
-                elif is_lhs_zp_zero and not is_rhs_zp_zero:
+                elif is_zero(lhs_zp_const) and not is_zero(rhs_zp_const):
                     return R.subtract(term1, term2)
-                elif not is_lhs_zp_zero and is_rhs_zp_zero:
+                elif not is_zero(lhs_zp_const) and is_zero(rhs_zp_const):
                     return R.subtract(term1, term3)
                 else:
                     return R.add(R.subtract(R.subtract(term1, term2), term3), term4)
 
-            reduction_axis_size: int = matchings[lhs_sm].struct_info.shape[-1].value
-            lhs = _make_quantize(matchings[lhs_sm], self.dtype_act)
-            rhs = _make_quantize(matchings[rhs_sm], self.dtype_weight)
+            lhs = _make_quantize(matchings[lhs_sm], axis=-2, out_dtype=self.dtype_act)
+            rhs = _make_quantize(matchings[rhs_sm], axis=-2, out_dtype=self.dtype_weight)
             mm = _make_linear(lhs, rhs, matchings[act_zp], matchings[w_zp], reduction_axis_size)
-            dtype = matchings[pattern].struct_info.dtype
-            return _make_dequantize(mm, matchings[act_scale], matchings[w_scale], dtype)
+            return _make_dequantize(
+                mm, matchings[act_scale], matchings[w_scale], axis=-1, out_dtype=dtype
+            )
 
         new_mod = tvm.IRModule()
         for gv, func in mod.functions.items():
