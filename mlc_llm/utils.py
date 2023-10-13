@@ -274,16 +274,26 @@ def convert_weights(
     return loaded_params
 
 
-def save_params(params: List[tvm.nd.NDArray], artifact_path: str) -> None:
+def save_params(params: List[tvm.nd.NDArray], artifact_path: str, num_presharded: int = 1) -> None:
     from tvm.contrib import tvmjs  # pylint: disable=import-outside-toplevel
+
+    assert len(params) % num_presharded == 0
+    num_weights = len(params) // num_presharded
+
 
     meta_data = {}
     param_dict = {}
     meta_data["ParamSize"] = len(params)
     total_size = 0.0
     for i, nd in enumerate(params):
-        assert nd is not None, f"Missing parameter at index {i}"
-        param_dict[f"param_{i}"] = nd
+        if num_presharded == 1:
+            param_name = f"param_{i}"
+        else:
+            expected_worker_id = i // num_weights
+            orig_param_id = i % num_weights
+            param_name = f"param_{orig_param_id}_shard-{expected_worker_id+1}-of-{num_presharded}"
+
+        param_dict[param_name] = nd
 
     total_size_bytes = sum(math.prod(param.shape) * np.dtype(param.dtype).itemsize for param in params)
     total_size_gb = total_size_bytes / (1024 ** 3)
