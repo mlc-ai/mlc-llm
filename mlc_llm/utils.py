@@ -210,16 +210,11 @@ def debug_dump_shader(ex: tvm.relax.Executable, name: str, args: argparse.Namesp
 
 
 def convert_weights(
+    mod_transform: tvm.IRModule,
     param_mgr: param_manager.ParamManager,
     model_params: List[Optional[tvm.nd.NDArray]],
     args: argparse.Namespace,
 ):
-    # Create the quantization function.
-    # We first create an initial one, then reorder it according to each
-    # weight's location in the binary files, in the purpose of reducing
-    # memory usage when loading torch weights as well as acceleration.
-    mod_transform = param_mgr.create_parameter_transformation()
-
     # Save the number of parameters before we lower mod_transform, so
     # we can use them in the progress bar.
     transform_func = mod_transform["transform_params"]

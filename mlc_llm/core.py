@@ -745,8 +745,11 @@ def build_model_from_args(args: argparse.Namespace):
             args.model_path = param_manager.run_pre_quantize(args.model_path)
             param_manager.init_torch_pname_to_bin_name(args.use_safetensors)
 
-            new_params = utils.convert_weights(param_manager, params, args)
-            utils.save_params(new_params, args.artifact_path)
+            mod_transform = param_manager.create_parameter_transformation()
+            params = utils.convert_weights(mod_transform, param_manager, params, args)
+            utils.save_params(params, args.artifact_path)
+
+
             if args.model_category != "minigpt":
                 utils.copy_tokenizer(args)
             if args.model_category == "rwkv" or args.model_category == "rwkv_world":
