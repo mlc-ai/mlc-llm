@@ -772,7 +772,14 @@ def build_model_from_args(args: argparse.Namespace):
 
         mod = mod_transform_before_build(mod, param_manager, args, model_config)
         if args.num_shards > 1:
-            create_shard_info_func(mod, param_manager, args, model_config)
+            # We requires a "create_sharding_info" function for all
+            # multi-GPU models, even if they are using pre-sharded
+            # weights.  When using pre-sharded weights, the list of
+            # initialization-time transforms to apply is empty.
+            sharding_module = create_shard_info_func(param_manager, args, model_config)
+            mod.update(sharding_module)
+
+
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)
         print(f"Save a cached module to {cache_path}.")

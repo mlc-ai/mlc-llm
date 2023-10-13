@@ -1,6 +1,7 @@
 import json
 from typing import List
 
+import tvm
 from tvm import relax, te, topi
 
 
@@ -27,7 +28,7 @@ def create_metadata_func(
         bb.emit_func_output(relax.StringImm(metadata))
 
 
-def create_shard_info_func(mod, param_manager, args, model_config):
+def create_shard_info_func(param_manager, args, model_config) -> tvm.IRModule:
     num_shards = args.num_shards
     param_shape_is_already_sharded = args.build_model_only
 
@@ -82,6 +83,13 @@ def create_shard_info_func(mod, param_manager, args, model_config):
 
     # pylint: enable=invalid-name
 
+    shard_strategy_to_func = {
+        "shard_qkv": shard_qkv_weight_scale,
+        "shard_mlp_k": shard_k_weight_scale,
+        "shard_o_proj_k": shard_k_weight_scale,
+        "shard_gate_up": shard_gate_up_weight_scale,
+    }
+
     shard_info_dict = {}
     shard_funcs = {}
 
@@ -96,36 +104,24 @@ def create_shard_info_func(mod, param_manager, args, model_config):
     for _, param in param_manager.params.items():
         if param.shard_strategy is None:
             pass
-        elif param.shard_strategy == "shard_qkv":
+        elif param.shard_strategy in shard_strategy_to_func:
             for i, weight in enumerate(param_manager.param2qrange[param]):
-                name = f"shard_qkv_{i}"
+                name = f"{param.shard_strategy}_{i}"
                 if name not in shard_funcs:
-                    shard_funcs[name] = shard_qkv_weight_scale(q_params[weight])
-                add_to_shard_info(f"param_{weight}", name)
-        elif param.shard_strategy == "shard_mlp_k":
-            for i, weight in enumerate(param_manager.param2qrange[param]):
-                name = f"shard_mlp_k_{i}"
-                if name not in shard_funcs:
-                    shard_funcs[name] = shard_k_weight_scale(q_params[weight])
-                add_to_shard_info(f"param_{weight}", name)
-        elif param.shard_strategy == "shard_o_proj_k":
-            for i, weight in enumerate(param_manager.param2qrange[param]):
-                name = f"shard_o_proj_k_{i}"
-                if name not in shard_funcs:
-                    shard_funcs[name] = shard_k_weight_scale(q_params[weight])
-                add_to_shard_info(f"param_{weight}", name)
-        elif param.shard_strategy == "shard_gate_up":
-            for i, weight in enumerate(param_manager.param2qrange[param]):
-                name = f"shard_gate_up_{i}"
-                if name not in shard_funcs:
-                    shard_funcs[name] = shard_gate_up_weight_scale(q_params[weight])
+                    shard_funcs[name] = shard_strategy_to_func[param.shard_strategy](
+                        q_params[weight]
+                    )
                 add_to_shard_info(f"param_{weight}", name)
         else:
             raise NotImplementedError(f"Shard strategy not implemented: {param.shard_strategy}")
+
+    bb = relax.BlockBuilder()  # pylint: disable=invalid-name
+
     for name, func in shard_funcs.items():
         func = func.with_attr({"global_symbol": name})
-        mod[name] = func
-    bb = relax.BlockBuilder()  # pylint: disable=invalid-name
+        bb.add_func(func, name)
+
     with bb.function("get_shard_info", params=[]):
         bb.emit_func_output(relax.StringImm(json.dumps(shard_info_dict)))
-    mod["get_shard_info"] = bb.get()["get_shard_info"]
+
+    return bb.get()
