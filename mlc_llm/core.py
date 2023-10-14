@@ -604,28 +604,34 @@ def build_model_from_args(args: argparse.Namespace):
     use_cache = args.use_cache and os.path.isfile(cache_path)
     if args.sep_embed and args.model_category != "llama":
         raise ValueError(f"separate embedding not supported on {args.model}")
-    if args.model_category != "minigpt":
+
+    if args.model_cateogry == "minigpt":
+        # Special case for minigpt, which neither provides nor requires a configuration.
+        config = {}
+    else:
         with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
             config = json.load(i_f)
+
     if not use_cache or args.convert_weight_only:
-        if args.model_category in ("llama", "mistral"):
-            mod, param_manager, params, model_config = llama.get_model(args, config)
-        elif args.model_category == "stablelm_epoch":
-            mod, param_manager, params, model_config = stablelm_3b.get_model(args, config)
-        elif args.model_category == "gpt_neox":
-            mod, param_manager, params, model_config = gpt_neox.get_model(args, config)
-        elif args.model_category == "gpt_bigcode":
-            mod, param_manager, params, model_config = gpt_bigcode.get_model(args, config)
-        elif args.model_category == "minigpt":
-            mod, param_manager, params, model_config = minigpt.get_model(args)
-        elif args.model_category == "gptj":
-            mod, param_manager, params, model_config = gptj.get_model(args, config)
-        elif args.model_category == "rwkv" or args.model_category == "rwkv_world":
-            mod, param_manager, params, model_config = rwkv.get_model(args, config)
-        elif args.model_category == "chatglm":
-            mod, param_manager, params, model_config = chatglm.get_model(args, config)
-        else:
-            raise ValueError(f"Model {args.model} not supported")
+
+        model_generators = {
+            "llama": llama,
+            "mistral": llama,
+            "stablelm_epoch": stablelm_3b,
+            "gpt_neox": gpt_neox,
+            "gpt_bigcode": gpt_bigcode,
+            "minigpt": minigpt,
+            "gptj": gptj,
+            "rwkv": rwkv,
+            "rwkv_world": rwkv,
+            "chatglm": chatglm,
+        }
+
+        assert args.model_category in model_generators, f"Model {args.model} not supported"
+
+        mod, param_manager, params, model_config = model_generators[args.model_category].get_model(
+            args, config
+        )
 
         for qspec_updater_class in param_manager.qspec_updater_classes:
             qspec_updater = qspec_updater_class(param_manager)
