@@ -605,7 +605,7 @@ def build_model_from_args(args: argparse.Namespace):
     if args.sep_embed and args.model_category != "llama":
         raise ValueError(f"separate embedding not supported on {args.model}")
 
-    if args.model_cateogry == "minigpt":
+    if args.model_category == "minigpt":
         # Special case for minigpt, which neither provides nor requires a configuration.
         config = {}
     else:
