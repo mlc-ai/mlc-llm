@@ -638,6 +638,10 @@ def build_model_from_args(args: argparse.Namespace):
             qspec_updater.visit_module(mod)
 
         if not args.build_model_only:
+            # Run pre-quantization if provided.
+            args.model_path = param_manager.run_pre_quantize(args.model_path)
+            param_manager.init_torch_pname_to_bin_name(args.use_safetensors)
+
             new_params = utils.convert_weights(param_manager, params, args)
             utils.save_params(new_params, args.artifact_path)
             if args.model_category != "minigpt":

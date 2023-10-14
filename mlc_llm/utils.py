@@ -10,7 +10,7 @@ from tvm import relax
 
 from .quantization import quantization_schemes
 from .relax_model import param_manager
-from .transform import ReorderTransformFunc
+
 
 supported_model_types = set(
     ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj", "chatglm", "mistral", "stablelm_epoch"]
@@ -192,31 +192,12 @@ def convert_weights(
     model_params: List[Optional[tvm.nd.NDArray]],
     args: argparse.Namespace,
 ):
-    # Run pre-quantization if provided.
-    if param_mgr.f_run_prequantize is not None:
-        args.model_path = param_mgr.f_run_prequantize(args.model_path)
-        param_mgr.model_path = args.model_path
-    param_mgr.torch_pname2binname = (
-        param_manager.load_torch_pname2binname_map(
-            args.model_path,
-            args.use_safetensors,
-            set(param_mgr.pidx2pname.values()),
-            param_mgr.f_convert_pname_fwd,
-        )
-        if len(param_mgr.pidx2pname) != 0
-        else dict()
-    )
-
     # Create the quantization function.
     # We first create an initial one, then reorder it according to each
     # weight's location in the binary files, in the purpose of reducing
     # memory usage when loading torch weights as well as acceleration.
-    mod_transform = param_manager.create_quantize_func(param_mgr)
-    mod_transform = ReorderTransformFunc(
-        param_mgr.pidx2pname,
-        param_mgr.torch_pname2binname,
-        param_mgr.f_convert_pname_fwd,
-    )(mod_transform)
+    mod_transform = param_mgr.create_parameter_transformation()
+
     # Remove the dataflow block inside the param transform function,
     # so that the LazyTransformParams pass can be applied.
     mod_transform = relax.transform.ToNonDataflow()(mod_transform)
