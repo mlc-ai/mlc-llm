@@ -79,6 +79,11 @@ class BuildArgs:
         Build with separated embedding layer, only applicable to LlaMa. This
         feature is in testing stage, and will be formally replaced after massive
         overhaul of embedding feature for all models and use cases.
+    enable_batching: bool
+        Build the model for batched inference.
+        This is a temporary flag used to control the model execution flow in single-
+        sequence and batching settings for now. We will eventually merge two flows
+        in the future and remove this flag then.
     """
     model: str = field(
         default="auto",
@@ -180,21 +185,29 @@ class BuildArgs:
             "action": "store_true",
         },
     )
-    no_cutlass_attn: bool = field(
+    enable_batching: bool = field(
         default=False,
         metadata={
             "help": (
-                "Disable offloading attention operations to CUTLASS."
+                "Build the model for batched inference."
+                "This is a temporary flag used to control the model execution flow in single-"
+                "sequence and batching settings for now. We will eventually merge two flows"
+                "in the future and remove this flag then."
             ),
+            "action": "store_true",
+        },
+    )
+    no_cutlass_attn: bool = field(
+        default=False,
+        metadata={
+            "help": ("Disable offloading attention operations to CUTLASS."),
             "action": "store_true",
         },
     )
     no_cutlass_norm: bool = field(
         default=False,
         metadata={
-            "help": (
-                "Disable offloading layer and RMS norm operations to CUTLASS."
-            ),
+            "help": ("Disable offloading layer and RMS norm operations to CUTLASS."),
             "action": "store_true",
         },
     )
@@ -231,9 +244,7 @@ class BuildArgs:
     use_flash_attn_mqa: bool = field(
         default=False,
         metadata={
-            "help": (
-                "Offload multi-query attention workload to Flash Attention."
-            ),
+            "help": ("Offload multi-query attention workload to Flash Attention."),
             "action": "store_true",
         },
     )
@@ -380,6 +391,8 @@ def mod_transform_before_build(
         ]
         if args.sep_embed:
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
+            if args.enable_batching:
+                model_names[2] = "decode_with_embed"
         if args.model.lower().startswith("rwkv-"):
             model_names += ["reset_kv_cache"]
 
@@ -458,7 +471,7 @@ def mod_transform_before_build(
                     ),
                     annotate_workspace,
                     relax.transform.AllocateWorkspace(),
-                    relax.transform.RunCodegen(options, entry_functions=model_names)
+                    relax.transform.RunCodegen(options, entry_functions=model_names),
                 ]
             )(mod)
 
@@ -558,7 +571,9 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": use_cuda_graph}):
         # The num_input attribute is needed to capture transformed weights passed as input
         # into a cuda graph.
-        mod_deploy["decode"] = mod_deploy["decode"].with_attr({"num_input": 3})
+        # NOTE: CUDA graph for batching is not enabled and is left as a TODO item.
+        if not args.enable_batching:
+            mod_deploy["decode"] = mod_deploy["decode"].with_attr({"num_input": 3})
         ex = relax.build(mod_deploy, args.target, system_lib=args.system_lib)
 
     output_filename = f"{args.model}-{args.quantization.name}-{target_kind}.{args.lib_format}"

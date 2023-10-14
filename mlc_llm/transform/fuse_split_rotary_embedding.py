@@ -151,6 +151,9 @@ def get_split_rotary_group_query_attention(
 def fuse_split_rotary_embedding(
     mod, num_query_heads, num_kv_heads, hidden_size, position_embedding_base
 ):
+    if "rotary_embedding1" not in [gv.name_hint for gv in mod.functions]:
+        return mod
+
     head_dim = hidden_size // num_query_heads
     mod["split_rotary"] = (
         get_split_rotary(num_query_heads, head_dim, position_embedding_base)

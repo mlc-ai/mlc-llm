@@ -481,7 +481,7 @@ class LLMChat {
     // Step 6. KV cache creation.
     this->kv_cache_ = ft_.create_kv_cache_func_();
     // Step 7. Pre-allocate fixed size ndarray
-    this->temperature_arr_ = NDArray::Empty({}, DataType::Float(32), device_);
+    this->temperature_arr_ = NDArray::Empty({1}, DataType::Float(32), device_);
     float temperature = static_cast<float>(this->temperature_);
     this->temperature_arr_.CopyFromBytes(&temperature, sizeof(float));
     if (ft_.use_disco) {
@@ -947,19 +947,18 @@ class LLMChat {
     // the generation_config will not override the original config
     // since is only used for this generation
     double gen_temperature;
-    NDArray gen_temperature_arr;
     double gen_repetition_penalty;
     double gen_top_p;
     if (generation_config.count("temperature")) {
       CHECK(generation_config["temperature"].is<double>());
       gen_temperature = generation_config["temperature"].get<double>();
-
-      gen_temperature_arr = NDArray::Empty({}, DataType::Float(32), device_);
-      float temperature_cast = static_cast<float>(gen_temperature);
-      gen_temperature_arr.CopyFromBytes(&temperature_cast, sizeof(float));
+      if (gen_temperature != this->temperature_) {
+        this->temperature_ = gen_temperature;
+        float temperature_cast = static_cast<float>(gen_temperature);
+        this->temperature_arr_.CopyFromBytes(&temperature_cast, sizeof(float));
+      }
     } else {
       gen_temperature = this->temperature_;
-      gen_temperature_arr = this->temperature_arr_;
     }
     if (generation_config.count("repetition_penalty")) {
       CHECK(generation_config["repetition_penalty"].is<double>());
@@ -979,7 +978,7 @@ class LLMChat {
       if (gen_temperature < 1e-6f) {
         this->UpdateLogitsOrProbOnCPUSync(logits_on_device);
       } else {
-        this->UpdateLogitsOrProbOnCPUSync(this->Softmax(logits_on_device, gen_temperature_arr));
+        this->UpdateLogitsOrProbOnCPUSync(this->Softmax(logits_on_device, this->temperature_arr_));
       }
     } else {
       this->UpdateLogitsOrProbOnCPUSync(logits_on_device);
