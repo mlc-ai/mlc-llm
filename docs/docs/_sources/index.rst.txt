@@ -47,6 +47,8 @@ It is recommended to have at least 6GB free VRAM to run it.
     **Colab walkthrough.**  A Jupyter notebook on `Colab <https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb>`_
     is provided with detailed walkthrough of the Python API.
 
+    **Documentation and tutorial.** Python API reference and its tutorials are `available online <https://llm.mlc.ai/docs/deploy/python.html#api-reference>`_.
+
     .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg
       :width: 600
       :align: center
