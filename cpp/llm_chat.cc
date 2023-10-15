@@ -481,7 +481,7 @@ class LLMChat {
     // Step 6. KV cache creation.
     this->kv_cache_ = ft_.create_kv_cache_func_();
     // Step 7. Pre-allocate fixed size ndarray
-    this->temperature_arr_ = NDArray::Empty({1}, DataType::Float(32), device_);
+    this->temperature_arr_ = NDArray::Empty({}, DataType::Float(32), device_);
     float temperature = static_cast<float>(this->temperature_);
     this->temperature_arr_.CopyFromBytes(&temperature, sizeof(float));
     if (ft_.use_disco) {
