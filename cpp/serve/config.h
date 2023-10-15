@@ -17,7 +17,7 @@ using namespace tvm::runtime;
 
 /****************** GenerationConfig ******************/
 
-/*! \brief The sampling configuration of a request. */
+/*! \brief The generation configuration of a request. */
 class GenerationConfigNode : public Object {
  public:
   double temperature = 0.8;
@@ -26,6 +26,8 @@ class GenerationConfigNode : public Object {
 
   int max_new_tokens = 128;
   Array<String> stop_strs;
+
+  String AsJSONString() const;
 
   static constexpr const char* _type_key = "mlc.serve.GenerationConfig";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -42,12 +44,14 @@ class GenerationConfig : public ObjectRef {
 
 /****************** KV Cache config ******************/
 
-/*! \brief The sampling configuration of a request. */
+/*! \brief The configuration of paged KV cache. */
 class KVCacheConfigNode : public Object {
  public:
   int page_size;
   int max_num_sequence;
   int max_total_sequence_length;
+
+  String AsJSONString() const;
 
   static constexpr const char* _type_key = "mlc.serve.KVCacheConfig";
   static constexpr const bool _type_has_method_sequal_reduce = false;
