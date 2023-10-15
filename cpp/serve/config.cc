@@ -62,6 +62,22 @@ GenerationConfig::GenerationConfig(String config_json_str) {
   data_ = std::move(n);
 }
 
+String GenerationConfigNode::AsJSONString() const {
+  picojson::object config;
+  config["temperature"] = picojson::value(this->temperature);
+  config["top_p"] = picojson::value(this->top_p);
+  config["repetition_penalty"] = picojson::value(this->repetition_penalty);
+  config["max_new_tokens"] = picojson::value(static_cast<int64_t>(this->max_new_tokens));
+
+  picojson::array stop_strs_arr;
+  for (String stop_str : this->stop_strs) {
+    stop_strs_arr.push_back(picojson::value(stop_str));
+  }
+  config["stop_strs"] = picojson::value(stop_strs_arr);
+
+  return picojson::value(config).serialize(true);
+}
+
 /****************** KVCacheConfig ******************/
 
 TVM_REGISTER_OBJECT_TYPE(KVCacheConfigNode);
@@ -114,6 +130,15 @@ KVCacheConfig::KVCacheConfig(const std::string& config_str, int max_single_seque
   n->max_num_sequence = max_num_sequence;
   n->max_total_sequence_length = max_total_sequence_length;
   data_ = std::move(n);
+}
+
+String KVCacheConfigNode::AsJSONString() const {
+  picojson::object config;
+  config["page_size"] = picojson::value(static_cast<int64_t>(this->page_size));
+  config["max_num_sequence"] = picojson::value(static_cast<int64_t>(this->max_num_sequence));
+  config["max_total_sequence_length"] =
+      picojson::value(static_cast<int64_t>(this->max_total_sequence_length));
+  return picojson::value(config).serialize(true);
 }
 
 }  // namespace serve

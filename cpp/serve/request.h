@@ -24,8 +24,8 @@ using namespace tvm::runtime;
 
 /*!
  * \brief The user submitted text-generation request, which contains
- * a list of multi-modal inputs and a set of sampling configuration
- * parameters.
+ * a list of multi-modal inputs, a set of generation configuration
+ * parameters and a callback function for request finish handling.
  * \note Request is immutable and can be re-dispatched to another
  * node and restart the request handling on the new one.
  */
@@ -56,7 +56,7 @@ class RequestNode : public Object {
 
 class Request : public ObjectRef {
  public:
-  explicit Request(Array<Data> inputs, String generation_cfg_json, PackedFunc fcallback);
+  explicit Request(Array<Data> inputs, GenerationConfig generation_cfg, PackedFunc fcallback);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Request, ObjectRef, RequestNode);
 };
