@@ -1068,7 +1068,20 @@ def create_paged_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> N
         bb.emit_func_output(cache)
 
 
-def create_softmax_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
+def create_softmax_func_for_single_seq(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
+    with bb.function("softmax_with_temperature"):
+        logits = nn.Placeholder(
+            (1, 1, tvm.tir.Var("vocab_size", "int64")), dtype="float32", name="logits"
+        )
+        temperature = nn.Placeholder((), dtype="float32", name="temperature")
+        with bb.dataflow():
+            div = bb.emit(relax.op.divide(logits, temperature))
+            softmax = bb.emit(relax.op.nn.softmax(div, axis=-1))
+            gv = bb.emit_output(softmax)
+        bb.emit_func_output(gv, [logits, temperature])
+
+
+def create_softmax_func_for_batching(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     with bb.function("softmax_with_temperature"):
         bsz = tvm.tir.Var("nseq", "int64")
         logits = nn.Placeholder(
@@ -1206,12 +1219,13 @@ def get_model(args, hf_config):
         create_prefill_func_for_batching(bb, param_manager, config, args.quantization)
         create_decoding_func_for_batching(bb, param_manager, config, args.quantization)
         create_paged_kv_cache_func(bb, config)
+        create_softmax_func_for_batching(bb, config)
     else:
         create_prefill_func_for_single_seq(bb, param_manager, config, args.quantization, sep_embed)
         create_decoding_func_for_single_seq(bb, param_manager, config, args.quantization)
         create_kv_cache_func(bb, config)
+        create_softmax_func_for_single_seq(bb, config)
 
-    create_softmax_func(bb, config)
     create_metadata_func(
         bb,
         model_name=model_name,
