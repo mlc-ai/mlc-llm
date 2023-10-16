@@ -3,12 +3,13 @@ from .types import (
     InferenceStepResult,
     Request,
     RequestId,
-    SamplingParams,
     SequenceGenerationRequest,
     SequenceGenerationResponse,
     StoppingCriteria,
     TextGenerationError,
     TextGenerationOutput,
 )
+
+from .sampling_params import SamplingParams, SamplingType
 
 from .async_connector import AsyncEngineConnector

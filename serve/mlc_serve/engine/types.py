@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List, Literal, Optional, Protocol
+from typing import Dict, List, Literal, Optional
 
 from .sampling_params import SamplingParams
 
@@ -22,7 +22,7 @@ class Request:
 
 @dataclass
 class TextGenerationOutput:
-    request_id: RequestId
+    request_id: RequestId 
     delta: str
     # TODO: make this enum
     finish_reason: Optional[Literal["stop", "length", "cancelled"]] = None
@@ -41,7 +41,7 @@ class InferenceStepResult:
     errors: list[TextGenerationError]
 
 
-class InferenceEngine(Protocol):
+class InferenceEngine:
     def add(self, requests: list[Request]):
         """
         Add requests to the queue of InferenceEngine.
@@ -76,7 +76,6 @@ class InferenceEngine(Protocol):
 @dataclass
 class SequenceGenerationRequest:
     request_id: RequestId
-    # prompts or the last token(s)
     token_ids: list[int]
     start_position: int
     sampling_params: SamplingParams
@@ -97,7 +96,7 @@ class SequenceGenerationResponse:
     error: Optional[str]
 
 
-class ModelExecutor(Protocol):
+class ModelExecutor:
     def generate(
         self, requests: list[SequenceGenerationRequest]
     ) -> list[SequenceGenerationResponse]:
@@ -153,7 +152,9 @@ class ModelExecutor(Protocol):
         """
 
 
-class Tokenizer(Protocol):
+class Tokenizer:
+    eos_token_id: int
+
     def encode(self, text: str) -> list[int]:
         pass
 

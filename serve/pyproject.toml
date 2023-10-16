@@ -17,3 +17,4 @@ requires = ["setuptools>=60", "wheel", "setuptools-scm>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
+root = ".."

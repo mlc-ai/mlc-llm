@@ -222,8 +222,8 @@ def rotary_modulate_by_freq(tensor, idx, pos, position_embedding_base):
     right_indices = idx[:-1] + (feat_idx + n_feat_half,)
     return te.cos(freq).astype(dtype) * tensor(*idx) + te.sin(freq).astype(dtype) * tvm.tir.Select(
         feat_idx >= n_feat_half,
-        tensor[*left_indices],
-        -tensor[*right_indices],
+        tensor[(*left_indices,)],
+        -tensor[(*right_indices,)],
     )
 
 
@@ -297,7 +297,7 @@ class LlamaAttention(nn.Module):
         self.o_proj.weight.shard_strategy = "shard_o_proj_k"
 
     def project_qkv(self, hidden_states, query_output_shape, kv_output_shape):
-        from tvm.relax.op import split, reshape
+        from tvm.relax.op import reshape, split
 
         if self.combine_matmul:
             qkv_states = nn.emit(
@@ -337,14 +337,7 @@ class LlamaAttention(nn.Module):
         past_key_value: Tuple[relax.Expr],
         attention_mask: Optional[relax.Expr] = None,
     ) -> Tuple[relax.Expr, Optional[relax.Expr], Optional[Tuple[relax.Expr]]]:
-        from tvm.relax.op import (
-            astype,
-            matmul,
-            maximum,
-            permute_dims,
-            reshape,
-            squeeze,
-        )
+        from tvm.relax.op import astype, matmul, maximum, permute_dims, reshape, squeeze
         from tvm.relax.op.nn import softmax
 
         bsz, q_len, _ = hidden_states.struct_info.shape

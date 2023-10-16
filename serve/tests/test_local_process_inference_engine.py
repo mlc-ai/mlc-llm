@@ -10,10 +10,14 @@ from mlc_serve.engine.local import LocalProcessInferenceEngine
 
 
 class DummyTokenizer:
-    def encode(self, text: str) -> list[int]:
+    @property
+    def eos_token_id(self):
+        return 2
+
+    def encode(self, text: str, **kwargs) -> list[int]:
         return [1] * len(text.split())
 
-    def decode(self, tokens: list[int]) -> str:
+    def decode(self, tokens: list[int], **kwargs) -> str:
         return "test " * len(tokens)
 
 
@@ -27,10 +31,7 @@ class DummyModelExecutor:
     ) -> list[SequenceGenerationResponse]:
         result = []
         for req in requests:
-            if (
-                req.start_position + len(req.token_ids)
-                > self.cached_requests[req.request_id]
-            ):
+            if len(req.token_ids) > self.cached_requests[req.request_id]:
                 raise RuntimeError(f"Cache out of space for request {req.request_id}")
             result.append(
                 SequenceGenerationResponse(

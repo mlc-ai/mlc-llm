@@ -8,8 +8,8 @@ from threading import Condition, Lock
 from uuid import uuid4
 
 from .types import (
-    InferenceStepResult,
     InferenceEngine,
+    InferenceStepResult,
     ModelExecutor,
     Request,
     RequestId,
@@ -99,7 +99,7 @@ class LocalProcessInferenceEngine(InferenceEngine):
         requests = [
             SequenceGenerationRequest(
                 request_id=state.request_id,
-                token_ids=state.token_ids[state.next_start_position :],
+                token_ids=state.token_ids,
                 start_position=state.next_start_position,
                 sampling_params=state.sampling_params,
             )
@@ -108,7 +108,9 @@ class LocalProcessInferenceEngine(InferenceEngine):
 
         for req in requests:
             if req.start_position > 0:
-                self.executor.extend(req.request_id, len(req.token_ids))
+                self.executor.extend(
+                    req.request_id, len(req.token_ids) - req.start_position
+                )
         responses = self.executor.generate(requests)
 
         for res in responses:
@@ -121,14 +123,24 @@ class LocalProcessInferenceEngine(InferenceEngine):
 
             state = self.current_batch[res.request_id]
             state.next_start_position = len(state.token_ids)
-            state.token_ids.extend(res.token_ids)
+            new_token_ids = res.token_ids
+            is_ended = False
+            for i, token_id in enumerate(new_token_ids):
+                if token_id == self.tokenizer.eos_token_id:
+                    new_token_ids = new_token_ids[:i]
+                    is_ended = True
+            state.token_ids.extend(new_token_ids)
 
             delta = self._decode_last_output(state)
             state.output_text += delta
 
             output = TextGenerationOutput(res.request_id, delta)
+            if is_ended:
+                output.finish_reason = "stop"
             if self._should_stop_by_length(state):
                 output.finish_reason = "length"
+
+            if output.finish_reason is not None:
                 self.current_batch.pop(state.request_id)
                 self.executor.free(state.request_id)
 
@@ -203,8 +215,13 @@ class LocalProcessInferenceEngine(InferenceEngine):
         if prefix_idx == 0:
             return self.tokenizer.decode(state.token_ids)
 
-        prefix = self.tokenizer.decode(state.token_ids[prefix_idx:])
-        full = self.tokenizer.decode(state.token_ids[state.next_start_position :])
+        prefix = self.tokenizer.decode(
+            state.token_ids[prefix_idx : state.next_start_position],
+            skip_special_tokens=True,
+        )
+        full = self.tokenizer.decode(
+            state.token_ids[prefix_idx:], skip_special_tokens=True
+        )
 
         return full[len(prefix) :]
 

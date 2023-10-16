@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import AsyncIterator, Union
 
 from .types import (
@@ -49,6 +50,7 @@ class AsyncEngineConnector:
                 should_stop_inference = True
             except Exception as e:
                 # TODO: Log
+                logging.exception("Error in inference loop")
                 self.engine_loop_exception = e
                 raise
             finally:
@@ -59,6 +61,7 @@ class AsyncEngineConnector:
     async def stop(self):
         # TODO: make it able to restart?
         self.engine_loop_task.cancel()
+        await self.engine_loop_task
 
     async def generate(self, request: Request) -> AsyncIterator[TextGenerationOutput]:
         try:
