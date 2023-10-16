@@ -231,6 +231,7 @@ def convert_weights(
     mod_transform = relax.transform.ToNonDataflow()(mod_transform)
     mod_transform = relax.transform.LazyTransformParams()(mod_transform)
     mod_transform = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_transform)
+    mod_transform = relax.transform.LegalizeOps()(mod_transform)
 
     debug_dump_script(mod_transform, "mod_convert_weights.py", args)
 
