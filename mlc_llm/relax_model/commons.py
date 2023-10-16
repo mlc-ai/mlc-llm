@@ -29,6 +29,8 @@ def create_metadata_func(
 
 def create_shard_info_func(mod, param_manager, args, model_config):
     num_shards = args.num_shards
+    param_shape_is_already_sharded = args.build_model_only
+
     head_dim = model_config.hidden_size // model_config.num_attention_heads
     q_heads = model_config.num_attention_heads
     kv_heads = model_config.get_num_key_value_heads()
@@ -36,7 +38,9 @@ def create_shard_info_func(mod, param_manager, args, model_config):
     # pylint: disable=invalid-name
     def shard_qkv_weight_scale(weight: relax.TensorStructInfo):
         (spatial, red), dtype = weight.shape, weight.dtype
-        spatial, red = int(spatial) * num_shards, int(red)
+        spatial, red = int(spatial), int(red)
+        if param_shape_is_already_sharded:
+            spatial *= num_shards
         a = te.placeholder((spatial, red), dtype=dtype)
         w = topi.reshape(a, (spatial // head_dim, head_dim, red))
         q = te.compute((q_heads, head_dim, red), lambda i, j, k: w[i, j, k])
@@ -52,7 +56,9 @@ def create_shard_info_func(mod, param_manager, args, model_config):
 
     def shard_k_weight_scale(weight: relax.TensorStructInfo):
         (spatial, red), dtype = weight.shape, weight.dtype
-        spatial, red = int(spatial), int(red) * num_shards
+        spatial, red = int(spatial), int(red)
+        if param_shape_is_already_sharded:
+            red *= num_shards
         a = te.placeholder((spatial, red), dtype=dtype)
         w = topi.reshape(a, (spatial, num_shards, red // num_shards))
         w = topi.transpose(w, (1, 0, 2))
@@ -61,7 +67,9 @@ def create_shard_info_func(mod, param_manager, args, model_config):
 
     def shard_gate_up_weight_scale(weight: relax.TensorStructInfo):
         (spatial, red), dtype = weight.shape, weight.dtype
-        spatial, red = int(spatial) * num_shards, int(red)
+        spatial, red = int(spatial), int(red)
+        if param_shape_is_already_sharded:
+            spatial *= num_shards
         a = te.placeholder((spatial, red), dtype=dtype)
         g = te.compute((spatial // 2, red), lambda i, j: a[i, j])
         u = te.compute((spatial // 2, red), lambda i, j: a[spatial // 2 + i, j])
