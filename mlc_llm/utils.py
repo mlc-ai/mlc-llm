@@ -1,5 +1,6 @@
 # pylint: disable=missing-docstring,invalid-name
 import argparse
+import functools
 import json
 import os
 import shutil
@@ -15,6 +16,24 @@ from .relax_model import param_manager
 supported_model_types = set(
     ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj", "chatglm", "mistral", "stablelm_epoch"]
 )
+
+
+def wrap_tqdm_counter(func, **tqdm_kwargs):
+    # tqdm isn't a hard requirement, so return the original function
+    # if it isn't available.
+    try:
+        from tqdm import tqdm
+    except ImportError:
+        return func
+
+    pbar = tqdm(**tqdm_kwargs)
+
+    @functools.wraps(func)
+    def inner(*args, **kwargs):
+        pbar.update(1)
+        return func(*args, **kwargs)
+
+    return inner
 
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
@@ -198,6 +217,12 @@ def convert_weights(
     # memory usage when loading torch weights as well as acceleration.
     mod_transform = param_mgr.create_parameter_transformation()
 
+    # Save the number of parameters before we lower mod_transform, so
+    # we can use them in the progress bar.
+    transform_func = mod_transform["transform_params"]
+    num_original_params = len(transform_func.params[0].struct_info.fields)
+    num_transformed_params = len(transform_func.struct_info.ret.fields)
+
     # Remove the dataflow block inside the param transform function,
     # so that the LazyTransformParams pass can be applied.
     mod_transform = relax.transform.ToNonDataflow()(mod_transform)
@@ -227,6 +252,14 @@ def convert_weights(
         device,
         device_cpu,
     )
+
+    get_item = wrap_tqdm_counter(
+        get_item, desc="Get old param", position=0, unit="tensors", total=num_original_params
+    )
+    set_item = wrap_tqdm_counter(
+        set_item, desc="Set new param", position=1, unit="tensors", total=num_transformed_params
+    )
+
     tvm.register_func(func_name="get_item", f=get_item, override=True)
     tvm.register_func(func_name="set_item", f=set_item, override=True)
 
