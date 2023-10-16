@@ -147,6 +147,10 @@ class BuildArgs:
         default=-1,
         metadata={"help": "The maximum allowed sequence length for the model."},
     )
+    max_vocab_size: int = field(
+        default=40000,
+        metadata={"help": "The maximum allowed vocabulary size for the model."},
+    )
     target: str = field(
         default="auto",
         metadata={"help": "The target platform to compile the model for."},
@@ -235,6 +239,14 @@ class BuildArgs:
                 "in the future and remove this flag then."
             ),
             "action": "store_true",
+        },
+    )
+    max_batch_size: int = field(
+        default=80,
+        metadata={
+            "help": (
+                "The maximum batch size for build. It has effect only when batching is enabled."
+            ),
         },
     )
     no_cutlass_attn: bool = field(
