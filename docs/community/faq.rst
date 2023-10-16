@@ -13,5 +13,4 @@ This is a list of Frequently Asked Questions (FAQ) about the MLC-LLM. Feel free 
 
 ... Why do I encounter an error ``free(): invalid pointer, Aborted (core dumped)`` at the end of model compilation?
    This happens if you compiled TVM-Unity from source and didn't hide LLVM symbols in cmake configurations.
-   Please follow our instructions in :ref:`Building TVM Unity from Source  <tvm-unity-build-from-source>` tutorial to compile TVM-Unity which hides LLVM symbols,
-   or use our pre-builc MLC-AI pip wheels from `MLC Packages <https://mlc.ai/package/>`__.
+   Please follow our instructions in :ref:`Building TVM Unity from Source  <tvm-unity-build-from-source>` tutorial to compile TVM-Unity which hides LLVM symbols, or use our pre-built MLC-LLM :doc:`pip wheels <../install/mlc_llm>`.
