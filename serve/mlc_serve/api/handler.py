@@ -1,10 +1,10 @@
 import time
 import uuid
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, AsyncIterator
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 # TODO(amalyshe): hadnle random_seed
 # from .base import set_global_random_seed
@@ -12,12 +12,20 @@ from ..api.protocol import (
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatCompletionResponseChoice,
+    ChatCompletionResponseStreamChoice,
+    ChatCompletionStreamResponse,
     ChatMessage,
+    DeltaMessage,
     ErrorResponse,
     UsageInfo,
 )
 from ..engine.async_connector import AsyncEngineConnector
-from ..engine.types import Request, SamplingParams, StoppingCriteria
+from ..engine.types import (
+    Request,
+    SamplingParams,
+    StoppingCriteria,
+    TextGenerationOutput,
+)
 from .dependencies import get_async_engine_connector
 
 
@@ -75,70 +83,113 @@ async def request_completion(
                 """
         )
 
-    if request.stream:
-        # TODO(amalyshe): handle streamed requests
+    request_id = f"cmpl-{random_uuid()}"
+    model_name = request.model
+    try:
+        sampling_params = _get_sampling_params(request)
+    except ValueError as e:
         raise ValueError(
             """
-                Streamsed requests are not supported yet
-                """
+            issues with sampling parameters
+            """
+        )
+
+    result_generator = async_engine_connector.generate(
+        Request(
+            request_id=request_id,
+            prompt=request.messages,
+            sampling_params=sampling_params,
+            stopping_criteria=StoppingCriteria(max_tokens=request.max_tokens),
+        )
+    )
+
+    if request.stream:
+        return StreamingResponse(
+            generate_completion_stream(request_id, model_name, result_generator),
+            media_type="text/event-stream",
         )
     else:
-        request_id = f"cmpl-{random_uuid()}"
-        created_time = int(time.time())
-        model_name = request.model
-        try:
-            sampling_params = _get_sampling_params(request)
-        except ValueError as e:
-            raise ValueError(
-                """
-                issues with sampling parameters
-                """
-            )
+        return await collect_result_stream(request_id, model_name, result_generator)
 
-        result_generator = async_engine_connector.generate(
-            Request(
-                request_id=request_id,
-                prompt=request.messages,
-                sampling_params=sampling_params,
-                stopping_criteria=StoppingCriteria(max_tokens=request.max_tokens),
-            )
-        )
 
-        # Non-streaming response
-        outputs = []
-        async for res in result_generator:
-            # TODO: verify that the request cancellation happens after this returns
-            outputs.append(res.delta)
-        if not outputs:
-            return create_error_response(
-                HTTPStatus.INTERNAL_SERVER_ERROR, "No text generated"
-            )
+async def generate_completion_stream(
+    request_id: str,
+    model_name: str,
+    result_generator: AsyncIterator[TextGenerationOutput],
+) -> AsyncIterator[str]:
+    created_time = int(time.time())
 
-        choices = []
-        choice_data = ChatCompletionResponseChoice(
+    def create_stream_response(delta_text: str) -> ChatCompletionStreamResponse:
+        choice_data = ChatCompletionResponseStreamChoice(
             index=0,
-            message=ChatMessage(role="assistant", content="".join(outputs)),
-            finish_reason=res.finish_reason,
+            delta=DeltaMessage(role="assistant", content=delta_text),
+            finish_reason=None,
         )
-        choices.append(choice_data)
-
-        # TODO(amalyshe): prompt tokens is also required for openapi output
-        # num_prompt_tokens = len(final_res.prompt_token_ids)
-        # num_generated_tokens = sum(
-        #     len(output.token_ids) for output in final_res.outputs)
-        num_prompt_tokens = 1
-        num_generated_tokens = 5
-        usage = UsageInfo(
-            prompt_tokens=num_prompt_tokens,
-            completion_tokens=num_generated_tokens,
-            total_tokens=num_prompt_tokens + num_generated_tokens,
-        )
-        response = ChatCompletionResponse(
+        return ChatCompletionStreamResponse(
             id=request_id,
             created=created_time,
             model=model_name,
-            choices=choices,
-            usage=usage,
+            choices=[choice_data],
         )
 
-        return response
+    chunk = create_stream_response("")
+    yield f"data: {chunk.json(exclude_unset=True, ensure_ascii=False)}\n\n"
+
+    async for res in result_generator:
+        chunk = create_stream_response(
+            delta_text=res.delta,
+        )
+        yield f"data: {chunk.json(exclude_unset=True, ensure_ascii=False)}\n\n"
+
+        if res.finish_reason is not None:
+            chunk = create_stream_response("")
+            chunk.choices[0].delta = DeltaMessage()
+            chunk.choices[0].finish_reason = res.finish_reason
+            yield f"data: {chunk.json(exclude_unset=True, ensure_ascii=False)}\n\n"
+
+    yield "data: [DONE]\n\n"
+
+
+async def collect_result_stream(
+    request_id: str,
+    model_name: str,
+    result_generator: AsyncIterator[TextGenerationOutput],
+) -> ChatCompletionResponse:
+    created_time = int(time.time())
+    outputs = []
+    async for res in result_generator:
+        # TODO: verify that the request cancellation happens after this returns
+        outputs.append(res.delta)
+    if not outputs:
+        return create_error_response(
+            HTTPStatus.INTERNAL_SERVER_ERROR, "No text generated"
+        )
+
+    choices = []
+    choice_data = ChatCompletionResponseChoice(
+        index=0,
+        message=ChatMessage(role="assistant", content="".join(outputs)),
+        finish_reason=res.finish_reason,
+    )
+    choices.append(choice_data)
+
+    # TODO(amalyshe): prompt tokens is also required for openapi output
+    # num_prompt_tokens = len(final_res.prompt_token_ids)
+    # num_generated_tokens = sum(
+    #     len(output.token_ids) for output in final_res.outputs)
+    num_prompt_tokens = 1
+    num_generated_tokens = 5
+    usage = UsageInfo(
+        prompt_tokens=num_prompt_tokens,
+        completion_tokens=num_generated_tokens,
+        total_tokens=num_prompt_tokens + num_generated_tokens,
+    )
+    response = ChatCompletionResponse(
+        id=request_id,
+        created=created_time,
+        model=model_name,
+        choices=choices,
+        usage=usage,
+    )
+
+    return response

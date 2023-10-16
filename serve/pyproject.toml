@@ -7,7 +7,7 @@ dynamic = ["version"]
 dependencies = ["fastapi==0.103.1"]
 
 [project.optional-dependencies]
-test = ["pytest~=7.4.2"]
+test = ["pytest~=7.4.2", "httpx_sse~=0.3.1"]
 
 [tool.setuptools]
 packages = ["mlc_serve"]
