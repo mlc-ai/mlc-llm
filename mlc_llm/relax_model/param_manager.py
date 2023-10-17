@@ -740,7 +740,7 @@ class ParamReplacer(PyExprMutator):
     """
 
     mod: tvm.IRModule
-    func_name_to_quantized_params: Dict[str, relax.Var]
+    func_name_to_quantized_params: Dict[str, List[relax.Var]]
     f_replace: Callable[[relax.Var, relax.BlockBuilder], relax.Var]
     param_set: Set[relax.Var]
 
