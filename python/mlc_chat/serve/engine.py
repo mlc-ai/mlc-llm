@@ -4,7 +4,8 @@ from typing import List, Optional, Union
 
 import tvm
 
-from .config import KVCacheConfig
+from . import data
+from .config import GenerationConfig, KVCacheConfig
 from .request import Request
 
 
@@ -107,6 +108,81 @@ class Engine:
 
         # Load the engine with the input models and KV cache config.
         self._reload(models, kv_cache_config)
+
+    def generate(
+        self,
+        prompts: Union[str, List[str], List[int], List[List[int]]],
+        generation_config: Union[GenerationConfig, List[GenerationConfig]],
+    ) -> List[str]:
+        """Generate texts for a list of input prompts.
+        Each prompt can be a string or a list of token ids.
+        The generation for each prompt is independent.
+        Return the generation results, one for each prompt.
+
+        Parameters
+        ----------
+        prompts : Union[str, List[str], List[int], List[List[int]]]
+            One or a list of input prompts for text generation.
+            Each prompt can be a string or a list of token ids.
+
+        Returns
+        -------
+        results : List[str]
+            The text generation results, one string for each input prompt.
+        """
+        if isinstance(prompts, str):
+            # `prompts` is a single string.
+            prompts = [prompts]
+        else:
+            assert isinstance(prompts, list), (
+                "Input `prompts` is expected to be a string, a list of "
+                "str, a list of token ids or multiple lists of token ids."
+            )
+            if len(prompts) == 0:
+                return []
+            if isinstance(prompts[0], int):
+                # `prompts` is a list of token ids
+                prompts = [prompts]
+
+        num_requests = len(prompts)
+        if not isinstance(generation_config, list):
+            generation_config = [generation_config] * num_requests
+
+        assert (
+            len(generation_config) == num_requests
+        ), "Number of generation config and number of prompts mismatch"
+
+        num_finished_requests = 0
+        outputs = [None] * num_requests
+
+        # Define the callback function for request generation results
+        def callback_getter(req_id: int):
+            def fcallback(request: Request, output: data.Data):
+                nonlocal num_finished_requests
+                outputs[req_id] = output
+                num_finished_requests += 1
+
+            return fcallback
+
+        # Add requests to engine.
+        for req_id, (prompt, generation_cfg) in enumerate(zip(prompts, generation_config)):
+            input = data.TextData(prompt) if isinstance(prompt, str) else data.TokenData(prompt)
+            self.add_request(
+                Request(
+                    inputs=input,
+                    generation_config=generation_cfg,
+                    fcallback=callback_getter(req_id),
+                )
+            )
+
+        while num_finished_requests != num_requests:
+            self.step()
+
+        output_strs = []
+        for output in outputs:
+            assert isinstance(output, data.TextData)
+            output_strs.append(output.text)
+        return output_strs
 
     def add_request(self, request: Request) -> None:
         """Add a new request to the engine.

@@ -4,6 +4,19 @@ import numpy as np
 from mlc_chat.serve import GenerationConfig, KVCacheConfig, Request, data
 from mlc_chat.serve.engine import Engine, ModelInfo
 
+prompts = [
+    "What is the meaning of life?",
+    "Introduce the history of Pittsburgh to me. Please elaborate in detail.",
+    "Write a three-day Seattle travel plan. Please elaborate in detail.",
+    "What is Alaska famous of? Please elaborate in detail.",
+    "What is the difference between Lambda calculus and Turing machine? Please elaborate in detail.",
+    "What are the necessary components to assemble a desktop computer? Please elaborate in detail.",
+    "Why is Vitamin D important to human beings? Please elaborate in detail.",
+    "Where is milk tea originated from? Please elaborate in detail.",
+    "Where is the southernmost place in United States? Please elaborate in detail.",
+    "Do you know AlphaGo? What capabilities does it have, and what achievements has it got? Please elaborate in detail.",
+]
+
 
 def create_requests(
     num_requests: int,
@@ -14,19 +27,6 @@ def create_requests(
     max_new_tokens_low: int = 256,
     max_new_tokens_high: int = 257,
 ) -> List[Request]:
-    prompts = [
-        "What is the meaning of life?",
-        "Introduce the history of Pittsburgh to me. Please elaborate in detail.",
-        "Write a three-day Seattle travel plan. Please elaborate in detail.",
-        "What is Alaska famous of? Please elaborate in detail.",
-        "What is the difference between Lambda calculus and Turing machine? Please elaborate in detail.",
-        "What are the necessary components to assemble a desktop computer? Please elaborate in detail.",
-        "Why is Vitamin D important to human beings? Please elaborate in detail.",
-        "Where is milk tea originated from? Please elaborate in detail.",
-        "Where is the southernmost place in United States? Please elaborate in detail.",
-        "Do you know AlphaGo? What capabilities does it have, and what achievements has it got? Please elaborate in detail.",
-    ]
-
     assert num_requests >= 0 and num_requests <= len(prompts)
 
     stop_tokens = [stop_token] if stop_token is not None else []
@@ -340,8 +340,28 @@ def test_engine_continuous_batching_3():
         assert isinstance(output, data.TextData)
 
 
+def test_engine_generate():
+    # Initialize model loading info and KV cache config
+    model = ModelInfo("Llama-2-7b-chat-hf-q4f16_1")
+    kv_cache_config = KVCacheConfig(page_size=16)
+    # Create engine
+    engine = Engine(model, kv_cache_config)
+
+    num_requests = 10
+    max_new_tokens = 256
+
+    # Generate output.
+    outputs = engine.generate(
+        prompts[:num_requests], GenerationConfig(max_new_tokens=max_new_tokens)
+    )
+    for req_id, output in enumerate(outputs):
+        print(f"Prompt {req_id}: {prompts[req_id]}")
+        print(f"Output {req_id}:{output}\n")
+
+
 if __name__ == "__main__":
     test_engine_basic()
     test_engine_continuous_batching_1()
     test_engine_continuous_batching_2()
     test_engine_continuous_batching_3()
+    test_engine_generate()
