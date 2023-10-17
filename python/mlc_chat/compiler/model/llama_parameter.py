@@ -4,14 +4,12 @@ PyTorch, HuggingFace safetensors.
 """
 import numpy as np
 
-from mlc_llm.param_loader import ParameterMapping
-
+from ..parameter import ExternMapping
 from .llama import LlamaConfig, LlamaForCasualLM
 
 
-def hf_torch(model_config: LlamaConfig) -> ParameterMapping:
-    """
-    Returns a parameter mapping that maps from the names of MLC LLM parameters to
+def hf_torch(model_config: LlamaConfig) -> ExternMapping:
+    """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
     Parameters
@@ -21,14 +19,14 @@ def hf_torch(model_config: LlamaConfig) -> ParameterMapping:
 
     Returns
     -------
-    param_map : ParameterMapping
+    param_map : ExternMapping
         The parameter mapping from MLC to HuggingFace PyTorch.
     """
     model = LlamaForCasualLM(model_config)
     _, named_params = model.export_tvm(spec=model.get_default_spec())
     parameter_names = {name for name, _ in named_params}
 
-    name_map = {}
+    param_map = {}
     map_func = {}
     unused_params = set()
 
@@ -37,7 +35,7 @@ def hf_torch(model_config: LlamaConfig) -> ParameterMapping:
         attn = f"model.layers.{i}.self_attn"
         assert f"{attn}.qkv_proj.weight" in parameter_names
         map_func[f"{attn}.qkv_proj.weight"] = lambda q, k, v: np.concatenate([q, k, v], axis=0)
-        name_map[f"{attn}.qkv_proj.weight"] = (
+        param_map[f"{attn}.qkv_proj.weight"] = (
             f"{attn}.q_proj.weight",
             f"{attn}.k_proj.weight",
             f"{attn}.v_proj.weight",
@@ -46,7 +44,7 @@ def hf_torch(model_config: LlamaConfig) -> ParameterMapping:
         mlp = f"model.layers.{i}.mlp"
         assert f"{mlp}.gate_up_proj.weight" in parameter_names
         map_func[f"{mlp}.gate_up_proj.weight"] = lambda gate, up: np.concatenate([gate, up], axis=0)
-        name_map[f"{mlp}.gate_up_proj.weight"] = (
+        param_map[f"{mlp}.gate_up_proj.weight"] = (
             f"{mlp}.gate_proj.weight",
             f"{mlp}.up_proj.weight",
         )
@@ -56,5 +54,5 @@ def hf_torch(model_config: LlamaConfig) -> ParameterMapping:
     for name in parameter_names:
         if name not in map_func:
             map_func[name] = lambda x: x
-            name_map[name] = (name,)
-    return ParameterMapping(name_map, map_func, unused_params)
+            param_map[name] = (name,)
+    return ExternMapping(param_map, map_func, unused_params)
