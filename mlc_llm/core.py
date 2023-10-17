@@ -405,6 +405,7 @@ def mod_transform_before_build(
         hasattr(config, "num_attention_heads")
         and hasattr(config, "hidden_size")
         and hasattr(config, "position_embedding_base")
+        and getattr(config, "dtype", "float16") == "float16"
     ):
         max_seq_len = None
         if args.max_seq_len > 0:
