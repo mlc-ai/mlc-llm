@@ -318,7 +318,6 @@ class MistralAttention(nn.Module):
         self,
         hidden_states: relax.Expr,
         all_seq_len_shape: relax.Expr,
-        kv_seq_len_shape: relax.Expr,
         past_key_value: Tuple[relax.Expr],
         attention_mask: Optional[relax.Expr] = None,
     ) -> Tuple[relax.Expr, Optional[relax.Expr], Optional[Tuple[relax.Expr]]]:
@@ -375,7 +374,8 @@ class MistralAttention(nn.Module):
         )
 
         all_seq_len = all_seq_len_shape.struct_info.values[0]
-        kv_seq_len = kv_seq_len_shape.struct_info.values[0]
+        # number of elements in cache excluding current input
+        kv_seq_len = min(all_seq_len - q_len, self.sliding_window)
         offset = all_seq_len - q_len
         query, key_cur = apply_rotary_pos_emb(
             query,
@@ -403,7 +403,7 @@ class MistralAttention(nn.Module):
 
         tvm.ir.assert_structural_equal(
             attention_mask.struct_info.shape.values,
-            (bsz, tvm.tir.IntImm("int64", 1), q_len, kv_seq_len),
+            (bsz, tvm.tir.IntImm("int64", 1), q_len, kv_seq_len + q_len),
         )
 
         attn_weights = nn.emit(
@@ -472,7 +472,6 @@ class MistralDecoderLayer(nn.Module):
         self,
         hidden_states: relax.Expr,
         all_seq_len_shape: relax.Expr,
-        kv_seq_len_shape: relax.Expr,
         past_key_value: Tuple[relax.Expr],
         attention_mask: Optional[relax.Expr] = None,
     ) -> Tuple[relax.Expr, Optional[Tuple[relax.Expr, relax.Expr]]]:
@@ -486,7 +485,6 @@ class MistralDecoderLayer(nn.Module):
             past_key_value=past_key_value,
             attention_mask=attention_mask,
             all_seq_len_shape=all_seq_len_shape,
-            kv_seq_len_shape=kv_seq_len_shape,
         )
         if self.self_attn.num_shards > 1:
             residual = nn.emit(
@@ -586,7 +584,6 @@ class MistralModel(nn.Module):
         self,
         inputs: relax.Expr,
         all_seq_len_shape: relax.Expr,
-        kv_seq_len_shape: relax.Expr,
         past_key_values: relax.Expr,
     ):
         if self.num_shards > 1:
@@ -599,7 +596,9 @@ class MistralModel(nn.Module):
         batch_size, seq_length, _ = inputs_embeds.struct_info.shape
 
         #  TODO fix causal mask
-        kv_seq_len = kv_seq_len_shape.struct_info.values[0]
+        all_seq_len = all_seq_len_shape.struct_info.values[0]
+        # number of elements in cache excluding current input
+        kv_seq_len = min(all_seq_len - seq_length, self.sliding_window)
         # embed positions
         attention_mask = _make_sliding_window_mask(
             (batch_size, seq_length),
@@ -622,7 +621,6 @@ class MistralModel(nn.Module):
                 attention_mask=attention_mask,
                 past_key_value=past_key_value,
                 all_seq_len_shape=all_seq_len_shape,
-                kv_seq_len_shape=kv_seq_len_shape,
             )
             next_decoder_cache += key_value_cache
 
@@ -652,13 +650,11 @@ class MistralForCausalLM(nn.Module):
         self,
         inputs: relax.Expr,
         all_seq_len_shape: relax.Expr,
-        kv_seq_len_shape: relax.Expr,
         past_key_values: relax.Expr,
     ):
         hidden_states, key_value_cache = self.model(
             inputs=inputs,
             all_seq_len_shape=all_seq_len_shape,
-            kv_seq_len_shape=kv_seq_len_shape,
             past_key_values=past_key_values,
         )
 
@@ -725,7 +721,8 @@ def create_encoding_func(
     bsz = 1
     seq_len = tvm.tir.Var("n", "int64")  # number of tokens for the input
     all_seq_len = tvm.tir.Var("m", "int64")  # total_seq_len in `llm_chat.cc` (including seq_len)
-    kv_seq_len = tvm.tir.Var("c", "int64")  # number of elements in cache (excluding seq_len)
+    # kv_seq_len captures number of elements in cache (excluding seq_len)
+    # kv_seq_len = min(all_seq_len - seq_len, sliding_window)
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = MistralForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), sep_embed)
@@ -737,7 +734,6 @@ def create_encoding_func(
             else nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
         )
         all_seq_len_shape = relax.Var("all_seq_len", relax.ShapeStructInfo((all_seq_len,)))
-        kv_seq_len_shape = relax.Var("kv_seq_len", relax.ShapeStructInfo((kv_seq_len,)))
         past_key_values = relax.Var(
             "kv_cache",
             relax.TupleStructInfo(
@@ -746,12 +742,11 @@ def create_encoding_func(
         )
         with bb.dataflow():
             logits, key_value_cache = model(
-                inputs, all_seq_len_shape, kv_seq_len_shape, past_key_values=past_key_values
+                inputs, all_seq_len_shape, past_key_values=past_key_values
             )
             params = [
                 inputs,
                 all_seq_len_shape,
-                kv_seq_len_shape,
                 past_key_values,
             ] + model.parameters()
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
@@ -772,7 +767,6 @@ def create_decoding_func(
 
     bsz = 1
     all_seq_len = tvm.tir.Var("m", "int64")
-    kv_seq_len = tvm.tir.Var("c", "int64")
 
     with bb.function(func_name):
         model = MistralForCausalLM(config, tvm.tir.Var("vocab_size", "int64"))
@@ -780,7 +774,6 @@ def create_decoding_func(
 
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
         all_seq_len_shape = relax.Var("all_seq_len", relax.ShapeStructInfo((all_seq_len,)))
-        kv_seq_len_shape = relax.Var("kv_seq_len", relax.ShapeStructInfo((kv_seq_len,)))
         past_key_values = relax.Var(
             "kv_cache",
             relax.TupleStructInfo(
@@ -789,12 +782,11 @@ def create_decoding_func(
         )
         with bb.dataflow():
             logits, key_value_cache = model(
-                input_ids, all_seq_len_shape, kv_seq_len_shape, past_key_values=past_key_values
+                input_ids, all_seq_len_shape, past_key_values=past_key_values
             )
             params = [
                 input_ids,
                 all_seq_len_shape,
-                kv_seq_len_shape,
                 past_key_values,
             ] + model.parameters()
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
