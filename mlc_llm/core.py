@@ -23,6 +23,7 @@ from mlc_llm.relax_model import (
     gptj,
     llama,
     minigpt,
+    mistral,
     param_manager,
     rwkv,
 )
@@ -588,7 +589,7 @@ def build_model_from_args(args: argparse.Namespace):
         if args.model_category == "llama":
             mod, param_manager, params, model_config = llama.get_model(args, config)
         elif args.model_category == "mistral":
-            mod, param_manager, params, model_config = llama.get_model(args, config)
+            mod, param_manager, params, model_config = mistral.get_model(args, config)
         elif args.model_category == "gpt_neox":
             mod, param_manager, params, model_config = gpt_neox.get_model(args, config)
         elif args.model_category == "gpt_bigcode":

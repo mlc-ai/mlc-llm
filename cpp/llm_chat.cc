@@ -439,6 +439,11 @@ class LLMChat {
       this->max_window_size_ =
           std::min(this->max_window_size_, config["max_window_size"].get<int64_t>());
     }
+    if (config.count("sliding_window")) {
+      CHECK(config["sliding_window"].is<int64_t>());
+      this->sliding_window_ =
+          std::min(this->sliding_window_, config["sliding_window"].get<int64_t>());
+    }
     if (config.count("model_name")) {
       CHECK(config["model_name"].is<std::string>());
       this->model_name_ = config["model_name"].get<std::string>();
@@ -1170,9 +1175,9 @@ class LLMChat {
   Conversation conversation_;
   // total sequence len,
   int64_t total_seq_len_{0};
-  // max window size, mean generation length
+  // max window size, mean and max generation length, sliding window
   int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128},
-      max_gen_len_{512};
+      max_gen_len_{512}, sliding_window_{std::numeric_limits<int64_t>::max()};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference
