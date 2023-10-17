@@ -279,19 +279,20 @@ class MistralAttention(nn.Module):
         self,
         key_cur: relax.Expr,
         value_cur: relax.Expr,
-        past_key_value: Tuple[relax.Expr],
         kv_seq_len: int,
+        cache_pos: int,
+        past_key_value: Tuple[relax.Expr],
     ):
-        from tvm.relax.op import reshape
+        from tvm.relax.op import reshape, squeeze
 
         # [bsz, t, nh, hd]
-        kv_states_shape = key_cur.struct_info.shape
-        kv_states_dtype = key_cur.struct_info.dtype
-        assert kv_states_shape[0] == 1  # bsz
-        kv_states_shape = R.shape(
-            [kv_states_shape[0], kv_seq_len, kv_states_shape[2], kv_states_shape[3]]
+        kv_cur_shape = key_cur.struct_info.shape
+        kv_cur_dtype = key_cur.struct_info.dtype
+        assert kv_cur_shape[0] == 1  # bsz
+        kv_batched_cache_shape = R.shape(
+            [kv_cur_shape[0], kv_seq_len, kv_cur_shape[2], kv_cur_shape[3]]
         )
-        kv_cache_shape = R.shape([kv_seq_len, kv_states_shape[2], kv_states_shape[3]])
+        kv_cache_shape = R.shape([kv_seq_len, kv_cur_shape[2], kv_cur_shape[3]])
 
         # fecth past keys and values from cache
         k_cache, v_cache = past_key_value
@@ -301,18 +302,58 @@ class MistralAttention(nn.Module):
             relax.Call(
                 f_kv_cache_view,
                 args=[k_cache, kv_cache_shape],
-                sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
+                sinfo_args=[R.Tensor(kv_cache_shape, kv_cur_dtype)],
             )
         )
         value_cached = nn.emit(
             relax.Call(
                 f_kv_cache_view,
                 args=[v_cache, kv_cache_shape],
-                sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
+                sinfo_args=[R.Tensor(kv_cache_shape, kv_cur_dtype)],
             )
         )
-        key_cached = nn.emit(reshape(key_cached, kv_states_shape))
-        value_cached = nn.emit(reshape(value_cached, kv_states_shape))
+        key_cached = nn.emit(reshape(key_cached, kv_batched_cache_shape))
+        value_cached = nn.emit(reshape(value_cached, kv_batched_cache_shape))
+
+        def te_unrotate_concat(x, x_cached, cache_pos):
+            return te.compute(
+                (kv_cur_shape[0], kv_seq_len + kv_cur_shape[1], kv_cur_shape[2], kv_cur_shape[3]),
+                lambda b, s, h, d: te.if_then_else(
+                    s < kv_seq_len - cache_pos,
+                    x_cached[b, cache_pos+s, h, d],
+                    te.if_then_else(
+                        s < kv_seq_len,
+                        x_cached[b, s+cache_pos-kv_seq_len, h, d],
+                        x[b, s-kv_seq_len, h, d],
+                    ),
+                ),
+                name="unrotate_concat_te",
+            )
+        
+        key = nn.emit_te(te_unrotate_concat, key_cur, key_cached, cache_pos, primfunc_name_hint="te_unrotate_concat_key")
+        value = nn.emit_te(te_unrotate_concat, value_cur, value_cached, cache_pos, primfunc_name_hint="te_unrotate_concat_value")
+
+        # update cache
+        k_cache, v_cache = past_key_value
+        squeezed_key = nn.emit(squeeze(key_cur))
+        squeezed_value = nn.emit(squeeze(value_cur))
+        f_kv_cache_overwrite = relax.extern("vm.builtin.attention_kv_cache_overwrite")
+        k_cache = nn.emit(
+            relax.Call(
+                f_kv_cache_overwrite,
+                args=[k_cache, squeezed_key, relax.PrimValue(self.sliding_window)],
+                sinfo_args=[relax.ObjectStructInfo()],
+            )
+        )
+        v_cache = nn.emit(
+            relax.Call(
+                f_kv_cache_overwrite,
+                args=[v_cache, squeezed_value, relax.PrimValue(self.sliding_window)],
+                sinfo_args=[relax.ObjectStructInfo()],
+            )
+        )
+
+        return key, value, (k_cache, v_cache)
 
     def forward(
         self,
@@ -376,6 +417,7 @@ class MistralAttention(nn.Module):
         all_seq_len = all_seq_len_shape.struct_info.values[0]
         # number of elements in cache excluding current input
         kv_seq_len = min(all_seq_len - q_len, self.sliding_window)
+        cache_pos = (all_seq_len - q_len) %  self.sliding_window
         offset = all_seq_len - q_len
         query, key_cur = apply_rotary_pos_emb(
             query,
@@ -385,7 +427,7 @@ class MistralAttention(nn.Module):
         )
 
         # concat current kv with cached kv (unrotating the cache)
-        key, value = self.interleave_kv(key_cur, value_cur, past_key_value, kv_seq_len)
+        key, value, past_key_value = self.interleave_kv(key_cur, value_cur, kv_seq_len, cache_pos, past_key_value)
 
         if self.num_key_value_heads != self.num_query_heads:
             n_rep = self.num_query_heads // self.num_key_value_heads
@@ -431,27 +473,6 @@ class MistralAttention(nn.Module):
         )
 
         attn_output = self.o_proj(attn_output)
-
-        # update cache
-        k_cache, v_cache = past_key_value
-        squeezed_key = nn.emit(squeeze(key_cur, axis=0))
-        squeezed_value = nn.emit(squeeze(value_cur, axis=0))
-        f_kv_cache_overwrite = relax.extern("vm.builtin.attention_kv_cache_overwrite")
-        k_cache = nn.emit(
-            relax.Call(
-                f_kv_cache_overwrite,
-                args=[k_cache, squeezed_key, self.sliding_window],
-                sinfo_args=[relax.ObjectStructInfo()],
-            )
-        )
-        v_cache = nn.emit(
-            relax.Call(
-                f_kv_cache_overwrite,
-                args=[v_cache, squeezed_value, self.sliding_window],
-                sinfo_args=[relax.ObjectStructInfo()],
-            )
-        )
-        past_key_value = (k_cache, v_cache)
 
         return attn_output, ((None, None) if past_key_value is None else past_key_value)
 
