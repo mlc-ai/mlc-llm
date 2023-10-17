@@ -17,7 +17,7 @@ def pattern_check(ctx: relax.transform.PatternCheckContext) -> bool:
     return "take" in take.args[0].name_hint and "decode" in decode.args[0].name_hint
 
 
-def decode_take_pattern(n_aux_tensor: int):
+def decode_take_pattern(n_aux_tensor: int, match_tir_vars: bool):
     aux_tensors = [wildcard(), wildcard(), wildcard()]
     decode = is_op("relax.call_tir")(
         GlobalVarPattern(),
@@ -26,9 +26,10 @@ def decode_take_pattern(n_aux_tensor: int):
     )
     indices = ~is_const()
     take_args = [decode, indices]
-    take = is_op("relax.call_tir")(
-        GlobalVarPattern(), TuplePattern(take_args), add_constraint=False
-    )
+    call_tir_args_take = [GlobalVarPattern(), TuplePattern(take_args)]
+    if match_tir_vars:
+        call_tir_args_take.append(wildcard())
+    take = is_op("relax.call_tir")(*call_tir_args_take, add_constraint=False)
 
     annotations = {
         "take": take,
@@ -41,18 +42,17 @@ def decode_take_pattern(n_aux_tensor: int):
 
 @tvm.transform.module_pass(opt_level=0, name="FuseDecodeTake")
 class FuseDecodeTake:
-    def transform_module(
-        self, mod: IRModule, ctx: tvm.transform.PassContext
-    ) -> IRModule:
+    def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:
         for n_aux_tensor in [2, 3]:
-            mod = relax.transform.FuseOpsByPattern(
-                [
-                    (
-                        "decode_take",
-                        *decode_take_pattern(n_aux_tensor),
-                    )
-                ]
-            )(mod)
+            for match_tir_vars in [False, True]:
+                mod = relax.transform.FuseOpsByPattern(
+                    [
+                        (
+                            "decode_take",
+                            *decode_take_pattern(n_aux_tensor, match_tir_vars),
+                        )
+                    ]
+                )(mod)
         mod = relax.transform.FuseTIR()(mod)
 
         for gv, func in mod.functions.items():
@@ -61,9 +61,9 @@ class FuseDecodeTake:
             if "fused_decode" not in gv.name_hint or "take" not in gv.name_hint:
                 continue
 
-            downcasted_mod = tir.transform.ForceNarrowIndexToInt32()(
-                tvm.IRModule({"main": func})
-            )["main"]
+            downcasted_mod = tir.transform.ForceNarrowIndexToInt32()(tvm.IRModule({"main": func}))[
+                "main"
+            ]
             sch = tir.Schedule(downcasted_mod)
             sch.compute_inline("decode")
             mod[gv] = sch.mod["main"]

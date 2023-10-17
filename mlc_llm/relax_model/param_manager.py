@@ -13,6 +13,7 @@ from tvm.relax.testing import nn
 
 from .. import quantization
 from .modules import named_parameters
+from ..transform import ReorderTransformFunc
 
 
 def f_default_compute_relax_param(relax_pname: str, torch_params: List[Any]) -> Any:
@@ -273,6 +274,31 @@ class ParamManager:
             )
 
             self.params_in_func[func_name].append(param)
+
+    def run_pre_quantize(self, model_path: str):
+        if self.f_run_prequantize is not None:
+            model_path = self.f_run_prequantize(model_path)
+
+        self.model_path = model_path
+        return model_path
+
+    def init_torch_pname_to_bin_name(self, use_safetensors: bool):
+        assert hasattr(self, "model_path"), (
+            "Must call either set_param_loading_func or run_pre_quantize "
+            "before init_torch_pname_to_bin_name"
+        )
+
+        if self.pidx2pname:
+            mapping = load_torch_pname2binname_map(
+                self.model_path,
+                use_safetensors,
+                set(self.pidx2pname.values()),
+                self.f_convert_pname_fwd,
+            )
+        else:
+            mapping = {}
+
+        self.torch_pname2binname = mapping
 
     def set_param_loading_func(
         self,
@@ -726,6 +752,33 @@ class ParamManager:
             # Apply the dequantization function.
             return bb.emit(f_dequantize(bb, qparams))
 
+    def create_parameter_transformation(self, optimize_parameter_order: bool = True):
+        """Produce an IRModule that can transform the parameters
+
+        Parameters
+        ----------
+        optimize_parameter_order: bool
+
+            If true, reorder the parameter transformations to
+            prioritize operations that use a currently-open file.  If
+            false, transform the parameters in their default order.
+
+        Returns
+        -------
+        tvm.IRModule
+            The transformation module
+
+        """
+        mod = _create_quantize_func(self)
+        if optimize_parameter_order:
+            reorder_pass = ReorderTransformFunc(
+                self.pidx2pname,
+                self.torch_pname2binname,
+                self.f_convert_pname_fwd,
+            )
+            mod = reorder_pass(mod)
+        return mod
+
 
 @mutator
 class ParamReplacer(PyExprMutator):
@@ -868,7 +921,7 @@ def load_torch_pname2binname_map(
     return torch_pname2binname
 
 
-def create_quantize_func(param_manager: ParamManager) -> tvm.IRModule:
+def _create_quantize_func(param_manager: ParamManager) -> tvm.IRModule:
     """Construct the Relax function which computes quantization.
     This method is called by `transform_module` below, and is not
     directly invoked outside the class.
