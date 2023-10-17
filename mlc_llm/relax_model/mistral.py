@@ -510,67 +510,34 @@ class MistralDecoderLayer(nn.Module):
         return hidden_states, present_key_value
 
 
-def _make_sliding_window_prefill_mask(input_ids_shape, dtype, src_len, sliding_window):
-    # Based on the Mistral paper figure 3
-    # Two cases: first prefill, and subsequent prefill
-    # 1. if cache_len == 0, first prefill, since there is nothing in cache
-    # If tgt_len <= sliding_window, this is just a normal causal mask
-    # Otherwise, e.g. tgt_len = 3, WS = 2, we create a mask below:
-    # 1, 0, 0
-    # 1, 1, 0
-    # 0, 1, 1
-
-    # 2. If cache_len > 0, subsequent prefill
-    # e.g. t0-t4 in cache; current input is t5-t7; WS=5
-    # 0, 1, 2, 3, 4, | 5, 6, 7
-    #
-    # 0, 1, 1, 1, 1, | 1, 0, 0
-    # 0, 0, 1, 1, 1, | 1, 1, 0
-    # 0, 0, 0, 1, 1, | 1, 1, 1
-    #   [in cache]    [current]
-
-    from tvm.relax.op import broadcast_to
-
-    def populate_diag_mask_sliding_window_te(sliding_window, cache_len):
-        return te.compute(
-            (tgt_len, src_len),
-            lambda i, j: tvm.tir.Select(
-                tvm.tir.all(i + cache_len >= j, i + cache_len - j < sliding_window),
-                tvm.tir.max_value(dtype),
-                tvm.tir.min_value(dtype),
-            ),
-            name="make_diag_mask_sliding_window_te",
-        )
-
-    bsz, tgt_len = input_ids_shape
-    cache_len = src_len - tgt_len  # number of elements in cache
-    mask = nn.emit_te(populate_diag_mask_sliding_window_te, sliding_window, cache_len)
-    diag_mask = nn.emit(broadcast_to(mask, (bsz, 1, tgt_len, src_len)))
-
-    return diag_mask
-
-
-def _make_sliding_window_mask(input_shape, src_len, kv_seq_len, sliding_window, dtype):
+def _make_sliding_window_mask(input_shape, kv_seq_len, sliding_window, dtype):
     # See `tests/python/test_sliding_window_mask.py` for more on its behavior.
-    # tgt_len: input sequence length
-    # src_len: input sequence length + number of cached elements
-    # kv_seq_len: the size of the effective elements in the cache
-    #   (if full, then it is the window size; otherwise it is src_len)
-    # TODO: when elements in cache are overwritten, do we update src_len?
-    # That is, say chunk_size = 5, WS is 3; t2-t4 are in cache, input t5-t9;
-    # hence t0-t2 did not get cached. Is src_len 10 or 8? i.e. is src_len non-decreasing?
+    # [bsz, tgt_len] -> [bsz, 1, tgt_len, tgt_len + kv_seq_len]
+
     bsz, tgt_len = input_shape  # TODO: only support batch size of 1 for now
+    src_len = tgt_len + kv_seq_len  # number of tokens in K when computing QK
 
     if isinstance(tgt_len, tvm.tir.Var) or tgt_len > 1:
-        # Either first prefill, or subsequent prefill
-        # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
-        return _make_sliding_window_prefill_mask(input_shape, dtype, src_len, sliding_window)
+        # Either 1. First prefill, or 2. Subsequent prefill
+        from tvm.relax.op import broadcast_to
+
+        def sliding_window_min_max_te(sliding_window):
+            return te.compute(
+                (tgt_len, src_len),
+                lambda i, j: tvm.tir.Select(
+                    tvm.tir.all(i + kv_seq_len >= j, i + kv_seq_len - j < sliding_window),
+                    tvm.tir.max_value(dtype),
+                    tvm.tir.min_value(dtype),
+                ),
+                name="make_diag_mask_sliding_window_te",
+            )
+
+        mask = nn.emit_te(sliding_window_min_max_te, sliding_window)
+        return nn.emit(broadcast_to(mask, (bsz, 1, tgt_len, src_len)))
+
     else:
-        # Decode (or prefilling a chunk of size 1 is equivalent, same thing)
-        # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+        # 3. Decode (equivalent to prefilling a chunk of size 1)
         # Mask nothing here since WS == cache_size
-        # TODO: then does WS include or exclude the input? Currently target counts as
-        # part of the WS
         bsz, tgt_len = input_shape
         return nn.emit(
             relax.op.full(
@@ -632,12 +599,10 @@ class MistralModel(nn.Module):
         batch_size, seq_length, _ = inputs_embeds.struct_info.shape
 
         #  TODO fix causal mask
-        seq_length_with_past = all_seq_len_shape.struct_info.values[0]
         kv_seq_len = kv_seq_len_shape.struct_info.values[0]
         # embed positions
         attention_mask = _make_sliding_window_mask(
             (batch_size, seq_length),
-            seq_length_with_past,
             kv_seq_len,
             self.sliding_window,
             inputs_embeds.struct_info.dtype,
@@ -758,9 +723,9 @@ def create_encoding_func(
     func_name = "prefill_with_embed" if sep_embed else "prefill"
 
     bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")
-    all_seq_len = tvm.tir.Var("m", "int64")
-    kv_seq_len = tvm.tir.Var("c", "int64")
+    seq_len = tvm.tir.Var("n", "int64")  # number of tokens for the input
+    all_seq_len = tvm.tir.Var("m", "int64")  # total_seq_len in `llm_chat.cc` (including seq_len)
+    kv_seq_len = tvm.tir.Var("c", "int64")  # number of elements in cache (excluding seq_len)
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = MistralForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), sep_embed)

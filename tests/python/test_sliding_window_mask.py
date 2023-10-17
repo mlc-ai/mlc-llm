@@ -13,40 +13,33 @@ def _create_vm():
     # Need these tir.Var because `_prepare_sliding_window_mask` takes in tir.Var instead of relax.Var
     bsz = tvm.tir.Var("bsz", "int64")
     seq_length = tvm.tir.Var("seq_length", "int64")  # tgt_len
-    seq_length_with_past = tvm.tir.Var("seq_length_with_past", "int64")  # src_len
     kv_seq_len = tvm.tir.Var("kv_seq_len", "int64")
-    window_size = tvm.tir.Var("window_size", "int64")
+    sliding_window = tvm.tir.Var("sliding_window", "int64")
 
     with bb.function("main"):
         # Convert to relax.Var because params to an IRModule function needs to be relax.Var
         bsz_shape = relax.Var("bsz", relax.ShapeStructInfo((bsz,)))
         seq_length_shape = relax.Var("seq_length", relax.ShapeStructInfo((seq_length,)))
-        seq_length_with_past_shape = relax.Var(
-            "seq_length_with_past", relax.ShapeStructInfo((seq_length_with_past,))
-        )
         kv_seq_len_shape = relax.Var("kv_seq_len", relax.ShapeStructInfo((kv_seq_len,)))
-        window_size_shape = relax.Var("window_size", relax.ShapeStructInfo((window_size,)))
+        sliding_window_shape = relax.Var("sliding_window", relax.ShapeStructInfo((sliding_window,)))
 
         # Convert back to tir.Var since `_prepare_sliding_window_mask` needs it to be tir.Var
         with bb.dataflow():
             bsz_input = bsz_shape.struct_info.values[0]
             seq_length_input = seq_length_shape.struct_info.values[0]
-            seq_length_with_past_input = seq_length_with_past_shape.struct_info.values[0]
             kv_seq_len_input = kv_seq_len_shape.struct_info.values[0]
-            window_size_input = window_size_shape.struct_info.values[0]
+            sliding_window_input = sliding_window_shape.struct_info.values[0]
             mask = _make_sliding_window_mask(
                 (bsz_input, seq_length_input),
-                seq_length_with_past_input,
                 kv_seq_len_input,
-                window_size_input,
+                sliding_window_input,
                 "float32",
             )
             params = [
                 bsz_shape,
                 seq_length_shape,
-                seq_length_with_past_shape,
                 kv_seq_len_shape,
-                window_size_shape,
+                sliding_window_shape,
             ]
             gv = bb.emit_output(mask)
         bb.emit_func_output(gv, params)
@@ -67,7 +60,34 @@ vm = _create_vm()
 
 
 class SlidingWindowMaskTest(unittest.TestCase):
+    """
+    The sliding window mask is based on figure 3 of the Mistral paper.
+    There are three cases when making a mask: first prefill, subsequent prefill,
+    and decoding.
 
+    1. First Prefill
+    This is when the cache is empty (i.e. kv_seq_len == 0). If tgt_len <= sliding_window,
+    this is just a normal causal mask. Otherwise, e.g. tgt_len = 3, WS = 2, we create a
+    mask below:
+    1, 0, 0
+    1, 1, 0
+    0, 1, 1
+
+    2. Subsequent Prefill
+    This is when the cache is not empty and yet tgt_len > 1.
+    e.g. t0-t4 in cache; current input is t5-t7; WS=5
+        0, 1, 2, 3, 4, | 5, 6, 7
+        
+        0, 1, 1, 1, 1, | 1, 0, 0
+        0, 0, 1, 1, 1, | 1, 1, 0
+        0, 0, 0, 1, 1, | 1, 1, 1
+          [in cache]    [current]
+
+    3. Decode
+    It will always be ones with shape (1 + kv_seq_len) since cache_size equals sliding_window.
+    Note that a prefilling (first or subsequent) with chunk_size of 1 is equivalent to a decode
+    in mask making.
+    """
     ################### 1. TESTS FOR FIRST PREFILL ###################
     def test_first_prefill_chunk_size_smaller_than_WS(self):
         """
@@ -76,11 +96,10 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([3])  # chunk size is 3
-        seq_length_with_past = ShapeTuple([3])
         kv_seq_len = ShapeTuple([0])
-        window_size = ShapeTuple([5])
+        sliding_window = ShapeTuple([5])
 
-        result = vm["main"](bsz, seq_length, seq_length_with_past, kv_seq_len, window_size)
+        result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
         correct = np.array([[[
             [3.402823e38, -3.402823e38, -3.402823e38],
@@ -97,11 +116,10 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([5])
-        seq_length_with_past = ShapeTuple([5])
         kv_seq_len = ShapeTuple([0])
-        window_size = ShapeTuple([5])
+        sliding_window = ShapeTuple([5])
 
-        result = vm["main"](bsz, seq_length, seq_length_with_past, kv_seq_len, window_size)
+        result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
         correct = np.array([[[
             [3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38],
@@ -120,11 +138,10 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([5])
-        seq_length_with_past = ShapeTuple([5])
         kv_seq_len = ShapeTuple([0])
-        window_size = ShapeTuple([3])
+        sliding_window = ShapeTuple([3])
 
-        result = vm["main"](bsz, seq_length, seq_length_with_past, kv_seq_len, window_size)
+        result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
         correct = np.array([[[
             [3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38],
@@ -132,6 +149,23 @@ class SlidingWindowMaskTest(unittest.TestCase):
             [3.402823e38, 3.402823e38, 3.402823e38, -3.402823e38, -3.402823e38],
             [-3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38, -3.402823e38],
             [-3.402823e38, -3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38], 
+        ]]]).astype("float32")
+
+        np.testing.assert_array_equal(result.numpy(), correct)
+
+    def test_first_prefill_chunk_size_one(self):
+        """
+        Corner case: the prompt only has 1 token.
+        """
+        bsz = ShapeTuple([1])
+        seq_length = ShapeTuple([1])
+        kv_seq_len = ShapeTuple([0])
+        sliding_window = ShapeTuple([3])
+
+        result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
+
+        correct = np.array([[[
+            [3.402823e38] 
         ]]]).astype("float32")
 
         np.testing.assert_array_equal(result.numpy(), correct)
@@ -144,15 +178,14 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([3])
-        seq_length_with_past = ShapeTuple([6])
         kv_seq_len = ShapeTuple([3])
-        window_size = ShapeTuple([5])
+        sliding_window = ShapeTuple([5])
 
-        result = vm["main"](bsz, seq_length, seq_length_with_past, kv_seq_len, window_size)
+        result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
         correct = np.array([[[
         #   |                 IN CACHE                   |             CURRENT CHUNK                |
-        #          t1              t2             t3             t4           t5             t6     
+        #          t0              t1             t2             t3           t4             t5     
             [ 3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38, -3.402823e+38, -3.402823e+38],
             [ 3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38,  3.402823e+38, -3.402823e+38],
             [-3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38]
@@ -166,11 +199,10 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([3])
-        seq_length_with_past = ShapeTuple([8])
         kv_seq_len = ShapeTuple([5])
-        window_size = ShapeTuple([5])
+        sliding_window = ShapeTuple([5])
 
-        result = vm["main"](bsz, seq_length, seq_length_with_past, kv_seq_len, window_size)
+        result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
         correct = np.array([[[
         #   |                              IN CACHE                                    |             CURRENT CHUNK                |
@@ -188,11 +220,10 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([5])
-        seq_length_with_past = ShapeTuple([10])
         kv_seq_len = ShapeTuple([5])
-        window_size = ShapeTuple([5])
+        sliding_window = ShapeTuple([5])
 
-        result = vm["main"](bsz, seq_length, seq_length_with_past, kv_seq_len, window_size)
+        result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
         correct = np.array([[[
         # |                         IN CACHE                                       |                            CURRENT CHUNK                               |
@@ -212,13 +243,10 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([5])
-        # TODO: MAY DIFFER BY SEMANTICS OF THIS VARIABLE; currently 8, could be 10
-        # See comments in _prepare_sliding_window_mask; might need to use kv_seq_len to determine src_len as a result
-        seq_length_with_past = ShapeTuple([8])
         kv_seq_len = ShapeTuple([3])
-        window_size = ShapeTuple([3])
+        sliding_window = ShapeTuple([3])
 
-        result = vm["main"](bsz, seq_length, seq_length_with_past, kv_seq_len, window_size)
+        result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
         correct = np.array([[[
         # |                 IN CACHE                 |                             CURRENT CHUNK                               | 
@@ -239,13 +267,10 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([1])
-        # TODO: MAY DIFFER BY SEMANTICS OF THIS VARIABLE; currently 6, could be 11
-        # See comments in _prepare_sliding_window_mask; might need to use kv_seq_len to determine src_len as a result
-        seq_length_with_past = ShapeTuple([6])
         kv_seq_len = ShapeTuple([5])
-        window_size = ShapeTuple([5])
+        sliding_window = ShapeTuple([5])
 
-        result = vm["main"](bsz, seq_length, seq_length_with_past, kv_seq_len, window_size)
+        result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
         correct = np.array([[[
         #   |                            IN CACHE                                     |CURRENT CHUNK|    
@@ -262,13 +287,10 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([1])
-        # TODO: MAY DIFFER BY SEMANTICS OF THIS VARIABLE; currently 6, could be 11
-        # See comments in _prepare_sliding_window_mask; might need to use kv_seq_len to determine src_len as a result
-        seq_length_with_past = ShapeTuple([6])
         kv_seq_len = ShapeTuple([5])
-        window_size = ShapeTuple([5])
+        sliding_window = ShapeTuple([5])
 
-        result = vm["main"](bsz, seq_length, seq_length_with_past, kv_seq_len, window_size)
+        result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
         correct = np.array([[[
         #   |                            IN CACHE                                     |CURRENT CHUNK|    
@@ -278,19 +300,16 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         np.testing.assert_array_equal(result.numpy(), correct)
 
-    def test_decode_1(self):
+    def test_decode_2(self):
         """
         Test 2 (Cache not full): prompt is size 4, WS is 5, cache carrying t0-t3; input t4.
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([1])
-        # TODO: MAY DIFFER BY SEMANTICS OF THIS VARIABLE; currently 6, could be 11
-        # See comments in _prepare_sliding_window_mask; might need to use kv_seq_len to determine src_len as a result
-        seq_length_with_past = ShapeTuple([5])
         kv_seq_len = ShapeTuple([4])
-        window_size = ShapeTuple([5])
+        sliding_window = ShapeTuple([5])
 
-        result = vm["main"](bsz, seq_length, seq_length_with_past, kv_seq_len, window_size)
+        result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
         correct = np.array([[[
         #   |                          IN CACHE                         |CURRENT CHUNK|    
