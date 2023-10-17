@@ -365,6 +365,9 @@ class LLMChat {
     if (ft_.use_disco) {
       return false;
     }
+    if (this->sliding_window_ != -1) {
+      return false;
+    }
     PackedFunc fget_metadata = ft_.mod_get_func("get_metadata");
     if (fget_metadata == nullptr) {
       return false;
@@ -441,8 +444,13 @@ class LLMChat {
     }
     if (config.count("sliding_window")) {
       CHECK(config["sliding_window"].is<int64_t>());
-      this->sliding_window_ =
-          std::min(this->sliding_window_, config["sliding_window"].get<int64_t>());
+      CHECK(!config.count("max_window_size"))
+          << "Cannot specify both sliding_window and max_window_size.";
+      this->sliding_window_ = config["sliding_window"].get<int64_t>();
+    }
+    if (config.count("chunk_size_")) {
+      CHECK(config["chunk_size"].is<int64_t>());
+      this->chunk_size_ = config["chunk_size"].get<int64_t>();
     }
     if (config.count("model_name")) {
       CHECK(config["model_name"].is<std::string>());
@@ -537,9 +545,11 @@ class LLMChat {
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
     this->ft_.Init(reload_lib, device_, this->num_shards_);
-    UpdateMaxWindowSizeFromMetadata();
-    CHECK(max_window_size_ != std::numeric_limits<int64_t>::max())
-        << "Key \"max_window_size\" not found.";
+    if (this->sliding_window_ == -1) {
+      UpdateMaxWindowSizeFromMetadata();
+      CHECK(max_window_size_ != std::numeric_limits<int64_t>::max())
+          << "Key \"max_window_size\" not found.";
+    }
     // Step 4. Initialize sample functions.
     auto fsample_topp_from_prob_ptr =
         tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
@@ -624,7 +634,8 @@ class LLMChat {
     std::string all_prompt = GetConcatPrompt(prompts, 0, 0);
     std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
-    if (this->total_seq_len_ + tokens.size() + this->mean_gen_len_ < this->max_window_size_) {
+    if (this->sliding_window_ != -1 ||  // There is no max window size if we use sliding window
+        this->total_seq_len_ + tokens.size() + this->mean_gen_len_ < this->max_window_size_) {
       return tokens;
     }
     // need shift window and re-encode
@@ -803,6 +814,10 @@ class LLMChat {
       if (ft_.use_disco) {
         LOG(FATAL) << "NotImplementedError: Distributed inference is not supported for this model";
       }
+      if (this->sliding_window_ != -1) {
+        LOG(FATAL)
+            << "NotImplementedError: Sliding window attention does not support separate embedding";
+      }
       NDArray embedding = Downcast<NDArray>(EmbedStep(inp, append_conversation, place_in_prompt));
       PrefillWithEmbedStep(embedding, decode_next_token);
       return;
@@ -818,8 +833,28 @@ class LLMChat {
     }
     auto tstart = std::chrono::high_resolution_clock::now();
 
-    int32_t new_seq_len = total_seq_len_ + token_len;
-    NDArray logits_on_device = this->ForwardTokens(prompt_tokens, new_seq_len);
+    int32_t new_seq_len = total_seq_len_;
+    NDArray logits_on_device;
+    if (this->sliding_window_ != -1) {
+      // Use chunking if we use sliding window attention (see Mistral paper figure 3).
+      int64_t chunk_size = this->chunk_size_;
+      if (this->chunk_size_ == -1) {
+        // One chunk if chunk size not specified
+        chunk_size = token_len;
+      }
+      for (int64_t begin = 0; begin < token_len; begin += this->chunk_size_) {
+        int64_t end = std::min(token_len, begin + this->chunk_size_);
+        std::vector<int32_t> chunk =
+            std::vector<int32_t>(prompt_tokens.begin() + begin, prompt_tokens.begin() + end);
+        new_seq_len += static_cast<int64_t>(chunk.size());
+        logits_on_device = this->ForwardTokens(chunk, new_seq_len);
+      }
+      ICHECK_EQ(new_seq_len, total_seq_len_ + token_len) << "Expect chunking process all tokens";
+    } else {
+      // Otherwise, prefill entire prompt at once.
+      new_seq_len += token_len;
+      logits_on_device = this->ForwardTokens(prompt_tokens, new_seq_len);
+    }
     total_seq_len_ = new_seq_len;
 
     if (!decode_next_token) {
@@ -1031,7 +1066,7 @@ class LLMChat {
 
     if (static_cast<int64_t>(output_ids_.size()) >= max_gen_len_) {
       stop_triggered_ = true;
-    } else if (total_seq_len_ >= max_window_size_) {
+    } else if (sliding_window_ == -1 && total_seq_len_ >= max_window_size_) {
       stop_triggered_ = true;
     }
     if (stop_triggered_) {
@@ -1176,8 +1211,9 @@ class LLMChat {
   // total sequence len,
   int64_t total_seq_len_{0};
   // max window size, mean and max generation length, sliding window
+  // If we use sliding window, max window size is its default max() value
   int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128},
-      max_gen_len_{512}, sliding_window_{std::numeric_limits<int64_t>::max()};
+      max_gen_len_{512}, sliding_window_{-1}, chunk_size_{-1};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference
