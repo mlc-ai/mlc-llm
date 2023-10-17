@@ -300,7 +300,7 @@ Stream Iterator in Python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Stream Iterator gives users an option to stream generated text to the function that the API is called from,
-instead of streaming to stdout, which is a necessity when building services on top of MLC Chat.
+instead of streaming to stdout, which could be a necessity when building services on top of MLC Chat.
 
 We provide an example below.
 
