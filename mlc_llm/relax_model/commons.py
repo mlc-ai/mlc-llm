@@ -45,6 +45,22 @@ def create_shard_info_func(mod, param_manager, args, model_config):
         w = topi.reshape(w, (num_shards, (q_heads + kv_heads * 2) // num_shards * head_dim, red))
         func = te.create_prim_func([a, w])
         return func
+    
+    def shard_qkv_scale_1D(scale: relax.TensorStructInfo):
+        (spatial,), dtype = scale.shape, scale.dtype
+        spatial = int(spatial) * num_shards
+        a = te.placeholder((spatial,), dtype=dtype)
+        w = topi.reshape(a, (spatial // head_dim, head_dim))
+        q = te.compute((q_heads, head_dim), lambda i, j: w[i, j])
+        k = te.compute((kv_heads, head_dim), lambda i, j: w[q_heads + i, j])
+        v = te.compute((kv_heads, head_dim), lambda i, j: w[q_heads + kv_heads + i, j])
+        q = topi.reshape(q, (num_shards, q_heads // num_shards, head_dim))
+        k = topi.reshape(k, (num_shards, kv_heads // num_shards, head_dim))
+        v = topi.reshape(v, (num_shards, kv_heads // num_shards, head_dim))
+        w = topi.concatenate((q, k, v), axis=1)
+        w = topi.reshape(w, (num_shards, (q_heads + kv_heads * 2) // num_shards * head_dim))
+        func = te.create_prim_func([a, w])
+        return func
 
     def shard_k_weight_scale(weight: relax.TensorStructInfo):
         (spatial, red), dtype = weight.shape, weight.dtype
@@ -88,7 +104,10 @@ def create_shard_info_func(mod, param_manager, args, model_config):
             for i, weight in enumerate(param_manager.param2qrange[param]):
                 name = f"shard_qkv_{i}"
                 if name not in shard_funcs:
-                    shard_funcs[name] = shard_qkv_weight_scale(q_params[weight])
+                    if q_params[weight].ndim == 2:
+                        shard_funcs[name] = shard_qkv_weight_scale(q_params[weight])
+                    else:
+                        shard_funcs[name] = shard_qkv_scale_1D(q_params[weight])                    
                 add_to_shard_info(f"param_{weight}", name)
         elif param.shard_strategy == "shard_mlp_k":
             for i, weight in enumerate(param_manager.param2qrange[param]):
