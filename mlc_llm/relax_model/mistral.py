@@ -510,11 +510,11 @@ class MistralDecoderLayer(nn.Module):
         return hidden_states, present_key_value
 
 
-def _make_sliding_window_prefill_mask(input_ids_shape, dtype, src_len, window_size):
+def _make_sliding_window_prefill_mask(input_ids_shape, dtype, src_len, sliding_window):
     # Based on the Mistral paper figure 3
     # Two cases: first prefill, and subsequent prefill
     # 1. if cache_len == 0, first prefill, since there is nothing in cache
-    # If tgt_len <= window_size, this is just a normal causal mask
+    # If tgt_len <= sliding_window, this is just a normal causal mask
     # Otherwise, e.g. tgt_len = 3, WS = 2, we create a mask below:
     # 1, 0, 0
     # 1, 1, 0
@@ -531,11 +531,11 @@ def _make_sliding_window_prefill_mask(input_ids_shape, dtype, src_len, window_si
 
     from tvm.relax.op import broadcast_to
 
-    def populate_diag_mask_sliding_window_te(window_size, cache_len):
+    def populate_diag_mask_sliding_window_te(sliding_window, cache_len):
         return te.compute(
             (tgt_len, src_len),
             lambda i, j: tvm.tir.Select(
-                tvm.tir.all(i + cache_len >= j, i + cache_len - j < window_size),
+                tvm.tir.all(i + cache_len >= j, i + cache_len - j < sliding_window),
                 tvm.tir.max_value(dtype),
                 tvm.tir.min_value(dtype),
             ),
@@ -544,13 +544,13 @@ def _make_sliding_window_prefill_mask(input_ids_shape, dtype, src_len, window_si
 
     bsz, tgt_len = input_ids_shape
     cache_len = src_len - tgt_len  # number of elements in cache
-    mask = nn.emit_te(populate_diag_mask_sliding_window_te, window_size, cache_len)
+    mask = nn.emit_te(populate_diag_mask_sliding_window_te, sliding_window, cache_len)
     diag_mask = nn.emit(broadcast_to(mask, (bsz, 1, tgt_len, src_len)))
 
     return diag_mask
 
 
-def _make_sliding_window_mask(input_shape, src_len, kv_seq_len, window_size, dtype):
+def _make_sliding_window_mask(input_shape, src_len, kv_seq_len, sliding_window, dtype):
     # See `tests/python/test_sliding_window_mask.py` for more on its behavior.
     # tgt_len: input sequence length
     # src_len: input sequence length + number of cached elements
@@ -564,7 +564,7 @@ def _make_sliding_window_mask(input_shape, src_len, kv_seq_len, window_size, dty
     if isinstance(tgt_len, tvm.tir.Var) or tgt_len > 1:
         # Either first prefill, or subsequent prefill
         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
-        return _make_sliding_window_prefill_mask(input_shape, dtype, src_len, window_size)
+        return _make_sliding_window_prefill_mask(input_shape, dtype, src_len, sliding_window)
     else:
         # Decode (or prefilling a chunk of size 1 is equivalent, same thing)
         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
@@ -613,25 +613,7 @@ class MistralModel(nn.Module):
             [MistralDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
         self.norm = MistralRMSNorm(config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps)
-
-    def _prepare_decoder_attention_mask(self, input_shape, src_len, dtype):
-        # create causal mask
-        # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
-        combined_attention_mask = None
-        if isinstance(input_shape[-1], tvm.tir.Var) or input_shape[-1] > 1:
-            combined_attention_mask = _make_causal_mask(input_shape, dtype, src_len)
-        else:
-            # Get src_len from input parameters
-            # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
-            bsz, tgt_len = input_shape
-            combined_attention_mask = nn.emit(
-                relax.op.full(
-                    (bsz, 1, tgt_len, src_len),
-                    relax.const(tvm.tir.max_value(dtype).value, dtype),
-                    dtype,
-                )
-            )
-        return combined_attention_mask
+        self.sliding_window = config.sliding_window
 
     def forward(
         self,
@@ -651,10 +633,13 @@ class MistralModel(nn.Module):
 
         #  TODO fix causal mask
         seq_length_with_past = all_seq_len_shape.struct_info.values[0]
+        kv_seq_len = kv_seq_len_shape.struct_info.values[0]
         # embed positions
-        attention_mask = self._prepare_decoder_attention_mask(
+        attention_mask = _make_sliding_window_mask(
             (batch_size, seq_length),
             seq_length_with_past,
+            kv_seq_len,
+            self.sliding_window,
             inputs_embeds.struct_info.dtype,
         )
 
