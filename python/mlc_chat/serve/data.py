@@ -5,7 +5,6 @@ import tvm._ffi
 from tvm.runtime import Object
 from tvm.runtime.container import getitem_helper
 
-from .. import base
 from . import _ffi_api
 
 
