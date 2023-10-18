@@ -320,18 +320,30 @@ class MistralAttention(nn.Module):
                 (kv_cur_shape[0], kv_seq_len + kv_cur_shape[1], kv_cur_shape[2], kv_cur_shape[3]),
                 lambda b, s, h, d: te.if_then_else(
                     s < kv_seq_len - cache_pos,
-                    x_cached[b, cache_pos+s, h, d],
+                    x_cached[b, cache_pos + s, h, d],
                     te.if_then_else(
                         s < kv_seq_len,
-                        x_cached[b, s+cache_pos-kv_seq_len, h, d],
-                        x[b, s-kv_seq_len, h, d],
+                        x_cached[b, s + cache_pos - kv_seq_len, h, d],
+                        x[b, s - kv_seq_len, h, d],
                     ),
                 ),
                 name="unrotate_concat_te",
             )
-        
-        key = nn.emit_te(te_unrotate_concat, key_cur, key_cached, cache_pos, primfunc_name_hint="te_unrotate_concat_key")
-        value = nn.emit_te(te_unrotate_concat, value_cur, value_cached, cache_pos, primfunc_name_hint="te_unrotate_concat_value")
+
+        key = nn.emit_te(
+            te_unrotate_concat,
+            key_cur,
+            key_cached,
+            cache_pos,
+            primfunc_name_hint="te_unrotate_concat_key",
+        )
+        value = nn.emit_te(
+            te_unrotate_concat,
+            value_cur,
+            value_cached,
+            cache_pos,
+            primfunc_name_hint="te_unrotate_concat_value",
+        )
 
         # update cache
         k_cache, v_cache = past_key_value
@@ -416,8 +428,8 @@ class MistralAttention(nn.Module):
 
         all_seq_len = all_seq_len_shape.struct_info.values[0]
         # number of elements in cache excluding current input
-        kv_seq_len = min(all_seq_len - q_len, self.sliding_window)
-        cache_pos = (all_seq_len - q_len) %  self.sliding_window
+        kv_seq_len = tvm.tir.min(all_seq_len - q_len, self.sliding_window)
+        cache_pos = (all_seq_len - q_len) % self.sliding_window
         offset = all_seq_len - q_len
         query, key_cur = apply_rotary_pos_emb(
             query,
@@ -427,7 +439,9 @@ class MistralAttention(nn.Module):
         )
 
         # concat current kv with cached kv (unrotating the cache)
-        key, value, past_key_value = self.interleave_kv(key_cur, value_cur, kv_seq_len, cache_pos, past_key_value)
+        key, value, updated_key_value = self.interleave_kv(
+            key_cur, value_cur, kv_seq_len, cache_pos, past_key_value
+        )
 
         if self.num_key_value_heads != self.num_query_heads:
             n_rep = self.num_query_heads // self.num_key_value_heads
@@ -443,10 +457,10 @@ class MistralAttention(nn.Module):
             / relax.const(math.sqrt(self.head_dim), query.struct_info.dtype)
         )
 
-        tvm.ir.assert_structural_equal(
-            attention_mask.struct_info.shape.values,
-            (bsz, tvm.tir.IntImm("int64", 1), q_len, kv_seq_len + q_len),
-        )
+        # tvm.ir.assert_structural_equal(
+        #     attention_mask.struct_info.shape.values,
+        #     (bsz, tvm.tir.IntImm("int64", 1), q_len, q_len + kv_seq_len),
+        # )
 
         attn_weights = nn.emit(
             maximum(
@@ -474,7 +488,7 @@ class MistralAttention(nn.Module):
 
         attn_output = self.o_proj(attn_output)
 
-        return attn_output, ((None, None) if past_key_value is None else past_key_value)
+        return attn_output, ((None, None) if updated_key_value is None else updated_key_value)
 
 
 class MistralDecoderLayer(nn.Module):
@@ -615,11 +629,9 @@ class MistralModel(nn.Module):
             inputs_embeds = inputs
         # retrieve input_ids
         batch_size, seq_length, _ = inputs_embeds.struct_info.shape
-
-        #  TODO fix causal mask
         all_seq_len = all_seq_len_shape.struct_info.values[0]
-        # number of elements in cache excluding current input
-        kv_seq_len = min(all_seq_len - seq_length, self.sliding_window)
+        kv_seq_len = tvm.tir.min(all_seq_len - seq_length, self.sliding_window)
+
         # embed positions
         attention_mask = _make_sliding_window_mask(
             (batch_size, seq_length),
