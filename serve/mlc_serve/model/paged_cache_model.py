@@ -7,7 +7,7 @@ from typing import List
 import numpy as np
 import torch
 import tvm
-from transformers import LlamaTokenizer
+from transformers import AutoTokenizer
 from tvm import relax
 from tvm.runtime import disco as di
 
@@ -434,8 +434,9 @@ def init_model(
         artifact_path, model_name, quantization, config.vocab_size, num_shards, dev
     )
 
-    tokenizer = LlamaTokenizer.from_pretrained(
-        os.path.join(artifact_path, "params"), trust_remote_code=True
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_path,
+        trust_remote_code=False,
     )
 
     num_kv_heads = config.get_num_key_value_heads() // num_shards
