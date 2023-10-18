@@ -25,6 +25,9 @@ class GenerationConfig:
 
     stop_strs : List[str]
         The list of strings that mark the end of generation.
+
+    stop_tokens : List[int]
+        The list of tokens that mark the end of generation.
     """
 
     temperature: float = 0.8
@@ -33,6 +36,7 @@ class GenerationConfig:
 
     max_new_tokens: int = 128
     stop_strs: List[str] = field(default_factory=list)
+    stop_tokens: List[int] = field(default_factory=list)
 
     def asjson(self) -> str:
         """Return the config in string of JSON format."""
