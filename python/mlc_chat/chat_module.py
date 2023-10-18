@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+import warnings
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
 from typing import List, Optional
@@ -351,6 +352,12 @@ def _get_chat_config(config_file_path: str, user_chat_config: Optional[ChatConfi
         # We override using user's chat config
         for field in fields(user_chat_config):
             field_name = field.name
+            if field_name == 'model_lib':
+                warn_msg = ('WARNING: Do not override "model_lib" in ChatConfig. '
+                            'This override will be ignored. '
+                            'Please use ChatModule.lib_path to override the full model library path instead.')
+                warnings.warn(warn_msg)
+                continue
             field_value = getattr(user_chat_config, field_name)
             if field_value is not None:
                 setattr(final_chat_config, field_name, field_value)
