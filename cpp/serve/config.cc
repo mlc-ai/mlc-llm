@@ -58,6 +58,18 @@ GenerationConfig::GenerationConfig(String config_json_str) {
     }
     n->stop_strs = std::move(stop_strs);
   }
+  if (config.count("stop_tokens")) {
+    CHECK(config["stop_tokens"].is<picojson::array>())
+        << "Invalid stop_tokens. Stop tokens should be an array of integers";
+    picojson::array stop_tokens_arr = config["stop_tokens"].get<picojson::array>();
+    std::vector<int> stop_tokens;
+    stop_tokens.reserve(stop_tokens_arr.size());
+    for (const picojson::value& v : stop_tokens_arr) {
+      CHECK(v.is<int64_t>()) << "Invalid stop token in stop_tokens";
+      stop_tokens.push_back(v.get<int64_t>());
+    }
+    n->stop_tokens = std::move(stop_tokens);
+  }
 
   data_ = std::move(n);
 }
@@ -74,6 +86,12 @@ String GenerationConfigNode::AsJSONString() const {
     stop_strs_arr.push_back(picojson::value(stop_str));
   }
   config["stop_strs"] = picojson::value(stop_strs_arr);
+
+  picojson::array stop_tokens_arr;
+  for (int stop_token : this->stop_tokens) {
+    stop_tokens_arr.push_back(picojson::value(static_cast<int64_t>(stop_token)));
+  }
+  config["stop_tokens"] = picojson::value(stop_tokens_arr);
 
   return picojson::value(config).serialize(true);
 }
