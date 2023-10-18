@@ -1080,7 +1080,18 @@ class LLMChat {
     if (input_tokens.size() > 1 && ft_.prefill_func_.defined()) {
       ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray(input_tokens));
       ShapeTuple cur_pos_shape = ShapeTuple({cur_pos});
-      ret = ft_.prefill_func_(input_data, cur_pos_shape, kv_cache_, params_);
+      if (sliding_window_ != -1) {
+        ret = ft_.prefill_func_(input_data, cur_pos_shape, kv_cache_, params_);
+      } else {
+        // Sliding window attention needs extra shape parameters
+        int64_t seq_len = static_cast<int64_t>(input_tokens.size());
+        // Number of elements in the cache
+        int64_t cache_len = std::min(this->sliding_window_, cur_pos - seq_len);
+        ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
+        ShapeTuple cache_len_shape = ShapeTuple({cache_len});
+        ret = ft_.prefill_func_(input_data, cur_pos_shape, kv_seq_len_shape, cache_len_shape,
+                                kv_cache_, params_);
+      }
     } else {
       // running decode function when prefill is not available
       for (int i = 0; i < input_tokens.size(); ++i) {
@@ -1093,8 +1104,19 @@ class LLMChat {
           input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray({input_tokens[i]}));
         }
         int64_t pos = cur_pos + i + 1 - input_tokens.size();
-        ShapeTuple pos_shape = ShapeTuple({cur_pos});
-        ret = ft_.decode_func_(input_data, pos_shape, kv_cache_, params_);
+        ShapeTuple pos_shape = ShapeTuple({pos});
+        if (sliding_window_ != -1) {
+          ret = ft_.decode_func_(input_data, pos_shape, kv_cache_, params_);
+        } else {
+          // Sliding window attention needs extra shape parameters
+          int64_t seq_len = static_cast<int64_t>(input_tokens.size());
+          // Number of elements in the cache
+          int64_t cache_len = std::min(this->sliding_window_, pos - seq_len);
+          ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
+          ShapeTuple cache_len_shape = ShapeTuple({cache_len});
+          ret = ft_.decode_func_(input_data, pos_shape, kv_seq_len_shape, cache_len_shape,
+                                 kv_cache_, params_);
+        }
       }
     }
     if (ft_.use_disco) {
