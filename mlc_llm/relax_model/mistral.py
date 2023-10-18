@@ -359,7 +359,7 @@ class MistralAttention(nn.Module):
                 lambda s, h, d: x[0, s, h, d],
                 name="squeeze_te",
             )
-        
+
         # update cache
         squeezed_key = nn.emit_te(te_squeeze, key_cur)
         squeezed_value = nn.emit_te(te_squeeze, value_cur)
@@ -565,9 +565,10 @@ class MistralDecoderLayer(nn.Module):
 
 def _make_sliding_window_mask(input_shape, kv_seq_len, sliding_window, dtype):
     # See `tests/python/test_sliding_window_mask.py` for more on its behavior.
-    # [bsz, tgt_len] -> [bsz, 1, tgt_len, tgt_len + kv_seq_len]
+    # [bsz, tgt_len] -> [bsz, 1, tgt_len, kv_seq_len]
 
     bsz, tgt_len = input_shape  # TODO: only support batch size of 1 for now
+    cache_len = kv_seq_len - tgt_len  # number of elements in cache
 
     if isinstance(tgt_len, tvm.tir.Var) or tgt_len > 1:
         # Either 1. First prefill, or 2. Subsequent prefill
@@ -577,7 +578,7 @@ def _make_sliding_window_mask(input_shape, kv_seq_len, sliding_window, dtype):
             return te.compute(
                 (tgt_len, kv_seq_len),
                 lambda i, j: tvm.tir.Select(
-                    tvm.tir.all(i + kv_seq_len - tgt_len >= j, i + kv_seq_len - tgt_len - j < sliding_window),
+                    tvm.tir.all(i + cache_len >= j, i + cache_len - j < sliding_window),
                     tvm.tir.max_value(dtype),
                     tvm.tir.min_value(dtype),
                 ),

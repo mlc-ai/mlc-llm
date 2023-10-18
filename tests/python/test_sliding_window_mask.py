@@ -96,7 +96,7 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([3])  # chunk size is 3
-        kv_seq_len = ShapeTuple([0])
+        kv_seq_len = ShapeTuple([3])
         sliding_window = ShapeTuple([5])
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
@@ -116,7 +116,7 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([5])
-        kv_seq_len = ShapeTuple([0])
+        kv_seq_len = ShapeTuple([5])
         sliding_window = ShapeTuple([5])
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
@@ -138,7 +138,7 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([5])
-        kv_seq_len = ShapeTuple([0])
+        kv_seq_len = ShapeTuple([5])
         sliding_window = ShapeTuple([3])
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
@@ -159,7 +159,7 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([1])
-        kv_seq_len = ShapeTuple([0])
+        kv_seq_len = ShapeTuple([1])
         sliding_window = ShapeTuple([3])
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
@@ -178,7 +178,7 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([3])
-        kv_seq_len = ShapeTuple([3])
+        kv_seq_len = ShapeTuple([6])
         sliding_window = ShapeTuple([5])
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
@@ -199,7 +199,7 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([3])
-        kv_seq_len = ShapeTuple([5])
+        kv_seq_len = ShapeTuple([8])
         sliding_window = ShapeTuple([5])
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
@@ -220,7 +220,7 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([5])
-        kv_seq_len = ShapeTuple([5])
+        kv_seq_len = ShapeTuple([10])
         sliding_window = ShapeTuple([5])
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
@@ -243,7 +243,7 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([5])
-        kv_seq_len = ShapeTuple([3])
+        kv_seq_len = ShapeTuple([8])
         sliding_window = ShapeTuple([3])
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
@@ -267,7 +267,7 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([1])
-        kv_seq_len = ShapeTuple([5])
+        kv_seq_len = ShapeTuple([6])
         sliding_window = ShapeTuple([5])
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
@@ -287,7 +287,7 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([1])
-        kv_seq_len = ShapeTuple([5])
+        kv_seq_len = ShapeTuple([6])
         sliding_window = ShapeTuple([5])
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
@@ -306,7 +306,7 @@ class SlidingWindowMaskTest(unittest.TestCase):
         """
         bsz = ShapeTuple([1])
         seq_length = ShapeTuple([1])
-        kv_seq_len = ShapeTuple([4])
+        kv_seq_len = ShapeTuple([5])
         sliding_window = ShapeTuple([5])
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)

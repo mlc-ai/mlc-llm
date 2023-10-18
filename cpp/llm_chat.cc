@@ -1087,9 +1087,9 @@ class LLMChat {
         int64_t seq_len = static_cast<int64_t>(input_tokens.size());
         // Number of elements in the cache
         int64_t cache_len = std::min(this->sliding_window_, cur_pos - seq_len);
-        ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
         ShapeTuple cache_len_shape = ShapeTuple({cache_len});
-        ret = ft_.prefill_func_(input_data, cur_pos_shape, kv_seq_len_shape, cache_len_shape,
+        ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
+        ret = ft_.prefill_func_(input_data, cur_pos_shape, cache_len_shape, kv_seq_len_shape,
                                 kv_cache_, params_);
       }
     } else {
@@ -1112,9 +1112,9 @@ class LLMChat {
           int64_t seq_len = static_cast<int64_t>(input_tokens.size());
           // Number of elements in the cache
           int64_t cache_len = std::min(this->sliding_window_, pos - seq_len);
-          ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
           ShapeTuple cache_len_shape = ShapeTuple({cache_len});
-          ret = ft_.decode_func_(input_data, pos_shape, kv_seq_len_shape, cache_len_shape,
+          ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
+          ret = ft_.decode_func_(input_data, pos_shape, cache_len_shape, kv_seq_len_shape,
                                  kv_cache_, params_);
         }
       }
