@@ -95,8 +95,6 @@ struct RequestState {
 
   /*! \brief The decoded text string output. */
   std::string output = "";
-  /*! \brief The boolean flag indicating if the process of this request is finished. */
-  bool finished = false;
 
   explicit RequestState(int num_models, Array<Data> inputs) {
     mstates.reserve(num_models);
