@@ -26,6 +26,7 @@ class GenerationConfigNode : public Object {
 
   int max_new_tokens = 128;
   Array<String> stop_strs;
+  std::vector<int> stop_tokens;
 
   String AsJSONString() const;
 
