@@ -163,7 +163,7 @@ struct ModelPaths {
    */
   std::filesystem::path lib;
 
-  static ModelPaths Find(const std::string& device_name, const std::string& local_id, const std::string& lib_path);
+  static ModelPaths Find(const std::string& device_name, const std::string& local_id, const std::string& user_lib_path);
 };
 
 /*!
@@ -395,7 +395,7 @@ ModelPaths ModelPaths::Find(const std::string& device_name, const std::string& l
                    << "- dist/" + local_id << "\n"
                    << "- dist/prebuilt/" + lib_local_id << "\n"
                    << "If you would like to directly specify the full model library path, you may "
-                   << "consider passing in the `lib_path` argument.\n";
+                   << "consider passing in the `--lib-path` argument.\n";
         exit(1);
     }
   }

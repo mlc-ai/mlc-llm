@@ -51,6 +51,11 @@ If you do not have the MLC-compiled ``model`` ready:
       - Model lib should be placed at ``./dist/prebuilt/lib/$(model)-$(arch).$(suffix)``.
       - Model weights and chat config are located under ``./dist/prebuilt/mlc-chat-$(model)/``.
 
+      .. note::
+         Please make sure that you have the same directory structure as above, because Python API
+         relies on it to automatically search for model lib and weights. If you would like to directly
+         provide a full model lib path to override the auto-search, you can specify ``ChatModule.lib_path``
+
       .. collapse:: Example
 
          .. code:: shell
@@ -73,6 +78,11 @@ If you do not have the MLC-compiled ``model`` ready:
 
       - Model libraries should be placed at ``./dist/$(model)/$(model)-$(arch).$(suffix)``.
       - Model weights and chat config are located under ``./dist/$(model)/params/``.
+
+      .. note::
+         Please make sure that you have the same directory structure as above, because Python API
+         relies on it to automatically search for model lib and weights. If you would like to directly
+         provide a full model lib path to override the auto-search, you can specify ``ChatModule.lib_path``
 
       .. collapse:: Example
 
