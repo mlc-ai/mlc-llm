@@ -480,7 +480,7 @@ class Engine {
     for (Request request : requests) {
       total_input_length += GetRequestPrefillInputLength(request);
     }
-    return current_total_seq_len_ + total_input_length + max_single_sequence_length_ <
+    return current_total_seq_len_ + max_single_sequence_length_ <
            kv_cache_config_->max_total_sequence_length;
   }
 
