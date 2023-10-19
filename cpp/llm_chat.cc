@@ -448,7 +448,7 @@ class LLMChat {
           << "Cannot specify both sliding_window and max_window_size.";
       this->sliding_window_ = config["sliding_window"].get<int64_t>();
     }
-    if (config.count("chunk_size_")) {
+    if (config.count("chunk_size")) {
       CHECK(config["chunk_size"].is<int64_t>());
       this->chunk_size_ = config["chunk_size"].get<int64_t>();
     }
@@ -842,8 +842,8 @@ class LLMChat {
         // One chunk if chunk size not specified
         chunk_size = token_len;
       }
-      for (int64_t begin = 0; begin < token_len; begin += this->chunk_size_) {
-        int64_t end = std::min(token_len, begin + this->chunk_size_);
+      for (int64_t begin = 0; begin < token_len; begin += chunk_size) {
+        int64_t end = std::min(token_len, begin + chunk_size);
         std::vector<int32_t> chunk =
             std::vector<int32_t>(prompt_tokens.begin() + begin, prompt_tokens.begin() + end);
         new_seq_len += static_cast<int64_t>(chunk.size());
@@ -1080,7 +1080,7 @@ class LLMChat {
     if (input_tokens.size() > 1 && ft_.prefill_func_.defined()) {
       ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray(input_tokens));
       ShapeTuple cur_pos_shape = ShapeTuple({cur_pos});
-      if (sliding_window_ != -1) {
+      if (sliding_window_ == -1) {
         ret = ft_.prefill_func_(input_data, cur_pos_shape, kv_cache_, params_);
       } else {
         // Sliding window attention needs extra shape parameters
@@ -1105,7 +1105,7 @@ class LLMChat {
         }
         int64_t pos = cur_pos + i + 1 - input_tokens.size();
         ShapeTuple pos_shape = ShapeTuple({pos});
-        if (sliding_window_ != -1) {
+        if (sliding_window_ == -1) {
           ret = ft_.decode_func_(input_data, pos_shape, kv_cache_, params_);
         } else {
           // Sliding window attention needs extra shape parameters
