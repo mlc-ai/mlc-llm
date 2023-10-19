@@ -8,6 +8,7 @@ from threading import Condition, Lock
 from uuid import uuid4
 
 from .base import (
+    DebugOptions,
     FinishReason,
     InferenceEngine,
     InferenceStepResult,
@@ -30,15 +31,26 @@ class RequestState:
     next_start_position: int
     sampling_params: SamplingParams
     stopping_criteria: StoppingCriteria
+    debug_options: DebugOptions
     is_ended: bool = False
 
 
 class LocalProcessInferenceEngine(InferenceEngine):
-    def __init__(self, model_module: ModelModule):
+    def __init__(
+        self,
+        model_module: ModelModule,
+        max_batched_tokens: int = 2560,
+        min_decode_steps: int = 32,
+    ):
         self.text_generator = model_module.text_generator
         self.tokenizer = model_module.tokenizer
         self.conversation_template = model_module.conversation_template
         self.cache_manager = model_module.cache_manager
+
+        self.max_batched_tokens = max_batched_tokens
+        self.min_decode_steps = min(
+            self.cache_manager.get_kv_cache_size(), min_decode_steps
+        )
 
         self.queue_lock = Lock()
         self.queue = deque[RequestState]()
@@ -159,7 +171,10 @@ class LocalProcessInferenceEngine(InferenceEngine):
             state.next_start_position = len(state.token_ids)
             new_token_ids = res.generated_tokens
             for i, token_id in enumerate(new_token_ids):
-                if token_id == self.tokenizer.eos_token_id:
+                if (
+                    token_id == self.tokenizer.eos_token_id
+                    and not state.debug_options.ignore_eos
+                ):
                     new_token_ids = new_token_ids[:i]
                     state.is_ended = True
             state.token_ids.extend(new_token_ids)
@@ -191,14 +206,18 @@ class LocalProcessInferenceEngine(InferenceEngine):
 
             self._discard_cancelled_requests_from_queue()
 
-            if not self._should_process_new_request():
-                return
-
-            # TODO: make this 15 into config
-            # and consider the max cache size of the executor
-            while self.queue and self.cache_manager.get_max_new_tokens() > 15:
+            num_batched_tokens = sum(
+                len(state.token_ids) for state in self.current_batch.values()
+            )
+            while self.queue:
+                if self.cache_manager.get_max_new_tokens() < self.min_decode_steps:
+                    # stop adding request if there isn't enough space to do a certain steps of decoding.
+                    break
                 state = self.queue[0]
                 num_tokens = len(state.token_ids)
+                num_batched_tokens += num_tokens
+                if num_batched_tokens > self.max_batched_tokens > 0:
+                    break
                 if self.cache_manager.get_free_space() <= 1.5 * num_tokens:
                     break
 
@@ -207,12 +226,6 @@ class LocalProcessInferenceEngine(InferenceEngine):
                 self.current_batch[state.request_id] = state
 
                 self._discard_cancelled_requests_from_queue()
-
-    def _should_process_new_request(self):
-        return (
-            self.cache_manager.get_free_space() * 1.6
-            > self.cache_manager.get_kv_cache_size()
-        )
 
     def _has_request_to_process(self) -> bool:
         return self.queue or self.current_batch
@@ -240,6 +253,7 @@ class LocalProcessInferenceEngine(InferenceEngine):
             next_start_position=0,
             sampling_params=request.sampling_params,
             stopping_criteria=request.stopping_criteria,
+            debug_options=request.debug_options,
             output_text="",
         )
 

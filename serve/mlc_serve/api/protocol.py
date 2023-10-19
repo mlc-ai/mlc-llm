@@ -69,6 +69,7 @@ class ChatCompletionRequest(BaseModel):
     frequency_penalty: Optional[float]
     logit_bias: Optional[Dict[str, float]] = None
     user: Optional[str] = None
+    ignore_eos: Optional[bool] = False
 
 
 class ChatCompletionResponseChoice(BaseModel):

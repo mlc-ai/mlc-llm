@@ -50,7 +50,10 @@ def run_server():
         max_input_len=args.max_input_len,
     )
 
-    engine = LocalProcessInferenceEngine(model_module)
+    engine = LocalProcessInferenceEngine(
+        model_module,
+        max_batched_tokens=args.max_num_batched_tokens,
+    )
     connector = AsyncEngineConnector(engine)
     app = create_app(connector)
     uvicorn.run(

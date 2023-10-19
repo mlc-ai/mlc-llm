@@ -8,6 +8,7 @@ from mlc_serve.engine import (
     RequestOutput,
     SamplingParams,
     StoppingCriteria,
+    DebugOptions,
 )
 from mlc_serve.engine.local import LocalProcessInferenceEngine
 from mlc_serve.engine.model_module import (
@@ -80,7 +81,7 @@ class DummyCacheManager:
     def get_max_new_tokens(self) -> int:
         if not self.cache.cached_requests:
             return self.get_kv_cache_size()
-        return self.get_free_space() / len(self.cache.cached_requests)
+        return self.get_free_space() // len(self.cache.cached_requests)
 
 
 class DummyTextGenerator:
@@ -220,7 +221,7 @@ def test_multiple_requests_wait_queue():
 
 
 def test_multiple_requests_preempt():
-    engine = LocalProcessInferenceEngine(DummaryModelModule(30))
+    engine = LocalProcessInferenceEngine(DummaryModelModule(30), min_decode_steps=1)
 
     request_id_1 = engine.add(
         [

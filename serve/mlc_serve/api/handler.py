@@ -19,7 +19,13 @@ from ..api.protocol import (
     ErrorResponse,
     UsageInfo,
 )
-from ..engine import Request, RequestOutput, SamplingParams, StoppingCriteria
+from ..engine import (
+    DebugOptions,
+    Request,
+    RequestOutput,
+    SamplingParams,
+    StoppingCriteria,
+)
 from ..engine.async_connector import AsyncEngineConnector
 from .dependencies import get_async_engine_connector
 
@@ -85,6 +91,7 @@ async def request_completion(
         num_sequences=request.n,
         sampling_params=sampling_params,
         stopping_criteria=StoppingCriteria(max_tokens=request.max_tokens),
+        debug_options=DebugOptions(ignore_eos=request.ignore_eos),
     )
     if isinstance(request.messages, str):
         text_generation_request.debug_options.prompt = request.messages
@@ -146,7 +153,9 @@ async def generate_completion_stream(
                         if seq.delta is not None
                         else DeltaMessage()
                     ),
-                    finish_reason=seq.finish_reason.value if seq.finish_reason is not None else None,
+                    finish_reason=seq.finish_reason.value
+                    if seq.finish_reason is not None
+                    else None,
                 )
                 for seq in res.sequences
             ]
