@@ -179,7 +179,7 @@ def test_single_request_step_to_finish():
 
 
 def test_multiple_requests_wait_queue():
-    engine = LocalProcessInferenceEngine(DummaryModelModule(20))
+    engine = LocalProcessInferenceEngine(DummaryModelModule(20), prompt_allocate_ratio=1.0)
 
     request_id_1 = "1"
     request_id_2 = "2"
@@ -225,7 +225,9 @@ def test_multiple_requests_wait_queue():
 
 
 def test_multiple_requests_preempt():
-    engine = LocalProcessInferenceEngine(DummaryModelModule(30), min_decode_steps=1)
+    engine = LocalProcessInferenceEngine(
+        DummaryModelModule(30), min_decode_steps=1, prompt_allocate_ratio=1.0
+    )
 
     request_id_1 = "1"
     request_id_2 = "2"

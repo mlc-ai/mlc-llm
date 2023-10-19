@@ -44,6 +44,7 @@ class LocalProcessInferenceEngine(InferenceEngine):
         model_module: ModelModule,
         max_batched_tokens: int = 2560,
         min_decode_steps: int = 512,
+        prompt_allocate_ratio: float = 2.5,
     ):
         self.text_generator = model_module.text_generator
         self.tokenizer = model_module.tokenizer
@@ -54,6 +55,8 @@ class LocalProcessInferenceEngine(InferenceEngine):
         self.min_decode_steps = min(
             self.cache_manager.get_kv_cache_size(), min_decode_steps
         )
+        self.prompt_allocate_ratio = prompt_allocate_ratio
+        assert prompt_allocate_ratio >= 1.0
 
         self.queue_lock = Lock()
         self.queue = deque[RequestState]()
@@ -107,7 +110,16 @@ class LocalProcessInferenceEngine(InferenceEngine):
                 outputs.append(
                     RequestOutput(
                         state.request_id,
-                        [SequenceOutput(0, finish_reason=finish_reason)],
+                        [
+                            SequenceOutput(
+                                0,
+                                finish_reason=finish_reason,
+                                num_generated_tokens=(
+                                    len(state.token_ids) - state.prompt_len
+                                ),
+                            )
+                        ],
+                        num_prompt_tokens=state.prompt_len,
                     )
                 )
                 self.current_batch.pop(state.request_id)
@@ -142,7 +154,10 @@ class LocalProcessInferenceEngine(InferenceEngine):
                 del self.current_batch[request_id]
                 self.cache_manager.free(res.sequence_id)
                 outputs.append(
-                    RequestOutput(res.sequence_id.request_id, error=res.error)
+                    RequestOutput(
+                        res.sequence_id.request_id,
+                        error=res.error,
+                    )
                 )
                 continue
 
@@ -162,7 +177,19 @@ class LocalProcessInferenceEngine(InferenceEngine):
             state.output_text += delta
 
             outputs.append(
-                RequestOutput(request_id, sequences=[SequenceOutput(0, delta=delta)])
+                RequestOutput(
+                    request_id,
+                    sequences=[
+                        SequenceOutput(
+                            0,
+                            delta=delta,
+                            num_generated_tokens=(
+                                len(state.token_ids) - state.prompt_len
+                            ),
+                        ),
+                    ],
+                    num_prompt_tokens=state.prompt_len,
+                )
             )
 
         return result
@@ -204,7 +231,10 @@ class LocalProcessInferenceEngine(InferenceEngine):
                         num_new_batched_tokens,
                     )
                     break
-                if self.cache_manager.get_free_space() <= 3 * num_tokens:
+                if (
+                    self.cache_manager.get_free_space()
+                    <= self.prompt_allocate_ratio * num_tokens
+                ):
                     logger.debug(
                         "Stop growing the batch due to not enough free space. Free: %s, Num tokens: %s",
                         self.cache_manager.get_free_space(),

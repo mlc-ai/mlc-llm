@@ -76,6 +76,8 @@ class SequenceOutput:
     delta: Optional[str] = None
     # If finish_reason is not None, delta should be None.
     finish_reason: Optional[FinishReason] = None
+    # Number of generated tokens so far
+    num_generated_tokens: int = 0
 
     @property
     def is_finished(self) -> bool:
@@ -86,6 +88,10 @@ class SequenceOutput:
 class RequestOutput:
     request_id: RequestId
     sequences: list[SequenceOutput]
+    # TODO: reconsider the place to put this number
+    # Only set for outputs with valid sequence otuputs
+    num_prompt_tokens: Optional[int] = None
+
     error: Optional[str] = None
 
     @property

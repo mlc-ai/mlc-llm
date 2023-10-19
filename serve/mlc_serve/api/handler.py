@@ -174,13 +174,18 @@ async def collect_result_stream(
     created_time = int(time.time())
     sequences = [[] for _ in range(num_sequences)]
     finish_reasons = [None] * num_sequences
+    num_prompt_tokens = 0
+    num_generated_tokens = [0 for _ in range(num_sequences)]
     async for res in result_generator:
         # TODO: verify that the request cancellation happens after this returns
         if res.error:
             raise RuntimeError(f"Error when generating: {res.error}")
+        if res.num_prompt_tokens is not None:
+            num_prompt_tokens = res.num_prompt_tokens
         for seq in res.sequences:
             if seq.index >= len(sequences):
                 raise RuntimeError(f"Unexpected sequence index: {seq.index}.")
+            num_generated_tokens[seq.index] = seq.num_generated_tokens
             if seq.is_finished:
                 finish_reasons[seq.index] = seq.finish_reason.value
             else:
@@ -195,16 +200,10 @@ async def collect_result_stream(
         for index, (chunks, finish_reason) in enumerate(zip(sequences, finish_reasons))
     ]
 
-    # TODO(amalyshe): prompt tokens is also required for openapi output
-    # num_prompt_tokens = len(final_res.prompt_token_ids)
-    # num_generated_tokens = sum(
-    #     len(output.token_ids) for output in final_res.outputs)
-    num_prompt_tokens = 1
-    num_generated_tokens = 5
     usage = UsageInfo(
         prompt_tokens=num_prompt_tokens,
-        completion_tokens=num_generated_tokens,
-        total_tokens=num_prompt_tokens + num_generated_tokens,
+        completion_tokens=sum(num_generated_tokens),
+        total_tokens=num_prompt_tokens + sum(num_generated_tokens),
     )
     response = ChatCompletionResponse(
         id=request_id,
