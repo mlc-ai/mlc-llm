@@ -2,13 +2,13 @@ from typing import Optional, Union
 
 from mlc_serve.engine import (
     ChatMessage,
+    DebugOptions,
     FinishReason,
     Request,
     RequestId,
     RequestOutput,
     SamplingParams,
     StoppingCriteria,
-    DebugOptions,
 )
 from mlc_serve.engine.local import LocalProcessInferenceEngine
 from mlc_serve.engine.model_module import (
@@ -137,17 +137,17 @@ def get_output_for_request(
 
 def test_single_request():
     engine = LocalProcessInferenceEngine(DummaryModelModule(30))
-
-    request_id = engine.add(
+    request_id = "1"
+    engine.add(
         [
             Request(
-                request_id="1",
+                request_id=request_id,
                 messages=create_messages("test prompt"),
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=5),
             ),
         ]
-    )[0]
+    )
 
     step = engine.step()
 
@@ -159,16 +159,17 @@ def test_single_request():
 def test_single_request_step_to_finish():
     engine = LocalProcessInferenceEngine(DummaryModelModule(30))
 
-    request_id = engine.add(
+    request_id = "1"
+    engine.add(
         [
             Request(
-                request_id="1",
+                request_id=request_id,
                 messages=create_messages("test prompt"),
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=10),
             ),
         ]
-    )[0]
+    )
 
     steps = [engine.step() for _ in range(11)]
 
@@ -180,27 +181,30 @@ def test_single_request_step_to_finish():
 def test_multiple_requests_wait_queue():
     engine = LocalProcessInferenceEngine(DummaryModelModule(20))
 
-    request_id_1 = engine.add(
-        [
-            Request(
-                request_id="1",
-                messages=create_messages("test " * 11),  # 11 tokens
-                sampling_params=SamplingParams(temperature=1),
-                stopping_criteria=StoppingCriteria(max_tokens=2),
-            ),
-        ]
-    )[0]
+    request_id_1 = "1"
+    request_id_2 = "2"
 
-    request_id_2 = engine.add(
+    engine.add(
         [
             Request(
-                request_id="2",
+                request_id=request_id_1,
                 messages=create_messages("test " * 11),  # 11 tokens
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=2),
             ),
         ]
-    )[0]
+    )
+
+    engine.add(
+        [
+            Request(
+                request_id=request_id_2,
+                messages=create_messages("test " * 11),  # 11 tokens
+                sampling_params=SamplingParams(temperature=1),
+                stopping_criteria=StoppingCriteria(max_tokens=2),
+            ),
+        ]
+    )
 
     steps = [engine.step() for _ in range(3)]
 
@@ -223,27 +227,30 @@ def test_multiple_requests_wait_queue():
 def test_multiple_requests_preempt():
     engine = LocalProcessInferenceEngine(DummaryModelModule(30), min_decode_steps=1)
 
-    request_id_1 = engine.add(
-        [
-            Request(
-                request_id="1",
-                messages=create_messages("test " * 10),
-                sampling_params=SamplingParams(temperature=1),
-                stopping_criteria=StoppingCriteria(max_tokens=7),
-            ),
-        ]
-    )[0]
+    request_id_1 = "1"
+    request_id_2 = "2"
 
-    request_id_2 = engine.add(
+    engine.add(
         [
             Request(
-                request_id="2",
+                request_id=request_id_1,
                 messages=create_messages("test " * 10),
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=7),
             ),
         ]
-    )[0]
+    )
+
+    engine.add(
+        [
+            Request(
+                request_id=request_id_2,
+                messages=create_messages("test " * 10),
+                sampling_params=SamplingParams(temperature=1),
+                stopping_criteria=StoppingCriteria(max_tokens=7),
+            ),
+        ]
+    )
 
     steps = [engine.step() for _ in range(8)]
 

@@ -6,8 +6,6 @@ import random
 import time
 from typing import List, Tuple
 
-from transformers import PreTrainedTokenizerBase
-
 from mlc_llm import utils
 from mlc_serve.engine import (
     Request,
@@ -25,7 +23,7 @@ import pandas as pd
 def sample_requests(
     dataset_path: str,
     num_requests: int,
-    tokenizer: PreTrainedTokenizerBase,
+    tokenizer,
 ) -> List[Tuple[str, int, int]]:
     # Load the dataset.
     with open(dataset_path) as f:

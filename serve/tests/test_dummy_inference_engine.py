@@ -5,16 +5,17 @@ from mlc_serve.engine.dummy import DummyInferenceEngine
 def test_single_request():
     engine = DummyInferenceEngine()
 
-    request_id = engine.add(
+    request_id = "1"
+    engine.add(
         [
             Request(
-                request_id="1",
+                request_id=request_id,
                 messages=[ChatMessage(role="user", content="test prompt")],
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=20),
             ),
         ]
-    )[0]
+    )
 
     result = engine.step()
 

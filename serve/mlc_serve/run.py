@@ -1,4 +1,6 @@
 import argparse
+import logging
+import logging.config
 import os
 
 import uvicorn
@@ -30,6 +32,7 @@ def parse_args():
     args.add_argument("--num-shards", type=int, default=1)
     args.add_argument("--max-num-batched-tokens", type=int, default=-1)
     args.add_argument("--max-input-len", type=int, default=-1)
+    args.add_argument("--debug-logging", action="store_true")
     parsed = args.parse_args()
     parsed.model, parsed.quantization = parsed.local_id.rsplit("-", 1)
     utils.argparse_postproc_common(parsed)
@@ -39,8 +42,38 @@ def parse_args():
     return parsed
 
 
+def setup_logging(args):
+    level = "INFO"
+    if args.debug_logging:
+        level = "DEBUG"
+
+    logging_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "standard": {
+                "format": "%(asctime)s [%(levelname)s] - %(name)s - %(message)s",
+            },
+        },
+        "handlers": {
+            "console": {
+                "level": level,  # Set the handler's log level to DEBUG
+                "class": "logging.StreamHandler",
+                "formatter": "standard",
+            },
+        },
+        "root": {
+            "handlers": ["console"],
+            "level": level,  # Set the logger's log level to DEBUG
+        },
+        "mlc_serve.engine.local": {"level": level},
+    }
+    logging.config.dictConfig(logging_config)
+
+
 def run_server():
     args = parse_args()
+    setup_logging(args)
     model_module = PagedCacheModelModule(
         args.model,
         args.artifact_path,

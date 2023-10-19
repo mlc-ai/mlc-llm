@@ -33,8 +33,6 @@ class DummyInferenceEngine:
             self.request_queue.update(requests_to_add)
             self.has_new_requests.notify_all()
 
-        return ids
-
     def cancel(self, request_id: RequestId):
         """
         Cancel the generation of a request.
