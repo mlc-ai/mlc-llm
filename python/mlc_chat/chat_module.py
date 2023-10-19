@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+import warnings
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
 from typing import List, Optional
@@ -351,6 +352,12 @@ def _get_chat_config(config_file_path: str, user_chat_config: Optional[ChatConfi
         # We override using user's chat config
         for field in fields(user_chat_config):
             field_name = field.name
+            if field_name == 'model_lib':
+                warn_msg = ('WARNING: Do not override "model_lib" in ChatConfig. '
+                            'This override will be ignored. '
+                            'Please use ChatModule.model_lib_path to override the full model library path instead.')
+                warnings.warn(warn_msg)
+                continue
             field_value = getattr(user_chat_config, field_name)
             if field_value is not None:
                 setattr(final_chat_config, field_name, field_value)
@@ -389,7 +396,7 @@ def _get_lib_module_path(
     model: str,
     model_path: str,
     chat_config: ChatConfig,
-    lib_path: Optional[str],
+    model_lib_path: Optional[str],
     device_name: str,
     config_file_path: str,
 ) -> str:
@@ -403,7 +410,7 @@ def _get_lib_module_path(
         Model path found by `_get_model_path`.
     chat_config : ChatConfig
         Chat config after potential overrides. Returned by ``_get_chat_config``.
-    lib_path : Optional[str]
+    model_lib_path : Optional[str]
         User's input. Supposedly a full path to model library. Prioritized to use.
     device_name : str
         User's input. Used to construct the library model file name.
@@ -412,21 +419,21 @@ def _get_lib_module_path(
 
     Returns
     ------
-    lib_path : str
+    model_lib_path : str
         The path pointing to the model library we find.
 
     Raises
     ------
     FileNotFoundError: if we cannot find a valid model library file.
     """
-    # 1. Use user's lib_path if provided
-    if lib_path is not None:
-        if os.path.isfile(lib_path):
-            logging.info(f"Using library model: {lib_path}")
-            return lib_path
+    # 1. Use user's model_lib_path if provided
+    if model_lib_path is not None:
+        if os.path.isfile(model_lib_path):
+            logging.info(f"Using library model: {model_lib_path}")
+            return model_lib_path
         else:
             err_msg = (
-                f"The `lib_path` you passed in is not a file: {lib_path}.\nPlease checkout "
+                f"The `model_lib_path` you passed in is not a file: {model_lib_path}.\nPlease checkout "
                 f"{_PYTHON_GET_STARTED_TUTORIAL_URL} for an example on how to load a model."
             )
             raise FileNotFoundError(err_msg)
@@ -482,7 +489,7 @@ def _get_lib_module_path(
         err_msg += f"- {candidate}\n"
     err_msg += (
         "If you would like to directly specify the model library path, you may "
-        "consider passing in the `lib_path` parameter.\n"
+        "consider passing in the `ChatModule.model_lib_path` parameter.\n"
         f"Please checkout {_PYTHON_GET_STARTED_TUTORIAL_URL} for an example "
         "on how to load a model."
     )
@@ -659,7 +666,7 @@ class ChatModule:
         A ``ChatConfig`` instance partially filled. Will be used to override the
         ``mlc-chat-config.json``.
 
-    lib_path : Optional[str]
+    model_lib_path : Optional[str]
         The full path to the model library file to use (e.g. a ``.so`` file).
         If unspecified, we will use the provided ``model`` to search over
         possible paths.
@@ -670,7 +677,7 @@ class ChatModule:
         model: str,
         device: str = "auto",
         chat_config: Optional[ChatConfig] = None,
-        lib_path: Optional[str] = None,
+        model_lib_path: Optional[str] = None,
     ):
         device_err_msg = (
             f"Invalid device name: {device}. Please enter the device in the form "
@@ -732,15 +739,15 @@ class ChatModule:
         self.chat_config = _get_chat_config(self.config_file_path, chat_config)
 
         # 5. Look up model library
-        self.lib_path = _get_lib_module_path(
-            model, self.model_path, self.chat_config, lib_path, device_name, self.config_file_path
+        self.model_lib_path = _get_lib_module_path(
+            model, self.model_path, self.chat_config, model_lib_path, device_name, self.config_file_path
         )
 
         # 6. Call reload
         user_chat_config_json_str = _convert_chat_config_to_json_str(
             self.chat_config, self.chat_config.conv_template
         )
-        self._reload(self.lib_path, self.model_path, user_chat_config_json_str)
+        self._reload(self.model_lib_path, self.model_path, user_chat_config_json_str)
 
     def generate(
         self,
