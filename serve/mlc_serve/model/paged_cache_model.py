@@ -215,7 +215,7 @@ def sample(logits, sampling_params, vocab_size):
     return torch.multinomial(probs, 1, True).cpu().numpy()[:, 0]
 
 
-def load_params_disco(artifact_path, lib_path, num_shards):
+def load_disco_module(artifact_path, lib_path, num_shards):
     sess = di.ProcessSession(num_workers=num_shards)
     devices = range(num_shards)
     sess.init_ccl("nccl", *devices)
@@ -248,7 +248,7 @@ def get_tvm_model(artifact_path, model, quantization, num_shards, dev):
         params = utils.load_params(artifact_path, dev)
         return vm.module, params, None
 
-    return load_params_disco(artifact_path, lib_path, num_shards)
+    return load_disco_module(artifact_path, lib_path, num_shards)
 
 
 class Model:
@@ -356,7 +356,8 @@ class Model:
                 slot = block_number * block_size + block_offset
                 slot_mapping.append(slot)
 
-        input_ids = tvm.nd.array(np.array(input_ids, dtype="int32"), self.dev)
+        input_ids_np = np.array(input_ids, dtype="int32")
+        input_ids = tvm.nd.array(input_ids_np, self.dev)
         positions = tvm.nd.array(np.array(positions, dtype="int32"), self.dev)
         seq_lens = tvm.nd.array(np.array(seq_lens, dtype="int32"), self.dev)
         slot_mapping = tvm.nd.array(np.array(slot_mapping, dtype="int32"), self.dev)
@@ -370,6 +371,7 @@ class Model:
         kv_cache = cache.cache
 
         if is_prompt:
+            torch.cuda.nvtx.range_push(f"forward prefill {input_ids_np.shape}")
             out = self.mod["prefill"](
                 input_ids, positions, seq_lens, kv_cache, slot_mapping, self.params
             )
@@ -381,6 +383,7 @@ class Model:
                     0
                 ]  # Ignore returned KV cache since it is updated in-place anyway.
         else:
+            torch.cuda.nvtx.range_push(f"forward decode {input_ids_np.shape}")
 
             def _pad_to_max(x: List[int], max_len: int) -> List[int]:
                 return x + [0] * (max_len - len(x))
@@ -413,6 +416,7 @@ class Model:
             else:
                 logits = out[0]
 
+        torch.cuda.nvtx.range_pop()
         next_tokens = sample(logits, sampling_params, self.vocab_size)
 
         return [
