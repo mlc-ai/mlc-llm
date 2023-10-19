@@ -50,17 +50,16 @@
 </table>
 
 
-**Scalable.** MLC LLM scales universally on NVIDIA and AMD GPUs, cloud and gaming GPUs.
+**Scalable.** MLC LLM scales universally on NVIDIA and AMD GPUs, cloud and gaming GPUs. Below
+showcases our single batch decoding performance with prefilling = 1 and decoding = 256.
 
 Performance of 4-bit CodeLlama-34B and Llama2-70B on two NVIDIA RTX 4090 and two AMD Radeon 7900 XTX:
-
 <p float="left">
   <img src="site/img/multi-gpu/figure-1.svg" width="60%"/>
   <img src="site/img/multi-gpu/figure-3.svg" width="30%"/>
 </p>
 
 Scaling of fp16 and 4-bit CodeLlama-34 and Llama2-70B on A100-80G-PCIe and A10G-24G-PCIe, up to 8 GPUs:
-
 <p float="center">
   <img src="site/img/multi-gpu/figure-2.svg" width="100%"/>
 </p>
