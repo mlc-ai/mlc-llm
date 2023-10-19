@@ -1,6 +1,9 @@
 """Namespace of callback functions in Python API."""
 #! pylint: disable=unused-import, invalid-name, unnecessary-pass
 
+from queue import Queue
+from typing import Optional
+
 from .base import get_delta_message
 
 
@@ -74,3 +77,47 @@ class StreamToStdout(DeltaCallback):
     def stopped_callback(self):
         r"""Stream an additional '\n' when generation ends."""
         print()
+
+
+class StreamIterator(DeltaCallback):
+    """Stream the output using an iterator.
+    A queue stores the delta messages"""
+
+    def __init__(self, callback_interval: int = 2, timeout: Optional[float] = None):
+        r"""Initialize the callback class with callback interval and queue timeout.
+
+        Parameters
+        ----------
+        callback_interval : int
+            The refresh rate of the streaming process.
+        timeout : Optional[float]
+            Timeout for put and get from the delta messages queue
+        """
+        super().__init__()
+        self.delta_messages = Queue()
+        self.callback_interval = callback_interval
+        self.timeout = timeout
+
+    def delta_callback(self, delta_message: str):
+        r"""Stream the delta message to iterator (adding).
+
+        Parameters
+        ----------
+        delta_message : str
+            The delta message (the part that has not been added to queue yet).
+        """
+        self.delta_messages.put(delta_message, timeout=self.timeout)
+
+    def stopped_callback(self):
+        """Using None as the stop signal for the iterator"""
+        self.delta_messages.put(None, timeout=self.timeout)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        value = self.delta_messages.get(timeout=self.timeout)
+        if value:
+            return value
+        else:
+            raise StopIteration()
