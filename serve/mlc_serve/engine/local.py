@@ -258,7 +258,11 @@ class LocalProcessInferenceEngine(InferenceEngine):
         )
 
     def _decode_last_output(self, state: RequestState) -> str:
-        prefix_idx = max(0, state.next_start_position - 6)
+        if len(state.output_text):
+            prefix_idx = max(0, state.next_start_position - 6)
+        else:
+            prefix_idx = state.next_start_position
+
         if prefix_idx == 0:
             return self.tokenizer.decode(state.token_ids)
 
