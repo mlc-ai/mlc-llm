@@ -55,7 +55,7 @@ showcases our single batch decoding performance with prefilling = 1 and decoding
 
 Performance of 4-bit CodeLlama-34B and Llama2-70B on two NVIDIA RTX 4090 and two AMD Radeon 7900 XTX:
 <p float="left">
-  <img src="site/img/multi-gpu/figure-1.svg" width="60%"/>
+  <img src="site/img/multi-gpu/figure-1.svg" width="40%"/>
   <img src="site/img/multi-gpu/figure-3.svg" width="30%"/>
 </p>
 
