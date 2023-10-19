@@ -43,7 +43,7 @@ class LocalProcessInferenceEngine(InferenceEngine):
         self,
         model_module: ModelModule,
         max_batched_tokens: int = 2560,
-        min_decode_steps: int = 32,
+        min_decode_steps: int = 512,
     ):
         self.text_generator = model_module.text_generator
         self.tokenizer = model_module.tokenizer
@@ -204,7 +204,7 @@ class LocalProcessInferenceEngine(InferenceEngine):
                         num_new_batched_tokens,
                     )
                     break
-                if self.cache_manager.get_free_space() <= 1.5 * num_tokens:
+                if self.cache_manager.get_free_space() <= 3 * num_tokens:
                     logger.debug(
                         "Stop growing the batch due to not enough free space. Free: %s, Num tokens: %s",
                         self.cache_manager.get_free_space(),

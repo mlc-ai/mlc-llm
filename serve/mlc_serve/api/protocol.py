@@ -60,13 +60,13 @@ class ChatCompletionRequest(BaseModel):
     model: str
     messages: Union[str, List[ChatMessage]]  # according to openai chat completion spec, here should be only a list of ChatMessage
     max_tokens: Optional[int] = None
-    temperature: Optional[float]
-    top_p: Optional[float]
+    temperature: float = 1.0
+    top_p: float = 1.0
     n: int = 1
-    stop: Optional[Union[str, List[str]]] = Field(default_factory=list)
-    stream: Optional[bool] = False
-    presence_penalty: Optional[float]
-    frequency_penalty: Optional[float]
+    stop: Union[str, List[str]] = Field(default_factory=list)
+    stream: bool = False
+    presence_penalty: float = 0.0
+    frequency_penalty: float = 0.0
     logit_bias: Optional[Dict[str, float]] = None
     user: Optional[str] = None
     ignore_eos: Optional[bool] = False
