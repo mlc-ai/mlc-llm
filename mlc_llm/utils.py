@@ -1,5 +1,6 @@
 # pylint: disable=missing-docstring,invalid-name
 import argparse
+import functools
 import json
 import os
 import shutil
@@ -10,11 +11,29 @@ from tvm import relax
 
 from .quantization import quantization_schemes
 from .relax_model import param_manager
-from .transform import ReorderTransformFunc
+
 
 supported_model_types = set(
-    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj", "chatglm", "mistral"]
+    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj", "chatglm", "mistral", "stablelm_epoch"]
 )
+
+
+def wrap_tqdm_counter(func, **tqdm_kwargs):
+    # tqdm isn't a hard requirement, so return the original function
+    # if it isn't available.
+    try:
+        from tqdm import tqdm
+    except ImportError:
+        return func
+
+    pbar = tqdm(**tqdm_kwargs)
+
+    @functools.wraps(func)
+    def inner(*args, **kwargs):
+        pbar.update(1)
+        return func(*args, **kwargs)
+
+    return inner
 
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
@@ -64,6 +83,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "codellama": "codellama_completion",
         "vicuna-": "vicuna_v1.1",
         "dolly-": "dolly",
+        "stablelm-3b-": "stablelm-3b",
         "stablelm-": "stablelm",
         "redpajama-": "redpajama_chat",
         "minigpt": "minigpt",
@@ -191,31 +211,18 @@ def convert_weights(
     model_params: List[Optional[tvm.nd.NDArray]],
     args: argparse.Namespace,
 ):
-    # Run pre-quantization if provided.
-    if param_mgr.f_run_prequantize is not None:
-        args.model_path = param_mgr.f_run_prequantize(args.model_path)
-        param_mgr.model_path = args.model_path
-    param_mgr.torch_pname2binname = (
-        param_manager.load_torch_pname2binname_map(
-            args.model_path,
-            args.use_safetensors,
-            set(param_mgr.pidx2pname.values()),
-            param_mgr.f_convert_pname_fwd,
-        )
-        if len(param_mgr.pidx2pname) != 0
-        else dict()
-    )
-
     # Create the quantization function.
     # We first create an initial one, then reorder it according to each
     # weight's location in the binary files, in the purpose of reducing
     # memory usage when loading torch weights as well as acceleration.
-    mod_transform = param_manager.create_quantize_func(param_mgr)
-    mod_transform = ReorderTransformFunc(
-        param_mgr.pidx2pname,
-        param_mgr.torch_pname2binname,
-        param_mgr.f_convert_pname_fwd,
-    )(mod_transform)
+    mod_transform = param_mgr.create_parameter_transformation()
+
+    # Save the number of parameters before we lower mod_transform, so
+    # we can use them in the progress bar.
+    transform_func = mod_transform["transform_params"]
+    num_original_params = len(transform_func.params[0].struct_info.fields)
+    num_transformed_params = len(transform_func.struct_info.ret.fields)
+
     # Remove the dataflow block inside the param transform function,
     # so that the LazyTransformParams pass can be applied.
     mod_transform = relax.transform.ToNonDataflow()(mod_transform)
@@ -245,6 +252,14 @@ def convert_weights(
         device,
         device_cpu,
     )
+
+    get_item = wrap_tqdm_counter(
+        get_item, desc="Get old param", position=0, unit="tensors", total=num_original_params
+    )
+    set_item = wrap_tqdm_counter(
+        set_item, desc="Set new param", position=1, unit="tensors", total=num_transformed_params
+    )
+
     tvm.register_func(func_name="get_item", f=get_item, override=True)
     tvm.register_func(func_name="set_item", f=set_item, override=True)
 

@@ -11,8 +11,7 @@ We also provide a web demo based on `gradio <https://gradio.app/>`_ as an exampl
 Python API
 ----------
 
-The Python API is a part of the MLC-Chat package, which we have prepared pre-built pip wheels and you can install it by
-following the instructions in `<https://mlc.ai/package/>`_.
+The Python API is a part of the MLC-Chat package, which we have prepared pre-built pip wheels via the :doc:`installation page <../install/mlc_llm>`.
 
 Verify Installation
 ^^^^^^^^^^^^^^^^^^^
@@ -313,6 +312,15 @@ The :class:`mlc_chat.ChatModule` class provides the following methods:
    :show-inheritance:
 
    .. automethod:: __init__
+
+.. autoclass:: ChatConfig
+   :members:
+
+.. autoclass:: ConvConfig
+   :members:
+
+.. autoclass:: GenerationConfig
+   :members:
 
 Gradio Frontend
 ---------------

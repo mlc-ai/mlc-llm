@@ -32,6 +32,9 @@
 #include <vector>
 
 #include "conversation.h"
+#include "random.h"
+#include "support.h"
+#include "tokenizers.h"
 
 namespace mlc {
 namespace llm {
@@ -39,62 +42,6 @@ namespace llm {
 using tvm::Device;
 using namespace tvm::runtime;
 namespace {
-//----------------------------
-// Tokenizers
-//----------------------------
-using tokenizers::Tokenizer;
-
-std::string LoadBytesFromFile(const std::string& path) {
-  std::ifstream fs(path, std::ios::in | std::ios::binary);
-  ICHECK(!fs.fail()) << "Cannot open " << path;
-  std::string data;
-  fs.seekg(0, std::ios::end);
-  size_t size = static_cast<size_t>(fs.tellg());
-  fs.seekg(0, std::ios::beg);
-  data.resize(size);
-  fs.read(data.data(), size);
-  return data;
-}
-
-std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
-  std::filesystem::path path(_path);
-  std::filesystem::path sentencepiece;
-  std::filesystem::path huggingface;
-  std::filesystem::path rwkvworld;
-  CHECK(std::filesystem::exists(path)) << "Cannot find tokenizer via path: " << _path;
-  if (std::filesystem::is_directory(path)) {
-    sentencepiece = path / "tokenizer.model";
-    huggingface = path / "tokenizer.json";
-    rwkvworld = path / "tokenizer_model";
-    // Check ByteLevelBPE
-    {
-      std::filesystem::path merges_path = path / "merges.txt";
-      std::filesystem::path vocab_path = path / "vocab.json";
-      std::filesystem::path added_tokens_path = path / "added_tokens.json";
-      if (std::filesystem::exists(merges_path) && std::filesystem::exists(vocab_path) &&
-          std::filesystem::exists(added_tokens_path)) {
-        std::string vocab = LoadBytesFromFile(vocab_path.string());
-        std::string merges = LoadBytesFromFile(merges_path.string());
-        std::string added_tokens = LoadBytesFromFile(added_tokens_path.string());
-        return Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens);
-      }
-    }
-  } else {
-    sentencepiece = path.parent_path() / "tokenizer.model";
-    huggingface = path.parent_path() / "tokenizer.json";
-    rwkvworld = path.parent_path() / "tokenizer_model";
-  }
-  if (std::filesystem::exists(sentencepiece)) {
-    return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece.string()));
-  }
-  if (std::filesystem::exists(huggingface)) {
-    return Tokenizer::FromBlobJSON(LoadBytesFromFile(huggingface.string()));
-  }
-  if (std::filesystem::exists(rwkvworld)) {
-    return Tokenizer::FromBlobRWKVWorld(rwkvworld.string());
-  }
-  LOG(FATAL) << "Cannot find any tokenizer under: " << _path;
-}
 
 //------------------------------
 // support functions
@@ -315,23 +262,6 @@ struct FunctionTable {
   PackedFunc fkvcache_array_popn_;
 };
 
-class RandomGenerator {
- private:
-  std::mt19937 gen;
-  std::uniform_real_distribution<> dis;
-
-  RandomGenerator(int seed) : gen(seed), dis(0.0, 1.0) {}
-
- public:
-  static RandomGenerator& GetInstance(int seed = std::random_device{}()) {
-    static RandomGenerator instance(seed);
-    return instance;
-  }
-
-  double GetRandomNumber() { return dis(gen); }
-
-  void SetSeed(int seed) { gen.seed(seed); }
-};
 }  // namespace
 
 //------------------------------
@@ -614,7 +544,20 @@ class LLMChat {
    * \brief Get input tokens based on history
    * \param place_in_prompt The place of the input message in the prompt.
    */
-  std::vector<int32_t> GetInputTokens(PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
+  std::vector<int32_t> GetInputTokens(PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
+                                      picojson::object generation_config = picojson::object()) {
+    // prepare generation settings
+    // the generation_config will not override the original config
+    // since is only used for this generation
+    int64_t gen_mean_gen_len;
+    if (generation_config.count("mean_gen_len")) {
+      CHECK(generation_config["mean_gen_len"].is<int64_t>());
+      gen_mean_gen_len = generation_config["mean_gen_len"].get<int64_t>();
+    } else {
+      gen_mean_gen_len = this->mean_gen_len_;
+    }
+
+    // work on input tokens
     std::vector<int32_t> tokens;
     std::vector<std::string> prompts;
 
@@ -635,7 +578,7 @@ class LLMChat {
     std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
     if (this->sliding_window_ != -1 ||  // There is no max window size if we use sliding window
-        this->total_seq_len_ + tokens.size() + this->mean_gen_len_ < this->max_window_size_) {
+        this->total_seq_len_ + tokens.size() + gen_mean_gen_len < this->max_window_size_) {
       return tokens;
     }
     // need shift window and re-encode
@@ -672,11 +615,11 @@ class LLMChat {
     if (tokens.size() >= this->max_window_size_) {
       LOG(WARNING)
           << "The prompt tokens are more than `max_window_size`, the input will be truncated.";
-      ICHECK_GT(this->max_window_size_, this->mean_gen_len_);
+      ICHECK_GT(this->max_window_size_, gen_mean_gen_len);
       std::vector<int32_t> truncated_tokens(
-          tokens.end() - (this->max_window_size_ - this->mean_gen_len_), tokens.end());
+          tokens.end() - (this->max_window_size_ - gen_mean_gen_len), tokens.end());
       return truncated_tokens;
-    } else if (tokens.size() + this->mean_gen_len_ >= this->max_window_size_) {
+    } else if (tokens.size() + gen_mean_gen_len >= this->max_window_size_) {
       LOG(WARNING)
           << "The prompt tokens are too long and the generated text may be incomplete, due to "
              "limited `max_window_size`. ";
@@ -711,8 +654,10 @@ class LLMChat {
     return view;
   }
 
-  std::vector<int32_t> PrepareBeforeEmbedding(std::string inp, bool append_conversation = true,
-                                              PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
+  std::vector<int32_t> PrepareBeforeEmbedding(
+      std::string inp, bool append_conversation = true,
+      PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
+      picojson::object generation_config = picojson::object()) {
     if (conversation_.separator_style == SeparatorStyle::kLM ||
         conversation_.separator_style == SeparatorStyle::kCodeCompletion) {
       this->ResetChat();
@@ -729,7 +674,7 @@ class LLMChat {
       conversation_.AppendReplyHeader(conversation_.roles[1]);
     }
 
-    return this->GetInputTokens(place_in_prompt);
+    return this->GetInputTokens(place_in_prompt, generation_config);
   }
 
   /*!
@@ -740,9 +685,18 @@ class LLMChat {
    * \return the embedding of the tokenized prompt.
    */
   ObjectRef EmbedStep(std::string inp, bool append_conversation = true,
-                      PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
+                      PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
+                      String generation_config_str = "") {
+    // process generation settings
+    picojson::object generation_config = picojson::object();
+    if (!generation_config_str.empty()) {
+      picojson::value generation_config_json;
+      picojson::parse(generation_config_json, generation_config_str);
+      generation_config = generation_config_json.get<picojson::object>();
+    }
+
     std::vector<int32_t> prompt_tokens =
-        PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt);
+        PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt, generation_config);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
     if (token_len == 0) {
       return NDArray::Empty({}, DataType::Float(32), device_);
@@ -771,7 +725,8 @@ class LLMChat {
    * \param embedding The embedding to prefill with.
    * \param decode_next_token Whether to decode next token.
    */
-  void PrefillWithEmbedStep(NDArray embedding, bool decode_next_token = true) {
+  void PrefillWithEmbedStep(NDArray embedding, bool decode_next_token = true,
+                            String generation_config_str = "") {
     if (ft_.use_disco) {
       LOG(FATAL) << "NotImplementedError: Distributed inference is not supported for this model";
       throw;
@@ -790,7 +745,15 @@ class LLMChat {
       return;
     }
 
-    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
+    // process generation settings
+    picojson::object generation_config = picojson::object();
+    if (!generation_config_str.empty()) {
+      picojson::value generation_config_json;
+      picojson::parse(generation_config_json, generation_config_str);
+      generation_config = generation_config_json.get<picojson::object>();
+    }
+
+    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config);
 
     auto tend = std::chrono::high_resolution_clock::now();
 
@@ -807,7 +770,8 @@ class LLMChat {
    * \param place_in_prompt The place of the input message in the prompt.
    */
   void PrefillStep(std::string inp, bool append_conversation = true, bool decode_next_token = true,
-                   PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
+                   PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
+                   String generation_config_str = "") {
     if (ft_.embed_func_.defined() && ft_.prefill_with_embed_func_.defined()) {
       // Temporarily placed inside `PrefillStep` for compatibility in transition.
       // Will be separated out in the future.
@@ -818,13 +782,22 @@ class LLMChat {
         LOG(FATAL)
             << "NotImplementedError: Sliding window attention does not support separate embedding";
       }
-      NDArray embedding = Downcast<NDArray>(EmbedStep(inp, append_conversation, place_in_prompt));
-      PrefillWithEmbedStep(embedding, decode_next_token);
+      NDArray embedding = Downcast<NDArray>(
+          EmbedStep(inp, append_conversation, place_in_prompt, generation_config_str));
+      PrefillWithEmbedStep(embedding, decode_next_token, generation_config_str);
       return;
     }
 
+    // process generation settings
+    picojson::object generation_config = picojson::object();
+    if (!generation_config_str.empty()) {
+      picojson::value generation_config_json;
+      picojson::parse(generation_config_json, generation_config_str);
+      generation_config = generation_config_json.get<picojson::object>();
+    }
+
     std::vector<int32_t> prompt_tokens =
-        this->PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt);
+        this->PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt, generation_config);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
     if (token_len == 0) return;
     if (ft_.use_disco) {
@@ -864,7 +837,7 @@ class LLMChat {
       return;
     }
 
-    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
+    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config);
 
     auto tend = std::chrono::high_resolution_clock::now();
 
@@ -873,7 +846,15 @@ class LLMChat {
     this->ProcessNextToken(next_token);
   }
 
-  void DecodeStep() {
+  void DecodeStep(String generation_config_str = "") {
+    // process generation settings
+    picojson::object generation_config = picojson::object();
+    if (!generation_config_str.empty()) {
+      picojson::value generation_config_json;
+      picojson::parse(generation_config_json, generation_config_str);
+      generation_config = generation_config_json.get<picojson::object>();
+    }
+
     ICHECK(!output_ids_.empty());
     int32_t last_token = output_ids_.back();
     tvm::runtime::NDArray input_data = GetInputTokenNDArray({last_token});
@@ -883,7 +864,7 @@ class LLMChat {
     NDArray logits_on_device = this->ForwardTokens({last_token}, total_seq_len_ + 1);
     total_seq_len_ += 1;
 
-    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_);
+    int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config);
 
     auto tend = std::chrono::high_resolution_clock::now();
 
@@ -961,7 +942,7 @@ class LLMChat {
     {
       auto tstart = std::chrono::high_resolution_clock::now();
       logits_on_device = this->ForwardTokens(tokens, tokens.size());
-      tokens.push_back(this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_));
+      tokens.push_back(this->SampleTokenFromLogits(logits_on_device));
       auto tend = std::chrono::high_resolution_clock::now();
 
       this->prefill_total_time = static_cast<double>((tend - tstart).count()) / 1e9;
@@ -973,7 +954,7 @@ class LLMChat {
       auto tstart = std::chrono::high_resolution_clock::now();
       for (int64_t len = 1; len < generate_len; ++len) {
         logits_on_device = this->ForwardTokens({tokens.back()}, tokens.size());
-        tokens.push_back(this->SampleTokenFromLogits(logits_on_device, temperature_, top_p_));
+        tokens.push_back(this->SampleTokenFromLogits(logits_on_device));
       }
       auto tend = std::chrono::high_resolution_clock::now();
 
@@ -1000,26 +981,60 @@ class LLMChat {
   /*!
    * \brief Sample output token from logits on device
    */
-  int32_t SampleTokenFromLogits(NDArray logits_on_device, float temperature, float top_p) {
-    if (repetition_penalty_ == 1.0f) {
-      if (temperature_ < 1e-6f) {
+  int32_t SampleTokenFromLogits(NDArray logits_on_device,
+                                picojson::object generation_config = picojson::object()) {
+    // prepare generation settings
+    // the generation_config will not override the original config
+    // since is only used for this generation
+    double gen_temperature;
+    double gen_repetition_penalty;
+    double gen_top_p;
+    if (generation_config.count("temperature")) {
+      CHECK(generation_config["temperature"].is<double>());
+      gen_temperature = generation_config["temperature"].get<double>();
+      if (gen_temperature != this->temperature_) {
+        this->temperature_ = gen_temperature;
+        float temperature_cast = static_cast<float>(gen_temperature);
+        this->temperature_arr_.CopyFromBytes(&temperature_cast, sizeof(float));
+      }
+    } else {
+      gen_temperature = this->temperature_;
+    }
+    if (generation_config.count("repetition_penalty")) {
+      CHECK(generation_config["repetition_penalty"].is<double>());
+      gen_repetition_penalty = generation_config["repetition_penalty"].get<double>();
+    } else {
+      gen_repetition_penalty = this->repetition_penalty_;
+    }
+    if (generation_config.count("top_p")) {
+      CHECK(generation_config["top_p"].is<double>());
+      gen_top_p = generation_config["top_p"].get<double>();
+    } else {
+      gen_top_p = this->top_p_;
+    }
+
+    // update logits
+    if (gen_repetition_penalty == 1.0f) {
+      if (gen_temperature < 1e-6f) {
         this->UpdateLogitsOrProbOnCPUSync(logits_on_device);
       } else {
-        this->UpdateLogitsOrProbOnCPUSync(this->Softmax(logits_on_device, temperature_));
+        this->UpdateLogitsOrProbOnCPUSync(this->Softmax(logits_on_device, this->temperature_arr_));
       }
     } else {
       this->UpdateLogitsOrProbOnCPUSync(logits_on_device);
-      this->ApplyRepetitionPenaltyOnCPU();
-      if (temperature_ >= 1e-6f) {
-        this->ApplySoftmaxWithTemperatureOnCPU();
+      this->ApplyRepetitionPenaltyOnCPU(gen_repetition_penalty);
+      if (gen_temperature >= 1e-6f) {
+        this->ApplySoftmaxWithTemperatureOnCPU(gen_temperature);
       }
     }
+
+    // perform sampling
     auto tstart = std::chrono::high_resolution_clock::now();
     int next_token;
-    if (temperature_ < 1e-6f) {
-      next_token = this->SampleFromLogitsOnCPU();
+    if (gen_temperature < 1e-6f) {
+      next_token = this->SampleFromLogitsOnCPU(gen_temperature, gen_top_p);
     } else {
-      next_token = this->SampleFromProbOnCPU();
+      next_token = this->SampleFromProbOnCPU(gen_top_p);
     }
     auto tend = std::chrono::high_resolution_clock::now();
     this->sample_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
@@ -1030,7 +1045,19 @@ class LLMChat {
    * \brief Add a generated token and check for stop condition.
    * \param next_token The next token.
    */
-  void ProcessNextToken(int32_t next_token) {
+  void ProcessNextToken(int32_t next_token,
+                        picojson::object generation_config = picojson::object()) {
+    // prepare generation settings
+    // the generation_config will not override the original config
+    // since is only used for this generation
+    int64_t gen_max_gen_len;
+    if (generation_config.count("max_gen_len")) {
+      CHECK(generation_config["max_gen_len"].is<int64_t>());
+      gen_max_gen_len = generation_config["max_gen_len"].get<int64_t>();
+    } else {
+      gen_max_gen_len = this->max_gen_len_;
+    }
+
     ICHECK(!stop_triggered_) << "Cannot call process when it is stopped";
 
     stop_triggered_ =
@@ -1052,10 +1079,9 @@ class LLMChat {
           // back tracking, find the first set of token that is smaller
           // than the length
           size_t backoff = 0;
-          for (; backoff < output_ids_.size(); ++backoff) {
+          for (; (output_ids_.size() > 0) && (output_message_.length() > stop_pos); ++backoff) {
             output_ids_.pop_back();
             output_message_ = tokenizer_->Decode(output_ids_);
-            if (output_message_.length() <= stop_pos) break;
           }
           // resize kv to remove the context
           ft_.fkvcache_array_popn_(kv_cache_, backoff);
@@ -1064,7 +1090,7 @@ class LLMChat {
       }
     }
 
-    if (static_cast<int64_t>(output_ids_.size()) >= max_gen_len_) {
+    if (static_cast<int64_t>(output_ids_.size()) >= gen_max_gen_len) {
       stop_triggered_ = true;
     } else if (sliding_window_ == -1 && total_seq_len_ >= max_window_size_) {
       stop_triggered_ = true;
@@ -1139,32 +1165,32 @@ class LLMChat {
     return Downcast<NDArray>(ret[0]);
   }
 
-  NDArray Softmax(NDArray input, float temperature) {
+  NDArray Softmax(NDArray input, NDArray temperature_arr) {
     NDArray ret;
-    ret = ft_.softmax_func_(input, temperature_arr_);
+    ret = ft_.softmax_func_(input, temperature_arr);
     return ret;
   }
 
-  void ApplyRepetitionPenaltyOnCPU() {
+  void ApplyRepetitionPenaltyOnCPU(float repetition_penalty) {
     CHECK(logits_on_cpu_.defined()) << "Logits on CPU not defined!";
     CHECK(logits_on_cpu_.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
     float* logits_raw_data = static_cast<float*>(logits_on_cpu_->data);
     for (const int32_t& token_id : this->appeared_token_ids_) {
       if (logits_raw_data[token_id] <= 0) {
-        logits_raw_data[token_id] *= this->repetition_penalty_;
+        logits_raw_data[token_id] *= repetition_penalty;
       } else {  // logits > 0
-        logits_raw_data[token_id] /= this->repetition_penalty_;
+        logits_raw_data[token_id] /= repetition_penalty;
       }
     }
   }
 
-  void ApplySoftmaxWithTemperatureOnCPU() {
+  void ApplySoftmaxWithTemperatureOnCPU(float temperature) {
     CHECK(logits_on_cpu_.defined()) << "Logits on CPU not defined!";
     CHECK(logits_on_cpu_.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
     int vocab_size = logits_on_cpu_->shape[logits_on_cpu_->ndim - 1];
     float* logits_raw_data = static_cast<float*>(logits_on_cpu_->data);
     float m = std::numeric_limits<float>::min();
-    float inv_temp = 1.0f / this->temperature_;
+    float inv_temp = 1.0f / temperature;
     double d = 0.0f;
     for (int i = 0; i < vocab_size; ++i) {
       float x = logits_raw_data[i] * inv_temp;
@@ -1199,18 +1225,18 @@ class LLMChat {
   // Utils
   static double GetRandomNumber() { return RandomGenerator::GetInstance().GetRandomNumber(); }
 
-  int32_t SampleFromLogitsOnCPU() {
+  int32_t SampleFromLogitsOnCPU(float temperature, float top_p) {
     ICHECK(logits_on_cpu_.defined()) << "logits_on_cpu_ is not defined";
     ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
     ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
-    return fsample_topp_from_logits_(logits_on_cpu_, temperature_, top_p_, GetRandomNumber());
+    return fsample_topp_from_logits_(logits_on_cpu_, temperature, top_p, GetRandomNumber());
   }
 
-  int32_t SampleFromProbOnCPU() {
+  int32_t SampleFromProbOnCPU(float top_p) {
     ICHECK(logits_on_cpu_.defined()) << "logits_on_cpu_ is not defined";
     ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
     ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
-    return fsample_topp_from_prob_(logits_on_cpu_, top_p_, GetRandomNumber());
+    return fsample_topp_from_prob_(logits_on_cpu_, top_p, GetRandomNumber());
   }
 
   //----------------------------
@@ -1342,7 +1368,7 @@ class LLMChatModule : public ModuleNode {
       });
     } else if (name == "prefill") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK(1 <= args.size() && args.size() <= 3);
+        ICHECK(1 <= args.size() && args.size() <= 4);
         if (args.size() == 1) {
           // args: inp (with decode_next_token = true, place_in_prompt = kAll)
           GetChat()->PrefillStep(args[0]);
@@ -1353,11 +1379,15 @@ class LLMChatModule : public ModuleNode {
           // args: inp, decode_next_token, place_in_prompt
           PlaceInPrompt place_in_prompt = static_cast<PlaceInPrompt>(static_cast<int>(args[2]));
           GetChat()->PrefillStep(args[0], true, args[1], place_in_prompt);
+        } else if (args.size() == 4) {
+          // args: inp, decode_next_token, place_in_prompt, generation_config_str
+          PlaceInPrompt place_in_prompt = static_cast<PlaceInPrompt>(static_cast<int>(args[2]));
+          GetChat()->PrefillStep(args[0], true, args[1], place_in_prompt, args[3]);
         }
       });
     } else if (name == "embed") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK(1 <= args.size() && args.size() <= 2);
+        ICHECK(1 <= args.size() && args.size() <= 3);
         if (args.size() == 1) {
           // args: inp (with place_in_prompt = kAll)
           *rv = GetChat()->EmbedStep(args[0]);
@@ -1365,22 +1395,36 @@ class LLMChatModule : public ModuleNode {
           // args: inp, place_in_prompt
           PlaceInPrompt place_in_prompt = static_cast<PlaceInPrompt>(static_cast<int>(args[1]));
           *rv = GetChat()->EmbedStep(args[0], true, place_in_prompt);
+        } else if (args.size() == 3) {
+          // args: inp, place_in_prompt, generation_config_str
+          PlaceInPrompt place_in_prompt = static_cast<PlaceInPrompt>(static_cast<int>(args[1]));
+          *rv = GetChat()->EmbedStep(args[0], true, place_in_prompt, args[2]);
         }
       });
     } else if (name == "prefill_with_embed") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK(1 <= args.size() && args.size() <= 2);
+        ICHECK(1 <= args.size() && args.size() <= 3);
         if (args.size() == 1) {
           // args: embedding (with decode_next_token = true)
           GetChat()->PrefillWithEmbedStep(args[0]);
         } else if (args.size() == 2) {
           // args: embedding, decode_next_token
           GetChat()->PrefillWithEmbedStep(args[0], args[1]);
+        } else if (args.size() == 3) {
+          // args: embedding, decode_next_token, generation_config_str
+          GetChat()->PrefillWithEmbedStep(args[0], args[1], args[2]);
         }
       });
     } else if (name == "decode") {
-      return PackedFunc(
-          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { GetChat()->DecodeStep(); });
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK(0 <= args.size() && args.size() <= 1);
+        if (args.size() == 0) {
+          GetChat()->DecodeStep();
+        } else if (args.size() == 1) {
+          // args: generation_config_str
+          GetChat()->DecodeStep(args[0]);
+        }
+      });
     } else if (name == "reset_chat") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 0);

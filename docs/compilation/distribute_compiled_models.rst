@@ -161,7 +161,7 @@ Download the Distributed Models and Run in iOS App
 
 For iOS app, model libraries are statically packed into the app at the time of app building.
 Therefore, the iOS app supports running any models whose model libraries are integrated into the app.
-You can check the :ref:`list of supported model libraries <prebuilt-models-ios>`.
+You can check the :ref:`list of supported model libraries <using-prebuilt-models-ios>`.
 
 To download and run the compiled RedPajama-3B instruct model on iPhone, we need to reuse the integrated ``RedPajama-INCITE-Chat-3B-v1-q4f16_1`` model library.
 Please revisit :ref:`distribute-model-step3-specify-model-lib` and make sure the ``model_lib`` field of `mlc-chat-config.json` is set to ``RedPajama-INCITE-Chat-3B-v1-q4f16_1``.

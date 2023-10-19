@@ -11,8 +11,7 @@ for user to interact with MLC-Chat in their own programs.
 Install MLC-Chat Package
 ------------------------
 
-The REST API is a part of the MLC-Chat package, which we have prepared pre-built pip wheels and you can install it by
-following the instructions in `<https://mlc.ai/package/>`_.
+The REST API is a part of the MLC-Chat package, which we have prepared pre-built :doc:`pip wheels <../install/mlc_llm>`.
 
 Verify Installation
 ^^^^^^^^^^^^^^^^^^^
@@ -89,6 +88,9 @@ The REST API provides the following endpoints:
 
    Get the latest runtime stats (encode/decode speed).
 
+.. http:get:: /verbose_stats
+
+   Get the verbose runtime stats (encode/decode speed, total runtime).
 
 Use REST API in your own program
 --------------------------------
