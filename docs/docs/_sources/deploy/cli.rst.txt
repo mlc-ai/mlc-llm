@@ -111,6 +111,12 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
         - Model lib should be placed at ``./dist/prebuilt/lib/$(local_id)-$(arch).$(suffix)``.
         - Model weights and chat config are located under ``./dist/prebuilt/mlc-chat-$(local_id)/``.
 
+        .. note::
+          Please make sure that you have the same directory structure as above, because the CLI tool
+          relies on it to automatically search for model lib and weights. If you would like to directly
+          provide a full model lib path to override the auto-search, you can pass in a ``--model-lib-path`` argument
+          to the CLI
+
         .. collapse:: Example
 
           .. code:: shell
@@ -133,6 +139,12 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
 
         - Model libraries should be placed at ``./dist/$(local_id)/$(local_id)-$(arch).$(suffix)``.
         - Model weights and chat config are located under ``./dist/$(local_id)/params/``.
+
+        .. note::
+          Please make sure that you have the same directory structure as above, because the CLI tool
+          relies on it to automatically search for model lib and weights. If you would like to directly
+          provide a full model lib path to override the auto-search, you can pass in a ``--model-lib-path`` argument
+          to the CLI
 
         .. collapse:: Example
 

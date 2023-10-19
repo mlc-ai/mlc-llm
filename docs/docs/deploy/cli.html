@@ -411,6 +411,13 @@ ls<span class="w"> </span>-l<span class="w"> </span>./build/
 <li><p>Model lib should be placed at <code class="docutils literal notranslate"><span class="pre">./dist/prebuilt/lib/$(local_id)-$(arch).$(suffix)</span></code>.</p></li>
 <li><p>Model weights and chat config are located under <code class="docutils literal notranslate"><span class="pre">./dist/prebuilt/mlc-chat-$(local_id)/</span></code>.</p></li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Please make sure that you have the same directory structure as above, because the CLI tool
+relies on it to automatically search for model lib and weights. If you would like to directly
+provide a full model lib path to override the auto-search, you can pass in a <code class="docutils literal notranslate"><span class="pre">--model-lib-path</span></code> argument
+to the CLI</p>
+</div>
 <details class="summary-example">
 <summary>Example</summary><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/prebuilt/lib
 Llama-2-7b-chat-hf-q4f16_1-metal.so<span class="w">  </span><span class="c1"># Format: $(local_id)-$(arch).$(suffix)</span>
@@ -430,6 +437,13 @@ params_shard_*.bin
 <li><p>Model libraries should be placed at <code class="docutils literal notranslate"><span class="pre">./dist/$(local_id)/$(local_id)-$(arch).$(suffix)</span></code>.</p></li>
 <li><p>Model weights and chat config are located under <code class="docutils literal notranslate"><span class="pre">./dist/$(local_id)/params/</span></code>.</p></li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Please make sure that you have the same directory structure as above, because the CLI tool
+relies on it to automatically search for model lib and weights. If you would like to directly
+provide a full model lib path to override the auto-search, you can pass in a <code class="docutils literal notranslate"><span class="pre">--model-lib-path</span></code> argument
+to the CLI</p>
+</div>
 <details class="summary-example">
 <summary>Example</summary><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/Llama-2-7b-chat-hf-q4f16_1/<span class="w"> </span><span class="c1"># Format: ./dist/$(local_id)/</span>
 Llama-2-7b-chat-hf-q4f16_1-metal.so<span class="w">  </span><span class="c1"># Format: $(local_id)-$(arch).$(suffix)</span>
