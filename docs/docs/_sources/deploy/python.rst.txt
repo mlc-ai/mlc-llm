@@ -306,6 +306,38 @@ We provide an example below.
    Additionally, system prompts will not be run when instantiating a `mlc_chat.ChatModule`,
    unless explicitly given inside the prompt.
 
+Stream Iterator in Python
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Stream Iterator gives users an option to stream generated text to the function that the API is called from,
+instead of streaming to stdout, which could be a necessity when building services on top of MLC Chat.
+
+We provide an example below.
+
+.. code:: python
+
+   from mlc_chat import ChatModule
+   from mlc_chat.callback import StreamIterator
+
+   # Create a ChatModule instance
+   cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
+
+   # Stream to an Iterator
+   from threading import Thread
+
+   stream = StreamIterator(callback_interval=2)
+   generation_thread = Thread(
+      target=cm.generate,
+      kwargs={"prompt": "What is the meaning of life?", "progress_callback": stream},
+   )
+   generation_thread.start()
+
+   output = ""
+   for delta_message in stream:
+      output += delta_message
+
+   generation_thread.join()
+
 
 API Reference
 -------------
