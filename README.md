@@ -66,6 +66,7 @@ Scaling of fp16 and 4-bit CodeLlama-34 and Llama2-70B on A100-80G-PCIe and A10G-
 
 ## News
 
+* [10/18/2023] Scalable multi-GPU support for CUDA and ROCm are official.
 * [09/02/2023] Prebuilt ROCm 5.7 and CUDA 12.2 package is [available](https://llm.mlc.ai/docs/install/tvm.html#option-1-prebuilt-package).
 * [08/25/2023] CodeLlama support is up.
 * [08/14/2023] [[Post]](https://blog.mlc.ai/2023/08/09/GPU-Accelerated-LLM-on-Orange-Pi) Mali GPU support is up on Orange Pi.
