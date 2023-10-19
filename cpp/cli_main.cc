@@ -395,7 +395,7 @@ ModelPaths ModelPaths::Find(const std::string& device_name, const std::string& l
                    << "- dist/" + local_id << "\n"
                    << "- dist/prebuilt/" + lib_local_id << "\n"
                    << "If you would like to directly specify the full model library path, you may "
-                   << "consider passing in the `--lib-path` argument.\n";
+                   << "consider passing in the `--model-lib-path` argument.\n";
         exit(1);
     }
   }
@@ -484,12 +484,12 @@ int main(int argc, char* argv[]) {
                        "Note: the --model argument is required. It can either be the model name with its "
                        "quantization scheme or a full path to the model folder. In the former case, the "
                        "provided name will be used to search for the model folder over possible paths. "
-                       "--lib-path argument is optional. If unspecified, the --model argument will be used "
+                       "--model-lib-path argument is optional. If unspecified, the --model argument will be used "
                        "to search for the library file over possible paths.");
 
   args.add_argument("--model")
       .help("[required] the model to use");
-  args.add_argument("--lib-path")
+  args.add_argument("--model-lib-path")
       .help("[optional] the full path to the model library file to use");
   args.add_argument("--device").default_value("auto");
   args.add_argument("--evaluate").default_value(false).implicit_value(true);
@@ -506,8 +506,8 @@ int main(int argc, char* argv[]) {
 
   std::string local_id = args.get<std::string>("--model");
   std::string lib_path;
-  if (args.present("--lib-path")) {
-    lib_path = args.get<std::string>("--lib-path");
+  if (args.present("--model-lib-path")) {
+    lib_path = args.get<std::string>("--model-lib-path");
   }
   auto [device_name, device_id] = DetectDevice(args.get<std::string>("--device"));
 

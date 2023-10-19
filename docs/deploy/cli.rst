@@ -114,7 +114,7 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
         .. note::
           Please make sure that you have the same directory structure as above, because the CLI tool
           relies on it to automatically search for model lib and weights. If you would like to directly
-          provide a full model lib path to override the auto-search, you can pass in a ``--lib-path`` argument
+          provide a full model lib path to override the auto-search, you can pass in a ``--model-lib-path`` argument
           to the CLI
 
         .. collapse:: Example
@@ -143,7 +143,7 @@ Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model o
         .. note::
           Please make sure that you have the same directory structure as above, because the CLI tool
           relies on it to automatically search for model lib and weights. If you would like to directly
-          provide a full model lib path to override the auto-search, you can pass in a ``--lib-path`` argument
+          provide a full model lib path to override the auto-search, you can pass in a ``--model-lib-path`` argument
           to the CLI
 
         .. collapse:: Example
