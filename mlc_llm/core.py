@@ -274,6 +274,8 @@ class BuildArgs:
                 "By default, the chunk size is the same as sliding window. "
                 "Currently only useful when compiling Mistral."
             ),
+        },
+    )
     pdb: bool = field(
         default=False,
         metadata={
@@ -645,7 +647,6 @@ def build_model_from_args(args: argparse.Namespace):
             config = json.load(i_f)
 
     if not use_cache or args.convert_weight_only:
-
         model_generators = {
             "llama": llama,
             "mistral": mistral,
@@ -664,6 +665,10 @@ def build_model_from_args(args: argparse.Namespace):
         mod, param_manager, params, model_config = model_generators[args.model_category].get_model(
             args, config
         )
+
+        if args.model_category == "mistral":
+            args.sliding_window = model_config.sliding_window
+            args.chunk_size = model_config.chunk_size
 
         for qspec_updater_class in param_manager.qspec_updater_classes:
             qspec_updater = qspec_updater_class(param_manager)
