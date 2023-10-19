@@ -1,7 +1,7 @@
 """A command line tool for benchmarking a chat model."""
 import argparse
 
-from mlc_chat import ChatModule
+from mlc_chat import ChatConfig, ChatModule
 
 parser = argparse.ArgumentParser(description="Benchmark an MLC LLM ChatModule.")
 parser.add_argument(
@@ -12,6 +12,21 @@ parser.add_argument(
     full path to the model folder. In the former case, we will use the provided name to search for
     the model folder over possible paths.""",
     required=True,
+)
+parser.add_argument(
+    "--model-lib",
+    type=str,
+    help="""The compiled model library. In MLC LLM, an LLM is compiled to a shared or static
+    library (.so or .a), which contains GPU computation to efficiently run the LLM. MLC Chat,
+    as the runtime of MLC LLM, depends on the compiled model library to generate tokens.
+    """,
+    required=False,
+)
+parser.add_argument(
+    "--num-shards",
+    type=int,
+    help="Number of GPUs to be used.",
+    required=False,
 )
 parser.add_argument(
     "--device",
@@ -40,7 +55,14 @@ parser.add_argument(
 def main():
     """The main function that runs the benchmarking."""
     args = parser.parse_args()
-    chat_module = ChatModule(model=args.model, device=args.device)
+    chat_module = ChatModule(
+        model=args.model,
+        device=args.device,
+        chat_config=ChatConfig(
+            num_shards=args.num_shards,
+        ),
+        lib_path=args.model_lib,
+    )
     output = chat_module.benchmark_generate(args.prompt, generate_length=args.generate_length)
     print(f"Generated text:\n{output}\n")
     print(f"Statistics: {chat_module.stats(verbose=True)}")
