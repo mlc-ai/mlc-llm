@@ -36,8 +36,8 @@ class MistralConfig:
         tie_word_embeddings=False,
         vocab_size=32000,
         dtype="float32",
-        chunk_size=4096,
-        max_sequence_length=128000,
+        chunk_size=-1,
+        max_sequence_length=-1,  # Does not play a role, kept for compatibility.
         combine_matmul=True,
         build_model_only=False,
         num_shards=1,
@@ -60,7 +60,11 @@ class MistralConfig:
         self.tie_word_embeddings = tie_word_embeddings
         self.vocab_size = vocab_size
         self.dtype = dtype
-        self.chunk_size = chunk_size
+        if chunk_size == -1:
+            # chunk size same as sliding window by default
+            self.chunk_size = self.sliding_window
+        else:
+            self.chunk_size = chunk_size
         self.max_sequence_length = max_sequence_length
         self.combine_matmul = combine_matmul
         if build_model_only and num_shards > 1:
@@ -697,9 +701,13 @@ class MistralForCausalLM(nn.Module):
 
         # Set the cached sin/cos to the maximum of 2048 and max seq len.
         # This will be eliminated further with online rotary embedding calculation.
-        cache_len = te.var("cache_len", "int64")
-        self.cos_cached = nn.Parameter((cache_len, head_dim), dtype=config.dtype, name="cos_cached")
-        self.sin_cached = nn.Parameter((cache_len, head_dim), dtype=config.dtype, name="sin_cached")
+        rope_cache_len = te.var("rope_cache_len", "int64")
+        self.cos_cached = nn.Parameter(
+            (rope_cache_len, head_dim), dtype=config.dtype, name="cos_cached"
+        )
+        self.sin_cached = nn.Parameter(
+            (rope_cache_len, head_dim), dtype=config.dtype, name="sin_cached"
+        )
         ############ End ############
 
     def forward(
@@ -924,8 +932,11 @@ def create_softmax_func(bb: relax.BlockBuilder, config: MistralConfig) -> None:
 def get_model(args, hf_config):
     model_name = args.model
     dtype = args.quantization.model_dtype
-    max_seq_len = args.max_seq_len
     sep_embed = args.sep_embed
+    assert not sep_embed, "Mistral does not support separate embedding."
+
+    if args.sliding_window != -1:
+        hf_config["sliding_window"] = args.sliding_window
 
     config = MistralConfig(
         **hf_config,
@@ -933,15 +944,12 @@ def get_model(args, hf_config):
         combine_matmul=True,
         num_shards=args.num_shards,
         build_model_only=args.build_model_only,
+        chunk_size=args.chunk_size,
     )
-    if max_seq_len != -1:
-        config.max_sequence_length = max_seq_len
 
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
 
-    if sep_embed:
-        create_embed_func(bb, param_manager, config, args.quantization)
     create_encoding_func(bb, param_manager, config, args.quantization, sep_embed)
     create_decoding_func(bb, param_manager, config, args.quantization)
     create_kv_cache_func(bb, config)
@@ -962,7 +970,6 @@ def get_model(args, hf_config):
                 "tir_var_upper_bound",
                 {
                     "n": config.chunk_size,
-                    "m": config.max_sequence_length,
                     "c": config.sliding_window,
                     "k": config.sliding_window + config.chunk_size,
                 },

@@ -79,6 +79,13 @@ class BuildArgs:
         Build with separated embedding layer, only applicable to LlaMa. This
         feature is in testing stage, and will be formally replaced after massive
         overhaul of embedding feature for all models and use cases.
+    sliding_window: int
+        The sliding window size in sliding window attention (SWA). This optional field
+        overrides the `sliding_window` in config.json for those models that use SWA.
+        Currently only useful when compiling Mistral.
+    chunk_size: int
+        The chunk size in sliding window attention (SWA) during prefilling. By default,
+        the chunk size is the same as sliding window. Currently only useful when compiling Mistral.
     """
     model: str = field(
         default="auto",
@@ -183,18 +190,14 @@ class BuildArgs:
     no_cutlass_attn: bool = field(
         default=False,
         metadata={
-            "help": (
-                "Disable offloading attention operations to CUTLASS."
-            ),
+            "help": ("Disable offloading attention operations to CUTLASS."),
             "action": "store_true",
         },
     )
     no_cutlass_norm: bool = field(
         default=False,
         metadata={
-            "help": (
-                "Disable offloading layer and RMS norm operations to CUTLASS."
-            ),
+            "help": ("Disable offloading layer and RMS norm operations to CUTLASS."),
             "action": "store_true",
         },
     )
@@ -231,10 +234,30 @@ class BuildArgs:
     use_flash_attn_mqa: bool = field(
         default=False,
         metadata={
-            "help": (
-                "Offload multi-query attention workload to Flash Attention."
-            ),
+            "help": ("Offload multi-query attention workload to Flash Attention."),
             "action": "store_true",
+        },
+    )
+
+    sliding_window: int = field(
+        default=-1,
+        metadata={
+            "help": (
+                "The sliding window size in sliding window attention (SWA). "
+                "This optional field overrides the `sliding_window` in config.json for those models "
+                "that use SWA. Currently only useful when compiling Mistral."
+            ),
+        },
+    )
+
+    chunk_size: int = field(
+        default=-1,
+        metadata={
+            "help": (
+                "The chunk size in sliding window attention (SWA) during prefilling. "
+                "By default, the chunk size is the same as sliding window. "
+                "Currently only useful when compiling Mistral."
+            ),
         },
     )
 
@@ -451,7 +474,7 @@ def mod_transform_before_build(
                     ),
                     annotate_workspace,
                     relax.transform.AllocateWorkspace(),
-                    relax.transform.RunCodegen(options, entry_functions=model_names)
+                    relax.transform.RunCodegen(options, entry_functions=model_names),
                 ]
             )(mod)
 
@@ -496,13 +519,18 @@ def dump_mlc_chat_config(
     config["top_p"] = top_p
     config["mean_gen_len"] = mean_gen_len
     config["max_gen_len"] = max_gen_len
-    config["max_window_size"] = max_window_size
     config["num_shards"] = args.num_shards
     config["shift_fill_factor"] = shift_fill_factor
     config["tokenizer_files"] = utils.get_tokenizer_files(args.params_path)
     config["model_category"] = args.model_category
     config["model_name"] = args.model
     config["vocab_size"] = vocab_size
+    if args.sliding_window != -1:
+        # Do not add max window size if use sliding window
+        config["sliding_window"] = args.sliding_window
+        config["chunk_size"] = args.chunk_size
+    else:
+        config["max_window_size"] = max_window_size
 
     args.chat_config_path = os.path.join(args.params_path, "mlc-chat-config.json")
     with open(args.chat_config_path, "w", encoding="utf-8") as outfile:
@@ -590,6 +618,9 @@ def build_model_from_args(args: argparse.Namespace):
             mod, param_manager, params, model_config = llama.get_model(args, config)
         elif args.model_category == "mistral":
             mod, param_manager, params, model_config = mistral.get_model(args, config)
+            # Update args so that we dump the right values to mlc-chat-config
+            args.sliding_window = model_config.sliding_window
+            args.chunk_size = model_config.chunk_size
         elif args.model_category == "gpt_neox":
             mod, param_manager, params, model_config = gpt_neox.get_model(args, config)
         elif args.model_category == "gpt_bigcode":
