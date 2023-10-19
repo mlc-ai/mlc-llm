@@ -1,8 +1,14 @@
 from threading import Condition, Lock
 from typing import Dict
-from uuid import uuid4
 
-from .types import InferenceStepResult, Request, RequestId, TextGenerationOutput
+from .base import (
+    FinishReason,
+    InferenceStepResult,
+    Request,
+    RequestId,
+    RequestOutput,
+    SequenceOutput,
+)
 
 
 class DummyInferenceEngine:
@@ -15,12 +21,13 @@ class DummyInferenceEngine:
         ids = []
         requests_to_add = {}
 
-        for r in requests:
-            ids.append(r.request_id)
-            if r.stopping_criteria.max_tokens is not None:
-                requests_to_add[r.request_id] = r.stopping_criteria.max_tokens
+        for req in requests:
+            assert req.num_sequences == 1, "Only one generated sequence allowed for now"
+            ids.append(req.request_id)
+            if req.stopping_criteria.max_tokens is not None:
+                requests_to_add[req.request_id] = req.stopping_criteria.max_tokens
             else:
-                requests_to_add[r.request_id] = 5
+                requests_to_add[req.request_id] = 5
 
         with self.queue_lock:
             self.request_queue.update(requests_to_add)
@@ -34,8 +41,6 @@ class DummyInferenceEngine:
         """
         with self.queue_lock:
             del self.request_queue[request_id]
-            if not self.request_queue:
-                self.has_requests.clear()
 
     def wait_for_request(self, timeout_seconds=None):
         with self.queue_lock:
@@ -44,18 +49,25 @@ class DummyInferenceEngine:
             )
 
     def step(self) -> InferenceStepResult:
-        result = InferenceStepResult(outputs=[], errors=[])
+        result = InferenceStepResult(outputs=[])
 
         with self.queue_lock:
-            for request_id, n in list(self.request_queue.items()):
+            for request_id, remaining_tokens in list(self.request_queue.items()):
                 result.outputs.append(
-                    TextGenerationOutput(
+                    RequestOutput(
                         request_id=request_id,
-                        delta=" test",
-                        finish_reason="length" if n == 1 else None,
+                        sequences=[
+                            SequenceOutput(
+                                index=0,
+                                delta=" test" if remaining_tokens > 0 else None,
+                                finish_reason=FinishReason.Length
+                                if remaining_tokens == 0
+                                else None,
+                            )
+                        ],
                     )
                 )
-                if n == 1:
+                if remaining_tokens == 0:
                     del self.request_queue[request_id]
                 else:
                     self.request_queue[request_id] -= 1

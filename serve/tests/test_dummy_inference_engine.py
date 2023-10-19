@@ -1,4 +1,4 @@
-from mlc_serve.engine import Request, SamplingParams, StoppingCriteria
+from mlc_serve.engine import ChatMessage, Request, SamplingParams, StoppingCriteria
 from mlc_serve.engine.dummy import DummyInferenceEngine
 
 
@@ -9,7 +9,7 @@ def test_single_request():
         [
             Request(
                 request_id="1",
-                prompt="test prompt",
+                messages=[ChatMessage(role="user", content="test prompt")],
                 sampling_params=SamplingParams(temperature=1),
                 stopping_criteria=StoppingCriteria(max_tokens=20),
             ),
@@ -19,5 +19,5 @@ def test_single_request():
     result = engine.step()
 
     assert result.outputs[0].request_id == request_id
+    assert result.outputs[0].error is None
     assert len(result.outputs) == 1
-    assert not result.errors

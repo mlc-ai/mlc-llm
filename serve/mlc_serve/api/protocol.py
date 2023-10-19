@@ -74,7 +74,7 @@ class ChatCompletionRequest(BaseModel):
 class ChatCompletionResponseChoice(BaseModel):
     index: int
     message: ChatMessage
-    finish_reason: Optional[Literal["stop", "length"]] = None
+    finish_reason: Optional[Literal["stop", "length", "cancelled"]] = None
 
 
 class ChatCompletionResponse(BaseModel):

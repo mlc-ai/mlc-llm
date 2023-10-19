@@ -2,7 +2,7 @@ import json
 import math
 import os
 from collections import defaultdict
-from typing import List
+from typing import List, Union
 
 import numpy as np
 import torch
@@ -14,12 +14,13 @@ from tvm.runtime import disco as di
 from mlc_llm import utils
 from mlc_llm.relax_model.llama import LlamaConfig
 
-from ..engine import SamplingType
-from ..engine.types import (
-    ModelExecutor,
-    RequestId,
-    SequenceGenerationRequest,
-    SequenceGenerationResponse,
+from ..engine import ChatMessage, RequestId, SamplingType
+from ..engine.model_module import (
+    DecodeRequest,
+    ModelModule,
+    PrefillRequest,
+    SequenceId,
+    TextGenerationResult,
 )
 
 
@@ -62,6 +63,7 @@ class CacheManager:
         self.kv_cache = KVCache(
             num_blocks, self.block_size, num_layers, num_heads, head_size, disco_session
         )
+        self.allocated_tokens = dict[RequestId, int]()
 
     def set_size(self, request_ids: List[int], target_sizes: List[int]):
         for id, size in zip(request_ids, target_sizes):
@@ -87,8 +89,79 @@ class CacheManager:
                 for _ in range(num_needed_block):
                     self.kv_cache.block_tables[id].append(self.free_blocks.pop())
 
-    def get(self):
+    def get_cache(self):
         return self.kv_cache
+
+    def allocate(self, request_id: RequestId, num_tokens: int):
+        """
+        Allocate cache space for request, raise error if there is no space.
+        """
+        self.set_size([request_id], [num_tokens])
+        self.allocated_tokens[request_id] = num_tokens
+
+    def extend(self, sequence_id: SequenceId, new_tokens: int):
+        """
+        Extend cache space for a sequence, raise error if there is no space.
+        """
+        assert sequence_id.sequence_index == 0, "multiple sequences not supported"
+        request_id = sequence_id.request_id
+        allocated = self.allocated_tokens[request_id]
+        self.set_size([request_id], [allocated + new_tokens])
+        self.allocated_tokens[request_id] += new_tokens
+
+    def free(self, sequence_id: SequenceId):
+        """
+        Free cache space for a sequence or all sequences of a request.
+        """
+        assert sequence_id.sequence_index == 0, "multiple sequences not supported"
+        request_id = sequence_id.request_id
+        del self.allocated_tokens[request_id]
+        self.set_size([request_id], [0])
+
+    def get_kv_cache_size(self) -> int:
+        """
+        Return the size of the cache, in number of tokens.
+        """
+        return self.num_blocks * self.block_size
+
+    def get_free_space(self) -> int:
+        """
+        Get available space of the cache.
+        Return number of tokens that can be allocated for a new request.
+
+        For paged KV cache, this ignores the remaining tokens in pages allocated
+        for existing sequences, since they cannot be used for the new request.
+        """
+        return len(self.free_blocks) * self.block_size
+
+    def get_max_new_tokens(self) -> int:
+        """
+        Get the maximum number of new tokens that can be extended for
+        all sequences in the cache.
+
+        For example, if the cache size is 16 tokens, with page size 1, and
+        there are 3 sequences in the cache, each of them have 3 tokens cached,
+        this method should return 2.
+
+        It should return the result of `get_kv_cache_size` if there is
+        no requests in the cache.
+        """
+        if not self.allocated_tokens:
+            return len(self.free_blocks)
+
+        free_blocks_per_request = len(self.free_blocks) // len(self.allocated_tokens)
+        remaining_blocks = len(self.free_blocks) - free_blocks_per_request * len(
+            self.allocated_tokens
+        )
+        remaining_tokens_in_last_block = [
+            self.block_size - tokens % self.block_size
+            for _, tokens in self.allocated_tokens.items()
+        ]
+
+        return (
+            free_blocks_per_request * self.block_size
+            + sorted(remaining_tokens_in_last_block)[remaining_blocks]
+        )
 
 
 def _apply_top_p_top_k(logits, top_ps, top_ks):
@@ -234,8 +307,11 @@ class Model:
         return self.get_used_memory()
 
     def generate(
-        self, requests: List[SequenceGenerationRequest], cache: KVCache, is_prompt: bool
-    ) -> List[SequenceGenerationResponse]:
+        self,
+        requests: List[Union[PrefillRequest, DecodeRequest]],
+        cache: KVCache,
+        is_prompt: bool,
+    ) -> List[TextGenerationResult]:
         block_tables = []
         seq_lens = []
         input_ids = []
@@ -244,9 +320,18 @@ class Model:
         max_num_blocks_per_seq = 0
         block_size = cache.block_size
         sampling_params = []
+        sequence_ids = []
 
         for request in requests:
-            block_table = cache.block_tables[request.request_id]
+            if isinstance(request, PrefillRequest):
+                assert request.num_sequence == 1, "Multiple sequences not supported yet"
+                sequence_id = SequenceId(request.request_id, 0)
+                sequence_ids.append(sequence_id)
+            else:
+                sequence_id = request.sequence_id
+                sequence_ids.append(request.sequence_id)
+
+            block_table = cache.block_tables[sequence_id.request_id]
             seq_lens.append(len(request.token_ids))
             sampling_params.append(request.sampling_params)
 
@@ -260,7 +345,6 @@ class Model:
                     slot = block_number * block_size + block_offset
                     slot_mapping.append(slot)
             else:
-                assert request.start_position == len(request.token_ids) - 1
                 input_ids.append(request.token_ids[-1])
                 pos = seq_lens[-1] - 1
                 positions.append(pos)
@@ -332,12 +416,12 @@ class Model:
         next_tokens = sample(logits, sampling_params, self.vocab_size)
 
         return [
-            SequenceGenerationResponse(
-                request_id=request.request_id,
-                token_ids=[new_token],
+            TextGenerationResult(
+                sequence_id=sequence_id,
+                generated_tokens=[new_token],
                 error=None,
             )
-            for request, new_token in zip(requests, next_tokens)
+            for sequence_id, new_token in zip(sequence_ids, next_tokens)
         ]
 
 
@@ -363,108 +447,107 @@ def get_num_cache_blocks(
     )
 
 
-class PagedCacheModelExecutor(ModelExecutor):
-    def __init__(self, model: Model, cache_manager: CacheManager):
+class PagedCacheModelTextGenerator:
+    def __init__(self, model: Model):
         self.model = model
-        self.cache_manager = cache_manager
-        self.allocated_tokens = dict[RequestId, int]()
 
     def generate(
-        self, requests: list[SequenceGenerationRequest]
-    ) -> list[SequenceGenerationResponse]:
-        cache = self.cache_manager.get()
-        prefill_requests = [r for r in requests if r.start_position == 0]
-        decode_requests = [r for r in requests if r.start_position != 0]
+        self, requests: list[Union[PrefillRequest, DecodeRequest]], kv_cache
+    ) -> list[TextGenerationResult]:
+        prefill_requests = [r for r in requests if isinstance(r, PrefillRequest)]
+        decode_requests = [r for r in requests if isinstance(r, DecodeRequest)]
 
         out = []
         if prefill_requests:
-            out.extend(self.model.generate(prefill_requests, cache, is_prompt=True))
+            out.extend(self.model.generate(prefill_requests, kv_cache, is_prompt=True))
         if decode_requests:
-            out.extend(self.model.generate(decode_requests, cache, is_prompt=False))
+            out.extend(self.model.generate(decode_requests, kv_cache, is_prompt=False))
 
         return out
 
-    def allocate(self, request_id: RequestId, num_tokens: int):
-        self.cache_manager.set_size([request_id], [num_tokens])
-        self.allocated_tokens[request_id] = num_tokens
 
-    def extend(self, request_id: RequestId, new_tokens: int):
-        allocated = self.allocated_tokens[request_id]
-        self.cache_manager.set_size([request_id], [allocated + new_tokens])
-        self.allocated_tokens[request_id] += new_tokens
+class Tokenizer:
+    def __init__(self, hf_tokenizer):
+        self._tokenizer = hf_tokenizer
+        self.eos_token_id = self._tokenizer.eos_token_id
 
-    def free(self, request_id: RequestId):
-        del self.allocated_tokens[request_id]
-        self.cache_manager.set_size([request_id], [0])
+    def encode(self, text: str) -> list[int]:
+        return self._tokenizer.encode(text)
 
-    def get_kv_cache_size(self) -> int:
-        return self.cache_manager.num_blocks * self.cache_manager.block_size
+    def decode(self, tokens: list[int]) -> str:
+        return self._tokenizer.decode(tokens, skip_special_tokens=True)
 
-    def get_free_space(self) -> int:
-        return len(self.cache_manager.free_blocks) * self.cache_manager.block_size
 
-    def get_max_new_tokens(self) -> int:
-        # TODO: not accurate, needs to consider the remaining space in the last block for each request
-        if not self.allocated_tokens:
-            return len(self.cache_manager.free_blocks)
+class ConversationTemplate:
+    def __init__(self, hf_tokenizer):
+        self._tokenizer = hf_tokenizer
 
-        return (
-            len(self.cache_manager.free_blocks)
-            // len(self.allocated_tokens)
-            * self.cache_manager.block_size
+    def apply(self, messages: list[ChatMessage]) -> str:
+        return self._tokenizer.apply_chat_template(
+            [
+                {"role": message.role, "content": message.content}
+                for message in messages
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
         )
 
 
-def init_model(
-    model_name: str,
-    artifact_path: str,
-    quantization: str,
-    num_shards: int,
-    max_num_batched_tokens: int = 0,
-    max_input_len: int = 0,
-) -> (PagedCacheModelExecutor,):
-    model_path = f"dist/models/{model_name}"
+class PagedCacheModelModule:
+    def __init__(
+        self,
+        model_name: str,
+        artifact_path: str,
+        quantization: str,
+        num_shards: int,
+        max_num_batched_tokens: int = 0,
+        max_input_len: int = 0,
+    ):
+        model_path = f"dist/models/{model_name}"
 
-    dev = tvm.device("cuda", 0)
+        dev = tvm.device("cuda", 0)
 
-    with open(os.path.join(model_path, "config.json"), encoding="utf-8") as i_f:
-        config = LlamaConfig(**json.load(i_f))
+        with open(os.path.join(model_path, "config.json"), encoding="utf-8") as i_f:
+            config = LlamaConfig(**json.load(i_f))
 
-    model = Model(
-        artifact_path, model_name, quantization, config.vocab_size, num_shards, dev
-    )
+        model = Model(
+            artifact_path, model_name, quantization, config.vocab_size, num_shards, dev
+        )
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_path,
-        trust_remote_code=False,
-    )
+        hf_tokenizer = AutoTokenizer.from_pretrained(
+            model_path,
+            trust_remote_code=False,
+        )
 
-    num_kv_heads = config.get_num_key_value_heads() // num_shards
-    head_size = config.hidden_size // config.num_attention_heads
+        num_kv_heads = config.get_num_key_value_heads() // num_shards
+        head_size = config.hidden_size // config.num_attention_heads
 
-    if max_num_batched_tokens > 0:
-        assert max_input_len > 0
-        assert max_num_batched_tokens % max_input_len == 0  # for simplicity
+        if max_num_batched_tokens > 0:
+            assert max_input_len > 0
+            assert max_num_batched_tokens % max_input_len == 0  # for simplicity
 
-        num_seqs = max_num_batched_tokens // max_input_len
-        num_blocks = get_num_cache_blocks(
-            model,
-            [max_input_len] * num_seqs,
+            num_seqs = max_num_batched_tokens // max_input_len
+            num_blocks = get_num_cache_blocks(
+                model,
+                [max_input_len] * num_seqs,
+                config.num_hidden_layers,
+                num_kv_heads,
+                head_size,
+            )
+        else:
+            num_blocks = 500
+
+        print(f"Using {num_blocks} cache blocks.")
+
+        cache_manager = CacheManager(
+            num_blocks,
             config.num_hidden_layers,
             num_kv_heads,
             head_size,
+            model.disco_session,
         )
-    else:
-        num_blocks = 500
 
-    print(f"Using {num_blocks} cache blocks.")
-
-    cache_manager = CacheManager(
-        num_blocks,
-        config.num_hidden_layers,
-        num_kv_heads,
-        head_size,
-        model.disco_session,
-    )
-
-    return (PagedCacheModelExecutor(model, cache_manager), tokenizer)
+        self.text_generator = PagedCacheModelTextGenerator(model)
+        self.cache_manager = cache_manager
+        self.tokenizer = Tokenizer(hf_tokenizer)
+        self.conversation_template = ConversationTemplate(hf_tokenizer)

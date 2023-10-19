@@ -21,6 +21,7 @@ def client(engine):
         yield client
 
 
+@pytest.mark.timeout(3)
 def test_chat_completion(client):
     response = client.post(
         "/v1/chat/completions",
@@ -30,6 +31,7 @@ def test_chat_completion(client):
     assert response.json()["choices"][0]["message"]["content"] == " test" * 10
 
 
+@pytest.mark.timeout(3)
 def test_stream_chat_completion(client):
     data = []
     with connect_sse(

@@ -4,7 +4,7 @@ import random
 from functools import partial
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 from .types import (InferenceEngine, Request, ModelConfig, CacheConfig, ParallelConfig, SchedulerConfig,
-                    RequestOutput, CompletionOutput)
+                    InferenceOutput, CompletionOutput)
 
 from .arg_utils import EngineArgs
 
@@ -44,7 +44,7 @@ class AsyncStream:
         self._queue = asyncio.Queue()
         self._finished = False
 
-    def put(self, item: RequestOutput) -> None:
+    def put(self, item: InferenceOutput) -> None:
         if self._finished:
             return
         self._queue.put_nowait(item)
@@ -60,7 +60,7 @@ class AsyncStream:
     def __aiter__(self):
         return self
 
-    async def __anext__(self) -> RequestOutput:
+    async def __anext__(self) -> InferenceOutput:
         result = await self._queue.get()
         if result is StopIteration:
             raise StopAsyncIteration
@@ -87,7 +87,7 @@ class RequestTracker:
             stream.put(exc)
 
     def process_request_output(self,
-                               request_output: RequestOutput,
+                               request_output: InferenceOutput,
                                *,
                                verbose: bool = False) -> None:
         """Process a request output from the engine."""
@@ -154,7 +154,7 @@ class RequestTracker:
 
 class _AsyncLLMEngine:
     """Extension of LLMEngine to add async methods."""
-    requests_output: Dict[str, RequestOutput] = {}
+    requests_output: Dict[str, InferenceOutput] = {}
     engine: InferenceEngine = None
 
     def __init__(
@@ -172,12 +172,12 @@ class _AsyncLLMEngine:
     def cancel(self, request_id: str):
         self.engine.cancel(request_id)
 
-    async def step_async(self) -> List[RequestOutput]:
+    async def step_async(self) -> List[InferenceOutput]:
         output = self.engine.step()
         outputs = []
         for a in output.outputs:
             if self.requests_output.get(a.request_id) == None:
-                ro = RequestOutput
+                ro = InferenceOutput
                 ro.request_id = a.request_id
                 ro.outputs = [CompletionOutput]
                 ro.outputs[0].text = ""
@@ -318,7 +318,7 @@ class ServingLayer:
             prompt: str,
             model_name: str,
             sampling_params: SamplingParams,
-            request_id: str) -> RequestOutput:
+            request_id: str) -> InferenceOutput:
         """Generate outputs for a request.
 
         Generate outputs for a request. This method is a coroutine. It adds the

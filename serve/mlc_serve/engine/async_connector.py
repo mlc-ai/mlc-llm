@@ -1,18 +1,20 @@
 import asyncio
 import logging
-from typing import AsyncIterator, Union
+from typing import AsyncIterator
 
-from .types import (
+from .base import (
     InferenceEngine,
     InferenceStepResult,
     Request,
     RequestId,
-    TextGenerationError,
-    TextGenerationOutput,
+    RequestOutput,
 )
 
-TextGenerationResult = Union[TextGenerationOutput, TextGenerationError]
-ResultQueue = asyncio.Queue[TextGenerationResult]
+ResultQueue = asyncio.Queue[RequestOutput]
+
+
+class TextGenerationError(Exception):
+    pass
 
 
 class AsyncEngineConnector:
@@ -22,7 +24,7 @@ class AsyncEngineConnector:
         self.engine_loop_task = None
         self.engine_loop_exception = None
         self.shutdown_event = asyncio.Event()
-        self.request_queues = dict[RequestId, ResultQueue]()
+        self.result_queues = dict[RequestId, ResultQueue]()
 
     async def start(self):
         """
@@ -40,6 +42,9 @@ class AsyncEngineConnector:
                 if should_stop_inference:
                     return
                 result = self.engine.step()
+                # TODO: Use a queue here to guarantee the ordering,
+                # that is, the result of next step must be dispatched after the
+                # result of current step.
                 asyncio.run_coroutine_threadsafe(self._dispatch_result(result), loop)
 
         async def wait():
@@ -49,7 +54,6 @@ class AsyncEngineConnector:
                 nonlocal should_stop_inference
                 should_stop_inference = True
             except Exception as e:
-                # TODO: Log
                 logging.exception("Error in inference loop")
                 self.engine_loop_exception = e
                 raise
@@ -59,32 +63,25 @@ class AsyncEngineConnector:
         self.engine_loop_task = asyncio.create_task(wait())
 
     async def stop(self):
-        # TODO: make it able to restart?
         self.engine_loop_task.cancel()
         await self.engine_loop_task
 
-    async def generate(self, request: Request) -> AsyncIterator[TextGenerationOutput]:
+    async def generate(self, request: Request) -> AsyncIterator[RequestOutput]:
         try:
             queue = await self._add_request(request)
             while True:
-                result = await self._get_queue_item_until_stopped(queue)
-                if isinstance(result, TextGenerationOutput):
-                    yield result
-                    if result.finish_reason is not None:
-                        return
-                elif isinstance(result, TextGenerationError):
-                    # TODO: rethink about the error handling here
-                    raise result
-                else:
-                    raise RuntimeError(f"Unknown result type {type(result)}")
+                output = await self._get_queue_item_until_stopped(queue)
+                if output.error is not None:
+                    raise TextGenerationError(output.error)
+                yield output
+                if output.is_finished:
+                    return
         except asyncio.CancelledError:
             asyncio.to_thread(self.engine.cancel, request.request_id)
         finally:
-            self.request_queues.pop(request.request_id, None)
+            self.result_queues.pop(request.request_id, None)
 
-    async def _get_queue_item_until_stopped(
-        self, queue: ResultQueue
-    ) -> TextGenerationResult:
+    async def _get_queue_item_until_stopped(self, queue: ResultQueue) -> RequestOutput:
         get_queue_task = asyncio.create_task(queue.get())
         wait_shutdown_task = asyncio.create_task(self.shutdown_event.wait())
 
@@ -96,11 +93,12 @@ class AsyncEngineConnector:
         if wait_shutdown_task.done():
             if self.engine_loop_exception is not None:
                 raise RuntimeError(
-                    f"Engine loop raised exception: {self.engine_loop_exception}"
+                    f"InferenceEngine raised exception: {self.engine_loop_exception}"
                 )
             else:
-                raise RuntimeError("Engine stopped")
+                raise RuntimeError("InferenceEngine stopped")
 
+        wait_shutdown_task.cancel()
         return get_queue_task.result()
 
     async def _add_request(self, request: Request) -> ResultQueue:
@@ -108,11 +106,11 @@ class AsyncEngineConnector:
             raise RuntimeError(
                 "Inference loop is not running. Call AsyncEngineConnector.start first."
             )
-        if request.request_id in self.request_queues:
+        if request.request_id in self.result_queues:
             raise RuntimeError(f"Duplicate request id: {request.request_id}")
 
         queue = asyncio.Queue()
-        self.request_queues[request.request_id] = queue
+        self.result_queues[request.request_id] = queue
 
         await asyncio.to_thread(self.engine.add, [request])
 
@@ -120,13 +118,15 @@ class AsyncEngineConnector:
 
     async def _dispatch_result(self, result: InferenceStepResult):
         coroutines = []
-        for item in result.outputs + result.errors:
+        for item in result.outputs:
             request_id = item.request_id
-            if request_id not in self.request_queues:
-                # TODO: handle error here
+            if request_id not in self.result_queues:
+                logging.warning(
+                    f"Unknown request id when dispatching result: {request_id}"
+                )
                 continue
 
-            queue = self.request_queues[request_id]
+            queue = self.result_queues[request_id]
             coroutines.append(queue.put(item))
 
         await asyncio.gather(*coroutines)

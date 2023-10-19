@@ -6,7 +6,7 @@ based on https://github.com/vllm-project/vllm/blob/ac5cf86aa6aebbf9e42df51f7e377
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import cached_property
-from typing import Optional
+
 
 _SAMPLING_EPS = 1e-5
 
@@ -18,14 +18,10 @@ class SamplingType(IntEnum):
 
 @dataclass
 class SamplingParams:
-    """Sampling parameters for text generation.
+    """
+    Sampling parameters for text generation.
 
     Args:
-        n: Number of output sequences to return for the given prompt.
-        best_of: Number of output sequences that are generated from the prompt.
-            From these `best_of` sequences, the top `n` sequences are returned.
-            `best_of` must be greater than or equal to `n`. By default, `best_of`
-            is set to `n`.
         presence_penalty: Float that penalizes new tokens based on whether they
             appear in the generated text so far. Values > 0 encourage the model
             to use new tokens, while values < 0 encourage the model to repeat
@@ -43,8 +39,6 @@ class SamplingParams:
             to -1 to consider all tokens.
     """
 
-    n: int = 1
-    best_of: int = None
     presence_penalty: float = 0.0
     frequency_penalty: float = 0.0
     temperature: float = 1.0
@@ -52,39 +46,33 @@ class SamplingParams:
     top_k: int = -1
 
     def __post_init__(self):
-        if self.best_of is None:
-            self.best_of = self.n
         self._verify_args()
         if self.temperature < _SAMPLING_EPS:
             # Zero temperature means greedy sampling.
             self._verify_greedy_sampling()
 
     def _verify_args(self) -> None:
-        if self.n < 1:
-            raise ValueError(f"n must be at least 1, got {self.n}.")
-        if self.best_of < self.n:
-            raise ValueError(
-                f"best_of must be greater than or equal to n, "
-                f"got n={self.n} and best_of={self.best_of}."
-            )
         if not -2.0 <= self.presence_penalty <= 2.0:
             raise ValueError(
                 "presence_penalty must be in [-2, 2], got " f"{self.presence_penalty}."
             )
         if not -2.0 <= self.frequency_penalty <= 2.0:
             raise ValueError(
-                "frequency_penalty must be in [-2, 2], got " f"{self.frequency_penalty}."
+                "frequency_penalty must be in [-2, 2], got "
+                f"{self.frequency_penalty}."
             )
         if self.temperature < 0.0:
-            raise ValueError(f"temperature must be non-negative, got {self.temperature}.")
+            raise ValueError(
+                f"temperature must be non-negative, got {self.temperature}."
+            )
         if not 0.0 < self.top_p <= 1.0:
             raise ValueError(f"top_p must be in (0, 1], got {self.top_p}.")
         if self.top_k < -1 or self.top_k == 0:
-            raise ValueError(f"top_k must be -1 (disable), or at least 1, " f"got {self.top_k}.")
+            raise ValueError(
+                f"top_k must be -1 (disable), or at least 1, " f"got {self.top_k}."
+            )
 
     def _verify_greedy_sampling(self) -> None:
-        if self.best_of > 1:
-            raise ValueError("best_of must be 1 when using greedy sampling." f"Got {self.best_of}.")
         if self.top_p < 1.0 - _SAMPLING_EPS:
             raise ValueError("top_p must be 1 when using greedy sampling.")
         if self.top_k != -1:

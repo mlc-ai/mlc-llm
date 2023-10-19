@@ -8,7 +8,7 @@ from mlc_llm import utils
 from .api import create_app
 from .engine import AsyncEngineConnector
 from .engine.local import LocalProcessInferenceEngine
-from .model.paged_cache_model import init_model
+from .model.paged_cache_model import PagedCacheModelModule
 
 
 def parse_args():
@@ -41,7 +41,7 @@ def parse_args():
 
 def run_server():
     args = parse_args()
-    model_executor, tokenizer = init_model(
+    model_module = PagedCacheModelModule(
         args.model,
         args.artifact_path,
         args.quantization.name,
@@ -50,7 +50,7 @@ def run_server():
         max_input_len=args.max_input_len,
     )
 
-    engine = LocalProcessInferenceEngine(model_executor, tokenizer)
+    engine = LocalProcessInferenceEngine(model_module)
     connector = AsyncEngineConnector(engine)
     app = create_app(connector)
     uvicorn.run(

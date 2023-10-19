@@ -19,13 +19,8 @@ from ..api.protocol import (
     ErrorResponse,
     UsageInfo,
 )
+from ..engine import Request, RequestOutput, SamplingParams, StoppingCriteria
 from ..engine.async_connector import AsyncEngineConnector
-from ..engine.types import (
-    Request,
-    SamplingParams,
-    StoppingCriteria,
-    TextGenerationOutput,
-)
 from .dependencies import get_async_engine_connector
 
 
@@ -41,7 +36,6 @@ router = APIRouter()
 
 def _get_sampling_params(request: ChatCompletionRequest) -> SamplingParams:
     sampling_params = SamplingParams(
-        n=request.n,
         # These params came from vllm
         # TODO(amnalyshe): should they be put into mlc-llm batch serving ChatCompletionRequest?
         # best_of=request.best_of,
@@ -74,15 +68,6 @@ async def request_completion(
     def random_uuid() -> str:
         return str(uuid.uuid4().hex)
 
-    # TODO(amalyshe) remove this verification and handle a case properly
-    if len(request.messages) > 1 and not isinstance(request.messages, str):
-        raise ValueError(
-            """
-                The /v1/chat/completions endpoint currently only supports single message prompts.
-                Please ensure your request contains only one message
-                """
-        )
-
     request_id = f"cmpl-{random_uuid()}"
     model_name = request.model
     try:
@@ -94,58 +79,79 @@ async def request_completion(
             """
         )
 
-    result_generator = async_engine_connector.generate(
-        Request(
-            request_id=request_id,
-            prompt=request.messages,
-            sampling_params=sampling_params,
-            stopping_criteria=StoppingCriteria(max_tokens=request.max_tokens),
-        )
+    text_generation_request = Request(
+        request_id=request_id,
+        messages=request.messages,
+        num_sequences=request.n,
+        sampling_params=sampling_params,
+        stopping_criteria=StoppingCriteria(max_tokens=request.max_tokens),
     )
+    if isinstance(request.messages, str):
+        text_generation_request.debug_options.prompt = request.messages
+
+    result_generator = async_engine_connector.generate(text_generation_request)
 
     if request.stream:
         return StreamingResponse(
-            generate_completion_stream(request_id, model_name, result_generator),
+            generate_completion_stream(
+                request_id, model_name, request.n, result_generator
+            ),
             media_type="text/event-stream",
         )
     else:
-        return await collect_result_stream(request_id, model_name, result_generator)
+        return await collect_result_stream(
+            request_id, model_name, request.n, result_generator
+        )
 
 
 async def generate_completion_stream(
     request_id: str,
     model_name: str,
-    result_generator: AsyncIterator[TextGenerationOutput],
+    num_sequences: int,
+    result_generator: AsyncIterator[RequestOutput],
 ) -> AsyncIterator[str]:
     created_time = int(time.time())
 
-    def create_stream_response(delta_text: str) -> ChatCompletionStreamResponse:
-        choice_data = ChatCompletionResponseStreamChoice(
-            index=0,
-            delta=DeltaMessage(role="assistant", content=delta_text),
-            finish_reason=None,
-        )
+    def create_stream_response(
+        choices: list[ChatCompletionResponseStreamChoice],
+    ) -> ChatCompletionStreamResponse:
         return ChatCompletionStreamResponse(
             id=request_id,
             created=created_time,
             model=model_name,
-            choices=[choice_data],
+            choices=choices,
         )
 
-    chunk = create_stream_response("")
-    yield f"data: {chunk.json(exclude_unset=True, ensure_ascii=False)}\n\n"
+    first_chunk = create_stream_response(
+        choices=[
+            ChatCompletionResponseStreamChoice(
+                index=i,
+                delta=DeltaMessage(role="assistant", content=""),
+                finish_reason=None,
+            )
+            for i in range(num_sequences)
+        ],
+    )
+    yield f"data: {first_chunk.json(exclude_unset=True, ensure_ascii=False)}\n\n"
 
     async for res in result_generator:
+        if res.error:
+            raise RuntimeError(f"Error when generating: {res.error}")
         chunk = create_stream_response(
-            delta_text=res.delta,
+            choices=[
+                ChatCompletionResponseStreamChoice(
+                    index=seq.index,
+                    delta=(
+                        DeltaMessage(content=seq.delta)
+                        if seq.delta is not None
+                        else DeltaMessage()
+                    ),
+                    finish_reason=seq.finish_reason.value if seq.finish_reason is not None else None,
+                )
+                for seq in res.sequences
+            ]
         )
         yield f"data: {chunk.json(exclude_unset=True, ensure_ascii=False)}\n\n"
-
-        if res.finish_reason is not None:
-            chunk = create_stream_response("")
-            chunk.choices[0].delta = DeltaMessage()
-            chunk.choices[0].finish_reason = res.finish_reason
-            yield f"data: {chunk.json(exclude_unset=True, ensure_ascii=False)}\n\n"
 
     yield "data: [DONE]\n\n"
 
@@ -153,25 +159,32 @@ async def generate_completion_stream(
 async def collect_result_stream(
     request_id: str,
     model_name: str,
-    result_generator: AsyncIterator[TextGenerationOutput],
+    num_sequences: int,
+    result_generator: AsyncIterator[RequestOutput],
 ) -> ChatCompletionResponse:
     created_time = int(time.time())
-    outputs = []
+    sequences = [[] for _ in range(num_sequences)]
+    finish_reasons = [None] * num_sequences
     async for res in result_generator:
         # TODO: verify that the request cancellation happens after this returns
-        outputs.append(res.delta)
-    if not outputs:
-        return create_error_response(
-            HTTPStatus.INTERNAL_SERVER_ERROR, "No text generated"
-        )
+        if res.error:
+            raise RuntimeError(f"Error when generating: {res.error}")
+        for seq in res.sequences:
+            if seq.index >= len(sequences):
+                raise RuntimeError(f"Unexpected sequence index: {seq.index}.")
+            if seq.is_finished:
+                finish_reasons[seq.index] = seq.finish_reason.value
+            else:
+                sequences[seq.index].append(seq.delta)
 
-    choices = []
-    choice_data = ChatCompletionResponseChoice(
-        index=0,
-        message=ChatMessage(role="assistant", content="".join(outputs)),
-        finish_reason=res.finish_reason,
-    )
-    choices.append(choice_data)
+    choices = [
+        ChatCompletionResponseChoice(
+            index=index,
+            message=ChatMessage(role="assistant", content="".join(chunks)),
+            finish_reason=finish_reason,
+        )
+        for index, (chunks, finish_reason) in enumerate(zip(sequences, finish_reasons))
+    ]
 
     # TODO(amalyshe): prompt tokens is also required for openapi output
     # num_prompt_tokens = len(final_res.prompt_token_ids)
