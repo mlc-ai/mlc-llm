@@ -59,3 +59,4 @@ def test_stream_chat_completion(client):
     assert events[-1]["choices"][0]["finish_reason"] == "length"
 
     assert data[-1] == "[DONE]"
+    

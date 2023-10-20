@@ -258,12 +258,13 @@ def copy_to_worker_0(sess: di.Session, host_array):
 
 
 def get_tvm_model(artifact_path, model, quantization, num_shards, dev):
-    lib_path = os.path.join(artifact_path, f"{model}-{quantization}-cuda.so")
+    model_artifact_path = os.path.join(artifact_path, f"{model}-{quantization}-batched")
+    lib_path = os.path.join(model_artifact_path, f"{model}-{quantization}-cuda.so")
 
     if num_shards == 1:
         ex = tvm.runtime.load_module(lib_path)
         vm = relax.VirtualMachine(ex, dev)
-        params = utils.load_params(artifact_path, dev)
+        params = utils.load_params(model_artifact_path, dev)
         return vm.module, params, None
 
     return load_disco_module(artifact_path, lib_path, num_shards)
@@ -586,7 +587,7 @@ class PagedCacheModelModule:
         max_num_batched_tokens: int = 0,
         max_input_len: int = 0,
     ):
-        model_path = f"dist/models/{model_name}"
+        model_path = os.path.join(artifact_path, "models", model_name)
 
         dev = tvm.device("cuda", 0)
 
