@@ -605,7 +605,7 @@ def build_model_from_args(args: argparse.Namespace):
         with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
             config = json.load(i_f)
     if not use_cache or args.convert_weight_only:
-        if args.model_category == "llama" and args.batched:
+        if args.model_category in ["llama", "mistral"] and args.batched:
             mod, param_manager, params, model_config = llama_batched.get_model(args, config)
         elif args.model_category == "llama":
             mod, param_manager, params, model_config = llama.get_model(args, config)

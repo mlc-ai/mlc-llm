@@ -38,6 +38,7 @@ class LlamaConfig:
         combine_matmul=True,
         build_model_only=False,
         num_shards=1,
+        sliding_window=None,
         **kwargs,
     ):
         self.dtype = dtype
@@ -57,6 +58,7 @@ class LlamaConfig:
         self.tie_word_embeddings = tie_word_embeddings
         self.position_embedding_base = position_embedding_base
         self.combine_matmul = combine_matmul
+        self.sliding_window = sliding_window
         if build_model_only and num_shards > 1:
             self.num_shards = num_shards
         else:

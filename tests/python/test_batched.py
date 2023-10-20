@@ -13,7 +13,7 @@ from tvm import relax
 from tvm.runtime import disco as di
 
 import torch
-from transformers import LlamaTokenizer
+from transformers import AutoTokenizer
 
 from mlc_llm.relax_model.llama import LlamaConfig
 from mlc_llm import utils
@@ -44,16 +44,27 @@ class CacheManager:
         dtype_size = 2  # fp16
         return dtype_size * total
 
-    def __init__(self, num_blocks, num_layers, num_heads, head_size, disco_session=None):
+    def __init__(
+        self, num_blocks, num_layers, num_heads, head_size, disco_session=None, sliding_window=None
+    ):
         self.num_blocks = num_blocks
         self.free_blocks = list(range(num_blocks))
         self.kv_cache = KVCache(
             num_blocks, self.block_size, num_layers, num_heads, head_size, disco_session
         )
 
+        if sliding_window:
+            assert sliding_window % self.kv_cache.block_size == 0
+            self.block_sliding_window = sliding_window // self.kv_cache.block_size
+        else:
+            self.block_sliding_window = None
+
     def set_size(self, request_ids: List[int], target_sizes: List[int]):
         for id, size in zip(request_ids, target_sizes):
             num_needed_block = math.ceil(size / self.block_size)
+
+            if self.block_sliding_window:
+                num_needed_block = min(num_needed_block, self.block_sliding_window)
 
             if id in self.kv_cache.block_tables and size == 0:
                 self.free_blocks.extend(self.kv_cache.block_tables[id])
@@ -193,12 +204,20 @@ def get_tvm_model(artifact_path, model, quantization, num_shards, dev):
 
 
 class Model:
-    def __init__(self, artifact_path, model_name, quant, vocab_size, num_shards, dev):
+    def __init__(
+        self, artifact_path, model_name, quant, vocab_size, num_shards, dev, sliding_window
+    ):
         self.mod, self.params, self.disco_session = get_tvm_model(
             artifact_path, model_name, quant, num_shards, dev
         )
         self.dev = dev
         self.vocab_size = vocab_size
+        self.sliding_window = sliding_window
+
+        if sliding_window:
+            self.block_sliding_window = sliding_window // CacheManager.block_size
+        else:
+            self.block_sliding_window = None
 
     def get_used_memory(self):
         if self.disco_session:
@@ -254,29 +273,49 @@ class Model:
         max_num_blocks_per_seq = 0
         block_size = cache.block_size
         sampling_params = []
+        indices_within_window = []
+
+        start_idx = 0
 
         for request in requests:
             block_table = cache.block_tables[request.request_id]
-            seq_lens.append(len(request.token_ids))
             sampling_params.append(request.sampling_params)
 
             if is_prompt:
                 input_ids += request.token_ids
-                positions += range(seq_lens[-1])
+                prompt_len = len(request.token_ids)
+                seq_lens.append(prompt_len)
+                positions += range(prompt_len)
+
+                if self.sliding_window:
+                    indices_within_window += range(
+                        start_idx + max(0, prompt_len - self.sliding_window), start_idx + prompt_len
+                    )
+                    start_idx += prompt_len
 
                 for i in range(len(request.token_ids)):
-                    block_number = block_table[i // block_size]
+                    if self.sliding_window:
+                        block_number = block_table[(i // block_size) % self.block_sliding_window]
+                    else:
+                        block_number = block_table[i // block_size]
+
                     block_offset = i % block_size
                     slot = block_number * block_size + block_offset
                     slot_mapping.append(slot)
             else:
                 input_ids.append(request.token_ids[-1])
-                pos = seq_lens[-1] - 1
+                pos = len(request.token_ids) - 1
                 positions.append(pos)
                 max_num_blocks_per_seq = max(max_num_blocks_per_seq, len(block_table))
                 block_tables.append(block_table)
 
-                block_number = block_table[pos // block_size]
+                if self.sliding_window:
+                    seq_lens.append(min(len(request.token_ids), self.sliding_window))
+                    block_number = block_table[(pos // block_size) % self.block_sliding_window]
+                else:
+                    block_number = block_table[pos // block_size]
+                    seq_lens.append(len(request.token_ids))
+
                 block_offset = pos % block_size
                 slot = block_number * block_size + block_offset
                 slot_mapping.append(slot)
@@ -295,9 +334,29 @@ class Model:
         kv_cache = cache.cache
 
         if is_prompt:
-            out = self.mod["prefill"](
-                input_ids, positions, seq_lens, kv_cache, slot_mapping, self.params
-            )
+            if self.sliding_window:
+                indices_within_window = tvm.nd.array(
+                    np.array(indices_within_window, dtype="int32"), self.dev
+                )
+
+                if self.disco_session:
+                    indices_within_window = copy_to_worker_0(
+                        self.disco_session, indices_within_window
+                    )
+
+                out = self.mod["prefill"](
+                    input_ids,
+                    positions,
+                    seq_lens,
+                    kv_cache,
+                    slot_mapping,
+                    indices_within_window,
+                    self.params,
+                )
+            else:
+                out = self.mod["prefill"](
+                    input_ids, positions, seq_lens, kv_cache, slot_mapping, self.params
+                )
 
             if self.disco_session:
                 logits, _ = out.debug_get_from_remote(0)
@@ -353,6 +412,9 @@ def parse_args():
     #
     # Profile the gpu memory usage, and use the maximum number of cache blocks possible:
     # /opt/bin/cuda-reserve.py  --num-gpus 2 python tests/python/test_batched.py --local-id vicuna-v1-7b-q0f16 --num-shards 2 --max-num-batched-tokens 2560 --max-input-len 256
+    #
+    # Sliding-window attention with long prompt (> 4k):
+    # /opt/bin/cuda-reserve.py --num-gpus 1 python tests/python/test_batched.py --local-id Mistral-7B-v0.1-q0f16 --long-prompt --max-num-batched-tokens 24000 --max-input-len 8000 --num-decode-steps 30
 
     args = argparse.ArgumentParser()
     args.add_argument("--local-id", type=str, required=True)
@@ -360,6 +422,8 @@ def parse_args():
     args.add_argument("--num-shards", type=int, default=1)
     args.add_argument("--max-num-batched-tokens", type=int, default=-1)
     args.add_argument("--max-input-len", type=int, default=-1)
+    args.add_argument("--long-prompt", action="store_true")
+    args.add_argument("--num-decode-steps", type=int, default=20)
     parsed = args.parse_args()
     parsed.model, parsed.quantization = parsed.local_id.rsplit("-", 1)
     utils.argparse_postproc_common(parsed)
@@ -398,11 +462,17 @@ def test(args):
     with open(os.path.join(model_path, "config.json"), encoding="utf-8") as i_f:
         config = LlamaConfig(**json.load(i_f))
 
-    model = Model(artifact_path, model_name, quantization, config.vocab_size, args.num_shards, dev)
-
-    tokenizer = LlamaTokenizer.from_pretrained(
-        os.path.join(artifact_path, "params"), trust_remote_code=True
+    model = Model(
+        artifact_path,
+        model_name,
+        quantization,
+        config.vocab_size,
+        args.num_shards,
+        dev,
+        config.sliding_window,
     )
+
+    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=False)
 
     num_kv_heads = config.get_num_key_value_heads() // args.num_shards
     head_size = config.hidden_size // config.num_attention_heads
@@ -430,15 +500,23 @@ def test(args):
         num_kv_heads,
         head_size,
         model.disco_session,
+        sliding_window=config.sliding_window,
     )
     cache = cache_manager.get()
 
-    prompts = [
-        "Hello, my name is",
-        "The president of the United States is",
-        "The capital of France is",
-        "The future of AI is",
-    ]
+    model.block_sliding_window = cache_manager.block_sliding_window
+
+    if args.long_prompt:
+        with open("tests/python/data/long_prompts.json", "r") as f:
+            prompts = json.load(f)["prompts"]
+            prompts = [prompts[0], prompts[2], prompts[3]]
+    else:
+        prompts = [
+            "Hello, my name is",
+            "The president of the United States is",
+            "The capital of France is",
+            "The future of AI is",
+        ]
 
     batched_token_ids = [tokenizer.encode(p) for p in prompts]
     prompts_len = [len(ids) for ids in batched_token_ids]
@@ -457,9 +535,7 @@ def test(args):
 
     out = model.generate(requests, cache, True)
 
-    num_steps = 20
-
-    for _ in range(num_steps):
+    for _ in range(args.num_decode_steps):
         for i, response in enumerate(out):
             new_token_id = response.token_id
             requests[i].token_ids.append(new_token_id)
@@ -478,8 +554,12 @@ def test(args):
 
     generated = [tokenizer.convert_tokens_to_string(tokens) for tokens in output_tokens]
 
-    for p, g in zip(prompts, generated):
-        print("Prompt = '{}', generated text = '{}'".format(p, g))
+    if args.long_prompt:
+        for g in generated:
+            print("Generated text = '{}'".format(g))
+    else:
+        for p, g in zip(prompts, generated):
+            print("Prompt = '{}', generated text = '{}'".format(p, g))
 
 
 if __name__ == "__main__":

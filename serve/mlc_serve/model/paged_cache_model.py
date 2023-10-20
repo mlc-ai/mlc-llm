@@ -59,7 +59,13 @@ class CacheManager:
         return dtype_size * total
 
     def __init__(
-        self, num_blocks, num_layers, num_heads, head_size, disco_session=None
+        self,
+        num_blocks,
+        num_layers,
+        num_heads,
+        head_size,
+        disco_session=None,
+        sliding_window=None,
     ):
         self.num_blocks = num_blocks
         self.free_blocks = list(range(num_blocks))
@@ -68,9 +74,18 @@ class CacheManager:
         )
         self.allocated_tokens = dict[RequestId, int]()
 
+        if sliding_window:
+            assert sliding_window % self.kv_cache.block_size == 0
+            self.block_sliding_window = sliding_window // self.kv_cache.block_size
+        else:
+            self.block_sliding_window = None
+
     def set_size(self, request_ids: List[int], target_sizes: List[int]):
         for id, size in zip(request_ids, target_sizes):
             num_needed_block = math.ceil(size / self.block_size)
+
+            if self.block_sliding_window:
+                num_needed_block = min(num_needed_block, self.block_sliding_window)
 
             if id in self.kv_cache.block_tables and size == 0:
                 self.free_blocks.extend(self.kv_cache.block_tables[id])
@@ -255,12 +270,27 @@ def get_tvm_model(artifact_path, model, quantization, num_shards, dev):
 
 
 class Model:
-    def __init__(self, artifact_path, model_name, quant, vocab_size, num_shards, dev):
+    def __init__(
+        self,
+        artifact_path,
+        model_name,
+        quant,
+        vocab_size,
+        num_shards,
+        dev,
+        sliding_window=None,
+    ):
         self.mod, self.params, self.disco_session = get_tvm_model(
             artifact_path, model_name, quant, num_shards, dev
         )
         self.dev = dev
         self.vocab_size = vocab_size
+        self.sliding_window = sliding_window
+
+        if sliding_window:
+            self.block_sliding_window = sliding_window // CacheManager.block_size
+        else:
+            self.block_sliding_window = None
 
     def get_used_memory(self):
         if self.disco_session:
@@ -313,7 +343,7 @@ class Model:
         self,
         requests: List[Union[PrefillRequest, DecodeRequest]],
         cache: KVCache,
-        is_prompt: bool,
+        is_prefill: bool,
     ) -> List[TextGenerationResult]:
         block_tables = []
         seq_lens = []
@@ -324,6 +354,9 @@ class Model:
         block_size = cache.block_size
         sampling_params = []
         sequence_ids = []
+        indices_within_window = []
+
+        start_idx = 0
 
         for request in requests:
             if isinstance(request, PrefillRequest):
@@ -335,26 +368,48 @@ class Model:
                 sequence_ids.append(request.sequence_id)
 
             block_table = cache.block_tables[sequence_id.request_id]
-            seq_lens.append(len(request.token_ids))
             sampling_params.append(request.sampling_params)
 
-            if is_prompt:
+            if is_prefill:
                 input_ids += request.token_ids
-                positions += range(seq_lens[-1])
+                prompt_len = len(request.token_ids)
+                seq_lens.append(prompt_len)
+                positions += range(prompt_len)
+
+                if self.sliding_window:
+                    indices_within_window += range(
+                        start_idx + max(0, prompt_len - self.sliding_window),
+                        start_idx + prompt_len,
+                    )
+                    start_idx += prompt_len
 
                 for i in range(len(request.token_ids)):
-                    block_number = block_table[i // block_size]
+                    if self.sliding_window:
+                        block_number = block_table[
+                            (i // block_size) % self.block_sliding_window
+                        ]
+                    else:
+                        block_number = block_table[i // block_size]
+
                     block_offset = i % block_size
                     slot = block_number * block_size + block_offset
                     slot_mapping.append(slot)
             else:
                 input_ids.append(request.token_ids[-1])
-                pos = seq_lens[-1] - 1
+                pos = len(request.token_ids) - 1
                 positions.append(pos)
                 max_num_blocks_per_seq = max(max_num_blocks_per_seq, len(block_table))
                 block_tables.append(block_table)
 
-                block_number = block_table[pos // block_size]
+                if self.sliding_window:
+                    seq_lens.append(min(len(request.token_ids), self.sliding_window))
+                    block_number = block_table[
+                        (pos // block_size) % self.block_sliding_window
+                    ]
+                else:
+                    block_number = block_table[pos // block_size]
+                    seq_lens.append(len(request.token_ids))
+
                 block_offset = pos % block_size
                 slot = block_number * block_size + block_offset
                 slot_mapping.append(slot)
@@ -373,11 +428,32 @@ class Model:
 
         kv_cache = cache.cache
 
-        if is_prompt:
+        if is_prefill:
             torch.cuda.nvtx.range_push(f"forward prefill {input_ids_np.shape}")
-            out = self.mod["prefill"](
-                input_ids, positions, seq_lens, kv_cache, slot_mapping, self.params
-            )
+
+            if self.sliding_window:
+                indices_within_window = tvm.nd.array(
+                    np.array(indices_within_window, dtype="int32"), self.dev
+                )
+
+                if self.disco_session:
+                    indices_within_window = copy_to_worker_0(
+                        self.disco_session, indices_within_window
+                    )
+
+                out = self.mod["prefill"](
+                    input_ids,
+                    positions,
+                    seq_lens,
+                    kv_cache,
+                    slot_mapping,
+                    indices_within_window,
+                    self.params,
+                )
+            else:
+                out = self.mod["prefill"](
+                    input_ids, positions, seq_lens, kv_cache, slot_mapping, self.params
+                )
 
             if self.disco_session:
                 logits, _ = out.debug_get_from_remote(0)
@@ -466,9 +542,9 @@ class PagedCacheModelTextGenerator:
 
         out = []
         if prefill_requests:
-            out.extend(self.model.generate(prefill_requests, kv_cache, is_prompt=True))
+            out.extend(self.model.generate(prefill_requests, kv_cache, is_prefill=True))
         if decode_requests:
-            out.extend(self.model.generate(decode_requests, kv_cache, is_prompt=False))
+            out.extend(self.model.generate(decode_requests, kv_cache, is_prefill=False))
 
         return out
 
@@ -518,7 +594,13 @@ class PagedCacheModelModule:
             config = LlamaConfig(**json.load(i_f))
 
         model = Model(
-            artifact_path, model_name, quantization, config.vocab_size, num_shards, dev
+            artifact_path,
+            model_name,
+            quantization,
+            config.vocab_size,
+            num_shards,
+            dev,
+            config.sliding_window,
         )
 
         hf_tokenizer = AutoTokenizer.from_pretrained(

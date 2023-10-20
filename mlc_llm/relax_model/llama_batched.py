@@ -3,10 +3,11 @@ from typing import Optional, Tuple
 import numpy as np
 import tvm
 from tvm import relax, te
-from tvm.relax.op import ccl, reshape, expand_dims, concat, zeros, repeat
+from tvm.relax.op import ccl, reshape, expand_dims, concat, zeros, repeat, take
 from tvm.relax.op.nn import attention_var_len
 from tvm.relax.testing import nn
 from tvm.script import relax as R
+from tvm.script.ir_builder import tir as T
 
 from ..quantization import QuantizationScheme
 from .modules import ModuleList
@@ -50,6 +51,10 @@ class LlamaAttentionBatched(LlamaAttention):
     def __init__(self, config: LlamaConfig, head_mapping):
         super().__init__(config)
         self.head_mapping = head_mapping
+        self.sliding_window = None
+
+        if config.sliding_window:
+            self.sliding_window = T.IntImm("int32", config.sliding_window)
 
     def forward(
         self,
@@ -61,6 +66,9 @@ class LlamaAttentionBatched(LlamaAttention):
         max_seqlen: Optional[relax.Expr],
         seqstart: Optional[relax.Expr],  # only for prefill
         block_tables: Optional[relax.Expr],  # only for decode
+        indices_within_window: Optional[
+            relax.Expr
+        ],  # only for prefill with sliding-window attention
     ):
         num_tokens, _ = hidden_states.struct_info.shape
 
@@ -78,12 +86,22 @@ class LlamaAttentionBatched(LlamaAttention):
             # Paged KV cache update
             k_cache, v_cache = kv_cache
 
+            if self.sliding_window is None or block_tables:
+                # For decode or prefill without sliding window, cache all keys / values.
+                keys_to_cache = keys
+                values_to_cache = values
+            else:
+                # Cache only the most recent keys and values within the window.
+                keys_to_cache = nn.emit(take(keys, indices_within_window, axis=0))
+                values_to_cache = nn.emit(take(values, indices_within_window, axis=0))
+                slot_mapping = nn.emit(take(slot_mapping, indices_within_window, axis=0))
+
             # kv caches are updated inplace, but make it look like a pure operation
             kv = nn.emit(
                 relax.op.call_pure_packed(
                     "tvm.contrib.vllm.reshape_and_cache",
-                    keys,
-                    values,
+                    keys_to_cache,
+                    values_to_cache,
                     k_cache,
                     v_cache,
                     slot_mapping,
@@ -96,13 +114,6 @@ class LlamaAttentionBatched(LlamaAttention):
             k_cache = v_cache = None
 
         if seqstart:
-            if self.num_key_value_heads != self.num_query_heads:
-                # TODO(masahi): If repeats turn out to be expensive, remove them by
-                # enabling Flash Attention MQA offload for attention_var_len.
-                n_rep = self.num_query_heads // self.num_key_value_heads
-                keys = nn.emit(repeat(keys, n_rep, axis=1))
-                values = nn.emit(repeat(values, n_rep, axis=1))
-
             attn_output = nn.emit(
                 attention_var_len(
                     nn.emit(expand_dims(queries, axis=0)),
@@ -111,6 +122,7 @@ class LlamaAttentionBatched(LlamaAttention):
                     seqstart_q=seqstart,
                     max_seqlen_q=max_seqlen,
                     causal_mask="BottomRight",
+                    window_size=self.sliding_window,
                 )
             )
         else:
@@ -154,6 +166,7 @@ class LlamaDecoderLayerBatched(LlamaDecoderLayer):
         max_seqlen: Optional[relax.Expr],
         seqstart: Optional[relax.Expr],
         block_tables: Optional[relax.Expr],
+        indices_within_window: Optional[relax.Expr],
     ) -> Tuple[relax.Expr, Optional[Tuple[relax.Expr, relax.Expr]]]:
         residual = hidden_states
 
@@ -169,6 +182,7 @@ class LlamaDecoderLayerBatched(LlamaDecoderLayer):
             max_seqlen=max_seqlen,
             seqstart=seqstart,
             block_tables=block_tables,
+            indices_within_window=indices_within_window,
         )
 
         hidden_states = self.post_self_attn(hidden_states, residual)
@@ -215,6 +229,7 @@ class LlamaModel(nn.Module):
         slot_mapping: Optional[relax.Expr],
         seqstart: Optional[relax.Expr],
         block_tables: Optional[relax.Expr],
+        indices_within_window: Optional[relax.Expr],
     ):
         if self.embed_tokens:
             inputs_embeds = self.embed_tokens(inputs)
@@ -242,6 +257,7 @@ class LlamaModel(nn.Module):
                 max_seqlen,
                 seqstart,
                 block_tables,
+                indices_within_window,
             )
             new_kvs += new_kv
 
@@ -278,6 +294,9 @@ class LlamaForCausalLM(nn.Module):
         kv_caches: Optional[relax.Expr],  # for prefill and decode, not needed for evaluate
         slot_mapping: Optional[relax.Expr],  # for prefill and decode, not needed for evaluate
         block_tables: Optional[relax.Expr],  # only for decode
+        indices_within_window: Optional[
+            relax.Expr
+        ],  # only for prefill with sliding-window attention
     ):
         if self.num_shards > 1:
             input_ids = nn.emit(ccl.broadcast_from_worker0(input_ids))
@@ -303,7 +322,14 @@ class LlamaForCausalLM(nn.Module):
             seqstart = None
 
         hidden_states, new_kvs = self.model(
-            input_ids, positions, seq_lens, kv_caches, slot_mapping, seqstart, block_tables
+            input_ids,
+            positions,
+            seq_lens,
+            kv_caches,
+            slot_mapping,
+            seqstart,
+            block_tables,
+            indices_within_window,
         )
 
         if is_prompt:
@@ -418,6 +444,7 @@ def create_evaluate_func(
                 kv_caches=None,
                 slot_mapping=None,
                 block_tables=None,
+                indices_within_window=None,
             )
             params = [
                 inputs,
@@ -444,31 +471,56 @@ def create_encoding_func(
     num_token = tvm.tir.Var("num_token", "int64")
     num_seq = tvm.tir.Var("num_seq", "int64")
 
+    num_inputs = 5
+
     with bb.function(func_name):
         model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), sep_embed)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
-        inputs, positions, seq_lens, past_key_values, slot_mapping, _ = get_inputs(
+        input_ids, positions, seq_lens, past_key_values, slot_mapping, _ = get_inputs(
             num_token, num_seq, config, sep_embed=sep_embed
         )
 
         with bb.dataflow():
-            logits, new_kvs = model(
-                inputs, positions, seq_lens, past_key_values, slot_mapping, None
-            )
             params = [
-                inputs,
+                input_ids,
                 positions,
                 seq_lens,
                 past_key_values,
                 slot_mapping,
-            ] + model.parameters()
+            ]
+
+            inputs = [
+                input_ids,
+                positions,
+                seq_lens,
+                past_key_values,
+                slot_mapping,
+                None,  # block_tables
+            ]
+
+            if config.sliding_window:
+                num_inputs += 1
+                # The value of num_cached_total is between
+                # num_token (if seq_len < sliding_window for all seq) and
+                # num_seq * config.sliding_window (if seq_len > sliding_window for all seq)
+                num_cached_total = tvm.tir.Var("num_cached_total", "int64")
+                indices_within_window = nn.Placeholder(
+                    (num_cached_total,), dtype="int32", name="indices_within_window"
+                )
+                inputs.append(indices_within_window)
+                params.append(indices_within_window)
+            else:
+                inputs.append(None)
+
+            logits, new_kvs = model(*inputs)
             gv = bb.emit_output((logits, relax.Tuple(new_kvs)))
-        bb.emit_func_output(gv, params)
+
+        bb.emit_func_output(gv, params + model.parameters())
 
     mod = bb.get()
     gv = mod.get_global_var(func_name)
-    bb.update_func(gv, mod[gv].with_attr("num_input", 5))
+    bb.update_func(gv, mod[gv].with_attr("num_input", num_inputs))
 
 
 def create_decoding_func(
@@ -492,7 +544,7 @@ def create_decoding_func(
             param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
             logits, new_kvs = model(
-                inputs, positions, seq_lens, past_key_values, slot_mapping, block_tables
+                inputs, positions, seq_lens, past_key_values, slot_mapping, block_tables, None
             )
             params = [
                 inputs,
