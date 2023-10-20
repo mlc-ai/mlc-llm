@@ -1,17 +1,11 @@
 from __future__ import annotations
 
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.embeddings.openai import embed_with_retry, async_embed_with_retry
-
 import logging
-from typing import (
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-)
+from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.embeddings.openai import async_embed_with_retry, embed_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -121,9 +115,9 @@ class MLCEmbeddings(OpenAIEmbeddings):
             self,
             input="",
             **self._invocation_params,
-        )[
-            "data"
-        ][0]["embedding"]
+        )["data"][
+            0
+        ]["embedding"]
         for _result, num_tokens in zip(results, num_tokens_in_batch):
             if len(_result) == 0:
                 average = empty_average
@@ -155,7 +149,9 @@ class MLCEmbeddings(OpenAIEmbeddings):
                 input="",
                 **self._invocation_params,
             )
-        )["data"][0]["embedding"]
+        )[
+            "data"
+        ][0]["embedding"]
         for _result, num_tokens in zip(results, num_tokens_in_batch):
             if len(_result) == 0:
                 average = empty_average

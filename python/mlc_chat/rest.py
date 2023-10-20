@@ -1,21 +1,18 @@
 import argparse
 import asyncio
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field, fields
 
-from mlc_chat.chat_module import GenerationConfig
-
+import numpy as np
 import uvicorn
 from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-
-from dataclasses import dataclass, field, fields
+from fastapi.responses import StreamingResponse
+from mlc_chat.chat_module import GenerationConfig
 
 from .base import set_global_random_seed
 from .chat_module import ChatModule
 from .interface.openai_api import *
-
-import numpy as np
 
 
 @dataclass
@@ -327,12 +324,14 @@ async def read_stats():
     """
     return session["chat_mod"].stats()
 
+
 @app.get("/verbose_stats")
 async def read_stats_verbose():
     """
     Get the verbose runtime stats.
     """
     return session["chat_mod"].stats(verbose=True)
+
 
 ARGS = convert_args_to_argparser().parse_args()
 if __name__ == "__main__":
