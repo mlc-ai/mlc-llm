@@ -165,7 +165,7 @@ class CacheManager:
         no requests in the cache.
         """
         if not self.allocated_tokens:
-            return len(self.free_blocks)
+            return len(self.free_blocks) * self.block_size
 
         free_blocks_per_request = len(self.free_blocks) // len(self.allocated_tokens)
         remaining_blocks = len(self.free_blocks) - free_blocks_per_request * len(
