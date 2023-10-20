@@ -2,10 +2,11 @@
 # pylint: disable=import-error, import-outside-toplevel, invalid-name, line-too-long, protected-access
 # too-many-instance-attributes, too-many-locals, unused-import
 
-from typing import Dict
 import argparse
-import os
 import glob
+import os
+from typing import Dict
+
 import gradio as gr
 
 from .chat_module import ChatModule
@@ -148,7 +149,12 @@ class GradioModule:
 
 
 def launch_gradio(
-    artifact_path: str = "dist", device: str = "auto", port: int = 7860, share: bool = False, host: str = "127.0.0.1"):
+    artifact_path: str = "dist",
+    device: str = "auto",
+    port: int = 7860,
+    share: bool = False,
+    host: str = "127.0.0.1",
+):
     r"""Launch the gradio interface with a given port, creating a publically sharable link if specified."""
 
     # create a gradio module
@@ -230,7 +236,7 @@ def launch_gradio(
         stats_button.click(mod.gradio_stats, [], [stats_output])
 
     # launch to the web
-    demo.launch(share=share, enable_queue=True, server_port=port,server_name=host)
+    demo.launch(share=share, enable_queue=True, server_port=port, server_name=host)
 
 
 if __name__ == "__main__":

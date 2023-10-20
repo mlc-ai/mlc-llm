@@ -352,10 +352,12 @@ def _get_chat_config(config_file_path: str, user_chat_config: Optional[ChatConfi
         # We override using user's chat config
         for field in fields(user_chat_config):
             field_name = field.name
-            if field_name == 'model_lib':
-                warn_msg = ('WARNING: Do not override "model_lib" in ChatConfig. '
-                            'This override will be ignored. '
-                            'Please use ChatModule.model_lib_path to override the full model library path instead.')
+            if field_name == "model_lib":
+                warn_msg = (
+                    'WARNING: Do not override "model_lib" in ChatConfig. '
+                    "This override will be ignored. "
+                    "Please use ChatModule.model_lib_path to override the full model library path instead."
+                )
                 warnings.warn(warn_msg)
                 continue
             field_value = getattr(user_chat_config, field_name)
@@ -740,7 +742,12 @@ class ChatModule:
 
         # 5. Look up model library
         self.model_lib_path = _get_lib_module_path(
-            model, self.model_path, self.chat_config, model_lib_path, device_name, self.config_file_path
+            model,
+            self.model_path,
+            self.chat_config,
+            model_lib_path,
+            device_name,
+            self.config_file_path,
         )
 
         # 6. Call reload
