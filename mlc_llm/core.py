@@ -597,6 +597,9 @@ def build_model_from_args(args: argparse.Namespace):
                 "`num_shards` should be used together with "
                 "`--build-model-only` and `--convert-weight-only`"
             )
+        use_ft_quant = args.quantization.name in ["q4f16_ft", "q8f16_ft"]
+        if use_ft_quant:
+            raise ValueError("Multi-GPU deployments are not available for ft quantization.")
     os.makedirs(args.artifact_path, exist_ok=True)
     if args.debug_dump:
         os.makedirs(os.path.join(args.artifact_path, "debug"), exist_ok=True)
@@ -614,7 +617,6 @@ def build_model_from_args(args: argparse.Namespace):
             config = json.load(i_f)
 
     if not use_cache or args.convert_weight_only:
-
         model_generators = {
             "llama": llama,
             "mistral": llama,
