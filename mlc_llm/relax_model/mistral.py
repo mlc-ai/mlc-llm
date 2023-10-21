@@ -368,7 +368,7 @@ class MistralAttention(nn.Module):
         squeezed_key = nn.emit_te(te_squeeze, key_cur)
         squeezed_value = nn.emit_te(te_squeeze, value_cur)
 
-        f_kv_cache_overwrite = relax.extern("vm.builtin.attention_kv_cache_overwrite")
+        f_kv_cache_overwrite = relax.extern("vm.builtin.attention_kv_cache_window_override")
         k_cache = nn.emit(
             relax.Call(
                 f_kv_cache_overwrite,
