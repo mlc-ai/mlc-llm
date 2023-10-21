@@ -2,6 +2,8 @@
 This file specifies how MLC's Llama parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
+from typing import Callable, Dict, List
+
 import numpy as np
 
 from ..parameter import ExternMapping
@@ -26,8 +28,8 @@ def hf_torch(model_config: LlamaConfig) -> ExternMapping:
     _, named_params = model.export_tvm(spec=model.get_default_spec())
     parameter_names = {name for name, _ in named_params}
 
-    param_map = {}
-    map_func = {}
+    param_map: Dict[str, List[str]] = {}
+    map_func: Dict[str, Callable] = {}
     unused_params = set()
 
     for i in range(model_config.num_hidden_layers):
@@ -35,24 +37,24 @@ def hf_torch(model_config: LlamaConfig) -> ExternMapping:
         attn = f"model.layers.{i}.self_attn"
         assert f"{attn}.qkv_proj.weight" in parameter_names
         map_func[f"{attn}.qkv_proj.weight"] = lambda q, k, v: np.concatenate([q, k, v], axis=0)
-        param_map[f"{attn}.qkv_proj.weight"] = (
+        param_map[f"{attn}.qkv_proj.weight"] = [
             f"{attn}.q_proj.weight",
             f"{attn}.k_proj.weight",
             f"{attn}.v_proj.weight",
-        )
+        ]
         # Add gates in MLP
         mlp = f"model.layers.{i}.mlp"
         assert f"{mlp}.gate_up_proj.weight" in parameter_names
         map_func[f"{mlp}.gate_up_proj.weight"] = lambda gate, up: np.concatenate([gate, up], axis=0)
-        param_map[f"{mlp}.gate_up_proj.weight"] = (
+        param_map[f"{mlp}.gate_up_proj.weight"] = [
             f"{mlp}.gate_proj.weight",
             f"{mlp}.up_proj.weight",
-        )
+        ]
         # inv_freq is not used in the model
         unused_params.add(f"{attn}.rotary_emb.inv_freq")
 
     for name in parameter_names:
         if name not in map_func:
             map_func[name] = lambda x: x
-            param_map[name] = (name,)
+            param_map[name] = [name]
     return ExternMapping(param_map, map_func, unused_params)

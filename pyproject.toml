@@ -19,4 +19,19 @@ profile = "black"
 
 [tool.black]
 line-length = 100
-target-version = ['py310']
+
+[tool.mypy]
+ignore_missing_imports = true
+show_column_numbers = true
+show_error_context = true
+follow_imports = "skip"
+ignore_errors = false
+strict_optional = false
+install_types = true
+non_interactive = true
+
+[tool.pylint.messages_control]
+max-line-length = 100
+disable = """
+duplicate-code,
+"""

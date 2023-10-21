@@ -1,9 +1,7 @@
 name: Python Lint
-
 on: [push, pull_request]
-
 env:
-  IMAGE: 'mlcaidev/ci-cpu:8a87699'
+  IMAGE: 'mlcaidev/ci-cpu:2c03e7f'
 
 jobs:
   isort:
@@ -35,3 +33,33 @@ jobs:
     - name: Lint
       run: |
         ./ci/bash.sh $IMAGE bash ./ci/task/black.sh
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: 'recursive'
+    - name: Version
+      run: |
+        wget https://raw.githubusercontent.com/mlc-ai/package/main/docker/bash.sh -O ./ci/bash.sh
+        chmod u+x ./ci/bash.sh
+        ./ci/bash.sh $IMAGE "conda env export --name ci-lint"
+    - name: Lint
+      run: |
+        ./ci/bash.sh $IMAGE bash ./ci/task/mypy.sh
+
+  pylint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: 'recursive'
+    - name: Version
+      run: |
+        wget https://raw.githubusercontent.com/mlc-ai/package/main/docker/bash.sh -O ./ci/bash.sh
+        chmod u+x ./ci/bash.sh
+        ./ci/bash.sh $IMAGE "conda env export --name ci-lint"
+    - name: Lint
+      run: |
+        ./ci/bash.sh $IMAGE bash ./ci/task/pylint.sh

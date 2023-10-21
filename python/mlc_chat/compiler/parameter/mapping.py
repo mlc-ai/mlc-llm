@@ -1,9 +1,17 @@
 """Parameter mapping for converting different LLM implementations to MLC LLM."""
 import dataclasses
-from typing import Callable, Dict, List, Set
+from typing import Callable, Dict, List, Set, Union
 
 import numpy as np
 from tvm.runtime import NDArray
+
+MapFuncVariadic = Union[
+    Callable[[], np.ndarray],
+    Callable[[np.ndarray], np.ndarray],
+    Callable[[np.ndarray, np.ndarray], np.ndarray],
+    Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray],
+    Callable[[np.ndarray, np.ndarray, np.ndarray, np.ndarray], np.ndarray],
+]
 
 
 @dataclasses.dataclass
@@ -33,8 +41,8 @@ class ExternMapping:
     """
 
     param_map: Dict[str, List[str]]
-    map_func: Dict[str, Callable[[np.ndarray, ...], np.ndarray]]
-    unused_params: Set[str] = dataclasses.field(default_factory=dict)
+    map_func: Dict[str, MapFuncVariadic]
+    unused_params: Set[str] = dataclasses.field(default_factory=set)
 
 
 @dataclasses.dataclass
@@ -72,8 +80,8 @@ class QuantizeMapping:
     used to convert the quantized parameters into the desired form.
     """
 
-    param_map: Dict[str, Callable[str, List[str]]]
-    map_func: Dict[str, Callable[NDArray, List[NDArray]]]
+    param_map: Dict[str, Callable[[str], List[str]]]
+    map_func: Dict[str, Callable[[NDArray], List[NDArray]]]
 
 
 __all__ = ["ExternMapping", "QuantizeMapping"]
