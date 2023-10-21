@@ -3,11 +3,12 @@ import argparse
 import dataclasses
 import unittest
 
-from mlc_llm import BuildArgs, utils, core
+from mlc_llm import BuildArgs, core, utils
+
 
 def old_make_args():
     """The exact old way of creating `ArgumentParser`, used to test whether
-    `BuildArgs` is equivalent to this. """
+    `BuildArgs` is equivalent to this."""
     args = argparse.ArgumentParser()
     args.add_argument(
         "--model",
@@ -17,7 +18,7 @@ def old_make_args():
             'The name of the model to build. If it is "auto", we will '
             'automatically set the model name according to "--model-path", '
             '"hf-path" or the model folders under "--artifact-path/models"'
-        )
+        ),
     )
     args.add_argument(
         "--hf-path",
@@ -30,19 +31,16 @@ def old_make_args():
         type=str,
         choices=[*utils.quantization_schemes.keys()],
         default=list(utils.quantization_schemes.keys())[0],
-        help="The quantization mode we use to compile."
+        help="The quantization mode we use to compile.",
     )
     args.add_argument(
         "--max-seq-len",
         type=int,
         default=-1,
-        help="The maximum allowed sequence length for the model."
+        help="The maximum allowed sequence length for the model.",
     )
     args.add_argument(
-        "--target",
-        type=str,
-        default="auto",
-        help="The target platform to compile the model for."
+        "--target", type=str, default="auto", help="The target platform to compile the model for."
     )
     args.add_argument(
         "--reuse-lib",
@@ -51,10 +49,7 @@ def old_make_args():
         help="Whether to reuse a previously generated lib.",
     )
     args.add_argument(
-        "--artifact-path",
-        type=str,
-        default="dist",
-        help="Where to store the output."
+        "--artifact-path", type=str, default="dist", help="Where to store the output."
     )
     args.add_argument(
         "--use-cache",
@@ -66,13 +61,13 @@ def old_make_args():
         "--debug-dump",
         action="store_true",
         default=False,
-        help="Whether to dump debugging files during compilation."
+        help="Whether to dump debugging files during compilation.",
     )
     args.add_argument(
         "--debug-load-script",
         action="store_true",
         default=False,
-        help="Whether to load the script for debugging."
+        help="Whether to load the script for debugging.",
     )
     args.add_argument(
         "--llvm-mingw",
@@ -81,10 +76,7 @@ def old_make_args():
         help="/path/to/llvm-mingw-root, use llvm-mingw to cross compile to windows.",
     )
     args.add_argument(
-        "--system-lib",
-        action="store_true",
-        default=False,
-        help="A parameter to `relax.build`."
+        "--system-lib", action="store_true", default=False, help="A parameter to `relax.build`."
     )
     args.add_argument(
         "--sep-embed",
@@ -99,17 +91,20 @@ def old_make_args():
 
     return args
 
+
 # Referred to HfArgumentParserTest from https://github.com/huggingface/
 # transformers/blob/e84bf1f734f87aa2bedc41b9b9933d00fc6add98/tests/utils
 # /test_hf_argparser.py#L143
 class BuildArgsTest(unittest.TestCase):
     """Tests whether BuildArgs reaches parity with regular ArgumentParser."""
-    def argparsers_equal(self, parse_a: argparse.ArgumentParser, 
-                         parse_b: argparse.ArgumentParser):
+
+    def argparsers_equal(self, parse_a: argparse.ArgumentParser, parse_b: argparse.ArgumentParser):
         """
         Small helper to check pseudo-equality of parsed arguments on `ArgumentParser` instances.
         """
-        self.assertEqual(len(parse_a._actions), len(parse_b._actions))  # pylint: disable=protected-access
+        self.assertEqual(
+            len(parse_a._actions), len(parse_b._actions)
+        )  # pylint: disable=protected-access
         for x, y in zip(parse_a._actions, parse_b._actions):  # pylint: disable=protected-access
             xx = {k: v for k, v in vars(x).items() if k != "container"}
             yy = {k: v for k, v in vars(y).items() if k != "container"}
@@ -175,5 +170,6 @@ class BuildArgsTest(unittest.TestCase):
         build_args_namespace = argparse.Namespace(**build_args_as_dict)
         self.assertNotEqual(build_args_namespace, parsed_args)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

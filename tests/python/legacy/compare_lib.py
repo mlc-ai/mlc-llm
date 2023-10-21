@@ -1,17 +1,14 @@
+import argparse
+import json
+import os
 from typing import List
 
-import argparse
-import os
-import json
-
-import tvm
-from tvm import relax
-from tvm import rpc
-from tvm.relax.testing.lib_comparator import LibCompareVMInstrument
 import numpy as np
-
 import torch
+import tvm
 from transformers import AutoTokenizer, LlamaTokenizer
+from tvm import relax, rpc
+from tvm.relax.testing.lib_comparator import LibCompareVMInstrument
 
 from mlc_llm import utils
 
@@ -53,7 +50,7 @@ class LibCompare(LibCompareVMInstrument):
 
         if self.time_eval and name not in self.time_eval_results:
             res = self.mod.time_evaluator(
-                name, self.device, number=20, repeat=3#, cache_flush_bytes=256 * 10**6
+                name, self.device, number=20, repeat=3  # , cache_flush_bytes=256 * 10**6
             )(*new_args)
             self.time_eval_results[name] = (res.mean, 1)
             print(f"Time-eval result {name} on {self.device}: {res}")
@@ -121,9 +118,7 @@ class TestState:
                 )
             )
             self.cmp_device = tvm.device(args.cmp_device)
-        self.const_params_dict = utils.load_params(
-            args.artifact_path, self.primary_device
-        )
+        self.const_params_dict = utils.load_params(args.artifact_path, self.primary_device)
         self.cmp_instrument = LibCompare(
             self.lib,
             self.cmp_device,
@@ -134,9 +129,7 @@ class TestState:
 
 
 def deploy_to_pipeline(args) -> None:
-    with open(
-        os.path.join(args.artifact_path, "params", "mlc-chat-config.json"), "r"
-    ) as f:
+    with open(os.path.join(args.artifact_path, "params", "mlc-chat-config.json"), "r") as f:
         config = json.load(f)
 
     primary_device = tvm.device(args.primary_device)
@@ -157,18 +150,14 @@ def deploy_to_pipeline(args) -> None:
         tokenizer(args.prompt, return_tensors="pt").input_ids.to(torch.int32).numpy(),
         primary_device,
     )
-    first_sampled_token = tvm.nd.array(
-        np.array([[6234]]).astype("int32"), primary_device
-    )
+    first_sampled_token = tvm.nd.array(np.array([[6234]]).astype("int32"), primary_device)
     seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1]])
     second_seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1] + 1])
     kv_caches = state.vm["create_kv_cache"]()
 
     print("Running inference...")
     print("======================= Starts Encoding =======================")
-    logits, kv_caches = state.vm["prefill"](
-        inputs, seq_len_shape, kv_caches, const_params
-    )
+    logits, kv_caches = state.vm["prefill"](inputs, seq_len_shape, kv_caches, const_params)
     print_as_table(
         sorted(
             state.cmp_instrument.time_eval_results.items(),
