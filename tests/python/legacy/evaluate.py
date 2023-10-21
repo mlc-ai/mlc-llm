@@ -58,9 +58,7 @@ class LibCompare(LibCompareVMInstrument):
                 repeat=3,
             )(*new_args).mean
             shapes = [arg.shape for arg in new_args]
-            total_bytes = sum(
-                arg.numpy().size * arg.numpy().itemsize for arg in new_args
-            )
+            total_bytes = sum(arg.numpy().size * arg.numpy().itemsize for arg in new_args)
             self.time_eval_results[name] = (res, 1, shapes, total_bytes)
         else:
             record = self.time_eval_results[name]
@@ -177,9 +175,7 @@ def deploy_to_pipeline(args) -> None:  # pylint: disable=too-many-locals
         print("Profiling...")
         kv_caches = vm["create_kv_cache"]()
 
-        logits, kv_caches = vm["prefill"](
-            inputs, seq_len_shape, kv_caches, const_params
-        )
+        logits, kv_caches = vm["prefill"](inputs, seq_len_shape, kv_caches, const_params)
         print("======================= Encoding Profiling =======================")
         print_as_table(
             sorted(
