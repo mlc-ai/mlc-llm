@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring
 import logging
 from pathlib import Path
+from typing import Union
 
 import pytest
 from mlc_chat.compiler.model.llama import LlamaConfig
@@ -24,7 +25,7 @@ logging.basicConfig(
         "./dist/models/Llama-2-70b-hf",
     ],
 )
-def test_load_llama(base_path: str):
+def test_load_llama(base_path: Union[str, Path]):
     base_path = Path(base_path)
     path_config = base_path / "config.json"
     path_params = base_path / "pytorch_model.bin.index.json"
