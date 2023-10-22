@@ -1,12 +1,11 @@
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 #define TVM_USE_LIBBACKTRACE 0
 
+#include <android/log.h>
 #include <dlfcn.h>
 #include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
-
-#include <android/log.h>
 
 static_assert(TVM_LOG_CUSTOMIZE == 1, "TVM_LOG_CUSTOMIZE must be 1");
 

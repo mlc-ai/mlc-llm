@@ -24,6 +24,4 @@ TEST(ConversationTest, ConversationJSONRoundTripTest) {
   _TestConversationJSONRoundTrip("LM");
 }
 
-TEST(ConversationTest, ConversationPartialUpdateTest) {
-  _TestConversationPartialUpdate();
-}
+TEST(ConversationTest, ConversationPartialUpdateTest) { _TestConversationPartialUpdate(); }

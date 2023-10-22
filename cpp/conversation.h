@@ -283,7 +283,8 @@ class Conversation {
           /* place_in_prompt= */ place_in_prompt);
     } else {
       ICHECK(this->separator_style == SeparatorStyle::kLM ||
-        this->separator_style == SeparatorStyle::kCodeCompletion) << "Unsupported separator_style";
+             this->separator_style == SeparatorStyle::kCodeCompletion)
+          << "Unsupported separator_style";
       // special handle LM, LM mode have no memory
       // and only returns last one
       if (this->messages.size() >= 2) {
