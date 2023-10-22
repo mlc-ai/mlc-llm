@@ -23,7 +23,8 @@ enum PlaceInPrompt : int {
   // The input message is only the beginning part of a prompt, no role name and separator should be
   // appended after the message since there will be future messages appended after the message.
   kBegin,
-  // The input message is in the middle of a prompt, nothing should be appended before or after the message.
+  // The input message is in the middle of a prompt, nothing should be appended before or after the
+  // message.
   kMiddle,
   // The input message is the ending part of a prompt, no role name and separator should be appended
   // prior to it since the message is concatenated to some prior messages.
@@ -118,7 +119,9 @@ enum PlaceInPrompt : int {
   unload_func_();
 }
 
-- (void)reload:(NSString*)modelLib modelPath:(NSString*)modelPath appConfigJson:(NSString*)appConfigJson {
+- (void)reload:(NSString*)modelLib
+        modelPath:(NSString*)modelPath
+    appConfigJson:(NSString*)appConfigJson {
   std::string lib_prefix = modelLib.UTF8String;
   std::string model_path = modelPath.UTF8String;
   std::string app_config_json = appConfigJson.UTF8String;
@@ -194,7 +197,9 @@ enum PlaceInPrompt : int {
   first_input_after_image = false;
 }
 
-- (void)prefillImage:(UIImage*)image prevPlaceholder:(NSString*)prevPlaceholder postPlaceholder:(NSString*)postPlaceholder {
+- (void)prefillImage:(UIImage*)image
+     prevPlaceholder:(NSString*)prevPlaceholder
+     postPlaceholder:(NSString*)postPlaceholder {
   // prefill the previous placeholder string
   std::string prev_placeholder = prevPlaceholder.UTF8String;
   prefill_func_(prev_placeholder, false, (int)PlaceInPrompt::kBegin);
@@ -206,9 +211,9 @@ enum PlaceInPrompt : int {
   NSUInteger bytesPerPixel = 4;
   NSUInteger bytesPerRow = bytesPerPixel * image_width;
   NSUInteger bitsPerComponent = 8;
-  CGContextRef context = CGBitmapContextCreate(image_data.data(), image_width, image_height,
-                          bitsPerComponent, bytesPerRow, colorSpace,
-                          kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+  CGContextRef context = CGBitmapContextCreate(
+      image_data.data(), image_width, image_height, bitsPerComponent, bytesPerRow, colorSpace,
+      kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
   CGColorSpaceRelease(colorSpace);
   CGContextDrawImage(context, CGRectMake(0, 0, image_width, image_height), imageRef);
   CGContextRelease(context);

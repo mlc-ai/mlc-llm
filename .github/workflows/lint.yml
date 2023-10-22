@@ -1,15 +1,16 @@
-name: Python Lint
+name: Lint
 on: [push, pull_request]
 env:
-  IMAGE: 'mlcaidev/ci-cpu:2c03e7f'
+  IMAGE: 'mlcaidev/ci-cpu:caab922'
 
 jobs:
   isort:
+    name: Python / isort
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
-        submodules: 'recursive'
+        submodules: ''
     - name: Version
       run: |
         wget https://raw.githubusercontent.com/mlc-ai/package/main/docker/bash.sh -O ./ci/bash.sh
@@ -20,11 +21,12 @@ jobs:
         ./ci/bash.sh $IMAGE bash ./ci/task/isort.sh
 
   black:
+    name: Python / black
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
-        submodules: 'recursive'
+        submodules: ''
     - name: Version
       run: |
         wget https://raw.githubusercontent.com/mlc-ai/package/main/docker/bash.sh -O ./ci/bash.sh
@@ -35,11 +37,12 @@ jobs:
         ./ci/bash.sh $IMAGE bash ./ci/task/black.sh
 
   mypy:
+    name: Python / mypy
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
-        submodules: 'recursive'
+        submodules: ''
     - name: Version
       run: |
         wget https://raw.githubusercontent.com/mlc-ai/package/main/docker/bash.sh -O ./ci/bash.sh
@@ -50,11 +53,12 @@ jobs:
         ./ci/bash.sh $IMAGE bash ./ci/task/mypy.sh
 
   pylint:
+    name: Python / pylint
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
-        submodules: 'recursive'
+        submodules: ''
     - name: Version
       run: |
         wget https://raw.githubusercontent.com/mlc-ai/package/main/docker/bash.sh -O ./ci/bash.sh
@@ -63,3 +67,21 @@ jobs:
     - name: Lint
       run: |
         ./ci/bash.sh $IMAGE bash ./ci/task/pylint.sh
+
+  clang-format:
+    name: C++ / clang-format
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: ''
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 0
+    - name: Version
+      run: |
+        wget https://raw.githubusercontent.com/mlc-ai/package/main/docker/bash.sh -O ./ci/bash.sh
+        chmod u+x ./ci/bash.sh
+        ./ci/bash.sh $IMAGE "conda env export --name ci-lint"
+    - name: Lint
+      run: |
+        ./ci/bash.sh $IMAGE bash ./ci/task/clang-format.sh
