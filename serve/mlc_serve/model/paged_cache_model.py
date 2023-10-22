@@ -234,7 +234,7 @@ def sample(logits, sampling_params, vocab_size):
 
 
 def load_disco_module(artifact_path, lib_path, num_shards):
-    sess = di.ProcessSession(num_workers=num_shards)
+    sess = di.ThreadedSession(num_workers=num_shards)
     devices = range(num_shards)
     sess.init_ccl("nccl", *devices)
     module = sess.load_vm_module(lib_path)
@@ -267,7 +267,7 @@ def get_tvm_model(artifact_path, model, quantization, num_shards, dev):
         params = utils.load_params(model_artifact_path, dev)
         return vm.module, params, None
 
-    return load_disco_module(artifact_path, lib_path, num_shards)
+    return load_disco_module(model_artifact_path, lib_path, num_shards)
 
 
 class Model:
@@ -603,6 +603,9 @@ class PagedCacheModelModule:
             dev,
             config.sliding_window,
         )
+
+        if num_shards > 1:
+            model.disco_session.sync_worker_0()
 
         hf_tokenizer = AutoTokenizer.from_pretrained(
             model_path,
