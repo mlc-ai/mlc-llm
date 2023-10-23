@@ -21,6 +21,7 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     num_key_value_heads: int = 0
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
     head_dim: int = 0
+    combine_matmul: bool = True
 
     def __post_init__(self):
         if self.num_key_value_heads == 0:

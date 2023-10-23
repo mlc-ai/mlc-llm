@@ -46,34 +46,65 @@ class RotaryEmbedding(nn.Module):
 class LlamaFFN(nn.Module):
     def __init__(self, config: LlamaConfig):
         super().__init__()
-        self.gate_up_proj = nn.MultiLinear(
-            in_features=config.hidden_size,
-            out_features=[config.intermediate_size, config.intermediate_size],
-            bias=False,
-        )
+        self.combine_matmul = config.combine_matmul
+        if self.combine_matmul:
+            self.gate_up_proj = nn.MultiLinear(
+                in_features=config.hidden_size,
+                out_features=[config.intermediate_size, config.intermediate_size],
+                bias=False,
+            )
+        else:
+            self.gate_proj = nn.Linear(
+                in_features=config.hidden_size, out_features=config.intermediate_size, bias=False
+            )
+            self.up_proj = nn.Linear(
+                in_features=config.hidden_size, out_features=config.intermediate_size, bias=False
+            )
         self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
 
     def forward(self, x: Tensor):
-        x1, x2 = self.gate_up_proj(x)
+        if self.combine_matmul:
+            x1, x2 = self.gate_up_proj(x)
+        else:
+            x1 = self.gate_proj(x)
+            x2 = self.up_proj(x)
         return self.down_proj(op.silu(x1) * x2)
 
 
 class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: LlamaConfig, rotary_embedding: RotaryEmbedding):
+        self.combine_matmul = config.combine_matmul
         self.rotary_embedding = rotary_embedding
         self.hidden_size = config.hidden_size
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads
         self.num_kv_heads = config.num_key_value_heads
-        self.qkv_proj = nn.MultiLinear(
-            in_features=config.hidden_size,
-            out_features=[
-                self.num_q_heads * self.head_dim,
-                self.num_kv_heads * self.head_dim,
-                self.num_kv_heads * self.head_dim,
-            ],
-            bias=False,
-        )
+        if self.combine_matmul:
+            self.qkv_proj = nn.MultiLinear(
+                in_features=config.hidden_size,
+                out_features=[
+                    self.num_q_heads * self.head_dim,
+                    self.num_kv_heads * self.head_dim,
+                    self.num_kv_heads * self.head_dim,
+                ],
+                bias=False,
+            )
+        else:
+            self.q_proj = nn.Linear(
+                in_features=config.hidden_size,
+                out_features=self.num_q_heads * self.head_dim,
+                bias=False,
+            )
+            self.k_proj = nn.Linear(
+                in_features=config.hidden_size,
+                out_features=self.num_kv_heads * self.head_dim,
+                bias=False,
+            )
+            self.v_proj = nn.Linear(
+                in_features=config.hidden_size,
+                out_features=self.num_kv_heads * self.head_dim,
+                bias=False,
+            )
         self.o_proj = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
         self.k_cache = nn.KVCache(config.max_sequence_length, [self.num_kv_heads, self.head_dim])
         self.v_cache = nn.KVCache(config.max_sequence_length, [self.num_kv_heads, self.head_dim])
@@ -87,7 +118,12 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         d, h_q, h_kv, t = self.head_dim, self.num_q_heads, self.num_kv_heads, total_seq_len
         b, s, _ = hidden_states.shape
         assert b == 1, "Only support batch size 1 at this moment."
-        q, k, v = self.qkv_proj(hidden_states)
+        if self.combine_matmul:
+            q, k, v = self.qkv_proj(hidden_states)
+        else:
+            q = self.q_proj(hidden_states)
+            k = self.k_proj(hidden_states)
+            v = self.v_proj(hidden_states)
         q = op.reshape(q, (b, s, h_q, d))
         k = op.reshape(k, (b, s, h_kv, d))
         v = op.reshape(v, (b, s, h_kv, d))
