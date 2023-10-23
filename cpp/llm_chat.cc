@@ -910,6 +910,8 @@ class LLMChat {
       this->ft_.sess->SyncWorker(0);
     }
 
+    std::vector<int32_t> continuation_tokens = this->tokenizer_->Encode(continuation);
+
     std::vector<int32_t> cut_tokens = prompt_tokens;
     cut_tokens.pop_back();
 
@@ -917,9 +919,7 @@ class LLMChat {
     NDArray logits_on_device = this->ForwardTokens(cut_tokens, new_seq_len);
     total_seq_len_ = new_seq_len;
 
-    // TODO(vvchernov): remove
-    // int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config);
-    return this->SampleLogProbeFromLogits(logits_on_device, generation_config);
+    return this->SampleLogProbeFromLogits(logits_on_device, continuation_tokens, generation_config);
   }
 
   bool Stopped() { return stop_triggered_; }
@@ -1142,9 +1142,51 @@ class LLMChat {
    * \brief Sample output pair of logprobs and is_greedy from logits on device
    */
   std::pair<float, bool> SampleLogProbeFromLogits(NDArray logits_on_device,
-                                picojson::object generation_config = picojson::object()) {
-    std::vector<float> logprobs = this->SampleLogProbsFromLogitsOnCPU();
-    std::pair<float, bool> res = std::make_pair<float, bool>(float(), bool());
+                                                  std::vector<int32_t> continuation_tokens,
+                                                  picojson::object generation_config = picojson::object()) {
+    NDArray logprobs = this->SampleLogProbsFromLogitsOnCPU();
+    size_t seq_length = logprobs->shape[logprobs->ndim - 2];
+    size_t vocab_length = logprobs->shape[logprobs->ndim - 1];
+
+    size_t continuation_length = continuation_tokens.size();
+
+    // Calculate is_greedy
+    std::vector<int32_t> greedy_tokens = this->LogProbsArgmax(static_cast<float*>(logprobs->data), seq_length, vocab_length);
+    bool is_greedy = true;
+    size_t offset = seq_length - continuation_length;
+    for (size_t i = 0; i < continuation_length; ++i) {
+      if (greedy_tokens[i + offset] != continuation_tokens[i]) {
+        is_greedy = false;
+        break;
+      }
+    }
+
+    std::pair<float, bool> res = std::make_pair<float, bool>(float(), is_greedy);
+    return res;
+  }
+
+  /*!
+   * \brief Argmax calculated for logprobs
+   */
+  std::vector<int32_t> LogProbsArgmax(const float* logprobs, size_t seq_length, int32_t vocab_length) {
+    std::vector<int32_t> res(seq_length);
+    std::vector<std::pair<float, int32_t>> data;
+    data.resize(vocab_length);
+
+    for (size_t seq_ind = 0; seq_ind < seq_length; ++seq_ind){
+      data.clear();
+      const float* logprobs_ptr = logprobs + vocab_length*seq_ind;
+      for (int32_t i = 0; i < vocab_length; ++i) {
+        data[i] = std::make_pair(logprobs_ptr[i], i);
+      }
+
+      // sort by logprobs from largest to smallest
+      std::sort(data.begin(), data.end(), [](const std::pair<float, int>& lhs, const std::pair<float, int>& rhs) {
+        return lhs.first > rhs.first;
+      });
+
+      res[seq_ind] = data[0].second;  // it is maximum after sorting
+    }
     return res;
   }
 
@@ -1391,7 +1433,7 @@ class LLMChat {
   /*!
   * \brief Using TVM function calculating log(softmax(logits)).
   */
-  std::vector<float> SampleLogProbsFromLogitsOnCPU() {
+  NDArray SampleLogProbsFromLogitsOnCPU() {
     ICHECK(logits_on_cpu_.defined()) << "logits_on_cpu_ is not defined";
     ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
     ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
