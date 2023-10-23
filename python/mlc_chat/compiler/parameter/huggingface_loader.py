@@ -19,7 +19,7 @@ from .utils import check_parameter_usage, load_safetensor_shard, load_torch_shar
 logger = logging.getLogger(__name__)
 
 
-class HFLoader:  # pylint: disable=too-few-public-methods
+class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
     """A loader loading HuggingFace's PyTorch/SafeTensor format and converts them
     to MLC's parameters.
 
@@ -161,4 +161,4 @@ def _loading_order(param_map: ExternMapping, torch_to_path: Dict[str, Path]) -> 
     return list(order.keys())
 
 
-__all__ = ["HFLoader"]
+__all__ = ["HuggingFaceLoader"]

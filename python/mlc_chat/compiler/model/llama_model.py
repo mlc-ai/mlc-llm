@@ -156,11 +156,11 @@ class LlamaModel(nn.Module):
 
 
 class LlamaForCasualLM(nn.Module):
-    def __init__(self, config: LlamaConfig, dtype: str = "float32"):
+    def __init__(self, config: LlamaConfig):
         self.model = LlamaModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.vocab_size = config.vocab_size
-        self.dtype = dtype
+        self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)

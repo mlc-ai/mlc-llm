@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Union
 
 import pytest
-from mlc_chat.compiler.model.llama import LlamaConfig
-from mlc_chat.compiler.model.llama_parameter import hf_torch
-from mlc_chat.compiler.parameter import HFLoader
+from mlc_chat.compiler.model.llama_config import LlamaConfig
+from mlc_chat.compiler.model.llama_parameter import huggingface
+from mlc_chat.compiler.parameter import HuggingFaceLoader
 from mlc_chat.support import tqdm
 
 logging.basicConfig(
@@ -31,7 +31,7 @@ def test_load_torch_llama(base_path: Union[str, Path]):
     path_params = base_path / "pytorch_model.bin.index.json"
 
     config = LlamaConfig.from_file(path_config)
-    loader = HFLoader(path=path_params, extern_param_map=hf_torch(config))
+    loader = HuggingFaceLoader(path=path_params, extern_param_map=huggingface(config, None))
     with tqdm.redirect():
         for _name, _param in loader.load():
             ...
@@ -51,7 +51,7 @@ def test_load_safetensor_llama(base_path: Union[str, Path]):
     path_params = base_path / "model.safetensors.index.json"
 
     config = LlamaConfig.from_file(path_config)
-    loader = HFLoader(path=path_params, extern_param_map=hf_torch(config))
+    loader = HuggingFaceLoader(path=path_params, extern_param_map=huggingface(config, None))
     with tqdm.redirect():
         for _name, _param in loader.load():
             ...
