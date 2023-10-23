@@ -72,7 +72,7 @@ class HFLoader:  # pylint: disable=too-few-public-methods
         self.extern_param_map = extern_param_map
         self.cached_files = {}
         self.torch_to_path = {}
-        if path.suffix == ".bin" or path.suffix == ".safetensors":
+        if path.suffix in (".bin", ".safetensors"):
             self._load_file(path)
             for name in self.cached_files[path].keys():
                 self.torch_to_path[name] = path
