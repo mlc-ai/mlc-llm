@@ -525,6 +525,11 @@ class LLMChat {
     ICHECK(fsample_topp_from_logits_ptr)
         << "Cannot find env function vm.builtin.sample_top_p_from_logits";
     fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
+    auto fsample_logprobs_from_logits_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.sample_logprobs_from_logits");
+    ICHECK(fsample_logprobs_from_logits_ptr)
+        << "Cannot find env function vm.builtin.fsample_logprobs_from_logits";
+    fsample_logprobs_from_logits_ = *fsample_logprobs_from_logits_ptr;
     // Step 5. Load params in nd-array cache.
     this->params_ = ft_.LoadParams(model_path, device_, use_presharded_weights_);
     // Step 6. KV cache creation.
@@ -1138,6 +1143,7 @@ class LLMChat {
    */
   std::pair<float, bool> SampleLogProbeFromLogits(NDArray logits_on_device,
                                 picojson::object generation_config = picojson::object()) {
+    std::vector<float> logprobs = this->SampleLogProbsFromLogitsOnCPU();
     std::pair<float, bool> res = std::make_pair<float, bool>(float(), bool());
     return res;
   }
@@ -1382,6 +1388,16 @@ class LLMChat {
     return fsample_topp_from_prob_(logits_on_cpu_, top_p, GetRandomNumber());
   }
 
+  /*!
+  * \brief Using TVM function calculating log(softmax(logits)).
+  */
+  std::vector<float> SampleLogProbsFromLogitsOnCPU() {
+    ICHECK(logits_on_cpu_.defined()) << "logits_on_cpu_ is not defined";
+    ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
+    ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
+    return fsample_logprobs_from_logits_(logits_on_cpu_);
+  }
+
   //----------------------------
   // Statistics
   //----------------------------
@@ -1451,6 +1467,8 @@ class LLMChat {
   PackedFunc fsample_topp_from_logits_;
   // sample top p from prob
   PackedFunc fsample_topp_from_prob_;
+  // sample logprobs from logits
+  PackedFunc fsample_logprobs_from_logits_;
   // input token id
   NDArray input_token_ids_{nullptr};
   // local params
@@ -1621,6 +1639,7 @@ class LLMChatModule : public ModuleNode {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK(2 <= args.size() && args.size() <= 3);
         if (args.size() == 2) {
+          // TODO(vvchernov): upstream TVMRetValue* with std::pair<float, bool>
           *rv = GetChat()->LogLikelihoodStep(args[0], args[1]);
         } else if (args.size() == 3) {
           // args: generation_config_str
