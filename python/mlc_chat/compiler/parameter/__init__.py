@@ -4,3 +4,4 @@ parameters and parameters in MLC-defined models.
 """
 from .hf_torch_loader import HFTorchLoader
 from .mapping import ExternMapping, QuantizeMapping
+from .safetensor_loader import SafeTensorLoader

@@ -58,3 +58,6 @@ def hf_torch(model_config: LlamaConfig) -> ExternMapping:
             map_func[name] = lambda x: x
             param_map[name] = [name]
     return ExternMapping(param_map, map_func, unused_params)
+
+
+hf_safetensor = hf_torch
