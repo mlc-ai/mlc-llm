@@ -429,13 +429,7 @@ def mod_transform_before_build(
         has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
 
         if has_cutlass and not args.no_cutlass_attn:
-            if args.use_flash_attn_mqa:
-                mod["prefill"] = rewrite_attention(mod["prefill"], use_flash_mqa=True)
-                mod["decode"] = rewrite_attention(mod["decode"], use_flash_mqa=True)
-
-            mod["prefill"] = rewrite_attention(mod["prefill"], use_flash_mqa=False)
-            mod["decode"] = rewrite_attention(mod["decode"], use_flash_mqa=False)
-
+            mod = rewrite_attention(use_flash_mqa=args.use_flash_attn_mqa)(mod)
             patterns += get_patterns_with_prefix("cutlass.attention")
 
         if has_cutlass and not args.no_cutlass_norm:
