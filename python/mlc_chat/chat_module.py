@@ -14,7 +14,6 @@ import tvm
 from tvm.runtime import disco
 
 from . import callback
-
 from .interface.openai_api import ChatMessage
 
 # pylint: disable=line-too-long
@@ -241,7 +240,7 @@ class GenerationConfig:
         not set, the model will generate text until it encounters a stop token.
     n : Optional[int]
         This parameter determines the number of text samples to generate. The default
-        value is ``1``. Note that this parameter is only used when ``stream`` is set to 
+        value is ``1``. Note that this parameter is only used when ``stream`` is set to
         ``False``.
     stop : Optional[Union[str, List[str]]]
         When ``stop`` is encountered, the model will stop generating output.
