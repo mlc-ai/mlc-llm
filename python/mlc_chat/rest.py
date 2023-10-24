@@ -32,7 +32,7 @@ class RestAPIArgs:
             )
         }
     )
-    model_lib_path: str = field(
+    lib_path: str = field(
         default=None,
         metadata={
             "help": (
