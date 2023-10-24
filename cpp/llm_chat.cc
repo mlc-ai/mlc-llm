@@ -1170,22 +1170,20 @@ class LLMChat {
    */
   std::vector<int32_t> LogProbsArgmax(const float* logprobs, size_t seq_length, int32_t vocab_length) {
     std::vector<int32_t> res(seq_length);
-    std::vector<std::pair<float, int32_t>> data;
-    data.resize(vocab_length);
 
     for (size_t seq_ind = 0; seq_ind < seq_length; ++seq_ind){
-      data.clear();
-      const float* logprobs_ptr = logprobs + vocab_length*seq_ind;
+      // Find max and its index in the slice
+      const float* logprobs = logprobs + vocab_length*seq_ind;
+      float max_value = logprobs[0];
+      int32_t maxarg_ind = 0;
       for (int32_t i = 0; i < vocab_length; ++i) {
-        data[i] = std::make_pair(logprobs_ptr[i], i);
+        if (max_value < logprobs[i]) {
+          max_value = logprobs[i];
+          maxarg_ind = i;
+        }
       }
 
-      // sort by logprobs from largest to smallest
-      std::sort(data.begin(), data.end(), [](const std::pair<float, int>& lhs, const std::pair<float, int>& rhs) {
-        return lhs.first > rhs.first;
-      });
-
-      res[seq_ind] = data[0].second;  // it is maximum after sorting
+      res[seq_ind] = maxarg_ind;
     }
     return res;
   }
