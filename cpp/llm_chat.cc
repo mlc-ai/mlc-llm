@@ -525,11 +525,11 @@ class LLMChat {
     ICHECK(fsample_topp_from_logits_ptr)
         << "Cannot find env function vm.builtin.sample_top_p_from_logits";
     fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
-    auto fsample_logprobs_from_logits_ptr =
-        tvm::runtime::Registry::Get("vm.builtin.sample_logprobs_from_logits");
-    ICHECK(fsample_logprobs_from_logits_ptr)
-        << "Cannot find env function vm.builtin.fsample_logprobs_from_logits";
-    fsample_logprobs_from_logits_ = *fsample_logprobs_from_logits_ptr;
+    auto flog_softmax_ptr =
+        tvm::runtime::Registry::Get("vm.builtin.log_softmax");
+    ICHECK(flog_softmax_ptr)
+        << "Cannot find env function vm.builtin.log_softmax";
+    flog_softmax_ = *flog_softmax_ptr;
     // Step 5. Load params in nd-array cache.
     this->params_ = ft_.LoadParams(model_path, device_, use_presharded_weights_);
     // Step 6. KV cache creation.
@@ -915,7 +915,7 @@ class LLMChat {
     std::vector<int32_t> cut_tokens = prompt_tokens;
     cut_tokens.pop_back();
 
-    int32_t new_seq_len = total_seq_len_ + token_len;
+    int32_t new_seq_len = total_seq_len_ + token_len -1;
     NDArray logits_on_device = this->ForwardTokens(cut_tokens, new_seq_len);
     total_seq_len_ = new_seq_len;
 
@@ -1437,7 +1437,7 @@ class LLMChat {
     ICHECK(logits_on_cpu_.defined()) << "logits_on_cpu_ is not defined";
     ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
     ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
-    return fsample_logprobs_from_logits_(logits_on_cpu_);
+    return flog_softmax_(logits_on_cpu_);
   }
 
   //----------------------------
@@ -1509,8 +1509,8 @@ class LLMChat {
   PackedFunc fsample_topp_from_logits_;
   // sample top p from prob
   PackedFunc fsample_topp_from_prob_;
-  // sample logprobs from logits
-  PackedFunc fsample_logprobs_from_logits_;
+  // calculate log_softmax from logits
+  PackedFunc flog_softmax_;
   // input token id
   NDArray input_token_ids_{nullptr};
   // local params
