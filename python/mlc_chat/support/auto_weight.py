@@ -4,7 +4,12 @@ import logging
 from pathlib import Path
 from typing import Tuple
 
+from .style import green, red
+
 logger = logging.getLogger(__name__)
+
+FOUND = green("Found")
+NOT_FOUND = red("Not found")
 
 
 def detect_weight(
@@ -61,7 +66,7 @@ def detect_weight(
         if not weight_path.exists():
             raise ValueError(f"weight_path doesn't exist: {weight_path}")
 
-    logger.info("Loading weights from directory: %s", weight_path)
+    logger.info("%s weights from directory: %s", FOUND, weight_path)
 
     # check weight format
     # weight_format = "auto", guess the weight format.
@@ -92,7 +97,7 @@ def _guess_weight_format(weight_path: Path):
         )
 
     selected_format = possible_formats[0]
-    logging.info(
+    logger.info(
         "Using %s format now. Use `--weight-format` to manually specify the format.",
         selected_format,
     )
@@ -103,9 +108,9 @@ def _check_pytorch(weight_path: Path):
     pytorch_json_path = weight_path / "pytorch_model.bin.index.json"
     result = pytorch_json_path.exists()
     if result:
-        logger.info("[Y] Found Huggingface PyTorch: %s", pytorch_json_path)
+        logger.info("%s Huggingface PyTorch: %s", FOUND, pytorch_json_path)
     else:
-        logger.info("[X] Not found: Huggingface PyTorch")
+        logger.info("%s Huggingface PyTorch", NOT_FOUND)
     return result
 
 
@@ -113,9 +118,9 @@ def _check_safetensor(weight_path: Path):
     safetensor_json_path = weight_path / "model.safetensors.index.json"
     result = safetensor_json_path.exists()
     if result:
-        logger.info("[Y] Found SafeTensor: %s", safetensor_json_path)
+        logger.info("%s SafeTensor: %s", FOUND, safetensor_json_path)
     else:
-        logger.info("[X] Not found: SafeTensor")
+        logger.info("%s SafeTensor", NOT_FOUND)
     return result
 
 

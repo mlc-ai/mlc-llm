@@ -1,13 +1,13 @@
 # pylint: disable=invalid-name,missing-docstring
 import pytest
-from mlc_chat.compiler.model.llama_config import LlamaConfig
-from mlc_chat.compiler.model.llama_model import LlamaForCasualLM
+from mlc_chat.compiler import MODELS
 
 
 @pytest.mark.parametrize("model_name", ["llama2_7b", "llama2_13b", "llama2_70b"])
 def test_llama2_creation(model_name: str):
-    config = LlamaConfig.from_predefined(model_name)
-    model = LlamaForCasualLM(config)
+    model_info = MODELS["llama"]
+    config = model_info.config.from_predefined(model_name)
+    model = model_info.model(config)
     mod, named_params = model.export_tvm(spec=model.get_default_spec())
     mod.show(black_format=False)
     for name, param in named_params:

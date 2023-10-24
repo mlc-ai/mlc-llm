@@ -41,4 +41,5 @@ def test_detect_config_fail():
 
 
 if __name__ == "__main__":
-    pass
+    test_detect_config()
+    test_detect_config_fail()

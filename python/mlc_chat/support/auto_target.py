@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # TODO: add help message on how to specify the target manually # pylint: disable=fixme
-# TODO: revisit system_lib_prefix handling # pylint: disable=fixme
 # TODO: include host detection logic below after the new TVM build is done. # pylint: disable=fixme
 HELP_MSG = """TBD"""
 FOUND = green("Found")
@@ -100,6 +99,19 @@ def _is_device(device: str):
     return True
 
 
+def _add_prefix_symbol(mod: IRModule, prefix: str, is_system_lib: bool) -> IRModule:
+    if is_system_lib and prefix:
+        mod = mod.with_attr("system_lib_prefix", prefix)
+    elif is_system_lib:
+        logger.warning("--prefix-symbols is not specified when building a static library")
+    elif prefix:
+        logger.warning(
+            "--prefix-symbols is specified, but it will not take any effect "
+            "when building the shared library"
+        )
+    return mod
+
+
 def _detect_target_from_device(device: str) -> Optional[Target]:
     try:
         target = Target.from_device(device)
@@ -118,6 +130,7 @@ def _detect_target_from_device(device: str) -> Optional[Target]:
 def _build_metal_x86_64():
     def build(mod: IRModule, args: "CompileArgs"):
         output = args.output
+        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=False)
         assert output.suffix == ".dylib"
         relax.build(
             mod,
@@ -141,10 +154,10 @@ def _build_iphone():
 
     def build(mod: IRModule, args: "CompileArgs"):
         output = args.output
-        system_lib_prefix = f"{args.model_type}_{args.quantization}_".replace("-", "_")
+        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=True)
         assert output.suffix == ".tar"
         relax.build(
-            mod.with_attr("system_lib_prefix", system_lib_prefix),
+            mod,
             target=args.target,
             system_lib=True,
         ).export_library(
@@ -158,10 +171,10 @@ def _build_iphone():
 def _build_android():
     def build(mod: IRModule, args: "CompileArgs"):
         output = args.output
-        system_lib_prefix = f"{args.model_type}_{args.quantization}_".replace("-", "_")
+        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=True)
         assert output.suffix == ".tar"
         relax.build(
-            mod.with_attr("system_lib_prefix", system_lib_prefix),
+            mod,
             target=args.target,
             system_lib=True,
         ).export_library(
@@ -175,6 +188,7 @@ def _build_android():
 def _build_webgpu():
     def build(mod: IRModule, args: "CompileArgs"):
         output = args.output
+        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=True)
         assert output.suffix == ".wasm"
         relax.build(
             mod,
@@ -190,13 +204,14 @@ def _build_webgpu():
 def _build_default():
     def build(mod: IRModule, args: "CompileArgs"):
         output = args.output
-        if output.suffix in [".a", ".lib"]:
+        if output.suffix in [".tar", ".lib"]:
             system_lib = True
         elif output.suffix in [".so", ".dylib", ".dll"]:
             system_lib = False
         else:
             logger.warning("Unknown output suffix: %s. Assuming shared library.", output.suffix)
             system_lib = False
+        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=system_lib)
         relax.build(
             mod,
             target=args.target,

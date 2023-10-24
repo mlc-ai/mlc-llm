@@ -5,10 +5,14 @@ import logging
 from pathlib import Path
 from typing import Union
 
-from mlc_chat.compiler.compile import compile  # pylint: disable=redefined-builtin
-from mlc_chat.compiler.model import MODELS, Model
+from mlc_chat.compiler import (  # pylint: disable=redefined-builtin
+    MODELS,
+    QUANT,
+    OptimizationFlags,
+    compile,
+)
 
-from ..support.auto_config import detect_config
+from ..support.auto_config import detect_config, detect_model_type
 from ..support.auto_target import detect_target_and_host
 
 logging.basicConfig(
@@ -19,38 +23,22 @@ logging.basicConfig(
 )
 
 
-def _parse_config(path: Union[str, Path]) -> Path:
-    try:
-        return detect_config(Path(path))
-    except ValueError as err:
-        raise argparse.ArgumentTypeError(f"No valid config.json in: {path}. Error: {err}")
-
-
-def _parse_output(path: Union[str, Path]) -> Path:
-    path = Path(path)
-    parent = path.parent
-    if not parent.is_dir():
-        raise argparse.ArgumentTypeError(f"Directory does not exist: {parent}")
-    return path
-
-
-def _parse_model_type(model_type: str, config: Path) -> Model:
-    if model_type == "auto":
-        with open(config, "r", encoding="utf-8") as config_file:
-            cfg = json.load(config_file)
-        if "model_type" not in cfg:
-            raise ValueError(
-                f"'model_type' not found in: {config}. "
-                f"Please explicitly specify `--model-type` instead"
-            )
-        model_type = cfg["model_type"]
-    if model_type not in MODELS:
-        raise ValueError(f"Unknown model type: {model_type}. Available ones: {list(MODELS.keys())}")
-    return MODELS[model_type]
-
-
 def main():
     """Parse command line argumennts and call `mlc_llm.compiler.compile`."""
+
+    def _parse_config(path: Union[str, Path]) -> Path:
+        try:
+            return detect_config(Path(path))
+        except ValueError as err:
+            raise argparse.ArgumentTypeError(f"No valid config.json in: {path}. Error: {err}")
+
+    def _parse_output(path: Union[str, Path]) -> Path:
+        path = Path(path)
+        parent = path.parent
+        if not parent.is_dir():
+            raise argparse.ArgumentTypeError(f"Directory does not exist: {parent}")
+        return path
+
     parser = argparse.ArgumentParser("MLC LLM Compiler")
     parser.add_argument(
         "--config",
@@ -64,16 +52,8 @@ def main():
         "--quantization",
         type=str,
         required=True,
-        choices=[
-            "q0f16",
-            "q0f32",
-            "q3f16_1",
-            "q3f32_1",
-            "q4f16_1",
-            "q4f16_ft",
-            "q4f32_1",
-        ],
-        help="The quantization format. TBD",
+        choices=list(QUANT.keys()),
+        help="Quantization format.",
     )
     parser.add_argument(
         "--model-type",
@@ -106,9 +86,21 @@ def main():
     )
     parser.add_argument(
         "--opt",
+        type=OptimizationFlags.from_str,
+        default="",
+        help="Optimization flags. MLC LLM maintains a predefined set of optimization flags, "
+        "denoted as O0, O1, O2, O3, where O0 means no optimization, O2 means majority of them, "
+        "and O3 represents extreme optimization that could potentially break the system. "
+        "Meanwhile, optimization flags could be explicitly specified via details knobs, e.g. "
+        '--opt="cutlass_attn=1;cutlass_norm=0;cublas_gemm=0;cudagraph=0"',
+    )
+    parser.add_argument(
+        "--prefix-symbols",
         type=str,
         default="",
-        help="Optimization flags.",
+        help='Adding a prefix to all symbols exported. Similar to "objcopy --prefix-symbols". '
+        "This is useful when compiling multiple models into a single library to avoid symbol "
+        "conflicts. Differet from objcopy, this takes no effect for shared library.",
     )
     parser.add_argument(
         "--output",
@@ -117,15 +109,15 @@ def main():
         required=True,
         help="The name of the output file. The suffix determines if the output file is a "
         "shared library or a static library. Available suffixes: "
-        "1) Linux: .so (shared), .a (static); "
-        "2) macOS: .dylib (shared), .a (static); "
-        "3) Windows: .dll (shared), .lib (static); "
+        "1) Linux: .so (shared), .tar (static); "
+        "2) macOS: .dylib (shared), .tar (static); "
+        "3) Windows: .dll (shared), .tar (static); "
         "4) Android, iOS: .tar (static); "
         "5) Web: .wasm (web assembly)",
     )
     parsed = parser.parse_args()
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
-    parsed.model_type = _parse_model_type(parsed.model_type, parsed.config)
+    parsed.model_type = detect_model_type(parsed.model_type, parsed.config)
     compile(
         config=parsed.config,
         quantization=parsed.quantization,
@@ -133,6 +125,7 @@ def main():
         target=target,
         opt=parsed.opt,
         build_func=build_func,
+        prefix_symbols=parsed.prefix_symbols,
         output=parsed.output,
     )
 

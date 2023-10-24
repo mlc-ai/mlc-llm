@@ -11,4 +11,5 @@ set -x
 mypy ./python/mlc_chat/compiler \
 	./python/mlc_chat/support \
 	./tests/python/model \
-	./tests/python/parameter
+	./tests/python/parameter \
+	./tests/python/support
