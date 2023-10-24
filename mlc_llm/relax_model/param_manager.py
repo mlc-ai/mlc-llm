@@ -269,8 +269,8 @@ class ParamManager:
                 relax_param,
                 getattr(quantization_scheme, quant_kind.name),
                 func_name,
-                getattr(relax_param, "shard_dim", None),
-                getattr(relax_param, "shard_strategy", None),
+                relax_param.__dict__.get("shard_dim", None),
+                relax_param.__dict__.get("shard_strategy", None),
             )
 
             self.params_in_func[func_name].append(param)
