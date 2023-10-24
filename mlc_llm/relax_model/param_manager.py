@@ -369,7 +369,7 @@ class ParamManager:
         else:
             self.pidx2pname = dict()
 
-    def transform_dequantize(self) -> tvm.ir.transform.Pass:
+    def transform_dequantize(self, mod: tvm.IRModule) -> tvm.IRModule:
         """Apply dequantization to the input IRModule.
 
         Parameters
@@ -386,48 +386,38 @@ class ParamManager:
             The IRModule updated with the dequantization computation.
         """
 
-        @tvm.ir.transform.module_pass(opt_level=0, name="ParamManager.transform_dequantize")
-        def transform_func(mod: tvm.IRModule, _context) -> tvm.IRModule:
-            # For each Relax function in the input IRModule (e.g., "prefill"),
-            # we create its input relax.Var of all the quantized data, and
-            # store the mapping from function name to the var.
-            func_name_to_quantized_params: Dict[str, List[relax.Var]] = {}
+        # For each Relax function in the input IRModule (e.g., "prefill"),
+        # we create its input relax.Var of all the quantized data, and
+        # store the mapping from function name to the var.
+        func2param_var: Dict[str, relax.Var] = {}
+        for gv, func in mod.functions.items():
+            if not isinstance(func, relax.Function):
+                continue
+            if func.attrs is None or not "num_input" in func.attrs:
+                continue
+            func2param_var[gv.name_hint] = relax.Var(
+                "params", self.get_quantized_param_info(gv.name_hint)
+            )
 
-            for gv, func in mod.functions.items():
-                if isinstance(func, relax.Function) and func.attrs and "num_input" in func.attrs:
-                    quantized_param_info = self.get_quantized_param_info(gv.name_hint)
-                    param_vars = [
-                        relax.Var(f"param_{i}", info)
-                        for i, info in enumerate(quantized_param_info.fields)
-                    ]
-                    func_name_to_quantized_params[gv.name_hint] = param_vars
+        # Cache mapping to avoid duplicate dequantization.
+        dequantized_cache: Dict[relax.Var, relax.Var] = {}
 
-            # Cache mapping to avoid duplicate dequantization.
-            dequantized_cache: Dict[relax.Var, relax.Var] = {}
+        # Define a var replacement function for applying dequantization.
+        def f_replace(var: relax.Var, bb: relax.BlockBuilder, func_name: str) -> relax.Var:
+            if var in dequantized_cache:
+                return dequantized_cache[var]
+            assert var in self.func_raw_param_map
+            func_name, param = self.func_raw_param_map[var]
+            dequantized = self._dequantize(param, func2param_var[func_name], bb, func_name)
+            dequantized_cache[var] = dequantized
+            return dequantized
 
-            # Define a var replacement function for applying dequantization.
-            def f_replace(var: relax.Var, bb: relax.BlockBuilder) -> relax.Var:
-                if var in dequantized_cache:
-                    return dequantized_cache[var]
-                assert var in self.func_raw_param_map
+        # Create the function mutator for applying dequantization.
+        replacer = ParamReplacer(mod, func2param_var, f_replace)
+        # Update the input IRModule with dequantization.
+        mod = replacer.transform()
 
-                func_name, param = self.func_raw_param_map[var]
-                quantized_params = func_name_to_quantized_params[func_name]
-                relevant_quantized_params = [quantized_params[i] for i in self.param2qrange[param]]
-
-                dequantized = self._dequantize(param, relevant_quantized_params, bb, func_name)
-
-                dequantized_cache[var] = dequantized
-                return dequantized
-
-            # Create the function mutator for applying dequantization.
-            replacer = ParamReplacer(mod, func_name_to_quantized_params, f_replace)
-            # Update the input IRModule with dequantization.
-            mod = replacer.transform()
-
-            return mod
-
-        return transform_func
+        return mod
 
     def get_quantized_param_info(self, func_name: str) -> List[relax.TensorStructInfo]:
         bb = relax.BlockBuilder()
@@ -707,9 +697,10 @@ class ParamManager:
     def _dequantize(
         self,
         param: Parameter,
-        qparams: List[relax.Var],
+        quantized_tuple: relax.Var,
         bb: relax.BlockBuilder,
         func_name: str,
+        qparams: List[relax.Var] = None,
     ) -> relax.Var:
         """Applying dequantization to the input parameter.
         This method is called by `transform_module` below, and is not
@@ -720,13 +711,30 @@ class ParamManager:
         param : Parameter
             The parameter whose quantized tensors are to be dequantized.
 
-        qparams : List[relax.Var]
+        quantized_tuple : relax.Var
             The relax.Var of the quantized tensors of all parameters in the model.
+
+        bb : relax.BlockBuilder
+            The Relax BlockBuilder used for inserting the dequantization computations.
+
+        func_name : str
+            The name of the  function which dequantization is applied to.
+
+        qparams : List[relax.Var]
+            The quantized parts of the parameter.
+            By default it is `None`, in which case we will get the quantized parts
+            from `quantized_tuple`.
 
         Returns
         -------
         The dequantized parameter, in the form of a relax.Var.
         """
+        if not qparams:
+            # Get the corresponding Relax vars of the quantized tensors of this parameter.
+            qparams: List[relax.Var] = []
+            for qparam_idx in self.param2qrange[param]:
+                qparams.append(bb.emit(relax.TupleGetItem(quantized_tuple, qparam_idx)))
+
         # Get the dequantization function of this parameter.
         f_dequantize = param.quant_spec.get_dequantize_func(
             param_info=param.param_info_dict[func_name],
@@ -781,7 +789,7 @@ class ParamReplacer(PyExprMutator):
     mod : tvm.IRModule
         The IRModule of the model to be updated.
 
-    func_name_to_quantized_params : Dict[str, List[relax.Var]]
+    func2param_var : Dict[str, relax.Var]
         The mapping from each function name to its input var of quantized data tuple.
 
     f_replace : Callable[[relax.Var, relax.BlockBuilder], relax.Var]
@@ -793,7 +801,7 @@ class ParamReplacer(PyExprMutator):
     """
 
     mod: tvm.IRModule
-    func_name_to_quantized_params: Dict[str, List[relax.Var]]
+    func2param_var: Dict[str, relax.Var]
     f_replace: Callable[[relax.Var, relax.BlockBuilder], relax.Var]
     param_set: Set[relax.Var]
 
@@ -802,12 +810,12 @@ class ParamReplacer(PyExprMutator):
     def __init__(
         self,
         mod: tvm.IRModule,
-        func_name_to_quantized_params: Dict[str, relax.Var],
+        func2param_var: Dict[str, relax.Var],
         f_replace: Callable[[relax.Var, relax.BlockBuilder], relax.Var],
     ):
         super().__init__(mod)
         self.mod = mod
-        self.func_name_to_quantized_params = func_name_to_quantized_params
+        self.func2param_var = func2param_var
         self.f_replace = f_replace
         self.cur_func_name = ""
 
@@ -819,20 +827,21 @@ class ParamReplacer(PyExprMutator):
                 continue
 
             assert (
-                gv.name_hint in self.func_name_to_quantized_params
-            ), f"{gv.name_hint} not in {self.func_name_to_quantized_params}"
-            updated_func = self.rewrite_func(func, self.func_name_to_quantized_params[gv.name_hint])
+                gv.name_hint in self.func2param_var
+            ), f"{gv.name_hint} not in {self.func2param_var}"
+            self.cur_func_name = gv.name_hint
+            updated_func = self.rewrite_func(func, self.func2param_var[gv.name_hint])
             updated_func = remove_all_unused(updated_func)
             self.builder_.update_func(gv, updated_func)
         return self.builder_.get()
 
-    def rewrite_func(self, func: Function, quantized_params: List[relax.Var]) -> relax.Function:
+    def rewrite_func(self, func: Function, param_var: relax.Var) -> relax.Function:
         num_input = int(func.attrs["num_input"])
         self.param_set = set(func.params[num_input:])
 
         body = self.visit_expr(func.body)
         return relax.Function(
-            params=func.params[:num_input] + quantized_params,
+            params=func.params[:num_input] + [param_var],
             body=body,
             ret_struct_info=func.ret_struct_info,
             is_pure=func.is_pure,
@@ -840,10 +849,9 @@ class ParamReplacer(PyExprMutator):
         ).without_attr("num_input")
 
     def visit_var_(self, var: Var) -> Expr:
-        if var in self.param_set:
-            return self.f_replace(var, self.builder_)
-        else:
+        if var not in self.param_set:
             return super().visit_var_(var)
+        return self.f_replace(var, self.builder_, self.cur_func_name)
 
 
 ##################################################################
