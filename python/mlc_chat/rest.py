@@ -167,28 +167,32 @@ class AsyncCompletionStream:
 async def request_completion(request: ChatCompletionRequest):
     """
     Creates model response for the given chat conversation.
+    The messages field contains a list of messages (describing the conversation history). eg:
+    ```"messages": [{"role": "user", "content": "What's my name?"},
+                    {"role": "assistant", "content": "Your name is Llama."},
+                    {"role": "user", "content": "No, that's your name. My name is X."},
+                    {"role": "assistant", "content": "Ah, my apologies! Your name is X! "},
+                    {"role": "user", "content": "What is the meaning of life?"},
+                ]
+    ```
+    ]
     """
-
     generation_config = GenerationConfig(
         temperature=request.temperature,
         repetition_penalty=request.repetition_penalty,
+        presence_penalty=request.presence_penalty,
+        frequency_penalty=request.frequency_penalty,
         top_p=request.top_p,
         mean_gen_len=request.mean_gen_len,
         max_gen_len=request.max_gen_len,
+        n=request.n,
+        stop=request.stop,
     )
 
-    if len(request.messages) > 1:
-        raise ValueError(
-            """
-                The /v1/chat/completions endpoint currently only supports single message prompts.
-                Please ensure your request contains only one message
-                """
-        )
+    session["chat_mod"].reset_chat()  # Reset previous history, KV cache, etc.
 
     if request.stream:
-        session["chat_mod"]._prefill(
-            input=request.messages[0].content, generation_config=generation_config
-        )
+        session["chat_mod"]._prefill(input=request.messages, generation_config=generation_config)
 
         async def iter_response():
             prev_txt = ""
@@ -211,15 +215,18 @@ async def request_completion(request: ChatCompletionRequest):
         return StreamingResponse(iter_response(), media_type="text/event-stream")
     else:
         msg = session["chat_mod"].generate(
-            prompt=request.messages[0].content, generation_config=generation_config
+            prompt=request.messages, generation_config=generation_config
         )
+        if isinstance(msg, str):
+            msg = [msg]
         return ChatCompletionResponse(
             choices=[
                 ChatCompletionResponseChoice(
-                    index=0,
-                    message=ChatMessage(role="assistant", content=msg),
+                    index=index,
+                    message=ChatMessage(role="assistant", content=msg[index]),
                     finish_reason="stop",
                 )
+                for index in range(len(msg))
             ],
             # TODO: Fill in correct usage info
             usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
@@ -235,6 +242,8 @@ async def request_completion(request: CompletionRequest):
     generation_config = GenerationConfig(
         temperature=request.temperature,
         repetition_penalty=request.repetition_penalty,
+        presence_penalty=request.presence_penalty,
+        frequency_penalty=request.frequency_penalty,
         top_p=request.top_p,
         mean_gen_len=request.mean_gen_len,
         max_gen_len=request.max_gen_len,

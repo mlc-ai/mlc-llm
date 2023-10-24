@@ -8,12 +8,13 @@ import sys
 import warnings
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import tvm
 from tvm.runtime import disco
 
 from . import callback
+from .interface.openai_api import ChatMessage
 
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
@@ -202,13 +203,24 @@ class GenerationConfig:
         The temperature applied to logits before sampling. The default value is
         ``0.7``. A higher temperature encourages more diverse outputs, while a
         lower temperature produces more deterministic outputs.
+    presence_penalty : Optional[float]
+        Number between -2.0 and 2.0. Positive values penalize new tokens based on
+        whether they appear in the text so far, increasing the model's likelihood
+        to talk about new topics. Negative values can increase the likelihood of
+        repetition.
+    frequency_penalty : Optional[float]
+        Number between -2.0 and 2.0. Positive values penalize new tokens based on their
+        existing frequency in the text so far, decreasing the model's likelihood to
+        repeat the same line verbatim. Negative values can increase the likelihood of
+        repetition.
     repetition_penalty : Optional[float]
         The repetition penalty controls the likelihood of the model generating
         repeated texts. The default value is set to ``1.0``, indicating that no
         repetition penalty is applied. Increasing the value reduces the
         likelihood of repeat text generation. However, setting a high
         ``repetition_penalty`` may result in the model generating meaningless
-        texts. The ideal choice of repetition penalty may vary among models.
+        texts. The ideal choice of repetition penalty may vary among models. Only
+        Active when presence_penalty and frequency_penalty are both 0.0.
 
         For more details on how repetition penalty controls text generation, please
         check out the CTRL paper (https://arxiv.org/pdf/1909.05858.pdf).
@@ -224,8 +236,17 @@ class GenerationConfig:
         The approximated average number of generated tokens in each round. Used
         to determine whether the maximum window size would be exceeded.
     max_gen_len : Optional[int]
-        The maximum number of tokens to be generated in each round. Would simply
-        stop generating after this number is exceeded.
+        This parameter determines the maximum length of the generated text. If it is
+        not set, the model will generate text until it encounters a stop token.
+    n : Optional[int]
+        This parameter determines the number of text samples to generate. The default
+        value is ``1``. Note that this parameter is only used when ``stream`` is set to
+        ``False``.
+    stop : Optional[Union[str, List[str]]]
+        When ``stop`` is encountered, the model will stop generating output.
+        It can be a string or a list of strings. If it is a list of strings, the model
+        will stop generating output when any of the strings in the list is encountered.
+        Note that this parameter does not override the default stop string of the model.
     """
 
     temperature: Optional[float] = None
@@ -233,6 +254,10 @@ class GenerationConfig:
     top_p: Optional[float] = None
     mean_gen_len: Optional[int] = None
     max_gen_len: Optional[int] = None
+    presence_penalty: Optional[float] = 0.0
+    frequency_penalty: Optional[float] = 0.0
+    n: Optional[int] = None
+    stop: Optional[Union[str, List[str]]] = None
 
     @classmethod
     def _from_chat_config(generation_config_cls, chat_config_obj: ChatConfig):
@@ -767,18 +792,24 @@ class ChatModule:
 
     def generate(
         self,
-        prompt: str,
+        prompt: Union[str, List[ChatMessage]],
         generation_config: Optional[GenerationConfig] = None,
         progress_callback=None,
-    ) -> str:
+    ) -> Union[str, List[str]]:
         r"""A high-level method that returns the full response from the chat module given a user prompt.
         User can optionally specify which callback method to use upon receiving the response. By default,
         no callback will be applied.
 
         Parameters
         ----------
-        prompt : str
+        prompt : Union[str, List[ChatMessage]]
             The user input prompt, i.e. a question to ask the chat module.
+            It can also be the whole conversation history (list of messages with role and content)
+            eg: ```[
+                ChatMessage(role="user", content="Hello, how are you?"),
+                ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
+                ChatMessage(role="user", content="I'm good too."),
+            ]```
         generation_config: Optional[GenerationConfig]
             The generation config object to override the ChatConfig generation settings.
         progress_callback: object
@@ -808,25 +839,36 @@ class ChatModule:
           )
           print(output)
         """
-        self._prefill(prompt, generation_config=generation_config)
+        new_msgs = []
+        num_return_sequences = 1
+        return_str = True
+        if (generation_config is not None) and (generation_config.n is not None):
+            num_return_sequences = generation_config.n
+            return_str = False
+        else:
+            num_return_sequences = 1
 
-        if not progress_callback:
-            while not self._stopped():
-                self._decode(generation_config=generation_config)
-            new_msg = self._get_message()
-            return new_msg
+        for _ in range(num_return_sequences):
+            self.reset_chat()
+            self._prefill(prompt, generation_config=generation_config)
 
-        # apply callback with a rate of callback_interval
-        i, new_msg = 0, ""
-        while not self._stopped():
-            self._decode(generation_config=generation_config)
-            if i % progress_callback.callback_interval == 0 or self._stopped():
+            if not progress_callback:
+                while not self._stopped():
+                    self._decode(generation_config=generation_config)
                 new_msg = self._get_message()
-                progress_callback(new_msg)
-            i += 1
-        progress_callback(stopped=True)
-
-        return new_msg
+                new_msgs.append(new_msg)
+            else:
+                # apply callback with a rate of callback_interval
+                i, new_msg = 0, ""
+                while not self._stopped():
+                    self._decode(generation_config=generation_config)
+                    if i % progress_callback.callback_interval == 0 or self._stopped():
+                        new_msg = self._get_message()
+                        progress_callback(new_msg)
+                    i += 1
+                progress_callback(stopped=True)
+                new_msgs.append(new_msg)
+        return new_msgs[0] if return_str else new_msgs
 
     def reset_chat(self, chat_config: Optional[ChatConfig] = None):
         r"""Reset the chat session, clear all chat history, and potentially
@@ -964,7 +1006,7 @@ class ChatModule:
 
     def _prefill(
         self,
-        input: str,
+        input: Union[str, List[ChatMessage]],
         decode_next_token: bool = True,
         place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
         generation_config: Optional[GenerationConfig] = None,
@@ -974,8 +1016,14 @@ class ChatModule:
 
         Parameters
         ----------
-        input : str
-            The user input string.
+        input : Union[str, List[ChatMessage]]
+            The user input prompt, i.e. a question to ask the chat module.
+            It can also be the whole conversation history (list of messages with role and content)
+            eg: ```[
+                ChatMessage(role="user", content="Hello, how are you?"),
+                ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
+                ChatMessage(role="user", content="I'm good too."),
+            ]```
         decode_next_token : bool
             Whether to decode the next token after prefilling.
         place_in_prompt: PlaceInPrompt
@@ -986,7 +1034,38 @@ class ChatModule:
         generation_config = _get_generation_config(self.chat_config, generation_config)
         generation_config_str = _convert_generation_config_to_json_str(generation_config)
 
-        self._prefill_func(input, decode_next_token, place_in_prompt.value, generation_config_str)
+        if isinstance(input, list):
+            # Populate conversation.messages using load_json_override
+            if len(input) > 1:
+                conv_config = json.loads(self._get_config_json())["conv_config"]
+                messages = []
+                role0 = self._get_role_0()
+                role1 = self._get_role_1()
+                for idx, msg in enumerate(input[:-1]):
+                    role = msg.role
+                    content = msg.content
+                    if role == "user":
+                        messages.append([role0, content])
+                    elif role == "assistant":
+                        messages.append([role1, content])
+                    else:
+                        raise ValueError("Only user and assistant roles are supported.")
+                if not input[-1].role == "user":
+                    raise ValueError("Last message should be from user.")
+                conv_config["messages"] = messages
+                conv_config[
+                    "offset"
+                ] = 0  # Otherwise, the offset will be set to the length of the conversation, which means history will be retained even after calling reset_chat
+                self._load_json_override(
+                    json.dumps({"conv_config": conv_config}), partial_update=True
+                )
+            input_str = input[-1].content
+        else:
+            input_str = input
+
+        self._prefill_func(
+            input_str, decode_next_token, place_in_prompt.value, generation_config_str
+        )
 
     def _embed(
         self,
@@ -1050,7 +1129,6 @@ class ChatModule:
         """
         generation_config = _get_generation_config(self.chat_config, generation_config)
         generation_config_str = _convert_generation_config_to_json_str(generation_config)
-
         self._decode_func(generation_config_str)
 
     def _stopped(self) -> bool:

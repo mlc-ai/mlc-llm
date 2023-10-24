@@ -26,14 +26,15 @@ class ChatCompletionRequest(BaseModel):
     mean_gen_len: int = None
     # TODO: replace by max_tokens
     max_gen_len: int = None
+    presence_penalty: float = None
+    frequency_penalty: float = None
+    n: int = None
+    stop: Union[str, List[str]] = None
     # TODO: Implement support for the OpenAI API parameters
     # function []
     # function_call
-    # n: Optional[int] = 1
     # stop: Optional[Union[str, List[str]]] = None
     # max_tokens: Optional[int]
-    # presence_penalty: Optional[float] = 0.0
-    # frequency_penalty: Optional[float] = 0.0
     # logit_bias
     # user: Optional[str] = None
 
@@ -87,6 +88,8 @@ class CompletionRequest(BaseModel):
     mean_gen_len: int = None
     # TODO: replace by max_tokens
     max_gen_len: int = None
+    presence_penalty: float = None
+    frequency_penalty: float = None
     # TODO: Implement support for the OpenAI API parameters
     # suffix
     # max_tokens: Optional[int]
@@ -94,8 +97,6 @@ class CompletionRequest(BaseModel):
     # logprobs
     # echo
     # stop: Optional[Union[str, List[str]]] = None
-    # presence_penalty: Optional[float] = 0.0
-    # frequency_penalty: Optional[float] = 0.0
     # best_of
     # logit_bias
     # user: Optional[str] = None
