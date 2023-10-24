@@ -91,7 +91,7 @@ class ChatConfig:
     :class:`mlc_chat.ChatModule` instance to override the default setting in
     ``mlc-chat-config.json`` under the model folder.
 
-    Since the configuraiton is partial, everything will be ``Optional``.
+    Since the configuration is partial, everything will be ``Optional``.
 
     Note that we will exploit this class to also represent ``mlc-chat-config.json``
     during intermediate processing.
@@ -131,14 +131,19 @@ class ChatConfig:
         For additional information on top-p sampling, please refer to this blog
         post: https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling.
     mean_gen_len : Optional[int]
+        The approximated average number of generated tokens in each round. Used
+        to determine whether the maximum window size would be exceeded.
     max_gen_len : Optional[int]
+        The maximum number of tokens to be generated in each round. Would simply
+        stop generating after this number is exceeded.
     shift_fill_factor : Optional[float]
+        The fraction of maximum window size to shift when it is exceeded.
     tokenizer_files : Optional[List[str]]
         List of tokenizer files of the model.
     conv_config : Optional[ConvConfig]
         The partial overriding configuration for conversation template. Will first
         load the predefined template with the name specified in ``conv_template``
-        and then override some of the configuraitons specified in ``conv_config``.
+        and then override some of the configurations specified in ``conv_config``.
     model_category : Optional[str]
         The category of the model's architecture (e.g. ``llama``, ``gpt_neox``, ``rwkv``).
     model_name : Optional[str]
@@ -216,7 +221,11 @@ class GenerationConfig:
         For additional information on top-p sampling, please refer to this blog
         post: https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling.
     mean_gen_len : Optional[int]
+        The approximated average number of generated tokens in each round. Used
+        to determine whether the maximum window size would be exceeded.
     max_gen_len : Optional[int]
+        The maximum number of tokens to be generated in each round. Would simply
+        stop generating after this number is exceeded.
     """
 
     temperature: Optional[float] = None
