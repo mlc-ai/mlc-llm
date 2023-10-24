@@ -496,7 +496,9 @@ class Model:
             else:
                 logits = out[0]
 
+        torch.cuda.synchronize()
         torch.cuda.nvtx.range_pop()
+
         next_tokens = sample(logits, sampling_params, self.vocab_size)
 
         return [
