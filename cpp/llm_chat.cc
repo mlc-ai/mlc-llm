@@ -1147,11 +1147,12 @@ class LLMChat {
     NDArray logprobs = this->SampleLogProbsFromLogitsOnCPU();
     size_t seq_length = logprobs->shape[logprobs->ndim - 2];
     size_t vocab_length = logprobs->shape[logprobs->ndim - 1];
+    const float* data = static_cast<float*>(logprobs->data);
 
     size_t continuation_length = continuation_tokens.size();
 
     // Calculate is_greedy
-    std::vector<int32_t> greedy_tokens = this->LogProbsArgmax(static_cast<float*>(logprobs->data), seq_length, vocab_length);
+    std::vector<int32_t> greedy_tokens = this->LogProbsArgmax(data, seq_length, vocab_length);
     bool is_greedy = true;
     size_t offset = seq_length - continuation_length;
     for (size_t i = 0; i < continuation_length; ++i) {
@@ -1161,7 +1162,14 @@ class LLMChat {
       }
     }
 
-    std::pair<float, bool> res = std::make_pair<float, bool>(float(), is_greedy);
+    // Calculate log probs sum for continuation_tokens indeces
+    float sum = 0;
+    for (int32_t i = 0; i < seq_length; ++i) {
+      int32_t index = i * vocab_length + continuation_tokens[i];
+      sum += data[index];
+    }
+
+    std::pair<float, bool> res = std::make_pair<float, bool>(sum, is_greedy);
     return res;
   }
 
