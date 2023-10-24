@@ -6,6 +6,7 @@ from tvm import relax, te
 from tvm.relax.op import ccl, reshape, expand_dims, concat, zeros, repeat, take
 from tvm.relax.op.nn import attention_var_len
 from tvm.relax.testing import nn
+from tvm.ir import VDevice
 from tvm.script import relax as R
 from tvm.script.ir_builder import tir as T
 
@@ -194,6 +195,7 @@ class LlamaModel(nn.Module):
     def __init__(
         self,
         config: LlamaConfig,
+        cpu_device: VDevice,
         vocab_size_var: tvm.tir.Var,
         sep_embed: bool = False,
     ):
@@ -220,6 +222,8 @@ class LlamaModel(nn.Module):
         )
         self.norm = LlamaRMSNorm(config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps)
 
+        self.cpu_device = cpu_device
+
     def forward(
         self,
         inputs: relax.Expr,
@@ -238,7 +242,8 @@ class LlamaModel(nn.Module):
 
         hidden_states = inputs_embeds
 
-        max_seqlen = R.max(seq_lens)
+        # max_seqlen needs to be on CPU
+        max_seqlen = R.to_vdevice(R.max(seq_lens), self.cpu_device)
 
         new_kvs = ()
 
@@ -268,11 +273,12 @@ class LlamaForCausalLM(nn.Module):
     def __init__(
         self,
         config: LlamaConfig,
+        cpu_device: VDevice,
         vocab_size_var: tvm.tir.Var,
         sep_embed: bool = False,
     ):
         self.num_shards = config.num_shards
-        self.model = LlamaModel(config, vocab_size_var, sep_embed)
+        self.model = LlamaModel(config, cpu_device, vocab_size_var, sep_embed)
         self.lm_head = Linear(config.hidden_size, vocab_size_var, dtype=config.dtype, bias=False)
 
         ############ Rotary embedding constants ############
@@ -420,6 +426,7 @@ def create_evaluate_func(
     bb: relax.BlockBuilder,
     param_manager: ParamManager,
     config: LlamaConfig,
+    cpu_dev,
     quant_scheme: QuantizationScheme,
     sep_embed: bool = False,
 ) -> None:
@@ -428,8 +435,9 @@ def create_evaluate_func(
     num_token = tvm.tir.Var("num_token", "int64")
     num_seq = tvm.tir.Var("num_seq", "int64")
 
+
     with bb.function(func_name):
-        model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), sep_embed)
+        model = LlamaForCausalLM(config, cpu_dev, tvm.tir.Var("vocab_size", "int64"), sep_embed)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         inputs, positions, seq_lens, _, _, _ = get_inputs(
@@ -463,6 +471,7 @@ def create_encoding_func(
     bb: relax.BlockBuilder,
     param_manager: ParamManager,
     config: LlamaConfig,
+    cpu_dev,
     quant_scheme: QuantizationScheme,
     sep_embed: bool = False,
 ) -> None:
@@ -474,7 +483,7 @@ def create_encoding_func(
     num_inputs = 5
 
     with bb.function(func_name):
-        model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), sep_embed)
+        model = LlamaForCausalLM(config, cpu_dev, tvm.tir.Var("vocab_size", "int64"), sep_embed)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids, positions, seq_lens, past_key_values, slot_mapping, _ = get_inputs(
@@ -527,6 +536,7 @@ def create_decoding_func(
     bb: relax.BlockBuilder,
     param_manager: ParamManager,
     config: LlamaConfig,
+    cpu_dev,
     quant_scheme: QuantizationScheme,
 ) -> None:
     func_name = "decode"
@@ -540,7 +550,7 @@ def create_decoding_func(
         )
 
         with bb.dataflow():
-            model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"))
+            model = LlamaForCausalLM(config, cpu_dev, tvm.tir.Var("vocab_size", "int64"))
             param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
             logits, new_kvs = model(
@@ -589,9 +599,12 @@ def get_model(args, hf_config):
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
 
-    create_evaluate_func(bb, param_manager, config, args.quantization, sep_embed)
-    create_encoding_func(bb, param_manager, config, args.quantization, sep_embed)
-    create_decoding_func(bb, param_manager, config, args.quantization)
+    cpu_dev = VDevice("llvm", 0, "global")
+
+    create_evaluate_func(bb, param_manager, config, cpu_dev, args.quantization, sep_embed)
+    create_encoding_func(bb, param_manager, config, cpu_dev, args.quantization, sep_embed)
+    create_decoding_func(bb, param_manager, config, cpu_dev, args.quantization)
+    bb.get().update_global_info("vdevice", [cpu_dev])
 
     mod = bb.get()
 

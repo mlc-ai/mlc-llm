@@ -168,8 +168,5 @@ if __name__ == "__main__":
 
     args.model, args.quantization = args.local_id.rsplit("-", 1)
     utils.argparse_postproc_common(args)
-    args.artifact_path = os.path.join(
-        args.artifact_path, f"{args.model}-{args.quantization.name}-batched"
-    )
 
     main(args)
