@@ -1443,7 +1443,9 @@ class LLMChat {
     ICHECK(logits_on_cpu_.defined()) << "logits_on_cpu_ is not defined";
     ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
     ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
-    return flog_softmax_(logits_on_cpu_);
+    auto log_probs = NDArray::Empty(logits_on_cpu_.Shape(), logits_on_cpu_.DataType(), DLDevice{kDLCPU, 0});
+    flog_softmax_(logits_on_cpu_, log_probs);
+    return log_probs;
   }
 
   //----------------------------
