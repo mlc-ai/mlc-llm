@@ -115,7 +115,7 @@ async def lifespan(app: FastAPI):
     chat_mod = ChatModule(
         model=ARGS.model,
         device=ARGS.device,
-        lib_path=ARGS.lib_path,
+        model_lib_path=ARGS.lib_path,
     )
     session["chat_mod"] = chat_mod
 
