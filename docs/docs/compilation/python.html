@@ -383,10 +383,25 @@ folders under <code class="docutils literal notranslate"><span class="pre">--art
 <li><p><strong>sep_embed</strong> (<em>bool</em>) – Build with separated embedding layer, only applicable to LlaMa. This
 feature is in testing stage, and will be formally replaced after massive
 overhaul of embedding feature for all models and use cases.</p></li>
+<li><p><strong>cc_path</strong> (<em>str</em>) – <code class="docutils literal notranslate"><span class="pre">/path/to/cross_compiler_path</span></code>; currently only used for cross-compile
+for nvidia/jetson device.</p></li>
+<li><p><strong>use_safetensors</strong> (<em>bool</em>) – Specifies whether to use <code class="docutils literal notranslate"><span class="pre">.safetensors</span></code> instead of the default <code class="docutils literal notranslate"><span class="pre">.bin</span></code>
+when loading in model weights.</p></li>
 <li><p><strong>enable_batching</strong> (<em>bool</em>) – Build the model for batched inference.
 This is a temporary flag used to control the model execution flow in single-
 sequence and batching settings for now. We will eventually merge two flows
 in the future and remove this flag then.</p></li>
+<li><p><strong>no_cutlass_attn</strong> (<em>bool</em>) – Disable offloading attention operations to CUTLASS.</p></li>
+<li><p><strong>no_cutlass_norm</strong> (<em>bool</em>) – Disable offloading layer and RMS norm operations to CUTLASS.</p></li>
+<li><p><strong>no_cublas</strong> (<em>bool</em>) – Disable the step that offloads matmul to cuBLAS. Without this flag,
+matmul will be offloaded to cuBLAS if quantization mode is <code class="docutils literal notranslate"><span class="pre">q0f16</span></code> or
+<code class="docutils literal notranslate"><span class="pre">q0f32</span></code>, target is CUDA and TVM has been built with cuBLAS enabled.</p></li>
+<li><p><strong>use_cuda_graph</strong> (<em>bool</em>) – Specifies whether to enable CUDA Graph for the decoder. MLP and QKV
+projection between two attention layers are put into a graph.</p></li>
+<li><p><strong>num_shards</strong> (<em>int</em>) – Number of shards to split the model into in tensor parallelism multi-gpu
+inference. Only useful when <code class="docutils literal notranslate"><span class="pre">build_model_only</span></code> is set.</p></li>
+<li><p><strong>use_flash_attn_mqa</strong> (<em>bool</em>) – Offload multi-query attention workload to Flash Attention.</p></li>
+<li><p><strong>pdb</strong> (<em>bool</em>) – If set, drop into a pdb debugger on error.</p></li>
 </ul>
 </dd>
 </dl>

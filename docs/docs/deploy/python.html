@@ -850,7 +850,7 @@ chat config file.</p>
 <p>An instance of <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> can be passed in to the instantiation of a
 <a class="reference internal" href="#mlc_chat.ChatModule" title="mlc_chat.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_chat.ChatModule</span></code></a> instance to override the default setting in
 <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> under the model folder.</p>
-<p>Since the configuraiton is partial, everything will be <code class="docutils literal notranslate"><span class="pre">Optional</span></code>.</p>
+<p>Since the configuration is partial, everything will be <code class="docutils literal notranslate"><span class="pre">Optional</span></code>.</p>
 <p>Note that we will exploit this class to also represent <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>
 during intermediate processing.</p>
 <dl class="field-list simple">
@@ -882,13 +882,15 @@ the <code class="docutils literal notranslate"><span class="pre">top_p</span></c
 <p>For additional information on top-p sampling, please refer to this blog
 post: <a class="reference external" href="https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling">https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling</a>.</p>
 </p></li>
-<li><p><strong>mean_gen_len</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – </p></li>
-<li><p><strong>max_gen_len</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – </p></li>
-<li><p><strong>shift_fill_factor</strong> (<em>Optional</em><em>[</em><em>float</em><em>]</em>) – </p></li>
+<li><p><strong>mean_gen_len</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – The approximated average number of generated tokens in each round. Used
+to determine whether the maximum window size would be exceeded.</p></li>
+<li><p><strong>max_gen_len</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – The maximum number of tokens to be generated in each round. Would simply
+stop generating after this number is exceeded.</p></li>
+<li><p><strong>shift_fill_factor</strong> (<em>Optional</em><em>[</em><em>float</em><em>]</em>) – The fraction of maximum window size to shift when it is exceeded.</p></li>
 <li><p><strong>tokenizer_files</strong> (<em>Optional</em><em>[</em><em>List</em><em>[</em><em>str</em><em>]</em><em>]</em>) – List of tokenizer files of the model.</p></li>
 <li><p><strong>conv_config</strong> (<em>Optional</em><em>[</em><a class="reference internal" href="#mlc_chat.ConvConfig" title="mlc_chat.ConvConfig"><em>ConvConfig</em></a><em>]</em>) – The partial overriding configuration for conversation template. Will first
 load the predefined template with the name specified in <code class="docutils literal notranslate"><span class="pre">conv_template</span></code>
-and then override some of the configuraitons specified in <code class="docutils literal notranslate"><span class="pre">conv_config</span></code>.</p></li>
+and then override some of the configurations specified in <code class="docutils literal notranslate"><span class="pre">conv_config</span></code>.</p></li>
 <li><p><strong>model_category</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The category of the model’s architecture (e.g. <code class="docutils literal notranslate"><span class="pre">llama</span></code>, <code class="docutils literal notranslate"><span class="pre">gpt_neox</span></code>, <code class="docutils literal notranslate"><span class="pre">rwkv</span></code>).</p></li>
 <li><p><strong>model_name</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – Name of the model (e.g. <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf</span></code>).</p></li>
 <li><p><strong>num_shards</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – Tensor parallel degree.</p></li>
@@ -966,8 +968,10 @@ the <code class="docutils literal notranslate"><span class="pre">top_p</span></c
 <p>For additional information on top-p sampling, please refer to this blog
 post: <a class="reference external" href="https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling">https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling</a>.</p>
 </p></li>
-<li><p><strong>mean_gen_len</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – </p></li>
-<li><p><strong>max_gen_len</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – </p></li>
+<li><p><strong>mean_gen_len</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – The approximated average number of generated tokens in each round. Used
+to determine whether the maximum window size would be exceeded.</p></li>
+<li><p><strong>max_gen_len</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – The maximum number of tokens to be generated in each round. Would simply
+stop generating after this number is exceeded.</p></li>
 </ul>
 </dd>
 </dl>
