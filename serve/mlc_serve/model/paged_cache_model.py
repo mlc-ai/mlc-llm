@@ -18,7 +18,6 @@ from mlc_llm.relax_model.llama import LlamaConfig
 from ..engine import ChatMessage, RequestId, SamplingType
 from ..engine.model_module import (
     DecodeRequest,
-    ModelModule,
     PrefillRequest,
     SequenceId,
     TextGenerationResult,
@@ -307,6 +306,90 @@ def get_tvm_model(artifact_path, model, quantization, num_shards, dev):
     return load_disco_module(model_artifact_path, lib_path, num_shards)
 
 
+def _prepare_inputs(
+    sequence_ids,
+    all_token_ids,
+    all_slot_mappings,
+    all_block_tables,
+    sliding_window,
+    dev,
+    is_prefill,
+):
+    block_tables = []
+    seq_lens = []
+    input_ids = []
+    slot_mapping = []
+    positions = []
+    max_num_blocks_per_seq = 0
+    indices_within_window = []
+    start_idx = 0
+
+    for sequence_id, token_ids in zip(sequence_ids, all_token_ids):
+        if is_prefill:
+            input_ids += token_ids
+            prompt_len = len(token_ids)
+            seq_lens.append(prompt_len)
+            positions += range(prompt_len)
+            slot_mapping += all_slot_mappings[sequence_id.request_id]
+
+            if sliding_window:
+                indices_within_window += range(
+                    start_idx + max(0, prompt_len - sliding_window),
+                    start_idx + prompt_len,
+                )
+                start_idx += prompt_len
+
+        else:
+            input_ids.append(token_ids[-1])
+            pos = len(token_ids) - 1
+            positions.append(pos)
+            block_table = all_block_tables[sequence_id.request_id]
+            max_num_blocks_per_seq = max(max_num_blocks_per_seq, len(block_table))
+            block_tables.append(block_table)
+            slot_mapping.append(all_slot_mappings[sequence_id.request_id][-1])
+
+            if sliding_window:
+                seq_lens.append(min(len(token_ids), sliding_window))
+            else:
+                seq_lens.append(len(token_ids))
+
+    input_ids = tvm.nd.array(np.array(input_ids, dtype="int32"), dev)
+    positions = tvm.nd.array(np.array(positions, dtype="int32"), dev)
+    seq_lens = tvm.nd.array(np.array(seq_lens, dtype="int32"), dev)
+    slot_mapping = tvm.nd.array(np.array(slot_mapping, dtype="int32"), dev)
+
+    if is_prefill and sliding_window:
+        indices_within_window = tvm.nd.array(
+            np.array(indices_within_window, dtype="int32"), dev
+        )
+    else:
+        indices_within_window = None
+
+    if not is_prefill:
+
+        def _pad_to_max(x: List[int], max_len: int) -> List[int]:
+            return x + [0] * (max_len - len(x))
+
+        padded_block_tables = [
+            _pad_to_max(block_table, max_num_blocks_per_seq)
+            for block_table in block_tables
+        ]
+
+        block_tables_np = np.vstack(padded_block_tables).astype("int32")
+        block_tables = tvm.nd.array(np.array(block_tables_np, dtype="int32"), dev)
+    else:
+        block_tables = None
+
+    return (
+        input_ids,
+        positions,
+        seq_lens,
+        slot_mapping,
+        indices_within_window,
+        block_tables,
+    )
+
+
 class Model:
     def __init__(
         self,
@@ -379,21 +462,17 @@ class Model:
 
     def generate(
         self,
-        requests: List[Union[PrefillRequest, DecodeRequest]],
+        requests: Union[List[PrefillRequest], List[DecodeRequest]],
         cache: KVCache,
-        is_prefill: bool,
     ) -> List[TextGenerationResult]:
-        block_tables = []
-        seq_lens = []
-        input_ids = []
-        slot_mapping = []
-        positions = []
-        max_num_blocks_per_seq = 0
+        if len(requests) == 0:
+            return []
+
+        is_prefill = isinstance(requests[0], PrefillRequest)
+
+        all_token_ids = []
         sampling_params = []
         sequence_ids = []
-        indices_within_window = []
-
-        start_idx = 0
 
         for request in requests:
             if isinstance(request, PrefillRequest):
@@ -404,41 +483,27 @@ class Model:
                 sequence_id = request.sequence_id
                 sequence_ids.append(request.sequence_id)
 
+            all_token_ids.append(request.token_ids)
             sampling_params.append(request.sampling_params)
 
-            if is_prefill:
-                input_ids += request.token_ids
-                prompt_len = len(request.token_ids)
-                seq_lens.append(prompt_len)
-                positions += range(prompt_len)
-                slot_mapping += cache.slot_mappings[sequence_id.request_id]
+        (
+            input_ids,
+            positions,
+            seq_lens,
+            slot_mapping,
+            indices_within_window,
+            block_tables,
+        ) = _prepare_inputs(
+            sequence_ids,
+            all_token_ids,
+            cache.slot_mappings,
+            cache.block_tables,
+            self.sliding_window,
+            self.dev,
+            is_prefill,
+        )
 
-                if self.sliding_window:
-                    indices_within_window += range(
-                        start_idx + max(0, prompt_len - self.sliding_window),
-                        start_idx + prompt_len,
-                    )
-                    start_idx += prompt_len
-
-            else:
-                input_ids.append(request.token_ids[-1])
-                pos = len(request.token_ids) - 1
-                positions.append(pos)
-                block_table = cache.block_tables[sequence_id.request_id]
-                max_num_blocks_per_seq = max(max_num_blocks_per_seq, len(block_table))
-                block_tables.append(block_table)
-                slot_mapping.append(cache.slot_mappings[sequence_id.request_id][-1])
-
-                if self.sliding_window:
-                    seq_lens.append(min(len(request.token_ids), self.sliding_window))
-                else:
-                    seq_lens.append(len(request.token_ids))
-
-        input_ids_np = np.array(input_ids, dtype="int32")
-        input_ids = tvm.nd.array(input_ids_np, self.dev)
-        positions = tvm.nd.array(np.array(positions, dtype="int32"), self.dev)
-        seq_lens = tvm.nd.array(np.array(seq_lens, dtype="int32"), self.dev)
-        slot_mapping = tvm.nd.array(np.array(slot_mapping, dtype="int32"), self.dev)
+        input_shape = input_ids.shape
 
         if self.disco_session:
             input_ids = copy_to_worker_0(self.disco_session, input_ids)
@@ -449,13 +514,9 @@ class Model:
         kv_cache = cache.cache
 
         if is_prefill:
-            torch.cuda.nvtx.range_push(f"forward prefill {input_ids_np.shape}")
+            torch.cuda.nvtx.range_push(f"forward prefill {input_shape}")
 
             if self.sliding_window:
-                indices_within_window = tvm.nd.array(
-                    np.array(indices_within_window, dtype="int32"), self.dev
-                )
-
                 if self.disco_session:
                     indices_within_window = copy_to_worker_0(
                         self.disco_session, indices_within_window
@@ -482,20 +543,7 @@ class Model:
                     0
                 ]  # Ignore returned KV cache since it is updated in-place anyway.
         else:
-            torch.cuda.nvtx.range_push(f"forward decode {input_ids_np.shape}")
-
-            def _pad_to_max(x: List[int], max_len: int) -> List[int]:
-                return x + [0] * (max_len - len(x))
-
-            padded_block_tables = [
-                _pad_to_max(block_table, max_num_blocks_per_seq)
-                for block_table in block_tables
-            ]
-
-            block_tables_np = np.vstack(padded_block_tables).astype("int32")
-            block_tables = tvm.nd.array(
-                np.array(block_tables_np, dtype="int32"), self.dev
-            )
+            torch.cuda.nvtx.range_push(f"forward decode {input_shape}")
 
             if self.disco_session:
                 block_tables = copy_to_worker_0(self.disco_session, block_tables)
@@ -564,9 +612,9 @@ class PagedCacheModelTextGenerator:
 
         out = []
         if prefill_requests:
-            out.extend(self.model.generate(prefill_requests, kv_cache, is_prefill=True))
+            out.extend(self.model.generate(prefill_requests, kv_cache))
         if decode_requests:
-            out.extend(self.model.generate(decode_requests, kv_cache, is_prefill=False))
+            out.extend(self.model.generate(decode_requests, kv_cache))
 
         return out
 
