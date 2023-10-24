@@ -7,10 +7,11 @@ from typing import Callable, Dict, List
 import numpy as np
 
 from ..parameter import ExternMapping
-from .llama import LlamaConfig, LlamaForCasualLM
+from .llama_config import LlamaConfig
+from .llama_model import LlamaForCasualLM
 
 
-def hf_torch(model_config: LlamaConfig) -> ExternMapping:
+def huggingface(model_config: LlamaConfig, _) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 

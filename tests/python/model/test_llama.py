@@ -1,6 +1,7 @@
 # pylint: disable=invalid-name,missing-docstring
 import pytest
-from mlc_chat.compiler.model.llama import LlamaConfig, LlamaForCasualLM
+from mlc_chat.compiler.model.llama_config import LlamaConfig
+from mlc_chat.compiler.model.llama_model import LlamaForCasualLM
 
 
 @pytest.mark.parametrize("model_name", ["llama2_7b", "llama2_13b", "llama2_70b"])

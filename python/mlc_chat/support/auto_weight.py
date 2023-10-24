@@ -8,7 +8,9 @@ logger = logging.getLogger(__name__)
 
 
 def detect_weight(
-    weight_path: Path, config_json_path: Path, weight_format: str = "auto"
+    weight_path: Path,
+    config_json_path: Path,
+    weight_format: str = "auto",
 ) -> Tuple[Path, str]:
     """Detect the weight directory, and detect the weight format.
 

@@ -2,7 +2,11 @@
 import logging
 from pathlib import Path
 
+from .style import green
+
 logger = logging.getLogger(__name__)
+
+FOUND = green("Found")
 
 
 def detect_config(config_path: Path) -> Path:
@@ -30,5 +34,5 @@ def detect_config(config_path: Path) -> Path:
     else:
         config_json_path = config_path
 
-    logger.info("Found config.json: %s", config_json_path)
+    logger.info("%s model configuration: %s", FOUND, config_json_path)
     return config_json_path
