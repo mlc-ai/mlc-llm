@@ -356,22 +356,22 @@ def _get_chat_config(config_file_path: str, user_chat_config: Optional[ChatConfi
     final_chat_config = None
     with open(config_file_path, mode="rt", encoding="utf-8") as f:
         json_object = json.load(f)
-        final_chat_config = ChatConfig._from_json(json_object)
+        final_chat_config = ChatConfig._from_json(json_object)  # pylint: disable=protected-access
     if user_chat_config is not None:
         # We override using user's chat config
         for field in fields(user_chat_config):
             field_name = field.name
-            if field_name == "model_lib":
-                warn_msg = (
-                    'WARNING: Do not override "model_lib" in ChatConfig. '
-                    "This override will be ignored. "
-                    "Please use ChatModule.model_lib_path to override the full model library path instead."
-                )
-                warnings.warn(warn_msg)
-                continue
             field_value = getattr(user_chat_config, field_name)
             if field_value is not None:
-                setattr(final_chat_config, field_name, field_value)
+                if field_name == "model_lib":
+                    warn_msg = (
+                        'WARNING: Do not override "model_lib" in ChatConfig. '
+                        "This override will be ignored. Please use ChatModule.model_lib_path to "
+                        "override the full model library path instead."
+                    )
+                    warnings.warn(warn_msg)
+                else:
+                    setattr(final_chat_config, field_name, field_value)
     return final_chat_config
 
 
