@@ -43,6 +43,7 @@ class KVCache:
         )
 
         self.block_tables = defaultdict(list)
+        self.slot_mappings = defaultdict(list)
         self.block_size = block_size
 
 
@@ -90,14 +91,28 @@ class CacheManager:
             if id in self.kv_cache.block_tables and size == 0:
                 self.free_blocks.extend(self.kv_cache.block_tables[id])
                 del self.kv_cache.block_tables[id]
+                del self.kv_cache.slot_mappings[id]
 
-            elif (
-                id in self.kv_cache.block_tables
-                and len(self.kv_cache.block_tables[id]) < num_needed_block
-            ):
-                # Decoding, need to allocate a new block for this request
-                assert len(self.kv_cache.block_tables[id]) + 1 == num_needed_block
-                self.kv_cache.block_tables[id].append(self.free_blocks.pop())
+            elif id in self.kv_cache.block_tables:
+                # Decoding
+                if len(self.kv_cache.block_tables[id]) < num_needed_block:
+                    # Need to allocate a new block for this request
+                    assert len(self.kv_cache.block_tables[id]) + 1 == num_needed_block
+                    self.kv_cache.block_tables[id].append(self.free_blocks.pop())
+
+                pos = size - 1
+                block_number = self.kv_cache.block_tables[id][-1]
+
+                if self.block_sliding_window:
+                    block_number = self.kv_cache.block_tables[id][
+                        (pos // self.block_size) % self.block_sliding_window
+                    ]
+                else:
+                    block_number = self.kv_cache.block_tables[id][-1]
+
+                block_offset = pos % self.block_size
+                slot = block_number * self.block_size + block_offset
+                self.kv_cache.slot_mappings[id].append(slot)
 
             elif id not in self.kv_cache.block_tables:
                 assert (
@@ -106,6 +121,28 @@ class CacheManager:
 
                 for _ in range(num_needed_block):
                     self.kv_cache.block_tables[id].append(self.free_blocks.pop())
+
+                for block_idx in range(math.floor(size / self.block_size)):
+                    if self.block_sliding_window:
+                        block_idx %= self.block_sliding_window
+
+                    block_number = self.kv_cache.block_tables[id][block_idx]
+                    slots = [
+                        block_number * self.block_size + block_offset
+                        for block_offset in range(self.block_size)
+                    ]
+                    self.kv_cache.slot_mappings[id] += slots
+
+                for i in range(len(self.kv_cache.slot_mappings[id]), size):
+                    block_idx = i // self.block_size
+
+                    if self.block_sliding_window:
+                        block_idx %= self.block_sliding_window
+
+                    block_number = self.kv_cache.block_tables[id][block_idx]
+                    block_offset = i % self.block_size
+                    slot = block_number * self.block_size + block_offset
+                    self.kv_cache.slot_mappings[id].append(slot)
 
     def get_cache(self):
         return self.kv_cache
@@ -352,7 +389,6 @@ class Model:
         slot_mapping = []
         positions = []
         max_num_blocks_per_seq = 0
-        block_size = cache.block_size
         sampling_params = []
         sequence_ids = []
         indices_within_window = []
@@ -368,7 +404,6 @@ class Model:
                 sequence_id = request.sequence_id
                 sequence_ids.append(request.sequence_id)
 
-            block_table = cache.block_tables[sequence_id.request_id]
             sampling_params.append(request.sampling_params)
 
             if is_prefill:
@@ -376,6 +411,7 @@ class Model:
                 prompt_len = len(request.token_ids)
                 seq_lens.append(prompt_len)
                 positions += range(prompt_len)
+                slot_mapping += cache.slot_mappings[sequence_id.request_id]
 
                 if self.sliding_window:
                     indices_within_window += range(
@@ -384,36 +420,19 @@ class Model:
                     )
                     start_idx += prompt_len
 
-                for i in range(len(request.token_ids)):
-                    if self.sliding_window:
-                        block_number = block_table[
-                            (i // block_size) % self.block_sliding_window
-                        ]
-                    else:
-                        block_number = block_table[i // block_size]
-
-                    block_offset = i % block_size
-                    slot = block_number * block_size + block_offset
-                    slot_mapping.append(slot)
             else:
                 input_ids.append(request.token_ids[-1])
                 pos = len(request.token_ids) - 1
                 positions.append(pos)
+                block_table = cache.block_tables[sequence_id.request_id]
                 max_num_blocks_per_seq = max(max_num_blocks_per_seq, len(block_table))
                 block_tables.append(block_table)
+                slot_mapping.append(cache.slot_mappings[sequence_id.request_id][-1])
 
                 if self.sliding_window:
                     seq_lens.append(min(len(request.token_ids), self.sliding_window))
-                    block_number = block_table[
-                        (pos // block_size) % self.block_sliding_window
-                    ]
                 else:
-                    block_number = block_table[pos // block_size]
                     seq_lens.append(len(request.token_ids))
-
-                block_offset = pos % block_size
-                slot = block_number * block_size + block_offset
-                slot_mapping.append(slot)
 
         input_ids_np = np.array(input_ids, dtype="int32")
         input_ids = tvm.nd.array(input_ids_np, self.dev)
