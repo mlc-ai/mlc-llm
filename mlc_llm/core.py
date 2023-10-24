@@ -79,11 +79,35 @@ class BuildArgs:
         Build with separated embedding layer, only applicable to LlaMa. This
         feature is in testing stage, and will be formally replaced after massive
         overhaul of embedding feature for all models and use cases.
+    cc_path: str
+        ``/path/to/cross_compiler_path``; currently only used for cross-compile
+        for nvidia/jetson device.
+    use_safetensors: bool
+        Specifies whether to use ``.safetensors`` instead of the default ``.bin``
+        when loading in model weights.
     enable_batching: bool
         Build the model for batched inference.
         This is a temporary flag used to control the model execution flow in single-
         sequence and batching settings for now. We will eventually merge two flows
         in the future and remove this flag then.
+    no_cutlass_attn: bool
+        Disable offloading attention operations to CUTLASS.
+    no_cutlass_norm: bool
+        Disable offloading layer and RMS norm operations to CUTLASS.
+    no_cublas: bool
+        Disable the step that offloads matmul to cuBLAS. Without this flag,
+        matmul will be offloaded to cuBLAS if quantization mode is ``q0f16`` or 
+        ``q0f32``, target is CUDA and TVM has been built with cuBLAS enabled.
+    use_cuda_graph: bool
+        Specifies whether to enable CUDA Graph for the decoder. MLP and QKV
+        projection between two attention layers are put into a graph.
+    num_shards: int
+        Number of shards to split the model into in tensor parallelism multi-gpu
+        inference. Only useful when ``build_model_only`` is set.
+    use_flash_attn_mqa: bool
+        Offload multi-query attention workload to Flash Attention.
+    pdb: bool
+        If set, drop into a pdb debugger on error.
     """
     model: str = field(
         default="auto",
@@ -217,7 +241,7 @@ class BuildArgs:
             "help": (
                 "Disable the step that offloads matmul to cuBLAS. Without this flag, "
                 "matmul will be offloaded to cuBLAS if quantization mode is q0f16 or q0f32, "
-                "target is CUDA and TVM has been built with cuBLAS enbaled."
+                "target is CUDA and TVM has been built with cuBLAS enabled."
             ),
             "action": "store_true",
         },
