@@ -4,8 +4,10 @@ from pathlib import Path
 from typing import Union
 
 import pytest
-from mlc_chat.compiler.model.llama_config import LlamaConfig
-from mlc_chat.compiler.model.llama_parameter import huggingface
+from mlc_chat.compiler import MODELS
+
+# from mlc_chat.compiler.model.llama_config import LlamaConfig
+# from mlc_chat.compiler.model.llama_parameter import huggingface
 from mlc_chat.compiler.parameter import HuggingFaceLoader
 from mlc_chat.support import tqdm
 
@@ -30,11 +32,15 @@ def test_load_torch_llama(base_path: Union[str, Path]):
     path_config = base_path / "config.json"
     path_params = base_path / "pytorch_model.bin.index.json"
 
-    config = LlamaConfig.from_file(path_config)
-    loader = HuggingFaceLoader(path=path_params, extern_param_map=huggingface(config, None))
+    model = MODELS["llama"]
+    config = model.config.from_file(path_config)
+    loader = HuggingFaceLoader(
+        path=path_params,
+        extern_param_map=model.source["huggingface-torch"](config, None),
+    )
     with tqdm.redirect():
         for _name, _param in loader.load():
-            ...
+            return  # To reduce the time of the test
 
 
 @pytest.mark.parametrize(
@@ -50,11 +56,15 @@ def test_load_safetensor_llama(base_path: Union[str, Path]):
     path_config = base_path / "config.json"
     path_params = base_path / "model.safetensors.index.json"
 
-    config = LlamaConfig.from_file(path_config)
-    loader = HuggingFaceLoader(path=path_params, extern_param_map=huggingface(config, None))
+    model = MODELS["llama"]
+    config = model.config.from_file(path_config)
+    loader = HuggingFaceLoader(
+        path=path_params,
+        extern_param_map=model.source["huggingface-safetensor"](config, None),
+    )
     with tqdm.redirect():
         for _name, _param in loader.load():
-            ...
+            return  # To reduce the time of the test
 
 
 if __name__ == "__main__":

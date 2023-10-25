@@ -95,10 +95,32 @@ def test_find_weight_fail():
         base_path = Path(tmpdir)
         with pytest.raises(ValueError):
             detect_weight(Path("do/not/exist"), base_path, "AWQ")
-
     with pytest.raises(AssertionError):
         detect_weight(None, Path("do/not/exist"), "AWQ")
 
 
 if __name__ == "__main__":
-    pass
+    test_detect_weight("PyTorch", "pytorch_model.bin.index.json", "PyTorch")
+    test_detect_weight("SafeTensor", "model.safetensors.index.json", "SafeTensor")
+    test_detect_weight("GGML", None, "GGML")
+    test_detect_weight("GGUF", None, "GGUF")
+    test_detect_weight("AWQ", None, "AWQ")
+    test_detect_weight("auto", "pytorch_model.bin.index.json", "PyTorch")
+    test_detect_weight("auto", "model.safetensors.index.json", "SafeTensor")
+    test_detect_weight_in_config_json("PyTorch", "pytorch_model.bin.index.json", "PyTorch")
+    test_detect_weight_in_config_json("SafeTensor", "model.safetensors.index.json", "SafeTensor")
+    test_detect_weight_in_config_json("GGML", None, "GGML")
+    test_detect_weight_in_config_json("GGUF", None, "GGUF")
+    test_detect_weight_in_config_json("AWQ", None, "AWQ")
+    test_detect_weight_in_config_json("auto", "pytorch_model.bin.index.json", "PyTorch")
+    test_detect_weight_in_config_json("auto", "model.safetensors.index.json", "SafeTensor")
+    test_detect_weight_same_dir_config_json("PyTorch", "pytorch_model.bin.index.json", "PyTorch")
+    test_detect_weight_same_dir_config_json(
+        "SafeTensor", "model.safetensors.index.json", "SafeTensor"
+    )
+    test_detect_weight_same_dir_config_json("GGML", None, "GGML")
+    test_detect_weight_same_dir_config_json("GGUF", None, "GGUF")
+    test_detect_weight_same_dir_config_json("AWQ", None, "AWQ")
+    test_detect_weight_same_dir_config_json("auto", "pytorch_model.bin.index.json", "PyTorch")
+    test_detect_weight_same_dir_config_json("auto", "model.safetensors.index.json", "SafeTensor")
+    test_find_weight_fail()
