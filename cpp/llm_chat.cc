@@ -904,7 +904,7 @@ class LLMChat {
     std::vector<int32_t> prompt_tokens =
         this->PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt, generation_config);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
-    if (token_len == 0) return nullptr;
+    if (token_len == 0) return std::make_pair(std::numeric_limits<float>::min(), false);
     if (ft_.use_disco) {
       // exclude load shard time from prefill
       this->ft_.sess->SyncWorker(0);
