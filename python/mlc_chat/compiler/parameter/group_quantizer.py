@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tvm.runtime import NDArray
+
     from ..parameter import QuantizeMapping
 
 

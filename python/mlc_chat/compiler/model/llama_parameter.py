@@ -2,10 +2,9 @@
 This file specifies how MLC's Llama parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
-from typing import Callable, Tuple, Dict, List
+from typing import Callable, Dict, List, Tuple
 
 import numpy as np
-
 import tvm
 from tvm.runtime import NDArray
 

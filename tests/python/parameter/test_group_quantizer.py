@@ -5,10 +5,9 @@ from typing import Union
 
 from mlc_chat.compiler import MODELS
 from mlc_chat.compiler.model.llama_config import LlamaConfig
-from mlc_chat.compiler.parameter import GroupQuantizer, HuggingFaceLoader
 from mlc_chat.compiler.model.llama_parameter import hf_torch_group_quantize
+from mlc_chat.compiler.parameter import GroupQuantizer, HuggingFaceLoader
 from mlc_chat.support import tqdm
-
 
 logging.basicConfig(
     level=logging.DEBUG,
