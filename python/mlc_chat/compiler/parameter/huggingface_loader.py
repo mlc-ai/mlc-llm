@@ -12,6 +12,7 @@ from tqdm import tqdm
 from tvm.runtime import NDArray
 from tvm.runtime.ndarray import array as as_ndarray
 
+from .group_quantizer import GroupQuantizer
 from .mapping import ExternMapping
 from .stats import Stats
 from .utils import check_parameter_usage, load_safetensor_shard, load_torch_shard
@@ -44,11 +45,13 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
     extern_param_map: ExternMapping
     cached_files: Dict[Path, Dict[str, np.ndarray]]
     torch_to_path: Dict[str, Path]
+    quantizer: GroupQuantizer
 
     def __init__(
         self,
         path: Path,
         extern_param_map: ExternMapping,
+        quantizer: None,
     ) -> None:
         """Create a parameter loader from HuggingFace PyTorch format.
 
@@ -72,6 +75,7 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         self.extern_param_map = extern_param_map
         self.cached_files = {}
         self.torch_to_path = {}
+        self.quantizer = quantizer
         if path.suffix in (".bin", ".safetensors"):
             self._load_file(path)
             for name in self.cached_files[path].keys():
@@ -90,7 +94,18 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         mlc_names = _loading_order(self.extern_param_map, self.torch_to_path)
         for mlc_name in tqdm(mlc_names):
             param = self._load_mlc_param(mlc_name)
-            yield mlc_name, param
+            if self.quantizer:
+                quantized_params = self.quantizer.quantize(mlc_name, param)
+                for quantized_name, quantized_param in quantized_params:
+                    logger.info(
+                        '  Quantized Parameter: "%s", shape: %s, dtype: %s',
+                        quantized_name,
+                        quantized_param.shape,
+                        quantized_param.dtype,
+                    )
+                    yield quantized_name, quantized_param
+            else:
+                yield mlc_name, param
         cached_files = list(self.cached_files.keys())
         for path in cached_files:
             self._unload_file(path)
