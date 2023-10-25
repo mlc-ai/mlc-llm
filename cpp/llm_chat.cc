@@ -904,7 +904,7 @@ class LLMChat {
     std::vector<int32_t> prompt_tokens =
         this->PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt, generation_config);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
-    if (token_len == 0) return;
+    if (token_len == 0) return nullptr;
     if (ft_.use_disco) {
       // exclude load shard time from prefill
       this->ft_.sess->SyncWorker(0);
@@ -1169,7 +1169,7 @@ class LLMChat {
       sum += data[index];
     }
 
-    std::pair<float, bool> res = std::make_pair<float, bool>(sum, is_greedy);
+    auto res = std::make_pair(sum, is_greedy);
     return res;
   }
 
