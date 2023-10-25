@@ -6,12 +6,12 @@ from typing import Callable, Tuple, Dict, List
 
 import numpy as np
 
+import tvm
+from tvm.runtime import NDArray
+
 from ..parameter import ExternMapping, QuantizeMapping
 from .llama_config import LlamaConfig
 from .llama_model import LlamaForCasualLM
-
-import tvm
-from tvm.runtime import NDArray
 
 
 def huggingface(model_config: LlamaConfig, _) -> ExternMapping:
@@ -160,7 +160,7 @@ def hf_torch_group_quantize(model_config: LlamaConfig, mode: str = "q4f16_1") ->
     param_map: Dict[str, List[str]] = {}
     map_func: Dict[str, Callable] = {}
     for name in parameter_names:
-        if "layernorm.weight" not in name:
+        if "norm.weight" not in name:
             # skip these
             param_map[name] = [f"{name}_quantized", f"{name}_scale"]
             map_func[name] = lambda x: group_quantize(x, quantize_dtype="int4")
