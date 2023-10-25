@@ -707,6 +707,7 @@ class PagedCacheModelModule:
             num_kv_heads,
             head_size,
             model.disco_session,
+            config.sliding_window,
         )
 
         self.text_generator = PagedCacheModelTextGenerator(model)

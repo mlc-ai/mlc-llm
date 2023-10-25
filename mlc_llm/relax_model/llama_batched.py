@@ -65,11 +65,9 @@ class LlamaAttentionBatched(LlamaAttention):
         kv_cache: Optional[relax.Expr],
         slot_mapping: Optional[relax.Expr],
         max_seqlen: Optional[relax.Expr],
-        seqstart: Optional[relax.Expr],  # only for prefill
-        block_tables: Optional[relax.Expr],  # only for decode
-        indices_within_window: Optional[
-            relax.Expr
-        ],  # only for prefill with sliding-window attention
+        seqstart: Optional[relax.Expr],  # For prefill
+        block_tables: Optional[relax.Expr],  # For decode
+        indices_within_window: Optional[relax.Expr],  # For prefill with sliding-window attention
     ):
         num_tokens, _ = hidden_states.struct_info.shape
 
@@ -297,12 +295,10 @@ class LlamaForCausalLM(nn.Module):
         input_ids: relax.Expr,
         positions: relax.Expr,
         seq_lens: relax.Expr,
-        kv_caches: Optional[relax.Expr],  # for prefill and decode, not needed for evaluate
-        slot_mapping: Optional[relax.Expr],  # for prefill and decode, not needed for evaluate
-        block_tables: Optional[relax.Expr],  # only for decode
-        indices_within_window: Optional[
-            relax.Expr
-        ],  # only for prefill with sliding-window attention
+        kv_caches: Optional[relax.Expr],  # For prefill and decode, not needed for evaluate
+        slot_mapping: Optional[relax.Expr],  # For prefill and decode, not needed for evaluate
+        block_tables: Optional[relax.Expr],  # For decode
+        indices_within_window: Optional[relax.Expr],  # For prefill with sliding-window attention
     ):
         if self.num_shards > 1:
             input_ids = nn.emit(ccl.broadcast_from_worker0(input_ids))
@@ -434,7 +430,6 @@ def create_evaluate_func(
 
     num_token = tvm.tir.Var("num_token", "int64")
     num_seq = tvm.tir.Var("num_seq", "int64")
-
 
     with bb.function(func_name):
         model = LlamaForCausalLM(config, cpu_dev, tvm.tir.Var("vocab_size", "int64"), sep_embed)

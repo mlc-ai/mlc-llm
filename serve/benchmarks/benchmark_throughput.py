@@ -1,5 +1,4 @@
 """Benchmark offline inference throughput."""
-import os
 import argparse
 import json
 import random
