@@ -888,7 +888,7 @@ class LLMChat {
     this->ProcessNextToken(next_token, generation_config);
   }
 
-  std::pair<float, bool> LogLikelihoodStep(
+  std::string LogLikelihoodStep(
       const std::string& context, const std::string& continuation,
       String generation_config_str = "", bool append_conversation = true,
       PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
@@ -904,7 +904,12 @@ class LLMChat {
     std::vector<int32_t> prompt_tokens =
         this->PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt, generation_config);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
-    if (token_len == 0) return std::make_pair(std::numeric_limits<float>::min(), false);
+    if (token_len == 0) {
+      picojson::object config;
+      config["logprobes"] = picojson::value(std::numeric_limits<float>::min());
+      config["is_greedy"] = picojson::value(false);
+      return picojson::value(config).serialize(true);
+    }
     if (ft_.use_disco) {
       // exclude load shard time from prefill
       this->ft_.sess->SyncWorker(0);
@@ -1141,9 +1146,10 @@ class LLMChat {
   /*!
    * \brief Sample output pair of logprobs and is_greedy from logits on device
    */
-  std::pair<float, bool> SampleLogProbeFromLogits(NDArray logits_on_device,
-                                                  std::vector<int32_t> continuation_tokens,
-                                                  picojson::object generation_config = picojson::object()) {
+  std::string SampleLogProbeFromLogits(NDArray logits_on_device,
+                                       std::vector<int32_t> continuation_tokens,
+                                       picojson::object generation_config = picojson::object()) {
+    this->UpdateLogitsOrProbOnCPUSync(logits_on_device);
     NDArray logprobs = this->SampleLogProbsFromLogitsOnCPU();
     size_t seq_length = logprobs->shape[logprobs->ndim - 2];
     size_t vocab_length = logprobs->shape[logprobs->ndim - 1];
@@ -1169,8 +1175,10 @@ class LLMChat {
       sum += data[index];
     }
 
-    auto res = std::make_pair(sum, is_greedy);
-    return res;
+    picojson::object config;
+    config["logprobes"] = picojson::value(sum);
+    config["is_greedy"] = picojson::value(is_greedy);
+    return picojson::value(config).serialize(true);
   }
 
   /*!
