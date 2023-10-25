@@ -51,7 +51,7 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         self,
         path: Path,
         extern_param_map: ExternMapping,
-        quantizer: None,
+        quantizer: GroupQuantizer = None,
     ) -> None:
         """Create a parameter loader from HuggingFace PyTorch format.
 

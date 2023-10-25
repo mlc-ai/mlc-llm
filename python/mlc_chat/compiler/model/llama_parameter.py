@@ -79,6 +79,14 @@ def hf_torch_group_quantize(model_config: LlamaConfig, mode: str = "q4f16_1") ->
         The parameter mapping from a parameter in MLC LLM's model definition to
         its eventual names and values after quantization.
     """
+    bits = {
+        "int4": 4,
+        "int8": 8,
+        "fp16": 16,
+        "fp32": 32,
+        "int32": 32,
+        "uint32": 32,
+    }
 
     def group_quantize(
         w: NDArray,
@@ -88,23 +96,14 @@ def hf_torch_group_quantize(model_config: LlamaConfig, mode: str = "q4f16_1") ->
         # symmetric: bool = True,
         # transpose: bool = True,
     ) -> Tuple[NDArray, NDArray]:
-        bits = {
-            "int4": 4,
-            "int8": 8,
-            "fp16": 16,
-            "fp32": 32,
-            "int32": 32,
-            "uint32": 32,
-        }
-
+        # pylint: disable=too-many-locals
         def _pad_axis_by_factor(tensor: np.ndarray, axis: int, factor: int) -> np.ndarray:
             dim = int(tensor.shape[axis])
             if dim % factor == 0:
                 return tensor
-            else:
-                pad_width = ((0, 0) for i in tensor.shape)
-                pad_width[axis][1] = factor - (dim % factor)
-                return np.pad(tensor, pad_width, mode="constant", constant_values=0)
+            pad_width = ((0, 0) for i in tensor.shape)
+            pad_width[axis][1] = factor - (dim % factor)
+            return np.pad(tensor, pad_width, mode="constant", constant_values=0)
 
         def _clip(
             x: np.ndarray,
@@ -118,6 +117,7 @@ def hf_torch_group_quantize(model_config: LlamaConfig, mode: str = "q4f16_1") ->
         assert group_size % num_elem_per_storage == 0
         num_storage_units = (group_size + num_elem_per_storage - 1) // num_elem_per_storage
 
+        # using numpy for now
         w = w.numpy()
 
         # Step 1. Tile `w`: [n, k'] -> [n, k, group_size]
@@ -151,6 +151,7 @@ def hf_torch_group_quantize(model_config: LlamaConfig, mode: str = "q4f16_1") ->
                     for k in range(num_elem_per_storage):
                         res[i, j, m] += w[i, j, m * num_elem_per_storage + k] * 2**k
         return tvm.nd.array(res), tvm.nd.array(scale)
+        # pylint: enable=too-many-locals
 
     assert mode == "q4f16_1", "Other mode not supported yet"
     model = LlamaForCasualLM(model_config)
