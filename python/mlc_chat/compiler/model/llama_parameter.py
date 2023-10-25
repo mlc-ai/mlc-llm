@@ -100,7 +100,7 @@ def hf_torch_group_quantize(model_config: LlamaConfig, mode: str = "q4f16_1") ->
             dim = int(tensor.shape[axis])
             if dim % factor == 0:
                 return tensor
-            pad_width = ((0, 0) for i in tensor.shape)
+            pad_width = [[0, 0] for i in tensor.shape]
             pad_width[axis][1] = factor - (dim % factor)
             return np.pad(tensor, pad_width, mode="constant", constant_values=0)
 

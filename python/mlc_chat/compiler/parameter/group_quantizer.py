@@ -1,6 +1,6 @@
 """A group quantizer for on the fly parameter quantization"""
 # pylint: disable=too-few-public-methods
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterator, Tuple
 
 if TYPE_CHECKING:
     from tvm.runtime import NDArray
@@ -16,7 +16,7 @@ class GroupQuantizer:
     def __init__(self, quantize_map: "QuantizeMapping") -> None:
         self.quantize_map = quantize_map
 
-    def quantize(self, name: str, param: "NDArray"):
+    def quantize(self, name: str, param: "NDArray") -> Iterator[Tuple[str, "NDArray"]]:
         """Apply group quantization to the given paramete
 
         Parameters
