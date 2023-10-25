@@ -420,7 +420,8 @@ def mod_transform_before_build(
         if args.model.lower().startswith("rwkv-"):
             model_names += ["reset_kv_cache"]
 
-    mod = param_manager.transform_dequantize(mod)
+    mod = param_manager.transform_dequantize()(mod)
+    mod = relax.transform.BundleModelParams()(mod)
 
     use_ft_quant = args.quantization.name in ["q4f16_ft", "q8f16_ft"]
     mod = mlc_llm.transform.FuseDecodeTranspose(skip_gemm=not use_ft_quant)(mod)
