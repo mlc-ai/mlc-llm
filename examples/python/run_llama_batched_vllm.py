@@ -29,6 +29,7 @@ class KVCache:
         self.cache = init_cache_func(head_size, num_layers, num_heads, block_size, num_blocks)
 
         self.block_tables = defaultdict(list)
+        self.slot_mappings = defaultdict(list)
         self.block_size = block_size
 
 
@@ -60,20 +61,45 @@ class CacheManager:
             if id in self.kv_cache.block_tables and size == 0:
                 self.free_blocks.extend(self.kv_cache.block_tables[id])
                 del self.kv_cache.block_tables[id]
+                del self.kv_cache.slot_mappings[id]
 
-            elif (
-                id in self.kv_cache.block_tables
-                and len(self.kv_cache.block_tables[id]) < num_needed_block
-            ):
-                # Decoding, need to allocate a new block for this request
-                assert len(self.kv_cache.block_tables[id]) + 1 == num_needed_block
-                self.kv_cache.block_tables[id].append(self.free_blocks.pop())
+            elif id in self.kv_cache.block_tables:
+                # Decoding
+                if len(self.kv_cache.block_tables[id]) < num_needed_block:
+                    # Need to allocate a new block for this request
+                    assert len(self.kv_cache.block_tables[id]) + 1 == num_needed_block
+                    self.kv_cache.block_tables[id].append(self.free_blocks.pop())
+
+                pos = size - 1
+                block_number = self.kv_cache.block_tables[id][-1]
+
+                if self.block_sliding_window:
+                    block_number = self.kv_cache.block_tables[id][
+                        (pos // self.block_size) % self.block_sliding_window
+                    ]
+                else:
+                    block_number = self.kv_cache.block_tables[id][-1]
+
+                block_offset = pos % self.block_size
+                slot = block_number * self.block_size + block_offset
+                self.kv_cache.slot_mappings[id].append(slot)
 
             elif id not in self.kv_cache.block_tables:
                 assert len(self.free_blocks) >= num_needed_block, "Not enough free blocks."
 
                 for _ in range(num_needed_block):
                     self.kv_cache.block_tables[id].append(self.free_blocks.pop())
+
+                for i in range(size):
+                    block_idx = i // self.block_size
+
+                    if self.block_sliding_window:
+                        block_idx %= self.block_sliding_window
+
+                    block_number = self.kv_cache.block_tables[id][block_idx]
+                    block_offset = i % self.block_size
+                    slot = block_number * self.block_size + block_offset
+                    self.kv_cache.slot_mappings[id].append(slot)
 
     def get(self):
         return self.kv_cache
@@ -132,6 +158,89 @@ def get_tvm_model(artifact_path, model, quantization, num_shards, dev):
     return load_params_disco(artifact_path, lib_path, num_shards)
 
 
+def _prepare_inputs(
+    requests,
+    all_slot_mappings,
+    all_block_tables,
+    sliding_window,
+    dev,
+    is_prefill,
+):
+    block_tables = []
+    seq_lens = []
+    input_ids = []
+    slot_mapping = []
+    positions = []
+    max_num_blocks_per_seq = 0
+    indices_within_window = []
+    start_idx = 0
+
+    for request in requests:
+        request_id = request.request_id
+        token_ids = request.token_ids
+
+        if is_prefill:
+            input_ids += token_ids
+            prompt_len = len(token_ids)
+            seq_lens.append(prompt_len)
+            positions += range(prompt_len)
+            slot_mapping += all_slot_mappings[request_id]
+
+            if sliding_window:
+                indices_within_window += range(
+                    start_idx + max(0, prompt_len - sliding_window),
+                    start_idx + prompt_len,
+                )
+                start_idx += prompt_len
+
+        else:
+            input_ids.append(token_ids[-1])
+            pos = len(token_ids) - 1
+            positions.append(pos)
+            block_table = all_block_tables[request_id]
+            max_num_blocks_per_seq = max(max_num_blocks_per_seq, len(block_table))
+            block_tables.append(block_table)
+            slot_mapping.append(all_slot_mappings[request_id][-1])
+
+            if sliding_window:
+                seq_lens.append(min(len(token_ids), sliding_window))
+            else:
+                seq_lens.append(len(token_ids))
+
+    input_ids = tvm.nd.array(np.array(input_ids, dtype="int32"), dev)
+    positions = tvm.nd.array(np.array(positions, dtype="int32"), dev)
+    seq_lens = tvm.nd.array(np.array(seq_lens, dtype="int32"), dev)
+    slot_mapping = tvm.nd.array(np.array(slot_mapping, dtype="int32"), dev)
+
+    if is_prefill and sliding_window:
+        indices_within_window = tvm.nd.array(np.array(indices_within_window, dtype="int32"), dev)
+    else:
+        indices_within_window = None
+
+    if not is_prefill:
+
+        def _pad_to_max(x: List[int], max_len: int) -> List[int]:
+            return x + [0] * (max_len - len(x))
+
+        padded_block_tables = [
+            _pad_to_max(block_table, max_num_blocks_per_seq) for block_table in block_tables
+        ]
+
+        block_tables_np = np.vstack(padded_block_tables).astype("int32")
+        block_tables = tvm.nd.array(np.array(block_tables_np, dtype="int32"), dev)
+    else:
+        block_tables = None
+
+    return (
+        input_ids,
+        positions,
+        seq_lens,
+        slot_mapping,
+        indices_within_window,
+        block_tables,
+    )
+
+
 class Model:
     def __init__(
         self, artifact_path, model_name, quant, vocab_size, num_shards, dev, sliding_window
@@ -149,65 +258,23 @@ class Model:
             self.block_sliding_window = None
 
     def generate(
-        self, requests: List[SequenceGenerationRequest], cache: KVCache, is_prompt: bool
+        self, requests: List[SequenceGenerationRequest], cache: KVCache, is_prefill: bool
     ) -> List[SequenceGenerationResponse]:
-        block_tables = []
-        seq_lens = []
-        input_ids = []
-        slot_mapping = []
-        positions = []
-        max_num_blocks_per_seq = 0
-        block_size = cache.block_size
-        indices_within_window = []
-
-        start_idx = 0
-
-        for request in requests:
-            block_table = cache.block_tables[request.request_id]
-
-            if is_prompt:
-                input_ids += request.token_ids
-                prompt_len = len(request.token_ids)
-                seq_lens.append(prompt_len)
-                positions += range(prompt_len)
-
-                if self.sliding_window:
-                    indices_within_window += range(
-                        start_idx + max(0, prompt_len - self.sliding_window), start_idx + prompt_len
-                    )
-                    start_idx += prompt_len
-
-                for i in range(len(request.token_ids)):
-                    if self.sliding_window:
-                        block_number = block_table[(i // block_size) % self.block_sliding_window]
-                    else:
-                        block_number = block_table[i // block_size]
-
-                    block_offset = i % block_size
-                    slot = block_number * block_size + block_offset
-                    slot_mapping.append(slot)
-            else:
-                input_ids.append(request.token_ids[-1])
-                pos = len(request.token_ids) - 1
-                positions.append(pos)
-                max_num_blocks_per_seq = max(max_num_blocks_per_seq, len(block_table))
-                block_tables.append(block_table)
-
-                if self.sliding_window:
-                    seq_lens.append(min(len(request.token_ids), self.sliding_window))
-                    block_number = block_table[(pos // block_size) % self.block_sliding_window]
-                else:
-                    block_number = block_table[pos // block_size]
-                    seq_lens.append(len(request.token_ids))
-
-                block_offset = pos % block_size
-                slot = block_number * block_size + block_offset
-                slot_mapping.append(slot)
-
-        input_ids = tvm.nd.array(np.array(input_ids, dtype="int32"), self.dev)
-        positions = tvm.nd.array(np.array(positions, dtype="int32"), self.dev)
-        seq_lens = tvm.nd.array(np.array(seq_lens, dtype="int32"), self.dev)
-        slot_mapping = tvm.nd.array(np.array(slot_mapping, dtype="int32"), self.dev)
+        (
+            input_ids,
+            positions,
+            seq_lens,
+            slot_mapping,
+            indices_within_window,
+            block_tables,
+        ) = _prepare_inputs(
+            requests,
+            cache.slot_mappings,
+            cache.block_tables,
+            self.sliding_window,
+            self.dev,
+            is_prefill,
+        )
 
         if self.disco_session:
             input_ids = copy_to_worker_0(self.disco_session, input_ids)
@@ -217,12 +284,8 @@ class Model:
 
         kv_cache = cache.cache
 
-        if is_prompt:
+        if is_prefill:
             if self.sliding_window:
-                indices_within_window = tvm.nd.array(
-                    np.array(indices_within_window, dtype="int32"), self.dev
-                )
-
                 if self.disco_session:
                     indices_within_window = copy_to_worker_0(
                         self.disco_session, indices_within_window
@@ -247,17 +310,6 @@ class Model:
             else:
                 logits = out[0]  # Ignore returned KV cache since it is updated in-place anyway.
         else:
-
-            def _pad_to_max(x: List[int], max_len: int) -> List[int]:
-                return x + [0] * (max_len - len(x))
-
-            padded_block_tables = [
-                _pad_to_max(block_table, max_num_blocks_per_seq) for block_table in block_tables
-            ]
-
-            block_tables_np = np.vstack(padded_block_tables).astype("int32")
-            block_tables = tvm.nd.array(np.array(block_tables_np, dtype="int32"), self.dev)
-
             if self.disco_session:
                 block_tables = copy_to_worker_0(self.disco_session, block_tables)
 
@@ -308,7 +360,7 @@ def parse_args():
     return parsed
 
 
-def test(args):
+def run(args):
     quantization = args.quantization.name
     artifact_path = args.artifact_path
     model_name = args.model
@@ -393,4 +445,4 @@ def test(args):
 
 
 if __name__ == "__main__":
-    test(parse_args())
+    run(parse_args())
