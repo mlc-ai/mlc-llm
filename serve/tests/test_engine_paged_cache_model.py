@@ -1,5 +1,6 @@
 import argparse
 import json
+import random
 
 from mlc_llm import utils
 from mlc_serve.engine import (
@@ -39,9 +40,13 @@ def test(args: argparse.Namespace):
         max_batched_tokens=args.max_num_batched_tokens,
     )
 
-    sampling_params = SamplingParams(
-        temperature=1.0,
+    sampling_params_random = SamplingParams(
+        temperature=0.9,
         top_p=1.0,
+    )
+
+    sampling_params_greedy = SamplingParams(
+        temperature=0.0,
     )
 
     if args.long_prompt:
@@ -57,6 +62,10 @@ def test(args: argparse.Namespace):
         ]
 
     for i, prompt in enumerate(prompts):
+        sampling_params = random.choice(
+            [sampling_params_random, sampling_params_greedy]
+        )
+
         engine.add(
             [
                 Request(

@@ -243,30 +243,63 @@ def _apply_top_p_top_k(logits, top_ps, top_ks):
 
 def sample(logits, sampling_params, vocab_size):
     logits = torch.from_dlpack(logits)
-    # TODO: Support beam search?
-    do_greedy = [p.sampling_type == SamplingType.GREEDY for p in sampling_params]
-    # TODO: Support per-type batched sampling like vllm.
-    assert all(do_greedy) or all([not greedy for greedy in do_greedy])
+    num_seq = len(sampling_params)
 
-    temperatures = [p.temperature for p in sampling_params]
-    if any(t != 1.0 for t in temperatures):
+    mask_random = torch.tensor(
+        [p.sampling_type == SamplingType.RANDOM for p in sampling_params],
+        dtype=torch.bool,
+    )
+    mask_greedy = torch.logical_not(mask_random)
+
+    logits_greedy = logits[mask_greedy]
+
+    if logits_greedy.shape[0] > 0:
+        res_greedy = torch.argmax(logits_greedy, -1).cpu().numpy()
+
+        if logits_greedy.shape[0] == num_seq:
+            return res_greedy
+
+    temperatures = []
+    top_ps = []
+    top_ks = []
+    divide_by_temperature = False
+    do_top_p = False
+    do_top_k = False
+
+    for i in range(num_seq):
+        param = sampling_params[i]
+
+        if param.sampling_type == SamplingType.RANDOM:
+            temperatures.append(param.temperature)
+            top_ps.append(param.top_p)
+            top_ks.append(param.top_k if param.top_k != -1 else vocab_size)
+
+            divide_by_temperature |= temperatures[-1] != 1.0
+            do_top_p |= top_ps[-1] < 1.0
+            do_top_k |= top_ks[-1] != vocab_size
+
+    logits_random = logits[mask_random]
+
+    if divide_by_temperature:
         t = torch.tensor(temperatures, dtype=logits.dtype, device=logits.device)
-        logits.div_(t.unsqueeze(dim=1))
-
-    top_ps = [p.top_p for p in sampling_params]
-    top_ks = [p.top_k if p.top_k != -1 else vocab_size for p in sampling_params]
-
-    do_top_p = any(p < 1.0 for p in top_ps)
-    do_top_k = any(k != vocab_size for k in top_ks)
+        logits_random.div_(t.unsqueeze(dim=1))
 
     if do_top_p or do_top_k:
-        logits = _apply_top_p_top_k(logits, top_ps, top_ks)
+        logits = _apply_top_p_top_k(logits_random, top_ps, top_ks)
 
-    if all(do_greedy):
-        return torch.argmax(logits, -1).cpu().numpy()
+    probs = torch.softmax(logits_random, dim=-1)
+    res_random = torch.multinomial(probs, 1, True).cpu().numpy()[:, 0]
 
-    probs = torch.softmax(logits, dim=-1)
-    return torch.multinomial(probs, 1, True).cpu().numpy()[:, 0]
+    if logits_random.shape[0] == num_seq:
+        return res_random
+
+    res = np.empty((num_seq,), dtype=np.int32)
+    res[mask_random] = res_random
+
+    if logits_greedy.shape[0] > 0:
+        res[mask_greedy] = res_greedy
+
+    return res
 
 
 def load_disco_module(artifact_path, lib_path, num_shards):
