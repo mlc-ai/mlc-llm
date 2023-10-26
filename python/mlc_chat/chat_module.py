@@ -532,7 +532,9 @@ def _get_lib_module_path(
     raise FileNotFoundError(err_msg)
 
 
-def _convert_chat_config_to_json_str(chat_config: Optional[ChatConfig], conv_template: Optional[str]) -> str:
+def _convert_chat_config_to_json_str(
+    chat_config: Optional[ChatConfig], conv_template: Optional[str]
+) -> str:
     """Convert user's input ChatConfig to a json string, omitting ``None`` fields.
 
     Parameters
@@ -605,7 +607,7 @@ def _parse_device_str(device: str) -> (tvm.runtime.Device, str):
     -------
     dev : tvm.runtime.Device
         The device.
-    
+
     device_name : str
         The name of the device.
     """
@@ -621,7 +623,7 @@ def _parse_device_str(device: str) -> (tvm.runtime.Device, str):
         device_name, device_id = device_args[0], int(device_args[1])
     elif len(device_args) > 2:
         raise ValueError(device_err_msg)
-    
+
     if device_name == "cuda":
         device = tvm.cuda(device_id)
     elif device_name == "metal":
@@ -639,6 +641,7 @@ def _parse_device_str(device: str) -> (tvm.runtime.Device, str):
         raise ValueError(device_err_msg)
 
     return device, device_name
+
 
 def _detect_local_device(device_id: int = 0) -> (tvm.runtime.Device, str):
     """Automatically detect the local device if user does not specify.
