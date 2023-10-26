@@ -497,7 +497,11 @@ def create_encoding_func(
     quant_scheme: QuantizationScheme,
     sep_embed: bool = False,
 ) -> None:
-    """Batched prefill with vLLM paged KV cache."""
+    """Batched prefill with vLLM paged KV cache.
+
+    The batched attention op is intended to be offloaded to CUTLASS or Flash Attention
+    via BYOC.
+    """
     func_name = "prefill_with_embed" if sep_embed else "prefill"
 
     num_token = tvm.tir.Var("num_token", "int64")
@@ -647,9 +651,9 @@ def get_model(args, hf_config):
     create_encoding_func(bb, param_manager, config, cpu_dev, args.quantization, sep_embed)
     create_decoding_func(bb, param_manager, config, cpu_dev, args.quantization)
 
-    bb.get().update_global_info("vdevice", [cpu_dev])
-
     mod = bb.get()
+
+    mod.update_global_info("vdevice", [cpu_dev])
 
     if args.build_model_only:
         return mod, param_manager, None, config
