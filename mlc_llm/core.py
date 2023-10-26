@@ -22,7 +22,7 @@ from mlc_llm.relax_model import (
     gpt_neox,
     gptj,
     llama,
-    llama_batched,
+    llama_batched_vllm,
     minigpt,
     param_manager,
     rwkv,
@@ -606,7 +606,7 @@ def build_model_from_args(args: argparse.Namespace):
             config = json.load(i_f)
     if not use_cache or args.convert_weight_only:
         if args.model_category in ["llama", "mistral"] and args.batched:
-            mod, param_manager, params, model_config = llama_batched.get_model(args, config)
+            mod, param_manager, params, model_config = llama_batched_vllm.get_model(args, config)
         elif args.model_category == "llama":
             mod, param_manager, params, model_config = llama.get_model(args, config)
         elif args.model_category == "mistral":

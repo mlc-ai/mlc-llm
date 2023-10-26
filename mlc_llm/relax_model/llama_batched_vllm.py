@@ -18,7 +18,7 @@ from .llama import (
     Linear,
     Embedding,
     LlamaRMSNorm,
-    LlamaAttention,
+    LlamaAttentionBase,
     LlamaDecoderLayer,
     get_param_quant_kind,
     setup_params,
@@ -48,8 +48,8 @@ def apply_rotary_pos_emb(q, k, positions, position_embedding_base, offset: int =
     return q_embed, k_embed
 
 
-class LlamaAttentionBatched(LlamaAttention):
-    def __init__(self, config: LlamaConfig, head_mapping):
+class LlamaAttentionBatched(LlamaAttentionBase):
+    def __init__(self, config: LlamaConfig, head_mapping: relax.Constant):
         super().__init__(config)
         self.head_mapping = head_mapping
         self.sliding_window = None
@@ -62,9 +62,9 @@ class LlamaAttentionBatched(LlamaAttention):
         hidden_states: relax.Expr,
         positions: relax.Expr,
         seq_lens: relax.Expr,
-        kv_cache: Optional[relax.Expr],
+        kv_cache: Optional[Tuple[relax.Expr, relax.Expr]],
         slot_mapping: Optional[relax.Expr],
-        max_seqlen: Optional[relax.Expr],
+        max_seqlen: Optional[relax.Expr],  # Must be on CPU
         seqstart: Optional[relax.Expr],  # For prefill
         block_tables: Optional[relax.Expr],  # For decode
         indices_within_window: Optional[relax.Expr],  # For prefill with sliding-window attention
@@ -151,8 +151,8 @@ class LlamaAttentionBatched(LlamaAttention):
 
 
 class LlamaDecoderLayerBatched(LlamaDecoderLayer):
-    def __init__(self, config: LlamaConfig, head_mapping):
-        super().__init__(config)
+    def __init__(self, config: LlamaConfig, head_mapping: relax.Constant):
+        super().__init__(config, False)
         self.self_attn = LlamaAttentionBatched(config, head_mapping)
 
     def forward(
@@ -160,7 +160,7 @@ class LlamaDecoderLayerBatched(LlamaDecoderLayer):
         hidden_states: relax.Expr,
         positions: relax.Expr,
         seq_lens: relax.Expr,
-        kv_cache: Optional[relax.Expr],
+        kv_cache: Optional[Tuple[relax.Expr, relax.Expr]],
         slot_mapping: Optional[relax.Expr],
         max_seqlen: Optional[relax.Expr],
         seqstart: Optional[relax.Expr],
@@ -240,7 +240,9 @@ class LlamaModel(nn.Module):
 
         hidden_states = inputs_embeds
 
-        # max_seqlen needs to be on CPU
+        # max_seqlen needs to be on CPU, so that vLLM and Flash Attention can directly get the
+        # integer length by max_seqlen->data[0]. Otherwise, we need to repeatedly do cudaMemcpy
+        # of a single int32.
         max_seqlen = R.to_vdevice(R.max(seq_lens), self.cpu_device)
 
         new_kvs = ()
@@ -568,37 +570,56 @@ def create_decoding_func(
 
 
 def get_model(args, hf_config):
-    model_name = args.model
     dtype = args.quantization.model_dtype
-    max_seq_len = args.max_seq_len
     sep_embed = False
 
     position_embedding_base = 10000
-    max_position_embeddings = 2048
+
     if "rope_theta" in hf_config:
         position_embedding_base = hf_config["rope_theta"]
-    if "max_position_embeddings" in hf_config:
-        max_position_embeddings = hf_config["max_position_embeddings"]
 
-    config = LlamaConfig(
-        **hf_config,
-        dtype=dtype,
-        position_embedding_base=position_embedding_base,
-        combine_matmul=True,
-        num_shards=args.num_shards,
-        build_model_only=args.build_model_only,
-    )
-    if max_seq_len != -1:
-        config.max_sequence_length = max_seq_len
+    # Llama-2 variants use `max_position_embeddings` to encode maximum sequence length in their hf model cards,
+    # while Llama-1 variants use `max_sequence_length`.
+    # Thus, use `max_sequence_length` if defined. Otherwise, use `max_position_embeddings`.
+    # If none of them is defined, throw an error.
+    if "max_sequence_length" in hf_config:
+        config = LlamaConfig(
+            **hf_config,
+            dtype=dtype,
+            position_embedding_base=position_embedding_base,
+            combine_matmul=True,
+            num_shards=args.num_shards,
+            build_model_only=args.build_model_only,
+        )
+    elif "max_position_embeddings" in hf_config:
+        config = LlamaConfig(
+            **hf_config,
+            dtype=dtype,
+            max_sequence_length=hf_config["max_position_embeddings"],
+            position_embedding_base=position_embedding_base,
+            combine_matmul=True,
+            num_shards=args.num_shards,
+            build_model_only=args.build_model_only,
+        )
+    else:
+        raise Exception(
+            "The model config should contain information about maximum sequence length."
+        )
+
+    # If there is a user-provided maximum sequence length, override hf config.
+    if args.max_seq_len != -1:
+        config.max_sequence_length = args.max_seq_len
 
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
 
+    # The CPU device to copy the result of relax.op.max(seq_lens) to CPU.
     cpu_dev = VDevice("llvm", 0, "global")
 
     create_evaluate_func(bb, param_manager, config, cpu_dev, args.quantization, sep_embed)
     create_encoding_func(bb, param_manager, config, cpu_dev, args.quantization, sep_embed)
     create_decoding_func(bb, param_manager, config, cpu_dev, args.quantization)
+
     bb.get().update_global_info("vdevice", [cpu_dev])
 
     mod = bb.get()
