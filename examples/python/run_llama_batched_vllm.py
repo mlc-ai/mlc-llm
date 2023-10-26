@@ -287,12 +287,12 @@ class Model:
 def parse_args():
     # Example
     # python build.py --model vicuna-v1-7b --quantization q4f16_ft --use-cache=0 --max-seq-len 768 --enable-batching --use-vllm-attention
-    # python tests/python/models/test_llama_batched_vllm.py --local-id vicuna-v1-7b-q4f16_ft
+    # python examples/python/run_llama_batched_vllm.py --local-id vicuna-v1-7b-q4f16_ft
     #
     # For Disco:
     # python build.py --model vicuna-v1-7b --quantization q0f16 --use-cache=0 --max-seq-len 768 --enable-batching --use-vllm-attention --build-model-only --num-shards 2
     # python build.py --model vicuna-v1-7b --quantization q0f16 --use-cache=0 --max-seq-len 768 --enable-batching --use-vllm-attention --convert-weight-only
-    # CUDA_VISIBLE_DEVICES=0,1 python tests/python/models/test_llama_batched_vllm.py --local-id vicuna-v1-7b-q0f16 --num-shards 2
+    # CUDA_VISIBLE_DEVICES=0,1 python examples/python/run_llama_batched_vllm.py --local-id vicuna-v1-7b-q0f16 --num-shards 2
 
     args = argparse.ArgumentParser()
     args.add_argument("--local-id", type=str, required=True)
