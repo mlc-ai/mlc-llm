@@ -328,6 +328,7 @@ def _parse_args(parsed) -> argparse.Namespace:
     if parsed.use_vllm_attention:
         assert parsed.enable_batching, "--enable_batching is required for using vLLM attention."
         assert parsed.target_kind == "cuda", "vLLM attention is only supported for CUDA."
+        assert tvm.get_global_func("tvm.contrib.vllm.single_query_cached_kv_attention", True), "TVM needs to be built with -DUSE_VLLM=ON."
 
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
