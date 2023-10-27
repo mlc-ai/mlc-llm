@@ -1170,8 +1170,9 @@ class LLMChat {
 
     // Calculate log probs sum for continuation_tokens indeces
     float sum = 0;
-    for (int32_t i = 0; i < seq_length; ++i) {
-      int32_t index = i * vocab_length + continuation_tokens[i];
+    int32_t offset_index = offset * vocab_length;
+    for (int32_t i = 0; i < continuation_length; ++i) {
+      int32_t index = offset_index + i * vocab_length + continuation_tokens[i];
       sum += data[index];
     }
 
