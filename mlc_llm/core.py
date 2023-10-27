@@ -109,6 +109,8 @@ class BuildArgs:
         Offload multi-query attention workload to Flash Attention.
     pdb: bool
         If set, drop into a pdb debugger on error.
+    use_vllm_attention: bool
+        Use vLLM paged KV cache and attention kernel, only relevant when enable_batching=True.
     """
     model: str = field(
         default="auto",
