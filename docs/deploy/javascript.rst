@@ -6,9 +6,9 @@ WebLLM and Javascript API
    :depth: 2
 
 WebLLM is a MLC chat web runtime (`WebLLM <https://www.npmjs.com/package/@mlc-ai/web-llm>`_)
-that allows you to build chat applications directly in browser.
+that allows you to build chat applications directly in the browser.
 
-Try out Prebuilt Webpage
+Try out the Prebuilt Webpage
 ------------------------
 
 To get started, you can try out `WebLLM prebuilt webpage <https://webllm.mlc.ai/#chat-demo>`__.
