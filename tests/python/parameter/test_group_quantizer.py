@@ -54,7 +54,10 @@ def test_load_torch_llama_group_quantize(base_path: Union[str, Path]):
     loader = HuggingFaceLoader(
         path=path_params,
         extern_param_map=model.source["huggingface-torch"](model_config, None),
-        quantize_param_map=huggingface_group_quantize(model_config, quantize_config),
+        quantize_param_map=huggingface_group_quantize(
+            model_config,
+            quantize_config,  # target=tvm.target.Target("nvidia/nvidia-a100")
+        ),
     )
     with tqdm.redirect():
         for _name, _param in loader.load():

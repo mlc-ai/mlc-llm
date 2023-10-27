@@ -15,15 +15,6 @@ def te_quantize(weight: te.Tensor, config: QuantizeConfig) -> Tuple[te.Tensor, t
     r = te.reduce_axis((0, config.group_size), name="r")
     num_group = tir.ceildiv(m, config.group_size)
     scale_shape = (n, num_group)
-    # max_abs = te.compute(
-    #     shape=scale_shape,
-    #     fcompute=lambda i, j: tir.max(
-    #         tir.abs(weight[i, j * config.group_size + r]),
-    #         tir.const(1e-4, config.weight_dtype),
-    #         axis=r,
-    #         where=j * config.group_size + r < m,
-    #     ),
-    # )
     max_abs = te.compute(
         shape=scale_shape,
         fcompute=lambda i, j: te.max(
@@ -71,4 +62,4 @@ def te_quantize(weight: te.Tensor, config: QuantizeConfig) -> Tuple[te.Tensor, t
         ),
         name="weight",
     )
-    return quantized_weight, scale
+    return quantized_weight, scale, [max_abs, scaled_weight]

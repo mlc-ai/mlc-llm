@@ -1,4 +1,4 @@
-from typing import Dict, List, Callable
+from typing import Dict, List, Optional, Callable
 
 import tvm
 from tvm.runtime import NDArray
@@ -12,7 +12,9 @@ from ..quantization.group_quantizer import te_quantize as te_group_quantize
 
 
 def huggingface_group_quantize(
-    model_config: LlamaConfig, quantize_config: QuantizeConfig
+    model_config: LlamaConfig,
+    quantize_config: QuantizeConfig,
+    target: Optional[tvm.target.Target] = None,
 ) -> QuantizeMapping:
     """Returns a parameter mapping that maps a parameter in MLC LLM's model
     definition to its eventual names and values after quantization.
@@ -23,6 +25,9 @@ def huggingface_group_quantize(
         The configuration of the Llama model.
     quantize_config : GroupQuantizeConfig
         The configuration of the group quantization.
+    target : Optional[tvm.target.Target]
+        The target device to run the quantization on, by default None, which
+        means the quantization will be run on CPU.
 
     Returns
     -------
@@ -31,17 +36,33 @@ def huggingface_group_quantize(
         its eventual names and values after quantization.
     """
 
-    def group_quantize(param: NDArray, config: QuantizeConfig):
+    def group_quantize(
+        param: NDArray, config: QuantizeConfig, target: Optional[tvm.target.Target] = None
+    ):
+        if target is None:
+            target = tvm.target.Target("llvm")
+            device = tvm.cpu()
+        elif target.kind.name == "cuda":
+            device = tvm.cuda()
+        else:
+            raise ValueError(f"Invalid target device: {target}")
         param_tensor = tvm.te.placeholder(param.shape, dtype=param.dtype, name="param")
-        weight_compute, scale_compute = te_group_quantize(param_tensor, config)
-        f_quantize = tvm.build(
-            tvm.te.create_schedule([weight_compute.op, scale_compute.op]),
-            [param_tensor, weight_compute, scale_compute],
-            name="group_quantize",
+        weight_compute, scale_compute, other_computes = te_group_quantize(param_tensor, config)
+        s = tvm.te.create_schedule(
+            [compute.op for compute in [weight_compute, scale_compute] + other_computes]
         )
-        weight = tvm.nd.empty(weight_compute.shape, weight_compute.dtype)
-        scale = tvm.nd.empty(scale_compute.shape, scale_compute.dtype)
-        f_quantize(param, weight, scale)
+        if target.kind.name == "cuda":
+            # thread_binding for cuda
+            for C in [weight_compute, scale_compute] + other_computes:
+                xo, xi = s[C].split(C.op.axis[0], 256)
+                s[C].bind(xo, tvm.te.thread_axis("blockIdx.x"))
+                s[C].bind(xi, tvm.te.thread_axis("threadIdx.x"))
+        f_quantize = tvm.build(
+            s, [param_tensor, weight_compute, scale_compute], name="group_quantize", target=target
+        )
+        weight = tvm.nd.empty(weight_compute.shape, weight_compute.dtype, device=device)
+        scale = tvm.nd.empty(scale_compute.shape, scale_compute.dtype, device=device)
+        f_quantize(param.copyto(device), weight, scale)
         return weight, scale
 
     # Param check
@@ -66,7 +87,7 @@ def huggingface_group_quantize(
     for name in parameter_names:
         if "norm.weight" not in name and "embed" not in name:
             param_map[name] = [f"{name}_quantized", f"{name}_scale"]
-            map_func[name] = lambda x: group_quantize(x, quantize_config)
+            map_func[name] = lambda x: group_quantize(x, quantize_config, target=target)
         else:
             # skip these parameters
             param_map[name] = [name]
