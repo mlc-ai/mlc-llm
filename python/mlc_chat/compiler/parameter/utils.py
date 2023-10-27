@@ -1,16 +1,17 @@
 """Common utilities for loading parameters"""
+# pylint: disable=too-few-public-methods
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, Set, Tuple
+
+import numpy as np
+
+from .mapping import ExternMapping
 
 if TYPE_CHECKING:
     from tvm.runtime import NDArray
 
     from ..parameter import QuantizeMapping
-
-import numpy as np
-
-from .mapping import ExternMapping
 
 logger = logging.getLogger(__name__)
 

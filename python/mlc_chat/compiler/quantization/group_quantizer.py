@@ -1,14 +1,18 @@
 """A group quantizer for on the fly parameter quantization"""
 # pylint: disable=too-few-public-methods
 
-from typing import Tuple
+from typing import List, Tuple
 
 from tvm import te, tir
 
 from .quantization import QuantizeConfig
 
 
-def te_quantize(weight: te.Tensor, config: QuantizeConfig) -> Tuple[te.Tensor, te.Tensor]:
+def te_quantize(
+    weight: te.Tensor, config: QuantizeConfig
+) -> Tuple[te.Tensor, te.Tensor, List[te.Tensor]]:
+    """Group quantization for weight tensor, defined in tensor expression."""
+    # pylint: disable=too-many-locals
     assert len(weight.shape) == 2
     n, m = weight.shape
     # compute scale per group
@@ -63,3 +67,4 @@ def te_quantize(weight: te.Tensor, config: QuantizeConfig) -> Tuple[te.Tensor, t
         name="weight",
     )
     return quantized_weight, scale, [max_abs, scaled_weight]
+    # pylint: enable=too-many-locals

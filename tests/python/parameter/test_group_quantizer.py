@@ -1,24 +1,20 @@
-# pylint: disable=missing-docstring
-from typing import Tuple, TYPE_CHECKING
-
+# pylint: disable=missing-docstring,too-many-instance-attributes
 import logging
-from pathlib import Path
-from typing import Union
 from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Tuple, Union
+
 import numpy as np
-
 import tvm
-from tvm.runtime import NDArray
-
-if TYPE_CHECKING:
-    from tvm.relax.frontend import nn
-
 from mlc_chat.compiler import MODELS
 from mlc_chat.compiler.model.llama_config import LlamaConfig
 from mlc_chat.compiler.model.llama_quantization import huggingface_group_quantize
 from mlc_chat.compiler.parameter import HuggingFaceLoader
 from mlc_chat.support import tqdm
+from tvm.runtime import NDArray
 
+if TYPE_CHECKING:
+    from tvm.relax.frontend import nn
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -75,13 +71,14 @@ def test_group_quantize_vs_numpy():
         "uint32": 32,
     }
 
+    # pylint: disable=unused-variable
     def group_quantize_np(
         w: NDArray,
         quantize_dtype: str = "int4",
         storage_dtype: str = "uint32",
         group_size: int = 32,
-        symmetric: bool = True,
-        transpose: bool = False,
+        # symmetric: bool = True,
+        # transpose: bool = False,
     ) -> Tuple[NDArray, NDArray]:
         # pylint: disable=too-many-locals
         def _pad_axis_by_factor(tensor: np.ndarray, axis: int, factor: int) -> np.ndarray:

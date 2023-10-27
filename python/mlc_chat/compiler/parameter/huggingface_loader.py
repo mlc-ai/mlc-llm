@@ -5,7 +5,8 @@ import json
 import logging
 from collections import OrderedDict, defaultdict
 from pathlib import Path
-from typing import Dict, Iterator, List, Tuple, Optional
+from typing import Dict, Iterator, List, Optional, Tuple
+
 import numpy as np
 from tqdm import tqdm
 from tvm.runtime import NDArray
@@ -13,7 +14,12 @@ from tvm.runtime.ndarray import array as as_ndarray
 
 from .mapping import ExternMapping, QuantizeMapping
 from .stats import Stats
-from .utils import ParamQuantizer, check_parameter_usage, load_safetensor_shard, load_torch_shard
+from .utils import (
+    ParamQuantizer,
+    check_parameter_usage,
+    load_safetensor_shard,
+    load_torch_shard,
+)
 
 logger = logging.getLogger(__name__)
 

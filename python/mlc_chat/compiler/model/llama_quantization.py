@@ -1,14 +1,17 @@
-from typing import Dict, List, Optional, Callable
+"""
+Quantization specs for Llama2 architecture.
+TODO: add docstring
+"""
+from typing import Callable, Dict, List, Optional
 
 import tvm
 from tvm.runtime import NDArray
 
-from .llama_config import LlamaConfig
-from .llama_model import LlamaForCasualLM
 from ..parameter import QuantizeMapping
 from ..quantization import QuantizeConfig
-
 from ..quantization.group_quantizer import te_quantize as te_group_quantize
+from .llama_config import LlamaConfig
+from .llama_model import LlamaForCasualLM
 
 
 def huggingface_group_quantize(
@@ -47,16 +50,18 @@ def huggingface_group_quantize(
         else:
             raise ValueError(f"Invalid target device: {target}")
         param_tensor = tvm.te.placeholder(param.shape, dtype=param.dtype, name="param")
-        weight_compute, scale_compute, other_computes = te_group_quantize(param_tensor, config)
+        weight_compute, scale_compute, other_computes = te_group_quantize(  # type: ignore
+            param_tensor, config
+        )
         s = tvm.te.create_schedule(
             [compute.op for compute in [weight_compute, scale_compute] + other_computes]
         )
         if target.kind.name == "cuda":
             # thread_binding for cuda
-            for C in [weight_compute, scale_compute] + other_computes:
-                xo, xi = s[C].split(C.op.axis[0], 256)
-                s[C].bind(xo, tvm.te.thread_axis("blockIdx.x"))
-                s[C].bind(xi, tvm.te.thread_axis("threadIdx.x"))
+            for compute in [weight_compute, scale_compute] + other_computes:
+                xo, xi = s[compute].split(compute.op.axis[0], 256)
+                s[compute].bind(xo, tvm.te.thread_axis("blockIdx.x"))
+                s[compute].bind(xi, tvm.te.thread_axis("threadIdx.x"))
         f_quantize = tvm.build(
             s, [param_tensor, weight_compute, scale_compute], name="group_quantize", target=target
         )
