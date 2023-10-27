@@ -5,17 +5,15 @@ import json
 import logging
 from collections import OrderedDict, defaultdict
 from pathlib import Path
-from typing import Dict, Iterator, List, Tuple
-
+from typing import Dict, Iterator, List, Tuple, Optional
 import numpy as np
 from tqdm import tqdm
 from tvm.runtime import NDArray
 from tvm.runtime.ndarray import array as as_ndarray
 
-from .group_quantizer import GroupQuantizer
-from .mapping import ExternMapping
+from .mapping import ExternMapping, QuantizeMapping
 from .stats import Stats
-from .utils import check_parameter_usage, load_safetensor_shard, load_torch_shard
+from .utils import ParamQuantizer, check_parameter_usage, load_safetensor_shard, load_torch_shard
 
 logger = logging.getLogger(__name__)
 
@@ -39,19 +37,22 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
     cached_files : Dict[Path, Dict[str, np.ndarray]]
         A cache of the loaded files. The key is the path of the file, and the value is a mapping
         from parameter name to the parameter value.
+
+    quantize_param_map : Optional[QuantizeMapping]
+        The quantization mapping from MLC to quantized MLC parameters.
     """
 
     stats: Stats
-    extern_param_map: ExternMapping
     cached_files: Dict[Path, Dict[str, np.ndarray]]
     torch_to_path: Dict[str, Path]
-    quantizer: GroupQuantizer
+    extern_param_map: ExternMapping
+    quantize_param_map: Optional[QuantizeMapping]
 
     def __init__(
         self,
         path: Path,
         extern_param_map: ExternMapping,
-        quantizer: GroupQuantizer = None,
+        quantize_param_map: Optional[QuantizeMapping] = None,
     ) -> None:
         """Create a parameter loader from HuggingFace PyTorch format.
 
@@ -69,13 +70,17 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
 
         extern_param_map : ExternMapping
             Maps an MLC parameter to a list of PyTorch/SafeTensor parameters.
+
+        quantize_param_map: Optional[QuantizeMapping]
+            The quantization mapping from MLC to quantized MLC parameters, default to None, which
+            means no quantization.
         """
         assert path.is_file()
         self.stats = Stats()
         self.extern_param_map = extern_param_map
         self.cached_files = {}
         self.torch_to_path = {}
-        self.quantizer = quantizer
+        self.quantize_param_map = quantize_param_map
         if path.suffix in (".bin", ".safetensors"):
             self._load_file(path)
             for name in self.cached_files[path].keys():
@@ -94,8 +99,11 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         mlc_names = _loading_order(self.extern_param_map, self.torch_to_path)
         for mlc_name in tqdm(mlc_names):
             param = self._load_mlc_param(mlc_name)
-            if self.quantizer:
-                quantized_params = self.quantizer.quantize(mlc_name, param)
+            if self.quantize_param_map:
+                with self.stats.timer("quant_time_sec"):
+                    quantized_params = ParamQuantizer(self.quantize_param_map).quantize(
+                        mlc_name, param
+                    )
                 for quantized_name, quantized_param in quantized_params:
                     logger.info(
                         '  Quantized Parameter: "%s", shape: %s, dtype: %s',
