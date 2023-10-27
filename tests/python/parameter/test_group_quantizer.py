@@ -28,7 +28,7 @@ logging.basicConfig(
 )
 
 
-def test_load_torch_llama_group_quantize(base_path: Union[str, Path]):
+def test_load_torch_llama_group_quantize(base_path: Union[str, Path], target: str = "llvm"):
     @dataclass
     class TestGroupQuantizeConfig:
         name: str = "q4f16_1"
@@ -56,7 +56,8 @@ def test_load_torch_llama_group_quantize(base_path: Union[str, Path]):
         extern_param_map=model.source["huggingface-torch"](model_config, None),
         quantize_param_map=huggingface_group_quantize(
             model_config,
-            quantize_config,  # target=tvm.target.Target("nvidia/nvidia-a100")
+            quantize_config,
+            target=tvm.target.Target(target),
         ),
     )
     with tqdm.redirect():
@@ -141,4 +142,19 @@ def test_group_quantize_vs_numpy():
 
 
 if __name__ == "__main__":
-    test_load_torch_llama_group_quantize(base_path="./dist/models/Llama-2-7b-hf")
+    test_load_torch_llama_group_quantize(
+        base_path="./dist/models/Llama-2-7b-hf",
+        target="llvm",
+    )
+    test_load_torch_llama_group_quantize(
+        base_path="./dist/models/Llama-2-7b-hf",
+        target="nvidia/nvidia-a100",
+    )
+    test_load_torch_llama_group_quantize(
+        base_path="./dist/models/Llama-2-13b-hf",
+        target="llvm",
+    )
+    test_load_torch_llama_group_quantize(
+        base_path="./dist/models/Llama-2-13b-hf",
+        target="nvidia/nvidia-a100",
+    )

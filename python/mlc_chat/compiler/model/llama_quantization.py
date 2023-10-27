@@ -39,7 +39,7 @@ def huggingface_group_quantize(
     def group_quantize(
         param: NDArray, config: QuantizeConfig, target: Optional[tvm.target.Target] = None
     ):
-        if target is None:
+        if target is None or target.kind.name == "llvm":
             target = tvm.target.Target("llvm")
             device = tvm.cpu()
         elif target.kind.name == "cuda":
