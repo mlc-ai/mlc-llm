@@ -1184,12 +1184,12 @@ class LLMChat {
   /*!
    * \brief Argmax calculated for logprobs
    */
-  std::vector<int32_t> LogProbsArgmax(const float* logprobs, size_t seq_length, int32_t vocab_length) {
+  std::vector<int32_t> LogProbsArgmax(const float* in_logprobs, size_t seq_length, int32_t vocab_length) {
     std::vector<int32_t> res(seq_length);
 
     for (size_t seq_ind = 0; seq_ind < seq_length; ++seq_ind){
       // Find max and its index in the slice
-      const float* logprobs = logprobs + vocab_length*seq_ind;
+      const float* logprobs = in_logprobs + vocab_length*seq_ind;
       float max_value = logprobs[0];
       int32_t maxarg_ind = 0;
       for (int32_t i = 0; i < vocab_length; ++i) {
