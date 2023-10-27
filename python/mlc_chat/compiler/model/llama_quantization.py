@@ -64,7 +64,7 @@ def huggingface_group_quantize(
     # Dispatch quantization scheme
     # Also see https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/quantization/__init__.py
     for name in parameter_names:
-        if "norm.weight" not in name:
+        if "norm.weight" not in name and "embed" not in name:
             param_map[name] = [f"{name}_quantized", f"{name}_scale"]
             map_func[name] = lambda x: group_quantize(x, quantize_config)
         else:
