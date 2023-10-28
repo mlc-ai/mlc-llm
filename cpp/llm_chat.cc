@@ -437,7 +437,7 @@ class LLMChat {
 
   /*!
    * \brief Reload model, tokenizers and configurations from the specified model path.
-   * \param executable The module to reload.
+   * \param reload_lib The module to reload, it can either be a path to the library or a tvm Module.
    * \param model_path The path to search for models.
    * \param app_config_json The JSON string used to partially override the configuration loaded from
    * disk, default to empty string.
