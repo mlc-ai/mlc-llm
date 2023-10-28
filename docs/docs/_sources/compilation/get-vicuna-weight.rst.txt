@@ -5,7 +5,7 @@ Getting Vicuna Weights
    :local:
    :depth: 2
 
-`Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`_ is a open-source chatbot trained by fine-tuning `LLaMA <https://ai.facebook.com/blog/large-language-model-llama-meta-ai/>`_ on `ShartGPT <https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered>`_ data.
+`Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`_ is an open-source chatbot trained by fine-tuning `LLaMA <https://ai.facebook.com/blog/large-language-model-llama-meta-ai/>`_ on `ShartGPT <https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered>`_ data.
 
 Please note that the official Vicuna weights are delta weights applied to the LLaMA weights in order to comply with the LLaMA license. Users are responsible for applying these delta weights themselves.
 
@@ -14,7 +14,7 @@ In this tutorial, we will show how to apply the delta weights to LLaMA weights t
 Install FastChat
 ----------------
 
-FastChat offers convenient utility functions for applying delta to LLaMA weights. You can easily install it using pip.
+FastChat offers convenient utility functions for applying the delta to LLaMA weights. You can easily install it using pip.
 
 .. code-block:: bash
 
@@ -38,14 +38,14 @@ Then download the weights (both the LLaMA weight and Vicuna delta weight):
     git clone https://huggingface.co/lmsys/vicuna-7b-delta-v1.1
 
 
-There is a name mis-alignment issue in the LLaMA weights and Vicuna delta weights.
+There is a name misalignment issue in the LLaMA weights and Vicuna delta weights.
 Please follow these steps to modify the content of the "config.json" file:
 
 .. code-block:: bash
 
     sed -i 's/LLaMAForCausalLM/LlamaForCausalLM/g' llama-7b-hf/config.json
 
-Then use ``fschat`` to apply delta to LLaMA weights
+Then use ``fschat`` to apply the delta to LLaMA weights
 
 .. code-block:: bash
 

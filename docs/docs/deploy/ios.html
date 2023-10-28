@@ -320,9 +320,9 @@
 <li><p><a class="reference internal" href="#build-apps-with-mlc-swift-api" id="id9">Build Apps with MLC Swift API</a></p></li>
 </ul>
 </nav>
-<p>The MLC LLM iOS app can be installed in two ways: through the pre-built package or by building from source.
+<p>The MLC LLM iOS app can be installed in two ways: through the pre-built package or by building from the source.
 If you are an iOS user looking to try out the models, the pre-built package is recommended. If you are a
-developer seeking to integrate new features into the package, building the iOS package from source is required.</p>
+developer seeking to integrate new features into the package, building the iOS package from the source is required.</p>
 <section id="use-pre-built-ios-app">
 <h2><a class="toc-backref" href="#id2" role="doc-backlink">Use Pre-built iOS App</a><a class="headerlink" href="#use-pre-built-ios-app" title="Permalink to this heading">¶</a></h2>
 <p>The MLC Chat app is now available in App Store at no cost. You can download and explore it by simply clicking the button below:</p>
@@ -332,7 +332,7 @@ developer seeking to integrate new features into the package, building the iOS p
 </section>
 <section id="build-ios-app-from-source">
 <h2><a class="toc-backref" href="#id3" role="doc-backlink">Build iOS App from Source</a><a class="headerlink" href="#build-ios-app-from-source" title="Permalink to this heading">¶</a></h2>
-<p>This section shows how we can build the app from source.</p>
+<p>This section shows how we can build the app from the source.</p>
 <section id="step-1-install-build-dependencies">
 <h3><a class="toc-backref" href="#id4" role="doc-backlink">Step 1. Install Build Dependencies</a><a class="headerlink" href="#step-1-install-build-dependencies" title="Permalink to this heading">¶</a></h3>
 <p>First and foremost, please clone the <a class="reference external" href="https://github.com/mlc-ai/mlc-llm">MLC LLM GitHub repository</a>.</p>
@@ -421,7 +421,7 @@ your own developer team credential and product bundle identifier.</p>
 <p>Ensure that all the necessary dependencies and configurations are
 correctly set up in the Xcode project.</p>
 <p>Once you have made the necessary changes, build the iOS app using Xcode.
-If you have an Apple Silicon Mac, you can select target “My Mac (designed for ipad)”
+If you have an Apple Silicon Mac, you can select target “My Mac (designed for iPad)”
 to run on your Mac. You can also directly run it on your iPad or iPhone.</p>
 <a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/xcode-build.jpg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/xcode-build.jpg" class="align-center" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/xcode-build.jpg" style="width: 60%;" /></a>
 <div class="line-block">
@@ -446,7 +446,7 @@ will look at this field, find compiled or prebuilt model libraries, and package 
 </dl>
 <p>Additionally, the app prepackages the models under <code class="docutils literal notranslate"><span class="pre">./ios/dist</span></code>.
 This built-in list can be controlled by editing <code class="docutils literal notranslate"><span class="pre">prepare_params.sh</span></code>.
-You can package new prebuilt models or compiled models by changing the above fields and then repeat the steps above.</p>
+You can package new prebuilt models or compiled models by changing the above fields and then repeating the steps above.</p>
 </section>
 <section id="build-apps-with-mlc-swift-api">
 <h2><a class="toc-backref" href="#id9" role="doc-backlink">Build Apps with MLC Swift API</a><a class="headerlink" href="#build-apps-with-mlc-swift-api" title="Permalink to this heading">¶</a></h2>
@@ -476,8 +476,8 @@ and add local package that points to <code class="docutils literal notranslate">
 </div></blockquote>
 </li>
 </ul>
-<p>You can then can import the <cite>MLCSwift</cite> package in your app.
-The following code shows an illustrative example about how to use the chat module.</p>
+<p>You can then import the <cite>MLCSwift</cite> package into your app.
+The following code shows an illustrative example of how to use the chat module.</p>
 <div class="highlight-swift notranslate"><div class="highlight"><pre><span></span><span class="kd">import</span> <span class="nc">MLCSwift</span>
 
 <span class="kd">let</span> <span class="nv">threadWorker</span> <span class="p">=</span> <span class="n">ThreadWorker</span><span class="p">()</span>
@@ -502,7 +502,7 @@ The following code shows an illustrative example about how to use the chat modul
 <p>Because the chat module makes heavy use of GPU and thread-local
 resources, it needs to run on a dedicated background thread.
 Therefore, <strong>avoid using</strong> <cite>DispatchQueue</cite>, which can cause context switching to
-different threads and segfaults due to thread-safety issue.
+different threads and segfaults due to thread-safety issues.
 Use the <cite>ThreadWorker</cite> class to launch all the jobs related
 to the chat module. You can check out the source code of
 the MLCChat app for a complete example.</p>

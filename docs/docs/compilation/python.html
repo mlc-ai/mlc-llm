@@ -309,8 +309,8 @@
 <li><p><a class="reference internal" href="#api-reference" id="id3">API Reference</a></p></li>
 </ul>
 </nav>
-<p>We expose Python API for compiling/building model in the package <code class="xref py py-mod docutils literal notranslate"><span class="pre">mlc_llm</span></code>, so
-that users may build model in any directory in their program (i.e. not just
+<p>We expose Python API for compiling/building models in the package <code class="xref py py-mod docutils literal notranslate"><span class="pre">mlc_llm</span></code>, so
+that users may build a model in any directory in their program (i.e. not just
 within the mlc-llm repo).</p>
 <section id="install-mlc-llm-as-a-package">
 <h2><a class="toc-backref" href="#id1" role="doc-backlink">Install MLC-LLM as a Package</a><a class="headerlink" href="#install-mlc-llm-as-a-package" title="Permalink to this heading">¶</a></h2>
@@ -339,7 +339,7 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 <p>After installing the package, you can build the model using <a class="reference internal" href="#mlc_llm.build_model" title="mlc_llm.build_model"><code class="xref py py-meth docutils literal notranslate"><span class="pre">mlc_llm.build_model()</span></code></a>,
 which takes in an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">BuildArgs</span></code> (a dataclass that represents
 the arguments for building a model).</p>
-<p>For detailed instruction with code, please refer to <a class="reference external" href="https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_compile_llama2_with_mlc_llm.ipynb">the python notebook</a>
+<p>For detailed instructions with code, please refer to <a class="reference external" href="https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_compile_llama2_with_mlc_llm.ipynb">the Python notebook</a>
 (executable in Colab), where we walk you through compiling Llama-2 with <code class="xref py py-mod docutils literal notranslate"><span class="pre">mlc_llm</span></code>
 in Python.</p>
 </section>
@@ -347,7 +347,7 @@ in Python.</p>
 <span id="api-reference-compile-model"></span><h2><a class="toc-backref" href="#id3" role="doc-backlink">API Reference</a><a class="headerlink" href="#api-reference" title="Permalink to this heading">¶</a></h2>
 <p>In order to use the python API <a class="reference internal" href="#mlc_llm.build_model" title="mlc_llm.build_model"><code class="xref py py-meth docutils literal notranslate"><span class="pre">mlc_llm.build_model()</span></code></a>, users need to create
 an instance of the dataclass <code class="xref py py-class docutils literal notranslate"><span class="pre">BuildArgs</span></code>. The corresponding arguments in
-command line shown in <a class="reference internal" href="compile_models.html#compile-command-specification"><span class="std std-ref">Compile Command Specification</span></a> are automatically
+the command line shown in <a class="reference internal" href="compile_models.html#compile-command-specification"><span class="std std-ref">Compile Command Specification</span></a> are automatically
 converted from the definition of <code class="xref py py-class docutils literal notranslate"><span class="pre">BuildArgs</span></code> and are equivalent.</p>
 <p>Then with an instantiated <code class="xref py py-class docutils literal notranslate"><span class="pre">BuildArgs</span></code>, users can call the build API
 <a class="reference internal" href="#mlc_llm.build_model" title="mlc_llm.build_model"><code class="xref py py-meth docutils literal notranslate"><span class="pre">mlc_llm.build_model()</span></code></a>.</p>

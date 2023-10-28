@@ -304,14 +304,14 @@
   <section id="compile-models-via-mlc">
 <span id="id1"></span><h1>Compile Models via MLC<a class="headerlink" href="#compile-models-via-mlc" title="Permalink to this heading">¶</a></h1>
 <p>This page describes how to compile a model with MLC LLM. Model compilation takes model inputs, produces quantized model weights,
-and optimized model lib for a given platform. It enables users to bring their own new model weights, try different quantization modes,
+and optimizes model lib for a given platform. It enables users to bring their own new model weights, try different quantization modes,
 and customize the overall model optimization flow.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Before you proceed, please make sure that you have <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a> correctly installed on your machine.
 TVM-Unity is the necessary foundation for us to compile models with MLC LLM.
 If you want to build webgpu, please also complete <a class="reference internal" href="../install/emcc.html#install-web-build"><span class="std std-ref">Install Wasm Build Environment</span></a>.
-Please also follow the instruction in <a class="reference internal" href="../deploy/cli.html#deploy-cli"><span class="std std-ref">CLI and C++ API</span></a> to obtain the CLI app that can be used to chat with the compiled model.
+Please also follow the instructions in <a class="reference internal" href="../deploy/cli.html#deploy-cli"><span class="std std-ref">CLI and C++ API</span></a> to obtain the CLI app that can be used to chat with the compiled model.
 Finally, we strongly recommend you read <a class="reference internal" href="../get_started/project_overview.html#project-overview"><span class="std std-ref">Project Overview</span></a> first to get familiarized with the high-level terminologies.</p>
 </div>
 <nav class="contents local" id="table-of-contents">
@@ -327,7 +327,7 @@ Finally, we strongly recommend you read <a class="reference internal" href="../g
 <h2><a class="toc-backref" href="#id8" role="doc-backlink">Install MLC-LLM Package</a><a class="headerlink" href="#install-mlc-llm-package" title="Permalink to this heading">¶</a></h2>
 <section id="work-with-source-code">
 <h3>Work with Source Code<a class="headerlink" href="#work-with-source-code" title="Permalink to this heading">¶</a></h3>
-<p>The easiest way is to use MLC-LLM is to clone the repository, and compile models under the root directory of the repository.</p>
+<p>The easiest way to use MLC-LLM is to clone the repository, and compile models under the root directory of the repository.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># clone the repository</span>
 git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/mlc-llm.git<span class="w"> </span>--recursive
 <span class="c1"># enter to root directory of the repo</span>
@@ -384,7 +384,7 @@ xcrun: error: unable to find utility &quot;metallib&quot;, not a developer tool 
 </pre></div>
 </div>
 <p>, please check and make sure you have Command Line Tools for Xcode installed correctly.
-You can use <code class="docutils literal notranslate"><span class="pre">xcrun</span> <span class="pre">metal</span></code> to validate: when it prints <code class="docutils literal notranslate"><span class="pre">metal:</span> <span class="pre">error:</span> <span class="pre">no</span> <span class="pre">input</span> <span class="pre">files</span></code>, it means the Command Line Tools for Xcode is installed and can be found, and you can proceed the model compiling.</p>
+You can use <code class="docutils literal notranslate"><span class="pre">xcrun</span> <span class="pre">metal</span></code> to validate: when it prints <code class="docutils literal notranslate"><span class="pre">metal:</span> <span class="pre">error:</span> <span class="pre">no</span> <span class="pre">input</span> <span class="pre">files</span></code>, it means the Command Line Tools for Xcode is installed and can be found, and you can proceed with the model compiling.</p>
 </div>
 </div><div aria-labelledby="tab-0-QW5kcm9pZA==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
 </pre></div>
@@ -436,7 +436,7 @@ and model library <code class="docutils literal notranslate"><span class="pre">d
 </pre></div>
 </div>
 <p>We now chat with the model using the command line interface (CLI) app.
-Follow the build from source instruction</p>
+Follow the build from the source instruction</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run CLI</span>
 mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1
 </pre></div>
@@ -515,7 +515,7 @@ will be packaged as a static library into the android app. Checkout <a class="re
 </pre></div>
 </div>
 <p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm</span></code>
-can be uploaded to internet. You can pass a <code class="docutils literal notranslate"><span class="pre">model_lib_map</span></code> field to WebLLM app config to use this library.</p>
+can be uploaded to the internet. You can pass a <code class="docutils literal notranslate"><span class="pre">model_lib_map</span></code> field to WebLLM app config to use this library.</p>
 </div></div>
 <p>Each compilation target produces a specific model library for the given platform. The model weight is shared across
 different targets. If you are interested in distributing the model besides local execution, please checkout <a class="reference internal" href="distribute_compiled_models.html#distribute-compiled-models"><span class="std std-ref">Distribute Compiled Models</span></a>.
@@ -550,7 +550,7 @@ We will search for the model on your disk in the following two candidates:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">dist/models/MODEL_NAME_OR_PATH</span></code> (e.g., <code class="docutils literal notranslate"><span class="pre">--model</span> <span class="pre">Llama-2-7b-chat-hf</span></code>),</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">MODEL_NAME_OR_PATH</span></code> (e.g., <code class="docutils literal notranslate"><span class="pre">--model</span> <span class="pre">/my-model/Llama-2-7b-chat-hf</span></code>).</p></li>
 </ul>
-<p>When running the compile command using <code class="docutils literal notranslate"><span class="pre">--model</span></code>, please make sure you have placed the model to compile under <code class="docutils literal notranslate"><span class="pre">dist/models/</span></code> or other location on the disk.</p>
+<p>When running the compile command using <code class="docutils literal notranslate"><span class="pre">--model</span></code>, please make sure you have placed the model to compile under <code class="docutils literal notranslate"><span class="pre">dist/models/</span></code> or another location on the disk.</p>
 </dd>
 <dt><kbd><span class="option">--hf-path <var>HUGGINGFACE_NAME</var></span></kbd></dt>
 <dd><p>The name of the model’s Hugging Face repository.
@@ -583,13 +583,13 @@ we will use the maximum sequence length from the <code class="docutils literal n
 <dt><kbd><span class="option">--reuse-lib <var>LIB_NAME</var></span></kbd></dt>
 <dd><p>Specifies the previously generated library to reuse.
 This is useful when building the same model architecture with different weights.
-You can refer to the <a class="reference internal" href="distribute_compiled_models.html#distribute-model-step3-specify-model-lib"><span class="std std-ref">model distribution</span></a> page for detail of this argument.</p>
+You can refer to the <a class="reference internal" href="distribute_compiled_models.html#distribute-model-step3-specify-model-lib"><span class="std std-ref">model distribution</span></a> page for details of this argument.</p>
 </dd>
 <dt><kbd><span class="option">--use-cache</span></kbd></dt>
 <dd><p>When <code class="docutils literal notranslate"><span class="pre">--use-cache=0</span></code> is specified,
 the model compilation will not use cached file from previous builds,
 and will compile the model from the very start.
-Using cache can help reduce the time needed to compile.</p>
+Using a cache can help reduce the time needed to compile.</p>
 </dd>
 <dt><kbd><span class="option">--debug-dump</span></kbd></dt>
 <dd><p>Specifies whether to dump debugging files during compilation.</p>
@@ -604,7 +604,7 @@ Using cache can help reduce the time needed to compile.</p>
 <p>This section lists compile commands for more models that you can try out.</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">Model: Llama-2-7B</button><button aria-controls="panel-2-2-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-1" name="2-1" role="tab" tabindex="-1">Vicuna-v1-7B</button><button aria-controls="panel-2-2-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-2" name="2-2" role="tab" tabindex="-1">RedPajama-v1-3B</button><button aria-controls="panel-2-2-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-3" name="2-3" role="tab" tabindex="-1">rwkv-raven-1b5/3b/7b</button><button aria-controls="panel-2-2-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-4" name="2-4" role="tab" tabindex="-1">Other models</button></div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><p>Please <a class="reference external" href="https://huggingface.co/meta-llama">request for access</a> to the Llama-2 weights from Meta first.
-After granted the access, please create directory <code class="docutils literal notranslate"><span class="pre">dist/models</span></code> and download the model to the directory.
+After granted access, please create directory <code class="docutils literal notranslate"><span class="pre">dist/models</span></code> and download the model to the directory.
 For example, you can run the following code:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/models
 <span class="nb">cd</span><span class="w"> </span>dist/models

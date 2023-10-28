@@ -353,7 +353,7 @@ you can use the following command to compile it:</p>
 <p>You can <strong>optionally</strong> customize the chat config file
 <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/params/mlc-chat-config.json</span></code> (checkout <a class="reference internal" href="../get_started/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Configure MLCChat in JSON</span></a> for more detailed instructions).
 You can also simply use the default configuration and skip this step.</p>
-<p>For demonstration purpose, we update <code class="docutils literal notranslate"><span class="pre">mean_gen_len</span></code> to 32 and <code class="docutils literal notranslate"><span class="pre">max_gen_len</span></code> to 64.
+<p>For demonstration purposes, we update <code class="docutils literal notranslate"><span class="pre">mean_gen_len</span></code> to 32 and <code class="docutils literal notranslate"><span class="pre">max_gen_len</span></code> to 64.
 We also update <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> to <code class="docutils literal notranslate"><span class="pre">&quot;LM&quot;</span></code> because the model is instruction-tuned.</p>
 </section>
 <section id="step-3-specify-the-model-lib">
@@ -426,7 +426,7 @@ mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>RedPajama-INC
 <section id="download-the-distributed-models-and-run-in-ios-app">
 <h2><a class="toc-backref" href="#id7" role="doc-backlink">Download the Distributed Models and Run in iOS App</a><a class="headerlink" href="#download-the-distributed-models-and-run-in-ios-app" title="Permalink to this heading">¶</a></h2>
 <p>For iOS app, model libraries are statically packed into the app at the time of app building.
-Therefore, the iOS app supports running any models whose model libraries are integrated into the app.
+Therefore, the iOS app supports running any model whose model libraries are integrated into the app.
 You can check the <a class="reference internal" href="../prebuilt_models.html#using-prebuilt-models-ios"><span class="std std-ref">list of supported model libraries</span></a>.</p>
 <p>To download and run the compiled RedPajama-3B instruct model on iPhone, we need to reuse the integrated <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_1</span></code> model library.
 Please revisit <a class="reference internal" href="#distribute-model-step3-specify-model-lib"><span class="std std-ref">Step 3. Specify the Model Lib</span></a> and make sure the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field of <cite>mlc-chat-config.json</cite> is set to <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_1</span></code>.</p>
@@ -439,7 +439,7 @@ Please revisit <a class="reference internal" href="#distribute-model-step3-speci
 <a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-distribute-2.jpeg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-distribute-2.jpeg" class="align-center" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-distribute-2.jpeg" style="width: 30%;" /></a>
 </div><div aria-labelledby="tab-1-1-2" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-2" name="1-2" role="tabpanel" tabindex="0"><p>After adding the model, you can download your model from the URL by clicking the download button.</p>
 <a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-distribute-3.jpeg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-distribute-3.jpeg" class="align-center" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-distribute-3.jpeg" style="width: 30%;" /></a>
-</div><div aria-labelledby="tab-1-1-3" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-3" name="1-3" role="tabpanel" tabindex="0"><p>When the download is finished, click into the model and enjoy.</p>
+</div><div aria-labelledby="tab-1-1-3" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-3" name="1-3" role="tabpanel" tabindex="0"><p>When the download is finished, click on the model and enjoy.</p>
 <a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-distribute-4.jpeg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-distribute-4.jpeg" class="align-center" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-distribute-4.jpeg" style="width: 30%;" /></a>
 </div></div>
 <div class="line-block">

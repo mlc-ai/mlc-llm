@@ -304,7 +304,7 @@
             
   <section id="cli-and-c-api">
 <span id="deploy-cli"></span><h1>CLI and C++ API<a class="headerlink" href="#cli-and-c-api" title="Permalink to this heading">¶</a></h1>
-<p>MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box. You may install it from the prebuilt package we provide, or compile it from source.</p>
+<p>MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box. You may install it from the prebuilt package we provide, or compile it from the source.</p>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
@@ -333,14 +333,14 @@ mlc_chat_cli<span class="w"> </span>--help
 <p>After installation, activating <code class="docutils literal notranslate"><span class="pre">mlc-chat-venv</span></code> environment in Conda will give the <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> command available.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The prebuilt package supports <strong>Metal</strong> on macOS and <strong>Vulkan</strong> on Linux and Windows. It is possible to use other GPU runtimes such as <strong>CUDA</strong> by compiling MLCChat CLI from source.</p>
+<p>The prebuilt package supports <strong>Metal</strong> on macOS and <strong>Vulkan</strong> on Linux and Windows. It is possible to use other GPU runtimes such as <strong>CUDA</strong> by compiling MLCChat CLI from the source.</p>
 </div>
 </section>
 <section id="option-2-build-mlc-runtime-from-source">
 <span id="mlcchat-build-from-source"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Option 2. Build MLC Runtime from Source</a><a class="headerlink" href="#option-2-build-mlc-runtime-from-source" title="Permalink to this heading">¶</a></h2>
-<p>We also provid options to build mlc runtime libraries and <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> from source.
+<p>We also provide options to build mlc runtime libraries and <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> from source.
 This step is useful when you want to directly obtain a version of mlc runtime library
-and the cli. Please click the details below to see the instruction.</p>
+and the cli. Please click the details below to see the instructions.</p>
 <details class="summary-details">
 <summary>Details</summary><p><strong>Step 1. Set up build dependency.</strong> To build from source, you need to ensure that the following build dependencies are satisfied:</p>
 <ul class="simple">
@@ -371,7 +371,7 @@ conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><a class="reference internal" href="../install/tvm.html"><span class="doc">TVM Unity</span></a> compiler is not a dependency to MLCChat CLI. Only its runtime is required, which is automatically included in <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a>.</p>
+<p><a class="reference internal" href="../install/tvm.html"><span class="doc">TVM Unity</span></a> compiler is not a dependency on MLCChat CLI. Only its runtime is required, which is automatically included in <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a>.</p>
 </div>
 <p><strong>Step 2. Configure and build.</strong> A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:</p>
 <div class="literal-block-wrapper docutils container" id="id2">
@@ -402,7 +402,7 @@ ls<span class="w"> </span>-l<span class="w"> </span>./build/
 </div>
 <section id="run-models-through-mlcchat-cli">
 <h3><a class="toc-backref" href="#id6" role="doc-backlink">Run Models through MLCChat CLI</a><a class="headerlink" href="#run-models-through-mlcchat-cli" title="Permalink to this heading">¶</a></h3>
-<p>Once <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> is installed, you are able to run any MLC-compiled model on command line.</p>
+<p>Once <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> is installed, you are able to run any MLC-compiled model on the command line.</p>
 <p><strong>Ensure Model Exists.</strong> As the input to <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, it is always good to double check if the compiled model exists.</p>
 <details class="summary-details">
 <summary>Details</summary><div class="sphinx-tabs docutils container">
