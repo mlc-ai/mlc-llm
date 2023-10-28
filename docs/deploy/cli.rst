@@ -3,7 +3,7 @@
 CLI and C++ API
 ===============
 
-MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box. You may install it from the prebuilt package we provide, or compile it from source.
+MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box. You may install it from the prebuilt package we provide, or compile it from the source.
 
 .. contents:: Table of Contents
   :local:
@@ -25,16 +25,16 @@ To use other GPU runtimes, e.g. CUDA, please instead :ref:`build it from source 
 After installation, activating ``mlc-chat-venv`` environment in Conda will give the ``mlc_chat_cli`` command available.
 
 .. note::
-    The prebuilt package supports **Metal** on macOS and **Vulkan** on Linux and Windows. It is possible to use other GPU runtimes such as **CUDA** by compiling MLCChat CLI from source.
+    The prebuilt package supports **Metal** on macOS and **Vulkan** on Linux and Windows. It is possible to use other GPU runtimes such as **CUDA** by compiling MLCChat CLI from the source.
 
 .. _mlcchat_build_from_source:
 
 Option 2. Build MLC Runtime from Source
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-We also provid options to build mlc runtime libraries and ``mlc_chat_cli`` from source.
+We also provide options to build mlc runtime libraries and ``mlc_chat_cli`` from source.
 This step is useful when you want to directly obtain a version of mlc runtime library
-and the cli. Please click the details below to see the instruction.
+and the cli. Please click the details below to see the instructions.
 
 .. collapse:: Details
 
@@ -63,7 +63,7 @@ and the cli. Please click the details below to see the instruction.
         conda activate mlc-chat-venv
 
     .. note::
-        :doc:`TVM Unity </install/tvm>` compiler is not a dependency to MLCChat CLI. Only its runtime is required, which is automatically included in `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`_.
+        :doc:`TVM Unity </install/tvm>` compiler is not a dependency on MLCChat CLI. Only its runtime is required, which is automatically included in `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`_.
 
     **Step 2. Configure and build.** A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:
 
@@ -96,7 +96,7 @@ and the cli. Please click the details below to see the instruction.
 Run Models through MLCChat CLI
 ------------------------------
 
-Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model on command line.
+Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model on the command line.
 
 **Ensure Model Exists.** As the input to ``mlc_chat_cli``, it is always good to double check if the compiled model exists.
 
