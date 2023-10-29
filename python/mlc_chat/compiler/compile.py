@@ -66,7 +66,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
 
     config: Path
     quantization: str
-    model_type: Model
+    model: Model
     target: Target
     opt: OptimizationFlags
     build_func: Callable[[IRModule, "CompileArgs"], None]
@@ -79,7 +79,7 @@ def _echo_args(args: CompileArgs) -> None:
     print(f"{bold('Compiling with arguments:')}", file=out)
     print(f"  {bold('--config'):<25} {args.config}", file=out)
     print(f"  {bold('--quantization'):<25} {args.quantization}", file=out)
-    print(f"  {bold('--model-type'):<25} {args.model_type.name}", file=out)
+    print(f"  {bold('--model-type'):<25} {args.model.name}", file=out)
     print(f"  {bold('--target'):<25} {args.target.export()}", file=out)
     print(f"  {bold('--opt'):<25} {args.opt}", file=out)
     print(f"  {bold('--output'):<25} {args.output}", file=out)
@@ -101,6 +101,14 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
         config, quantization, model_type, target, opt, build_func, prefix_symbols, output
     )
     _echo_args(args)
+    model_config = args.model.config.from_file(args.config)
+    model = args.model.model(model_config)
+    mod, named_params = model.export_tvm(
+        spec=model.get_default_spec(),  # type: ignore
+    )
+    mod.show(black_format=False)
+    for name, param in named_params:
+        print(f"{name}: {param.shape} {param.dtype}")
 
 
 OPT_FLAG_PRESET = {
