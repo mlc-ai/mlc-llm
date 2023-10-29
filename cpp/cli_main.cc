@@ -480,7 +480,7 @@ void Chat(ChatModule* chat, const std::string& device_name, std::string local_id
 }
 
 int main(int argc, char* argv[]) {
-  argparse::ArgumentParser args("mlc_chat");
+  argparse::ArgumentParser args("mlc_chat_cli");
 
   args.add_description(
       "MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box.\n"
