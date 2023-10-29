@@ -28,7 +28,6 @@ follow_imports = "skip"
 ignore_errors = false
 strict_optional = false
 install_types = true
-non_interactive = true
 
 [tool.pylint.messages_control]
 max-line-length = 100

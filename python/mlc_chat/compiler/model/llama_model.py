@@ -217,14 +217,26 @@ class LlamaForCasualLM(nn.Module):
             "prefill": {
                 "inputs": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
                 "total_seq_len": int,
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "packed",
+                },
             },
             "decode": {
                 "inputs": nn.spec.Tensor([batch_size, 1], "int32"),
                 "total_seq_len": int,
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "packed",
+                },
             },
             "softmax_with_temperature": {
                 "logits": nn.spec.Tensor([1, 1, "vocab_size"], "float32"),
                 "temperature": nn.spec.Tensor([], "float32"),
+                "$": {
+                    "param_mode": "none",
+                    "effect_mode": "none",
+                },
             },
         }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)
