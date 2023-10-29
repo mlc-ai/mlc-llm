@@ -1,6 +1,5 @@
 """Namespace of callback functions in Python API."""
-#! pylint: disable=unused-import, invalid-name, unnecessary-pass
-
+# pylint: disable=unused-import, invalid-name, unnecessary-pass
 from queue import Queue
 from typing import Optional
 
@@ -94,7 +93,7 @@ class StreamIterator(DeltaCallback):
             Timeout for put and get from the delta messages queue
         """
         super().__init__()
-        self.delta_messages = Queue()
+        self.delta_messages: Queue[str] = Queue()
         self.callback_interval = callback_interval
         self.timeout = timeout
 
@@ -119,5 +118,4 @@ class StreamIterator(DeltaCallback):
         value = self.delta_messages.get(timeout=self.timeout)
         if value:
             return value
-        else:
-            raise StopIteration()
+        raise StopIteration()
