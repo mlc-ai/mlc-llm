@@ -1,11 +1,9 @@
 """Gradio interface for MLC Chat."""
-# pylint: disable=import-error, import-outside-toplevel, invalid-name, line-too-long, protected-access
-# too-many-instance-attributes, too-many-locals, unused-import
-
+# pylint: disable=import-error,invalid-name,too-many-instance-attributes,too-many-locals
 import argparse
 import glob
 import os
-from typing import Dict
+from typing import Dict, Optional
 
 import gradio as gr
 
@@ -48,17 +46,19 @@ def _get_all_available_models_under_dir(artifact_path: str) -> Dict[str, str]:
     Note
     ----
     We only search for folders under the artifact_path, without recursive search for subfolders.
-    For each folder, we count it as a valid MLC model folder if either it contains a `mlc-chat-config.json`
-    file, or it contains a `params` folder which contains a `mlc-chat-config.json` file. We will map
-    the name of a valid folder to its full path to the folder containing `mlc-chat-config.json`.
+    For each folder, we count it as a valid MLC model folder if either it contains an
+    `mlc-chat-config.json` file, or it contains a `params` folder which contains an
+    `mlc-chat-config.json` file. We will map the name of a valid folder to its full path to the
+    folder containing `mlc-chat-config.json`.
     """
 
     # step 0. retrieve the absolute path of artifact_path
     search_dir = os.path.abspath(artifact_path)
     if not os.path.exists(search_dir):
         err_msg = (
-            f"The artifact path {artifact_path} you provided is neither a valid full path nor a valid path ",
-            "relative to the current working directory. Please provide a correct artifact path.",
+            f"The artifact path {artifact_path} you provided is neither a valid full path nor a "
+            "valid path relative to the current working directory. Please provide a correct "
+            "artifact path.",
         )
         raise FileNotFoundError(err_msg)
 
@@ -78,9 +78,9 @@ def _get_all_available_models_under_dir(artifact_path: str) -> Dict[str, str]:
 
 
 class GradioModule:
-    r"""The Gradio module for MLC Chat. Different from ChatModule Python API, Gradio module allows users
-    to load in a directory of models, watch the streaming in web browser, and switch between models more
-    easily to compare performance.
+    r"""The Gradio module for MLC Chat. Different from ChatModule Python API, Gradio module allows
+    users to load in a directory of models, watch the streaming in web browser, and switch between
+    models more easily to compare performance.
 
     Note: Multimodality will be supported soon, i.e. allowing users to upload an image to chat.
     """
@@ -88,7 +88,7 @@ class GradioModule:
     def __init__(self, artifact_path: str = "dist", device: str = "auto"):
         self.artifact_path = artifact_path
         self.device_str = device
-        self.chat_mod = None
+        self.chat_mod: Optional[ChatModule] = None
         self.model_dict = _get_all_available_models_under_dir(artifact_path)
 
     def gradio_reload_model(self, model_name: str):
@@ -133,6 +133,7 @@ class GradioModule:
         Note: Below is a low-level implementation of generate() API, since it's easier
         to yield without delta callback."""
         prompt = chatbot[-1][0]
+        # pylint: disable=protected-access
         self.chat_mod._prefill(prompt)
         i, new_msg = 0, ""
         while not self.chat_mod._stopped():
@@ -142,6 +143,7 @@ class GradioModule:
                 chatbot[-1][1] = new_msg
                 yield chatbot
             i += 1
+        # pylint: enable=protected-access
 
     def gradio_stats(self):
         """Get runtime statistics."""
@@ -155,7 +157,8 @@ def launch_gradio(
     share: bool = False,
     host: str = "127.0.0.1",
 ):
-    r"""Launch the gradio interface with a given port, creating a publically sharable link if specified."""
+    r"""Launch the gradio interface with a given port, creating a publically sharable link if
+    specified."""
 
     # create a gradio module
     mod = GradioModule(artifact_path, device)
