@@ -53,13 +53,13 @@ def huggingface_group_quantize(
         weight_compute, scale_compute, other_computes = te_group_quantize(  # type: ignore
             param_tensor, config
         )
-        s = tvm.te.create_schedule(
+        s = tvm.te.create_schedule(  # pylint: disable=invalid-name
             [compute.op for compute in [weight_compute, scale_compute] + other_computes]
         )
         if target.kind.name == "cuda":
             # thread_binding for cuda
             for compute in [weight_compute, scale_compute] + other_computes:
-                xo, xi = s[compute].split(compute.op.axis[0], 256)
+                xo, xi = s[compute].split(compute.op.axis[0], 256)  # pylint: disable=invalid-name
                 s[compute].bind(xo, tvm.te.thread_axis("blockIdx.x"))
                 s[compute].bind(xi, tvm.te.thread_axis("threadIdx.x"))
         f_quantize = tvm.build(

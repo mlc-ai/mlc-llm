@@ -73,7 +73,7 @@ def test_group_quantize_vs_numpy():
 
     # pylint: disable=unused-variable
     def group_quantize_np(
-        w: NDArray,
+        w: NDArray,  # pylint: disable=invalid-name
         quantize_dtype: str = "int4",
         storage_dtype: str = "uint32",
         group_size: int = 32,
@@ -90,7 +90,7 @@ def test_group_quantize_vs_numpy():
             return np.pad(tensor, pad_width, mode="constant", constant_values=0)
 
         def _clip(
-            x: np.ndarray,
+            x: np.ndarray,  # pylint: disable=invalid-name
             x_min: int,
             x_max: int,
             dtype: str,
@@ -131,7 +131,7 @@ def test_group_quantize_vs_numpy():
         res = np.zeros((n, k, num_storage_units), dtype=np.uint32)
         for i in range(n):
             for j in range(k):
-                for m in range(num_storage_units):
+                for m in range(num_storage_units):  # pylint: disable=invalid-name
                     for k in range(num_elem_per_storage):
                         res[i, j, m] += w[i, j, m * num_elem_per_storage + k] * 2**k
         return tvm.nd.array(res), tvm.nd.array(scale)
