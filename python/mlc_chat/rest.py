@@ -198,13 +198,13 @@ async def request_completion(request: ChatCompletionRequest):
             prev_txt = ""
             async for content in AsyncCompletionStream(generation_config=generation_config):
                 if content:
-                    valid_content = content.replace('�', '')
+                    valid_content = content.replace("�", "")
                     chunk = ChatCompletionStreamResponse(
                         choices=[
                             ChatCompletionResponseStreamChoice(
                                 index=0,
                                 delta=DeltaMessage(
-                                    role="assistant", content=valid_content[len(prev_txt):]
+                                    role="assistant", content=valid_content[len(prev_txt) :]
                                 ),
                                 finish_reason="stop",
                             )
