@@ -22,6 +22,7 @@ from mlc_llm.relax_model import (
     gpt_neox,
     gptj,
     llama,
+    llama_batched_vllm,
     minigpt,
     param_manager,
     rwkv,
@@ -96,7 +97,7 @@ class BuildArgs:
         Disable offloading layer and RMS norm operations to CUTLASS.
     no_cublas: bool
         Disable the step that offloads matmul to cuBLAS. Without this flag,
-        matmul will be offloaded to cuBLAS if quantization mode is ``q0f16`` or 
+        matmul will be offloaded to cuBLAS if quantization mode is ``q0f16`` or
         ``q0f32``, target is CUDA and TVM has been built with cuBLAS enabled.
     use_cuda_graph: bool
         Specifies whether to enable CUDA Graph for the decoder. MLP and QKV
@@ -108,6 +109,8 @@ class BuildArgs:
         Offload multi-query attention workload to Flash Attention.
     pdb: bool
         If set, drop into a pdb debugger on error.
+    use_vllm_attention: bool
+        Use vLLM paged KV cache and attention kernel, only relevant when enable_batching=True.
     """
     model: str = field(
         default="auto",
@@ -279,6 +282,15 @@ class BuildArgs:
             "action": "store_true",
         },
     )
+    use_vllm_attention: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Use vLLM paged KV cache and attention kernel, only relevant when enable_batching=True."
+            ),
+            "action": "store_true",
+        },
+    )
 
 
 def convert_build_args_to_argparser() -> argparse.ArgumentParser:
@@ -314,6 +326,11 @@ def _parse_args(parsed) -> argparse.Namespace:
 
     utils.parse_target(parsed)
     utils.argparse_postproc_common(parsed)
+
+    if parsed.use_vllm_attention:
+        assert parsed.enable_batching, "--enable_batching is required for using vLLM attention."
+        assert parsed.target_kind == "cuda", "vLLM attention is only supported for CUDA."
+        assert tvm.get_global_func("tvm.contrib.vllm.single_query_cached_kv_attention", True), "TVM needs to be built with -DUSE_VLLM=ON."
 
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
@@ -409,10 +426,19 @@ def mod_transform_before_build(
         model_names = [
             "prefill",
             "decode",
-            "create_kv_cache",
-            "softmax_with_temperature",
-            "get_metadata",
         ]
+
+        if not args.use_vllm_attention:
+            model_names += [
+                "create_kv_cache",
+                "softmax_with_temperature",
+                "get_metadata",
+            ]
+        else:
+            # This is equivalent to prefill but without KV cache. It is used for
+            # determining the number of paged cache blocks that can be allocated.
+            model_names.append("evaluate")
+
         if args.sep_embed:
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
             if args.enable_batching:
@@ -427,7 +453,8 @@ def mod_transform_before_build(
     mod = mlc_llm.transform.FuseDecodeTranspose(skip_gemm=not use_ft_quant)(mod)
 
     if (
-        hasattr(config, "num_attention_heads")
+        not args.enable_batching
+        and hasattr(config, "num_attention_heads")
         and hasattr(config, "hidden_size")
         and hasattr(config, "position_embedding_base")
         and getattr(config, "dtype", "float16") == "float16"
@@ -648,6 +675,10 @@ def build_model_from_args(args: argparse.Namespace):
             "rwkv_world": rwkv,
             "chatglm": chatglm,
         }
+
+        if args.use_vllm_attention:
+            model_generators["llama"] = llama_batched_vllm
+            model_generators["mistral"] = llama_batched_vllm
 
         assert args.model_category in model_generators, f"Model {args.model} not supported"
 

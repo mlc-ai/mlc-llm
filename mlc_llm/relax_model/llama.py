@@ -38,6 +38,7 @@ class LlamaConfig:
         combine_matmul=True,
         build_model_only=False,
         num_shards=1,
+        sliding_window=None,
         **kwargs,
     ):
         self.dtype = dtype
@@ -57,6 +58,8 @@ class LlamaConfig:
         self.tie_word_embeddings = tie_word_embeddings
         self.position_embedding_base = position_embedding_base
         self.combine_matmul = combine_matmul
+        self.sliding_window = sliding_window
+
         if build_model_only and num_shards > 1:
             self.num_shards = num_shards
         else:
@@ -120,30 +123,50 @@ class LlamaRMSNorm(nn.Module):
             def f_square(x):
                 return tir.Cast("float32", x) * tir.Cast("float32", x) if not is_float32 else x * x
 
-            k = te.reduce_axis((0, x.shape[2]), name="k")
-            square_sum = te.compute(
-                (x.shape[0], x.shape[1]),
-                lambda bsz, i: te.sum(f_square(x[bsz, i, k]), axis=k),
-                name=x.op.name + "red_temp",
-            )
-
-            def f_div_cast(bsz, i, k):
-                x_val = x[bsz, i, k]
-                if not is_float32:
-                    x_val = tir.Cast("float32", x_val)
-                return x_val / tir.sqrt(square_sum[bsz, i] / x.shape[2] + self.variance_epsilon)
-
             def f_mul_cast(x, y):
                 value = x * y
                 if not is_float32:
                     value = tir.Cast(x.dtype, value)
                 return value
 
-            return te.compute(
-                x.shape,
-                lambda bsz, i, k: f_mul_cast(weight(k), f_div_cast(bsz, i, k)),
-                name="rms_norm",
-            )
+            def f_div_cast_2d(i, k):
+                x_val = x[i, k]
+                if not is_float32:
+                    x_val = tir.Cast("float32", x_val)
+                return x_val / tir.sqrt(square_sum[i] / x.shape[1] + self.variance_epsilon)
+
+            def f_div_cast_3d(bsz, i, k):
+                x_val = x[bsz, i, k]
+                if not is_float32:
+                    x_val = tir.Cast("float32", x_val)
+                return x_val / tir.sqrt(square_sum[bsz, i] / x.shape[2] + self.variance_epsilon)
+
+            k = te.reduce_axis((0, x.shape[-1]), name="k")
+
+            if len(x.shape) == 2:
+                square_sum = te.compute(
+                    (x.shape[0],),
+                    lambda i: te.sum(f_square(x[i, k]), axis=k),
+                    name=x.op.name + "red_temp",
+                )
+
+                return te.compute(
+                    x.shape,
+                    lambda i, k: f_mul_cast(weight(k), f_div_cast_2d(i, k)),
+                    name="rms_norm",
+                )
+            else:
+                square_sum = te.compute(
+                    (x.shape[0], x.shape[1]),
+                    lambda bsz, i: te.sum(f_square(x[bsz, i, k]), axis=k),
+                    name=x.op.name + "red_temp",
+                )
+
+                return te.compute(
+                    x.shape,
+                    lambda bsz, i, k: f_mul_cast(weight(k), f_div_cast_3d(bsz, i, k)),
+                    name="rms_norm",
+                )
 
         return nn.emit_te(f_rms_norm, hidden_states, self.weight, primfunc_name_hint="rms_norm")
 
@@ -186,28 +209,36 @@ class LlamaMLP(nn.Module):
         return result
 
 
+def rotary_modulate_by_freq(tensor, idx, pos, position_embedding_base):
+    head_dim = tensor.shape[-1]
+    dtype = tensor.dtype
+    n_feat_half = head_dim // 2
+    feat_idx = idx[-1]
+    inv_freq = te.const(1, "float32") / (
+        te.power(
+            te.const(position_embedding_base, "float32"),
+            ((2 * feat_idx) % head_dim).astype("float32") / head_dim.astype("float32"),
+        )
+    )
+    freq = pos * inv_freq
+    left_indices = idx[:-1] + (feat_idx - n_feat_half,)
+    right_indices = idx[:-1] + (feat_idx + n_feat_half,)
+    return te.cos(freq).astype(dtype) * tensor(*idx) + te.sin(freq).astype(dtype) * tvm.tir.Select(
+        feat_idx >= n_feat_half,
+        tensor[(*left_indices,)],
+        -tensor[(*right_indices,)],
+    )
+
+
 def apply_rotary_pos_emb(q, k, position_embedding_base, offset: int = 0):
     def f_rotary_embedding(tensor, offset):
-        dtype = tensor.dtype
-        head_dim = tensor.shape[-1]
-        n_feat_half = tensor.shape[-1] // 2
-
         def rotary_compute(*idx):
-            i, j = idx[-3], idx[-1]
-            pos = (offset + i).astype("float32")
-            inv_freq = te.const(1, "float32") / (
-                te.power(
-                    te.const(position_embedding_base, "float32"),
-                    ((2 * j) % head_dim).astype("float32") / head_dim.astype("float32"),
-                )
-            )
-            freq = pos * inv_freq
-            return te.cos(freq).astype(dtype) * tensor(*idx) + te.sin(freq).astype(
-                dtype
-            ) * tvm.tir.Select(
-                j >= n_feat_half,
-                tensor[idx[0], i, idx[2], j - n_feat_half],
-                -tensor[idx[0], i, idx[2], j + n_feat_half],
+            pos = (offset + idx[-3]).astype("float32")
+            return rotary_modulate_by_freq(
+                tensor,
+                idx,
+                pos,
+                position_embedding_base,
             )
 
         return tvm.te.compute(tensor.shape, rotary_compute, name="rotary")
@@ -268,17 +299,8 @@ class LlamaAttentionBase(nn.Module):
         self.o_proj.weight.shard_dim = 1
         self.o_proj.weight.shard_strategy = "shard_o_proj_k"
 
-    def forward(
-        self,
-        hidden_states: relax.Expr,
-        all_seq_len_shape: Optional[relax.Expr],
-        past_key_values: Union[relax.Expr, Tuple[relax.Expr]],
-        layer_id: int,
-        attention_mask: Optional[relax.Expr] = None,
-    ) -> Tuple[relax.Expr, Union[relax.Expr, Tuple[relax.Expr]]]:
+    def project_qkv(self, hidden_states, query_output_shape, kv_output_shape):
         from tvm.relax.op import reshape, split
-
-        bsz, q_len, _ = hidden_states.struct_info.shape
 
         if self.combine_matmul:
             qkv_states = nn.emit(
@@ -300,23 +322,34 @@ class LlamaAttentionBase(nn.Module):
             value_states = self.v_proj(hidden_states)
 
         query_states = nn.emit(
-            reshape(
-                query_states,
-                (bsz, q_len, self.num_query_heads, self.head_dim),
-            ),
+            reshape(query_states, query_output_shape),
         )
         key_states = nn.emit(
-            reshape(
-                key_states,
-                (bsz, q_len, self.num_key_value_heads, self.head_dim),
-            ),
+            reshape(key_states, kv_output_shape),
         )
         value_states = nn.emit(
-            reshape(
-                value_states,
-                (bsz, q_len, self.num_key_value_heads, self.head_dim),
-            ),
+            reshape(value_states, kv_output_shape),
         )
+
+        return query_states, key_states, value_states
+
+    def forward(
+        self,
+        hidden_states: relax.Expr,
+        all_seq_len_shape: Optional[relax.Expr],
+        past_key_values: Union[relax.Expr, Tuple[relax.Expr]],
+        layer_id: int,
+        attention_mask: Optional[relax.Expr] = None,
+    ) -> Tuple[relax.Expr, Union[relax.Expr, Tuple[relax.Expr]]]:
+        bsz, q_len, _ = hidden_states.struct_info.shape
+
+        query_states, key_states, value_states = self.project_qkv(
+            hidden_states,
+            (bsz, q_len, self.num_query_heads, self.head_dim),
+            (bsz, q_len, self.num_key_value_heads, self.head_dim),
+        )
+
+        from tvm.relax.op import reshape
 
         attn_output, past_key_values = self.attention_fwd(
             query_states,
@@ -541,6 +574,29 @@ class LlamaDecoderLayer(nn.Module):
             config.hidden_size, dtype=config.dtype, eps=config.rms_norm_eps
         )
 
+    def post_self_attn(self, hidden_states, residual):
+        if self.self_attn.num_shards > 1:
+            residual = nn.emit(
+                residual / R.const(self.self_attn.num_shards, dtype=residual.struct_info.dtype)
+            )
+        hidden_states = nn.emit(residual + hidden_states)
+        if self.self_attn.num_shards > 1:
+            hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
+
+        # Fully Connected
+        residual = hidden_states
+        hidden_states = self.post_attention_layernorm(hidden_states)
+        hidden_states = self.mlp(hidden_states)
+        if self.mlp.num_shards > 1:
+            residual = nn.emit(
+                residual / R.const(self.mlp.num_shards, dtype=residual.struct_info.dtype)
+            )
+        hidden_states = nn.emit(residual + hidden_states)
+        if self.mlp.num_shards > 1:
+            hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
+
+        return hidden_states
+
     def forward(
         self,
         hidden_states: relax.Expr,
@@ -561,25 +617,7 @@ class LlamaDecoderLayer(nn.Module):
             all_seq_len_shape=all_seq_len_shape,
             layer_id=layer_id,
         )
-        if self.self_attn.num_shards > 1:
-            residual = nn.emit(
-                residual / R.const(self.self_attn.num_shards, dtype=residual.struct_info.dtype)
-            )
-        hidden_states = nn.emit(residual + hidden_states)
-        if self.self_attn.num_shards > 1:
-            hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
-
-        # Fully Connected
-        residual = hidden_states
-        hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
-        if self.mlp.num_shards > 1:
-            residual = nn.emit(
-                residual / R.const(self.mlp.num_shards, dtype=residual.struct_info.dtype)
-            )
-        hidden_states = nn.emit(residual + hidden_states)
-        if self.mlp.num_shards > 1:
-            hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
+        hidden_states = self.post_self_attn(hidden_states, residual)
         return hidden_states, present_key_value
 
 
@@ -1164,91 +1202,7 @@ def emit_paged_kv_cache_op(bb: relax.BlockBuilder, dtype: str) -> None:
     bb.add_func(relax.extern("attention_func"), "attention")
 
 
-def get_model(args, hf_config):
-    model_name = args.model
-    dtype = args.quantization.model_dtype
-    enable_batching = args.enable_batching
-    sep_embed = args.sep_embed
-
-    if enable_batching and not sep_embed:
-        raise ValueError("`sep_embed` is required when batching is enabled.")
-
-    position_embedding_base = 10000
-    max_position_embeddings = 2048
-    if "rope_theta" in hf_config:
-        position_embedding_base = hf_config["rope_theta"]
-
-    # Llama-2 variants use `max_position_embeddings` to encode maximum sequence length in their hf model cards,
-    # while Llama-1 variants use `max_sequence_length`.
-    # Thus, use `max_sequence_length` if defined. Otherwise, use `max_position_embeddings`.
-    # If none of them is defined, throw an error.
-    if "max_sequence_length" in hf_config:
-        config = LlamaConfig(
-            **hf_config,
-            dtype=dtype,
-            position_embedding_base=position_embedding_base,
-            combine_matmul=True,
-            num_shards=args.num_shards,
-            build_model_only=args.build_model_only,
-        )
-    elif "max_position_embeddings" in hf_config:
-        config = LlamaConfig(
-            **hf_config,
-            dtype=dtype,
-            max_sequence_length=hf_config["max_position_embeddings"],
-            position_embedding_base=position_embedding_base,
-            combine_matmul=True,
-            num_shards=args.num_shards,
-            build_model_only=args.build_model_only,
-        )
-    else:
-        raise Exception("The model config should contain information about maximum sequence length.")
-
-    # If there is a user-provided maximum sequence length, override hf config.
-    if args.max_seq_len != -1:
-        config.max_sequence_length = args.max_seq_len
-
-    param_manager = ParamManager()
-    bb = relax.BlockBuilder()
-
-    if sep_embed:
-        create_embed_func(bb, param_manager, config, args.quantization)
-
-    if enable_batching:
-        emit_paged_kv_cache_op(bb, dtype)
-        create_prefill_func_for_batching(bb, param_manager, config, args.quantization)
-        create_decoding_func_for_batching(bb, param_manager, config, args.quantization)
-        create_paged_kv_cache_func(bb, config)
-        create_softmax_func_for_batching(bb, config)
-    else:
-        create_prefill_func_for_single_seq(bb, param_manager, config, args.quantization, sep_embed)
-        create_decoding_func_for_single_seq(bb, param_manager, config, args.quantization)
-        create_kv_cache_func(bb, config)
-        create_softmax_func_for_single_seq(bb, config)
-
-    create_metadata_func(
-        bb,
-        model_name=model_name,
-        max_window_size=config.max_sequence_length,
-        stop_tokens=[2],
-        add_prefix_space=False,
-    )
-
-    mod = bb.get()
-    for gv in mod.functions:
-        func = mod[gv]
-        if isinstance(func, relax.Function):
-            mod[gv] = func.with_attr(
-                "tir_var_upper_bound",
-                {
-                    "n": config.max_sequence_length,
-                    "m": config.max_sequence_length,
-                },
-            )
-
-    if args.build_model_only:
-        return mod, param_manager, None, config
-
+def setup_params(mod, param_manager, dtype, config, args):
     def f_convert_pname_fwd(pname: str) -> List[str]:
         if not config.combine_matmul:
             return [pname]
@@ -1331,3 +1285,91 @@ def get_model(args, hf_config):
     param_list[-1] = tvm.nd.array(np.sin(emb).astype(config.dtype), device)
 
     return mod, param_manager, param_list, config
+
+
+def get_model(args, hf_config):
+    model_name = args.model
+    dtype = args.quantization.model_dtype
+    enable_batching = args.enable_batching
+    sep_embed = args.sep_embed
+
+    if enable_batching and not sep_embed:
+        raise ValueError("`sep_embed` is required when batching is enabled.")
+
+    position_embedding_base = 10000
+
+    if "rope_theta" in hf_config:
+        position_embedding_base = hf_config["rope_theta"]
+
+    # Llama-2 variants use `max_position_embeddings` to encode maximum sequence length in their hf model cards,
+    # while Llama-1 variants use `max_sequence_length`.
+    # Thus, use `max_sequence_length` if defined. Otherwise, use `max_position_embeddings`.
+    # If none of them is defined, throw an error.
+    if "max_sequence_length" in hf_config:
+        config = LlamaConfig(
+            **hf_config,
+            dtype=dtype,
+            position_embedding_base=position_embedding_base,
+            combine_matmul=True,
+            num_shards=args.num_shards,
+            build_model_only=args.build_model_only,
+        )
+    elif "max_position_embeddings" in hf_config:
+        config = LlamaConfig(
+            **hf_config,
+            dtype=dtype,
+            max_sequence_length=hf_config["max_position_embeddings"],
+            position_embedding_base=position_embedding_base,
+            combine_matmul=True,
+            num_shards=args.num_shards,
+            build_model_only=args.build_model_only,
+        )
+    else:
+        raise Exception("The model config should contain information about maximum sequence length.")
+
+    # If there is a user-provided maximum sequence length, override hf config.
+    if args.max_seq_len != -1:
+        config.max_sequence_length = args.max_seq_len
+
+    param_manager = ParamManager()
+    bb = relax.BlockBuilder()
+
+    if sep_embed:
+        create_embed_func(bb, param_manager, config, args.quantization)
+
+    if enable_batching:
+        emit_paged_kv_cache_op(bb, dtype)
+        create_prefill_func_for_batching(bb, param_manager, config, args.quantization)
+        create_decoding_func_for_batching(bb, param_manager, config, args.quantization)
+        create_paged_kv_cache_func(bb, config)
+        create_softmax_func_for_batching(bb, config)
+    else:
+        create_prefill_func_for_single_seq(bb, param_manager, config, args.quantization, sep_embed)
+        create_decoding_func_for_single_seq(bb, param_manager, config, args.quantization)
+        create_kv_cache_func(bb, config)
+        create_softmax_func_for_single_seq(bb, config)
+
+    create_metadata_func(
+        bb,
+        model_name=model_name,
+        max_window_size=config.max_sequence_length,
+        stop_tokens=[2],
+        add_prefix_space=False,
+    )
+
+    mod = bb.get()
+    for gv in mod.functions:
+        func = mod[gv]
+        if isinstance(func, relax.Function):
+            mod[gv] = func.with_attr(
+                "tir_var_upper_bound",
+                {
+                    "n": config.max_sequence_length,
+                    "m": config.max_sequence_length,
+                },
+            )
+
+    if args.build_model_only:
+        return mod, param_manager, None, config
+
+    return setup_params(mod, param_manager, dtype, config, args)
