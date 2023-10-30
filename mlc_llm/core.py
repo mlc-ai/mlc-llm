@@ -480,7 +480,9 @@ def mod_transform_before_build(
         has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
 
         if has_cutlass and not args.no_cutlass_attn:
-            mod = rewrite_attention(use_flash_mqa=args.use_flash_attn_mqa)(mod)
+            if args.use_flash_attn_mqa:
+                mod = rewrite_attention(use_flash_mqa=True)(mod)
+            mod = rewrite_attention(use_flash_mqa=False)(mod)
             patterns += get_patterns_with_prefix("cutlass.attention")
 
         if has_cutlass and not args.no_cutlass_norm:
