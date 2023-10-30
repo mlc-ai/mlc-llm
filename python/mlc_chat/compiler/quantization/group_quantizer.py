@@ -14,9 +14,9 @@ def te_quantize(
     """Group quantization for weight tensor, defined in tensor expression."""
     # pylint: disable=too-many-locals
     assert len(weight.shape) == 2
-    n, m = weight.shape
+    n, m = weight.shape  # pylint: disable=invalid-name
     # compute scale per group
-    r = te.reduce_axis((0, config.group_size), name="r")
+    r = te.reduce_axis((0, config.group_size), name="r")  # pylint: disable=invalid-name
     num_group = tir.ceildiv(m, config.group_size)
     scale_shape = (n, num_group)
     max_abs = te.compute(
@@ -53,7 +53,7 @@ def te_quantize(
     )
 
     # compute quantized weight per storage
-    r = te.reduce_axis((0, config.num_elem_per_storage), name="r")
+    r = te.reduce_axis((0, config.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
     num_storage = config.num_storage_per_group * num_group
     quantized_weight_shape = (n, num_storage)
     quantized_weight = te.compute(
