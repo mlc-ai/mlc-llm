@@ -11,6 +11,10 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: ''
+    - name: Cache Docker images.
+      uses: ScribeMD/docker-cache@0.3.6
+      with:
+        key: docker-image-${{ env.IMAGE }}
     - name: Version
       run: |
         wget https://raw.githubusercontent.com/mlc-ai/package/main/docker/bash.sh -O ./ci/bash.sh
