@@ -61,3 +61,5 @@ MODELS: Dict[str, Model] = {
         quantize={},
     )
 }
+
+MODEL_PRESETS: Dict[str, Dict[str, Any]] = llama_config.CONFIG

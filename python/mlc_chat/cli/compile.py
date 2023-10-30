@@ -27,7 +27,7 @@ def main():
 
     def _parse_config(path: Union[str, Path]) -> Path:
         try:
-            return detect_config(Path(path))
+            return detect_config(path)
         except ValueError as err:
             raise argparse.ArgumentTypeError(f"No valid config.json in: {path}. Error: {err}")
 
