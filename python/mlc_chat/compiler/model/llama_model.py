@@ -22,6 +22,8 @@ class RotaryEmbedding(nn.Module):
 
     def forward(self, q: Tensor, k: Tensor, offset: tir.Var):
         def te_op(x: te.Tensor, offset: tir.Var):
+            dtype = x.dtype
+
             def compute(b: tir.Var, s: tir.Var, h: tir.Var, d: tir.Var):
                 head_dim = tir.const(self.head_dim, "int32")
                 position_embedding_base = tir.const(self.position_embedding_base, "float32")
@@ -30,11 +32,13 @@ class RotaryEmbedding(nn.Module):
                     (d * 2 % head_dim).astype("float32") / head_dim,
                 )
                 freq = (offset + s) / freq
-                return tir.cos(freq) * x[b, s, h, d] + tir.sin(freq) * tir.if_then_else(
+                cos = tir.cos(freq).astype(dtype) * x[b, s, h, d]
+                sin = tir.sin(freq).astype(dtype) * tir.if_then_else(
                     d < self.head_dim // 2,
                     -x[b, s, h, d + self.head_dim // 2],
                     x[b, s, h, d - self.head_dim // 2],
                 )
+                return cos + sin
 
             return te.compute(x.shape, compute, name="rotary")
 
@@ -87,6 +91,7 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         d, h_q, h_kv, t = self.head_dim, self.num_q_heads, self.num_kv_heads, total_seq_len
         b, s, _ = hidden_states.shape
         assert b == 1, "Only support batch size 1 at this moment."
+
         q, k, v = self.qkv_proj(hidden_states)
         q = op.reshape(q, (b, s, h_q, d))
         k = op.reshape(k, (b, s, h_kv, d))

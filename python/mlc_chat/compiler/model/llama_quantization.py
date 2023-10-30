@@ -1,26 +1,24 @@
-"""
-Quantization specs for Llama2 architecture.
-TODO: add docstring
-"""
+"""Quantization specs for Llama."""
 from typing import Tuple
 
 from tvm.relax.frontend import nn
 
 from ..parameter import QuantizeMapping
-from ..quantization import GroupQuantizeConfig
+from ..quantization import GroupQuantize
+from .llama_config import LlamaConfig
 from .llama_model import LlamaForCasualLM
 
 
-def llama_group_quantization(
-    model: LlamaForCasualLM, quant_config: GroupQuantizeConfig
+def group_quant(
+    model_config: LlamaConfig,
+    quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
+    """Quantize a Llama2 model using group quantization."""
+    model: nn.Module = LlamaForCasualLM(model_config)
     quant_map = QuantizeMapping({}, {})
-    for i in range(len(model.model.layers)):
-        model.model.layers[i] = quant_config.apply(
-            model.model.layers[i], quant_map, f"model.layers.{i}"
-        )
-    model.model.embed_tokens = quant_config.apply(
-        model.model.embed_tokens, quant_map, "model.embed_tokens"
+    model = quantization.quantize_model(
+        model,
+        quant_map,
+        "model",
     )
-    model.lm_head = quant_config.apply(model.lm_head, quant_map, "lm_head")
     return model, quant_map
