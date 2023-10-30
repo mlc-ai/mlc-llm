@@ -95,14 +95,16 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
 
         self.k_cache.append(op.squeeze(k, axis=0))
         self.v_cache.append(op.squeeze(v, axis=0))
-        k = op.reshape(self.k_cache.view(total_seq_len), (t, b, h_kv, d))
-        v = op.reshape(self.v_cache.view(total_seq_len), (t, b, h_kv, d))
+        k = op.reshape(self.k_cache.view(total_seq_len), (b, t, h_kv, d))
+        v = op.reshape(self.v_cache.view(total_seq_len), (b, t, h_kv, d))
         if h_kv != h_q:
             k = k.repeat(h_q // h_kv, axis=2)
             v = v.repeat(h_q // h_kv, axis=2)
-        attn_weights = op.matmul(  # [b, h, s, t]
-            q.permute_dims([0, 2, 1, 3]),  # [b, h, s, d]
-            k.permute_dims([1, 2, 3, 0]),  # [b, h, d, t]
+        q = q.permute_dims([0, 2, 1, 3])  # [b, h, s, d]
+        k = k.permute_dims([0, 2, 1, 3])  # [b, h, t, d]
+        v = v.permute_dims([0, 2, 1, 3])  # [b, h, t, d]
+        attn_weights = op.matmul(
+            q, k.permute_dims([0, 1, 3, 2])  # [b, h, s, d] x [b, h, d, t] = [b, h, s, t]
         ) / math.sqrt(d)
         dtype = attn_weights.dtype
         attn_weights = attn_weights.maximum(tir.min_value(dtype)).minimum(attention_mask)
@@ -111,10 +113,7 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         else:
             attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
         return self.o_proj(
-            op.matmul(  # [b, h, s, d]
-                attn_weights,  # [b, h, s, t]
-                v.permute_dims([1, 2, 0, 3]),  # [b, h, t, d]
-            )
+            op.matmul(attn_weights, v)  # [b, h, s, t] x [b, h, t, d] = [b, h, s, d]
             .permute_dims([0, 2, 1, 3])  # [b, s, h, d]
             .reshape((b, s, h_q * d))
         )

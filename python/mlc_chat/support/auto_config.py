@@ -35,12 +35,13 @@ def detect_config(config: Union[str, Path]) -> Path:
     )
 
     if isinstance(config, str) and config in MODEL_PRESETS:
+        logger.info("%s preset model: %s", FOUND, config)
         content = MODEL_PRESETS[config]
         temp_file = tempfile.NamedTemporaryFile(  # pylint: disable=consider-using-with
             suffix=".json",
             delete=False,
         )
-        logger.info("%s preset model configuration: %s", FOUND, temp_file.name)
+        logger.info("Dumping config to: %s", temp_file.name)
         config_path = Path(temp_file.name)
         with config_path.open("w", encoding="utf-8") as config_file:
             json.dump(content, config_file, indent=2)
