@@ -143,8 +143,8 @@ async def lifespan(_app: FastAPI):
 
 origins = ["*"]
 
-APP = FastAPI(lifespan=lifespan)
-APP.add_middleware(
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
@@ -177,7 +177,7 @@ class AsyncCompletionStream:
         raise StopAsyncIteration
 
 
-@APP.post("/v1/chat/completions")
+@app.post("/v1/chat/completions")
 async def request_chat_completion(request: ChatCompletionRequest):
     """
     Creates model response for the given chat conversation.
@@ -248,7 +248,7 @@ async def request_chat_completion(request: ChatCompletionRequest):
     )
 
 
-@APP.post("/v1/completions")
+@app.post("/v1/completions")
 async def request_completion(request: CompletionRequest):
     """
     Creates a completion for a given prompt.
@@ -309,7 +309,7 @@ async def request_completion(request: CompletionRequest):
     )
 
 
-@APP.post("/v1/embeddings")
+@app.post("/v1/embeddings")
 async def request_embeddings(request: EmbeddingsRequest):
     """
     Gets embedding for some text.
@@ -335,7 +335,7 @@ async def request_embeddings(request: EmbeddingsRequest):
     )
 
 
-@APP.post("/chat/reset")
+@app.post("/chat/reset")
 async def reset():
     """
     Reset the chat for the currently initialized model.
@@ -343,7 +343,7 @@ async def reset():
     session["chat_mod"].reset_chat()
 
 
-@APP.get("/stats")
+@app.get("/stats")
 async def read_stats():
     """
     Get the runtime stats.
@@ -351,7 +351,7 @@ async def read_stats():
     return session["chat_mod"].stats()
 
 
-@APP.get("/verbose_stats")
+@app.get("/verbose_stats")
 async def read_stats_verbose():
     """
     Get the verbose runtime stats.
