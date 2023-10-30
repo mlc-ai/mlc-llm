@@ -26,10 +26,10 @@ from .llama import (
 )
 
 
-def apply_rotary_pos_emb(q, k, positions, position_embedding_base, offset: int = 0):
-    def f_rotary_embedding(tensor, pos_tensor, offset):
+def apply_rotary_pos_emb(q, k, positions, position_embedding_base):
+    def f_rotary_embedding(tensor, pos_tensor):
         def rotary_compute(*idx):
-            pos = (offset + pos_tensor[idx[0]]).astype("float32")
+            pos = pos_tensor[idx[0]].astype("float32")
             return rotary_modulate_by_freq(
                 tensor,
                 idx,
@@ -39,19 +39,15 @@ def apply_rotary_pos_emb(q, k, positions, position_embedding_base, offset: int =
 
         return tvm.te.compute(tensor.shape, rotary_compute, name="rotary")
 
-    q_embed = nn.emit_te(
-        f_rotary_embedding, q, positions, offset, primfunc_name_hint="rotary_embedding"
-    )
-    k_embed = nn.emit_te(
-        f_rotary_embedding, k, positions, offset, primfunc_name_hint="rotary_embedding"
-    )
+    q_embed = nn.emit_te(f_rotary_embedding, q, positions, primfunc_name_hint="rotary_embedding")
+    k_embed = nn.emit_te(f_rotary_embedding, k, positions, primfunc_name_hint="rotary_embedding")
     return q_embed, k_embed
 
 
 class LlamaAttentionBatched(LlamaAttentionBase):
     def __init__(self, config: LlamaConfig, head_mapping: relax.Constant):
         super().__init__(config)
-        self.head_mapping = head_mapping
+        self.head_mapping = head_mapping  # (num_heads,), used by vLLM for multi-query attention
         self.sliding_window = None
 
         if config.sliding_window:
@@ -59,15 +55,17 @@ class LlamaAttentionBatched(LlamaAttentionBase):
 
     def forward(
         self,
-        hidden_states: relax.Expr,
-        positions: relax.Expr,
-        seq_lens: relax.Expr,
+        hidden_states: relax.Expr,  # (num_token, hidden_size)
+        positions: relax.Expr,  # (num_token,), for batched RoPE
+        seq_lens: relax.Expr,  # (num_seq,)
         kv_cache: Optional[Tuple[relax.Expr, relax.Expr]],
-        slot_mapping: Optional[relax.Expr],
-        max_seqlen: Optional[relax.Expr],  # Must be on CPU
-        seqstart: Optional[relax.Expr],  # For prefill
-        block_tables: Optional[relax.Expr],  # For decode
-        indices_within_window: Optional[relax.Expr],  # For prefill with sliding-window attention
+        slot_mapping: Optional[relax.Expr],  # (num_token,)
+        max_seqlen: Optional[relax.Expr],  # (), must be on CPU
+        seqstart: Optional[relax.Expr],  # (num_seq + 1,), for prefill
+        block_tables: Optional[relax.Expr],  # (num_seq, max_num_blocks_per_seq), for decode
+        indices_within_window: Optional[
+            relax.Expr
+        ],  # (num_cached_total,), for prefill with sliding-window attention
     ):
         num_tokens, _ = hidden_states.struct_info.shape
 
@@ -77,9 +75,7 @@ class LlamaAttentionBatched(LlamaAttentionBase):
             (num_tokens, self.num_key_value_heads, self.head_dim),
         )
 
-        queries, keys = apply_rotary_pos_emb(
-            queries, keys, positions, self.position_embedding_base, offset=0
-        )
+        queries, keys = apply_rotary_pos_emb(queries, keys, positions, self.position_embedding_base)
 
         if kv_cache:
             # Paged KV cache update
@@ -113,6 +109,7 @@ class LlamaAttentionBatched(LlamaAttentionBase):
             k_cache = v_cache = None
 
         if seqstart:
+            # Prefill, batched attention over variable sequence lengths
             attn_output = nn.emit(
                 attention_var_len(
                     nn.emit(expand_dims(queries, axis=0)),
@@ -125,6 +122,7 @@ class LlamaAttentionBatched(LlamaAttentionBase):
                 )
             )
         else:
+            # Decode, using vLLM kernel
             attn_output = nn.emit(
                 relax.op.call_dps_packed(
                     "tvm.contrib.vllm.single_query_cached_kv_attention",
@@ -294,14 +292,35 @@ class LlamaForCausalLM(nn.Module):
 
     def forward(
         self,
-        input_ids: relax.Expr,
-        positions: relax.Expr,
-        seq_lens: relax.Expr,
+        input_ids: relax.Expr,  # (num_token,)
+        positions: relax.Expr,  # (num_token,), for batched RoPE
+        seq_lens: relax.Expr,  # (num_seq,)
         kv_caches: Optional[relax.Expr],  # For prefill and decode, not needed for evaluate
-        slot_mapping: Optional[relax.Expr],  # For prefill and decode, not needed for evaluate
-        block_tables: Optional[relax.Expr],  # For decode
-        indices_within_window: Optional[relax.Expr],  # For prefill with sliding-window attention
+        slot_mapping: Optional[
+            relax.Expr
+        ],  # (num_token,), for prefill and decode, not needed for evaluate
+        block_tables: Optional[relax.Expr],  # (num_seq, max_num_blocks_per_seq), for decode
+        indices_within_window: Optional[
+            relax.Expr
+        ],  # (num_cached_total,), for prefill with sliding-window attention
     ):
+        """
+        In vLLM, the paged KV cache is simply a pair of tensors, one for keys and the other
+        for values. The tensor has shape (num_blocks, num_kv_heads, head_size, block_size).
+        (In practice, the key cache has a slightly different shape for an efficiency reason,
+        but that's not important.)
+
+        The mapping between sequences / tokens to blocks is specified by two inputs.
+        - block_tables: A list of block IDs allocated for the sequence.
+        - slot_mapping: A linear index into the 2D grid (num_blocks, block_size), for each token.
+
+        Support for sliding-window attention is realized by making a block table a circular buffer.
+        So the length of a block table for each sequence is at most ceil(window_size / block_size).
+
+        With sliding window, not all past K / V values need to be cached during prefill.
+        The last input, indices_within_window, tells which tokens among (num_token,) need to have
+        their K / V values cached.
+        """
         if self.num_shards > 1:
             input_ids = nn.emit(ccl.broadcast_from_worker0(input_ids))
             positions = nn.emit(ccl.broadcast_from_worker0(positions))
@@ -313,9 +332,13 @@ class LlamaForCausalLM(nn.Module):
             if block_tables:
                 block_tables = nn.emit(ccl.broadcast_from_worker0(block_tables))
 
+            if indices_within_window:
+                indices_within_window = nn.emit(ccl.broadcast_from_worker0(indices_within_window))
+
         is_prompt = block_tables is None
 
         if is_prompt:  # prefill and evaluate
+            # https://github.com/apache/tvm/issues/15851 for why we need to use Thrust
             cumsum = nn.emit(
                 relax.op.call_dps_packed(
                     "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.struct_info
@@ -337,6 +360,7 @@ class LlamaForCausalLM(nn.Module):
         )
 
         if is_prompt:
+            # Extract logits for the last token in each sequence
 
             def get_logits_last_tokens(x, seq_len_tensor, seqstart):
                 return te.compute(
@@ -424,10 +448,11 @@ def create_evaluate_func(
     bb: relax.BlockBuilder,
     param_manager: ParamManager,
     config: LlamaConfig,
-    cpu_dev,
+    cpu_dev: VDevice,
     quant_scheme: QuantizationScheme,
     sep_embed: bool = False,
 ) -> None:
+    """Evaluate logits for the last token in each sequence. Same as prefill but without KV cache."""
     func_name = "evaluate"
 
     num_token = tvm.tir.Var("num_token", "int64")
@@ -468,10 +493,15 @@ def create_encoding_func(
     bb: relax.BlockBuilder,
     param_manager: ParamManager,
     config: LlamaConfig,
-    cpu_dev,
+    cpu_dev: VDevice,
     quant_scheme: QuantizationScheme,
     sep_embed: bool = False,
 ) -> None:
+    """Batched prefill with vLLM paged KV cache.
+
+    The batched attention op is intended to be offloaded to CUTLASS or Flash Attention
+    via BYOC.
+    """
     func_name = "prefill_with_embed" if sep_embed else "prefill"
 
     num_token = tvm.tir.Var("num_token", "int64")
@@ -533,9 +563,10 @@ def create_decoding_func(
     bb: relax.BlockBuilder,
     param_manager: ParamManager,
     config: LlamaConfig,
-    cpu_dev,
+    cpu_dev: VDevice,
     quant_scheme: QuantizationScheme,
 ) -> None:
+    """Batched decoding with vLLM paged KV cache."""
     func_name = "decode"
 
     num_seq = tvm.tir.Var("num_seq", "int64")
@@ -620,9 +651,9 @@ def get_model(args, hf_config):
     create_encoding_func(bb, param_manager, config, cpu_dev, args.quantization, sep_embed)
     create_decoding_func(bb, param_manager, config, cpu_dev, args.quantization)
 
-    bb.get().update_global_info("vdevice", [cpu_dev])
-
     mod = bb.get()
+
+    mod.update_global_info("vdevice", [cpu_dev])
 
     if args.build_model_only:
         return mod, param_manager, None, config

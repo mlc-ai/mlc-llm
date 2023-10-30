@@ -2,7 +2,6 @@
 """Setup MLC LLM package."""
 import os
 import shutil
-import sys
 
 from setuptools import find_packages, setup
 from setuptools.dist import Distribution
@@ -16,7 +15,8 @@ def get_lib_path():
     # Directly exec libinfo to get the right setup
     libinfo_py = os.path.join(CURRENT_DIR, "./mlc_chat/libinfo.py")
     libinfo = {"__file__": libinfo_py}
-    exec(compile(open(libinfo_py, "rb").read(), libinfo_py, "exec"), libinfo, libinfo)
+    with open(libinfo_py, "rb") as f:
+        exec(compile(f.read(), libinfo_py, "exec"), libinfo, libinfo)
     version = libinfo["__version__"]
 
     # conda installs libraries into env instead of packaging with pip
@@ -35,10 +35,11 @@ def git_describe_version(original_version):
     """Get git describe version."""
     ver_py = os.path.join(CURRENT_DIR, "..", "version.py")
     libver = {"__file__": ver_py}
-    exec(compile(open(ver_py, "rb").read(), ver_py, "exec"), libver, libver)
+    with open(ver_py, "rb") as f:
+        exec(compile(f.read(), ver_py, "exec"), libver, libver)
     _, gd_version = libver["git_describe_version"]()
     if gd_version is not None and gd_version != original_version:
-        print("Use git describe based version %s" % gd_version)
+        print(f"Use git describe based version {gd_version}")
     return gd_version
 
 
@@ -47,60 +48,66 @@ __version__ = git_describe_version(__version__)
 
 
 class BinaryDistribution(Distribution):
+    """This class is needed in order to create OS specific wheels."""
+
     def has_ext_modules(self):
+        """Return True for binary distribution."""
         return True
 
     def is_pure(self):
+        """Return False for binary distribution."""
         return False
 
 
-setup_kwargs = {}
-if not CONDA_BUILD:
-    with open("MANIFEST.in", "w") as fo:
-        for path in LIB_LIST:
+def main():
+    """The main entrypoint."""
+    setup_kwargs = {}
+    if not CONDA_BUILD:
+        with open("MANIFEST.in", "w", encoding="utf-8") as fo:
+            for path in LIB_LIST:
+                if os.path.isfile(path):
+                    shutil.copy(path, os.path.join(CURRENT_DIR, "mlc_chat"))
+                    _, libname = os.path.split(path)
+                    fo.write(f"include mlc_chat/{libname}\n")
+        setup_kwargs = {"include_package_data": True}
+
+    setup(
+        name="mlc_chat",
+        version=__version__,
+        description="MLC Chat: an universal runtime running LLMs",
+        url="https://llm.mlc.ai/",
+        author="MLC LLM Contributors",
+        license="Apache 2.0",
+        # See https://pypi.org/classifiers/
+        classifiers=[
+            "License :: OSI Approved :: Apache Software License",
+            "Development Status :: 4 - Beta",
+            "Intended Audience :: Developers",
+            "Intended Audience :: Education",
+            "Intended Audience :: Science/Research",
+        ],
+        keywords="machine learning",
+        zip_safe=False,
+        packages=find_packages(),
+        package_dir={"mlc_chat": "mlc_chat"},
+        install_requires=["fastapi", "uvicorn", "shortuuid"],
+        distclass=BinaryDistribution,
+        **setup_kwargs,
+    )
+
+    def _remove_path(path):
+        if os.path.exists(path):
             if os.path.isfile(path):
-                shutil.copy(path, os.path.join(CURRENT_DIR, "mlc_chat"))
-                _, libname = os.path.split(path)
-                fo.write(f"include mlc_chat/{libname}\n")
-    setup_kwargs = {"include_package_data": True}
+                os.remove(path)
+            elif os.path.isdir(path):
+                shutil.rmtree(path)
+
+    if not CONDA_BUILD:
+        # Wheel cleanup
+        os.remove("MANIFEST.in")
+        for path in LIB_LIST:
+            _, libname = os.path.split(path)
+            _remove_path(f"mlc_chat/{libname}")
 
 
-setup(
-    name="mlc_chat",
-    version=__version__,
-    description="MLC Chat: an universal runtime running LLMs",
-    url="https://llm.mlc.ai/",
-    author="MLC LLM Contributors",
-    license="Apache 2.0",
-    # See https://pypi.org/classifiers/
-    classifiers=[
-        "License :: OSI Approved :: Apache Software License",
-        "Development Status :: 4 - Beta",
-        "Intended Audience :: Developers",
-        "Intended Audience :: Education",
-        "Intended Audience :: Science/Research",
-    ],
-    keywords="machine learning",
-    zip_safe=False,
-    packages=find_packages(),
-    package_dir={"mlc_chat": "mlc_chat"},
-    install_requires=["fastapi", "uvicorn", "shortuuid"],
-    distclass=BinaryDistribution,
-    **setup_kwargs,
-)
-
-
-def _remove_path(path):
-    if os.path.exists(path):
-        if os.path.isfile(path):
-            os.remove(path)
-        elif os.path.isdir(path):
-            shutil.rmtree(path)
-
-
-if not CONDA_BUILD:
-    # Wheel cleanup
-    os.remove("MANIFEST.in")
-    for path in LIB_LIST:
-        _, libname = os.path.split(path)
-        _remove_path(f"mlc_chat/{libname}")
+main()

@@ -1,18 +1,19 @@
 """The Python API for MLC chat."""
-#! pylint: disable=unused-import, invalid-name
+#! pylint: disable=too-many-lines
 import inspect
 import json
 import logging
 import os
 import sys
+import warnings
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 import tvm
-from tvm.runtime import disco
+from tvm.runtime import disco  # pylint: disable=unused-import
 
-from . import callback
+from .interface.openai_api import ChatMessage
 
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
@@ -20,7 +21,7 @@ _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/mai
 
 
 @dataclass
-class ConvConfig:
+class ConvConfig:  # pylint: disable=too-many-instance-attributes
     r"""A dataclass that represents user-defined partial configuration for conversation template.
 
     This is an attribute of :class:`mlc_chat.ChatConfig`, which can then be passed in to the
@@ -82,7 +83,7 @@ class ConvConfig:
 
 
 @dataclass
-class ChatConfig:
+class ChatConfig:  # pylint: disable=too-many-instance-attributes
     r"""A dataclass that represents user-defined partial configuration for the
     chat config file.
 
@@ -90,7 +91,7 @@ class ChatConfig:
     :class:`mlc_chat.ChatModule` instance to override the default setting in
     ``mlc-chat-config.json`` under the model folder.
 
-    Since the configuraiton is partial, everything will be ``Optional``.
+    Since the configuration is partial, everything will be ``Optional``.
 
     Note that we will exploit this class to also represent ``mlc-chat-config.json``
     during intermediate processing.
@@ -130,14 +131,19 @@ class ChatConfig:
         For additional information on top-p sampling, please refer to this blog
         post: https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling.
     mean_gen_len : Optional[int]
+        The approximated average number of generated tokens in each round. Used
+        to determine whether the maximum window size would be exceeded.
     max_gen_len : Optional[int]
+        The maximum number of tokens to be generated in each round. Would simply
+        stop generating after this number is exceeded.
     shift_fill_factor : Optional[float]
+        The fraction of maximum window size to shift when it is exceeded.
     tokenizer_files : Optional[List[str]]
         List of tokenizer files of the model.
     conv_config : Optional[ConvConfig]
         The partial overriding configuration for conversation template. Will first
         load the predefined template with the name specified in ``conv_template``
-        and then override some of the configuraitons specified in ``conv_config``.
+        and then override some of the configurations specified in ``conv_config``.
     model_category : Optional[str]
         The category of the model's architecture (e.g. ``llama``, ``gpt_neox``, ``rwkv``).
     model_name : Optional[str]
@@ -165,12 +171,94 @@ class ChatConfig:
     max_window_size: Optional[int] = None
 
     @classmethod
-    def _from_json(chat_config_cls, json_obj: dict):
-        return chat_config_cls(
+    def _from_json(cls, json_obj: dict):
+        return cls(**{k: v for k, v in json_obj.items() if k in inspect.signature(cls).parameters})
+
+
+@dataclass
+class GenerationConfig:  # pylint: disable=too-many-instance-attributes
+    r"""A dataclass that represents user-defined generation configuration.
+
+    An instance of ``GenerationConfig`` can be passed in to the generate function
+    of a :class:`mlc_chat.ChatModule` instance to override the default generation
+    setting in ``mlc-chat-config.json`` and ``ChatConfig`` under the model folder.
+
+    Once the generation ends, ``GenerationConfig`` is discarded, since the values
+    will only override the ``ChatConfig`` generation settings during one generation,
+    unless it is recurrently passed to generate function. This allows changing generation
+    settings over time, without overriding ``ChatConfig`` permanently.
+
+    Since the configuraiton is partial, everything will be ``Optional``.
+
+    Parameters
+    ----------
+    temperature : Optional[float]
+        The temperature applied to logits before sampling. The default value is
+        ``0.7``. A higher temperature encourages more diverse outputs, while a
+        lower temperature produces more deterministic outputs.
+    presence_penalty : Optional[float]
+        Number between -2.0 and 2.0. Positive values penalize new tokens based on
+        whether they appear in the text so far, increasing the model's likelihood
+        to talk about new topics. Negative values can increase the likelihood of
+        repetition.
+    frequency_penalty : Optional[float]
+        Number between -2.0 and 2.0. Positive values penalize new tokens based on their
+        existing frequency in the text so far, decreasing the model's likelihood to
+        repeat the same line verbatim. Negative values can increase the likelihood of
+        repetition.
+    repetition_penalty : Optional[float]
+        The repetition penalty controls the likelihood of the model generating
+        repeated texts. The default value is set to ``1.0``, indicating that no
+        repetition penalty is applied. Increasing the value reduces the
+        likelihood of repeat text generation. However, setting a high
+        ``repetition_penalty`` may result in the model generating meaningless
+        texts. The ideal choice of repetition penalty may vary among models. Only
+        Active when presence_penalty and frequency_penalty are both 0.0.
+
+        For more details on how repetition penalty controls text generation, please
+        check out the CTRL paper (https://arxiv.org/pdf/1909.05858.pdf).
+    top_p : Optional[float]
+        This parameter determines the set of tokens from which we sample during
+        decoding. The default value is set to ``0.95``. At each step, we select
+        tokens from the minimal set that has a cumulative probability exceeding
+        the ``top_p`` parameter.
+
+        For additional information on top-p sampling, please refer to this blog
+        post: https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling.
+    mean_gen_len : Optional[int]
+        The approximated average number of generated tokens in each round. Used
+        to determine whether the maximum window size would be exceeded.
+    max_gen_len : Optional[int]
+        This parameter determines the maximum length of the generated text. If it is
+        not set, the model will generate text until it encounters a stop token.
+    n : Optional[int]
+        This parameter determines the number of text samples to generate. The default
+        value is ``1``. Note that this parameter is only used when ``stream`` is set to
+        ``False``.
+    stop : Optional[Union[str, List[str]]]
+        When ``stop`` is encountered, the model will stop generating output.
+        It can be a string or a list of strings. If it is a list of strings, the model
+        will stop generating output when any of the strings in the list is encountered.
+        Note that this parameter does not override the default stop string of the model.
+    """
+
+    temperature: Optional[float] = None
+    repetition_penalty: Optional[float] = None
+    top_p: Optional[float] = None
+    mean_gen_len: Optional[int] = None
+    max_gen_len: Optional[int] = None
+    presence_penalty: Optional[float] = 0.0
+    frequency_penalty: Optional[float] = 0.0
+    n: Optional[int] = None  # pylint: disable=invalid-name
+    stop: Optional[Union[str, List[str]]] = None
+
+    @classmethod
+    def _from_chat_config(cls, chat_config_obj: ChatConfig):
+        return cls(
             **{
-                k: v
-                for k, v in json_obj.items()
-                if k in inspect.signature(chat_config_cls).parameters
+                f.name: getattr(chat_config_obj, f.name)
+                for f in fields(chat_config_obj)
+                if f.name in inspect.signature(cls).parameters
             }
         )
 
@@ -178,20 +266,21 @@ class ChatConfig:
 class PlaceInPrompt(Enum):
     """The place of an input message in a prompt."""
 
-    # The input message should have role names and corresponding seperators appended both prior to it and after it,
-    # making it a complete prompt.
-    All = 0
-    # The input message is only the beginning part of a prompt, no role name and separator should be appended after
-    # the message since there will be future messages appended after the message.
-    Begin = 1
-    # The input message is in the middle of a prompt, nothing should be appended before or after the message.
-    Middle = 2
-    # The input message is the ending part of a prompt, no role name and separator should be appended prior to it
-    # since the message is concatenated to some prior messages.
-    End = 3
+    # The input message should have role names and corresponding seperators appended both prior to
+    # it and after it, making it a complete prompt.
+    All = 0  # pylint: disable=invalid-name
+    # The input message is only the beginning part of a prompt, no role name and separator should
+    # be appended after the message since there will be future messages appended after the message.
+    Begin = 1  # pylint: disable=invalid-name
+    # The input message is in the middle of a prompt, nothing should be appended before or after
+    # the message.
+    Middle = 2  # pylint: disable=invalid-name
+    # The input message is the ending part of a prompt, no role name and separator should be
+    # appended prior to it since the message is concatenated to some prior messages.
+    End = 3  # pylint: disable=invalid-name
 
 
-def _get_model_path(model: str) -> (str, str):
+def _get_model_path(model: str) -> Tuple[str, str]:
     """Use user-provided argument ``model`` to search for a valid model path.
 
     We define "valid" as having an ``mlc-chat-config.json`` right under the folder.
@@ -225,8 +314,8 @@ def _get_model_path(model: str) -> (str, str):
     for candidate in candidate_paths:
         chat_file = os.path.join(candidate, "mlc-chat-config.json")
         if os.path.isfile(chat_file):
-            logging.info(f"Using model folder: {os.path.abspath(candidate)}")
-            logging.info(f"Using mlc chat config: {os.path.abspath(chat_file)}")
+            logging.info("Using model folder: %s", os.path.abspath(candidate))
+            logging.info("Using mlc chat config: %s", os.path.abspath(chat_file))
             return candidate, chat_file
 
     # Failed to find a valid model_path, analyzing error for user
@@ -241,7 +330,7 @@ def _get_model_path(model: str) -> (str, str):
 
     if found_folder:
         # Error 1: there is a folder, but not an mlc-llm model folder (E1)
-        err_msg = (
+        raise FileNotFoundError(
             "The model folder provided does not seem to refer to a valid mlc-llm model folder.\n"
             "Specifically, we cannot find `mlc-chat-config.json`, a required file. You should "
             "provide a path that contains the file.\n"
@@ -251,21 +340,16 @@ def _get_model_path(model: str) -> (str, str):
             f"Please checkout {_PYTHON_GET_STARTED_TUTORIAL_URL} for an example on "
             "how to load a model."
         )
-        raise FileNotFoundError(err_msg)
-    else:
-        # Error 2: cannot find a folder (E0)
-        all_paths_str = ""
-        for path in candidate_paths:
-            all_paths_str += f"- {path}\n"
-        err_msg = (
-            "Cannot find the model folder. We searched over the following possible paths:\n"
-            f"{all_paths_str}"
-            "You can try to pass in `model=/path/to/your-model-path`, and confirm "
-            "that it contains `mlc-chat-config.json`, among other essential files.\n"
-            f"Please checkout {_PYTHON_GET_STARTED_TUTORIAL_URL} for an "
-            "example on how to load a model."
-        )
-        raise FileNotFoundError(err_msg)
+    # Error 2: cannot find a folder (E0)
+    all_paths_str = "".join(f"- {path}\n" for path in candidate_paths)
+    raise FileNotFoundError(
+        "Cannot find the model folder. We searched over the following possible paths:\n"
+        f"{all_paths_str}"
+        "You can try to pass in `model=/path/to/your-model-path`, and confirm "
+        "that it contains `mlc-chat-config.json`, among other essential files.\n"
+        f"Please checkout {_PYTHON_GET_STARTED_TUTORIAL_URL} for an "
+        "example on how to load a model."
+    )
 
 
 def _get_chat_config(config_file_path: str, user_chat_config: Optional[ChatConfig]) -> ChatConfig:
@@ -284,24 +368,63 @@ def _get_chat_config(config_file_path: str, user_chat_config: Optional[ChatConfi
         ``ChatConfig`` corresponding to ``config_file_path``, overriden by ``user_chat_config``.
     """
     final_chat_config = None
-    with open(config_file_path, mode="rt", encoding="utf-8") as f:
-        json_object = json.load(f)
-        final_chat_config = ChatConfig._from_json(json_object)
+    with open(config_file_path, mode="rt", encoding="utf-8") as file:
+        json_object = json.load(file)
+        final_chat_config = ChatConfig._from_json(json_object)  # pylint: disable=protected-access
     if user_chat_config is not None:
         # We override using user's chat config
         for field in fields(user_chat_config):
             field_name = field.name
             field_value = getattr(user_chat_config, field_name)
             if field_value is not None:
-                setattr(final_chat_config, field_name, field_value)
+                if field_name == "model_lib":
+                    warn_msg = (
+                        'WARNING: Do not override "model_lib" in ChatConfig. '
+                        "This override will be ignored. Please use ChatModule.model_lib_path to "
+                        "override the full model library path instead."
+                    )
+                    warnings.warn(warn_msg)
+                else:
+                    setattr(final_chat_config, field_name, field_value)
     return final_chat_config
 
 
-def _get_lib_module_path(
+def _get_generation_config(
+    user_chat_config: ChatConfig, user_generation_config: Optional[GenerationConfig]
+) -> GenerationConfig:
+    """Read in the config file in model path, then potentially override with user input.
+
+    Parameters
+    ----------
+    user_chat_config : ChatConfig
+        ``ChatConfig`` that contain the generation settings to be overriden.
+    user_generation_config : Optional[GenerationConfig]
+        User's input, a partial ``GenerationConfig`` to override the ``ChatConfig``.
+
+    Returns
+    ------
+    final_generation_config : GenerationConfig
+        ``GenerationConfig`` corresponding to ``user_chat_config``, overriden by
+        ``user_generation_config``.
+    """
+    # pylint: disable=protected-access
+    final_generation_config = GenerationConfig._from_chat_config(user_chat_config)
+    # pylint: enable=protected-access
+    if user_generation_config is not None:
+        # We override using user's chat config
+        for field in fields(user_generation_config):
+            field_name = field.name
+            field_value = getattr(user_generation_config, field_name)
+            if field_value is not None:
+                setattr(final_generation_config, field_name, field_value)
+    return final_generation_config
+
+
+def _get_lib_module_path(  # pylint: disable=too-many-arguments
     model: str,
     model_path: str,
     chat_config: ChatConfig,
-    lib_path: Optional[str],
+    model_lib_path: Optional[str],
     device_name: str,
     config_file_path: str,
 ) -> str:
@@ -315,7 +438,7 @@ def _get_lib_module_path(
         Model path found by `_get_model_path`.
     chat_config : ChatConfig
         Chat config after potential overrides. Returned by ``_get_chat_config``.
-    lib_path : Optional[str]
+    model_lib_path : Optional[str]
         User's input. Supposedly a full path to model library. Prioritized to use.
     device_name : str
         User's input. Used to construct the library model file name.
@@ -324,24 +447,22 @@ def _get_lib_module_path(
 
     Returns
     ------
-    lib_path : str
+    model_lib_path : str
         The path pointing to the model library we find.
 
     Raises
     ------
     FileNotFoundError: if we cannot find a valid model library file.
     """
-    # 1. Use user's lib_path if provided
-    if lib_path is not None:
-        if os.path.isfile(lib_path):
-            logging.info(f"Using library model: {lib_path}")
-            return lib_path
-        else:
-            err_msg = (
-                f"The `lib_path` you passed in is not a file: {lib_path}.\nPlease checkout "
-                f"{_PYTHON_GET_STARTED_TUTORIAL_URL} for an example on how to load a model."
-            )
-            raise FileNotFoundError(err_msg)
+    # 1. Use user's model_lib_path if provided
+    if model_lib_path is not None:
+        if os.path.isfile(model_lib_path):
+            logging.info("Using library model: %s", model_lib_path)
+            return model_lib_path
+        raise FileNotFoundError(
+            f"The `model_lib_path` you passed in is not a file: {model_lib_path}.\n"
+            f"Please refer to {_PYTHON_GET_STARTED_TUTORIAL_URL} as tutorial on model loading."
+        )
 
     # 2. Generate all possible file names according to OS
     candidate_lib_names = []
@@ -380,7 +501,7 @@ def _get_lib_module_path(
     # 4. Search for model library
     for candidate in candidate_paths:
         if os.path.isfile(candidate):
-            logging.info(f"Using library model: {os.path.abspath(candidate)}\n")
+            logging.info("Using library model: %s", os.path.abspath(candidate))
             return candidate
 
     # 5. Error
@@ -394,21 +515,23 @@ def _get_lib_module_path(
         err_msg += f"- {candidate}\n"
     err_msg += (
         "If you would like to directly specify the model library path, you may "
-        "consider passing in the `lib_path` parameter.\n"
+        "consider passing in the `ChatModule.model_lib_path` parameter.\n"
         f"Please checkout {_PYTHON_GET_STARTED_TUTORIAL_URL} for an example "
         "on how to load a model."
     )
     raise FileNotFoundError(err_msg)
 
 
-def _convert_chat_config_to_json_str(chat_config: Optional[ChatConfig], conv_template: str) -> str:
+def _convert_chat_config_to_json_str(
+    chat_config: Optional[ChatConfig], conv_template: Optional[str]
+) -> str:
     """Convert user's input ChatConfig to a json string, omitting ``None`` fields.
 
     Parameters
     ----------
     chat_config : Optional[ChatConfig]
         User's input. A partial ChatConfig for overriding ``mlc-chat-config.json``.
-    conv_template : str
+    conv_template : Optional[str]
         The ``conv_template`` that will be used after considering potential override.
 
     Returns
@@ -425,23 +548,91 @@ def _convert_chat_config_to_json_str(chat_config: Optional[ChatConfig], conv_tem
     # Only want to keep entries that are not None; otherwise, we would override things to None
     assert hasattr(ChatConfig, "conv_config")  # in case dataclass attribute name changes
     chat_dict = {}
-    for k, v in asdict(chat_config).items():
-        if k == "conv_config" and v is not None:
+    for key, value in asdict(chat_config).items():
+        if key == "conv_config" and value is not None:
             # conv template is another dict, do the same thing
             conv_dict = {}
-            for conv_k, conv_v in v.items():
+            for conv_k, conv_v in value.items():
                 if conv_v is not None:
                     conv_dict[conv_k] = conv_v
-            chat_dict[k] = conv_dict
+            chat_dict[key] = conv_dict
             continue
-
-        if v is not None:
-            chat_dict[k] = v
+        if value is not None:
+            chat_dict[key] = value
 
     return json.dumps(chat_dict)
 
 
-def _detect_local_device(device_id: int = 0):
+def _convert_generation_config_to_json_str(generation_config: Optional[GenerationConfig]) -> str:
+    """Convert user's input GenerationConfig to a json string.
+
+    Parameters
+    ----------
+    generation_config : Optional[GenerationConfig]
+        User's input. A partial GenerationConfig for overriding ChatConfig generation settings.
+
+    Returns
+    ------
+    json_str : str
+        A JSON string that corresponds to user's ``generation_config`` input.
+        Returns "" if ``generation_config`` unspecified.
+    """
+    if generation_config is None:
+        return ""
+    return json.dumps(asdict(generation_config))
+
+
+def _parse_device_str(device: str) -> Tuple[tvm.runtime.Device, str]:
+    """Parse the input device identifier into device name and id.
+
+    Parameters
+    ----------
+    device : str
+        The device identifier to parse.
+        It can be "device_name" (e.g., "cuda") or
+        "device_name:device_id" (e.g., "cuda:1").
+
+    Returns
+    -------
+    dev : tvm.runtime.Device
+        The device.
+
+    device_name : str
+        The name of the device.
+    """
+    device_err_msg = (
+        f"Invalid device name: {device}. Please enter the device in the form "
+        "'device_name:device_id' or 'device_name', where 'device_name' needs to be "
+        "one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto'."
+    )
+    device_args = device.split(":")
+    if len(device_args) == 1:
+        device_name, device_id = device_args[0], 0
+    elif len(device_args) == 2:
+        device_name, device_id = device_args[0], int(device_args[1])
+    elif len(device_args) > 2:
+        raise ValueError(device_err_msg)
+
+    if device_name == "cuda":
+        device = tvm.cuda(device_id)
+    elif device_name == "metal":
+        device = tvm.metal(device_id)
+    elif device_name == "vulkan":
+        device = tvm.vulkan(device_id)
+    elif device_name == "rocm":
+        device = tvm.rocm(device_id)
+    elif device_name == "opencl":
+        device = tvm.opencl(device_id)
+    elif device_name == "auto":
+        device, device_name = _detect_local_device(device_id)
+        logging.info("System automatically detected device: %s", device_name)
+    else:
+        raise ValueError(device_err_msg)
+
+    return device, device_name
+
+
+def _detect_local_device(device_id: int = 0) -> Tuple[tvm.runtime.Device, str]:
     """Automatically detect the local device if user does not specify.
 
     Parameters
@@ -451,8 +642,11 @@ def _detect_local_device(device_id: int = 0):
 
     Returns
     ------
-    dev : Device
+    dev : tvm.runtime.Device
         The local device.
+
+    device_name : str
+        The name of the device.
     """
     if tvm.metal().exist:
         return tvm.metal(device_id), "metal"
@@ -464,14 +658,14 @@ def _detect_local_device(device_id: int = 0):
         return tvm.vulkan(device_id), "vulkan"
     if tvm.opencl().exist:
         return tvm.opencl(device_id), "opencl"
-
     logging.info(
-        "None of the following device is detected: metal, rocm, cuda, vulkan, opencl. Switch to llvm instead."
+        "None of the following device is detected: metal, rocm, cuda, vulkan, opencl. "
+        "Switch to llvm instead."
     )
     return tvm.cpu(device_id), "llvm"
 
 
-class ChatModule:
+class ChatModule:  # pylint: disable=too-many-instance-attributes
     r"""The ChatModule for MLC LLM.
 
     Examples
@@ -520,7 +714,7 @@ class ChatModule:
         A ``ChatConfig`` instance partially filled. Will be used to override the
         ``mlc-chat-config.json``.
 
-    lib_path : Optional[str]
+    model_lib_path : Optional[str]
         The full path to the model library file to use (e.g. a ``.so`` file).
         If unspecified, we will use the provided ``model`` to search over
         possible paths.
@@ -531,42 +725,15 @@ class ChatModule:
         model: str,
         device: str = "auto",
         chat_config: Optional[ChatConfig] = None,
-        lib_path: Optional[str] = None,
+        model_lib_path: Optional[str] = None,
     ):
-        device_err_msg = (
-            f"Invalid device name: {device}. Please enter the device in the form "
-            "'device_name:device_id' or 'device_name', where 'device_name' needs to be "
-            "one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto'."
-        )
-
-        # 0. Retrieve device_name and device_id (if any, default 0) from device arg
-        device_args = device.split(":")
-        if len(device_args) == 1:
-            device_name, device_id = device_args[0], 0
-        elif len(device_args) == 2:
-            device_name, device_id = device_args[0], int(device_args[1])
-        elif len(device_args) > 2:
-            raise ValueError(device_err_msg)
-
-        # 1. Get self.device
-        if device_name == "cuda":
-            self.device = tvm.cuda(device_id)
-        elif device_name == "metal":
-            self.device = tvm.metal(device_id)
-        elif device_name == "vulkan":
-            self.device = tvm.vulkan(device_id)
-        elif device_name == "rocm":
-            self.device = tvm.rocm(device_id)
-        elif device_name == "opencl":
-            self.device = tvm.opencl(device_id)
-        elif device_name == "auto":
-            self.device, device_name = _detect_local_device(device_id)
-            logging.info(f"System automatically detected device: {device_name}")
-        else:
-            raise ValueError(device_err_msg)
+        # 0. Get device:
+        # Retrieve device_name and device_id (if any, default 0) from device arg
+        self.device, device_name = _parse_device_str(device)
         device_type = self.device.device_type
+        device_id = self.device.device_id
 
-        # 2. Populate chat module and their functions
+        # 1. Populate chat module and their functions
         fcreate_chat_mod = tvm.get_global_func("mlc.llm_chat_create")
         assert fcreate_chat_mod is not None
         chat_mod = fcreate_chat_mod(device_type, device_id)
@@ -592,42 +759,55 @@ class ChatModule:
         self._get_role0_func = chat_mod["get_role0"]
         self._get_role1_func = chat_mod["get_role1"]
 
-        # 3. Look up model_path
+        # 2. Look up model_path
         self.model_path, self.config_file_path = _get_model_path(model)
 
-        # 4. Instantiate chat_config
+        # 3. Instantiate chat_config
         self.chat_config = _get_chat_config(self.config_file_path, chat_config)
 
-        # 5. Look up model library
-        self.lib_path = _get_lib_module_path(
-            model, self.model_path, self.chat_config, lib_path, device_name, self.config_file_path
+        # 4. Look up model library
+        self.model_lib_path = _get_lib_module_path(
+            model,
+            self.model_path,
+            self.chat_config,
+            model_lib_path,
+            device_name,
+            self.config_file_path,
         )
 
-        # 6. Call reload
+        # 5. Call reload
         user_chat_config_json_str = _convert_chat_config_to_json_str(
             self.chat_config, self.chat_config.conv_template
         )
-        self._reload(self.lib_path, self.model_path, user_chat_config_json_str)
-        
-        # 7. Save default config values.
-        self.default_chat_config = asdict(self.chat_config)
-        if "conv_config" in self.default_chat_config:
-            self.default_chat_config.pop("conv_config")
-        self.default_conv_config = json.loads(self._get_config_json())["conv_config"]
+        self._reload(self.model_lib_path, self.model_path, user_chat_config_json_str)
 
-    def generate(self, prompt: str, progress_callback=None) -> str:
-        r"""A high-level method that returns the full response from the chat module given a user prompt.
-        User can optionally specify which callback method to use upon receiving the response. By default,
-        no callback will be applied.
+    def generate(
+        self,
+        prompt: Union[str, List[ChatMessage]],
+        generation_config: Optional[GenerationConfig] = None,
+        progress_callback=None,
+    ) -> Union[str, List[str]]:
+        r"""A high-level method that returns the full response from the chat module given a user
+        prompt. User can optionally specify which callback method to use upon receiving the
+        response. By default, no callback will be applied.
 
         Parameters
         ----------
-        prompt : str
+        prompt : Union[str, List[ChatMessage]]
             The user input prompt, i.e. a question to ask the chat module.
+            It can also be the whole conversation history (list of messages with role and content)
+            eg: ```[
+                ChatMessage(role="user", content="Hello, how are you?"),
+                ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
+                ChatMessage(role="user", content="I'm good too."),
+            ]```
+        generation_config: Optional[GenerationConfig]
+            The generation config object to override the ChatConfig generation settings.
         progress_callback: object
-            The optional callback method used upon receiving a newly generated message from the chat module.
-            See `mlc_chat/callback.py` for a full list of available callback classes. Currently, only
-            streaming to stdout callback method is supported, see `Examples` for more detailed usage.
+            The optional callback method used upon receiving a newly generated message from the
+            chat module. See `mlc_chat/callback.py` for a full list of available callback classes.
+            Currently, only streaming to stdout callback method is supported, see `Examples` for
+            more detailed usage.
 
         Returns
         -------
@@ -643,31 +823,44 @@ class ChatModule:
           # the chat module streaming to stdout piece by piece, and in the end we receive the
           # full response as a single string `output`.
 
-          from mlc_chat import ChatModule, callback
+          from mlc_chat import ChatModule, GenerationConfig, callback
           cm = ChatModule(xxx)
           prompt = "what's the color of banana?"
-          output = cm.generate(prompt, callback.StreamToStdout(callback_interval=2))
+          output = cm.generate(
+            prompt, GenerationConfig(temperature=0.8), callback.StreamToStdout(callback_interval=2)
+          )
           print(output)
         """
-        self._prefill(prompt)
+        new_msgs = []
+        num_return_sequences = 1
+        return_str = True
+        if (generation_config is not None) and (generation_config.n is not None):
+            num_return_sequences = generation_config.n
+            return_str = False
+        else:
+            num_return_sequences = 1
 
-        if not progress_callback:
-            while not self._stopped():
-                self._decode()
-            new_msg = self._get_message()
-            return new_msg
+        for _ in range(num_return_sequences):
+            self.reset_chat()
+            self._prefill(prompt, generation_config=generation_config)
 
-        # apply callback with a rate of callback_interval
-        i, new_msg = 0, ""
-        while not self._stopped():
-            self._decode()
-            if i % progress_callback.callback_interval == 0 or self._stopped():
+            if not progress_callback:
+                while not self._stopped():
+                    self._decode(generation_config=generation_config)
                 new_msg = self._get_message()
-                progress_callback(new_msg)
-            i += 1
-        progress_callback(stopped=True)
-
-        return new_msg
+                new_msgs.append(new_msg)
+            else:
+                # apply callback with a rate of callback_interval
+                i, new_msg = 0, ""
+                while not self._stopped():
+                    self._decode(generation_config=generation_config)
+                    if i % progress_callback.callback_interval == 0 or self._stopped():
+                        new_msg = self._get_message()
+                        progress_callback(new_msg)
+                    i += 1
+                progress_callback(stopped=True)
+                new_msgs.append(new_msg)
+        return new_msgs[0] if return_str else new_msgs
 
     def reset_chat(self, chat_config: Optional[ChatConfig] = None):
         r"""Reset the chat session, clear all chat history, and potentially
@@ -696,46 +889,7 @@ class ChatModule:
             # Second argument is `partial_update = True`
             self._load_json_override_func(user_chat_config_json_str, True)
 
-    def update_chat_config(self, new_chat_config: ChatConfig):
-        r"""Update the chat config, or use the currently used default values if
-        values are None.
-
-        Parameters
-        ----------
-        chat_config : ChatConfig
-            A ``ChatConfig`` instance partially filled. The chat module will
-            override the default values with it.
-
-        Note
-        ----
-        This is inteneded for use in the completions api to allow users to specify
-        config values and use defaults if they are not passed to the request. 
-        """
-
-        new_chat_config_dict = asdict(new_chat_config)
-        
-        # Override chat config values if they are present. Use default values if not. 
-        config_updates_dict = {}
-        for k, default_value in self.default_chat_config.items():
-            new_value = new_chat_config_dict.get(k)
-            config_updates_dict[k] = new_value if new_value else default_value
-        
-        # Add conv_config values if there are ones.
-        new_conv_config_dict = new_chat_config_dict.get("conv_config")
-        if new_conv_config_dict:
-            conv_config_updates_dict = {}
-            for k, default_value in self.default_conv_config.items():
-                new_value = new_conv_config_dict.get(k)
-                conv_config_updates_dict[k] = new_value if new_value else default_value
-            config_updates_dict["conv_config"] = conv_config_updates_dict
-
-        # Current logic does not allow partial ChatConfig without specifying the
-        # conv_template. Hence we use the conv_template after considering potential overrides.
-        user_chat_config_json_str = json.dumps(config_updates_dict)
-        # Second argument is `partial_update = True`
-        self._load_json_override_func(user_chat_config_json_str, True)
-
-    def embed_text(self, input: str):
+    def embed_text(self, input: str):  # pylint: disable=redefined-builtin
         r"""Given a text input, returns its embedding in the LLM.
 
         Parameters
@@ -759,7 +913,7 @@ class ChatModule:
         return self._embed_func(input, PlaceInPrompt.Middle.value)
 
     def stats(self, verbose=False) -> str:
-        r"""Get the runtime stats of the encoding step, decoding step, (and embedding step if exists)
+        r"""Get the runtime stats of the encoding step, decoding step (and embedding step if exists)
         of the chat module in text form.
 
         Returns
@@ -769,8 +923,7 @@ class ChatModule:
         """
         if verbose:
             return self._verbose_runtime_stats_text_func()
-        else:
-            return self._runtime_stats_text_func()
+        return self._runtime_stats_text_func()
 
     def benchmark_generate(self, prompt: str, generate_length: int) -> str:
         r"""Controlled generation with input prompt and fixed number of
@@ -844,28 +997,77 @@ class ChatModule:
 
     def _prefill(
         self,
-        input: str,
+        input: Union[str, List[ChatMessage]],  # pylint: disable=redefined-builtin
         decode_next_token: bool = True,
         place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
+        generation_config: Optional[GenerationConfig] = None,
     ):
         r"""Run prefill stage for a given input and optionally decode the first output token.
         User can decide where to place the input in the prompt.
 
         Parameters
         ----------
-        input : str
-            The user input string.
+        input : Union[str, List[ChatMessage]]
+            The user input prompt, i.e. a question to ask the chat module.
+            It can also be the whole conversation history (list of messages with role and content)
+            eg: ```[
+                ChatMessage(role="user", content="Hello, how are you?"),
+                ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
+                ChatMessage(role="user", content="I'm good too."),
+            ]```
         decode_next_token : bool
             Whether to decode the next token after prefilling.
         place_in_prompt: PlaceInPrompt
             The place of the input message in the prompt. See `class PlaceInPrompt` for details.
+        generation_config: Optional[GenerationConfig]
+            The generation config to override the ChatConfig generation settings.
         """
-        self._prefill_func(input, decode_next_token, place_in_prompt.value)
+        generation_config = _get_generation_config(self.chat_config, generation_config)
+        generation_config_str = _convert_generation_config_to_json_str(generation_config)
 
-    def _embed(self, input: str, place_in_prompt: PlaceInPrompt = PlaceInPrompt.All):
-        r"""A more fine-grained embedding API. Given a text input, get the embedding of the tokenized prompt.
-        User can decide where to place the input in the prompt. This functionality usually aids the subsequent
-        call to :func:`_prefill_with_embed`.
+        if isinstance(input, list):
+            # Populate conversation.messages using load_json_override
+            if len(input) > 1:
+                conv_config = json.loads(self._get_config_json())["conv_config"]
+                messages = []
+                role0 = self._get_role_0()
+                role1 = self._get_role_1()
+                for _, msg in enumerate(input[:-1]):
+                    role = msg.role
+                    content = msg.content
+                    if role == "user":
+                        messages.append([role0, content])
+                    elif role == "assistant":
+                        messages.append([role1, content])
+                    else:
+                        raise ValueError("Only user and assistant roles are supported.")
+                if not input[-1].role == "user":
+                    raise ValueError("Last message should be from user.")
+                conv_config["messages"] = messages
+                conv_config["offset"] = 0
+                # Otherwise, the offset will be set to the length of the conversation,
+                # which means history will be retained even after calling reset_chat
+                self._load_json_override(
+                    json.dumps({"conv_config": conv_config}),
+                    partial_update=True,
+                )
+            input_str = input[-1].content
+        else:
+            input_str = input
+
+        self._prefill_func(
+            input_str, decode_next_token, place_in_prompt.value, generation_config_str
+        )
+
+    def _embed(
+        self,
+        input: str,  # pylint: disable=redefined-builtin
+        place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
+        generation_config: Optional[GenerationConfig] = None,
+    ):
+        r"""A more fine-grained embedding API. Given a text input, get the embedding of the
+        tokenized prompt. User can decide where to place the input in the prompt. This functionality
+        usually aids the subsequent call to :func:`_prefill_with_embed`.
 
         Parameters
         ----------
@@ -873,15 +1075,25 @@ class ChatModule:
             The user input string.
         place_in_prompt: PlaceInPrompt
             The place of the input message in the prompt. See `class PlaceInPrompt` for details.
+        generation_config: Optional[GenerationConfig]
+            The generation config to override the ChatConfig generation settings.
 
         Returns
         -------
         embedding : tvm.runtime.NDArray
             The embedding of the text.
         """
-        return self._embed_func(input, place_in_prompt.value)
+        generation_config = _get_generation_config(self.chat_config, generation_config)
+        generation_config_str = _convert_generation_config_to_json_str(generation_config)
 
-    def _prefill_with_embed(self, embedding: tvm.runtime.NDArray, decode_next_token: bool = True):
+        return self._embed_func(input, place_in_prompt.value, generation_config_str)
+
+    def _prefill_with_embed(
+        self,
+        embedding: tvm.runtime.NDArray,
+        decode_next_token: bool = True,
+        generation_config: Optional[GenerationConfig] = None,
+    ):
         r"""Given an embedding, run the prefill stage and optionally decode the first output token.
 
         Parameters
@@ -890,14 +1102,26 @@ class ChatModule:
             The embedding of user input.
         decode_next_token : bool
             Whether to decode the next token after prefilling.
+        generation_config: Optional[GenerationConfig]
+            The generation config to override the ChatConfig generation settings.
         """
-        self._prefill_with_embed_func(embedding, decode_next_token)
+        generation_config = _get_generation_config(self.chat_config, generation_config)
+        generation_config_str = _convert_generation_config_to_json_str(generation_config)
 
-    def _decode(self):
+        self._prefill_with_embed_func(embedding, decode_next_token, generation_config_str)
+
+    def _decode(self, generation_config: Optional[GenerationConfig] = None):
         r"""Decode the next token, the decoding result is stored in a buffer and
         can be retrieved by :func:`get_message`.
+
+        Parameters
+        ----------
+        generation_config: Optional[GenerationConfig]
+            The generation config to override the ChatConfig generation settings.
         """
-        self._decode_func()
+        generation_config = _get_generation_config(self.chat_config, generation_config)
+        generation_config_str = _convert_generation_config_to_json_str(generation_config)
+        self._decode_func(generation_config_str)
 
     def _stopped(self) -> bool:
         r"""Check if the stop condition is met for the current round.
@@ -940,8 +1164,8 @@ class ChatModule:
         config_str : str
             A json config string that partially specifies some of the options.
         partial_update : bool
-            Whether it's a partial update or full update, if set to true, we perform a partial update
-            on some of the provided options; if set to false, all options must be provided.
+            Whether it's a partial update or full update. If set to true, we perform a partial
+            update on some of the provided options; if set to false, all options must be provided.
         """
         self._load_json_override_func(config_str, partial_update)
 

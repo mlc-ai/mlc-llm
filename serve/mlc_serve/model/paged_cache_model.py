@@ -327,7 +327,7 @@ def copy_to_worker_0(sess: di.Session, host_array):
 
 
 def get_tvm_model(artifact_path, model, quantization, num_shards, dev):
-    model_artifact_path = os.path.join(artifact_path, f"{model}-{quantization}-batched")
+    model_artifact_path = os.path.join(artifact_path, f"{model}-{quantization}")
     lib_path = os.path.join(model_artifact_path, f"{model}-{quantization}-cuda.so")
 
     if num_shards == 1:

@@ -502,7 +502,7 @@ def create_embed_func(
     bb.update_func(gv, mod[gv].with_attr("num_input", 1))
 
 
-def get_model(args):
+def get_model(args, _config):
     model_name = args.model
     model_path = args.model_path
 

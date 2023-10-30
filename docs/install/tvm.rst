@@ -37,49 +37,49 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly
+              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
 
          .. tab:: CUDA 11.7
 
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-cu117
+              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu117
 
          .. tab:: CUDA 11.8
 
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-cu118
+              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu118
 
          .. tab:: CUDA 12.1
 
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-cu121
+              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu121
 
          .. tab:: CUDA 12.2
 
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-cu122
+              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu122
 
          .. tab:: ROCm 5.6
 
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-rocm56
+              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-rocm56
 
          .. tab:: ROCm 5.7
 
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-rocm57
+              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-rocm57
 
          .. tab:: Vulkan
 
@@ -97,19 +97,12 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
 
       .. tabs::
 
-         .. tab:: CPU
+         .. tab:: CPU + Metal
 
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly
-
-         .. tab:: Metal
-
-            .. code-block:: bash
-
-              conda activate your-environment
-              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly
+              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
 
         .. note::
 
@@ -125,16 +118,12 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
 
       .. tabs::
 
-         .. tab:: CPU
+         .. tab:: CPU + Vulkan
 
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly
-
-         .. tab:: Vulkan
-
-            Supported in all Windows packages.
+              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
 
       .. note::
         If encountering the error below:
@@ -143,7 +132,7 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
 
             FileNotFoundError: Could not find module 'path\to\site-packages\tvm\tvm.dll' (or one of its dependencies). Try using the full path with constructor syntax.
 
-        It is likely `zstd`, a dependency to LLVM, was missing. Please `download <https://github.com/facebook/zstd/releases/tag/v1.5.5>`__ the precompiled binary, rename it to `zstd.dll` and copy to the same folder as `tvm.dll`.
+        It is likely `zstd`, a dependency to LLVM, was missing. Please `download <https://github.com/facebook/zstd/releases/tag/v1.5.5>`__ the precompiled binary, rename it to `zstd.dll` and copy to the same folder as `tvm.dll`. Hint - To locate the "tvm.dll" file in Conda, navigate to your user home directory (e.g., "/users/xxxx"). Search for "tvm.dll" and find the folder whose path contains the name of the current environment, such as "mlc-chat-venv." Once located, copy "zstd.dll" to that specific folder.
 
 
 .. _tvm-unity-build-from-source:

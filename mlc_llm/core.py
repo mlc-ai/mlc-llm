@@ -26,6 +26,7 @@ from mlc_llm.relax_model import (
     minigpt,
     param_manager,
     rwkv,
+    stablelm_3b,
 )
 from mlc_llm.relax_model.commons import create_shard_info_func
 from mlc_llm.transform import fuse_split_rotary_embedding, rewrite_attention
@@ -79,6 +80,37 @@ class BuildArgs:
         Build with separated embedding layer, only applicable to LlaMa. This
         feature is in testing stage, and will be formally replaced after massive
         overhaul of embedding feature for all models and use cases.
+    cc_path: str
+        ``/path/to/cross_compiler_path``; currently only used for cross-compile
+        for nvidia/jetson device.
+    use_safetensors: bool
+        Specifies whether to use ``.safetensors`` instead of the default ``.bin``
+        when loading in model weights.
+    enable_batching: bool
+        Build the model for batched inference.
+        This is a temporary flag used to control the model execution flow in single-
+        sequence and batching settings for now. We will eventually merge two flows
+        in the future and remove this flag then.
+    no_cutlass_attn: bool
+        Disable offloading attention operations to CUTLASS.
+    no_cutlass_norm: bool
+        Disable offloading layer and RMS norm operations to CUTLASS.
+    no_cublas: bool
+        Disable the step that offloads matmul to cuBLAS. Without this flag,
+        matmul will be offloaded to cuBLAS if quantization mode is ``q0f16`` or
+        ``q0f32``, target is CUDA and TVM has been built with cuBLAS enabled.
+    use_cuda_graph: bool
+        Specifies whether to enable CUDA Graph for the decoder. MLP and QKV
+        projection between two attention layers are put into a graph.
+    num_shards: int
+        Number of shards to split the model into in tensor parallelism multi-gpu
+        inference. Only useful when ``build_model_only`` is set.
+    use_flash_attn_mqa: bool
+        Offload multi-query attention workload to Flash Attention.
+    pdb: bool
+        If set, drop into a pdb debugger on error.
+    use_vllm_attention: bool
+        Use vLLM paged KV cache and attention kernel, only relevant when enable_batching=True.
     """
     model: str = field(
         default="auto",
@@ -180,21 +212,29 @@ class BuildArgs:
             "action": "store_true",
         },
     )
-    no_cutlass_attn: bool = field(
+    enable_batching: bool = field(
         default=False,
         metadata={
             "help": (
-                "Disable offloading attention operations to CUTLASS."
+                "Build the model for batched inference."
+                "This is a temporary flag used to control the model execution flow in single-"
+                "sequence and batching settings for now. We will eventually merge two flows"
+                "in the future and remove this flag then."
             ),
+            "action": "store_true",
+        },
+    )
+    no_cutlass_attn: bool = field(
+        default=False,
+        metadata={
+            "help": ("Disable offloading attention operations to CUTLASS."),
             "action": "store_true",
         },
     )
     no_cutlass_norm: bool = field(
         default=False,
         metadata={
-            "help": (
-                "Disable offloading layer and RMS norm operations to CUTLASS."
-            ),
+            "help": ("Disable offloading layer and RMS norm operations to CUTLASS."),
             "action": "store_true",
         },
     )
@@ -204,7 +244,7 @@ class BuildArgs:
             "help": (
                 "Disable the step that offloads matmul to cuBLAS. Without this flag, "
                 "matmul will be offloaded to cuBLAS if quantization mode is q0f16 or q0f32, "
-                "target is CUDA and TVM has been built with cuBLAS enbaled."
+                "target is CUDA and TVM has been built with cuBLAS enabled."
             ),
             "action": "store_true",
         },
@@ -231,15 +271,23 @@ class BuildArgs:
     use_flash_attn_mqa: bool = field(
         default=False,
         metadata={
-            "help": (
-                "Offload multi-query attention workload to Flash Attention."
-            ),
+            "help": ("Offload multi-query attention workload to Flash Attention."),
+            "action": "store_true",
         },
     )
-    batched: bool = field(
+    pdb: bool = field(
         default=False,
         metadata={
-            "help": ("Build the model with batched inference support."),
+            "help": ("If set, drop into a pdb debugger on error"),
+            "action": "store_true",
+        },
+    )
+    use_vllm_attention: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Use vLLM paged KV cache and attention kernel, only relevant when enable_batching=True."
+            ),
             "action": "store_true",
         },
     )
@@ -279,12 +327,14 @@ def _parse_args(parsed) -> argparse.Namespace:
     utils.parse_target(parsed)
     utils.argparse_postproc_common(parsed)
 
+    if parsed.use_vllm_attention:
+        assert parsed.enable_batching, "--enable_batching is required for using vLLM attention."
+        assert parsed.target_kind == "cuda", "vLLM attention is only supported for CUDA."
+        assert tvm.get_global_func("tvm.contrib.vllm.single_query_cached_kv_attention", True), "TVM needs to be built with -DUSE_VLLM=ON."
+
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
     )
-
-    if parsed.batched:
-        parsed.artifact_path += "-batched"
 
     return parsed
 
@@ -378,29 +428,36 @@ def mod_transform_before_build(
             "decode",
         ]
 
-        if not args.batched:
+        if not args.use_vllm_attention:
             model_names += [
                 "create_kv_cache",
                 "softmax_with_temperature",
                 "get_metadata",
             ]
-        if args.batched:
+        else:
+            # This is equivalent to prefill but without KV cache. It is used for
+            # determining the number of paged cache blocks that can be allocated.
             model_names.append("evaluate")
+
         if args.sep_embed:
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
+            if args.enable_batching:
+                model_names[2] = "decode_with_embed"
         if args.model.lower().startswith("rwkv-"):
             model_names += ["reset_kv_cache"]
 
-    mod = param_manager.transform_dequantize(mod)
+    mod = param_manager.transform_dequantize()(mod)
+    mod = relax.transform.BundleModelParams()(mod)
 
     use_ft_quant = args.quantization.name in ["q4f16_ft", "q8f16_ft"]
     mod = mlc_llm.transform.FuseDecodeTranspose(skip_gemm=not use_ft_quant)(mod)
 
     if (
-        not args.batched
+        not args.enable_batching
         and hasattr(config, "num_attention_heads")
         and hasattr(config, "hidden_size")
         and hasattr(config, "position_embedding_base")
+        and getattr(config, "dtype", "float16") == "float16"
     ):
         max_seq_len = None
         if args.max_seq_len > 0:
@@ -411,12 +468,11 @@ def mod_transform_before_build(
         if max_seq_len:
             num_key_value_heads = config.get_num_key_value_heads()
             mod = fuse_split_rotary_embedding(
-                mod,
-                config.num_attention_heads // args.num_shards,
-                num_key_value_heads // args.num_shards,
-                config.hidden_size // args.num_shards,
-                config.position_embedding_base,
-            )
+                    config.num_attention_heads // args.num_shards,
+                    num_key_value_heads // args.num_shards,
+                    config.hidden_size // args.num_shards,
+                    config.position_embedding_base,
+                )(mod)
 
     if args.target_kind == "cuda":
         patterns = []
@@ -425,15 +481,8 @@ def mod_transform_before_build(
 
         if has_cutlass and not args.no_cutlass_attn:
             if args.use_flash_attn_mqa:
-                mod["prefill"] = rewrite_attention(mod["prefill"], use_flash_mqa=True)
-                mod["decode"] = rewrite_attention(mod["decode"], use_flash_mqa=True)
-
-            mod["prefill"] = rewrite_attention(mod["prefill"], use_flash_mqa=False)
-            mod["decode"] = rewrite_attention(mod["decode"], use_flash_mqa=False)
-
-            if args.batched:
-                mod["evaluate"] = rewrite_attention(mod["evaluate"], use_flash_mqa=False)
-
+                mod = rewrite_attention(use_flash_mqa=True)(mod)
+            mod = rewrite_attention(use_flash_mqa=False)(mod)
             patterns += get_patterns_with_prefix("cutlass.attention")
 
         if has_cutlass and not args.no_cutlass_norm:
@@ -470,7 +519,7 @@ def mod_transform_before_build(
                     ),
                     annotate_workspace,
                     relax.transform.AllocateWorkspace(),
-                    relax.transform.RunCodegen(options, entry_functions=model_names)
+                    relax.transform.RunCodegen(options, entry_functions=model_names),
                 ]
             )(mod)
 
@@ -570,7 +619,9 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": use_cuda_graph}):
         # The num_input attribute is needed to capture transformed weights passed as input
         # into a cuda graph.
-        mod_deploy["decode"] = mod_deploy["decode"].with_attr({"num_input": 3})
+        # NOTE: CUDA graph for batching is not enabled and is left as a TODO item.
+        if not args.enable_batching:
+            mod_deploy["decode"] = mod_deploy["decode"].with_attr({"num_input": 3})
         ex = relax.build(mod_deploy, args.target, system_lib=args.system_lib)
 
     output_filename = f"{args.model}-{args.quantization.name}-{target_kind}.{args.lib_format}"
@@ -593,6 +644,9 @@ def build_model_from_args(args: argparse.Namespace):
                 "`num_shards` should be used together with "
                 "`--build-model-only` and `--convert-weight-only`"
             )
+        use_ft_quant = args.quantization.name in ["q4f16_ft", "q8f16_ft"]
+        if use_ft_quant:
+            raise ValueError("Multi-GPU deployments are not available for ft quantization.")
     os.makedirs(args.artifact_path, exist_ok=True)
     if args.debug_dump:
         os.makedirs(os.path.join(args.artifact_path, "debug"), exist_ok=True)
@@ -601,36 +655,47 @@ def build_model_from_args(args: argparse.Namespace):
     use_cache = args.use_cache and os.path.isfile(cache_path)
     if args.sep_embed and args.model_category != "llama":
         raise ValueError(f"separate embedding not supported on {args.model}")
-    if args.model_category != "minigpt":
+
+    if args.model_category == "minigpt":
+        # Special case for minigpt, which neither provides nor requires a configuration.
+        config = {}
+    else:
         with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
             config = json.load(i_f)
+
     if not use_cache or args.convert_weight_only:
-        if args.model_category in ["llama", "mistral"] and args.batched:
-            mod, param_manager, params, model_config = llama_batched_vllm.get_model(args, config)
-        elif args.model_category == "llama":
-            mod, param_manager, params, model_config = llama.get_model(args, config)
-        elif args.model_category == "mistral":
-            mod, param_manager, params, model_config = llama.get_model(args, config)
-        elif args.model_category == "gpt_neox":
-            mod, param_manager, params, model_config = gpt_neox.get_model(args, config)
-        elif args.model_category == "gpt_bigcode":
-            mod, param_manager, params, model_config = gpt_bigcode.get_model(args, config)
-        elif args.model_category == "minigpt":
-            mod, param_manager, params, model_config = minigpt.get_model(args)
-        elif args.model_category == "gptj":
-            mod, param_manager, params, model_config = gptj.get_model(args, config)
-        elif args.model_category == "rwkv" or args.model_category == "rwkv_world":
-            mod, param_manager, params, model_config = rwkv.get_model(args, config)
-        elif args.model_category == "chatglm":
-            mod, param_manager, params, model_config = chatglm.get_model(args, config)
-        else:
-            raise ValueError(f"Model {args.model} not supported")
+        model_generators = {
+            "llama": llama,
+            "mistral": llama,
+            "stablelm_epoch": stablelm_3b,
+            "gpt_neox": gpt_neox,
+            "gpt_bigcode": gpt_bigcode,
+            "minigpt": minigpt,
+            "gptj": gptj,
+            "rwkv": rwkv,
+            "rwkv_world": rwkv,
+            "chatglm": chatglm,
+        }
+
+        if args.use_vllm_attention:
+            model_generators["llama"] = llama_batched_vllm
+            model_generators["mistral"] = llama_batched_vllm
+
+        assert args.model_category in model_generators, f"Model {args.model} not supported"
+
+        mod, param_manager, params, model_config = model_generators[args.model_category].get_model(
+            args, config
+        )
 
         for qspec_updater_class in param_manager.qspec_updater_classes:
             qspec_updater = qspec_updater_class(param_manager)
             qspec_updater.visit_module(mod)
 
         if not args.build_model_only:
+            # Run pre-quantization if provided.
+            args.model_path = param_manager.run_pre_quantize(args.model_path)
+            param_manager.init_torch_pname_to_bin_name(args.use_safetensors)
+
             new_params = utils.convert_weights(param_manager, params, args)
             utils.save_params(new_params, args.artifact_path)
             if args.model_category != "minigpt":

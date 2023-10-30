@@ -6,13 +6,12 @@ Rest API
    :depth: 2
 
 We provide `REST API <https://www.ibm.com/topics/rest-apis#:~:text=the%20next%20step-,What%20is%20a%20REST%20API%3F,representational%20state%20transfer%20architectural%20style.>`_
-for user to interact with MLC-Chat in their own programs.
+for a user to interact with MLC-Chat in their own programs.
 
 Install MLC-Chat Package
 ------------------------
 
-The REST API is a part of the MLC-Chat package, which we have prepared pre-built pip wheels and you can install it by
-following the instructions in `<https://mlc.ai/package/>`_.
+The REST API is a part of the MLC-Chat package, which we have prepared pre-built :doc:`pip wheels <../install/mlc_llm>`.
 
 Verify Installation
 ^^^^^^^^^^^^^^^^^^^
@@ -34,7 +33,7 @@ of mlc chat runtime. You only need to do this if you choose not to use the prebu
 
 First, make sure you install TVM unity (following the instruction in :ref:`install-tvm-unity`).
 You can choose to only pip install `mlc-ai-nightly` that comes with the tvm unity but skip `mlc-chat-nightly`.
-Then please follow the instruction in :ref:`mlcchat_build_from_source` to build the necessary libraries.
+Then please follow the instructions in :ref:`mlcchat_build_from_source` to build the necessary libraries.
 
 You can now use ``mlc_chat`` package by including the `python` directory to ``PYTHONPATH`` environment variable.
 
@@ -89,6 +88,9 @@ The REST API provides the following endpoints:
 
    Get the latest runtime stats (encode/decode speed).
 
+.. http:get:: /verbose_stats
+
+   Get the verbose runtime stats (encode/decode speed, total runtime).
 
 Use REST API in your own program
 --------------------------------

@@ -473,6 +473,25 @@ Conversation VanillaLM() {
   return conv;
 }
 
+Conversation StableLM3B() {
+  Conversation conv;
+  conv.name = "stablelm-3b";
+  conv.system = "";
+  conv.roles = {"Prompt", "LM"};
+  conv.messages = {};
+  conv.separator_style = SeparatorStyle::kLM;
+  conv.offset = 0;
+  conv.seps = {""};
+  conv.role_msg_sep = "";
+  conv.role_empty_sep = "";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  // so the same template works for more tokenizers
+  conv.stop_tokens = {0};
+  conv.add_bos = true;
+  return conv;
+}
+
 Conversation GPTBigCode() {
   Conversation conv;
   conv.name = "gpt_bigcode";
@@ -580,6 +599,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"minigpt", MiniGPT},
       {"moss", MOSS},
       {"LM", VanillaLM},
+      {"stablelm-3b", StableLM3B},
       {"gpt_bigcode", GPTBigCode},
       {"wizardlm_7b", WizardLM7B},
       {"wizard_coder_or_math", WizardCoderOrMATH},

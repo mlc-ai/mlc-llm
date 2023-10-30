@@ -40,9 +40,12 @@
  *
  * @param modelLib The name of the modelLib
  * @param modelPath The path to the model artifacts.
- * @param appConfigJson The partial config that is used to partially override the model configuration.
+ * @param appConfigJson The partial config that is used to partially override the model
+ * configuration.
  */
-- (void)reload:(NSString*)modelLib modelPath:(NSString*)modelPath appConfigJson:(NSString*)appConfigJson;
+- (void)reload:(NSString*)modelLib
+        modelPath:(NSString*)modelPath
+    appConfigJson:(NSString*)appConfigJson;
 
 /**
  * Reset the current chat session.
@@ -118,5 +121,7 @@
  * @param prevPlaceholder The previous placeholder in the prompt, i.e. <Img>.
  * @param postPlaceholder The post placeholder in the prompt, i.e. </Img>.
  */
-- (void)prefillImage:(UIImage*)image prevPlaceholder:(NSString*)prevPlaceholder postPlaceholder:(NSString*)postPlaceholder;
+- (void)prefillImage:(UIImage*)image
+     prevPlaceholder:(NSString*)prevPlaceholder
+     postPlaceholder:(NSString*)postPlaceholder;
 @end
