@@ -1,8 +1,6 @@
 """A centralized registry of all existing quantization methods and their configurations."""
 from typing import Any, Dict
 
-from tvm import DataType
-
 from .group_quantization import GroupQuantize
 
 Quantization = Any

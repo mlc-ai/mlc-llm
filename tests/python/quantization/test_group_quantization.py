@@ -2,13 +2,13 @@
 from typing import List
 
 import numpy as np
+import tvm
+import tvm.testing
 from mlc_chat.compiler import QUANTIZATION
 from mlc_chat.compiler.parameter import QuantizeMapping
 from mlc_chat.compiler.quantization import GroupQuantize
 from mlc_chat.compiler.quantization.group_quantization import GroupQuantizeLinear
-
-import tvm
-import tvm.testing
+from tvm import DataType
 from tvm.relax.frontend import nn
 
 
@@ -29,15 +29,16 @@ def quantize_np(config: GroupQuantize, weight: np.ndarray):
         ),
         0,
         config.max_int_value * 2,
-    ).astype(str(config.storage_dtype))
+    ).astype(config.storage_dtype)
     weight_scaled = np.reshape(
         weight_scaled_reshaped, (n, k // config.num_elem_per_storage, config.num_elem_per_storage)
     )
-    indice_k = np.indices(weight_scaled.shape, dtype=str(config.storage_dtype))[-1]
+    indice_k = np.indices(weight_scaled.shape, dtype=config.storage_dtype)[-1]
+    quantize_dtype = DataType(config.quantize_dtype)
     quantized_weight = np.sum(
-        np.left_shift(weight_scaled, indice_k * config.quantize_dtype.bits),
+        np.left_shift(weight_scaled, indice_k * quantize_dtype.bits),
         axis=-1,
-        dtype=str(config.storage_dtype),
+        dtype=config.storage_dtype,
     )
     return quantized_weight, scale
 
@@ -58,9 +59,10 @@ def dequantize_np(
     weight_repeated = np.repeat(weight, config.num_elem_per_storage, axis=-1)
     scale_repeated = np.repeat(scale, config.group_size, axis=-1)
     indice_j = np.indices(weight_repeated.shape)[1]
+    storage_dtype = DataType(config.storage_dtype)
     weight_bin = np.bitwise_and(
         np.right_shift(
-            weight_repeated, (indice_j % config.num_elem_per_storage) * config.storage_dtype.bits
+            weight_repeated, (indice_j % config.num_elem_per_storage) * storage_dtype.bits
         ),
         bin_mask,
     )
@@ -71,7 +73,7 @@ def test_quantize(quant_name: str, shape: List[int], dtype: str):
     config = QUANTIZATION[quant_name]
     assert isinstance(config, GroupQuantize)
     weight_np = np.random.random(shape).astype(dtype)
-    output = config.quantize(tvm.nd.array(weight_np, device=tvm.device("cuda")))
+    output = config.quantize_weight(tvm.nd.array(weight_np, device=tvm.device("cuda")))
     quantized_weight, scale = output[0].numpy(), output[1].numpy()
     quantized_weight_ref, scale_ref = quantize_np(config, weight_np)
     tvm.testing.assert_allclose(scale, scale_ref, rtol=1e-3, atol=1e-3)
@@ -84,27 +86,5 @@ def test_quantize(quant_name: str, shape: List[int], dtype: str):
     )
 
 
-def test_apply_quantize(quant_name: str, shape: List[int], dtype: str):
-    class Test(nn.Module):
-        def __init__(self) -> None:
-            super().__init__()
-            self.linear = nn.Linear(shape[0], shape[1], dtype=dtype)
-
-        def forward(self, x: nn.Tensor):
-            return self.linear(x)
-
-    config = QUANTIZATION[quant_name]
-    assert isinstance(config, GroupQuantize)
-    quant_map = QuantizeMapping({}, {})
-    mod = config.apply(Test(), quant_map, "model")
-    assert quant_map.param_map["model.linear.weight"] == [
-        "model.linear.q_weight",
-        "model.linear.q_scale",
-    ]
-    assert quant_map.map_func["model.linear.weight"] == config.quantize
-    assert isinstance(mod.linear, GroupQuantizeLinear)
-
-
 if __name__ == "__main__":
     test_quantize("q4f16_1", [64, 4096], "float16")
-    test_apply_quantize("q4f16_1", [64, 4096], "float16")

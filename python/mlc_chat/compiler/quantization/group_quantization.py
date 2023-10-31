@@ -102,6 +102,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         return dequantized_weight
 
     def quantize_weight(self, weight: NDArray) -> List[NDArray]:
+        """Quantize weight with group quantization"""
         assert weight.dtype == self.model_dtype
         assert len(weight.shape) == 2
         bb = relax.BlockBuilder()
@@ -113,13 +114,17 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             bb.emit_func_output(gv)
         mod = bb.get()
         with Target("cuda"):
-            mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
+            mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+                dl.gpu.Reduction(), dl.gpu.GeneralReduction(), dl.gpu.Fallback()
+            )(mod)
         ex = relax.build(mod, "cuda")
         dev = device("cuda", 0)
         vm = relax.VirtualMachine(ex, dev)
         return vm["quantize"](weight)
 
-    def _quantize(self, weight: te.Tensor) -> Tuple[te.Tensor, te.Tensor]:
+    def _quantize(
+        self, weight: te.Tensor
+    ) -> Tuple[te.Tensor, te.Tensor]:  # pylint: disable=too-many-locals
         """Group quantization for weight tensor, defined in tensor expression."""
         assert len(weight.shape) == 2
         n, k = weight.shape  # pylint: disable=invalid-name
