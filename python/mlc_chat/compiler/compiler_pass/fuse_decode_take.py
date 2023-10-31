@@ -20,18 +20,22 @@ class FuseDecodeTake:  # pylint: disable=too-few-public-methods
         _ctx: tvm.transform.PassContext,
     ) -> IRModule:
         """IRModule-level transformation"""
+        seq = []
         for n_aux_tensor in [2, 3]:
             for match_tir_vars in [False, True]:
-                mod = relax.transform.FuseOpsByPattern(
-                    [
-                        (
-                            "decode_take",
-                            *_pattern(n_aux_tensor, match_tir_vars),
-                        )
-                    ]
-                )(mod)
-        mod = relax.transform.FuseTIR()(mod)
-        for g_var, func in mod.functions.items():
+                seq.append(
+                    relax.transform.FuseOpsByPattern(
+                        [
+                            (
+                                "decode_take",
+                                *_pattern(n_aux_tensor, match_tir_vars),
+                            )
+                        ]
+                    )
+                )
+        seq.append(relax.transform.FuseTIR())
+        mod = tvm.transform.Sequential(seq)(mod)
+        for g_var, func in mod.functions_items():
             name = g_var.name_hint
             if isinstance(func, tir.PrimFunc) and (("fused_decode" in name) and ("take" in name)):
                 mod = tvm.IRModule({"main": func})

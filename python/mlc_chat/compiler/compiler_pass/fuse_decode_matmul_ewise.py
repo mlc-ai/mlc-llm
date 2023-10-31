@@ -14,20 +14,23 @@ class FuseDecodeMatmulEwise:  # pylint: disable=too-few-public-methods
         _ctx: tvm.transform.PassContext,
     ) -> IRModule:
         """IRModule-level transformation"""
+        seq = []
         for n_aux_tensor in [1, 2, 3, 4]:
             for match_ewise in [0, 1, 2, 6]:
                 if match_ewise == 6 and n_aux_tensor != 4:
                     continue
-                mod = relax.transform.FuseOpsByPattern(
-                    [
-                        (
-                            "decode_matmul",
-                            *_pattern(match_ewise, n_aux_tensor),
-                        )
-                    ]
-                )(mod)
-        mod = relax.transform.FuseTIR()(mod)
-        return mod
+                seq.append(
+                    relax.transform.FuseOpsByPattern(
+                        [
+                            (
+                                "decode_matmul",
+                                *_pattern(match_ewise, n_aux_tensor),
+                            )
+                        ]
+                    )
+                )
+        seq.append(relax.transform.FuseTIR())
+        return tvm.transform.Sequential(seq)(mod)
 
 
 def _pattern(match_ewise: int, n_aux_tensor: int):

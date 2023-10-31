@@ -31,7 +31,7 @@ class _DecodeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-method
 
     def transform(self) -> IRModule:
         """Entry point"""
-        for g_var, func in self.mod.functions.items():
+        for g_var, func in self.mod.functions_items():
             if isinstance(func, relax.Function):
                 updated_func = self.visit_expr(func)
                 updated_func = remove_all_unused(updated_func)

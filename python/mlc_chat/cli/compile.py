@@ -15,7 +15,7 @@ from ..support.auto_config import detect_config, detect_model_type
 from ..support.auto_target import detect_target_and_host
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     style="{",
     datefmt="%Y-%m-%d %H:%M:%S",
     format="[{asctime}] {levelname} {filename}:{lineno}: {message}",

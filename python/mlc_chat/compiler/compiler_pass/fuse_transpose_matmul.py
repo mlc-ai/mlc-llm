@@ -19,10 +19,8 @@ class FuseTransposeMatmul:  # pylint: disable=too-few-public-methods
                 ),
             ]
         )(mod)
-
         transpose_matmul_codegen = _TransposeMatmulFuser(mod)
-        for g_var in mod.functions:
-            func = mod[g_var]
+        for g_var, func in mod.functions_items():
             if isinstance(func, relax.Function):
                 func = transpose_matmul_codegen.visit_expr(func)
                 transpose_matmul_codegen.builder_.update_func(g_var, func)

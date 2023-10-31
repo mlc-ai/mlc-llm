@@ -18,8 +18,7 @@ class CleanUpTIRAttrs:  # pylint: disable=too-few-public-methods
         _ctx: tvm.transform.PassContext,
     ) -> IRModule:
         """IRModule-level transformation"""
-        for g_var in list(mod.functions):
-            func = mod[g_var]
+        for g_var, func in mod.functions_items():
             changed = False
             for attr in self.attrs:
                 if func.attrs is not None and attr in func.attrs:
