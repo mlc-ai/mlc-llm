@@ -1,12 +1,12 @@
 """A centralized registry of all existing model architures and their configurations."""
 import dataclasses
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Tuple
 
 from tvm.relax.frontend import nn
 
 from ..parameter import ExternMapping, QuantizeMapping
-from ..quantization.quantization import QuantizeConfig
-from . import llama_config, llama_model, llama_parameter
+from ..quantization.quantization import Quantization
+from . import llama_config, llama_model, llama_parameter, llama_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -16,8 +16,8 @@ a class method `from_file` with the following signature:
         ...
 """
 
-FuncGetExternMap = Callable[[ModelConfig, QuantizeConfig], ExternMapping]
-FuncGetQuantMap = Callable[[ModelConfig, QuantizeConfig], QuantizeMapping]
+FuncGetExternMap = Callable[[ModelConfig, Quantization], ExternMapping]
+FuncQuantization = Callable[[ModelConfig, Quantization], Tuple[nn.Module, QuantizeMapping]]
 
 
 @dataclasses.dataclass
@@ -38,15 +38,16 @@ class Model:
     source : Dict[str, FuncGetExternMap]
         A dictionary that maps the name of a source format to parameter mapping.
 
-    quantize: Dict[str, FuncGetQuantMap]
-        A dictionary that maps the name of a quantization method to quantization mapping.
+    quantize: Dict[str, FuncQuantization]
+        A dictionary that maps the name of a quantization method to quantized model and the
+        quantization parameter mapping.
     """
 
     name: str
     config: ModelConfig
     model: Callable[[ModelConfig], nn.Module]
     source: Dict[str, FuncGetExternMap]
-    quantize: Dict[str, FuncGetQuantMap]
+    quantize: Dict[str, FuncQuantization]
 
 
 MODELS: Dict[str, Model] = {
@@ -58,7 +59,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": llama_parameter.huggingface,
             "huggingface-safetensor": llama_parameter.huggingface,
         },
-        quantize={},
+        quantize={
+            "group-quant": llama_quantization.group_quant,
+        },
     )
 }
 

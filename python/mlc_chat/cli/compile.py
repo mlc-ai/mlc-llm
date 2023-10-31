@@ -6,7 +6,7 @@ from typing import Union
 
 from mlc_chat.compiler import (  # pylint: disable=redefined-builtin
     MODELS,
-    QUANT,
+    QUANTIZATION,
     OptimizationFlags,
     compile,
 )
@@ -51,7 +51,7 @@ def main():
         "--quantization",
         type=str,
         required=True,
-        choices=list(QUANT.keys()),
+        choices=list(QUANTIZATION.keys()),
         help="Quantization format.",
     )
     parser.add_argument(
@@ -119,7 +119,7 @@ def main():
     parsed.model_type = detect_model_type(parsed.model_type, parsed.config)
     compile(
         config=parsed.config,
-        quantization=parsed.quantization,
+        quantization=QUANTIZATION[parsed.quantization],
         model_type=parsed.model_type,
         target=target,
         opt=parsed.opt,

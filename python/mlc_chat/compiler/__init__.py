@@ -7,4 +7,4 @@ from .compile import CompileArgs, compile  # pylint: disable=redefined-builtin
 from .flags_optimization import OptimizationFlags
 from .model import MODEL_PRESETS, MODELS, Model
 from .parameter import ExternMapping, HuggingFaceLoader, QuantizeMapping
-from .quantization import QUANT
+from .quantization import QUANTIZATION

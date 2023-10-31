@@ -7,9 +7,10 @@ from typing import Callable
 from tvm import IRModule, relax
 from tvm.target import Target
 
-from ..compiler.model import Model
 from ..support.style import bold
 from .flags_optimization import OptimizationFlags
+from .model import Model
+from .quantization import Quantization
 
 
 @dataclasses.dataclass
@@ -17,7 +18,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
     """Arguments to MLC LLM's compiler."""
 
     config: Path
-    quantization: str
+    quantization: Quantization
     model: Model
     target: Target
     opt: OptimizationFlags
@@ -40,20 +41,19 @@ def _echo_args(args: CompileArgs) -> None:
 
 def _compile(args: CompileArgs):
     model_config = args.model.config.from_file(args.config)
-    model = args.model.model(model_config)
-    mod, named_params = model.export_tvm(
+    quantization = args.quantization
+    model, _ = args.model.quantize[quantization.kind](model_config, quantization)
+    mod, _named_params = model.export_tvm(
         spec=model.get_default_spec(),  # type: ignore
     )
     with args.target:
         mod = relax.get_pipeline("mlc_llm")(mod)
-    mod.show(black_format=False)
-    for name, param in named_params:
-        print(f"{name}: {param.shape} {param.dtype}")
+    args.build_func(mod, args)
 
 
 def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     config: Path,
-    quantization,
+    quantization: Quantization,
     model_type: Model,
     target: Target,
     opt: OptimizationFlags,
