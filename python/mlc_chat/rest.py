@@ -215,6 +215,10 @@ async def request_chat_completion(request: ChatCompletionRequest):
             prev_txt = ""
             async for content in AsyncCompletionStream(generation_config=generation_config):
                 if content:
+                    # Remove the replacement character (U+FFFD) from the response
+                    # This is to handle emojis. An emoji might be made up of multiple tokens.
+                    # In the Rest streaming setting, if an emoji gets truncated in the middle of
+                    # its encoded byte sequence, a replacement character will appear.
                     valid_content = content.replace("�", "")
                     chunk = ChatCompletionStreamResponse(
                         choices=[
