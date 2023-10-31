@@ -303,7 +303,7 @@ def sample(logits, sampling_params, vocab_size):
 
 
 def load_disco_module(artifact_path, lib_path, num_shards):
-    sess = di.ThreadedSession(num_workers=num_shards)
+    sess = di.ProcessSession(num_workers=num_shards)
     devices = range(num_shards)
     sess.init_ccl("nccl", *devices)
     module = sess.load_vm_module(lib_path)
@@ -440,6 +440,7 @@ class Model:
         self.dev = dev
         self.vocab_size = vocab_size
         self.sliding_window = sliding_window
+        self.num_shards = num_shards
 
         if sliding_window:
             self.block_sliding_window = sliding_window // CacheManager.block_size
@@ -458,6 +459,11 @@ class Model:
                 tvm.device("cuda", 0)
             ).debug_get_from_remote(0)
 
+            # TODO: temp hack to switch the VM allocator to eager recycling mode on all devices
+            for i in range(1, self.num_shards):
+                get_used_memory_func(
+                    tvm.device("cuda", i)
+                ).debug_get_from_remote(i)
         else:
             params = self.params
 

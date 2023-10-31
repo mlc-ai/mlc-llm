@@ -15,6 +15,7 @@ from mlc_serve.engine import (
 )
 from mlc_serve.engine.local import LocalProcessInferenceEngine
 from mlc_serve.model.paged_cache_model import PagedCacheModelModule
+from mlc_serve.run import setup_logging
 
 import pandas as pd
 
@@ -163,7 +164,9 @@ if __name__ == "__main__":
         default=None,
         help="Append the current result to the given path if provided.",
     )
+    parser.add_argument("--debug-logging", action="store_true")
     args = parser.parse_args()
+    setup_logging(args)
 
     args.model, args.quantization = args.local_id.rsplit("-", 1)
     utils.argparse_postproc_common(args)
