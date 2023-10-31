@@ -1,5 +1,6 @@
 """Python entrypoint of compilation."""
 import dataclasses
+import logging
 from io import StringIO
 from pathlib import Path
 from typing import Callable
@@ -11,6 +12,8 @@ from ..support.style import bold
 from .flags_optimization import OptimizationFlags
 from .model import Model
 from .quantization import Quantization
+
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
@@ -40,15 +43,20 @@ def _echo_args(args: CompileArgs) -> None:
 
 
 def _compile(args: CompileArgs):
+    logger.info("Creating model from: %s", args.config)
     model_config = args.model.config.from_file(args.config)
     quantization = args.quantization
     model, _ = args.model.quantize[quantization.kind](model_config, quantization)
+    logger.info("Exporting the model to TVM Unity compiler")
     mod, _named_params = model.export_tvm(
         spec=model.get_default_spec(),  # type: ignore
     )
+    logger.info("Running optimizations using TVM Unity")
     with args.target:
         mod = relax.get_pipeline("mlc_llm")(mod)
+    logger.info("Generating code using TVM Unity")
     args.build_func(mod, args)
+    logger.info("Code dumped to: %s", args.output)
 
 
 def compile(  # pylint: disable=too-many-arguments,redefined-builtin

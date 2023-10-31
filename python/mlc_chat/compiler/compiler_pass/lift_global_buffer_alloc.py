@@ -32,7 +32,7 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
 
     def transform(self) -> IRModule:
         """Entry point of the transformation"""
-        for g_var, func in self.mod.functions.items():
+        for g_var, func in self.mod.functions_items():
             if isinstance(func, tir.PrimFunc):
                 updated_func, tensor_sinfo_list = remove_global_buf_alloc(func)
                 if len(tensor_sinfo_list) > 0:
@@ -40,12 +40,11 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
                     self.builder_.update_func(g_var, updated_func)
 
         self.mod = self.builder_.get()
-        for g_var, func in self.mod.functions.items():
-            if not isinstance(func, relax.Function):
-                continue
-            updated_func = self.visit_expr(func)
-            updated_func = remove_all_unused(updated_func)
-            self.builder_.update_func(g_var, updated_func)
+        for g_var, func in self.mod.functions_items():
+            if isinstance(func, relax.Function):
+                updated_func = self.visit_expr(func)
+                updated_func = remove_all_unused(updated_func)
+                self.builder_.update_func(g_var, updated_func)
         return self.builder_.get()
 
     def visit_call_(self, call: relax.Call):  # pylint: disable=arguments-renamed
