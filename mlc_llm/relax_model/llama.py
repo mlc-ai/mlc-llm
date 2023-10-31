@@ -1198,8 +1198,7 @@ def emit_paged_kv_cache_op(bb: relax.BlockBuilder, dtype: str) -> None:
     # fmt: on
 
     bb.add_func(kv_cache_transpose_append, "kv_cache_transpose_append")
-    # Todo: integrating attention TIR func/kernel.
-    bb.add_func(relax.extern("attention_func"), "attention")
+    bb.add_func(relax.extern("paged_kv_cache.attention_kernel"), "attention")
 
 
 def setup_params(mod, param_manager, dtype, config, args):
