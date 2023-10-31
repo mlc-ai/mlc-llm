@@ -56,7 +56,7 @@ def _compile(args: CompileArgs):
         mod = relax.get_pipeline("mlc_llm")(mod)
     logger.info("Generating code using TVM Unity")
     args.build_func(mod, args)
-    logger.info("Code dumped to: %s", args.output)
+    logger.info("Code dumped to: %s", bold(str(args.output)))
 
 
 def compile(  # pylint: disable=too-many-arguments,redefined-builtin
