@@ -5,11 +5,8 @@ import numpy as np
 import tvm
 import tvm.testing
 from mlc_chat.compiler import QUANTIZATION
-from mlc_chat.compiler.parameter import QuantizeMapping
 from mlc_chat.compiler.quantization import GroupQuantize
-from mlc_chat.compiler.quantization.group_quantization import GroupQuantizeLinear
 from tvm import DataType
-from tvm.relax.frontend import nn
 
 
 def quantize_np(config: GroupQuantize, weight: np.ndarray):
@@ -76,7 +73,6 @@ def test_quantize(quant_name: str, shape: List[int], dtype: str):
     quantized_weight, scale = output[0].numpy(), output[1].numpy()
     quantized_weight_ref, scale_ref = quantize_np(config, weight_np)
     tvm.testing.assert_allclose(scale, scale_ref, rtol=1e-3, atol=1e-3)
-    # TODO: find a better way to check unit32 result, rather than using dequantization
     tvm.testing.assert_allclose(
         dequantize_np(config, quantized_weight, scale, shape),
         dequantize_np(config, quantized_weight_ref, scale_ref, shape),
