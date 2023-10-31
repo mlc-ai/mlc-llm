@@ -122,9 +122,9 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         vm = relax.VirtualMachine(ex, dev)
         return vm["quantize"](weight)
 
-    def _quantize(
+    def _quantize(  # pylint: disable=too-many-locals
         self, weight: te.Tensor
-    ) -> Tuple[te.Tensor, te.Tensor]:  # pylint: disable=too-many-locals
+    ) -> Tuple[te.Tensor, te.Tensor]:
         """Group quantization for weight tensor, defined in tensor expression."""
         assert len(weight.shape) == 2
         n, k = weight.shape  # pylint: disable=invalid-name

@@ -34,9 +34,8 @@ def quantize_np(config: GroupQuantize, weight: np.ndarray):
         weight_scaled_reshaped, (n, k // config.num_elem_per_storage, config.num_elem_per_storage)
     )
     indice_k = np.indices(weight_scaled.shape, dtype=config.storage_dtype)[-1]
-    quantize_dtype = DataType(config.quantize_dtype)
     quantized_weight = np.sum(
-        np.left_shift(weight_scaled, indice_k * quantize_dtype.bits),
+        np.left_shift(weight_scaled, indice_k * DataType(config.quantize_dtype).bits),
         axis=-1,
         dtype=config.storage_dtype,
     )
@@ -49,7 +48,7 @@ def dequantize_np(
     scale: np.ndarray,
     out_shape: List[int] = None,
 ):
-    bin_mask = (1 << config.quantize_dtype.bits) - 1
+    bin_mask = (1 << DataType(config.quantize_dtype).bits) - 1
     max_int = config.max_int_value
     out_shape = (
         [weight.shape[0], weight.shape[1] * config.num_elem_per_storage]
@@ -59,10 +58,10 @@ def dequantize_np(
     weight_repeated = np.repeat(weight, config.num_elem_per_storage, axis=-1)
     scale_repeated = np.repeat(scale, config.group_size, axis=-1)
     indice_j = np.indices(weight_repeated.shape)[1]
-    storage_dtype = DataType(config.storage_dtype)
     weight_bin = np.bitwise_and(
         np.right_shift(
-            weight_repeated, (indice_j % config.num_elem_per_storage) * storage_dtype.bits
+            weight_repeated,
+            (indice_j % config.num_elem_per_storage) * DataType(config.storage_dtype).bits,
         ),
         bin_mask,
     )
