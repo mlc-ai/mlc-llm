@@ -453,8 +453,7 @@ def mod_transform_before_build(
     mod = mlc_llm.transform.FuseDecodeTranspose(skip_gemm=not use_ft_quant)(mod)
 
     if (
-        not args.enable_batching
-        and hasattr(config, "num_attention_heads")
+        hasattr(config, "num_attention_heads")
         and hasattr(config, "hidden_size")
         and hasattr(config, "position_embedding_base")
         and getattr(config, "dtype", "float16") == "float16"
