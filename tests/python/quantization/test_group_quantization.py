@@ -1,16 +1,18 @@
-# import pytest
+# pylint: disable=missing-docstring
 from typing import List
+
 import numpy as np
-from mlc_chat.compiler import QUANT
+from mlc_chat.compiler import QUANTIZATION
 from mlc_chat.compiler.parameter import QuantizeMapping
-from mlc_chat.compiler.quantization import GroupQuantizeConfig
+from mlc_chat.compiler.quantization import GroupQuantize
 from mlc_chat.compiler.quantization.group_quantization import GroupQuantizeLinear
+
 import tvm
 import tvm.testing
 from tvm.relax.frontend import nn
 
 
-def quantize_np(config: GroupQuantizeConfig, weight: np.ndarray):
+def quantize_np(config: GroupQuantize, weight: np.ndarray):
     n, k = weight.shape
     weight_padded = np.pad(
         weight, ((0, 0), (0, (config.group_size - k % config.group_size) % config.group_size))
@@ -41,7 +43,7 @@ def quantize_np(config: GroupQuantizeConfig, weight: np.ndarray):
 
 
 def dequantize_np(
-    config: GroupQuantizeConfig,
+    config: GroupQuantize,
     weight: np.ndarray,
     scale: np.ndarray,
     out_shape: List[int] = None,
@@ -66,8 +68,8 @@ def dequantize_np(
 
 
 def test_quantize(quant_name: str, shape: List[int], dtype: str):
-    config = QUANT[quant_name]
-    assert isinstance(config, GroupQuantizeConfig)
+    config = QUANTIZATION[quant_name]
+    assert isinstance(config, GroupQuantize)
     weight_np = np.random.random(shape).astype(dtype)
     output = config.quantize(tvm.nd.array(weight_np, device=tvm.device("cuda")))
     quantized_weight, scale = output[0].numpy(), output[1].numpy()
@@ -91,8 +93,8 @@ def test_apply_quantize(quant_name: str, shape: List[int], dtype: str):
         def forward(self, x: nn.Tensor):
             return self.linear(x)
 
-    config = QUANT[quant_name]
-    assert isinstance(config, GroupQuantizeConfig)
+    config = QUANTIZATION[quant_name]
+    assert isinstance(config, GroupQuantize)
     quant_map = QuantizeMapping({}, {})
     mod = config.apply(Test(), quant_map, "model")
     assert quant_map.param_map["model.linear.weight"] == [
@@ -104,5 +106,5 @@ def test_apply_quantize(quant_name: str, shape: List[int], dtype: str):
 
 
 if __name__ == "__main__":
-    # test_quantize("q4f16_1", [64, 4096], "float16")
+    test_quantize("q4f16_1", [64, 4096], "float16")
     test_apply_quantize("q4f16_1", [64, 4096], "float16")

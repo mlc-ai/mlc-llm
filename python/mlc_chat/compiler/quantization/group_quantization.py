@@ -1,9 +1,13 @@
 """The group quantization config"""
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 
-from tvm import DataType, DataTypeCode, te, tir
+from tvm import DataType, DataTypeCode, device
+from tvm import dlight as dl
+from tvm import relax, te, tir
 from tvm.relax.frontend import nn
+from tvm.runtime import NDArray
+from tvm.target import Target
 
 from ..parameter import QuantizeMapping
 
@@ -76,7 +80,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         quantize_dtype = DataType(self.quantize_dtype)
         storage_dtype = DataType(self.storage_dtype)
         tir_bin_mask = tir.const((2**quantize_dtype.bits) - 1, self.storage_dtype)
-        tir_max_int = tir.const(self.max_int_value, str(self.model_dtype))
+        tir_max_int = tir.const(self.max_int_value, self.model_dtype)
         dequantized_weight = te.compute(
             shape=[weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
             if out_shape is None
@@ -97,77 +101,77 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         )
         return dequantized_weight
 
-    # def quantize_weight(self, weight: NDArray) -> List[NDArray]:
-    #     assert weight.dtype == str(self.model_dtype)
-    #     assert len(weight.shape) == 2
-    #     bb = relax.BlockBuilder()
-    #     weight_var = relax.Var("weight", relax.TensorStructInfo(weight.shape, self.model_dtype))
-    #     with bb.function(name="quantize", params=[weight_var]):
-    #         with bb.dataflow():
-    #             lv = bb.emit_te(self._quantize, weight_var)
-    #             gv = bb.emit_output(lv)
-    #         bb.emit_func_output(gv)
-    #     mod = bb.get()
-    #     with Target("cuda"):
-    #         mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
-    #     ex = relax.build(mod, "cuda")
-    #     dev = device("cuda", 0)
-    #     vm = relax.VirtualMachine(ex, dev)
-    #     return vm["quantize"](weight)
+    def quantize_weight(self, weight: NDArray) -> List[NDArray]:
+        assert weight.dtype == self.model_dtype
+        assert len(weight.shape) == 2
+        bb = relax.BlockBuilder()
+        weight_var = relax.Var("weight", relax.TensorStructInfo(weight.shape, self.model_dtype))
+        with bb.function(name="quantize", params=[weight_var]):
+            with bb.dataflow():
+                lv = bb.emit_te(self._quantize, weight_var)
+                gv = bb.emit_output(lv)
+            bb.emit_func_output(gv)
+        mod = bb.get()
+        with Target("cuda"):
+            mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
+        ex = relax.build(mod, "cuda")
+        dev = device("cuda", 0)
+        vm = relax.VirtualMachine(ex, dev)
+        return vm["quantize"](weight)
 
-    # def _quantize(self, weight: te.Tensor) -> Tuple[te.Tensor, te.Tensor]:
-    #     """Group quantization for weight tensor, defined in tensor expression."""
-    #     assert len(weight.shape) == 2
-    #     n, k = weight.shape  # pylint: disable=invalid-name
-    #     # compute scale per group
-    #     r = te.reduce_axis((0, self.group_size), name="r")  # pylint: disable=invalid-name
-    #     num_group = tir.ceildiv(k, self.group_size)
-    #     scale_shape = (n, num_group)
-    #     max_abs = te.compute(
-    #         shape=scale_shape,
-    #         fcompute=lambda i, j: te.max(
-    #             te.abs(weight[i, j * self.group_size + r]),
-    #             where=j * self.group_size + r < k,
-    #             axis=r,
-    #         ),
-    #         name="max_abs_value",
-    #     )
-    #     scale = te.compute(
-    #         scale_shape,
-    #         lambda i, j: max_abs[i, j] / tir.const(self.max_int_value, str(self.model_dtype)),
-    #         name="scale",
-    #     )
-    #
-    #     # compute scaled weight
-    #     tir_max_int = tir.const(self.max_int_value, str(self.model_dtype))
-    #     tir_zero = tir.const(0, str(self.model_dtype))
-    #     tir_max_int_2 = tir.const(self.max_int_value * 2, str(self.model_dtype))
-    #     scaled_weight = te.compute(
-    #         shape=weight.shape,
-    #         fcompute=lambda i, j: tir.min(
-    #             tir.max(
-    #                 tir.round(weight[i, j] / scale[i, j // self.group_size] + tir_max_int),
-    #                 tir_zero,
-    #             ),
-    #             tir_max_int_2,
-    #         ).astype(self.storage_dtype),
-    #     )
-    #
-    #     # compute quantized weight per storage
-    #     r = te.reduce_axis((0, self.num_elem_per_storage), name="r")
-    #     num_storage = self.num_storage_per_group * num_group
-    #     quantized_weight_shape = (n, num_storage)
-    #     quantized_weight = te.compute(
-    #         shape=quantized_weight_shape,
-    #         fcompute=lambda i, j: tir.sum(
-    #             scaled_weight[i, j * self.num_elem_per_storage + r]
-    #             << (r * self.quantize_dtype.bits),
-    #             axis=r,
-    #             where=j * self.num_elem_per_storage + r < k,
-    #         ),
-    #         name="weight",
-    #     )
-    #     return quantized_weight, scale
+    def _quantize(self, weight: te.Tensor) -> Tuple[te.Tensor, te.Tensor]:
+        """Group quantization for weight tensor, defined in tensor expression."""
+        assert len(weight.shape) == 2
+        n, k = weight.shape  # pylint: disable=invalid-name
+        quantize_dtype = DataType(self.quantize_dtype)
+        # compute scale per group
+        r = te.reduce_axis((0, self.group_size), name="r")  # pylint: disable=invalid-name
+        num_group = tir.ceildiv(k, self.group_size)
+        scale_shape = (n, num_group)
+        max_abs = te.compute(
+            shape=scale_shape,
+            fcompute=lambda i, j: te.max(
+                te.abs(weight[i, j * self.group_size + r]),
+                where=j * self.group_size + r < k,
+                axis=r,
+            ),
+            name="max_abs_value",
+        )
+        scale = te.compute(
+            scale_shape,
+            lambda i, j: max_abs[i, j] / tir.const(self.max_int_value, self.model_dtype),
+            name="scale",
+        )
+
+        # compute scaled weight
+        tir_max_int = tir.const(self.max_int_value, self.model_dtype)
+        tir_zero = tir.const(0, self.model_dtype)
+        tir_max_int_2 = tir.const(self.max_int_value * 2, self.model_dtype)
+        scaled_weight = te.compute(
+            shape=weight.shape,
+            fcompute=lambda i, j: tir.min(
+                tir.max(
+                    tir.round(weight[i, j] / scale[i, j // self.group_size] + tir_max_int),
+                    tir_zero,
+                ),
+                tir_max_int_2,
+            ).astype(self.storage_dtype),
+        )
+
+        # compute quantized weight per storage
+        r = te.reduce_axis((0, self.num_elem_per_storage), name="r")
+        num_storage = self.num_storage_per_group * num_group
+        quantized_weight_shape = (n, num_storage)
+        quantized_weight = te.compute(
+            shape=quantized_weight_shape,
+            fcompute=lambda i, j: tir.sum(
+                scaled_weight[i, j * self.num_elem_per_storage + r] << (r * quantize_dtype.bits),
+                axis=r,
+                where=j * self.num_elem_per_storage + r < k,
+            ),
+            name="weight",
+        )
+        return quantized_weight, scale
 
 
 class GroupQuantizeLinear(nn.Module):
@@ -188,21 +192,12 @@ class GroupQuantizeLinear(nn.Module):
         self.config = config
         n_group = tir.ceildiv(in_features, config.group_size)
         self.weight = nn.Parameter(
-            (
-                out_features,
-                n_group * config.num_elem_per_storage,
-            ),
-            str(config.storage_dtype),
+            (out_features, n_group * config.num_elem_per_storage),
+            config.storage_dtype,
         )
-        self.scale = nn.Parameter(
-            (out_features, n_group),
-            str(config.model_dtype),
-        )
+        self.scale = nn.Parameter((out_features, n_group), config.model_dtype)
         if bias:
-            self.bias = nn.Parameter(
-                (out_features,),
-                str(config.model_dtype),
-            )
+            self.bias = nn.Parameter((out_features,), config.model_dtype)
         else:
             self.bias = None
 
