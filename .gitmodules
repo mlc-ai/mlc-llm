@@ -10,3 +10,6 @@
 [submodule "3rdparty/tvm"]
 	path = 3rdparty/tvm
 	url = https://github.com/mlc-ai/relax.git
+[submodule "3rdparty/flashinfer"]
+	path = 3rdparty/flashinfer
+	url = git@github.com:yzh119/flashinfer.git
