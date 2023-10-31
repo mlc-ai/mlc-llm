@@ -890,8 +890,7 @@ class LLMChat {
 
   std::string LogLikelihoodStep(
       const std::string& context, const std::string& continuation,
-      String generation_config_str = "", bool append_conversation = true,
-      PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll) {
+      String generation_config_str = "") {
     // process generation settings
     picojson::object generation_config = picojson::object();
     if(!generation_config_str.empty()) {
@@ -901,8 +900,7 @@ class LLMChat {
     }
 
     std::string inp = context + continuation;
-    std::vector<int32_t> prompt_tokens =
-        this->PrepareBeforeEmbedding(inp, append_conversation, place_in_prompt, generation_config);
+    std::vector<int32_t> prompt_tokens = this->tokenizer_->Encode(inp);
     int64_t token_len = static_cast<int64_t>(prompt_tokens.size());
     if (token_len == 0) {
       picojson::object config;
