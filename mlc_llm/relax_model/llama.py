@@ -835,6 +835,8 @@ class LlamaForCausalLM(nn.Module):
             past_key_values=past_key_values,
         )
 
+        # TODO(vvchernov): all logits are needed for loglikelihood calculation
+        # Need update chat part to correct work, it expects the last logits only
         # def te_slicing(x: te.Tensor):
         #     return te.compute(
         #         shape=(1, 1, x.shape[-1]),
