@@ -19,6 +19,6 @@ def group_quant(
     model = quantization.quantize_model(
         model,
         quant_map,
-        "model",
+        "",
     )
     return model, quant_map

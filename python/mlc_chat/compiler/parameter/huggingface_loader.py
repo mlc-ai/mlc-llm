@@ -110,14 +110,23 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
                     quantized_params = ParamQuantizer(self.quantize_param_map).quantize(
                         mlc_name, param
                     )
-                for quantized_name, quantized_param in quantized_params:
+                if not quantized_params:
                     logger.info(
-                        '  Quantized Parameter: "%s", shape: %s, dtype: %s',
-                        quantized_name,
-                        quantized_param.shape,
-                        quantized_param.dtype,
+                        '  Skipped Quantizing Parameter: "%s", shape: %s, dtype: %s',
+                        mlc_name,
+                        param.shape,
+                        param.dtype,
                     )
-                    yield quantized_name, quantized_param
+                    yield mlc_name, param
+                else:
+                    for quantized_name, quantized_param in quantized_params:
+                        logger.info(
+                            '  Quantized Parameter: "%s", shape: %s, dtype: %s',
+                            quantized_name,
+                            quantized_param.shape,
+                            quantized_param.dtype,
+                        )
+                        yield quantized_name, quantized_param
             else:
                 yield mlc_name, param
         cached_files = list(self.cached_files.keys())
