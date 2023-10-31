@@ -914,6 +914,9 @@ class LLMChat {
     }
 
     std::vector<int32_t> continuation_tokens = this->tokenizer_->Encode(continuation);
+    // TODO(vvchernov): strange token is added in front of continuation after encoding,
+    // quick remove it, but need study reason and fix it
+    continuation_tokens.erase(continuation_tokens.begin());
 
     std::vector<int32_t> cut_tokens = prompt_tokens;
     cut_tokens.pop_back();
