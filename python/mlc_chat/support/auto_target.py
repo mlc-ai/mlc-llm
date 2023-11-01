@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Callable, Optional, Tuple
 from tvm import IRModule, relax
 from tvm._ffi import register_func
 from tvm.contrib import tar, xcode
-from tvm.runtime import Device, cpu, cuda
 from tvm.target import Target
 
 from .style import bold, green, red

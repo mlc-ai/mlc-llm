@@ -5,7 +5,7 @@ import json
 import logging
 from collections import OrderedDict, defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple, Iterator, Optional
+from typing import Dict, Iterator, List, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm

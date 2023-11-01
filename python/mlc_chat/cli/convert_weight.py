@@ -4,10 +4,9 @@ import logging
 from pathlib import Path
 from typing import Union
 
+import tvm
 from mlc_chat.compiler import MODELS, QUANTIZATION
 from mlc_chat.compiler.parameter import HuggingFaceLoader
-
-import tvm
 from tvm.contrib import tvmjs
 
 from ..support.auto_config import detect_config, detect_model_type
