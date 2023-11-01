@@ -7,8 +7,7 @@ from pathlib import Path
 
 import pytest
 from mlc_chat.support.auto_weight import detect_weight
-
-import tvm
+from tvm import testing
 
 logging.basicConfig(
     level=logging.INFO,
@@ -102,6 +101,4 @@ def test_find_weight_fail():
 
 
 if __name__ == "__main__":
-    from tvm import testing
-
     testing.main()

@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, Callable, Optional, Tuple
 from tvm import IRModule, relax
 from tvm._ffi import register_func
 from tvm.contrib import tar, xcode
-from tvm.target import Target
 from tvm.runtime import Device, cpu, cuda
+from tvm.target import Target
 
 from .style import bold, green, red
 
@@ -60,10 +60,9 @@ def detect_tvm_device(target: Target) -> Device:
     """
     if target.kind.name == "llvm":
         return cpu()
-    elif target.kind.name == "cuda":
+    if target.kind.name == "cuda":
         return cuda()
-    else:
-        raise ValueError(f"Unsupported device type from {target}")
+    raise ValueError(f"Unsupported device type from {target}")
 
 
 def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:

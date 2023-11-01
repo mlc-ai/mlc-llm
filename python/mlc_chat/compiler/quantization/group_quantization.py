@@ -14,8 +14,8 @@ from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
 from tvm.target import Target
 
-from ..parameter import QuantizeMapping
 from ...support.auto_target import detect_tvm_device
+from ..parameter import QuantizeMapping
 
 
 @dataclass

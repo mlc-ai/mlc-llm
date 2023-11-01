@@ -6,12 +6,11 @@ from typing import Union
 
 from mlc_chat.compiler import MODELS, QUANTIZATION
 from mlc_chat.compiler.parameter import HuggingFaceLoader
-
 from tvm.contrib import tvmjs
 
 from ..support.auto_config import detect_config, detect_model_type
-from ..support.auto_weight import detect_weight
 from ..support.auto_target import detect_target_and_host
+from ..support.auto_weight import detect_weight
 
 logging.basicConfig(
     level=logging.INFO,
