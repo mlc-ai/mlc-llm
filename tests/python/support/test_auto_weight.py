@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 from mlc_chat.support.auto_weight import detect_weight
-from tvm import testing
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,9 +26,6 @@ def _create_json_file(json_path, data):
     [
         ("huggingface-torch", "pytorch_model.bin.index.json", "huggingface-torch"),
         ("huggingface-safetensor", "model.safetensors.index.json", "huggingface-safetensor"),
-        # ("ggml", None, "ggml"),
-        # ("gguf", None, "gguf"),
-        # ("awq", None, "awq"),
         ("auto", "pytorch_model.bin.index.json", "huggingface-torch"),
         ("auto", "model.safetensors.index.json", "huggingface-safetensor"),
     ],
@@ -48,9 +44,6 @@ def test_detect_weight(weight_format, index_filename, result):
     [
         ("huggingface-torch", "pytorch_model.bin.index.json", "huggingface-torch"),
         ("huggingface-safetensor", "model.safetensors.index.json", "huggingface-safetensor"),
-        # ("ggml", None, "ggml"),
-        # ("gguf", None, "gguf"),
-        # ("awq", None, "awq"),
         ("auto", "pytorch_model.bin.index.json", "huggingface-torch"),
         ("auto", "model.safetensors.index.json", "huggingface-safetensor"),
     ],
@@ -73,9 +66,6 @@ def test_detect_weight_in_config_json(weight_format, index_filename, result):
     [
         ("huggingface-torch", "pytorch_model.bin.index.json", "huggingface-torch"),
         ("huggingface-safetensor", "model.safetensors.index.json", "huggingface-safetensor"),
-        # ("ggml", None, "ggml"),
-        # ("gguf", None, "gguf"),
-        # ("awq", None, "awq"),
         ("auto", "pytorch_model.bin.index.json", "huggingface-torch"),
         ("auto", "model.safetensors.index.json", "huggingface-safetensor"),
     ],
@@ -101,4 +91,32 @@ def test_find_weight_fail():
 
 
 if __name__ == "__main__":
-    testing.main()
+    test_detect_weight("huggingface-torch", "pytorch_model.bin.index.json", "huggingface-torch")
+    test_detect_weight(
+        "huggingface-safetensor", "model.safetensors.index.json", "huggingface-safetensor"
+    )
+    test_detect_weight("auto", "pytorch_model.bin.index.json", "huggingface-torch")
+    test_detect_weight("auto", "model.safetensors.index.json", "huggingface-safetensor")
+    test_detect_weight_in_config_json(
+        "huggingface-torch", "pytorch_model.bin.index.json", "huggingface-torch"
+    )
+    test_detect_weight_in_config_json(
+        "huggingface-safetensor", "model.safetensors.index.json", "huggingface-safetensor"
+    )
+    test_detect_weight_in_config_json("auto", "pytorch_model.bin.index.json", "huggingface-torch")
+    test_detect_weight_in_config_json(
+        "auto", "model.safetensors.index.json", "huggingface-safetensor"
+    )
+    test_detect_weight_same_dir_config_json(
+        "huggingface-torch", "pytorch_model.bin.index.json", "huggingface-torch"
+    )
+    test_detect_weight_same_dir_config_json(
+        "huggingface-safetensor", "model.safetensors.index.json", "huggingface-safetensor"
+    )
+    test_detect_weight_same_dir_config_json(
+        "auto", "pytorch_model.bin.index.json", "huggingface-torch"
+    )
+    test_detect_weight_same_dir_config_json(
+        "auto", "model.safetensors.index.json", "huggingface-safetensor"
+    )
+    test_find_weight_fail()
