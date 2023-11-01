@@ -1,15 +1,17 @@
 """For testing `_make_sliding_window_mask` in mistral.py"""
 
 import unittest
+
 import numpy as np
 import tvm
-from tvm.runtime import ShapeTuple
 from tvm import relax
+from tvm.runtime import ShapeTuple
 
 from mlc_llm.relax_model.mistral import _make_sliding_window_mask
 
 
 def _create_vm():
+    # pylint: disable=too-many-locals
     bb = relax.BlockBuilder()
 
     # Step 1: Build `_make_sliding_window_mask()` into an IRModule
@@ -54,7 +56,7 @@ def _create_vm():
 
     # Step 3. Deploy to GPU
     ex = relax.build(mod, "cuda")
-    vm = relax.VirtualMachine(ex, tvm.cuda())
+    vm = relax.VirtualMachine(ex, tvm.cuda())  #pylint: disable=redefined-outer-name
     return vm
 
 
@@ -79,7 +81,7 @@ class SlidingWindowMaskTest(unittest.TestCase):
     This is when the cache is not empty and yet tgt_len > 1.
     e.g. t0-t4 in cache; current input is t5-t7; WS=5
         0, 1, 2, 3, 4, | 5, 6, 7
-
+        
         0, 1, 1, 1, 1, | 1, 0, 0
         0, 0, 1, 1, 1, | 1, 1, 0
         0, 0, 0, 1, 1, | 1, 1, 1
@@ -104,17 +106,11 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
-        correct = np.array(
-            [
-                [
-                    [
-                        [3.402823e38, -3.402823e38, -3.402823e38],
-                        [3.402823e38, 3.402823e38, -3.402823e38],
-                        [3.402823e38, 3.402823e38, 3.402823e38],
-                    ]
-                ]
-            ]
-        ).astype("float32")
+        correct = np.array([[[
+            [3.402823e38, -3.402823e38, -3.402823e38],
+            [3.402823e38, 3.402823e38, -3.402823e38],
+            [3.402823e38, 3.402823e38, 3.402823e38],
+        ]]]).astype("float32")
 
         np.testing.assert_array_equal(result.numpy(), correct)
 
@@ -130,19 +126,13 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
-        correct = np.array(
-            [
-                [
-                    [
-                        [3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38],
-                        [3.402823e38, 3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38],
-                        [3.402823e38, 3.402823e38, 3.402823e38, -3.402823e38, -3.402823e38],
-                        [3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38, -3.402823e38],
-                        [3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38],
-                    ]
-                ]
-            ]
-        ).astype("float32")
+        correct = np.array([[[
+            [3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38],
+            [3.402823e38, 3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38],
+            [3.402823e38, 3.402823e38, 3.402823e38, -3.402823e38, -3.402823e38],
+            [3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38, -3.402823e38],
+            [3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38],
+        ]]]).astype("float32")
 
         np.testing.assert_array_equal(result.numpy(), correct)
 
@@ -158,19 +148,13 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
-        correct = np.array(
-            [
-                [
-                    [
-                        [3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38],
-                        [3.402823e38, 3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38],
-                        [3.402823e38, 3.402823e38, 3.402823e38, -3.402823e38, -3.402823e38],
-                        [-3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38, -3.402823e38],
-                        [-3.402823e38, -3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38],
-                    ]
-                ]
-            ]
-        ).astype("float32")
+        correct = np.array([[[
+            [3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38],
+            [3.402823e38, 3.402823e38, -3.402823e38, -3.402823e38, -3.402823e38],
+            [3.402823e38, 3.402823e38, 3.402823e38, -3.402823e38, -3.402823e38],
+            [-3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38, -3.402823e38],
+            [-3.402823e38, -3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38],
+        ]]]).astype("float32")
 
         np.testing.assert_array_equal(result.numpy(), correct)
 
@@ -185,7 +169,9 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
-        correct = np.array([[[[3.402823e38]]]]).astype("float32")
+        correct = np.array([[[
+            [3.402823e38]
+        ]]]).astype("float32")
 
         np.testing.assert_array_equal(result.numpy(), correct)
 
@@ -202,41 +188,14 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
-        correct = np.array(
-            [
-                [
-                    [
-                        # pylint: disable=line-too-long
-                        #   |                 IN CACHE                   |             CURRENT CHUNK                |
-                        #          t0              t1             t2             t3           t4             t5
-                        [
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                        ],
-                        [
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            -3.402823e38,
-                        ],
-                        [
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                        ],
-                    ]
-                ]
-            ]
-        ).astype("float32")
+        correct = np.array([[[
+        # pylint: disable=line-too-long
+        #   |                 IN CACHE                   |             CURRENT CHUNK                |
+        #          t0              t1             t2             t3           t4             t5
+            [ 3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38, -3.402823e+38, -3.402823e+38],
+            [ 3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38,  3.402823e+38, -3.402823e+38],
+            [-3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38]
+        ]]]).astype("float32")
 
         np.testing.assert_array_equal(result.numpy(), correct)
 
@@ -252,47 +211,14 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
-        correct = np.array(
-            [
-                [
-                    [
-                        # pylint: disable=line-too-long
-                        #   |                              IN CACHE                                    |             CURRENT CHUNK                |
-                        #          t1              t2             t3             t4           t5             t6             t7             t8
-                        [
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                        ],
-                        [
-                            -3.402823e38,
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            -3.402823e38,
-                        ],
-                        [
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                        ],
-                    ]
-                ]
-            ]
-        ).astype("float32")
+        correct = np.array([[[
+        # pylint: disable=line-too-long
+        #   |                              IN CACHE                                    |             CURRENT CHUNK                |
+        #          t1              t2             t3             t4           t5             t6             t7             t8
+            [-3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38, -3.402823e+38, -3.402823e+38],
+            [-3.402823e+38, -3.402823e+38,  3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38,  3.402823e+38, -3.402823e+38],
+            [-3.402823e+38, -3.402823e+38, -3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38]
+        ]]]).astype("float32")
 
         np.testing.assert_array_equal(result.numpy(), correct)
 
@@ -307,77 +233,16 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
-        correct = np.array(
-            [
-                [
-                    [
-                        # pylint: disable=line-too-long
-                        # |                         IN CACHE                                       |                            CURRENT CHUNK                               |
-                        #     t0              t1             t2             t3           t4             t5             t6             t7             t8             t9
-                        [
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                        ],
-                        [
-                            -3.402823e38,
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                        ],
-                        [
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                        ],
-                        [
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            -3.402823e38,
-                        ],
-                        [
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                        ],
-                    ]
-                ]
-            ]
-        ).astype("float32")
+        correct = np.array([[[
+        # pylint: disable=line-too-long
+        # |                         IN CACHE                                       |                            CURRENT CHUNK                               |
+        #     t0              t1             t2             t3           t4             t5             t6             t7             t8             t9
+        [-3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38, -3.402823e+38, -3.402823e+38, -3.402823e+38, -3.402823e+38],
+        [-3.402823e+38, -3.402823e+38,  3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38,  3.402823e+38, -3.402823e+38, -3.402823e+38, -3.402823e+38],
+        [-3.402823e+38, -3.402823e+38, -3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38, -3.402823e+38, -3.402823e+38],
+        [-3.402823e+38, -3.402823e+38, -3.402823e+38, -3.402823e+38, 3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38, 3.402823e+38, -3.402823e+38],
+        [-3.402823e+38, -3.402823e+38, -3.402823e+38, -3.402823e+38, -3.402823e+38, 3.402823e+38,  3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38]
+        ]]]).astype("float32")
 
         np.testing.assert_array_equal(result.numpy(), correct)
 
@@ -393,74 +258,23 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
-        correct = np.array(
-            [
-                [
-                    [
-                        # pylint: disable=line-too-long
-                        # |                 IN CACHE                 |                             CURRENT CHUNK                               |
-                        #     t2              t3             t4              t5           t6             t7             t8              t9
-                        [
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                        ],
-                        [
-                            -3.402823e38,
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                        ],
-                        [
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                        ],
-                        [
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            -3.402823e38,
-                        ],
-                        [
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                        ],
-                    ]
-                ]
-            ]
-        ).astype("float32")
+        correct = np.array([[[
+        # pylint: disable=line-too-long
+        # |                 IN CACHE                 |                             CURRENT CHUNK                               |
+        #     t2              t3             t4              t5           t6             t7             t8              t9
+        [-3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38, -3.402823e+38, -3.402823e+38, -3.402823e+38, -3.402823e+38],
+        [-3.402823e+38, -3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38, -3.402823e+38, -3.402823e+38, -3.402823e+38],
+        [-3.402823e+38, -3.402823e+38, -3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38, -3.402823e+38, -3.402823e+38],
+        [-3.402823e+38, -3.402823e+38, -3.402823e+38, -3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38, -3.402823e+38],
+        [-3.402823e+38, -3.402823e+38, -3.402823e+38, -3.402823e+38, -3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38]
+        ]]]).astype("float32")
 
         np.testing.assert_array_equal(result.numpy(), correct)
 
     def test_subsequent_prefill_5(self):
         """
         Test 5: chunk size is 5, WS is 5, cache carrying t5-t9 (t0-t4 overwritten);
-        input t10 (remainder of a prompt). Note that this test can also be
+        input t10 (remainder of a prompt). Note that this test can also be 
         viewed as a decode. That is, prefilling a chunk of size 1, is the same is decoding.
         """
         bsz = ShapeTuple([1])
@@ -470,25 +284,12 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
-        correct = np.array(
-            [
-                [
-                    [
-                        # pylint: disable=line-too-long
-                        #   |                            IN CACHE                                     |CURRENT CHUNK|
-                        #          t5             t6             t7             t8            t9            t10
-                        [
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                        ]
-                    ]
-                ]
-            ]
-        ).astype("float32")
+        correct = np.array([[[
+        # pylint: disable=line-too-long
+        #   |                            IN CACHE                                     |CURRENT CHUNK|
+        #          t5             t6             t7             t8            t9            t10
+            [-3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38]
+        ]]]).astype("float32")
 
         np.testing.assert_array_equal(result.numpy(), correct)
 
@@ -505,25 +306,12 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
-        correct = np.array(
-            [
-                [
-                    [
-                        # pylint: disable=line-too-long
-                        #   |                            IN CACHE                                     |CURRENT CHUNK|
-                        #          t5             t6             t7             t8            t9            t10
-                        [
-                            -3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                            3.402823e38,
-                        ]
-                    ]
-                ]
-            ]
-        ).astype("float32")
+        correct = np.array([[[
+        # pylint: disable=line-too-long
+        #   |                            IN CACHE                                     |CURRENT CHUNK|
+        #          t5             t6             t7             t8            t9            t10
+            [-3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38, 3.402823e+38,  3.402823e+38]
+        ]]]).astype("float32")
 
         np.testing.assert_array_equal(result.numpy(), correct)
 
@@ -538,18 +326,11 @@ class SlidingWindowMaskTest(unittest.TestCase):
 
         result = vm["main"](bsz, seq_length, kv_seq_len, sliding_window)
 
-        correct = np.array(
-            [
-                [
-                    [
-                        # pylint: disable=line-too-long
-                        #   |                          IN CACHE                         |CURRENT CHUNK|
-                        #          t0             t1             t2             t3            t4
-                        [3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38, 3.402823e38]
-                    ]
-                ]
-            ]
-        ).astype("float32")
+        correct = np.array([[[
+        #   |                          IN CACHE                         |CURRENT CHUNK|
+        #          t0             t1             t2             t3            t4
+            [3.402823e+38,  3.402823e+38,  3.402823e+38,  3.402823e+38, 3.402823e+38]
+        ]]]).astype("float32")
 
         np.testing.assert_array_equal(result.numpy(), correct)
 
