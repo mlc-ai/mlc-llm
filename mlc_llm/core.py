@@ -85,7 +85,7 @@ class BuildArgs:
         The sliding window size in sliding window attention (SWA). This optional field
         overrides the `sliding_window` in config.json for those models that use SWA.
         Currently only useful when compiling Mistral.
-    chunk_size: int
+    sliding_window_chunk_size: int
         The chunk size in sliding window attention (SWA) during prefilling. By default,
         the chunk size is the same as sliding window. Currently only useful when compiling Mistral.
     cc_path: str
@@ -296,7 +296,7 @@ class BuildArgs:
             ),
         },
     )
-    chunk_size: int = field(
+    sliding_window_chunk_size: int = field(
         default=-1,
         metadata={
             "help": (
@@ -613,7 +613,7 @@ def dump_mlc_chat_config(
     if args.sliding_window != -1:
         # Do not add max window size if use sliding window
         config["sliding_window"] = args.sliding_window
-        config["chunk_size"] = args.chunk_size
+        config["sliding_window_chunk_size"] = args.sliding_window_chunk_size
     else:
         config["max_window_size"] = max_window_size
 
@@ -734,7 +734,7 @@ def build_model_from_args(args: argparse.Namespace):
 
         if args.model_category == "mistral":
             args.sliding_window = model_config.sliding_window
-            args.chunk_size = model_config.chunk_size
+            args.sliding_window_chunk_size = model_config.sliding_window_chunk_size
 
         for qspec_updater_class in param_manager.qspec_updater_classes:
             qspec_updater = qspec_updater_class(param_manager)

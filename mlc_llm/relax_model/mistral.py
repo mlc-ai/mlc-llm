@@ -41,7 +41,7 @@ class MistralConfig:
         tie_word_embeddings=False,
         vocab_size=32000,
         dtype="float32",
-        chunk_size=-1,
+        sliding_window_chunk_size=-1,
         max_sequence_length=-1,  # Does not play a role, kept for compatibility.
         combine_matmul=True,
         build_model_only=False,
@@ -65,11 +65,11 @@ class MistralConfig:
         self.tie_word_embeddings = tie_word_embeddings
         self.vocab_size = vocab_size
         self.dtype = dtype
-        if chunk_size == -1:
+        if sliding_window_chunk_size == -1:
             # chunk size same as sliding window by default
-            self.chunk_size = self.sliding_window
+            self.sliding_window_chunk_size = self.sliding_window
         else:
-            self.chunk_size = chunk_size
+            self.sliding_window_chunk_size = sliding_window_chunk_size
         self.max_sequence_length = max_sequence_length
         self.combine_matmul = combine_matmul
         if build_model_only and num_shards > 1:
@@ -108,7 +108,10 @@ class Embedding(nn.Module):
         )
 
     def forward(self, x: relax.Expr) -> relax.Var:
-        from tvm.relax.op import reshape, take  # pylint: disable=import-outside-toplevel
+        from tvm.relax.op import (  # pylint: disable=import-outside-toplevel
+            reshape,
+            take,
+        )
 
         ndim = x.struct_info.ndim
         if ndim == 1:
@@ -401,14 +404,7 @@ class MistralAttention(nn.Module):
         attention_mask: Optional[relax.Expr] = None,
     ) -> Tuple[relax.Expr, Optional[relax.Expr], Optional[Tuple[relax.Expr]]]:
         # pylint: disable=import-outside-toplevel
-        from tvm.relax.op import (
-            astype,
-            matmul,
-            maximum,
-            permute_dims,
-            reshape,
-            split,
-        )
+        from tvm.relax.op import astype, matmul, maximum, permute_dims, reshape, split
         from tvm.relax.op.nn import softmax
 
         bsz, q_len, _ = hidden_states.struct_info.shape
@@ -950,7 +946,7 @@ def get_model(args, hf_config):
         combine_matmul=True,
         num_shards=args.num_shards,
         build_model_only=args.build_model_only,
-        chunk_size=args.chunk_size,
+        sliding_window_chunk_size=args.sliding_window_chunk_size,
     )
 
     param_manager = ParamManager()
@@ -975,9 +971,9 @@ def get_model(args, hf_config):
             mod[gv] = func.with_attr(
                 "tir_var_upper_bound",
                 {
-                    "n": config.chunk_size,
+                    "n": config.sliding_window_chunk_size,
                     "c": config.sliding_window,
-                    "k": config.sliding_window + config.chunk_size,
+                    "k": config.sliding_window + config.sliding_window_chunk_size,
                 },
             )
 
