@@ -4,14 +4,14 @@ Compile Models via MLC
 ======================
 
 This page describes how to compile a model with MLC LLM. Model compilation takes model inputs, produces quantized model weights,
-and optimized model lib for a given platform. It enables users to bring their own new model weights, try different quantization modes,
+and optimizes model lib for a given platform. It enables users to bring their own new model weights, try different quantization modes,
 and customize the overall model optimization flow.
 
 .. note::
     Before you proceed, please make sure that you have :ref:`install-tvm-unity` correctly installed on your machine.
     TVM-Unity is the necessary foundation for us to compile models with MLC LLM.
     If you want to build webgpu, please also complete :ref:`install-web-build`.
-    Please also follow the instruction in :ref:`deploy-cli` to obtain the CLI app that can be used to chat with the compiled model.
+    Please also follow the instructions in :ref:`deploy-cli` to obtain the CLI app that can be used to chat with the compiled model.
     Finally, we strongly recommend you read :ref:`project-overview` first to get familiarized with the high-level terminologies.
 
 
@@ -25,7 +25,7 @@ Install MLC-LLM Package
 Work with Source Code
 ^^^^^^^^^^^^^^^^^^^^^
 
-The easiest way is to use MLC-LLM is to clone the repository, and compile models under the root directory of the repository.
+The easiest way to use MLC-LLM is to clone the repository, and compile models under the root directory of the repository.
 
 .. code:: bash
 
@@ -106,7 +106,7 @@ your personal computer.
                 xcrun: error: unable to find utility "metallib", not a developer tool or in PATH
 
             , please check and make sure you have Command Line Tools for Xcode installed correctly.
-            You can use ``xcrun metal`` to validate: when it prints ``metal: error: no input files``, it means the Command Line Tools for Xcode is installed and can be found, and you can proceed the model compiling.
+            You can use ``xcrun metal`` to validate: when it prints ``metal: error: no input files``, it means the Command Line Tools for Xcode is installed and can be found, and you can proceed with the model compiling.
 
     .. group-tab:: Android
 
@@ -172,7 +172,7 @@ We can check the output with the commands below:
               tokenizer_config.json
 
         We now chat with the model using the command line interface (CLI) app.
-        Follow the build from source instruction
+        Follow the build from the source instruction
 
         .. code:: shell
 
@@ -271,7 +271,7 @@ We can check the output with the commands below:
               tokenizer_config.json
 
         The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm``
-        can be uploaded to internet. You can pass a ``model_lib_map`` field to WebLLM app config to use this library.
+        can be uploaded to the internet. You can pass a ``model_lib_map`` field to WebLLM app config to use this library.
 
 
 Each compilation target produces a specific model library for the given platform. The model weight is shared across
@@ -311,7 +311,7 @@ In other cases you need to specify the model via ``--model``.
                             - ``dist/models/MODEL_NAME_OR_PATH`` (e.g., ``--model Llama-2-7b-chat-hf``),
                             - ``MODEL_NAME_OR_PATH`` (e.g., ``--model /my-model/Llama-2-7b-chat-hf``).
 
-                            When running the compile command using ``--model``, please make sure you have placed the model to compile under ``dist/models/`` or other location on the disk.
+                            When running the compile command using ``--model``, please make sure you have placed the model to compile under ``dist/models/`` or another location on the disk.
 
 --hf-path HUGGINGFACE_NAME  The name of the model's Hugging Face repository.
                             We will download the model to ``dist/models/HUGGINGFACE_NAME`` and load the model from this directory.
@@ -336,11 +336,11 @@ The following arguments are optional:
                                             we will use the maximum sequence length from the ``config.json`` in the model directory.
 --reuse-lib LIB_NAME                        Specifies the previously generated library to reuse.
                                             This is useful when building the same model architecture with different weights.
-                                            You can refer to the :ref:`model distribution <distribute-model-step3-specify-model-lib>` page for detail of this argument.
+                                            You can refer to the :ref:`model distribution <distribute-model-step3-specify-model-lib>` page for details of this argument.
 --use-cache                                 When ``--use-cache=0`` is specified,
                                             the model compilation will not use cached file from previous builds,
                                             and will compile the model from the very start.
-                                            Using cache can help reduce the time needed to compile.
+                                            Using a cache can help reduce the time needed to compile.
 --debug-dump                                Specifies whether to dump debugging files during compilation.
 --use-safetensors                           Specifies whether to use ``.safetensors`` instead of the default ``.bin`` when loading in model weights.
 
@@ -354,7 +354,7 @@ This section lists compile commands for more models that you can try out.
     .. tab:: Model: Llama-2-7B
 
         Please `request for access <https://huggingface.co/meta-llama>`_ to the Llama-2 weights from Meta first.
-        After granted the access, please create directory ``dist/models`` and download the model to the directory.
+        After granted access, please create directory ``dist/models`` and download the model to the directory.
         For example, you can run the following code:
 
         .. code:: shell

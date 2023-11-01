@@ -10,7 +10,8 @@ def debug_on_except():
     try:
         yield
     finally:
-        if sys.exc_info() == (None, None, None):
+        raised_exception = sys.exc_info()[1]
+        if not isinstance(raised_exception, Exception):
             return
 
         import traceback

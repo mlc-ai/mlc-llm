@@ -42,11 +42,11 @@ Ready to contribute to MLC-LLM? Awesome! We are excited to see you are ready to 
 The standard way to make changes to MLC-LLM code base is through creating a `pull-request <https://github.com/mlc-ai/mlc-llm/pulls>`__,
 and we will review your code and merge it to the code base when it is ready.
 
-The first step to become a developer is to `fork <https://github.com/mlc-ai/mlc-llm/fork>`__ the repository to your own
+The first step to becoming a developer is to `fork <https://github.com/mlc-ai/mlc-llm/fork>`__ the repository to your own
 github account, you will notice a repository under ``https://github.com/username/mlc-llm`` where ``username`` is your github user name.
 
 You can clone your fork to your local machine and commit changes, or edit the contents of your fork (in the case you are just fixing typos)
-on github directly. Once your update is complete, you can click the ``contribute`` button and open a pull request to the main repository.
+on GitHub directly. Once your update is complete, you can click the ``contribute`` button and open a pull request to the main repository.
 
 .. _contribute-new-models:
 
@@ -86,14 +86,14 @@ Fo your convenience, you can use `clang-format <https://clang.llvm.org/docs/Clan
 General Development Process
 ---------------------------
 
-Everyone in the community is welcomed to send patches, documents, and propose new directions to the project.
-The key guideline here is to enable everyone in the community to get involved and participate the decision and development.
+Everyone in the community is welcome to send patches, documents, and propose new directions to the project.
+The key guideline here is to enable everyone in the community to get involved and participate in the decision and development.
 We encourage public discussion in different channels, so that everyone in the community can participate
 and get informed in developments.
 
 Code reviews are one of the key ways to ensure the quality of the code. High-quality code reviews prevent technical debt
 for long-term and are crucial to the success of the project. A pull request needs to be reviewed before it gets merged.
-A committer who has the expertise of the corresponding area would moderate the pull request and the merge the code when
+A committer who has the expertise of the corresponding area would moderate the pull request and merge the code when
 it is ready. The corresponding committer could request multiple reviewers who are familiar with the area of the code.
 We encourage contributors to request code reviews themselves and help review each other's code -- remember everyone
 is volunteering their time to the community, high-quality code review itself costs as much as the actual code
@@ -108,11 +108,11 @@ moderate technical discussions in a diplomatic way, and provide suggestions with
 Committers
 ^^^^^^^^^^
 
-Committers are individuals who are granted the write access to the project. A committer is usually responsible for
+Committers are individuals who are granted with write access to the project. A committer is usually responsible for
 a certain area or several areas of the code where they oversee the code review process.
 The area of contribution can take all forms, including code contributions and code reviews, documents, education, and outreach.
-The review of pull requests will be assigned to the committers who recently contribute to the area this PR belong to.
-Committers are essential for a high quality and healthy project. The community actively look for new committers
+The review of pull requests will be assigned to the committers who recently contribute to the area this PR belongs to.
+Committers are essential for a high quality and healthy project. The community actively looks for new committers
 from contributors. Each existing committer can nominate new committers to MLC projects.
 
 .. _roles-contributors:
@@ -120,6 +120,6 @@ from contributors. Each existing committer can nominate new committers to MLC pr
 Contributors
 ^^^^^^^^^^^^
 We also welcome contributors if you are not ready to be a committer yet. Everyone who contributes to
-the project (in the form of code, bugfix, documentation, tutorials, etc) is a contributors.
+the project (in the form of code, bugfix, documentation, tutorials, etc) is a contributor.
 We maintain a `page <https://github.com/mlc-ai/mlc-llm/blob/main/CONTRIBUTORS.md>`__ to acknowledge contributors,
-please let us know if you contribute to the project and your name is not included in the list.
+please let us know if you contribute to the project and if your name is not included in the list.

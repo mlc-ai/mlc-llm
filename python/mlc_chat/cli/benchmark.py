@@ -61,7 +61,7 @@ def main():
         chat_config=ChatConfig(
             num_shards=args.num_shards,
         ),
-        lib_path=args.model_lib,
+        model_lib_path=args.model_lib,
     )
     output = chat_module.benchmark_generate(args.prompt, generate_length=args.generate_length)
     print(f"Generated text:\n{output}\n")

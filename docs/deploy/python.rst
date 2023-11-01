@@ -28,7 +28,7 @@ that supports other GPU runtime than the prebuilt version. Please refer our :ref
 Get Started
 ^^^^^^^^^^^
 After confirming that the package ``mlc_chat`` is installed, we can follow the steps
-below to chat with a MLC-compiled model in Python.
+below to chat with an MLC-compiled model in Python.
 
 First, let us make sure that the MLC-compiled ``model`` we want to chat with already exists.
 
@@ -50,6 +50,11 @@ If you do not have the MLC-compiled ``model`` ready:
 
       - Model lib should be placed at ``./dist/prebuilt/lib/$(model)-$(arch).$(suffix)``.
       - Model weights and chat config are located under ``./dist/prebuilt/mlc-chat-$(model)/``.
+
+      .. note::
+         Please make sure that you have the same directory structure as above, because Python API
+         relies on it to automatically search for model lib and weights. If you would like to directly
+         provide a full model lib path to override the auto-search, you can specify ``ChatModule.model_lib_path``
 
       .. collapse:: Example
 
@@ -74,6 +79,11 @@ If you do not have the MLC-compiled ``model`` ready:
       - Model libraries should be placed at ``./dist/$(model)/$(model)-$(arch).$(suffix)``.
       - Model weights and chat config are located under ``./dist/$(model)/params/``.
 
+      .. note::
+         Please make sure that you have the same directory structure as above, because Python API
+         relies on it to automatically search for model lib and weights. If you would like to directly
+         provide a full model lib path to override the auto-search, you can specify ``ChatModule.model_lib_path``
+
       .. collapse:: Example
 
          .. code:: shell
@@ -89,7 +99,7 @@ If you do not have the MLC-compiled ``model`` ready:
             params_shard_*.bin
             ...
 
-After making sure that the files exist, using the conda environment you used
+After making sure that the files exist, use the conda environment you used
 to install ``mlc_chat``, from the ``mlc-llm`` directory, you can create a Python
 file ``sample_mlc_chat.py`` and paste the following lines:
 
@@ -157,7 +167,7 @@ You can also checkout the :doc:`/prebuilt_models` page to run other models.
 |
 
 .. note:: 
-   You could also specify the address of ``model`` and ``lib_path`` explicitly. If
+   You could also specify the address of ``model`` and ``model_lib_path`` explicitly. If
    you only specify ``model`` as ``model_name`` and ``quantize_mode``, we will
    do a search for you. See more in the documentation of :meth:`mlc_chat.ChatModule.__init__`.
 
@@ -243,7 +253,7 @@ We provide an example below.
    fields specified.
    
    It is also worth noting that ``ConvConfig`` itself is overriding the original conversation template
-   specified by the field ``conv_template`` in chat configuration. Learn more about it in
+   specified by the field ``conv_template`` in the chat configuration. Learn more about it in
    :ref:`Configure MLCChat in JSON<configure-mlc-chat-json>`.
 
 Raw Text Generation in Python
@@ -262,7 +272,7 @@ We provide an example below.
 
    # Use a `ConvConfig` to define the generation settings
    # Since the "LM" template only supports raw text generation,
-   # system prompts will not be executed even if provided
+   # System prompts will not be executed even if provided
    conv_config = ConvConfig(stop_tokens=[2,], add_bos=True, stop_str="[INST]")
 
    # Note that `conv_config` is an optional subfield of `chat_config`
@@ -296,6 +306,38 @@ We provide an example below.
    Additionally, system prompts will not be run when instantiating a `mlc_chat.ChatModule`,
    unless explicitly given inside the prompt.
 
+Stream Iterator in Python
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Stream Iterator gives users an option to stream generated text to the function that the API is called from,
+instead of streaming to stdout, which could be a necessity when building services on top of MLC Chat.
+
+We provide an example below.
+
+.. code:: python
+
+   from mlc_chat import ChatModule
+   from mlc_chat.callback import StreamIterator
+
+   # Create a ChatModule instance
+   cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
+
+   # Stream to an Iterator
+   from threading import Thread
+
+   stream = StreamIterator(callback_interval=2)
+   generation_thread = Thread(
+      target=cm.generate,
+      kwargs={"prompt": "What is the meaning of life?", "progress_callback": stream},
+   )
+   generation_thread.start()
+
+   output = ""
+   for delta_message in stream:
+      output += delta_message
+
+   generation_thread.join()
+
 
 API Reference
 -------------
@@ -325,7 +367,7 @@ The :class:`mlc_chat.ChatModule` class provides the following methods:
 Gradio Frontend
 ---------------
 
-The gradio frontend provides a web interface for the MLC-Chat model, which allows user to interact with the model in a more user-friendly way and switch between different models to compare performance.
+The gradio frontend provides a web interface for the MLC-Chat model, which allows users to interact with the model in a more user-friendly way and switch between different models to compare performance.
 To use gradio frontend, you need to install gradio first:
 
 .. code-block:: bash
@@ -343,7 +385,7 @@ Then you can run the following code to start the interface:
 --port                 The port number to run gradio. The default value is ``7860``.   
 --share                Whether to create a publicly shareable link for the interface.
 
-After setting up properly, you are expected to see the following interface in your browser:
+After setting it up properly, you are expected to see the following interface in your browser:
 
 .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/gradio-interface.png
    :width: 100%

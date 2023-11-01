@@ -1,12 +1,12 @@
 import argparse
 import os
+import pickle
 
 import numpy as np
 import torch
 import tvm
 from transformers import AutoTokenizer
 from tvm import relax
-import pickle
 
 from mlc_llm import utils
 
@@ -77,12 +77,8 @@ def deploy_to_pipeline(args) -> None:
     )
 
     print("Tokenizing...")
-    inputs = (
-        tokenizer(args.prompt, return_tensors="pt").input_ids.to(torch.int32).numpy()
-    )
-    first_sampled_token = tvm.nd.array(
-        np.array([[6234]]).astype("int32"), primary_device
-    )
+    inputs = tokenizer(args.prompt, return_tensors="pt").input_ids.to(torch.int32).numpy()
+    first_sampled_token = tvm.nd.array(np.array([[6234]]).astype("int32"), primary_device)
     seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1]])
     second_seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1] + 1])
     kv_caches = state.vm["create_kv_cache"]()

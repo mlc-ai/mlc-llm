@@ -49,8 +49,24 @@
   </tbody>
 </table>
 
+
+**Scalable.** MLC LLM scales universally on NVIDIA and AMD GPUs, cloud and gaming GPUs. Below
+showcases our single batch decoding performance with prefilling = 1 and decoding = 256.
+
+Performance of 4-bit CodeLlama-34B and Llama2-70B on two NVIDIA RTX 4090 and two AMD Radeon 7900 XTX:
+<p float="left">
+  <img src="site/img/multi-gpu/figure-1.svg" width="40%"/>
+  <img src="site/img/multi-gpu/figure-3.svg" width="30%"/>
+</p>
+
+Scaling of fp16 and 4-bit CodeLlama-34 and Llama2-70B on A100-80G-PCIe and A10G-24G-PCIe, up to 8 GPUs:
+<p float="center">
+  <img src="site/img/multi-gpu/figure-2.svg" width="100%"/>
+</p>
+
 ## News
 
+* [10/18/2023] [[Post]](https://blog.mlc.ai/2023/10/19/Scalable-Language-Model-Inference-on-Multiple-NVDIA-AMD-GPUs) Scalable multi-GPU support for CUDA and ROCm are official.
 * [09/02/2023] Prebuilt ROCm 5.7 and CUDA 12.2 package is [available](https://llm.mlc.ai/docs/install/tvm.html#option-1-prebuilt-package).
 * [08/25/2023] CodeLlama support is up.
 * [08/14/2023] [[Post]](https://blog.mlc.ai/2023/08/09/GPU-Accelerated-LLM-on-Orange-Pi) Mali GPU support is up on Orange Pi.
