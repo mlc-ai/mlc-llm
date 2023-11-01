@@ -182,7 +182,9 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             bb.emit_func_output(gv)
         mod = bb.get()
         if device_type in ["cuda", "rocm", "metal", "vulkan"]:
-            target = Target.from_device(dev)
+            target = Target.current()
+            if target is None:
+                target = Target.from_device(dev)
             with target:
                 mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
                     dl.gpu.Reduction(), dl.gpu.GeneralReduction(), dl.gpu.Fallback()
