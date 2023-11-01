@@ -1,3 +1,4 @@
+# fmt: off
 """For testing `_make_sliding_window_mask` in mistral.py"""
 
 import unittest
@@ -61,7 +62,6 @@ def _create_vm():
 
 
 vm = _create_vm()
-
 
 class SlidingWindowMaskTest(unittest.TestCase):
     """
