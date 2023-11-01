@@ -192,7 +192,10 @@ class BuildArgs:
     cc_path: str = field(
         default="",
         metadata={
-            "help": "/path/to/cross_compiler_path, Currently only used for cross-compile for nvidia/jetson device."
+            "help": (
+                "/path/to/cross_compiler_path, Currently only used for "
+                "cross-compile for nvidia/jetson device."
+            )
         },
     )
     system_lib: bool = field(
@@ -288,8 +291,8 @@ class BuildArgs:
         metadata={
             "help": (
                 "The sliding window size in sliding window attention (SWA). "
-                "This optional field overrides the `sliding_window` in config.json for those models "
-                "that use SWA. Currently only useful when compiling Mistral."
+                "This optional field overrides the `sliding_window` in config.json for "
+                "those models that use SWA. Currently only useful when compiling Mistral."
             ),
         },
     )
@@ -314,7 +317,8 @@ class BuildArgs:
         default=False,
         metadata={
             "help": (
-                "Use vLLM paged KV cache and attention kernel, only relevant when enable_batching=True."
+                "Use vLLM paged KV cache and attention kernel, only relevant when "
+                "enable_batching=True."
             ),
             "action": "store_true",
         },
@@ -358,7 +362,9 @@ def _parse_args(parsed) -> argparse.Namespace:
     if parsed.use_vllm_attention:
         assert parsed.enable_batching, "--enable_batching is required for using vLLM attention."
         assert parsed.target_kind == "cuda", "vLLM attention is only supported for CUDA."
-        assert tvm.get_global_func("tvm.contrib.vllm.single_query_cached_kv_attention", True), "TVM needs to be built with -DUSE_VLLM=ON."
+        assert tvm.get_global_func(
+            "tvm.contrib.vllm.single_query_cached_kv_attention", True
+        ), "TVM needs to be built with -DUSE_VLLM=ON."
 
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
@@ -419,10 +425,10 @@ def _setup_model_path(args: argparse.Namespace):  # pylint: disable=too-many-bra
 def validate_config(model_path: str):
     if os.path.exists(os.path.join(model_path, "mlc-chat-config.json")):
         raise KeyError(
-            "The model located in the directory {} has already been compiled by MLC-LLM. There is"
-            " no need to compile it again. If you wish to compile a new model, please provide a"
-            " directory (or hf-path) that contains the pre-compiled model in raw HuggingFace"
-            " format instead.".format(model_path)
+            f"The model located in the directory {model_path} has already been compiled "
+            "by MLC-LLM. There is no need to compile it again. If you wish to compile "
+            "a new model, please provide a directory (or hf-path) that contains the "
+            "pre-compiled model in raw HuggingFace format instead."
         )
     if model_path.split("/")[-1].startswith("minigpt"):
         # minigpt does not contain a config.json file so we skip the check
@@ -495,12 +501,13 @@ def mod_transform_before_build(
 
         if max_seq_len:
             num_key_value_heads = config.get_num_key_value_heads()
+            # pylint: disable=no-value-for-parameter
             mod = fuse_split_rotary_embedding(
-                    config.num_attention_heads // args.num_shards,
-                    num_key_value_heads // args.num_shards,
-                    config.hidden_size // args.num_shards,
-                    config.position_embedding_base,
-                )(mod)
+                config.num_attention_heads // args.num_shards,
+                num_key_value_heads // args.num_shards,
+                config.hidden_size // args.num_shards,
+                config.position_embedding_base,
+            )(mod)
 
     if args.target_kind == "cuda":
         patterns = []
@@ -508,6 +515,7 @@ def mod_transform_before_build(
         has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
 
         if has_cutlass and not args.no_cutlass_attn:
+            # pylint: disable=no-value-for-parameter
             if args.use_flash_attn_mqa:
                 mod = rewrite_attention(use_flash_mqa=True)(mod)
             mod = rewrite_attention(use_flash_mqa=False)(mod)
@@ -673,7 +681,7 @@ def build_model_from_args(args: argparse.Namespace):
     if args.quantization == "q4f16_0":
         print(
             "WARNING: q4f16_1 is preferred to q4f16_0, "
-            "and it is highly recommended to use q4f16_1 instaed"
+            "and it is highly recommended to use q4f16_1 instead"
         )
     if args.num_shards > 1:
         if (not args.build_model_only) and (not args.convert_weight_only):

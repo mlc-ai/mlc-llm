@@ -1151,7 +1151,9 @@ class LLMChat {
     }
     // max_window_size_ != -1 to handle
     // https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py#L588-L589
-    else if (max_window_size_ != -1 && sliding_window_ == -1 && total_seq_len_ >= max_window_size_) {
+    // sliding_window_ == -1 to make sure we do not stop when using sliding window
+    else if (max_window_size_ != -1 && sliding_window_ == -1 &&
+             total_seq_len_ >= max_window_size_) {
       stop_triggered_ = true;
     }
     if (stop_triggered_) {

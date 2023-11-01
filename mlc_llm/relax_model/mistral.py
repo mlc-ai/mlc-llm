@@ -1,3 +1,6 @@
+# pylint: disable=too-many-lines, missing-class-docstring, missing-function-docstring
+"""Implements the mistal model with sliding window attention."""
+
 import math
 from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple
@@ -17,6 +20,8 @@ from .param_manager import ParamManager
 
 @dataclass
 class MistralConfig:
+    """Configuration for mistral model."""
+
     def __init__(
         self,
         bos_token_id=1,
@@ -103,7 +108,7 @@ class Embedding(nn.Module):
         )
 
     def forward(self, x: relax.Expr) -> relax.Var:
-        from tvm.relax.op import reshape, take
+        from tvm.relax.op import reshape, take  # pylint: disable=import-outside-toplevel
 
         ndim = x.struct_info.ndim
         if ndim == 1:
@@ -395,6 +400,7 @@ class MistralAttention(nn.Module):
         past_key_value: Tuple[relax.Expr],
         attention_mask: Optional[relax.Expr] = None,
     ) -> Tuple[relax.Expr, Optional[relax.Expr], Optional[Tuple[relax.Expr]]]:
+        # pylint: disable=import-outside-toplevel
         from tvm.relax.op import (
             astype,
             matmul,
@@ -576,7 +582,7 @@ def _make_sliding_window_mask(input_shape, kv_seq_len, sliding_window, dtype):
 
     if isinstance(tgt_len, tvm.tir.Var) or tgt_len > 1:
         # Either 1. First prefill, or 2. Subsequent prefill
-        from tvm.relax.op import broadcast_to
+        from tvm.relax.op import broadcast_to  # pylint: disable=import-outside-toplevel
 
         def sliding_window_min_max_te(sliding_window):
             return te.compute(
