@@ -27,6 +27,7 @@ def parse_args():
     # /opt/bin/cuda-reserve.py  --num-gpus 2 python -m mlc_serve --local-id vicuna-v1-7b-q0f16 --num-shards 2 --max-num-batched-tokens 2560 --max-input-len 256
 
     args = argparse.ArgumentParser()
+    args.add_argument("--host", type=str, default="127.0.0.1")
     args.add_argument("--port", type=int, default=8000)
     args.add_argument("--local-id", type=str, required=True)
     args.add_argument("--artifact-path", type=str, default="dist")
@@ -89,6 +90,7 @@ def run_server():
     app = create_app(connector)
     uvicorn.run(
         app,
+        host=args.host,
         port=args.port,
         reload=False,
         access_log=False,
