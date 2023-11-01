@@ -546,6 +546,7 @@ def dump_mlc_chat_config(
     mean_gen_len: int = 128,
     max_gen_len: int = 512,
     shift_fill_factor: float = 0.3,
+    rwkv_world=False,
 ):
     args.params_path = os.path.join(args.artifact_path, "params")
     config: Dict[str, Any] = {}
@@ -567,7 +568,10 @@ def dump_mlc_chat_config(
     config["max_window_size"] = max_window_size
     config["num_shards"] = args.num_shards
     config["shift_fill_factor"] = shift_fill_factor
-    config["tokenizer_files"] = utils.get_tokenizer_files(args.params_path)
+    if rwkv_world:
+        config["tokenizer_files"] = ["tokenizer_model"]
+    else:
+        config["tokenizer_files"] = utils.get_tokenizer_files(args.params_path)
     config["model_category"] = args.model_category
     config["model_name"] = args.model
     config["vocab_size"] = vocab_size
@@ -709,6 +713,7 @@ def build_model_from_args(args: argparse.Namespace):
                     top_p=0.6,
                     temperature=1.2,
                     repetition_penalty=0.996,
+                    rwkv_world=True,
                 )
             else:
                 dump_mlc_chat_config(

@@ -1108,7 +1108,10 @@ class LLMChat {
 
     if (static_cast<int64_t>(output_ids_.size()) >= gen_max_gen_len) {
       stop_triggered_ = true;
-    } else if (total_seq_len_ >= max_window_size_) {
+    }
+    // max_window_size_ != -1 to handle
+    // https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py#L588-L589
+    else if (max_window_size_ != -1 && total_seq_len_ >= max_window_size_) {
       stop_triggered_ = true;
     }
     if (stop_triggered_) {
