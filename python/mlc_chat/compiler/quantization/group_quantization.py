@@ -1,6 +1,6 @@
 """The group quantization config"""
-from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 from tvm import DataType, DataTypeCode
@@ -27,6 +27,10 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
     num_elem_per_storage: int = 0
     num_storage_per_group: int = 0
     max_int_value: int = 0
+
+    prebuilt_quantize_func: Dict[str, Callable[[NDArray], NDArray]] = field(
+        default_factory=lambda: {}
+    )
 
     def __post_init__(self):
         assert self.kind == "group-quant"
@@ -164,6 +168,11 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         """
         assert weight.dtype == self.model_dtype
         assert len(weight.shape) == 2
+        dev = weight.device
+        device_type = dev.MASK2STR[dev.device_type]
+        key = str((int(weight.shape[0]), int(weight.shape[1]), weight.dtype, device_type))
+        if key in self.prebuilt_quantize_func:
+            return self.prebuilt_quantize_func[key](weight)
         bb = relax.BlockBuilder()  # pylint: disable=invalid-name
         weight_var = relax.Var("weight", relax.TensorStructInfo(weight.shape, self.model_dtype))
         with bb.function(name="quantize", params=[weight_var]):
@@ -172,8 +181,6 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 gv = bb.emit_output(lv)  # pylint: disable=invalid-name
             bb.emit_func_output(gv)
         mod = bb.get()
-        dev = weight.device
-        device_type = dev.MASK2STR[dev.device_type]
         if device_type in ["cuda", "rocm", "metal", "vulkan"]:
             target = Target.from_device(dev)
             with target:
@@ -187,6 +194,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             raise NotImplementedError
         ex = relax.build(mod, target)
         vm = relax.VirtualMachine(ex, dev)  # pylint: disable=invalid-name
+        self.prebuilt_quantize_func[key] = vm["quantize"]
         return vm["quantize"](weight)
 
     def _quantize(  # pylint: disable=too-many-locals
