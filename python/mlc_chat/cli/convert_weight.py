@@ -6,6 +6,8 @@ from typing import Union
 
 from mlc_chat.compiler import MODELS, QUANTIZATION
 from mlc_chat.compiler.parameter import HuggingFaceLoader
+
+import tvm
 from tvm.contrib import tvmjs
 
 from ..support.auto_config import detect_config, detect_model_type
@@ -108,6 +110,13 @@ def main():
 
     # detect quantization target
     quantization_target, _ = detect_target_and_host(parsed.device)
+    if parsed.device != "auto":
+        device = tvm.runtime.device(parsed.device.split(" ")[0])
+    else:
+        if quantization_target.kind.name == "cuda":
+            device = tvm.cuda(0)
+        else:
+            device = tvm.cpu(0)
 
     # model config & quantization config
     model_config = model.config.from_file(parsed.config)
@@ -123,7 +132,7 @@ def main():
 
     # load and quantize
     with quantization_target:
-        param_dict = dict(loader.load())
+        param_dict = dict(loader.load(device=device))
 
     # dump to output directory
     tvmjs.dump_ndarray_cache(

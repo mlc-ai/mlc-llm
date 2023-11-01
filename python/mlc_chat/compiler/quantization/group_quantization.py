@@ -2,11 +2,8 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-<<<<<<< HEAD
 import numpy as np
-=======
-import tvm
->>>>>>> Fix auto detects.
+
 from tvm import DataType, DataTypeCode
 from tvm import dlight as dl
 from tvm import relax, te, tir
@@ -14,7 +11,6 @@ from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
 from tvm.target import Target
 
-from ...support.auto_target import detect_tvm_device
 from ..parameter import QuantizeMapping
 
 
@@ -198,7 +194,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             target = "llvm"
             mod = relax.transform.LegalizeOps()(mod)
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f"Device type {device_type} is not supported")
         ex = relax.build(mod, target)
         vm = relax.VirtualMachine(ex, dev)  # pylint: disable=invalid-name
         self.prebuilt_quantize_func[key] = vm["quantize"]

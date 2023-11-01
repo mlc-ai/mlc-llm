@@ -45,26 +45,6 @@ def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[T
     return target, build_func
 
 
-def detect_tvm_device(target: Target) -> Device:
-    """Detect the TVM device from the target device.
-
-    Parameters
-    ----------
-    target : Target
-        The target device.
-
-    Returns
-    -------
-    device : Device
-        The TVM device.
-    """
-    if target.kind.name == "llvm":
-        return cpu()
-    if target.kind.name == "cuda":
-        return cuda()
-    raise ValueError(f"Unsupported device type from {target}")
-
-
 def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
     if hint in ["iphone", "android", "webgpu", "mali", "opencl"]:
         hint += ":generic"
