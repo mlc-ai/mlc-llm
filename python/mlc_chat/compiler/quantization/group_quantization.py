@@ -254,7 +254,6 @@ class GroupQuantizeLinear(nn.Module):
         self.out_features = out_features
         self.out_dtype = out_dtype
         self.config = config
-        n_group = tir.ceildiv(in_features, config.group_size)
         self.weight = nn.Parameter(
             (out_features, tir.ceildiv(in_features, config.num_elem_per_storage)),
             config.storage_dtype,
@@ -323,10 +322,10 @@ class GroupQuantizeLinear(nn.Module):
         return x
 
 
-class GroupQuantizeMultiLinear(nn.Module):
+class GroupQuantizeMultiLinear(nn.Module):  # pylint: disable=too-many-instance-attributes
     """An nn.MultiLinear module with group quantization"""
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         in_features: int,
         out_features: nn.Sequence[int],
