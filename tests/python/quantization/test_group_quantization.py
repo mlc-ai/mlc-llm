@@ -1,12 +1,19 @@
-# pylint: disable=missing-docstring
+# pylint: disable=invalid-name,missing-docstring
 from typing import List
 
 import numpy as np
+import torch
 import tvm
 import tvm.testing
 from mlc_chat.compiler import QUANTIZATION
+from mlc_chat.compiler.parameter import QuantizeMapping
 from mlc_chat.compiler.quantization import GroupQuantize
+from mlc_chat.compiler.quantization.group_quantization import (
+    GroupQuantizeEmbedding,
+    GroupQuantizeLinear,
+)
 from tvm import DataType
+from tvm.relax.frontend import nn
 
 
 def quantize_np(config: GroupQuantize, weight: np.ndarray):
@@ -58,18 +65,18 @@ def dequantize_np(
     weight_bin = np.bitwise_and(
         np.right_shift(
             weight_repeated,
-            (indice_j % config.num_elem_per_storage) * DataType(config.storage_dtype).bits,
+            (indice_j % config.num_elem_per_storage) * DataType(config.quantize_dtype).bits,
         ),
         bin_mask,
     )
     return ((weight_bin - max_int) * scale_repeated)[: out_shape[0]][: out_shape[1]]
 
 
-def test_quantize(quant_name: str, shape: List[int], dtype: str):
+def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: str):
     config = QUANTIZATION[quant_name]
     assert isinstance(config, GroupQuantize)
     weight_np = np.random.random(shape).astype(dtype)
-    output = config.quantize_weight(tvm.nd.array(weight_np, device=tvm.device("cuda")))
+    output = config.quantize_weight(tvm.nd.array(weight_np, device=tvm.device(device)))
     quantized_weight, scale = output[0].numpy(), output[1].numpy()
     quantized_weight_ref, scale_ref = quantize_np(config, weight_np)
     tvm.testing.assert_allclose(scale, scale_ref, rtol=1e-3, atol=1e-3)
@@ -81,5 +88,65 @@ def test_quantize(quant_name: str, shape: List[int], dtype: str):
     )
 
 
+def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
+    class Test(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.linear = nn.Linear(shape[1], shape[0], bias=False, dtype=dtype)
+
+        def forward(self, x: nn.Tensor):
+            return self.linear(x)
+
+    config = QUANTIZATION[quant_name]
+    assert isinstance(config, GroupQuantize)
+    weight_np = np.random.randint(
+        np.iinfo(config.storage_dtype).min,
+        np.iinfo(config.storage_dtype).max,
+        (shape[0], shape[1] // config.num_elem_per_storage),
+    ).astype(config.storage_dtype)
+    scale_np = np.random.random((shape[0], shape[1] // config.group_size)).astype(
+        config.model_dtype
+    )
+    mod = config.quantize_model(Test(), QuantizeMapping({}, {}), "")
+    mod.linear.weight.data = weight_np
+    mod.linear.scale.data = scale_np
+    model = mod.jit(spec={"forward": {"x": nn.spec.Tensor((shape[1], shape[1]), dtype)}})
+    out = model["forward"](
+        torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype)))  # pylint: disable=no-member
+    )
+    ref = dequantize_np(config, weight_np, scale_np).T
+    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
+
+
+def test_quantize_model(quant_name: str, shape: List[int], dtype: str):
+    class Test(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.linear = nn.Linear(shape[0], shape[1], dtype=dtype)
+            self.embedding = nn.Embedding(shape[0], shape[1], dtype=dtype)
+
+        def forward(self, x: nn.Tensor):
+            return self.linear(x)
+
+    config = QUANTIZATION[quant_name]
+    assert isinstance(config, GroupQuantize)
+    quant_map = QuantizeMapping({}, {})
+    mod = config.quantize_model(Test(), quant_map, "model")
+    assert quant_map.param_map["model.linear.weight"] == [
+        "model.linear.q_weight",
+        "model.linear.q_scale",
+    ]
+    assert quant_map.map_func["model.linear.weight"] == config.quantize_weight
+    assert isinstance(mod.linear, GroupQuantizeLinear)
+    assert quant_map.param_map["model.embedding.weight"] == [
+        "model.embedding.q_weight",
+        "model.embedding.q_scale",
+    ]
+    assert quant_map.map_func["model.embedding.weight"] == config.quantize_weight
+    assert isinstance(mod.embedding, GroupQuantizeEmbedding)
+
+
 if __name__ == "__main__":
-    test_quantize("q4f16_1", [64, 4096], "float16")
+    test_quantize_weight("q4f16_1", [16, 128], "float16", "llvm")
+    test_quantize_model("q4f16_1", [16, 128], "float16")
+    test_dequantize_weight("q4f16_1", [16, 128], "float16")
