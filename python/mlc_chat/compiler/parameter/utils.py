@@ -2,7 +2,7 @@
 # pylint: disable=too-few-public-methods
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Set, Tuple, Optional
+from typing import TYPE_CHECKING, Iterator, Optional, Set, Tuple
 
 import numpy as np
 

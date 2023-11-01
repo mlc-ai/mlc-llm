@@ -2,6 +2,8 @@
 from typing import Tuple
 
 from tvm.relax.frontend import nn
+from tvm.target import Target
+from tvm.runtime import Device
 
 from ..parameter import QuantizeMapping
 from ..quantization import GroupQuantize

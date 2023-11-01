@@ -2,7 +2,11 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+<<<<<<< HEAD
 import numpy as np
+=======
+import tvm
+>>>>>>> Fix auto detects.
 from tvm import DataType, DataTypeCode
 from tvm import dlight as dl
 from tvm import relax, te, tir
@@ -11,6 +15,7 @@ from tvm.runtime import NDArray
 from tvm.target import Target
 
 from ..parameter import QuantizeMapping
+from ...support.auto_target import detect_tvm_device
 
 
 @dataclass

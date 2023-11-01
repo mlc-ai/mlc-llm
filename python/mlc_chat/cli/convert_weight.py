@@ -4,13 +4,14 @@ import logging
 from pathlib import Path
 from typing import Union
 
-from ..support.auto_config import detect_config, detect_model_type
-from ..support.auto_target import detect_target_and_host
+from mlc_chat.compiler import MODELS, QUANTIZATION
+from mlc_chat.compiler.parameter import HuggingFaceLoader
 
 from tvm.contrib import tvmjs
-from mlc_chat.compiler import MODELS, QUANTIZATION
 
-from mlc_chat.compiler.parameter import HuggingFaceLoader
+from ..support.auto_config import detect_config, detect_model_type
+from ..support.auto_weight import detect_weight
+from ..support.auto_target import detect_target_and_host
 
 logging.basicConfig(
     level=logging.INFO,
@@ -63,9 +64,8 @@ def main():
         "--source-format",
         type=str,
         required=False,
-        # todo support auto
-        choices=["huggingface-torch", "huggingface-safetensor"],  # "auto"
-        default="huggingface-safetensor",  # "auto"
+        choices=["auto", "huggingface-torch", "huggingface-safetensor"],
+        default="auto",
         help="The format of source model weight, infer from `config` if missing",
     )
     parser.add_argument(
@@ -83,33 +83,35 @@ def main():
         help="Model architecture, for example, llama. If not set, it is inferred "
         "from the config.json file.",
     )
-    # TODO: support device, currently cuda only
-    # parser.add_argument(
-    #     "--device",
-    #     type=str,
-    #     default="auto",
-    #     help="The device used to do quantization, for example `auto` / `cuda:0` / `cuda --arch sm86`",
-    # )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="auto",
+        help="The device used to do quantization, \
+              for example `auto` / `cuda:0` / `cuda --arch sm86`",
+    )
     parser.add_argument(
         "--output",
         "-o",
         type=_parse_output,
         required=True,
-        help="The output directory to save the quantized model weight, will contain `params_shard_*.bin` and `ndarray-cache.json`.",
+        help="The output directory to save the quantized model weight, "
+        "will contain `params_shard_*.bin` and `ndarray-cache.json`.",
     )
+
+    # parse arguments
     parsed = parser.parse_args()
     parsed.source = _parse_source(parsed.source, parsed.config)
-    parsed.params = parsed.source / "model.safetensors.index.json"
+    parsed.params, parsed.source_format = detect_weight(parsed.source, parsed.source_format)
     model = detect_model_type(parsed.model_type, parsed.config)
-    # todo: support device, currently cuda only
-    # target, build_func = detect_target_and_host(parsed.device, "llvm")
+
+    # detect quantization target
+    quantization_target, _ = detect_target_and_host(parsed.device)
 
     # model config & quantization config
     model_config = model.config.from_file(parsed.config)
     quantization_config = QUANTIZATION[parsed.quantization]
-    quantize_model, quantize_map = model.quantize[quantization_config.kind](
-        model_config, quantization_config
-    )
+    _, quantize_map = model.quantize[quantization_config.kind](model_config, quantization_config)
 
     # loader setup
     loader = HuggingFaceLoader(
@@ -118,8 +120,11 @@ def main():
         quantize_param_map=quantize_map,
     )
 
-    # dump params
-    param_dict = {name: param for name, param in loader.load()}
+    # load and quantize
+    with quantization_target:
+        param_dict = dict(loader.load())
+
+    # dump to output directory
     tvmjs.dump_ndarray_cache(
         param_dict,
         f"{parsed.output}/params",

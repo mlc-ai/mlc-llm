@@ -9,7 +9,8 @@ from typing import Dict, Iterator, List, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
-from tvm.runtime import NDArray
+from tvm.target import Target
+from tvm.runtime import NDArray, Device
 from tvm.runtime.ndarray import array as as_ndarray
 
 from .mapping import ExternMapping, QuantizeMapping

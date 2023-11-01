@@ -7,6 +7,7 @@ from tvm import IRModule, relax
 from tvm._ffi import register_func
 from tvm.contrib import tar, xcode
 from tvm.target import Target
+from tvm.runtime import Device, cpu, cuda
 
 from .style import bold, green, red
 
@@ -24,7 +25,7 @@ NOT_FOUND = red("Not found")
 BuildFunc = Callable[[IRModule, "CompileArgs"], None]
 
 
-def detect_target_and_host(target_hint: str, host_hint: str) -> Tuple[Target, BuildFunc]:
+def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[Target, BuildFunc]:
     """Detect the configuration for the target device and its host, for example, target GPU and
     the host CPU.
 
@@ -34,7 +35,7 @@ def detect_target_and_host(target_hint: str, host_hint: str) -> Tuple[Target, Bu
         The hint for the target device.
 
     host_hint : str
-        The hint for the host CPU.
+        The hint for the host CPU, default is "auto".
     """
     target, build_func = _detect_target_gpu(target_hint)
     if target.host is None:
@@ -42,6 +43,27 @@ def detect_target_and_host(target_hint: str, host_hint: str) -> Tuple[Target, Bu
     if target.kind.name == "cuda":
         _register_cuda_hook(target)
     return target, build_func
+
+
+def detect_tvm_device(target: Target) -> Device:
+    """Detect the TVM device from the target device.
+
+    Parameters
+    ----------
+    target : Target
+        The target device.
+
+    Returns
+    -------
+    device : Device
+        The TVM device.
+    """
+    if target.kind.name == "llvm":
+        return cpu()
+    elif target.kind.name == "cuda":
+        return cuda()
+    else:
+        raise ValueError(f"Unsupported device type from {target}")
 
 
 def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
