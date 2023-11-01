@@ -101,7 +101,9 @@ def main():
     # parse arguments
     parsed = parser.parse_args()
     parsed.source = _parse_source(parsed.source, parsed.config)
-    parsed.params, parsed.source_format = detect_weight(parsed.source, parsed.source_format)
+    parsed.params, parsed.source_format = detect_weight(
+        parsed.source, parsed.config, weight_format=parsed.source_format
+    )
     model = detect_model_type(parsed.model_type, parsed.config)
 
     # detect quantization target
