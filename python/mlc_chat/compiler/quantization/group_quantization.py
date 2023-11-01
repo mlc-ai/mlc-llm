@@ -164,12 +164,12 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         """
         assert weight.dtype == self.model_dtype
         assert len(weight.shape) == 2
-        bb = relax.BlockBuilder()
+        bb = relax.BlockBuilder()  # pylint: disable=invalid-name
         weight_var = relax.Var("weight", relax.TensorStructInfo(weight.shape, self.model_dtype))
         with bb.function(name="quantize", params=[weight_var]):
             with bb.dataflow():
-                lv = bb.emit_te(self._quantize, weight_var)
-                gv = bb.emit_output(lv)
+                lv = bb.emit_te(self._quantize, weight_var)  # pylint: disable=invalid-name
+                gv = bb.emit_output(lv)  # pylint: disable=invalid-name
             bb.emit_func_output(gv)
         mod = bb.get()
         with Target("cuda"):
@@ -178,7 +178,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             )(mod)
         ex = relax.build(mod, "cuda")
         dev = device("cuda", 0)
-        vm = relax.VirtualMachine(ex, dev)
+        vm = relax.VirtualMachine(ex, dev)  # pylint: disable=invalid-name
         return vm["quantize"](weight)
 
     def _quantize(  # pylint: disable=too-many-locals
@@ -223,7 +223,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         )
 
         # compute quantized weight per storage
-        r = te.reduce_axis((0, self.num_elem_per_storage), name="r")
+        r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
         num_storage = self.num_storage_per_group * num_group
         quantized_weight_shape = (n, num_storage)
         quantized_weight = te.compute(
@@ -382,7 +382,7 @@ class GroupQuantizeMultiLinear(nn.Module):  # pylint: disable=too-many-instance-
             out_dtype=multi_linear.out_dtype,
         )
 
-    def forward(self, x: nn.Tensor) -> nn.Tensor:
+    def forward(self, x: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
         """
         Forward method for multi linear layer.
 
@@ -411,7 +411,7 @@ class GroupQuantizeMultiLinear(nn.Module):  # pylint: disable=too-many-instance-
         )
         # x: [*B, in_features]
         # w: [in_features, out_features]
-        w = nn.op.permute_dims(w)
+        w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
         # x: [*B, out_features]
         x = nn.op.matmul(x, w, out_dtype=self.out_dtype)
         if self.bias is not None:
@@ -454,7 +454,7 @@ class GroupQuantizeEmbedding(nn.Module):
         num, dim = embedding.weight.shape
         return GroupQuantizeEmbedding(num, dim, config)
 
-    def forward(self, x: nn.Tensor):
+    def forward(self, x: nn.Tensor):  # pylint: disable=invalid-name
         """
         Forward method for group quantized embedding layer.
 

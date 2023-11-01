@@ -1,4 +1,4 @@
-# pylint: disable=missing-docstring
+# pylint: disable=invalid-name,missing-docstring
 from typing import List
 
 import numpy as np
@@ -13,8 +13,6 @@ from mlc_chat.compiler.quantization.group_quantization import (
     GroupQuantizeLinear,
 )
 from tvm import DataType
-from tvm import dlight as dl
-from tvm import relax
 from tvm.relax.frontend import nn
 
 
@@ -101,7 +99,6 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
 
     config = QUANTIZATION[quant_name]
     assert isinstance(config, GroupQuantize)
-    n_group = shape[1] // config.group_size
     weight_np = np.random.randint(
         np.iinfo(config.storage_dtype).min,
         np.iinfo(config.storage_dtype).max,
@@ -114,7 +111,9 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
     mod.linear.weight.data = weight_np
     mod.linear.scale.data = scale_np
     model = mod.jit(spec={"forward": {"x": nn.spec.Tensor((shape[1], shape[1]), dtype)}})
-    out = model["forward"](torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype))))
+    out = model["forward"](
+        torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype)))  # pylint: disable=no-member
+    )
     ref = dequantize_np(config, weight_np, scale_np).T
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
