@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
-from tvm import DataType, DataTypeCode, device
+from tvm import DataType, DataTypeCode
 from tvm import dlight as dl
 from tvm import relax, te, tir
 from tvm.relax.frontend import nn
@@ -172,12 +172,20 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 gv = bb.emit_output(lv)  # pylint: disable=invalid-name
             bb.emit_func_output(gv)
         mod = bb.get()
-        with Target("cuda"):
-            mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
-                dl.gpu.Reduction(), dl.gpu.GeneralReduction(), dl.gpu.Fallback()
-            )(mod)
-        ex = relax.build(mod, "cuda")
-        dev = device("cuda", 0)
+        dev = weight.device
+        device_type = dev.MASK2STR[dev.device_type]
+        if device_type in ["cuda", "rocm", "metal", "vulkan"]:
+            target = Target.from_device(dev)
+            with target:
+                mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+                    dl.gpu.Reduction(), dl.gpu.GeneralReduction(), dl.gpu.Fallback()
+                )(mod)
+        elif device_type == "cpu":
+            target = "llvm"
+            mod = relax.transform.LegalizeOps()(mod)
+        else:
+            raise NotImplementedError
+        ex = relax.build(mod, target)
         vm = relax.VirtualMachine(ex, dev)  # pylint: disable=invalid-name
         return vm["quantize"](weight)
 
