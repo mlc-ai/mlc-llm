@@ -67,7 +67,7 @@ You can **optionally** customize the chat config file
 ``dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1/params/mlc-chat-config.json`` (checkout :ref:`configure-mlc-chat-json` for more detailed instructions).
 You can also simply use the default configuration and skip this step.
 
-For demonstration purpose, we update ``mean_gen_len`` to 32 and ``max_gen_len`` to 64.
+For demonstration purposes, we update ``mean_gen_len`` to 32 and ``max_gen_len`` to 64.
 We also update ``conv_template`` to ``"LM"`` because the model is instruction-tuned.
 
 
@@ -160,7 +160,7 @@ Download the Distributed Models and Run in iOS App
 --------------------------------------------------
 
 For iOS app, model libraries are statically packed into the app at the time of app building.
-Therefore, the iOS app supports running any models whose model libraries are integrated into the app.
+Therefore, the iOS app supports running any model whose model libraries are integrated into the app.
 You can check the :ref:`list of supported model libraries <using-prebuilt-models-ios>`.
 
 To download and run the compiled RedPajama-3B instruct model on iPhone, we need to reuse the integrated ``RedPajama-INCITE-Chat-3B-v1-q4f16_1`` model library.
@@ -198,7 +198,7 @@ Now we can download the model weights in iOS app and run the model by following 
 
     .. tab:: Step 4
 
-        When the download is finished, click into the model and enjoy.
+        When the download is finished, click on the model and enjoy.
 
         .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-distribute-4.jpeg
             :align: center

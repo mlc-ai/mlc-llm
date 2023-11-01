@@ -1,11 +1,15 @@
+# pylint: disable=missing-docstring
 from __future__ import annotations
 
 import logging
-from typing import List, Optional, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.embeddings.openai import async_embed_with_retry, embed_with_retry
+from langchain.embeddings import OpenAIEmbeddings  # pylint: disable=import-error
+from langchain.embeddings.openai import (  # pylint: disable=import-error
+    async_embed_with_retry,
+    embed_with_retry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +23,13 @@ class MLCEmbeddings(OpenAIEmbeddings):
             )
 
         try:
-            import tiktoken
-        except ImportError:
+            import tiktoken  # pylint: disable=import-outside-toplevel
+        except ImportError as err:
             raise ImportError(
                 "Could not import tiktoken python package. "
                 "This is needed in order to for OpenAIEmbeddings. "
                 "Please install it with `pip install tiktoken`."
-            )
+            ) from err
 
         tokens = []
         indices = []
@@ -56,10 +60,10 @@ class MLCEmbeddings(OpenAIEmbeddings):
     ) -> List[List[float]]:
         batched_embeddings: List[List[float]] = []
         _chunk_size = chunk_size or self.chunk_size
-        _iter = range(0, len(inputs), _chunk_size)
+        _iter: Iterable = range(0, len(inputs), _chunk_size)
         if self.show_progress_bar:
             try:
-                from tqdm.auto import tqdm
+                from tqdm import tqdm  # pylint: disable=import-outside-toplevel
 
                 _iter = tqdm(_iter)
             except ImportError:
@@ -79,10 +83,10 @@ class MLCEmbeddings(OpenAIEmbeddings):
     ) -> List[List[float]]:
         batched_embeddings: List[List[float]] = []
         _chunk_size = chunk_size or self.chunk_size
-        _iter = range(0, len(inputs), _chunk_size)
+        _iter: Iterable = range(0, len(inputs), _chunk_size)
         if self.show_progress_bar:
             try:
-                from tqdm.auto import tqdm
+                from tqdm import tqdm  # pylint: disable=import-outside-toplevel
 
                 _iter = tqdm(_iter)
             except ImportError:
@@ -99,8 +103,12 @@ class MLCEmbeddings(OpenAIEmbeddings):
 
     # please refer to
     # https://github.com/openai/openai-cookbook/blob/main/examples/Embedding_long_inputs.ipynb
-    def _get_len_safe_embeddings(
-        self, texts: List[str], *, engine: str, chunk_size: Optional[int] = None
+    def _get_len_safe_embeddings(  # pylint: disable=too-many-locals,unused-argument
+        self,
+        texts: List[str],
+        *,
+        engine: str,
+        chunk_size: Optional[int] = None,
     ) -> List[List[float]]:
         tokens, indices = self._chunk_tokens(texts)
         batched_embeddings = self._batch_embed(tokens, chunk_size=chunk_size)
@@ -130,8 +138,12 @@ class MLCEmbeddings(OpenAIEmbeddings):
 
     # please refer to
     # https://github.com/openai/openai-cookbook/blob/main/examples/Embedding_long_inputs.ipynb
-    async def _aget_len_safe_embeddings(
-        self, texts: List[str], *, engine: str, chunk_size: Optional[int] = None
+    async def _aget_len_safe_embeddings(  # pylint: disable=too-many-locals,unused-argument
+        self,
+        texts: List[str],
+        *,
+        engine: str,
+        chunk_size: Optional[int] = None,
     ) -> List[List[float]]:
         tokens, indices = self._chunk_tokens(texts)
         batched_embeddings = await self._abatch_embed(tokens, chunk_size=chunk_size)

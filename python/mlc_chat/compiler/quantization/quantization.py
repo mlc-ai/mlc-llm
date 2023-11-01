@@ -1,22 +1,34 @@
 """A centralized registry of all existing quantization methods and their configurations."""
 from typing import Any, Dict
 
-QuantizeConfig = Any
-"""A QuantizeConfig is an object that represents an quantization algorithm. It is required to
+from .group_quantization import GroupQuantize
+
+Quantization = Any
+"""Quantization is an object that represents an quantization algorithm. It is required to
 have the following fields:
 
     name : str
         The name of the quantization algorithm, for example, "q4f16_1".
 
     kind : str
-        The kind of quantization algorithm, for example, "group_quant", "faster_transformer".
+        The kind of quantization algorithm, for example, "group-quant", "faster-transformer".
 
 It is also required to have the following method:
 
-    def quantize(self, module: nn.Module) -> nn.Module:
+    def quantize_model(self, module: nn.Module) -> nn.Module:
+        ...
+
+    def quantize_weight(self, weight: tvm.runtime.NDArray) -> List[tvm.runtime.NDArray]:
         ...
 """
 
-QUANT: Dict[str, QuantizeConfig] = {
-    "q4f16_1": None,
+QUANTIZATION: Dict[str, Quantization] = {
+    "q4f16_1": GroupQuantize(
+        name="q4f16_1",
+        kind="group-quant",
+        group_size=32,
+        quantize_dtype="int4",
+        storage_dtype="uint32",
+        model_dtype="float16",
+    ),
 }

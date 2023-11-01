@@ -1,5 +1,7 @@
+# pylint: disable=missing-docstring,fixme,import-error,too-few-public-methods
 """
-Adapted from FastChat's OpenAI protocol: https://github.com/lm-sys/FastChat/blob/main/fastchat/protocol/openai_api_protocol.py
+Adapted from FastChat's OpenAI protocol:
+https://github.com/lm-sys/FastChat/blob/main/fastchat/protocol/openai_api_protocol.py
 """
 
 import time

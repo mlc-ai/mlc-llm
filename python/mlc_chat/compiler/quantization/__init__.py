@@ -1,2 +1,3 @@
 """A subpackage for quantization and dequantization algorithms"""
-from .quantization import QUANT
+from .group_quantization import GroupQuantize
+from .quantization import QUANTIZATION, Quantization

@@ -80,7 +80,7 @@ class QuantizeMapping:
     used to convert the quantized parameters into the desired form.
     """
 
-    param_map: Dict[str, Callable[[str], List[str]]]
+    param_map: Dict[str, List[str]]
     map_func: Dict[str, Callable[[NDArray], List[NDArray]]]
 
 

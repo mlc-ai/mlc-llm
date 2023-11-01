@@ -22,6 +22,8 @@ class RotaryEmbedding(nn.Module):
 
     def forward(self, q: Tensor, k: Tensor, offset: tir.Var):
         def te_op(x: te.Tensor, offset: tir.Var):
+            dtype = x.dtype
+
             def compute(b: tir.Var, s: tir.Var, h: tir.Var, d: tir.Var):
                 head_dim = tir.const(self.head_dim, "int32")
                 position_embedding_base = tir.const(self.position_embedding_base, "float32")
@@ -30,11 +32,13 @@ class RotaryEmbedding(nn.Module):
                     (d * 2 % head_dim).astype("float32") / head_dim,
                 )
                 freq = (offset + s) / freq
-                return tir.cos(freq) * x[b, s, h, d] + tir.sin(freq) * tir.if_then_else(
+                cos = tir.cos(freq).astype(dtype) * x[b, s, h, d]
+                sin = tir.sin(freq).astype(dtype) * tir.if_then_else(
                     d < self.head_dim // 2,
                     -x[b, s, h, d + self.head_dim // 2],
                     x[b, s, h, d - self.head_dim // 2],
                 )
+                return cos + sin
 
             return te.compute(x.shape, compute, name="rotary")
 
@@ -87,6 +91,7 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         d, h_q, h_kv, t = self.head_dim, self.num_q_heads, self.num_kv_heads, total_seq_len
         b, s, _ = hidden_states.shape
         assert b == 1, "Only support batch size 1 at this moment."
+
         q, k, v = self.qkv_proj(hidden_states)
         q = op.reshape(q, (b, s, h_q, d))
         k = op.reshape(k, (b, s, h_kv, d))
@@ -95,14 +100,16 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
 
         self.k_cache.append(op.squeeze(k, axis=0))
         self.v_cache.append(op.squeeze(v, axis=0))
-        k = op.reshape(self.k_cache.view(total_seq_len), (t, b, h_kv, d))
-        v = op.reshape(self.v_cache.view(total_seq_len), (t, b, h_kv, d))
+        k = op.reshape(self.k_cache.view(total_seq_len), (b, t, h_kv, d))
+        v = op.reshape(self.v_cache.view(total_seq_len), (b, t, h_kv, d))
         if h_kv != h_q:
             k = k.repeat(h_q // h_kv, axis=2)
             v = v.repeat(h_q // h_kv, axis=2)
-        attn_weights = op.matmul(  # [b, h, s, t]
-            q.permute_dims([0, 2, 1, 3]),  # [b, h, s, d]
-            k.permute_dims([1, 2, 3, 0]),  # [b, h, d, t]
+        q = q.permute_dims([0, 2, 1, 3])  # [b, h, s, d]
+        k = k.permute_dims([0, 2, 1, 3])  # [b, h, t, d]
+        v = v.permute_dims([0, 2, 1, 3])  # [b, h, t, d]
+        attn_weights = op.matmul(
+            q, k.permute_dims([0, 1, 3, 2])  # [b, h, s, d] x [b, h, d, t] = [b, h, s, t]
         ) / math.sqrt(d)
         dtype = attn_weights.dtype
         attn_weights = attn_weights.maximum(tir.min_value(dtype)).minimum(attention_mask)
@@ -111,10 +118,7 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         else:
             attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
         return self.o_proj(
-            op.matmul(  # [b, h, s, d]
-                attn_weights,  # [b, h, s, t]
-                v.permute_dims([1, 2, 0, 3]),  # [b, h, t, d]
-            )
+            op.matmul(attn_weights, v)  # [b, h, s, t] x [b, h, t, d] = [b, h, s, d]
             .permute_dims([0, 2, 1, 3])  # [b, s, h, d]
             .reshape((b, s, h_q * d))
         )
@@ -217,14 +221,26 @@ class LlamaForCasualLM(nn.Module):
             "prefill": {
                 "inputs": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
                 "total_seq_len": int,
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "packed",
+                },
             },
             "decode": {
                 "inputs": nn.spec.Tensor([batch_size, 1], "int32"),
                 "total_seq_len": int,
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "packed",
+                },
             },
             "softmax_with_temperature": {
                 "logits": nn.spec.Tensor([1, 1, "vocab_size"], "float32"),
                 "temperature": nn.spec.Tensor([], "float32"),
+                "$": {
+                    "param_mode": "none",
+                    "effect_mode": "none",
+                },
             },
         }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)

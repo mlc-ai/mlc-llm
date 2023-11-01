@@ -1,2 +1,2 @@
 """Model definition for the compiler."""
-from .model import MODELS, Model
+from .model import MODEL_PRESETS, MODELS, Model

@@ -7,9 +7,9 @@ iOS App and Swift API
    :local:
    :depth: 2
 
-The MLC LLM iOS app can be installed in two ways: through the pre-built package or by building from source.
+The MLC LLM iOS app can be installed in two ways: through the pre-built package or by building from the source.
 If you are an iOS user looking to try out the models, the pre-built package is recommended. If you are a
-developer seeking to integrate new features into the package, building the iOS package from source is required.
+developer seeking to integrate new features into the package, building the iOS package from the source is required.
 
 Use Pre-built iOS App
 ---------------------
@@ -23,7 +23,7 @@ The MLC Chat app is now available in App Store at no cost. You can download and 
 Build iOS App from Source
 -------------------------
 
-This section shows how we can build the app from source.
+This section shows how we can build the app from the source.
 
 Step 1. Install Build Dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -134,7 +134,7 @@ Ensure that all the necessary dependencies and configurations are
 correctly set up in the Xcode project.
 
 Once you have made the necessary changes, build the iOS app using Xcode.
-If you have an Apple Silicon Mac, you can select target "My Mac (designed for ipad)"
+If you have an Apple Silicon Mac, you can select target "My Mac (designed for iPad)"
 to run on your Mac. You can also directly run it on your iPad or iPhone.
 
 .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/xcode-build.jpg
@@ -163,7 +163,7 @@ controls the list of model URLs and model libs to be packaged into the app.
 
 Additionally, the app prepackages the models under ``./ios/dist``.
 This built-in list can be controlled by editing ``prepare_params.sh``.
-You can package new prebuilt models or compiled models by changing the above fields and then repeat the steps above.
+You can package new prebuilt models or compiled models by changing the above fields and then repeating the steps above.
 
 
 Build Apps with MLC Swift API
@@ -193,8 +193,8 @@ your own app. The package is located under `ios/MLCSwift`.
       -ltokenizers_c
 
 
-You can then can import the `MLCSwift` package in your app.
-The following code shows an illustrative example about how to use the chat module.
+You can then import the `MLCSwift` package into your app.
+The following code shows an illustrative example of how to use the chat module.
 
 .. code:: swift
 
@@ -221,7 +221,7 @@ The following code shows an illustrative example about how to use the chat modul
    Because the chat module makes heavy use of GPU and thread-local
    resources, it needs to run on a dedicated background thread.
    Therefore, **avoid using** `DispatchQueue`, which can cause context switching to
-   different threads and segfaults due to thread-safety issue.
+   different threads and segfaults due to thread-safety issues.
    Use the `ThreadWorker` class to launch all the jobs related
    to the chat module. You can check out the source code of
    the MLCChat app for a complete example.

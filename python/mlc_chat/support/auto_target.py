@@ -1,5 +1,6 @@
 """Helper functioms for target auto-detection."""
 import logging
+import os
 from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
 from tvm import IRModule, relax
@@ -7,7 +8,7 @@ from tvm._ffi import register_func
 from tvm.contrib import tar, xcode
 from tvm.target import Target
 
-from .style import green, red
+from .style import bold, green, red
 
 if TYPE_CHECKING:
     from mlc_chat.compiler.compile import CompileArgs
@@ -38,6 +39,8 @@ def detect_target_and_host(target_hint: str, host_hint: str) -> Tuple[Target, Bu
     target, build_func = _detect_target_gpu(target_hint)
     if target.host is None:
         target = Target(target, host=_detect_target_host(host_hint))
+    if target.kind.name == "cuda":
+        _register_cuda_hook(target)
     return target, build_func
 
 
@@ -221,6 +224,37 @@ def _build_default():
         )
 
     return build
+
+
+def _register_cuda_hook(target: Target):
+    env_multi_arch = os.environ.get("MLC_MULTI_ARCH", None)
+    if env_multi_arch is None:
+        default_arch = target.attrs.get("arch", None)
+        logger.info("Generating code for CUDA architecture: %s", bold(default_arch))
+        logger.info(
+            "To produce multi-arch fatbin, set environment variable %s. "
+            "Example: MLC_MULTI_ARCH=70,72,75,80,86,87,89,90",
+            bold("MLC_MULTI_ARCH"),
+        )
+        multi_arch = None
+    else:
+        logger.info("%s %s: %s", FOUND, bold("MLC_MULTI_ARCH"), env_multi_arch)
+        multi_arch = [int(x.strip()) for x in env_multi_arch.split(",")]
+        logger.info("Generating code for CUDA architecture: %s", multi_arch)
+
+    @register_func("tvm_callback_cuda_compile", override=True)
+    def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
+        """use nvcc to generate fatbin code for better optimization"""
+        from tvm.contrib import nvcc  # pylint: disable=import-outside-toplevel
+
+        if multi_arch is None:
+            ptx = nvcc.compile_cuda(code, target_format="fatbin")
+        else:
+            arch = []
+            for compute_version in multi_arch:
+                arch += ["-gencode", f"arch=compute_{compute_version},code=sm_{compute_version}"]
+            ptx = nvcc.compile_cuda(code, target_format="fatbin", arch=arch)
+        return ptx
 
 
 AUTO_DETECT_DEVICES = ["cuda", "rocm", "metal", "vulkan"]

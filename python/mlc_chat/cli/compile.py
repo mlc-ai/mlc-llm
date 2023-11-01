@@ -1,13 +1,12 @@
 """Command line entrypoint of compilation."""
 import argparse
-import json
 import logging
 from pathlib import Path
 from typing import Union
 
 from mlc_chat.compiler import (  # pylint: disable=redefined-builtin
     MODELS,
-    QUANT,
+    QUANTIZATION,
     OptimizationFlags,
     compile,
 )
@@ -16,7 +15,7 @@ from ..support.auto_config import detect_config, detect_model_type
 from ..support.auto_target import detect_target_and_host
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     style="{",
     datefmt="%Y-%m-%d %H:%M:%S",
     format="[{asctime}] {levelname} {filename}:{lineno}: {message}",
@@ -28,7 +27,7 @@ def main():
 
     def _parse_config(path: Union[str, Path]) -> Path:
         try:
-            return detect_config(Path(path))
+            return detect_config(path)
         except ValueError as err:
             raise argparse.ArgumentTypeError(f"No valid config.json in: {path}. Error: {err}")
 
@@ -52,7 +51,7 @@ def main():
         "--quantization",
         type=str,
         required=True,
-        choices=list(QUANT.keys()),
+        choices=list(QUANTIZATION.keys()),
         help="Quantization format.",
     )
     parser.add_argument(
@@ -120,7 +119,7 @@ def main():
     parsed.model_type = detect_model_type(parsed.model_type, parsed.config)
     compile(
         config=parsed.config,
-        quantization=parsed.quantization,
+        quantization=QUANTIZATION[parsed.quantization],
         model_type=parsed.model_type,
         target=target,
         opt=parsed.opt,

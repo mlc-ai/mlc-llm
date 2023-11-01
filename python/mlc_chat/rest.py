@@ -1,7 +1,9 @@
+# pylint: disable=missing-docstring,fixme,import-error
 import argparse
 import asyncio
+import dataclasses
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field, fields
+from typing import Dict
 
 import numpy as np
 import uvicorn
@@ -12,14 +14,31 @@ from mlc_chat.chat_module import GenerationConfig
 
 from .base import set_global_random_seed
 from .chat_module import ChatModule
-from .interface.openai_api import *
+from .interface.openai_api import (
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    ChatCompletionResponseChoice,
+    ChatCompletionResponseStreamChoice,
+    ChatCompletionStreamResponse,
+    ChatMessage,
+    CompletionRequest,
+    CompletionResponse,
+    CompletionResponseChoice,
+    CompletionResponseStreamChoice,
+    CompletionStreamResponse,
+    DeltaMessage,
+    EmbeddingsRequest,
+    EmbeddingsResponse,
+    UsageInfo,
+)
 
 
-@dataclass
+@dataclasses.dataclass
 class RestAPIArgs:
-    """RestAPIArgs is the dataclass that organizes the arguments used for starting a REST API server."""
+    """RestAPIArgs is the dataclass that organizes the arguments used for starting a REST API
+    server."""
 
-    model: str = field(
+    model: str = dataclasses.field(
         metadata={
             "help": (
                 """
@@ -32,7 +51,7 @@ class RestAPIArgs:
             )
         }
     )
-    lib_path: str = field(
+    lib_path: str = dataclasses.field(
         default=None,
         metadata={
             "help": (
@@ -42,7 +61,7 @@ class RestAPIArgs:
             )
         },
     )
-    device: str = field(
+    device: str = dataclasses.field(
         default="auto",
         metadata={
             "help": (
@@ -56,7 +75,7 @@ class RestAPIArgs:
             )
         },
     )
-    host: str = field(
+    host: str = dataclasses.field(
         default="127.0.0.1",
         metadata={
             "help": (
@@ -66,7 +85,7 @@ class RestAPIArgs:
             )
         },
     )
-    port: int = field(
+    port: int = dataclasses.field(
         default=8000,
         metadata={
             "help": (
@@ -76,7 +95,7 @@ class RestAPIArgs:
             )
         },
     )
-    random_seed: int = field(
+    random_seed: int = dataclasses.field(
         default=None,
         metadata={
             "help": (
@@ -92,7 +111,7 @@ class RestAPIArgs:
 def convert_args_to_argparser() -> argparse.ArgumentParser:
     """Convert from RestAPIArgs to an equivalent ArgumentParser."""
     args = argparse.ArgumentParser("MLC Chat REST API")
-    for field in fields(RestAPIArgs):
+    for field in dataclasses.fields(RestAPIArgs):
         name = field.name.replace("_", "-")
         field_name = f"--{name}"
         # `kwargs` contains `help`, `choices`, and `action`
@@ -105,11 +124,11 @@ def convert_args_to_argparser() -> argparse.ArgumentParser:
     return args
 
 
-session = {}
+session: Dict[str, ChatModule] = {}
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     if ARGS.random_seed is not None:
         set_global_random_seed(ARGS.random_seed)
     chat_mod = ChatModule(
@@ -118,18 +137,13 @@ async def lifespan(app: FastAPI):
         model_lib_path=ARGS.lib_path,
     )
     session["chat_mod"] = chat_mod
-
     yield
-
     session.clear()
 
 
+origins = ["*"]
+
 app = FastAPI(lifespan=lifespan)
-
-origins = [
-    "*",
-]
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -147,24 +161,24 @@ class AsyncCompletionStream:
         return self
 
     async def get_next_msg(self):
+        # pylint: disable=protected-access
         if not session["chat_mod"]._stopped():
             session["chat_mod"]._decode(generation_config=self.generation_config)
             msg = session["chat_mod"]._get_message()
             return msg
-        else:
-            raise StopAsyncIteration
+        # pylint: enable=protected-access
+        raise StopAsyncIteration
 
     async def __anext__(self):
         if not session["chat_mod"]._stopped():
             task = asyncio.create_task(self.get_next_msg())
             msg = await task
             return msg
-        else:
-            raise StopAsyncIteration
+        raise StopAsyncIteration
 
 
 @app.post("/v1/chat/completions")
-async def request_completion(request: ChatCompletionRequest):
+async def request_chat_completion(request: ChatCompletionRequest):
     """
     Creates model response for the given chat conversation.
     The messages field contains a list of messages (describing the conversation history). eg:
@@ -192,45 +206,50 @@ async def request_completion(request: ChatCompletionRequest):
     session["chat_mod"].reset_chat()  # Reset previous history, KV cache, etc.
 
     if request.stream:
-        session["chat_mod"]._prefill(input=request.messages, generation_config=generation_config)
+        session["chat_mod"]._prefill(  # pylint: disable=protected-access
+            input=request.messages,
+            generation_config=generation_config,
+        )
 
         async def iter_response():
             prev_txt = ""
             async for content in AsyncCompletionStream(generation_config=generation_config):
                 if content:
+                    # Remove the replacement character (U+FFFD) from the response
+                    # This is to handle emojis. An emoji might be made up of multiple tokens.
+                    # In the Rest streaming setting, if an emoji gets truncated in the middle of
+                    # its encoded byte sequence, a replacement character will appear.
+                    valid_content = content.replace("�", "")
                     chunk = ChatCompletionStreamResponse(
                         choices=[
                             ChatCompletionResponseStreamChoice(
                                 index=0,
                                 delta=DeltaMessage(
-                                    role="assistant", content=content[len(prev_txt) :]
+                                    role="assistant", content=valid_content[len(prev_txt) :]
                                 ),
                                 finish_reason="stop",
                             )
                         ]
                     )
-                    prev_txt = content
+                    prev_txt = valid_content
                     yield f"data: {chunk.json(exclude_unset=True)}\n\n"
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
-    else:
-        msg = session["chat_mod"].generate(
-            prompt=request.messages, generation_config=generation_config
-        )
-        if isinstance(msg, str):
-            msg = [msg]
-        return ChatCompletionResponse(
-            choices=[
-                ChatCompletionResponseChoice(
-                    index=index,
-                    message=ChatMessage(role="assistant", content=msg[index]),
-                    finish_reason="stop",
-                )
-                for index in range(len(msg))
-            ],
-            # TODO: Fill in correct usage info
-            usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
-        )
+    msg = session["chat_mod"].generate(prompt=request.messages, generation_config=generation_config)
+    if isinstance(msg, str):
+        msg = [msg]
+    return ChatCompletionResponse(
+        choices=[
+            ChatCompletionResponseChoice(
+                index=index,
+                message=ChatMessage(role="assistant", content=msg[index]),
+                finish_reason="stop",
+            )
+            for index in range(len(msg))
+        ],
+        # TODO: Fill in correct usage info
+        usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+    )
 
 
 @app.post("/v1/completions")
@@ -264,7 +283,10 @@ async def request_completion(request: CompletionRequest):
         prompt = request.prompt
 
     if request.stream:
-        session["chat_mod"]._prefill(input=prompt, generation_config=generation_config)
+        session["chat_mod"]._prefill(  # pylint: disable=protected-access
+            input=prompt,
+            generation_config=generation_config,
+        )
 
         async def iter_response():
             prev_txt = ""
@@ -283,13 +305,12 @@ async def request_completion(request: CompletionRequest):
                     yield f"data: {chunk.json(exclude_unset=True)}\n\n"
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
-    else:
-        msg = session["chat_mod"].generate(prompt=prompt, generation_config=generation_config)
-        return CompletionResponse(
-            choices=[CompletionResponseChoice(index=0, text=msg)],
-            # TODO: Fill in correct usage info
-            usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
-        )
+    msg = session["chat_mod"].generate(prompt=prompt, generation_config=generation_config)
+    return CompletionResponse(
+        choices=[CompletionResponseChoice(index=0, text=msg)],
+        # TODO: Fill in correct usage info
+        usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+    )
 
 
 @app.post("/v1/embeddings")
@@ -298,9 +319,9 @@ async def request_embeddings(request: EmbeddingsRequest):
     Gets embedding for some text.
     """
     inps = []
-    if type(request.input) == str:
+    if isinstance(request.input, str):
         inps.append(request.input)
-    elif type(request.input) == list:
+    elif isinstance(request.input, list):
         inps = request.input
     else:
         assert f"Invalid input type {type(request.input)}"

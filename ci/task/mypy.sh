@@ -8,8 +8,4 @@ export PYTHONPATH="./python:$PYTHONPATH"
 
 set -x
 
-mypy ./python/mlc_chat/compiler \
-	./python/mlc_chat/support \
-	./tests/python/model \
-	./tests/python/parameter \
-	./tests/python/support
+mypy ./python/ ./tests/python/
