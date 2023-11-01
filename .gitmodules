@@ -12,4 +12,4 @@
 	url = https://github.com/mlc-ai/relax.git
 [submodule "3rdparty/flashinfer"]
 	path = 3rdparty/flashinfer
-	url = git@github.com:yzh119/flashinfer.git
+	url = https://github.com/flashinfer-ai/flashinfer.git
