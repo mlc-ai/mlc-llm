@@ -7,6 +7,7 @@ from typing import Union
 import tvm
 from mlc_chat.compiler import MODELS, QUANTIZATION
 from mlc_chat.compiler.parameter import HuggingFaceLoader
+from mlc_chat.support import tqdm
 from tvm.contrib import tvmjs
 
 from ..support.auto_config import detect_config, detect_model_type
@@ -133,7 +134,7 @@ def main():
         raise ValueError(f"Unsupported loader source format: {parsed.source_format}")
 
     # load and quantize
-    with quantization_target:
+    with quantization_target, tqdm.redirect():
         param_dict = dict(loader.load(device=device))
 
     # dump to output directory
