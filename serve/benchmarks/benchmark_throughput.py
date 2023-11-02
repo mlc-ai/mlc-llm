@@ -111,6 +111,7 @@ def main(args: argparse.Namespace):
     engine = LocalProcessInferenceEngine(
         model_module,
         max_batched_tokens=args.max_num_batched_tokens,
+        min_decode_steps=args.min_decode_steps,
     )
 
     requests = sample_requests(
@@ -154,6 +155,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-shards", type=int, default=1)
     parser.add_argument("--max-num-batched-tokens", type=int, default=-1)
     parser.add_argument("--max-input-len", type=int, default=-1)
+    parser.add_argument("--min-decode-steps", type=int, default=256)
     parser.add_argument(
         "--num-prompts", type=int, default=1000, help="Number of prompts to process."
     )

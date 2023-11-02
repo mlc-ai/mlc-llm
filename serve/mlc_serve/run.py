@@ -34,6 +34,7 @@ def parse_args():
     args.add_argument("--num-shards", type=int, default=1)
     args.add_argument("--max-num-batched-tokens", type=int, default=-1)
     args.add_argument("--max-input-len", type=int, default=-1)
+    args.add_argument("--min-decode-steps", type=int, default=256)
     args.add_argument("--debug-logging", action="store_true")
     parsed = args.parse_args()
     parsed.model, parsed.quantization = parsed.local_id.rsplit("-", 1)
@@ -85,6 +86,7 @@ def run_server():
     engine = LocalProcessInferenceEngine(
         model_module,
         max_batched_tokens=args.max_num_batched_tokens,
+        min_decode_steps=args.min_decode_steps,
     )
     connector = AsyncEngineConnector(engine)
     app = create_app(connector)
