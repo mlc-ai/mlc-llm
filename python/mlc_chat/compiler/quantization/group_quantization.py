@@ -1,6 +1,6 @@
 """The group quantization config"""
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 from tvm import DataType, DataTypeCode
@@ -128,7 +128,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
     ):
         tir_bin_mask = tir.const((1 << DataType(self.quantize_dtype).bits) - 1, self.storage_dtype)
         tir_max_int = tir.const(self.max_int_value, self.model_dtype)
-        dequantized_weight = te.compute(
+        return te.compute(
             shape=[weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
             if out_shape is None
             else out_shape,
@@ -149,8 +149,8 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 ),
                 scale[i, j // self.group_size],
             ),
+            name="decode",
         )
-        return dequantized_weight
 
     def quantize_weight(self, weight: NDArray) -> List[NDArray]:
         """
@@ -186,8 +186,10 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             if target is None:
                 target = Target.from_device(dev)
             with target:
-                mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
-                    dl.gpu.Reduction(), dl.gpu.GeneralReduction(), dl.gpu.Fallback()
+                mod = dl.ApplyDefaultSchedule(  # type: ignore   # pylint: disable=not-callable
+                    dl.gpu.Reduction(),
+                    dl.gpu.GeneralReduction(),
+                    dl.gpu.Fallback(),
                 )(mod)
         elif device_type == "cpu":
             target = "llvm"
@@ -400,7 +402,7 @@ class GroupQuantizeMultiLinear(nn.Module):  # pylint: disable=too-many-instance-
             out_dtype=multi_linear.out_dtype,
         )
 
-    def forward(self, x: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
+    def forward(self, x: nn.Tensor) -> Sequence[nn.Tensor]:  # pylint: disable=invalid-name
         """
         Forward method for multi linear layer.
 
