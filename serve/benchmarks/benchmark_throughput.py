@@ -80,7 +80,7 @@ def run_mlc(
                     messages=[ChatMessage(role="user", content=prompt)],
                     sampling_params=sampling_params,
                     stopping_criteria=StoppingCriteria(max_tokens=output_len),
-                    debug_options=DebugOptions(ignore_eos=True),
+                    debug_options=DebugOptions(ignore_eos=True, prompt=prompt),
                 )
             ]
         )
