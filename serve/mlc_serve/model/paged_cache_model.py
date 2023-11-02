@@ -386,15 +386,16 @@ def _prepare_inputs(
             else:
                 seq_lens.append(len(token_ids))
 
-    input_ids = tvm.nd.array(np.array(input_ids, dtype="int32"), dev)
-    positions = tvm.nd.array(np.array(positions, dtype="int32"), dev)
-    seq_lens = tvm.nd.array(np.array(seq_lens, dtype="int32"), dev)
-    slot_mapping = tvm.nd.array(np.array(slot_mapping, dtype="int32"), dev)
+    def to_ndarray_via_torch(arr, torch_dtype):
+        return tvm.nd.from_dlpack(torch.tensor(arr, dtype=torch_dtype, device="cuda"))
+
+    input_ids = to_ndarray_via_torch(input_ids, torch.int)
+    positions = to_ndarray_via_torch(positions, torch.int)
+    seq_lens = to_ndarray_via_torch(seq_lens, torch.int)
+    slot_mapping = to_ndarray_via_torch(slot_mapping, torch.int)
 
     if is_prefill and sliding_window:
-        indices_within_window = tvm.nd.array(
-            np.array(indices_within_window, dtype="int32"), dev
-        )
+        indices_within_window = to_ndarray_via_torch(indices_within_window, torch.int)
     else:
         indices_within_window = None
 
@@ -408,8 +409,7 @@ def _prepare_inputs(
             for block_table in block_tables
         ]
 
-        block_tables_np = np.vstack(padded_block_tables).astype("int32")
-        block_tables = tvm.nd.array(np.array(block_tables_np, dtype="int32"), dev)
+        block_tables = to_ndarray_via_torch(padded_block_tables, torch.int)
     else:
         block_tables = None
 
@@ -461,9 +461,7 @@ class Model:
 
             # TODO: temp hack to switch the VM allocator to eager recycling mode on all devices
             for i in range(1, self.num_shards):
-                get_used_memory_func(
-                    tvm.device("cuda", i)
-                ).debug_get_from_remote(i)
+                get_used_memory_func(tvm.device("cuda", i)).debug_get_from_remote(i)
         else:
             params = self.params
 
