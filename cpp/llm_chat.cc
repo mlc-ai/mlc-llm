@@ -915,13 +915,22 @@ class LLMChat {
 
     std::vector<int32_t> continuation_tokens = this->tokenizer_->Encode(continuation);
     // TODO(vvchernov): strange token is added in front of continuation after encoding,
-    // quick remove it, but need study reason and fix it
-    continuation_tokens.erase(continuation_tokens.begin());
+    // There is advanced fix for any cases, but need study reason and fix it
+    int64_t i = 1;
+    int64_t cont_token_length = continuation_tokens.size();
+    for (;i <= cont_token_length;++i) {
+      if (prompt_tokens[token_len - i] != continuation_tokens[cont_token_length - i]) {
+        break;
+      }
+    }
+    for (int64_t j = 0; j < cont_token_length + 1 - i;++j) {
+      continuation_tokens.erase(continuation_tokens.begin());
+    }
 
     std::vector<int32_t> cut_tokens = prompt_tokens;
     cut_tokens.pop_back();
 
-    int32_t new_seq_len = total_seq_len_ + token_len -1;
+    int64_t new_seq_len = total_seq_len_ + token_len - 1;
     NDArray logits_on_device = this->ForwardTokens(cut_tokens, new_seq_len);
     total_seq_len_ = new_seq_len;
 
