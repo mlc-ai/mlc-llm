@@ -41,7 +41,7 @@ class ParamQuantizer:
             quantized.
         """
         if name not in self.quantize_map.param_map:
-            """The parameter is not quantized"""
+            # The parameter is not quantized
             return None
         assert name in self.quantize_map.map_func, f"Quantization function for {name} not found."
         quantized_names = self.quantize_map.param_map[name]
