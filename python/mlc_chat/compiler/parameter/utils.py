@@ -40,8 +40,8 @@ class ParamQuantizer:
             The quantized parameters, each with its name, returns None if the parameter is not
             quantized.
         """
-        name = f".{name}"
         if name not in self.quantize_map.param_map:
+            """The parameter is not quantized"""
             return None
         assert name in self.quantize_map.map_func, f"Quantization function for {name} not found."
         quantized_names = self.quantize_map.param_map[name]
