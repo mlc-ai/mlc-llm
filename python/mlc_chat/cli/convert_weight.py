@@ -123,11 +123,14 @@ def main():
     _, quantize_map = model.quantize[quantization_config.kind](model_config, quantization_config)
 
     # loader setup
-    loader = HuggingFaceLoader(
-        path=parsed.params,
-        extern_param_map=model.source[parsed.source_format](model_config, None),
-        quantize_param_map=quantize_map,
-    )
+    if parsed.source_format in ("huggingface-torch", "huggingface-safetensor"):
+        loader = HuggingFaceLoader(
+            path=parsed.params,
+            extern_param_map=model.source[parsed.source_format](model_config, None),
+            quantize_param_map=quantize_map,
+        )
+    else:
+        raise ValueError(f"Unsupported loader source format: {parsed.source_format}")
 
     # load and quantize
     with quantization_target:
