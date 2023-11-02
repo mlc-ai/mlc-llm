@@ -195,7 +195,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             target = "llvm"
             mod = relax.transform.LegalizeOps()(mod)
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f"Device type {device_type} is not supported")
         ex = relax.build(mod, target)
         vm = relax.VirtualMachine(ex, dev)  # pylint: disable=invalid-name
         self.prebuilt_quantize_func[key] = vm["quantize"]

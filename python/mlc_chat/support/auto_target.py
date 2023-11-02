@@ -24,7 +24,7 @@ NOT_FOUND = red("Not found")
 BuildFunc = Callable[[IRModule, "CompileArgs"], None]
 
 
-def detect_target_and_host(target_hint: str, host_hint: str) -> Tuple[Target, BuildFunc]:
+def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[Target, BuildFunc]:
     """Detect the configuration for the target device and its host, for example, target GPU and
     the host CPU.
 
@@ -34,7 +34,7 @@ def detect_target_and_host(target_hint: str, host_hint: str) -> Tuple[Target, Bu
         The hint for the target device.
 
     host_hint : str
-        The hint for the host CPU.
+        The hint for the host CPU, default is "auto".
     """
     target, build_func = _detect_target_gpu(target_hint)
     if target.host is None:

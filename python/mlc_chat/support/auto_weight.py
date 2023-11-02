@@ -2,7 +2,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Tuple
+from typing import List, Optional, Tuple
 
 from .style import green, red
 
@@ -33,15 +33,16 @@ def detect_weight(
         Otherwise, check the weights are in that format.
         Available weight formats:
             - auto (guess the weight format)
-            - PyTorch (validate via checking pytorch_model.bin.index.json)
-            - SafeTensor (validate via checking model.safetensors.index.json)
-            - AWQ
-            - GGML/GGUF
+            - huggingface-torch (validate via checking pytorch_model.bin.index.json)
+            - huggingface-safetensor (validate via checking model.safetensors.index.json)
+            - awq
+            - ggml
+            - gguf
 
     Returns
     -------
-    weight_path : pathlib.Path
-        The path that points to the weights.
+    weight_config_path : pathlib.Path
+        The path that points to the weights config file or the weights directory.
 
     weight_format : str
         The valid weight format.
@@ -72,7 +73,7 @@ def detect_weight(
     # weight_format = "auto", guess the weight format.
     # otherwise, check the weight format is valid.
     if weight_format == "auto":
-        weight_format = _guess_weight_format(weight_path)
+        return _guess_weight_format(weight_path)
 
     if weight_format not in AVAILABLE_WEIGHT_FORMAT:
         raise ValueError(
@@ -80,53 +81,54 @@ def detect_weight(
         )
     if weight_format in CHECK_FORMAT_METHODS:
         check_func = CHECK_FORMAT_METHODS[weight_format]
-        if not check_func(weight_path):
+        weight_config_path = check_func(weight_path)
+        if not weight_config_path:
             raise ValueError(f"The weight is not in {weight_format} format.")
-    return weight_path, weight_format
+    return weight_config_path, weight_format
 
 
-def _guess_weight_format(weight_path: Path):
-    possible_formats = []
+def _guess_weight_format(weight_path: Path) -> Tuple[Path, str]:
+    possible_formats: List[Tuple[Path, str]] = []
     for weight_format, check_func in CHECK_FORMAT_METHODS.items():
-        if check_func(weight_path):
-            possible_formats.append(weight_format)
+        weight_config_path = check_func(weight_path)
+        if weight_config_path:
+            possible_formats.append((weight_config_path, weight_format))
 
     if len(possible_formats) == 0:
         raise ValueError(
             "Fail to detect weight format. Use `--weight-format` to manually specify the format."
         )
 
-    selected_format = possible_formats[0]
+    weight_config_path, selected_format = possible_formats[0]
     logger.info(
         "Using %s format now. Use `--weight-format` to manually specify the format.",
         selected_format,
     )
-    return selected_format
+    return weight_config_path, selected_format
 
 
-def _check_pytorch(weight_path: Path):
+def _check_pytorch(weight_path: Path) -> Optional[Path]:
     pytorch_json_path = weight_path / "pytorch_model.bin.index.json"
-    result = pytorch_json_path.exists()
-    if result:
+    if pytorch_json_path.exists():
         logger.info("%s Huggingface PyTorch: %s", FOUND, pytorch_json_path)
-    else:
-        logger.info("%s Huggingface PyTorch", NOT_FOUND)
-    return result
+        return pytorch_json_path
+    logger.info("%s Huggingface PyTorch", NOT_FOUND)
+    return None
 
 
-def _check_safetensor(weight_path: Path):
+def _check_safetensor(weight_path: Path) -> Optional[Path]:
     safetensor_json_path = weight_path / "model.safetensors.index.json"
-    result = safetensor_json_path.exists()
-    if result:
-        logger.info("%s SafeTensor: %s", FOUND, safetensor_json_path)
-    else:
-        logger.info("%s SafeTensor", NOT_FOUND)
-    return result
+    if safetensor_json_path.exists():
+        logger.info("%s Huggingface Safetensor: %s", FOUND, safetensor_json_path)
+        return safetensor_json_path
+    logger.info("%s Huggingface Safetensor", NOT_FOUND)
+    return None
 
 
 CHECK_FORMAT_METHODS = {
-    "PyTorch": _check_pytorch,
-    "SafeTensor": _check_safetensor,
+    "huggingface-torch": _check_pytorch,
+    "huggingface-safetensor": _check_safetensor,
 }
 
-AVAILABLE_WEIGHT_FORMAT = ["PyTorch", "SafeTensor", "GGML", "GGUF", "AWQ"]
+# "awq", "ggml", "gguf" are not supported yet.
+AVAILABLE_WEIGHT_FORMAT = ["huggingface-torch", "huggingface-safetensor"]
