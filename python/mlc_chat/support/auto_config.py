@@ -95,7 +95,7 @@ def detect_model_type(model_type: str, config: Path) -> "Model":
                 f"Please explicitly specify `--model-type` instead"
             )
         model_type = cfg["model_type"]
-        logger.info("%s Model type: %s", FOUND, model_type)
+        logger.info("%s model type: %s", FOUND, model_type)
     if model_type not in MODELS:
         raise ValueError(f"Unknown model type: {model_type}. Available ones: {list(MODELS.keys())}")
     return MODELS[model_type]
