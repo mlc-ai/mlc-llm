@@ -1,6 +1,7 @@
 """The MLC LLM Serving Engine."""
+import json
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import tvm
 
@@ -212,6 +213,24 @@ class Engine:
         generation results for those finished requests.
         """
         self._step_func()
+
+    def reset(self) -> None:
+        """Reset the engine, clean up all running data and statistics."""
+        self._reset_engine_func()
+
+    def stats(self) -> Dict[str, float]:
+        """The engine runtime statistics.
+        We collect the following entries:
+        - prefill token latency (s/tok)
+            avg latency of processing one token in prefill
+        - decode token latency (s/tok)
+            avg latency of processing one token in decode
+        - token throughput (tok/s)
+            avg number of tokens processed per second (prefill + decode)
+        """
+        stats_json_str = self._get_stats_func()
+        stats = json.loads(stats_json_str)
+        return stats
 
     def _reload(self, models: List[ModelInfo], kv_cache_config: KVCacheConfig):
         """Internal method for engine to load models and kv cache config."""
