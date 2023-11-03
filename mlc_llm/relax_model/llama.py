@@ -835,21 +835,20 @@ class LlamaForCausalLM(nn.Module):
             past_key_values=past_key_values,
         )
 
-        # TODO(vvchernov): all logits are needed for loglikelihood calculation
-        # Need update chat part to correct work, it expects the last logits only
-        # def te_slicing(x: te.Tensor):
-        #     return te.compute(
-        #         shape=(1, 1, x.shape[-1]),
-        #         fcompute=lambda i, j, k: x[i, x.shape[1] - 1, k],
-        #         name="slice",
-        #     )
-
-        # logits = self.lm_head(nn.emit_te(te_slicing, hidden_states, primfunc_name_hint="slice"))
         logits = self.lm_head(hidden_states)
         if logits.struct_info.dtype != "float32":
             logits = nn.emit(relax.op.astype(logits, "float32"))
 
-        return logits, key_value_cache
+        def te_slicing(x: te.Tensor):
+            return te.compute(
+                shape=(1, 1, x.shape[-1]),
+                fcompute=lambda i, j, k: x[i, x.shape[1] - 1, k],
+                name="slice",
+            )
+
+        last_logits = nn.emit_te(te_slicing, logits, primfunc_name_hint="slice")
+
+        return last_logits, key_value_cache, logits
 
 
 def get_param_quant_kind(name: str, param_info: relax.TensorStructInfo) -> ParamQuantKind:
@@ -920,7 +919,7 @@ def create_prefill_func_for_single_seq(
             ),
         )
         with bb.dataflow():
-            logits, key_value_cache = model(
+            last_logits, key_value_cache, logits = model(
                 inputs, all_seq_len_shape, past_key_values=past_key_values
             )
             params = [
@@ -928,7 +927,7 @@ def create_prefill_func_for_single_seq(
                 all_seq_len_shape,
                 past_key_values,
             ] + model.parameters()
-            gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
+            gv = bb.emit_output((last_logits, relax.Tuple(key_value_cache), logits))
         bb.emit_func_output(gv, params)
 
     mod = bb.get()
@@ -998,7 +997,7 @@ def create_decoding_func_for_single_seq(
             ),
         )
         with bb.dataflow():
-            logits, key_value_cache = model(
+            last_logits, key_value_cache, logits = model(
                 input_ids, all_seq_len_shape, past_key_values=past_key_values
             )
             params = [
@@ -1006,7 +1005,7 @@ def create_decoding_func_for_single_seq(
                 all_seq_len_shape,
                 past_key_values,
             ] + model.parameters()
-            gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
+            gv = bb.emit_output((last_logits, relax.Tuple(key_value_cache), logits))
         bb.emit_func_output(gv, params)
 
     mod = bb.get()

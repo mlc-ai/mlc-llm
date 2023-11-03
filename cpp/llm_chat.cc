@@ -931,7 +931,7 @@ class LLMChat {
     cut_tokens.pop_back();
 
     int64_t new_seq_len = total_seq_len_ + token_len - 1;
-    NDArray logits_on_device = this->ForwardTokens(cut_tokens, new_seq_len);
+    NDArray logits_on_device = this->ForwardTokens(cut_tokens, new_seq_len, true);
     total_seq_len_ = new_seq_len;
 
     return this->SampleLogProbeFromLogits(logits_on_device, continuation_tokens, generation_config);
@@ -1307,7 +1307,7 @@ class LLMChat {
   }
 
   // run forward compute
-  NDArray ForwardTokens(std::vector<int32_t> input_tokens, int64_t cur_pos) {
+  NDArray ForwardTokens(std::vector<int32_t> input_tokens, int64_t cur_pos, bool need_logprobes = false) {
     ObjectRef ret{nullptr};
     if (input_tokens.size() > 1 && ft_.prefill_func_.defined()) {
       ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray(input_tokens));
@@ -1351,16 +1351,20 @@ class LLMChat {
         }
       }
     }
+    size_t index = 0;
+    if (need_logprobes) {
+      index = 2;
+    }
     if (ft_.use_disco) {
       Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
-      return Downcast<NDArray>(result[0]);
+      return Downcast<NDArray>(result[index]);
     } else {
-      return Downcast<Array<NDArray>>(ret)[0];
+      return Downcast<Array<NDArray>>(ret)[index];
     }
   }
 
   // run forward compute with embeddings
-  NDArray ForwardEmbeddings(NDArray embeddings, int64_t cur_pos) {
+  NDArray ForwardEmbeddings(NDArray embeddings, int64_t cur_pos, bool need_logprobes = false) {
     if (ft_.use_disco) {
       LOG(FATAL) << "NotImplementedError: Distributed inference is not supported for this model";
       throw;
@@ -1368,7 +1372,13 @@ class LLMChat {
     Array<ObjectRef> ret;
     CHECK(ft_.prefill_with_embed_func_.defined());
     ret = ft_.prefill_with_embed_func_(embeddings, ShapeTuple({cur_pos}), kv_cache_, params_);
-    return Downcast<NDArray>(ret[0]);
+    if (need_logprobes) {
+      // All logits return
+      return Downcast<NDArray>(ret[2]);
+    } else {
+      // The last set of logits return only
+      return Downcast<NDArray>(ret[0]);
+    }
   }
 
   NDArray Softmax(NDArray input, NDArray temperature_arr) {
