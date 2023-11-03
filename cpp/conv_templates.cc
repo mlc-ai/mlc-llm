@@ -49,6 +49,10 @@ Conversation Llama2() {
 Conversation MistralDefault() {
   Conversation conv;
   conv.name = "mistral_default";
+  conv.system =
+      ("[INST] Always assist with care, respect, and truth. Respond with utmost utility yet "
+       "securely. Avoid harmful, unethical, prejudiced, or negative content. Ensure replies "
+       "promote fairness and positivity.");
   conv.roles = {"[INST]", "[/INST]"};
   conv.messages = {};
   conv.offset = 0;
