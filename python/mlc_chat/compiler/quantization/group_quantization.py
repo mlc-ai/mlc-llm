@@ -1,10 +1,9 @@
 """The group quantization config"""
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-import logging
 import numpy as np
-
 import tvm
 from tvm import DataType, DataTypeCode
 from tvm import dlight as dl
