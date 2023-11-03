@@ -2,7 +2,10 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
+import logging
 import numpy as np
+
+import tvm
 from tvm import DataType, DataTypeCode
 from tvm import dlight as dl
 from tvm import relax, te, tir
@@ -11,6 +14,8 @@ from tvm.runtime import NDArray
 from tvm.target import Target
 
 from ..parameter import QuantizeMapping
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -166,7 +171,14 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         ret: List[NDArray]
             The list of group quantized weights.
         """
-        assert weight.dtype == self.model_dtype
+        if weight.dtype != self.model_dtype:
+            logger.warning(
+                "The dtype of weight is %s, but the dtype of quantization config is %s",
+                weight.dtype,
+                self.model_dtype,
+            )
+            np_weight = weight.asnumpy().astype(self.model_dtype)
+            weight = tvm.nd.array(np_weight, device=weight.device)
         assert len(weight.shape) == 2
         dev = weight.device
         device_type = dev.MASK2STR[dev.device_type]
