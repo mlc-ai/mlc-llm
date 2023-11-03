@@ -60,14 +60,16 @@ def main():
         default="auto",
         choices=["auto"] + list(MODELS.keys()),
         help="Model architecture, for example, llama. If not set, it is inferred "
-        "from the config.json file.",
+        "from the config.json file. "
+        "(default: %(default)s)",
     )
     parser.add_argument(
         "--device",
         type=str,
         default="auto",
         help="The GPU device to compile the model to. If not set, it is inferred from locally "
-        "available GPUs.",
+        "available GPUs. "
+        "(default: %(default)s)",
     )
     parser.add_argument(
         "--host",
@@ -81,17 +83,19 @@ def main():
             "x86-64",
         ],
         help="The host CPU ISA to compile the model to. If not set, it is inferred from the "
-        "local CPU.",
+        "local CPU. "
+        "(default: %(default)s)",
     )
     parser.add_argument(
         "--opt",
         type=OptimizationFlags.from_str,
-        default="",
+        default="O2",
         help="Optimization flags. MLC LLM maintains a predefined set of optimization flags, "
         "denoted as O0, O1, O2, O3, where O0 means no optimization, O2 means majority of them, "
         "and O3 represents extreme optimization that could potentially break the system. "
         "Meanwhile, optimization flags could be explicitly specified via details knobs, e.g. "
-        '--opt="cutlass_attn=1;cutlass_norm=0;cublas_gemm=0;cudagraph=0"',
+        '--opt="cutlass_attn=1;cutlass_norm=0;cublas_gemm=0;cudagraph=0. '
+        "(default: %(default)s)",
     )
     parser.add_argument(
         "--prefix-symbols",
@@ -99,7 +103,8 @@ def main():
         default="",
         help='Adding a prefix to all symbols exported. Similar to "objcopy --prefix-symbols". '
         "This is useful when compiling multiple models into a single library to avoid symbol "
-        "conflicts. Differet from objcopy, this takes no effect for shared library.",
+        "conflicts. Differet from objcopy, this takes no effect for shared library. "
+        '(default: "")',
     )
     parser.add_argument(
         "--output",

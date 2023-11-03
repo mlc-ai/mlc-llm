@@ -4,14 +4,10 @@ import logging
 from pathlib import Path
 from typing import Union
 
-import tvm
-from mlc_chat.compiler import MODELS, QUANTIZATION
-from mlc_chat.compiler.parameter import HuggingFaceLoader
-from mlc_chat.support import tqdm
-from tvm.contrib import tvmjs
+from mlc_chat.compiler import MODELS, QUANTIZATION, convert_weight
 
 from ..support.auto_config import detect_config, detect_model_type
-from ..support.auto_target import detect_target_and_host
+from ..support.auto_target import detect_device
 from ..support.auto_weight import detect_weight
 
 logging.basicConfig(
@@ -57,17 +53,17 @@ def main():
     parser.add_argument(
         "--source",
         type=str,
-        required=False,
         default="auto",
-        help="The path to original model weight, infer from `config` if missing",
+        help="The path to original model weight, infer from `config` if missing. "
+        "(default: %(default)s)",
     )
     parser.add_argument(
         "--source-format",
         type=str,
-        required=False,
         choices=["auto", "huggingface-torch", "huggingface-safetensor"],
         default="auto",
-        help="The format of source model weight, infer from `config` if missing",
+        help="The format of source model weight, infer from `config` if missing. "
+        "(default: %(default)s)",
     )
     parser.add_argument(
         "--quantization",
@@ -82,14 +78,16 @@ def main():
         default="auto",
         choices=["auto"] + list(MODELS.keys()),
         help="Model architecture, for example, llama. If not set, it is inferred "
-        "from the config.json file.",
+        "from the config.json file. "
+        "(default: %(default)s)",
     )
     parser.add_argument(
         "--device",
-        type=str,
         default="auto",
-        help="The device used to do quantization, \
-              for example `auto` / `cuda:0` / `cuda --arch sm86`",
+        type=detect_device,
+        help="The device used to do quantization, for example, / `cuda:0`. "
+        "Detect from local environment if not specified. "
+        "(default: %(default)s)",
     )
     parser.add_argument(
         "--output",
@@ -100,49 +98,21 @@ def main():
         "will contain `params_shard_*.bin` and `ndarray-cache.json`.",
     )
 
-    # parse arguments
     parsed = parser.parse_args()
-    parsed.source = _parse_source(parsed.source, parsed.config)
-    parsed.params, parsed.source_format = detect_weight(
-        parsed.source, parsed.config, weight_format=parsed.source_format
+    parsed.source, parsed.source_format = detect_weight(
+        weight_path=_parse_source(parsed.source, parsed.config),
+        config_json_path=parsed.config,
+        weight_format=parsed.source_format,
     )
     model = detect_model_type(parsed.model_type, parsed.config)
-
-    # detect quantization target
-    quantization_target, _ = detect_target_and_host(parsed.device)
-    if parsed.device != "auto":
-        device = tvm.runtime.device(parsed.device.split(" ")[0])
-    else:
-        if quantization_target.kind.name == "cuda":
-            device = tvm.cuda(0)
-        else:
-            device = tvm.cpu(0)
-
-    # model config & quantization config
-    model_config = model.config.from_file(parsed.config)
-    quantization_config = QUANTIZATION[parsed.quantization]
-    _, quantize_map = model.quantize[quantization_config.kind](model_config, quantization_config)
-
-    # loader setup
-    if parsed.source_format in ("huggingface-torch", "huggingface-safetensor"):
-        loader = HuggingFaceLoader(
-            path=parsed.params,
-            extern_param_map=model.source[parsed.source_format](model_config, None),
-            quantize_param_map=quantize_map,
-        )
-    else:
-        raise ValueError(f"Unsupported loader source format: {parsed.source_format}")
-
-    # load and quantize
-    with quantization_target, tqdm.redirect():
-        param_dict = dict(loader.load(device=device))
-
-    # dump to output directory
-    tvmjs.dump_ndarray_cache(
-        param_dict,
-        f"{parsed.output}/params",
-        meta_data={"ParamSize": len(param_dict)},
-        encode_format="raw",
+    convert_weight(
+        config=parsed.config,
+        quantization=QUANTIZATION[parsed.quantization],
+        model=model,
+        device=parsed.device,
+        source=parsed.source,
+        source_format=parsed.source_format,
+        output=parsed.output,
     )
 
 

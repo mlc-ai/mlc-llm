@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from .style import green, red
+from .style import bold, green, red
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ def detect_weight(
         if not weight_path.exists():
             raise ValueError(f"weight_path doesn't exist: {weight_path}")
 
-    logger.info("%s weights from directory: %s", FOUND, weight_path)
+    logger.info("Finding weights in: %s", weight_path)
 
     # check weight format
     # weight_format = "auto", guess the weight format.
@@ -96,13 +96,18 @@ def _guess_weight_format(weight_path: Path) -> Tuple[Path, str]:
 
     if len(possible_formats) == 0:
         raise ValueError(
-            "Fail to detect weight format. Use `--weight-format` to manually specify the format."
+            "Fail to detect source weight format. "
+            "Use `--source-format` to explicitly specify the format."
         )
 
     weight_config_path, selected_format = possible_formats[0]
     logger.info(
-        "Using %s format now. Use `--weight-format` to manually specify the format.",
-        selected_format,
+        "Using source weight configuration: %s. Use `--source` to override.",
+        bold(str(weight_config_path)),
+    )
+    logger.info(
+        "Using source weight format: %s. Use `--source-format` to override.",
+        bold(selected_format),
     )
     return weight_config_path, selected_format
 
@@ -110,7 +115,11 @@ def _guess_weight_format(weight_path: Path) -> Tuple[Path, str]:
 def _check_pytorch(weight_path: Path) -> Optional[Path]:
     pytorch_json_path = weight_path / "pytorch_model.bin.index.json"
     if pytorch_json_path.exists():
-        logger.info("%s Huggingface PyTorch: %s", FOUND, pytorch_json_path)
+        logger.info(
+            "%s source weight format: huggingface-torch. Source configuration: %s",
+            FOUND,
+            pytorch_json_path,
+        )
         return pytorch_json_path
     logger.info("%s Huggingface PyTorch", NOT_FOUND)
     return None
@@ -119,7 +128,11 @@ def _check_pytorch(weight_path: Path) -> Optional[Path]:
 def _check_safetensor(weight_path: Path) -> Optional[Path]:
     safetensor_json_path = weight_path / "model.safetensors.index.json"
     if safetensor_json_path.exists():
-        logger.info("%s Huggingface Safetensor: %s", FOUND, safetensor_json_path)
+        logger.info(
+            "%s source weight format: huggingface-safetensor. Source configuration: %s",
+            FOUND,
+            safetensor_json_path,
+        )
         return safetensor_json_path
     logger.info("%s Huggingface Safetensor", NOT_FOUND)
     return None

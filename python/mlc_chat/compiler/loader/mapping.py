@@ -40,9 +40,23 @@ class ExternMapping:
         Parameter names in the source weights that are not used in the MLC LLM model definition.
     """
 
-    param_map: Dict[str, List[str]]
-    map_func: Dict[str, MapFuncVariadic]
+    param_map: Dict[str, List[str]] = dataclasses.field(default_factory=dict)
+    map_func: Dict[str, MapFuncVariadic] = dataclasses.field(default_factory=dict)
     unused_params: Set[str] = dataclasses.field(default_factory=set)
+
+    def add_mapping(
+        self,
+        map_from: str,
+        map_to: List[str],
+        func: MapFuncVariadic,
+    ) -> None:
+        """Add a mapping from MLC parameters to source parametes as well as a mapping function."""
+        self.param_map[map_from] = map_to
+        self.map_func[map_from] = func
+
+    def add_unused(self, name: str):
+        """Add a parameter name in the source parameters to the set of unused parameters."""
+        self.unused_params.add(name)
 
 
 @dataclasses.dataclass

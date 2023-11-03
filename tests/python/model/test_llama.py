@@ -1,5 +1,6 @@
 # pylint: disable=invalid-name,missing-docstring
 import pytest
+
 from mlc_chat.compiler import MODELS
 
 
