@@ -96,11 +96,17 @@ struct RequestState {
   /*! \brief The decoded text string output. */
   std::string output = "";
 
+  /*! \brief The time of adding the request to engine. */
+  std::chrono::_V2::system_clock::time_point tadd;
+  /*! \brief The time of finishing prefill stage. */
+  std::chrono::_V2::system_clock::time_point tprefill_finish;
+
   explicit RequestState(int num_models, Array<Data> inputs) {
     mstates.reserve(num_models);
     for (int i = 0; i < num_models; ++i) {
       mstates.push_back(RequestModelState(i, inputs));
     }
+    tadd = std::chrono::high_resolution_clock::now();
   }
 };
 
