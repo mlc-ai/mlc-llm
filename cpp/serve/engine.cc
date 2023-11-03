@@ -5,6 +5,7 @@
  */
 #define __STDC_FORMAT_MACROS
 
+#include <picojson.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
@@ -157,7 +158,7 @@ class Engine {
     }
   }
 
-  /*! \brief Reset the engine and clean up all running data. */
+  /*! \brief Reset the engine, clean up all running data and statistics. */
   void ResetEngine() {
     running_queue_.clear();
     waiting_queue_.clear();
@@ -169,7 +170,28 @@ class Engine {
     }
 
     current_total_seq_len_ = 0;
+    prefill_total_time = 0.0f;
+    decode_total_time = 0.0f;
+    prefill_total_length = 0;
+    decode_total_length = 0;
     tokenize_cache_.clear();
+  }
+
+  /*!
+   * \brief Return the engine runtime statistics in JSON string.
+   * We collect the following entries:
+   * - prefill token latency (s/tok): avg latency of processing one token in prefill
+   * - decode token latency (s/tok): avg latency of processing one token in decode
+   * - token throughput (tok/s): avg number of tokens processed per second (prefill + decode)
+   * \return The statistics in JSON string.
+   */
+  String StatisticsJSON() {
+    picojson::object config;
+    config["prefill_token_latency"] = picojson::value(prefill_total_time / prefill_total_length);
+    config["decode_token_latency"] = picojson::value(decode_total_time / decode_total_length);
+    config["token_throughput"] = picojson::value((prefill_total_length + decode_total_length) /
+                                                 (prefill_total_time + decode_total_time));
+    return picojson::value(config).serialize(true);
   }
 
  private:
@@ -180,6 +202,10 @@ class Engine {
     if (requests.empty()) {
       return false;
     }
+
+    // Collect ids of the first-time prefilled requests.
+    // We will set the prefill finish time for these requests.
+    std::unordered_set<int> first_time_prefill_ids;
 
     for (Request request : requests) {
       int req_id = running_queue_.size();
@@ -193,6 +219,7 @@ class Engine {
       running_queue_.push_back(request);
       // - Assign request id for the requests.
       AssignIDForRequest(request, req_id);
+      first_time_prefill_ids.insert(req_id);
     }
 
     // NOTE: Right now only single-sequence prefill is supported.
@@ -227,6 +254,9 @@ class Engine {
         mstate->inputs.clear();
       }
       if (!sample_new_token[req_idx]) {
+        // This request does not need to sample a new token.
+        // In this case, it must not be a first-time prefilled request.
+        ICHECK(first_time_prefill_ids.count(state.mstates[0]->request_id));
         continue;
       }
 
@@ -242,6 +272,10 @@ class Engine {
       // - Update the committed tokens of states.
       for (RequestModelState mstate : state.mstates) {
         mstate->committed_tokens.push_back(next_token[0]);
+      }
+      // If the request is first-time prefilled, set the prefill finish time.
+      if (first_time_prefill_ids.count(state.mstates[0]->request_id)) {
+        state.tprefill_finish = std::chrono::high_resolution_clock::now();
       }
     }
     return true;
@@ -465,11 +499,12 @@ class Engine {
   /*! \brief Check if the input requests can be prefilled under conditions. */
   bool CanPrefill(Array<Request> requests) {
     int num_running_requests = running_queue_.size();
+    int num_prefill_req = requests.size();
     ICHECK_LE(num_running_requests, kv_cache_config_->max_num_sequence);
 
     // No exceeding of the maximum allowed requests that can
     // run simultaneously.
-    if (num_running_requests == kv_cache_config_->max_num_sequence) {
+    if (num_running_requests + num_prefill_req > kv_cache_config_->max_num_sequence) {
       return false;
     }
 
@@ -477,10 +512,13 @@ class Engine {
     // not exceed the maximum allowed total length.
     // NOTE: this condition is heuristic and can be revised.
     int total_input_length = 0;
+    int total_max_new_tokens = 0;
     for (Request request : requests) {
       total_input_length += GetRequestPrefillInputLength(request);
+      total_max_new_tokens += request->generation_cfg->max_new_tokens;
     }
-    return current_total_seq_len_ + max_single_sequence_length_ <
+    return current_total_seq_len_ + std::min(total_input_length + total_max_new_tokens,
+                                             num_prefill_req * max_single_sequence_length_) <
            kv_cache_config_->max_total_sequence_length;
   }
 
@@ -731,14 +769,22 @@ class Engine {
       running_queue_.erase(it);
 
       RequestState& state = request_states_.at(request);
-      current_total_seq_len_ -=
-          GetRequestRawInputLength(request) + state.mstates[0]->committed_tokens.size() - 1;
+      int num_input_tokens = GetRequestRawInputLength(request);
+      int num_output_tokens = state.mstates[0]->committed_tokens.size() - 1;
+      current_total_seq_len_ -= num_input_tokens + num_output_tokens;
       for (RequestModelState mstate : state.mstates) {
         ICHECK_EQ(mstate->request_id, req_id);
         mstate->request_id = -1;
       }
       RemoveSequenceFromModels(req_id);
       UpdateRequestIDAfterRemoval(req_id);
+
+      auto trequest_finish = std::chrono::high_resolution_clock::now();
+      prefill_total_time += static_cast<double>((state.tprefill_finish - state.tadd).count()) / 1e9;
+      prefill_total_length += num_input_tokens;
+      decode_total_time +=
+          static_cast<double>((trequest_finish - state.tprefill_finish).count()) / 1e9;
+      decode_total_length += num_output_tokens;
 
       // NOTE: right now we only return the generated text.
       // In the future we might optional return text or token ids.
@@ -808,6 +854,11 @@ class Engine {
 
   // Runtime statistics
   int64_t current_total_seq_len_;
+  double prefill_total_time = 0;
+  double decode_total_time = 0;
+  int64_t prefill_total_length = 0;
+  int64_t decode_total_length = 0;
+
   // Tokenization cache
   std::unordered_map<String, ShapeTuple, ObjectPtrHash, ObjectPtrEqual> tokenize_cache_;
 
@@ -890,7 +941,7 @@ class EngineModule : public ModuleNode {
     } else if (name == "stats") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         CHECK_EQ(args.size(), 0);
-        // TODO: stats is not implemented and will be added soon in followup PRs.
+        *rv = GetEngine()->StatisticsJSON();
       });
     } else if (name == "reset") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {

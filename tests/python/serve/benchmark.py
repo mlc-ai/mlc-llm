@@ -20,17 +20,18 @@ def _parse_args():
 
 def time_evaluator(func: Callable, args: List[Any], num_runs: int = 3, num_warmups: int = 1):
     # warmup run
+    print("Start warmup...")
     for _ in range(num_warmups):
         func(*args)
 
     total_time = 0.0
     for run in range(num_runs):
-        print(f"start round {run}")
+        print(f"Evaluator: start round {run}")
         start = time.perf_counter()
         func(*args)
         end = time.perf_counter()
         total_time += end - start
-        print(f"finish round {run}")
+        print(f"Evaluator: finish round {run}")
 
     return total_time / num_runs
 
@@ -49,13 +50,32 @@ def benchmark(args: argparse.Namespace):
     prompts = [[0] * args.input_length] * args.batch_size
     # Create engine
     engine = Engine(model, kv_cache_config)
+    # Engine statistics
+    num_runs = 3
+    prefill_token_latency = []
+    decode_token_latency = []
+    token_throughput = []
 
     def engine_generate():
+        engine.reset()
         engine.generate(prompts, generation_config)
+        engine_stats = engine.stats()
+        prefill_token_latency.append(engine_stats["prefill_token_latency"])
+        decode_token_latency.append(engine_stats["decode_token_latency"])
+        token_throughput.append(engine_stats["token_throughput"])
 
-    avg_latency = time_evaluator(engine_generate, args=[], num_runs=3)
+    avg_e2e_latency = time_evaluator(engine_generate, args=[], num_runs=num_runs)
+
+    avg_prefill_token_latency = sum(prefill_token_latency[-num_runs:]) / num_runs
+    avg_decode_token_latency = sum(decode_token_latency[-num_runs:]) / num_runs
+    avg_token_throughput = sum(token_throughput[-num_runs:]) / num_runs
+
     print(args)
-    print(f"Average latency: {avg_latency} seconds for the entire batch")
+    print(f"Average end-to-end latency: {avg_e2e_latency} seconds for the entire batch")
+    print(f"Prefill token latency: {avg_prefill_token_latency * 1e3} ms/tok")
+    print(f"Decode token latency: {avg_decode_token_latency * 1e3} ms/tok")
+    print(f"Request throughput: {args.batch_size / (avg_e2e_latency / 60)} req/min")
+    print(f"Token throughput: {avg_token_throughput} tok/s")
 
 
 if __name__ == "__main__":
