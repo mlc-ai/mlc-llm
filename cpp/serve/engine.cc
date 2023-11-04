@@ -65,11 +65,24 @@ class Engine {
     ICHECK_EQ(devices.size(), num_models);
     devices_ = std::move(devices);
 
-    // Step 1. Create models.
+    // Step 1. Create models and their PackedFuncs.
     ICHECK(models_.empty());
     models_.reserve(num_models);
+    fmodel_single_seq_prefill_.clear();
+    fmodel_decode_.clear();
+    fmodel_token_embed_.clear();
+    fmodel_add_new_sequence_.clear();
+    fmodel_remove_sequence_.clear();
+    fmodel_softmax_with_temperature_.clear();
     for (int i = 0; i < num_models; ++i) {
-      models_.push_back(CreateModelModule(reload_libs[i], model_paths[i], devices_[i]));
+      Module model = CreateModelModule(reload_libs[i], model_paths[i], devices_[i]);
+      models_.push_back(model);
+      fmodel_single_seq_prefill_.push_back(model->GetFunction("single_seq_prefill"));
+      fmodel_decode_.push_back(model->GetFunction("decode"));
+      fmodel_token_embed_.push_back(model->GetFunction("token_embed"));
+      fmodel_add_new_sequence_.push_back(model->GetFunction("add_new_sequence"));
+      fmodel_remove_sequence_.push_back(model->GetFunction("remove_sequence"));
+      fmodel_softmax_with_temperature_.push_back(model->GetFunction("softmax_with_temperature"));
     }
     // Step 2. Fetch max single sequence length from models.
     max_single_sequence_length_ = std::numeric_limits<int>::max();
@@ -88,10 +101,20 @@ class Engine {
     //         The tokenizer is created from the first model.
     //         We assume all models have the same tokenizer, which is the basic
     //         requirement of speculative encoding.
+    fsampler_require_gpu_softmax_.clear();
+    fsampler_compute_probs_from_logits_inplace_.clear();
+    fsampler_sample_token_from_probs_.clear();
     for (int i = 0; i < num_models; ++i) {
-      samplers_.push_back(CreateSamplerModule(devices_[i]));
+      Module sampler = CreateSamplerModule(devices_[i]);
+      samplers_.push_back(sampler);
+      fsampler_require_gpu_softmax_.push_back(sampler->GetFunction("require_gpu_softmax"));
+      fsampler_compute_probs_from_logits_inplace_.push_back(
+          sampler->GetFunction("compute_probs_from_logits_inplace"));
+      fsampler_sample_token_from_probs_.push_back(sampler->GetFunction("sample_token_from_probs"));
     }
     tokenizer_ = CreateTokenizerModule(model_paths[0]);
+    ftokenizer_tokenize = tokenizer_->GetFunction("tokenize");
+    ftokenizer_decode = tokenizer_->GetFunction("decode");
 
     ResetEngine();
   }
@@ -242,9 +265,9 @@ class Engine {
           continue;
         }
         for (int i = 0; i < static_cast<int>(mstate->inputs.size()); ++i) {
-          NDArray embedding = GetEmbedding(mstate->inputs[i], model);
+          NDArray embedding = GetEmbedding(mstate->inputs[i], fmodel_token_embed_[model_id]);
           NDArray output_logits =
-              model->GetFunction("single_seq_prefill")(embedding, mstate->request_id);
+              fmodel_single_seq_prefill_[model_id](embedding, mstate->request_id);
 
           // Only the output logits of the last input on the first model will be send for sampling.
           if (model_id == 0 && i == static_cast<int>(mstate->inputs.size()) - 1) {
@@ -266,7 +289,7 @@ class Engine {
       ICHECK_EQ(logits->shape[0], 1);
       ICHECK_EQ(logits->shape[1], 1);
 
-      std::vector<int32_t> next_token = SampleTokens(logits, models_[0], samplers_[0],
+      std::vector<int32_t> next_token = SampleTokens(logits, /*model_id=*/0, /*sampler_id=*/0,
                                                      {state.mstates[0]}, {request->generation_cfg});
       ICHECK_EQ(next_token.size(), 1);
 
@@ -303,7 +326,6 @@ class Engine {
                 request_states_.at(requests[i - 1]).mstates[0]->request_id);
     }
 
-    Module model = models_[0];
     current_total_seq_len_ += num_requests;
     // Collect
     // - the last committed token,
@@ -324,17 +346,18 @@ class Engine {
     }
 
     // - Compute embeddings.
-    NDArray embeddings = GetTokenEmbeddings(inputs, model, /*return_flattened_view=*/false);
+    NDArray embeddings = GetTokenEmbeddings(inputs, fmodel_token_embed_[0],
+                                            /*return_flattened_view=*/false);
 
     // - Invoke model decode.
-    NDArray logits = model->GetFunction("decode")(embeddings);
+    NDArray logits = fmodel_decode_[0](embeddings);
     ICHECK_EQ(logits->ndim, 3);
     ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
     ICHECK_EQ(logits->shape[1], 1);
 
     // - Sample tokens.
     std::vector<int32_t> next_tokens =
-        SampleTokens(logits, model, samplers_[0], mstates, generation_cfg);
+        SampleTokens(logits, /*model_id=*/0, /*sampler_id=*/0, mstates, generation_cfg);
     ICHECK_EQ(next_tokens.size(), num_requests);
 
     // - Update the committed tokens of states.
@@ -491,8 +514,9 @@ class Engine {
       mstate->request_id = req_id;
     }
     // Add a new sequence to each model.
-    for (Module model : models_) {
-      int seq_id_in_model = model->GetFunction("add_new_sequence")();
+    for (int i = 0; i < static_cast<int>(models_.size()); ++i) {
+      Module model = models_[i];
+      int seq_id_in_model = fmodel_add_new_sequence_[i]();
       ICHECK_EQ(seq_id_in_model, req_id);
     }
   }
@@ -585,7 +609,7 @@ class Engine {
     if (it != tokenize_cache_.end()) {
       return it->second;
     }
-    ShapeTuple token_ids = tokenizer_->GetFunction("tokenize")(text);
+    ShapeTuple token_ids = ftokenizer_tokenize(text);
     tokenize_cache_.emplace(text, token_ids);
 
     // Clean up cache to avoid unlimited growth.
@@ -601,13 +625,13 @@ class Engine {
    * \brief Compute the embedding of the given **single** input with
    * regard to the given model.
    */
-  NDArray GetEmbedding(Data input, Module model) {
+  NDArray GetEmbedding(Data input, PackedFunc fmodel_token_embed) {
     // Dispatch according to input type.
     if (const auto* text_input = input.as<TextDataNode>()) {
       ShapeTuple token_ids = Tokenize(text_input->text);
-      return model->GetFunction("token_embed")(Array<ShapeTuple>{token_ids});
+      return fmodel_token_embed(Array<ShapeTuple>{token_ids});
     } else if (const auto* tokens_input = input.as<TokenDataNode>()) {
-      return model->GetFunction("token_embed")(Array<ShapeTuple>{tokens_input->token_ids});
+      return fmodel_token_embed(Array<ShapeTuple>{tokens_input->token_ids});
     } else {
       ICHECK(false) << "Cannot reach here";
     }
@@ -619,14 +643,15 @@ class Engine {
    * This function is usually called for batch-wise actions such as decode
    * (or batched prefill if supported in the future).
    * \param inputs The inputs to compute embeddings.
-   * \param model The model to compute embeddings with regard to.
+   * \param fmodel_token_embed The token embedding function of the model of interest.
    * \param return_flattened_view A boolean indicating if flatten the
    * embeddings across the batch dimension or not. For batch decode we
    * do not flatten, and for batch prefill we usually flatten to handle
    * raggedness.
    * \return The computed embeddings with regard to the required view.
    */
-  NDArray GetTokenEmbeddings(Array<Data> inputs, Module model, bool return_flattened_view) {
+  NDArray GetTokenEmbeddings(Array<Data> inputs, PackedFunc fmodel_token_embed,
+                             bool return_flattened_view) {
     CHECK(!inputs.empty());
     int num_inputs = inputs.size();
     Array<ShapeTuple> token_ids;
@@ -642,7 +667,7 @@ class Engine {
     }
 
     // - If it is expected to return in a flattened view, just return the embeddings.
-    NDArray embeddings = model->GetFunction("token_embed")(token_ids);
+    NDArray embeddings = fmodel_token_embed(token_ids);
     if (return_flattened_view) {
       return embeddings;
     }
@@ -665,16 +690,16 @@ class Engine {
   /*!
    * \brief Sample tokens from the input logits.
    * \param logits_on_device The logits to sample tokens from.
-   * \param model The LLM model module which contains the softmax
+   * \param model_id The id of the LLM model module which contains the softmax
    * function on device that might be helpful.
-   * \param sampler The sampler module to run sampling.
+   * \param sampler_id The id of the sampler module to run sampling.
    * \param request_mstates The request states of each sequence in
    * the batch with regard to the given model.
    * \param generation_cfg The generation config of each request
    * in the input batch.
    * \return The sampled tokens, one for each request in the batch.
    */
-  std::vector<int32_t> SampleTokens(NDArray logits_on_device, Module model, Module sampler,
+  std::vector<int32_t> SampleTokens(NDArray logits_on_device, int model_id, int sampler_id,
                                     Array<RequestModelState> request_mstates,
                                     Array<GenerationConfig> generation_cfg) {
     ICHECK(logits_on_device.defined());
@@ -684,21 +709,24 @@ class Engine {
     ICHECK_EQ(logits_on_device->shape[0], generation_cfg.size());
     ICHECK_EQ(request_mstates.size(), generation_cfg.size());
 
+    Module model = models_[model_id];
+    Module sampler = samplers_[sampler_id];
+
     int num_sequence = logits_on_device->shape[0];
-    bool require_gpu_softmax = sampler->GetFunction("require_gpu_softmax")(generation_cfg);
+    bool require_gpu_softmax = fsampler_require_gpu_softmax_[sampler_id](generation_cfg);
 
     // - Compute probabilities from logits.
     NDArray logits_or_probs_on_cpu{nullptr};
     if (require_gpu_softmax) {
       NDArray probs_on_device =
-          model->GetFunction("softmax_with_temperature")(logits_on_device, generation_cfg);
+          fmodel_softmax_with_temperature_[model_id](logits_on_device, generation_cfg);
       logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(probs_on_device);
     } else {
       logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(logits_on_device);
       for (int i = 0; i < num_sequence; ++i) {
         // The "compute_probs_from_logits_inplace" function updates
         // `logits_or_probs_on_cpu` in place.
-        sampler->GetFunction("compute_probs_from_logits_inplace")(
+        fsampler_compute_probs_from_logits_inplace_[sampler_id](
             logits_or_probs_on_cpu, /*token_offset=*/i, request_mstates[i], generation_cfg[i]);
       }
     }
@@ -717,7 +745,7 @@ class Engine {
       randnums.push_back(RandomGenerator::GetInstance().GetRandomNumber());
     }
     for (int i = 0; i < num_sequence; ++i) {
-      int32_t token_id = sampler->GetFunction("sample_token_from_probs")(
+      int32_t token_id = fsampler_sample_token_from_probs_[sampler_id](
           logits_or_probs_on_cpu, /*token_offset=*/i, generation_cfg[i], randnums[i]);
       new_tokens.push_back(token_id);
     }
@@ -758,8 +786,8 @@ class Engine {
 
   /*! \brief Remove the given request from all models (usually the KV cache). */
   void RemoveSequenceFromModels(int req_id) {
-    for (Module model : models_) {
-      model->GetFunction("remove_sequence")(req_id);
+    for (int i = 0; i < static_cast<int>(models_.size()); ++i) {
+      fmodel_remove_sequence_[i](req_id);
     }
   }
 
@@ -844,8 +872,7 @@ class Engine {
 
     // - Decode committed tokens.
     const std::vector<int32_t>& committed_tokens = state.mstates[0]->committed_tokens;
-    String output = tokenizer_->GetFunction("decode")(
-        ShapeTuple(committed_tokens.begin(), committed_tokens.end()));
+    String output = ftokenizer_decode(ShapeTuple(committed_tokens.begin(), committed_tokens.end()));
     state.output = output.operator std::string();
 
     // Case 1. Any of the stop strings appears in output ==> Finished
@@ -889,6 +916,19 @@ class Engine {
 
   /*! \brief Shared array for logits and probability distributions on cpu. */
   NDArray logits_or_probs_on_cpu_{nullptr};
+
+  // PackedFuncs from model/tokenizer/sampler/env.
+  std::vector<PackedFunc> fmodel_single_seq_prefill_;
+  std::vector<PackedFunc> fmodel_decode_;
+  std::vector<PackedFunc> fmodel_token_embed_;
+  std::vector<PackedFunc> fmodel_add_new_sequence_;
+  std::vector<PackedFunc> fmodel_remove_sequence_;
+  std::vector<PackedFunc> fmodel_softmax_with_temperature_;
+  std::vector<PackedFunc> fsampler_require_gpu_softmax_;
+  std::vector<PackedFunc> fsampler_compute_probs_from_logits_inplace_;
+  std::vector<PackedFunc> fsampler_sample_token_from_probs_;
+  PackedFunc ftokenizer_tokenize;
+  PackedFunc ftokenizer_decode;
 
   // Runtime statistics
   int64_t current_total_seq_len_;
