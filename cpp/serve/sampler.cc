@@ -35,6 +35,13 @@ class SamplerModule : public ModuleNode {
     ICHECK(fsample_topp_from_prob_ptr)
         << "Cannot find env function vm.builtin.sample_top_p_from_prob";
     fsample_topp_from_prob_ = *fsample_topp_from_prob_ptr;
+
+    // Set customized "logits -> prob" function.
+    const PackedFunc* f_logits_to_probs =
+        Registry::Get("mlc.llm.compute_probs_from_logits_inplace");
+    if (f_logits_to_probs != nullptr) {
+      flogits_to_probs_inplace_ = *f_logits_to_probs;
+    }
   }
 
   // overrides
@@ -59,8 +66,6 @@ class SamplerModule : public ModuleNode {
     }
   }
 
-  void Init(DLDevice device) { device_ = device; }
-
   const char* type_key() const final { return "mlc.serve.Sampler"; }
 
  private:
@@ -72,9 +77,7 @@ class SamplerModule : public ModuleNode {
    */
   bool RequireGPUSoftmax(Array<GenerationConfig> generation_cfg) {
     // - Return false if there is customized probability compute function.
-    const PackedFunc* f_logits_to_probs =
-        Registry::Get("mlc.llm.compute_probs_from_logits_inplace");
-    if (f_logits_to_probs != nullptr) {
+    if (flogits_to_probs_inplace_.defined()) {
       return false;
     }
     // - Return false if any sampling param has repetition penalty other than 1.0.
@@ -106,10 +109,8 @@ class SamplerModule : public ModuleNode {
     CHECK_EQ(logits->device.device_type, kDLCPU);
 
     // - Invoke environment compute function if exists.
-    const PackedFunc* f_logits_to_probs =
-        Registry::Get("mlc.llm.compute_probs_from_logits_inplace");
-    if (f_logits_to_probs != nullptr) {
-      (*f_logits_to_probs)(logits, token_offset, state, generation_cfg);
+    if (flogits_to_probs_inplace_.defined()) {
+      flogits_to_probs_inplace_(logits, token_offset, state, generation_cfg);
       return;
     }
 
@@ -226,6 +227,8 @@ class SamplerModule : public ModuleNode {
 
   /*! \brief The runtime device where the input logits is. */
   DLDevice device_;
+  /*! \brief Customized function which computes prob distribution from logits */
+  PackedFunc flogits_to_probs_inplace_;
   /*! \brief Function which samples a token from prob distribution with top_p value. */
   PackedFunc fsample_topp_from_prob_;
 };
