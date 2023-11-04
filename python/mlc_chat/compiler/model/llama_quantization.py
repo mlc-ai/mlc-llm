@@ -6,8 +6,7 @@ from tvm.relax.frontend import nn
 
 from ..loader import QuantizeMapping
 from ..quantization import GroupQuantize
-from .llama_config import LlamaConfig
-from .llama_model import LlamaForCasualLM
+from .llama_model import LlamaConfig, LlamaForCasualLM
 
 
 def group_quant(

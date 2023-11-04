@@ -8,8 +8,7 @@ import numpy as np
 
 from ..loader import ExternMapping
 from ..quantization import Quantization
-from .llama_config import LlamaConfig
-from .llama_model import LlamaForCasualLM
+from .llama_model import LlamaConfig, LlamaForCasualLM
 
 
 def huggingface(model_config: LlamaConfig, quantization: Quantization) -> ExternMapping:
