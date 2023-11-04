@@ -124,7 +124,11 @@ Select your operating system/compute platform and run the command in your termin
 
                 FileNotFoundError: Could not find module 'path\to\site-packages\tvm\tvm.dll' (or one of its dependencies). Try using the full path with constructor syntax.
 
-            It is likely `zstd`, a dependency to LLVM, was missing. Please `download <https://github.com/facebook/zstd/releases/tag/v1.5.5>`__ the 64 bit version of precompiled binary, rename it to `zstd.dll` and copy to the same folder as `tvm.dll`.
+            It is likely `zstd`, a dependency to LLVM, was missing. Please use the command below to get it installed:
+
+            .. code-block:: bash
+
+                conda install zstd
 
 
 Option 2. Build from Source
