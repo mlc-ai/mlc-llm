@@ -11,6 +11,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
+#include "../random.h"
 #include "model.h"
 #include "request.h"
 #include "request_state.h"
@@ -678,7 +679,8 @@ class Engine {
                                     Array<GenerationConfig> generation_cfg) {
     ICHECK(logits_on_device.defined());
     ICHECK_EQ(logits_on_device->ndim, 3);
-    ICHECK_EQ(logits_on_device->shape[1], 1);
+    ICHECK_EQ(logits_on_device->shape[1], 1)
+        << "Multi-token sampling for one sequence is not supported yet.";
     ICHECK_EQ(logits_on_device->shape[0], generation_cfg.size());
     ICHECK_EQ(request_mstates.size(), generation_cfg.size());
 
@@ -686,39 +688,72 @@ class Engine {
     bool require_gpu_softmax = sampler->GetFunction("require_gpu_softmax")(generation_cfg);
 
     // - Compute probabilities from logits.
-    std::vector<NDArray> probs;
-    std::vector<int> prob_token_offsets;
-    probs.reserve(num_sequence);
-    prob_token_offsets.reserve(num_sequence);
+    NDArray logits_or_probs_on_cpu{nullptr};
     if (require_gpu_softmax) {
       NDArray probs_on_device =
           model->GetFunction("softmax_with_temperature")(logits_on_device, generation_cfg);
-      for (int i = 0; i < num_sequence; ++i) {
-        probs.push_back(probs_on_device);
-        prob_token_offsets.push_back(i);
-      }
+      logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(probs_on_device);
     } else {
+      logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(logits_on_device);
       for (int i = 0; i < num_sequence; ++i) {
-        NDArray probs_on_cpu = sampler->GetFunction("compute_probs_from_logits")(
-            logits_on_device, /*token_offset=*/i, request_mstates[i], generation_cfg[i]);
-        ICHECK_EQ(probs_on_cpu->ndim, 1);
-        probs.push_back(probs_on_cpu);
-        prob_token_offsets.push_back(0);
+        // The "compute_probs_from_logits_inplace" function updates
+        // `logits_or_probs_on_cpu` in place.
+        sampler->GetFunction("compute_probs_from_logits_inplace")(
+            logits_or_probs_on_cpu, /*token_offset=*/i, request_mstates[i], generation_cfg[i]);
       }
     }
+    // `CopyLogitsOrProbsToCPU` flattens the first two dimensions.
+    ICHECK_EQ(logits_or_probs_on_cpu->ndim, 2);
 
     // - Sample tokens from probabilities.
     // NOTE: Though we have the probability field in RequestModelState,
     //       we do not save the probabilities right now.
     //       We will handle this in the future when we work on speculation.
     std::vector<int32_t> new_tokens;
+    std::vector<double> randnums;
     new_tokens.reserve(num_sequence);
+    randnums.reserve(num_sequence);
+    for (int i = 0; i < num_sequence; ++i) {
+      randnums.push_back(RandomGenerator::GetInstance().GetRandomNumber());
+    }
     for (int i = 0; i < num_sequence; ++i) {
       int32_t token_id = sampler->GetFunction("sample_token_from_probs")(
-          probs[i], prob_token_offsets[i], generation_cfg[i]);
+          logits_or_probs_on_cpu, /*token_offset=*/i, generation_cfg[i], randnums[i]);
       new_tokens.push_back(token_id);
     }
     return new_tokens;
+  }
+
+  /*!
+   * \brief Copy logits or prob distributions from device to CPU.
+   * The input array is in layout (b, n, v).
+   * This function flattens the first dimension, returns an NDArray
+   * in shape (b * n, v).
+   */
+  NDArray CopyLogitsOrProbsToCPU(NDArray arr_on_device) {
+    // arr_on_device: (b, n, v)
+    ICHECK_EQ(arr_on_device->ndim, 3);
+    ICHECK(!logits_or_probs_on_cpu_.defined() || (logits_or_probs_on_cpu_)->ndim == 2);
+    ICHECK(arr_on_device->device.device_type != kDLCPU);
+    if (logits_or_probs_on_cpu_.defined()) {
+      ICHECK_EQ(logits_or_probs_on_cpu_->shape[1], arr_on_device->shape[2]);
+    }
+
+    int64_t init_size = logits_or_probs_on_cpu_.defined() ? logits_or_probs_on_cpu_->shape[0] : 32;
+    int64_t num_tokens = arr_on_device->shape[0] * arr_on_device->shape[1];
+    int64_t vocab_size = arr_on_device->shape[2];
+    while (init_size < num_tokens) {
+      init_size *= 2;
+    }
+    if (!logits_or_probs_on_cpu_.defined() || init_size != logits_or_probs_on_cpu_->shape[0]) {
+      logits_or_probs_on_cpu_ =
+          NDArray::Empty({init_size, vocab_size}, arr_on_device->dtype, DLDevice{kDLCPU, 0});
+    }
+    ICHECK_LE(num_tokens, logits_or_probs_on_cpu_->shape[0]);
+    NDArray view =
+        logits_or_probs_on_cpu_.CreateView({num_tokens, vocab_size}, arr_on_device->dtype);
+    view.CopyFrom(arr_on_device);
+    return view;
   }
 
   /*! \brief Remove the given request from all models (usually the KV cache). */
@@ -851,6 +886,9 @@ class Engine {
   Module tokenizer_;
   // Device corresponding to each model
   std::vector<DLDevice> devices_;
+
+  /*! \brief Shared array for logits and probability distributions on cpu. */
+  NDArray logits_or_probs_on_cpu_{nullptr};
 
   // Runtime statistics
   int64_t current_total_seq_len_;
