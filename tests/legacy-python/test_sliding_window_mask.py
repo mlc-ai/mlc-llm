@@ -5,10 +5,9 @@ import unittest
 
 import numpy as np
 import tvm
+from mlc_llm.relax_model.mistral import _make_sliding_window_mask
 from tvm import relax
 from tvm.runtime import ShapeTuple
-
-from mlc_llm.relax_model.mistral import _make_sliding_window_mask
 
 
 def _create_vm():

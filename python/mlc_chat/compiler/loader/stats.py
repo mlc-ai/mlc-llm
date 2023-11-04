@@ -67,7 +67,7 @@ class Stats:
     def log_time_info(self, weight_format: str):
         """Log the time used in loading, pre-quantization and quantization."""
         logger.info(
-            "Time used: "
+            "Time usage: "
             "%s loading: %.3f sec; "
             "Pre-quantization mapping: %.3f sec; "
             "Quantization: %.3f sec",
@@ -80,7 +80,7 @@ class Stats:
     def log_mem_usage(self):
         """Log the Memory usage information."""
         logger.info(
-            "Memory usage: Total size loaded from disk: %.3f GB; Peak memory usage: %.3f GB",
+            "RAM usage: Peak RAM: %.3f GB. Total bytes loaded from disk: %.3f GB",
             self.total_memory_gb,
             self.max_memory_gb,
         )

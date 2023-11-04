@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Union
 
-from .style import green
+from .style import bold, green
 
 if TYPE_CHECKING:
     from mlc_chat.compiler import Model  # pylint: disable=unused-import
@@ -92,10 +92,10 @@ def detect_model_type(model_type: str, config: Path) -> "Model":
         if "model_type" not in cfg:
             raise ValueError(
                 f"'model_type' not found in: {config}. "
-                f"Please explicitly specify `--model-type` instead"
+                f"Please explicitly specify `--model-type` instead."
             )
         model_type = cfg["model_type"]
-        logger.info("%s model type: %s", FOUND, model_type)
+        logger.info("%s model type: %s. Use `--model-type` to override.", FOUND, bold(model_type))
     if model_type not in MODELS:
         raise ValueError(f"Unknown model type: {model_type}. Available ones: {list(MODELS.keys())}")
     return MODELS[model_type]

@@ -1,16 +1,19 @@
 """The group quantization config"""
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+import logging
+from dataclasses import dataclass
+from typing import Any, Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
-from tvm import DataType, DataTypeCode
+from tvm import DataType, DataTypeCode, IRModule
 from tvm import dlight as dl
 from tvm import relax, te, tir
 from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
 from tvm.target import Target
 
-from ..parameter import QuantizeMapping
+from ..loader import QuantizeMapping
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -28,10 +31,6 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
     num_storage_per_group: int = 0
     max_int_value: int = 0
 
-    prebuilt_quantize_func: Dict[str, Callable[[NDArray], NDArray]] = field(
-        default_factory=lambda: {}
-    )
-
     def __post_init__(self):
         assert self.kind == "group-quant"
         quantize_dtype = DataType(self.quantize_dtype)
@@ -48,6 +47,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             raise ValueError("Group size should be divisible by numbers of elements per storage")
         self.num_storage_per_group = self.group_size // self.num_elem_per_storage
         self.max_int_value = (2 ** (quantize_dtype.bits - 1)) - 1
+        self._quantize_func_cache = {}
 
     def quantize_model(
         self,
@@ -166,46 +166,55 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         ret: List[NDArray]
             The list of group quantized weights.
         """
-        assert weight.dtype == self.model_dtype
         assert len(weight.shape) == 2
-        dev = weight.device
-        device_type = dev.MASK2STR[dev.device_type]
+        device = weight.device
+        device_type = device.MASK2STR[device.device_type]
+
+        def _create_quantize_func() -> IRModule:
+            bb = relax.BlockBuilder()  # pylint: disable=invalid-name
+            weight_var = relax.Var("weight", relax.TensorStructInfo(weight.shape, weight.dtype))
+            with bb.function(name="main", params=[weight_var]):
+                with bb.dataflow():
+                    lv = bb.emit_te(self._quantize, weight_var)  # pylint: disable=invalid-name
+                    gv = bb.emit_output(lv)  # pylint: disable=invalid-name
+                bb.emit_func_output(gv)
+            return bb.get()
+
+        def _compile_quantize_func(mod: IRModule) -> Callable:
+            if device_type in ["cuda", "rocm", "metal", "vulkan"]:
+                target = Target.current()
+                if target is None:
+                    target = Target.from_device(device)
+                with target:
+                    mod = dl.ApplyDefaultSchedule(  # type: ignore   # pylint: disable=not-callable
+                        dl.gpu.Reduction(),
+                        dl.gpu.GeneralReduction(),
+                        dl.gpu.Fallback(),
+                    )(mod)
+            elif device_type == "cpu":
+                target = "llvm"
+                mod = relax.transform.LegalizeOps()(mod)
+            else:
+                raise NotImplementedError(f"Device type {device_type} is not supported")
+            ex = relax.build(mod, target=target)
+            vm = relax.VirtualMachine(ex, device)  # pylint: disable=invalid-name
+            return vm["main"]
+
         key = str((int(weight.shape[0]), int(weight.shape[1]), weight.dtype, device_type))
-        if key in self.prebuilt_quantize_func:
-            return self.prebuilt_quantize_func[key](weight)
-        bb = relax.BlockBuilder()  # pylint: disable=invalid-name
-        weight_var = relax.Var("weight", relax.TensorStructInfo(weight.shape, self.model_dtype))
-        with bb.function(name="quantize", params=[weight_var]):
-            with bb.dataflow():
-                lv = bb.emit_te(self._quantize, weight_var)  # pylint: disable=invalid-name
-                gv = bb.emit_output(lv)  # pylint: disable=invalid-name
-            bb.emit_func_output(gv)
-        mod = bb.get()
-        if device_type in ["cuda", "rocm", "metal", "vulkan"]:
-            target = Target.current()
-            if target is None:
-                target = Target.from_device(dev)
-            with target:
-                mod = dl.ApplyDefaultSchedule(  # type: ignore   # pylint: disable=not-callable
-                    dl.gpu.Reduction(),
-                    dl.gpu.GeneralReduction(),
-                    dl.gpu.Fallback(),
-                )(mod)
-        elif device_type == "cpu":
-            target = "llvm"
-            mod = relax.transform.LegalizeOps()(mod)
-        else:
-            raise NotImplementedError(f"Device type {device_type} is not supported")
-        ex = relax.build(mod, target)
-        vm = relax.VirtualMachine(ex, dev)  # pylint: disable=invalid-name
-        self.prebuilt_quantize_func[key] = vm["quantize"]
-        return vm["quantize"](weight)
+        quantize_func = self._quantize_func_cache.get(key, None)
+        if quantize_func is None:
+            logger.info("Compiling quantize function for key: %s", key)
+            quantize_func = _compile_quantize_func(_create_quantize_func())
+            self._quantize_func_cache[key] = quantize_func
+        return quantize_func(weight)
 
     def _quantize(  # pylint: disable=too-many-locals
-        self, weight: te.Tensor
+        self,
+        weight: te.Tensor,
     ) -> Tuple[te.Tensor, te.Tensor]:
         """Group quantization for weight tensor, defined in tensor expression."""
         assert len(weight.shape) == 2
+        max_int = tir.const(self.max_int_value, self.model_dtype)
         n, k = weight.shape  # pylint: disable=invalid-name
         quantize_dtype = DataType(self.quantize_dtype)
         # compute scale per group
@@ -223,25 +232,20 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         )
         scale = te.compute(
             scale_shape,
-            lambda i, j: max_abs[i, j] / tir.const(self.max_int_value, self.model_dtype),
+            lambda i, j: max_abs[i, j].astype(self.model_dtype) / max_int,
             name="scale",
         )
-
         # compute scaled weight
-        tir_max_int = tir.const(self.max_int_value, self.model_dtype)
-        tir_zero = tir.const(0, self.model_dtype)
-        tir_max_int_2 = tir.const(self.max_int_value * 2, self.model_dtype)
         scaled_weight = te.compute(
             shape=weight.shape,
             fcompute=lambda i, j: tir.min(
                 tir.max(
-                    tir.round(weight[i, j] / scale[i, j // self.group_size] + tir_max_int),
-                    tir_zero,
+                    tir.round(weight[i, j] / scale[i, j // self.group_size] + max_int),
+                    tir.const(0, self.model_dtype),
                 ),
-                tir_max_int_2,
+                max_int * 2,
             ).astype(self.storage_dtype),
         )
-
         # compute quantized weight per storage
         r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
         num_storage = self.num_storage_per_group * num_group
@@ -274,11 +278,11 @@ class GroupQuantizeLinear(nn.Module):
         self.out_features = out_features
         self.out_dtype = out_dtype
         self.config = config
-        self.weight = nn.Parameter(
+        self.q_weight = nn.Parameter(
             (out_features, tir.ceildiv(in_features, config.num_elem_per_storage)),
             config.storage_dtype,
         )
-        self.scale = nn.Parameter(
+        self.q_scale = nn.Parameter(
             (out_features, tir.ceildiv(in_features, config.group_size)), config.model_dtype
         )
         if bias:
@@ -333,7 +337,7 @@ class GroupQuantizeLinear(nn.Module):
                 [tir.IntImm("int64", self.out_features), tir.IntImm("int64", self.in_features)],
             ),
             name_hint="decode",
-            args=[self.weight, self.scale],
+            args=[self.q_weight, self.q_scale],
         )
         w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
         x = nn.op.matmul(x, w, out_dtype=self.out_dtype)
@@ -361,11 +365,11 @@ class GroupQuantizeMultiLinear(nn.Module):  # pylint: disable=too-many-instance-
         self.out_features = out_features
         self.out_dtype = out_dtype
         self.config = config
-        self.weight = nn.Parameter(
+        self.q_weight = nn.Parameter(
             (self.total_out_features, tir.ceildiv(in_features, config.num_elem_per_storage)),
             config.storage_dtype,
         )
-        self.scale = nn.Parameter(
+        self.q_scale = nn.Parameter(
             (self.total_out_features, tir.ceildiv(in_features, config.group_size)),
             config.model_dtype,
         )
@@ -427,7 +431,7 @@ class GroupQuantizeMultiLinear(nn.Module):  # pylint: disable=too-many-instance-
                 ],
             ),
             name_hint="decode",
-            args=[self.weight, self.scale],
+            args=[self.q_weight, self.q_scale],
         )
         # x: [*B, in_features]
         # w: [in_features, out_features]
@@ -447,11 +451,14 @@ class GroupQuantizeEmbedding(nn.Module):
         self.num = num
         self.dim = dim
         self.config = config
-        n_group = tir.ceildiv(dim, config.group_size)
-        self.weight = nn.Parameter(
-            (num, n_group * config.num_elem_per_storage), config.storage_dtype
+        self.q_weight = nn.Parameter(
+            (num, tir.ceildiv(dim, config.num_elem_per_storage)),
+            config.storage_dtype,
         )
-        self.scale = nn.Parameter((num, n_group), config.model_dtype)
+        self.q_scale = nn.Parameter(
+            (num, tir.ceildiv(dim, config.group_size)),
+            config.model_dtype,
+        )
 
     @staticmethod
     def from_embedding(embedding: nn.Embedding, config: GroupQuantize) -> "GroupQuantizeEmbedding":
@@ -495,7 +502,7 @@ class GroupQuantizeEmbedding(nn.Module):
                 [tir.IntImm("int64", self.num), tir.IntImm("int64", self.dim)],
             ),
             name_hint="decode",
-            args=[self.weight, self.scale],
+            args=[self.q_weight, self.q_scale],
         )
         if x.ndim == 1:
             return nn.op.take(w, x, axis=0)

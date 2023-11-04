@@ -2,18 +2,19 @@
 from typing import List
 
 import numpy as np
+import pytest
 import torch
 import tvm
 import tvm.testing
-from mlc_chat.compiler import QUANTIZATION
-from mlc_chat.compiler.parameter import QuantizeMapping
-from mlc_chat.compiler.quantization import GroupQuantize
+from tvm import DataType
+from tvm.relax.frontend import nn
+
+from mlc_chat.compiler import QUANTIZATION, QuantizeMapping
 from mlc_chat.compiler.quantization.group_quantization import (
+    GroupQuantize,
     GroupQuantizeEmbedding,
     GroupQuantizeLinear,
 )
-from tvm import DataType
-from tvm.relax.frontend import nn
 
 
 def quantize_np(config: GroupQuantize, weight: np.ndarray):
@@ -72,6 +73,12 @@ def dequantize_np(
     return ((weight_bin - max_int) * scale_repeated)[: out_shape[0]][: out_shape[1]]
 
 
+@pytest.mark.parametrize(
+    "quant_name, shape, dtype, device",
+    [
+        ("q4f16_1", [16, 128], "float16", "cpu"),
+    ],
+)
 def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: str):
     config = QUANTIZATION[quant_name]
     assert isinstance(config, GroupQuantize)
@@ -88,6 +95,12 @@ def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: 
     )
 
 
+@pytest.mark.parametrize(
+    "quant_name, shape, dtype",
+    [
+        ("q4f16_1", [16, 128], "float16"),
+    ],
+)
 def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
     class Test(nn.Module):
         def __init__(self) -> None:
@@ -108,8 +121,8 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
         config.model_dtype
     )
     mod = config.quantize_model(Test(), QuantizeMapping({}, {}), "")
-    mod.linear.weight.data = weight_np
-    mod.linear.scale.data = scale_np
+    mod.linear.q_weight.data = weight_np
+    mod.linear.q_scale.data = scale_np
     model = mod.jit(spec={"forward": {"x": nn.spec.Tensor((shape[1], shape[1]), dtype)}})
     out = model["forward"](
         torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype)))  # pylint: disable=no-member
@@ -118,6 +131,12 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
 
+@pytest.mark.parametrize(
+    "quant_name, shape, dtype",
+    [
+        ("q4f16_1", [16, 128], "float16"),
+    ],
+)
 def test_quantize_model(quant_name: str, shape: List[int], dtype: str):
     class Test(nn.Module):
         def __init__(self) -> None:

@@ -4,9 +4,9 @@ from typing import Any, Callable, Dict, Tuple
 
 from tvm.relax.frontend import nn
 
-from ..parameter import ExternMapping, QuantizeMapping
+from ..loader import ExternMapping, QuantizeMapping
 from ..quantization.quantization import Quantization
-from . import llama_config, llama_model, llama_parameter, llama_quantization
+from . import llama_config, llama_loader, llama_model, llama_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -56,8 +56,8 @@ MODELS: Dict[str, Model] = {
         model=llama_model.LlamaForCasualLM,
         config=llama_config.LlamaConfig,
         source={
-            "huggingface-torch": llama_parameter.huggingface,
-            "huggingface-safetensor": llama_parameter.huggingface,
+            "huggingface-torch": llama_loader.huggingface,
+            "huggingface-safetensor": llama_loader.huggingface,
         },
         quantize={
             "group-quant": llama_quantization.group_quant,

@@ -4,11 +4,10 @@ from pathlib import Path
 from typing import Union
 
 import pytest
-from mlc_chat.compiler import MODELS
+import tvm
 
-# from mlc_chat.compiler.model.llama_config import LlamaConfig
-# from mlc_chat.compiler.model.llama_parameter import huggingface
-from mlc_chat.compiler.parameter import HuggingFaceLoader
+from mlc_chat.compiler import MODELS
+from mlc_chat.compiler.loader import HuggingFaceLoader
 from mlc_chat.support import tqdm
 
 logging.basicConfig(
@@ -39,7 +38,7 @@ def test_load_torch_llama(base_path: Union[str, Path]):
         extern_param_map=model.source["huggingface-torch"](config, None),
     )
     with tqdm.redirect():
-        for _name, _param in loader.load():
+        for _name, _param in loader.load(device=tvm.device("cpu")):
             return  # To reduce the time of the test
 
 
@@ -63,7 +62,7 @@ def test_load_safetensor_llama(base_path: Union[str, Path]):
         extern_param_map=model.source["huggingface-safetensor"](config, None),
     )
     with tqdm.redirect():
-        for _name, _param in loader.load():
+        for _name, _param in loader.load(device=tvm.device("cpu")):
             return  # To reduce the time of the test
 
 
