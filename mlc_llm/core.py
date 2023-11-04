@@ -24,6 +24,7 @@ from mlc_llm.relax_model import (
     llama,
     llama_batched_vllm,
     minigpt,
+    mistral,
     param_manager,
     rwkv,
     stablelm_3b,
@@ -80,6 +81,13 @@ class BuildArgs:
         Build with separated embedding layer, only applicable to LlaMa. This
         feature is in testing stage, and will be formally replaced after massive
         overhaul of embedding feature for all models and use cases.
+    sliding_window: int
+        The sliding window size in sliding window attention (SWA). This optional field
+        overrides the `sliding_window` in config.json for those models that use SWA.
+        Currently only useful when compiling Mistral.
+    sliding_window_chunk_size: int
+        The chunk size in sliding window attention (SWA) during prefilling. By default,
+        the chunk size is the same as sliding window. Currently only useful when compiling Mistral.
     cc_path: str
         ``/path/to/cross_compiler_path``; currently only used for cross-compile
         for nvidia/jetson device.
@@ -184,7 +192,10 @@ class BuildArgs:
     cc_path: str = field(
         default="",
         metadata={
-            "help": "/path/to/cross_compiler_path, Currently only used for cross-compile for nvidia/jetson device."
+            "help": (
+                "/path/to/cross_compiler_path, Currently only used for "
+                "cross-compile for nvidia/jetson device."
+            )
         },
     )
     system_lib: bool = field(
@@ -275,6 +286,26 @@ class BuildArgs:
             "action": "store_true",
         },
     )
+    sliding_window: int = field(
+        default=-1,
+        metadata={
+            "help": (
+                "The sliding window size in sliding window attention (SWA). "
+                "This optional field overrides the `sliding_window` in config.json for "
+                "those models that use SWA. Currently only useful when compiling Mistral."
+            ),
+        },
+    )
+    sliding_window_chunk_size: int = field(
+        default=-1,
+        metadata={
+            "help": (
+                "The chunk size in sliding window attention (SWA) during prefilling. "
+                "By default, the chunk size is the same as sliding window. "
+                "Currently only useful when compiling Mistral."
+            ),
+        },
+    )
     pdb: bool = field(
         default=False,
         metadata={
@@ -286,7 +317,8 @@ class BuildArgs:
         default=False,
         metadata={
             "help": (
-                "Use vLLM paged KV cache and attention kernel, only relevant when enable_batching=True."
+                "Use vLLM paged KV cache and attention kernel, only relevant when "
+                "enable_batching=True."
             ),
             "action": "store_true",
         },
@@ -330,7 +362,9 @@ def _parse_args(parsed) -> argparse.Namespace:
     if parsed.use_vllm_attention:
         assert parsed.enable_batching, "--enable_batching is required for using vLLM attention."
         assert parsed.target_kind == "cuda", "vLLM attention is only supported for CUDA."
-        assert tvm.get_global_func("tvm.contrib.vllm.single_query_cached_kv_attention", True), "TVM needs to be built with -DUSE_VLLM=ON."
+        assert tvm.get_global_func(
+            "tvm.contrib.vllm.single_query_cached_kv_attention", True
+        ), "TVM needs to be built with -DUSE_VLLM=ON."
 
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
@@ -391,10 +425,10 @@ def _setup_model_path(args: argparse.Namespace):  # pylint: disable=too-many-bra
 def validate_config(model_path: str):
     if os.path.exists(os.path.join(model_path, "mlc-chat-config.json")):
         raise KeyError(
-            "The model located in the directory {} has already been compiled by MLC-LLM. There is"
-            " no need to compile it again. If you wish to compile a new model, please provide a"
-            " directory (or hf-path) that contains the pre-compiled model in raw HuggingFace"
-            " format instead.".format(model_path)
+            f"The model located in the directory {model_path} has already been compiled "
+            "by MLC-LLM. There is no need to compile it again. If you wish to compile "
+            "a new model, please provide a directory (or hf-path) that contains the "
+            "pre-compiled model in raw HuggingFace format instead."
         )
     if model_path.split("/")[-1].startswith("minigpt"):
         # minigpt does not contain a config.json file so we skip the check
@@ -467,12 +501,13 @@ def mod_transform_before_build(
 
         if max_seq_len:
             num_key_value_heads = config.get_num_key_value_heads()
+            # pylint: disable=no-value-for-parameter
             mod = fuse_split_rotary_embedding(
-                    config.num_attention_heads // args.num_shards,
-                    num_key_value_heads // args.num_shards,
-                    config.hidden_size // args.num_shards,
-                    config.position_embedding_base,
-                )(mod)
+                config.num_attention_heads // args.num_shards,
+                num_key_value_heads // args.num_shards,
+                config.hidden_size // args.num_shards,
+                config.position_embedding_base,
+            )(mod)
 
     if args.target_kind == "cuda":
         patterns = []
@@ -480,6 +515,7 @@ def mod_transform_before_build(
         has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
 
         if has_cutlass and not args.no_cutlass_attn:
+            # pylint: disable=no-value-for-parameter
             if args.use_flash_attn_mqa:
                 mod = rewrite_attention(use_flash_mqa=True)(mod)
             mod = rewrite_attention(use_flash_mqa=False)(mod)
@@ -565,7 +601,6 @@ def dump_mlc_chat_config(
     config["top_p"] = top_p
     config["mean_gen_len"] = mean_gen_len
     config["max_gen_len"] = max_gen_len
-    config["max_window_size"] = max_window_size
     config["num_shards"] = args.num_shards
     config["shift_fill_factor"] = shift_fill_factor
     if rwkv_world:
@@ -575,6 +610,12 @@ def dump_mlc_chat_config(
     config["model_category"] = args.model_category
     config["model_name"] = args.model
     config["vocab_size"] = vocab_size
+    if args.sliding_window != -1:
+        # Do not add max window size if use sliding window
+        config["sliding_window"] = args.sliding_window
+        config["sliding_window_chunk_size"] = args.sliding_window_chunk_size
+    else:
+        config["max_window_size"] = max_window_size
 
     args.chat_config_path = os.path.join(args.params_path, "mlc-chat-config.json")
     with open(args.chat_config_path, "w", encoding="utf-8") as outfile:
@@ -640,7 +681,7 @@ def build_model_from_args(args: argparse.Namespace):
     if args.quantization == "q4f16_0":
         print(
             "WARNING: q4f16_1 is preferred to q4f16_0, "
-            "and it is highly recommended to use q4f16_1 instaed"
+            "and it is highly recommended to use q4f16_1 instead"
         )
     if args.num_shards > 1:
         if (not args.build_model_only) and (not args.convert_weight_only):
@@ -670,7 +711,7 @@ def build_model_from_args(args: argparse.Namespace):
     if not use_cache or args.convert_weight_only:
         model_generators = {
             "llama": llama,
-            "mistral": llama,
+            "mistral": mistral,
             "stablelm_epoch": stablelm_3b,
             "gpt_neox": gpt_neox,
             "gpt_bigcode": gpt_bigcode,
@@ -690,6 +731,10 @@ def build_model_from_args(args: argparse.Namespace):
         mod, param_manager, params, model_config = model_generators[args.model_category].get_model(
             args, config
         )
+
+        if args.model_category == "mistral":
+            args.sliding_window = model_config.sliding_window
+            args.sliding_window_chunk_size = model_config.sliding_window_chunk_size
 
         for qspec_updater_class in param_manager.qspec_updater_classes:
             qspec_updater = qspec_updater_class(param_manager)
