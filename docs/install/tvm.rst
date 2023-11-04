@@ -132,8 +132,11 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
 
             FileNotFoundError: Could not find module 'path\to\site-packages\tvm\tvm.dll' (or one of its dependencies). Try using the full path with constructor syntax.
 
-        It is likely `zstd`, a dependency to LLVM, was missing. Please `download <https://github.com/facebook/zstd/releases/tag/v1.5.5>`__ the precompiled binary, rename it to `zstd.dll` and copy to the same folder as `tvm.dll`. Hint - To locate the "tvm.dll" file in Conda, navigate to your user home directory (e.g., "/users/xxxx"). Search for "tvm.dll" and find the folder whose path contains the name of the current environment, such as "mlc-chat-venv." Once located, copy "zstd.dll" to that specific folder.
+        It is likely `zstd`, a dependency to LLVM, was missing. Please use the command below to get it installed:
 
+        .. code-block:: bash
+
+            conda install zstd
 
 .. _tvm-unity-build-from-source:
 
