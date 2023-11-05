@@ -4,8 +4,9 @@ from pathlib import Path
 from typing import Union
 
 import pytest
-from mlc_chat.compiler import MODELS, QUANTIZATION
-from mlc_chat.compiler.parameter import HuggingFaceLoader
+import tvm
+from mlc_chat.compiler import MODEL_PRESETS, MODELS, QUANTIZATION
+from mlc_chat.compiler.loader import HuggingFaceLoader
 from mlc_chat.support import tqdm
 
 logging.basicConfig(
@@ -27,13 +28,13 @@ def test_load_llama(param_path: Union[str, Path]):
 
     model = MODELS["llama"]
     quantization = QUANTIZATION["q4f16_awq"]
-    config = model.config.from_predefined("llama2_7b")
+    config = model.config.from_dict(MODEL_PRESETS["llama2_7b"])
     loader = HuggingFaceLoader(
         path=path_params,
         extern_param_map=model.source["awq"](config, quantization),
     )
     with tqdm.redirect():
-        for _name, _param in loader.load():
+        for _name, _param in loader.load(tvm.device("cpu")):
             ...
 
 

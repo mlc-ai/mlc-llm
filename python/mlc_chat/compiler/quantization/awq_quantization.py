@@ -8,7 +8,7 @@ from tvm import DataType, DataTypeCode, te, tir
 from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
 
-from ..parameter import QuantizeMapping
+from ..loader import QuantizeMapping
 
 
 def _make_divisible(c, divisor):  # pylint: disable=invalid-name
