@@ -997,7 +997,7 @@ class LLMChat {
     }
     if (generation_config.count("presence_penalty")) {
       CHECK(generation_config["presence_penalty"].is<double>());
-      CHECK(abs(generation_config["presence_penalty"].get<double>()) <= 2)
+      CHECK(fabs(generation_config["presence_penalty"].get<double>()) <= 2)
           << "Presence penalty must be in the range -2 to 2!";
       *gen_presence_penalty = generation_config["presence_penalty"].get<double>();
     } else {
@@ -1005,7 +1005,7 @@ class LLMChat {
     }
     if (generation_config.count("frequency_penalty")) {
       CHECK(generation_config["frequency_penalty"].is<double>());
-      CHECK(abs(generation_config["frequency_penalty"].get<double>()) <= 2)
+      CHECK(fabs(generation_config["frequency_penalty"].get<double>()) <= 2)
           << "Frequency penalty must be in the range -2 to 2!";
       *gen_frequency_penalty = generation_config["frequency_penalty"].get<double>();
     } else {
