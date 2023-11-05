@@ -368,8 +368,8 @@ async def read_stats_verbose():
 @app.post("/v1/llm-vscode/completions")
 async def request_llm_vscode(request: VisualStudioCodeCompletionRequest):
     """
-    Creates a code completion for a given prompt.
-    Follows huggingface LSP: https://github.com/huggingface/llm-ls
+    Creates a vscode code completion for a given prompt.
+    Follows huggingface LSP (https://github.com/huggingface/llm-ls)
     """
     generation_config = GenerationConfig(
         temperature=request.parameters.temperature,
