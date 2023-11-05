@@ -5,6 +5,7 @@ from typing import Union
 
 import pytest
 import tvm
+
 from mlc_chat.compiler import MODEL_PRESETS, MODELS, QUANTIZATION
 from mlc_chat.compiler.loader import HuggingFaceLoader
 from mlc_chat.support import tqdm

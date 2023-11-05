@@ -6,11 +6,12 @@ import pytest
 import torch
 import tvm
 import tvm.testing
+from tvm import DataType
+from tvm.relax.frontend import nn
+
 from mlc_chat.compiler import QUANTIZATION
 from mlc_chat.compiler.loader import QuantizeMapping
 from mlc_chat.compiler.quantization import AWQQuantize
-from tvm import DataType
-from tvm.relax.frontend import nn
 
 
 def dequantize_np(
