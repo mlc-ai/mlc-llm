@@ -12,14 +12,10 @@ from tqdm import tqdm
 from tvm.runtime import Device, NDArray
 from tvm.runtime.ndarray import array as as_ndarray
 
+from ...support.style import bold
 from .mapping import ExternMapping, QuantizeMapping
 from .stats import Stats
-from .utils import (
-    ParamQuantizer,
-    check_parameter_usage,
-    load_safetensor_shard,
-    load_torch_shard,
-)
+from .utils import check_parameter_usage, load_safetensor_shard, load_torch_shard
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +96,7 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
             raise FileNotFoundError(f"Unknown file suffix: {path}")
         check_parameter_usage(extern_param_map, set(self.torch_to_path.keys()))
 
-    def load(self, device: Optional[Device] = None) -> Iterator[Tuple[str, NDArray]]:
+    def load(self, device: Device) -> Iterator[Tuple[str, NDArray]]:
         """Load the parameters and yield the MLC parameter and its value.
 
         Parameters
@@ -116,30 +112,27 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         mlc_names = _loading_order(self.extern_param_map, self.torch_to_path)
         for mlc_name in tqdm(mlc_names):
             param = self._load_mlc_param(mlc_name, device=device)
-
-            if self.quantize_param_map:
+            if self.quantize_param_map and mlc_name in self.quantize_param_map.param_map:
                 with self.stats.timer("quant_time_sec"):
-                    quantized_params = ParamQuantizer(self.quantize_param_map).quantize(
-                        mlc_name, param
-                    )
-                if not quantized_params:
+                    q_names = self.quantize_param_map.param_map[mlc_name]
+                    q_params = self.quantize_param_map.map_func[mlc_name](param)
+                    device.sync()
+                for q_name, q_param in zip(q_names, q_params):
                     logger.info(
-                        '  Skipped Quantizing Parameter: "%s", shape: %s, dtype: %s',
-                        mlc_name,
-                        param.shape,
-                        param.dtype,
+                        '[Quantized] Parameter: "%s", shape: %s, dtype: %s',
+                        bold(q_name),
+                        q_param.shape,
+                        q_param.dtype,
                     )
-                    yield mlc_name, param
-                else:
-                    for quantized_name, quantized_param in quantized_params:
-                        logger.info(
-                            '  Quantized Parameter: "%s", shape: %s, dtype: %s',
-                            quantized_name,
-                            quantized_param.shape,
-                            quantized_param.dtype,
-                        )
-                        yield quantized_name, quantized_param
+                    yield q_name, q_param
             else:
+                logger.info(
+                    '[Not quantized] Parameter: "%s", shape: %s, dtype: %s',
+                    bold(mlc_name),
+                    param.shape,
+                    param.dtype,
+                )
+                device.sync()
                 yield mlc_name, param
         cached_files = list(self.cached_files.keys())
         for path in cached_files:
@@ -168,7 +161,6 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         # Step 4. Apply the mapping function
         with self.stats.timer("map_time_sec"):
             param = self.extern_param_map.map_func[mlc_name](*torch_params)
-        logger.info('  Parameter: "%s", shape: %s, dtype: %s', mlc_name, param.shape, param.dtype)
         if device:
             return as_ndarray(param, device=device)
         return as_ndarray(param)

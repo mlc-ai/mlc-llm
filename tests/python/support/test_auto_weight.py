@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from mlc_chat.support.auto_weight import detect_weight
 
 logging.basicConfig(
