@@ -133,9 +133,12 @@ def _is_device(device: str):
 
 def _add_prefix_symbol(mod: IRModule, prefix: str, is_system_lib: bool) -> IRModule:
     if is_system_lib and prefix:
-        mod = mod.with_attr("system_lib_prefix", prefix)
+        mod = mod.with_attrs({"system_lib_prefix": prefix})  # type: ignore[dict-item]
     elif is_system_lib:
-        logger.warning("--prefix-symbols is not specified when building a static library")
+        logger.warning(
+            "%s is not specified when building a static library",
+            bold("--prefix-symbols"),
+        )
     elif prefix:
         logger.warning(
             "--prefix-symbols is specified, but it will not take any effect "
