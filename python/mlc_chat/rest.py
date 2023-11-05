@@ -31,6 +31,8 @@ from .interface.openai_api import (
     EmbeddingsRequest,
     EmbeddingsResponse,
     UsageInfo,
+    VisualStudioCodeCompletionRequest,
+    VisualStudioCodeCompletionResponse,
 )
 
 
@@ -362,6 +364,23 @@ async def read_stats_verbose():
     Get the verbose runtime stats.
     """
     return session["chat_mod"].stats(verbose=True)
+
+
+@app.post("/v1/llm-vscode/completions")
+async def request_llm_vscode(request: VisualStudioCodeCompletionRequest):
+    """
+    Creates a vscode code completion for a given prompt.
+    Follows huggingface LSP (https://github.com/huggingface/llm-ls)
+    """
+    generation_config = GenerationConfig(
+        temperature=request.parameters.temperature,
+        top_p=request.parameters.top_p,
+        mean_gen_len=request.parameters.max_new_tokens,
+        max_gen_len=request.parameters.max_new_tokens,
+    )
+    msg = session["chat_mod"].generate(prompt=request.inputs, generation_config=generation_config)
+
+    return VisualStudioCodeCompletionResponse(generated_text=msg)
 
 
 ARGS = convert_args_to_argparser().parse_args()

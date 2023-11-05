@@ -144,3 +144,18 @@ class EmbeddingsResponse(BaseModel):
     data: List[Dict[str, Any]]
     model: Optional[str] = None
     usage: UsageInfo
+
+
+class VisualStudioCodeCompletionParameters(BaseModel):
+    temperature: float = None
+    top_p: float = None
+    max_new_tokens: int = None
+
+
+class VisualStudioCodeCompletionRequest(BaseModel):
+    inputs: str
+    parameters: VisualStudioCodeCompletionParameters
+
+
+class VisualStudioCodeCompletionResponse(BaseModel):
+    generated_text: str
