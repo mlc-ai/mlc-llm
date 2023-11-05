@@ -107,13 +107,14 @@ class CompletionRequest(BaseModel):
 class CompletionResponseChoice(BaseModel):
     index: int
     text: str
-    logprobs: int | None = None
     finish_reason: Literal["stop", "length"] | None = None
+    # TODO: logprobs support
+    logprobs: int | None = None
 
 
 class CompletionResponse(BaseModel):
     id: str = Field(default_factory=lambda: f"cmpl-{shortuuid.random()}")
-    object: str = "text_completion"
+    object: str = "text.completion"
     created: int = Field(default_factory=lambda: int(time.time()))
     choices: list[CompletionResponseChoice]
     usage: UsageInfo
@@ -127,7 +128,7 @@ class CompletionResponseStreamChoice(BaseModel):
 
 class CompletionStreamResponse(BaseModel):
     id: str = Field(default_factory=lambda: f"cmpl-{shortuuid.random()}")
-    object: str = "text_completion"
+    object: str = "text.completion.chunk"
     created: int = Field(default_factory=lambda: int(time.time()))
     choices: List[CompletionResponseStreamChoice]
 
