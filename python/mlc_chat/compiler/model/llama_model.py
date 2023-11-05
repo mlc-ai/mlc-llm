@@ -3,6 +3,7 @@ Implementation for Llama2 architecture.
 TODO: add docstring
 """
 import dataclasses
+import logging
 import math
 from typing import Any, Dict, Optional
 
@@ -11,26 +12,43 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from ...support.config import ConfigBase
+from ...support.style import bold
+
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
 class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the Llama model."""
 
-    hidden_act: str
     hidden_size: int
     intermediate_size: int
     num_attention_heads: int
     num_hidden_layers: int
     rms_norm_eps: float
     vocab_size: int
-    max_sequence_length: int = 2048
     position_embedding_base: int = 10000
+    max_sequence_length: int = 0
     num_key_value_heads: int = 0
     head_dim: int = 0
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
+        if self.max_sequence_length == 0:
+            if "max_position_embeddings" in self.kwargs:
+                self.max_sequence_length = self.kwargs.pop("max_position_embeddings")
+                logger.info(
+                    "%s not found in config.json. Falling back to %s (%d)",
+                    bold("max_sequence_length"),
+                    bold("max_position_embeddings"),
+                    self.max_sequence_length,
+                )
+            else:
+                raise ValueError(
+                    "Unable to determine the maxmimum sequence length, because neither "
+                    "`max_sequence_length` nor `max_position_embeddings` is provided "
+                    "in `config.json`."
+                )
         if self.num_key_value_heads == 0:
             self.num_key_value_heads = self.num_attention_heads
         if self.head_dim == 0:

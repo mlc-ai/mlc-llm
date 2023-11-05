@@ -33,21 +33,22 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
     source_format: str
     output: Path
 
+    def display(self) -> None:
+        """Display the arguments to stdout."""
 
-def _echo_args(args: ConversionArgs) -> None:
-    def _device_to_str(device: Device) -> str:
-        return f"{Device.MASK2STR[device.device_type]}:{device.device_id}"
+        def _device_to_str(device: Device) -> str:
+            return f"{Device.MASK2STR[device.device_type]}:{device.device_id}"
 
-    out = StringIO()
-    print(f"{bold('Weight conversion with arguments:')}", file=out)
-    print(f"  {bold('--config'):<25} {args.config}", file=out)
-    print(f"  {bold('--quantization'):<25} {args.quantization}", file=out)
-    print(f"  {bold('--model-type'):<25} {args.model.name}", file=out)
-    print(f"  {bold('--device'):<25} {_device_to_str(args.device)}", file=out)
-    print(f"  {bold('--source'):<25} {args.source}", file=out)
-    print(f"  {bold('--source-format'):<25} {args.source_format}", file=out)
-    print(f"  {bold('--output'):<25} {args.output}", file=out)
-    print(out.getvalue().rstrip())
+        out = StringIO()
+        print(f"{bold('Weight conversion with arguments:')}", file=out)
+        print(f"  {bold('--config'):<25} {self.config}", file=out)
+        print(f"  {bold('--quantization'):<25} {self.quantization}", file=out)
+        print(f"  {bold('--model-type'):<25} {self.model.name}", file=out)
+        print(f"  {bold('--device'):<25} {_device_to_str(self.device)}", file=out)
+        print(f"  {bold('--source'):<25} {self.source}", file=out)
+        print(f"  {bold('--source-format'):<25} {self.source_format}", file=out)
+        print(f"  {bold('--output'):<25} {self.output}", file=out)
+        print(out.getvalue().rstrip())
 
 
 def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-locals
@@ -120,5 +121,5 @@ def convert_weight(  # pylint: disable=too-many-arguments
 ):
     """MLC LLM's weight conversation and quantization flow."""
     args = ConversionArgs(config, quantization, model, device, source, source_format, output)
-    _echo_args(args)
+    args.display()
     _convert_args(args)
