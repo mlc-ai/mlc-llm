@@ -2,11 +2,12 @@
 from typing import List
 
 import numpy as np
+import pytest
 import torch
 import tvm
 import tvm.testing
 from mlc_chat.compiler import QUANTIZATION
-from mlc_chat.compiler.parameter import QuantizeMapping
+from mlc_chat.compiler.loader import QuantizeMapping
 from mlc_chat.compiler.quantization import AWQQuantize
 from tvm import DataType
 from tvm.relax.frontend import nn
@@ -42,6 +43,12 @@ def dequantize_np(
     return (weight_bin - zero_bin_repeated) * scale_repeated
 
 
+@pytest.mark.parametrize(
+    "quant_name, shape, dtype",
+    [
+        ("q4f16_awq", [2, 4096], "float16"),
+    ],
+)
 def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
     class Test(nn.Module):
         def __init__(self) -> None:
