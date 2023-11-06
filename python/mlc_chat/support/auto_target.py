@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
 import tvm
 from tvm import IRModule, relax
-from tvm._ffi import register_func
+from tvm._ffi import get_global_func, register_func
 from tvm.contrib import tar, xcode
 from tvm.runtime import Device
 from tvm.target import Target
@@ -113,14 +113,10 @@ def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
 
 def _detect_target_host(hint: str) -> Target:
     """Detect the host CPU architecture."""
-    # cpu = codegen.llvm_get_system_cpu()
-    # triple = codegen.llvm_get_system_triple()
-    # vendor = codegen.llvm_get_system_x86_vendor()
     if hint == "auto":
-        hint = "x86-64"
-    if hint == "x86-64":
-        hint = "x86_64"
-    return Target({"kind": "llvm", "mtriple": f"{hint}-unknown-unknown"})
+        target_triple = get_global_func("tvm.codegen.llvm.GetDefaultTargetTriple")()
+        logger.info("%s host CPU architecture: %s", FOUND, bold(target_triple))
+    return Target({"kind": "llvm", "mtriple": target_triple})
 
 
 def _is_device(device: str):
@@ -156,7 +152,7 @@ def _detect_target_from_device(device: str) -> Optional[Target]:
     logger.info(
         '%s configuration of target device "%s": %s',
         FOUND,
-        device,
+        bold(device),
         target.export(),
     )
     return target
