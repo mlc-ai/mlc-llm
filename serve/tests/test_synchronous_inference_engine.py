@@ -10,7 +10,6 @@ from mlc_serve.engine import (
     SamplingParams,
     StoppingCriteria,
 )
-from mlc_serve.engine.local import LocalProcessInferenceEngine
 from mlc_serve.engine.model_module import (
     ConversationTemplate,
     DecodeRequest,
@@ -23,6 +22,7 @@ from mlc_serve.engine.model_module import (
     TextGenerator,
     Tokenizer,
 )
+from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
 
 
 class DummyTokenizer:
@@ -136,7 +136,9 @@ def get_output_for_request(
 
 
 def test_single_request():
-    engine = LocalProcessInferenceEngine(DummaryModelModule(30))
+    engine = SynchronousInferenceEngine(
+        DummaryModelModule(30), max_decode_steps=0, min_decode_steps=0
+    )
     request_id = "1"
     engine.add(
         [
@@ -157,7 +159,9 @@ def test_single_request():
 
 
 def test_single_request_step_to_finish():
-    engine = LocalProcessInferenceEngine(DummaryModelModule(30))
+    engine = SynchronousInferenceEngine(
+        DummaryModelModule(30), max_decode_steps=0, min_decode_steps=0
+    )
 
     request_id = "1"
     engine.add(
@@ -179,7 +183,12 @@ def test_single_request_step_to_finish():
 
 
 def test_multiple_requests_wait_queue():
-    engine = LocalProcessInferenceEngine(DummaryModelModule(20), prompt_allocate_ratio=1.0)
+    engine = SynchronousInferenceEngine(
+        DummaryModelModule(20),
+        max_decode_steps=0,
+        min_decode_steps=0,
+        prompt_allocate_ratio=1.0,
+    )
 
     request_id_1 = "1"
     request_id_2 = "2"
@@ -225,8 +234,11 @@ def test_multiple_requests_wait_queue():
 
 
 def test_multiple_requests_preempt():
-    engine = LocalProcessInferenceEngine(
-        DummaryModelModule(30), min_decode_steps=1, prompt_allocate_ratio=1.0
+    engine = SynchronousInferenceEngine(
+        DummaryModelModule(30),
+        max_decode_steps=0,
+        min_decode_steps=0,
+        prompt_allocate_ratio=1.0,
     )
 
     request_id_1 = "1"

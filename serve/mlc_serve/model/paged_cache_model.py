@@ -683,6 +683,17 @@ class ConversationTemplate:
         )
 
 
+class HfTokenizerModule:
+    def __init__(self, model_name: str, artifact_path: str):
+        model_path = os.path.join(artifact_path, "models", model_name)
+        hf_tokenizer = AutoTokenizer.from_pretrained(
+            model_path,
+            trust_remote_code=False,
+        )
+        self.tokenizer = Tokenizer(hf_tokenizer)
+        self.conversation_template = ConversationTemplate(hf_tokenizer)
+
+
 class PagedCacheModelModule:
     def __init__(
         self,
@@ -712,11 +723,6 @@ class PagedCacheModelModule:
 
         if num_shards > 1:
             model.disco_session.sync_worker_0()
-
-        hf_tokenizer = AutoTokenizer.from_pretrained(
-            model_path,
-            trust_remote_code=False,
-        )
 
         num_kv_heads = config.get_num_key_value_heads() // num_shards
         head_size = config.hidden_size // config.num_attention_heads
@@ -749,5 +755,7 @@ class PagedCacheModelModule:
 
         self.text_generator = PagedCacheModelTextGenerator(model)
         self.cache_manager = cache_manager
-        self.tokenizer = Tokenizer(hf_tokenizer)
-        self.conversation_template = ConversationTemplate(hf_tokenizer)
+
+        tokenizer_module = HfTokenizerModule(model_name, artifact_path)
+        self.tokenizer = tokenizer_module.tokenizer
+        self.conversation_template = tokenizer_module.conversation_template

@@ -4,7 +4,6 @@ A implementation of InferenceEngine that executes in the current process.
 
 import logging
 from collections import deque
-from dataclasses import dataclass
 from threading import Condition, Lock
 from uuid import uuid4
 
@@ -16,6 +15,7 @@ from .base import (
     Request,
     RequestId,
     RequestOutput,
+    RequestState,
     SamplingParams,
     SequenceOutput,
     StoppingCriteria,
@@ -25,26 +25,19 @@ from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class RequestState:
-    request_id: RequestId
-    token_ids: list[int]
-    output_text: str
-    prompt_len: int
-    next_start_position: int
-    sampling_params: SamplingParams
-    stopping_criteria: StoppingCriteria
-    debug_options: DebugOptions
-    is_ended: bool = False
+class SynchronousInferenceEngine(InferenceEngine):
+    """
+    A implementation of InferenceEngine that does inference synchronously in the current thread
+    when `step` is called.
+    """
 
-
-class LocalProcessInferenceEngine(InferenceEngine):
     def __init__(
         self,
         model_module: ModelModule,
         max_batched_tokens: int = 2560,
-        min_decode_steps: int = 512,
-        prompt_allocate_ratio: float = 2.5,
+        min_decode_steps: int = 100,
+        max_decode_steps: int = 300,
+        prompt_allocate_ratio: float = 2.0,
     ):
         self.text_generator = model_module.text_generator
         self.tokenizer = model_module.tokenizer
@@ -52,9 +45,10 @@ class LocalProcessInferenceEngine(InferenceEngine):
         self.cache_manager = model_module.cache_manager
 
         self.max_batched_tokens = max_batched_tokens
-        self.min_decode_steps = min(
-            self.cache_manager.get_kv_cache_size(), min_decode_steps
+        self.max_decode_steps = min(
+            self.cache_manager.get_kv_cache_size(), max_decode_steps
         )
+        self.min_decode_steps = min(self.max_decode_steps - 1, min_decode_steps)
         self.prompt_allocate_ratio = prompt_allocate_ratio
         assert prompt_allocate_ratio >= 1.0
 
@@ -91,10 +85,12 @@ class LocalProcessInferenceEngine(InferenceEngine):
     def wait_for_request(self, timeout_seconds=None) -> bool:
         with self.queue_lock:
             self.has_new_requests.wait_for(
-                self._has_request_to_process, timeout=timeout_seconds
+                self.has_pending_requests, timeout=timeout_seconds
             )
 
     def step(self) -> InferenceStepResult:
+        logger.debug("Starting new inference step.")
+
         outputs = list[RequestOutput]()
         result = InferenceStepResult(outputs=outputs)
 
@@ -143,9 +139,9 @@ class LocalProcessInferenceEngine(InferenceEngine):
         if not self.current_batch:
             return result
 
-        requests = self._get_requests()
-        logger.debug("Generate text with batch size %s", len(requests))
+        requests = self._get_requests_to_process()
         results = self.text_generator.generate(requests, self.cache_manager.get_cache())
+        logger.debug("Finished text generation.")
 
         for res in results:
             # For now we only support single sequence per request
@@ -156,6 +152,7 @@ class LocalProcessInferenceEngine(InferenceEngine):
                 outputs.append(
                     RequestOutput(
                         res.sequence_id.request_id,
+                        sequences=[],
                         error=res.error,
                     )
                 )
@@ -171,8 +168,11 @@ class LocalProcessInferenceEngine(InferenceEngine):
                 ):
                     new_token_ids = new_token_ids[:i]
                     state.is_ended = True
+                    break
             state.token_ids.extend(new_token_ids)
 
+        for res in results:
+            state = self.current_batch[res.sequence_id.request_id]
             delta = self._decode_last_output(state)
             state.output_text += delta
 
@@ -191,6 +191,8 @@ class LocalProcessInferenceEngine(InferenceEngine):
                     num_prompt_tokens=state.prompt_len,
                 )
             )
+
+        logger.debug("Finished detokenization and output object creation.")
 
         return result
 
@@ -211,6 +213,13 @@ class LocalProcessInferenceEngine(InferenceEngine):
                 self.queue.appendleft(request_to_remove)
 
             self._discard_cancelled_requests_from_queue()
+
+            if self.cache_manager.get_max_new_tokens() <= self.max_decode_steps:
+                logger.debug(
+                    "Skip growing the batch due to max_decode_steps. Decode steps: %s",
+                    self.cache_manager.get_max_new_tokens(),
+                )
+                return
 
             num_new_batched_tokens = len(self.current_batch)
             while self.queue:
@@ -248,19 +257,32 @@ class LocalProcessInferenceEngine(InferenceEngine):
 
                 self._discard_cancelled_requests_from_queue()
 
-    def _get_requests(self):
+    def _get_requests_to_process(self):
         requests = []
-        for state in self.current_batch.values():
-            if state.next_start_position == 0:
-                requests.append(
-                    PrefillRequest(
-                        request_id=state.request_id,
-                        token_ids=state.token_ids,
-                        num_sequence=1,
-                        sampling_params=state.sampling_params,
+        # TODO: consider having hybrid batch if the underlying attention kernel supports
+        # mixing prefill and decode.
+        is_prompt_batch = any(
+            state.next_start_position == 0 for state in self.current_batch.values()
+        )
+
+        if is_prompt_batch:
+            for state in self.current_batch.values():
+                if state.next_start_position == 0:
+                    requests.append(
+                        PrefillRequest(
+                            request_id=state.request_id,
+                            token_ids=state.token_ids,
+                            num_sequence=1,
+                            sampling_params=state.sampling_params,
+                        )
                     )
-                )
-            else:
+            logger.debug(
+                "Creating prompt batch with %s requests with %s total tokens.",
+                len(requests),
+                sum(len(r.token_ids) for r in requests),
+            )
+        else:
+            for state in self.current_batch.values():
                 seq_id = SequenceId(state.request_id, 0)
                 requests.append(
                     DecodeRequest(
@@ -272,9 +294,11 @@ class LocalProcessInferenceEngine(InferenceEngine):
                 self.cache_manager.extend(
                     seq_id, len(state.token_ids) - state.next_start_position
                 )
+            logger.debug("Creating decode batch with %s requests.", len(requests))
+
         return requests
 
-    def _has_request_to_process(self) -> bool:
+    def has_pending_requests(self) -> bool:
         return self.queue or self.current_batch
 
     def _discard_cancelled_requests_from_queue(self):

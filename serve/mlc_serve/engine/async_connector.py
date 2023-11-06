@@ -8,6 +8,7 @@ from .base import (
     Request,
     RequestId,
     RequestOutput,
+    ScopedInferenceEngine,
 )
 
 ResultQueue = asyncio.Queue[RequestOutput]
@@ -35,6 +36,9 @@ class AsyncEngineConnector:
 
         loop = asyncio.get_running_loop()
         should_stop_inference = False
+
+        if isinstance(self.engine, ScopedInferenceEngine):
+            await asyncio.to_thread(self.engine.start)
 
         def inference_loop():
             while True:
@@ -65,6 +69,8 @@ class AsyncEngineConnector:
     async def stop(self):
         self.engine_loop_task.cancel()
         await self.engine_loop_task
+        if isinstance(self.engine, ScopedInferenceEngine):
+            await asyncio.to_thread(self.engine.stop)
 
     async def generate(self, request: Request) -> AsyncIterator[RequestOutput]:
         try:

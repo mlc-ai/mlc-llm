@@ -10,7 +10,7 @@ from mlc_serve.engine import (
     SamplingParams,
     StoppingCriteria,
 )
-from mlc_serve.engine.local import LocalProcessInferenceEngine
+from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
 from mlc_serve.model.paged_cache_model import PagedCacheModelModule
 
 
@@ -35,7 +35,7 @@ def test(args: argparse.Namespace):
         max_input_len=args.max_input_len,
     )
 
-    engine = LocalProcessInferenceEngine(
+    engine = SynchronousInferenceEngine(
         model_module,
         max_batched_tokens=args.max_num_batched_tokens,
     )

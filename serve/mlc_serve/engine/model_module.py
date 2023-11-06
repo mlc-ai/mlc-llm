@@ -151,9 +151,9 @@ class ConversationTemplate(Protocol):
         pass
 
 
-class ModelModule(Protocol):
+class TextTokenGeneratorModule(Protocol):
     """
-    A module that provides components for the actual inference process.
+    A module that provides components for the token generation process.
     """
 
     @property
@@ -164,6 +164,12 @@ class ModelModule(Protocol):
     def cache_manager(self) -> KVCacheManager:
         ...
 
+
+class TokenizerModule(Protocol):
+    """
+    A module that provides components for the tokenization process.
+    """
+
     @property
     def tokenizer(self) -> Tokenizer:
         ...
@@ -171,3 +177,8 @@ class ModelModule(Protocol):
     @property
     def conversation_template(self) -> ConversationTemplate:
         ...
+
+
+class ModelModule(TextTokenGeneratorModule, TokenizerModule):
+    pass
+

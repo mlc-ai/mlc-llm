@@ -4,6 +4,7 @@ from .base import (
     DebugOptions,
     FinishReason,
     InferenceEngine,
+    ScopedInferenceEngine,
     InferenceStepResult,
     Request,
     RequestId,
