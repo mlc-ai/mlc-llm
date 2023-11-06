@@ -2,9 +2,7 @@
 #define MLC_LLM_CPP_JSON_PARSER_H_
 
 #define PICOJSON_USE_INT64
-#ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
-#endif
 
 #include <picojson.h>
 #include <tvm/runtime/container/shape_tuple.h>
