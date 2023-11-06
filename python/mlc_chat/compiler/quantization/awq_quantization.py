@@ -9,6 +9,7 @@ from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
 
 from ..loader import QuantizeMapping
+from .utils import convert_uint_to_float
 
 
 def _make_divisible(c, divisor):  # pylint: disable=invalid-name
@@ -134,42 +135,28 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
         scale: te.Tensor,
         out_shape: Optional[List[tir.PrimExpr]] = None,
     ):
-        tir_bin_mask = tir.const((1 << DataType(self.quantize_dtype).bits) - 1, self.storage_dtype)
+        float_weight = convert_uint_to_float(
+            weight,
+            DataType(self.quantize_dtype).bits,
+            self.num_elem_per_storage,
+            self.storage_dtype,
+            self.model_dtype,
+            out_shape,
+        )
+        float_zeros = convert_uint_to_float(
+            zeros,
+            DataType(self.quantize_dtype).bits,
+            self.num_elem_per_storage,
+            self.storage_dtype,
+            self.model_dtype,
+            out_shape,
+        )
         return te.compute(
             shape=[weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
             if out_shape is None
             else out_shape,
             fcompute=lambda i, j: tir.multiply(
-                tir.subtract(
-                    tir.Cast(
-                        "float16",
-                        tir.bitwise_and(
-                            tir.shift_right(
-                                weight[i, j // self.num_elem_per_storage],
-                                tir.Cast(
-                                    self.storage_dtype,
-                                    (j % self.num_elem_per_storage)
-                                    * DataType(self.quantize_dtype).bits,
-                                ),
-                            ),
-                            tir_bin_mask,
-                        ),
-                    ),
-                    tir.Cast(
-                        "float16",
-                        tir.bitwise_and(
-                            tir.shift_right(
-                                zeros[i, j // (self.group_size * self.num_elem_per_storage)],
-                                tir.Cast(
-                                    self.storage_dtype,
-                                    (j // self.group_size % self.num_elem_per_storage)
-                                    * DataType(self.quantize_dtype).bits,
-                                ),
-                            ),
-                            tir_bin_mask,
-                        ),
-                    ),
-                ),
+                tir.subtract(float_weight[i, j], float_zeros[i, j // self.group_size]),
                 scale[i, j // self.group_size],
             ),
             name="decode",
