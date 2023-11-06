@@ -470,10 +470,7 @@ class Model:
             )
             peak_memory = get_used_memory_func(self.dev)
 
-        param_bytes = 0
-
-        for param in params:
-            param_bytes += param.numpy().nbytes
+        param_bytes = sum(math.prod(param.shape) * np.dtype(param.dtype).itemsize for param in params)
 
         return peak_memory + param_bytes
 

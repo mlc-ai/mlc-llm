@@ -1,3 +1,5 @@
+import torch
+
 import argparse
 import json
 import random
@@ -10,8 +12,9 @@ from mlc_serve.engine import (
     SamplingParams,
     StoppingCriteria,
 )
+from mlc_serve.engine.staging_engine import StagingInferenceEngine
 from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
-from mlc_serve.model.paged_cache_model import PagedCacheModelModule
+from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModelModule
 
 
 def test(args: argparse.Namespace):
@@ -26,28 +29,51 @@ def test(args: argparse.Namespace):
     # Disco:
     # python serve/tests/test_engine_paged_cache_model.py --local-id vicuna-v1-7b-q0f16 --num-shards 2
 
-    model_module = PagedCacheModelModule(
-        args.model,
-        args.artifact_path,
-        args.quantization.name,
-        args.num_shards,
-        max_num_batched_tokens=args.max_num_batched_tokens,
-        max_input_len=args.max_input_len,
-    )
+    if args.use_staging_engine:
+        tokenizer_module = HfTokenizerModule(args.model, args.artifact_path)
+        engine = StagingInferenceEngine(
+            tokenizer_module=tokenizer_module,
+            model_module_loader=PagedCacheModelModule,
+            model_module_loader_kwargs={
+                "model_name": args.model,
+                "artifact_path": args.artifact_path,
+                "quantization": args.quantization.name,
+                "num_shards": args.num_shards,
+                "max_num_batched_tokens": args.max_num_batched_tokens,
+                "max_input_len": args.max_input_len,
+            },
+            max_batched_tokens=args.max_num_batched_tokens,
+            min_decode_steps=args.min_decode_steps,
+            max_decode_steps=args.max_decode_steps,
+        )
+        engine.start()
+    else:
+        model_module = PagedCacheModelModule(
+            args.model,
+            args.artifact_path,
+            args.quantization.name,
+            args.num_shards,
+            max_num_batched_tokens=args.max_num_batched_tokens,
+            max_input_len=args.max_input_len,
+        )
 
-    engine = SynchronousInferenceEngine(
-        model_module,
-        max_batched_tokens=args.max_num_batched_tokens,
-    )
-
-    sampling_params_random = SamplingParams(
-        temperature=0.9,
-        top_p=1.0,
-    )
+        engine = SynchronousInferenceEngine(
+            model_module,
+            max_batched_tokens=args.max_num_batched_tokens,
+        )
 
     sampling_params_greedy = SamplingParams(
         temperature=0.0,
     )
+
+    if args.use_random_sampling:
+        sampling_params_random = SamplingParams(
+            temperature=0.9,
+            top_p=1.0,
+        )
+        sampling_params_choices = [sampling_params_random, sampling_params_greedy]
+    else:
+        sampling_params_choices = [sampling_params_greedy]
 
     if args.long_prompt:
         with open("serve/tests/data/long_prompts.json", "r") as f:
@@ -62,16 +88,12 @@ def test(args: argparse.Namespace):
         ]
 
     for i, prompt in enumerate(prompts):
-        sampling_params = random.choice(
-            [sampling_params_random, sampling_params_greedy]
-        )
-
         engine.add(
             [
                 Request(
                     request_id=str(i),
                     messages=[ChatMessage(role="user", content=prompt)],
-                    sampling_params=sampling_params,
+                    sampling_params=random.choice(sampling_params_choices),
                     stopping_criteria=StoppingCriteria(max_tokens=args.max_output_len),
                     debug_options=DebugOptions(prompt=prompt),
                 )
@@ -80,7 +102,7 @@ def test(args: argparse.Namespace):
 
     generated = ["" for _ in range(len(prompts))]
 
-    while engine._has_request_to_process():
+    while engine.has_pending_requests():
         results = engine.step()
         for res in results.outputs:
             seq = res.sequences[0]
@@ -94,6 +116,9 @@ def test(args: argparse.Namespace):
         for p, g in zip(prompts, generated):
             print(f"Prompt = '{p}', generated text = '{g}'")
 
+    if args.use_staging_engine:
+        engine.stop()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -104,9 +129,17 @@ if __name__ == "__main__":
     parser.add_argument("--max-input-len", type=int, default=-1)
     parser.add_argument("--max-output-len", type=int, default=20)
     parser.add_argument("--long-prompt", action="store_true")
+    parser.add_argument("--use-random-sampling", action="store_true")
+    parser.add_argument("--use-staging-engine", action="store_true")
+    parser.add_argument("--min-decode-steps", type=int, default=12)
+    parser.add_argument("--max-decode-steps", type=int, default=16)
+    parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
     args.model, args.quantization = args.local_id.rsplit("-", 1)
     utils.argparse_postproc_common(args)
+
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
 
     test(args)
