@@ -9,10 +9,10 @@
 #include "image_embed.h"
 
 #include <picojson.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/relax_vm/memory_manager.h>
 
 #include <cctype>
 #include <chrono>
@@ -59,9 +59,9 @@ class LLMImage {
     ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
     vm_ = fload_exec();
     vm_->GetFunction("vm_initialization")(static_cast<int>(device_.device_type), device_.device_id,
-                                          static_cast<int>(relax_vm::AllocatorType::kPooled),
+                                          static_cast<int>(memory::AllocatorType::kPooled),
                                           static_cast<int>(kDLCPU), 0,
-                                          static_cast<int>(relax_vm::AllocatorType::kPooled));
+                                          static_cast<int>(memory::AllocatorType::kPooled));
 
     embed_func_ = vm_->GetFunction("embed");
 

@@ -12,11 +12,11 @@
 #include <tokenizers_cpp.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/disco/session.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/relax_vm/memory_manager.h>
 
 #include <cctype>
 #include <chrono>
@@ -159,8 +159,8 @@ struct FunctionTable {
       this->local_vm = fload_exec();
       this->local_vm->GetFunction("vm_initialization")(
           static_cast<int>(device.device_type), device.device_id,
-          static_cast<int>(relax_vm::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-          static_cast<int>(relax_vm::AllocatorType::kPooled));
+          static_cast<int>(memory::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
+          static_cast<int>(memory::AllocatorType::kPooled));
       this->mod_get_func = [this](const std::string& name) -> PackedFunc {
         PackedFunc func = this->local_vm->GetFunction(name, false);
         return func;
