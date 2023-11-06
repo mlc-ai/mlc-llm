@@ -22,6 +22,7 @@ logging.basicConfig(
     "param_path",
     [
         "./dist/models/llama-2-7b-w4-g128-awq.pt",
+        "./dist/models/Llama-2-7B-AWQ/model.safetensors",
     ],
 )
 def test_load_llama(param_path: Union[str, Path]):
@@ -41,3 +42,4 @@ def test_load_llama(param_path: Union[str, Path]):
 
 if __name__ == "__main__":
     test_load_llama(param_path="./dist/models/llama-2-7b-w4-g128-awq.pt")
+    test_load_llama(param_path="./dist/models/Llama-2-7B-AWQ/model.safetensors")
