@@ -172,7 +172,8 @@ class SynchronousInferenceEngine(InferenceEngine):
             state.token_ids.extend(new_token_ids)
 
         for res in results:
-            state = self.current_batch[res.sequence_id.request_id]
+            request_id = res.sequence_id.request_id
+            state = self.current_batch[request_id]
             delta = self._decode_last_output(state)
             state.output_text += delta
 
