@@ -7,9 +7,9 @@ from tvm import dlight as dl
 from tvm.relax import register_pipeline  # pylint: disable=no-name-in-module
 
 from .clean_up_tir_attrs import CleanUpTIRAttrs
-from .fuse_decode_matmul_ewise import FuseDecodeMatmulEwise
-from .fuse_decode_take import FuseDecodeTake
-from .fuse_decode_transpose import FuseDecodeTranspose
+from .fuse_dequantize_matmul_ewise import FuseDequantizeMatmulEwise
+from .fuse_dequantize_take import FuseDequantizeTake
+from .fuse_dequantize_transpose import FuseDequantizeTranspose
 from .fuse_transpose_matmul import FuseTransposeMatmul
 from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
 
@@ -37,7 +37,7 @@ def _mlc_llm_pipeline():
             [
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
-                FuseDecodeTranspose(skip_gemm=False),
+                FuseDequantizeTranspose(skip_gemm=False),
                 FuseTransposeMatmul(),
                 # Phase 2. Lowering to TIR, inherited TVM Relax's official "zero" pipeline
                 _LogProgress("Lowering to TVM TIR kernels"),
@@ -48,8 +48,8 @@ def _mlc_llm_pipeline():
                 tvm.relax.transform.FuseTIR(),
                 # Phase 3. Passes on TIR
                 _LogProgress("Running TVM TIR-level optimizations"),
-                FuseDecodeMatmulEwise(),
-                FuseDecodeTake(),
+                FuseDequantizeMatmulEwise(),
+                FuseDequantizeTake(),
                 tvm.relax.transform.DeadCodeElimination(),
                 CleanUpTIRAttrs(["op_pattern"]),
                 # Phase 4. Low-level Optimizations

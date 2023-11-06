@@ -149,7 +149,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 ),
                 scale[i, j // self.group_size],
             ),
-            name="decode",
+            name="dequantize",
         )
 
     def quantize_weight(self, weight: NDArray) -> List[NDArray]:
@@ -336,7 +336,7 @@ class GroupQuantizeLinear(nn.Module):
                 scale,
                 [tir.IntImm("int64", self.out_features), tir.IntImm("int64", self.in_features)],
             ),
-            name_hint="decode",
+            name_hint="dequantize",
             args=[self.q_weight, self.q_scale],
         )
         w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
@@ -430,7 +430,7 @@ class GroupQuantizeMultiLinear(nn.Module):  # pylint: disable=too-many-instance-
                     tir.IntImm("int64", self.in_features),
                 ],
             ),
-            name_hint="decode",
+            name_hint="dequantize",
             args=[self.q_weight, self.q_scale],
         )
         # x: [*B, in_features]
@@ -501,7 +501,7 @@ class GroupQuantizeEmbedding(nn.Module):
                 scale,
                 [tir.IntImm("int64", self.num), tir.IntImm("int64", self.dim)],
             ),
-            name_hint="decode",
+            name_hint="dequantize",
             args=[self.q_weight, self.q_scale],
         )
         if x.ndim == 1:

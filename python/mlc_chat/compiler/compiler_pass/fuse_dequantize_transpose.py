@@ -6,8 +6,8 @@ from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import PyExprMutator, mutator
 
 
-@tvm.transform.module_pass(opt_level=0, name="FuseDecodeTranspose")
-class FuseDecodeTranspose:  # pylint: disable=too-few-public-methods
+@tvm.transform.module_pass(opt_level=0, name="FuseDequantizeTranspose")
+class FuseDequantizeTranspose:  # pylint: disable=too-few-public-methods
     """A compiler pass that fuses transpose + dequantize."""
 
     def __init__(self, skip_gemm: bool) -> None:
@@ -15,11 +15,11 @@ class FuseDecodeTranspose:  # pylint: disable=too-few-public-methods
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
-        return _DecodeTransposeFuser(mod, skip_gemm=self.skip_gemm).transform()
+        return _DequantizeTransposeFuser(mod, skip_gemm=self.skip_gemm).transform()
 
 
 @mutator
-class _DecodeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-method
+class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-method
     def __init__(
         self,
         mod: IRModule,
@@ -45,7 +45,7 @@ class _DecodeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-method
         call = self.visit_expr_post_order(call)
         if call.op != tvm.ir.Op.get("relax.matmul"):
             return call
-        # Do not fuse decode-transpose for GeMM
+        # Do not fuse dequantize-transpose for GeMM
         if self.skip_gemm and (
             call.args[0].struct_info.ndim < 2
             or not isinstance(call.args[0].struct_info.shape[-2], tir.IntImm)
@@ -66,25 +66,27 @@ class _DecodeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-method
         if (
             not isinstance(transpose_input, relax.Call)
             or transpose_input.op != tvm.ir.Op.get("relax.call_tir")
-            or not transpose_input.args[0].name_hint.startswith("decode")
+            or not transpose_input.args[0].name_hint.startswith("dequantize")
             or not isinstance(transpose_input.struct_info, relax.TensorStructInfo)
         ):
             return call
 
-        decode_tir_func = self.mod[transpose_input.args[0]]
-        assert isinstance(decode_tir_func, tir.PrimFunc)
+        dequantize_tir_func = self.mod[transpose_input.args[0]]
+        assert isinstance(dequantize_tir_func, tir.PrimFunc)
         if (  # pylint: disable=too-many-boolean-expressions
-            len(decode_tir_func.body.block.alloc_buffers) != 1
-            or not isinstance(decode_tir_func.body.block.body, tir.SeqStmt)
-            or len(decode_tir_func.body.block.body) != 2
-            or not isinstance(decode_tir_func.body.block.body[1], tir.For)
-            or not isinstance(decode_tir_func.body.block.body[1].body.body, tir.BlockRealize)
-            or decode_tir_func.body.block.body[1].body.body.block.name_hint != "T_transpose"
+            len(dequantize_tir_func.body.block.alloc_buffers) != 1
+            or not isinstance(dequantize_tir_func.body.block.body, tir.SeqStmt)
+            or len(dequantize_tir_func.body.block.body) != 2
+            or not isinstance(dequantize_tir_func.body.block.body[1], tir.For)
+            or not isinstance(dequantize_tir_func.body.block.body[1].body.body, tir.BlockRealize)
+            or dequantize_tir_func.body.block.body[1].body.body.block.name_hint != "T_transpose"
         ):
             return call
 
-        new_func_buffers = [decode_tir_func.buffer_map[var] for var in decode_tir_func.params]
-        new_func_buffers[-1] = decode_tir_func.body.block.alloc_buffers[0]
+        new_func_buffers = [
+            dequantize_tir_func.buffer_map[var] for var in dequantize_tir_func.params
+        ]
+        new_func_buffers[-1] = dequantize_tir_func.body.block.alloc_buffers[0]
         new_func = tir.PrimFunc(
             params=new_func_buffers,
             body=tir.BlockRealize(
@@ -95,15 +97,15 @@ class _DecodeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-method
                     reads=[],
                     writes=[],
                     name_hint="root",
-                    body=decode_tir_func.body.block.body[0],
+                    body=dequantize_tir_func.body.block.body[0],
                 ),
             ),
         )
         # Call `renew_defs` for deep-copy to avoid IR node duplication in
         # different PrimFuncs of an IRModule.
         new_func = tir.stmt_functor.renew_defs(new_func)
-        g_var = self.builder_.add_func(new_func, func_name="decode")
-        decoded_matmul_rhs = self.builder_.emit(
+        g_var = self.builder_.add_func(new_func, func_name="dequantize")
+        dequantize_matmul_rhs = self.builder_.emit(
             relax.call_tir(g_var, transpose_input.args[1], out_sinfo=matmul_rhs.struct_info)
         )
-        return relax.op.matmul(call.args[0], decoded_matmul_rhs, out_dtype=call.attrs.out_dtype)
+        return relax.op.matmul(call.args[0], dequantize_matmul_rhs, out_dtype=call.attrs.out_dtype)

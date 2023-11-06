@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "conversation.h"
+#include "model_metadata.h"
 #include "random.h"
 #include "support.h"
 #include "tokenizers.h"
@@ -161,13 +162,18 @@ struct FunctionTable {
           static_cast<int>(relax_vm::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
           static_cast<int>(relax_vm::AllocatorType::kPooled));
       this->mod_get_func = [this](const std::string& name) -> PackedFunc {
-        return this->local_vm->GetFunction(name, false);
+        PackedFunc func = this->local_vm->GetFunction(name, false);
+        if (func == nullptr) {
+          LOG(WARNING) << "Cannot find function in VM: " << name;
+        }
+        return func;
       };
       this->get_global_func = [](const std::string& name) -> PackedFunc {
         const auto* f = tvm::runtime::Registry::Get(name);
         CHECK(f != nullptr) << "ValueError: Cannot find function " << name;
         return *f;
       };
+      this->model_metadata_ = ModelMetadata::FromModule(this->local_vm);
       this->_InitFunctions();
     }
   }
@@ -188,10 +194,23 @@ struct FunctionTable {
       const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
       ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
       (*fload_cache)(model_path, static_cast<int32_t>(device.device_type), device.device_id);
-      const PackedFunc* fload_params =
-          tvm::runtime::Registry::Get("vm.builtin.param_array_from_cache");
-      ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
-      Array<NDArray> params = (*fload_params)("param", -1);
+      Array<NDArray> params;
+      if (this->model_metadata_.params.empty()) {
+        constexpr const char* name_loader = "vm.builtin.param_array_from_cache";
+        const PackedFunc* fload_params = tvm::runtime::Registry::Get(name_loader);
+        ICHECK(fload_params) << "Cannot find env function: " << name_loader;
+        params = (*fload_params)("param", -1);
+      } else {
+        constexpr const char* name_loader = "vm.builtin.param_array_from_cache_by_name";
+        const PackedFunc* fload_params = tvm::runtime::Registry::Get(name_loader);
+        ICHECK(fload_params) << "Cannot find env function: " << name_loader;
+        Array<String> param_names;
+        param_names.reserve(this->model_metadata_.params.size());
+        for (const auto& param : this->model_metadata_.params) {
+          param_names.push_back(param.name);
+        }
+        params = (*fload_params)(param_names);
+      }
       // after we get params, it is safe to simply clear the cached version
       // as these params are referenced by params_
       const PackedFunc* fclear_ndarray_cache =
@@ -210,6 +229,9 @@ struct FunctionTable {
     this->softmax_func_ = mod_get_func("softmax_with_temperature");
     this->encoding_without_cache_func_ = mod_get_func("encoding_without_cache");
     this->create_kv_cache_func_ = mod_get_func("create_kv_cache");
+    if (this->create_kv_cache_func_ == nullptr) {
+      this->create_kv_cache_func_ = mod_get_func("_initialize_effect");
+    }
     this->reset_kv_cache_func_ = mod_get_func("reset_kv_cache");
     if (this->reset_kv_cache_func_ == nullptr) {
       this->reset_kv_cache_func_ = get_global_func("vm.builtin.attention_kv_cache_array_clear");
@@ -260,6 +282,7 @@ struct FunctionTable {
   PackedFunc reset_kv_cache_func_;
   bool support_backtracking_kv_;
   PackedFunc fkvcache_array_popn_;
+  ModelMetadata model_metadata_;
 };
 
 }  // namespace
@@ -437,6 +460,7 @@ class LLMChat {
    * \note This function overrides existing configurations.
    */
   void LoadJSONOverride(const std::string& config_str, bool partial_update = false) {
+    LOG(INFO) << "config_str = " << config_str;
     picojson::value config_json;
     std::string err = picojson::parse(config_json, config_str);
     if (!err.empty()) {
