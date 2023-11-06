@@ -163,9 +163,6 @@ struct FunctionTable {
           static_cast<int>(relax_vm::AllocatorType::kPooled));
       this->mod_get_func = [this](const std::string& name) -> PackedFunc {
         PackedFunc func = this->local_vm->GetFunction(name, false);
-        if (func == nullptr) {
-          LOG(WARNING) << "Cannot find function in VM: " << name;
-        }
         return func;
       };
       this->get_global_func = [](const std::string& name) -> PackedFunc {
@@ -460,7 +457,6 @@ class LLMChat {
    * \note This function overrides existing configurations.
    */
   void LoadJSONOverride(const std::string& config_str, bool partial_update = false) {
-    LOG(INFO) << "config_str = " << config_str;
     picojson::value config_json;
     std::string err = picojson::parse(config_json, config_str);
     if (!err.empty()) {
