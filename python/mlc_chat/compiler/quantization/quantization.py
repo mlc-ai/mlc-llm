@@ -1,6 +1,7 @@
 """A centralized registry of all existing quantization methods and their configurations."""
 from typing import Any, Dict
 
+from .awq_quantization import AWQQuantize
 from .group_quantization import GroupQuantize
 
 Quantization = Any
@@ -27,6 +28,14 @@ QUANTIZATION: Dict[str, Quantization] = {
         name="q4f16_1",
         kind="group-quant",
         group_size=32,
+        quantize_dtype="int4",
+        storage_dtype="uint32",
+        model_dtype="float16",
+    ),
+    "q4f16_awq": AWQQuantize(
+        name="q4f16_awq",
+        kind="awq",
+        group_size=128,
         quantize_dtype="int4",
         storage_dtype="uint32",
         model_dtype="float16",

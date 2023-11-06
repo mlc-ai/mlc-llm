@@ -12,6 +12,7 @@ from tvm.runtime import NDArray
 from tvm.target import Target
 
 from ..loader import QuantizeMapping
+from .utils import convert_uint_to_float
 
 logger = logging.getLogger(__name__)
 
@@ -126,25 +127,22 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         scale: te.Tensor,
         out_shape: Optional[List[tir.PrimExpr]] = None,
     ):
-        tir_bin_mask = tir.const((1 << DataType(self.quantize_dtype).bits) - 1, self.storage_dtype)
         tir_max_int = tir.const(self.max_int_value, self.model_dtype)
+        float_weight = convert_uint_to_float(
+            weight,
+            DataType(self.quantize_dtype).bits,
+            self.num_elem_per_storage,
+            self.storage_dtype,
+            self.model_dtype,
+            out_shape,
+        )
         return te.compute(
             shape=[weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
             if out_shape is None
             else out_shape,
             fcompute=lambda i, j: tir.multiply(
                 tir.subtract(
-                    tir.bitwise_and(
-                        tir.shift_right(
-                            weight[i, j // self.num_elem_per_storage],
-                            tir.Cast(
-                                self.storage_dtype,
-                                (j % self.num_elem_per_storage)
-                                * DataType(self.quantize_dtype).bits,
-                            ),
-                        ),
-                        tir_bin_mask,
-                    ),
+                    float_weight[i, j],
                     tir_max_int,
                 ),
                 scale[i, j // self.group_size],

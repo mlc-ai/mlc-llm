@@ -58,6 +58,7 @@ MODELS: Dict[str, Model] = {
         source={
             "huggingface-torch": llama_loader.huggingface,
             "huggingface-safetensor": llama_loader.huggingface,
+            "awq": llama_loader.awq,
         },
         quantize={
             "group-quant": llama_quantization.group_quant,
