@@ -14,13 +14,13 @@ from pydantic import BaseModel, Field
 class ChatMessage(BaseModel):
     role: str
     content: str
-    name: str | None = None
+    name: Optional[str] = None
 
 
 class ChatCompletionRequest(BaseModel):
     model: str
-    messages: list[ChatMessage]
-    stream: bool | None = False
+    messages: List[ChatMessage]
+    stream: Optional[bool] = False
     temperature: float = None
     top_p: float = None
     # TODO: replace by presence_penalty and frequency_penalty
@@ -43,47 +43,47 @@ class ChatCompletionRequest(BaseModel):
 
 class UsageInfo(BaseModel):
     prompt_tokens: int = 0
-    completion_tokens: int | None = 0
+    completion_tokens: Optional[int] = 0
     total_tokens: int = 0
 
 
 class ChatCompletionResponseChoice(BaseModel):
     index: int
     message: ChatMessage
-    finish_reason: Literal["stop", "length"] | None = None
+    finish_reason: Optional[Literal["stop", "length"]] = None
 
 
 class ChatCompletionResponse(BaseModel):
     id: str = Field(default_factory=lambda: f"chatcmpl-{shortuuid.random()}")
     object: str = "chat.completion"
     created: int = Field(default_factory=lambda: int(time.time()))
-    choices: list[ChatCompletionResponseChoice]
+    choices: List[ChatCompletionResponseChoice]
     # TODO: Implement support for the following fields
-    usage: UsageInfo | None = None
+    usage: Optional[UsageInfo] = None
 
 
 class DeltaMessage(BaseModel):
-    role: str | None = None
-    content: str | None = None
+    role: Optional[str] = None
+    content: Optional[str] = None
 
 
 class ChatCompletionResponseStreamChoice(BaseModel):
     index: int
     delta: DeltaMessage
-    finish_reason: Literal["stop", "length"] | None = None
+    finish_reason: Optional[Literal["stop", "length"]] = None
 
 
 class ChatCompletionStreamResponse(BaseModel):
     id: str = Field(default_factory=lambda: f"chatcmpl-{shortuuid.random()}")
     object: str = "chat.completion.chunk"
     created: int = Field(default_factory=lambda: int(time.time()))
-    choices: list[ChatCompletionResponseStreamChoice]
+    choices: List[ChatCompletionResponseStreamChoice]
 
 
 class CompletionRequest(BaseModel):
     model: str
-    prompt: str | list[str]
-    stream: bool | None = False
+    prompt: Union[str, List[str]]
+    stream: Optional[bool] = False
     temperature: float = None
     repetition_penalty: float = None
     top_p: float = None
@@ -107,16 +107,16 @@ class CompletionRequest(BaseModel):
 class CompletionResponseChoice(BaseModel):
     index: int
     text: str
-    finish_reason: Literal["stop", "length"] | None = None
+    finish_reason: Optional[Literal["stop", "length"]] = None
     # TODO: logprobs support
-    logprobs: int | None = None
+    logprobs: Optional[int] = None
 
 
 class CompletionResponse(BaseModel):
     id: str = Field(default_factory=lambda: f"cmpl-{shortuuid.random()}")
     object: str = "text.completion"
     created: int = Field(default_factory=lambda: int(time.time()))
-    choices: list[CompletionResponseChoice]
+    choices: List[CompletionResponseChoice]
     usage: UsageInfo
 
 
