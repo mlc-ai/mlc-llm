@@ -2,6 +2,7 @@
  * \file model_metadata.h
  * \brief Metadata stored in model lib
  */
+#define __STDC_FORMAT_MACROS
 #include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
