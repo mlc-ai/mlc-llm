@@ -1,3 +1,4 @@
+#define __STDC_FORMAT_MACROS
 #include "./model_metadata.h"
 
 #include <tvm/runtime/packed_func.h>
