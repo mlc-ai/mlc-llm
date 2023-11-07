@@ -380,9 +380,9 @@ def _parse_args(parsed) -> argparse.Namespace:
         parsed.quantization.name,
     ]
     if parsed.use_presharded_weights:
-        model_name.append(f'presharded-{parsed.num_shards}gpu')
+        model_name.append(f"presharded-{parsed.num_shards}gpu")
 
-    parsed.artifact_path = os.path.join(parsed.artifact_path, '-'.join(model_name))
+    parsed.artifact_path = os.path.join(parsed.artifact_path, "-".join(model_name))
 
     return parsed
 
@@ -827,7 +827,6 @@ def build_model_from_args(args: argparse.Namespace):
             # initialization-time transforms to apply is empty.
             sharding_module = create_shard_info_func(param_manager, args, model_config)
             mod.update(sharding_module)
-
 
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)

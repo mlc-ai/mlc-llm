@@ -280,11 +280,9 @@ def save_params(params: List[tvm.nd.NDArray], artifact_path: str, num_presharded
     assert len(params) % num_presharded == 0
     num_weights = len(params) // num_presharded
 
-
     meta_data = {}
     param_dict = {}
     meta_data["ParamSize"] = len(params)
-    total_size = 0.0
     for i, nd in enumerate(params):
         if num_presharded == 1:
             param_name = f"param_{i}"
