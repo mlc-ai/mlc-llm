@@ -13,7 +13,7 @@ from typing import List, Optional, Tuple, Union
 import tvm
 from tvm.runtime import disco  # pylint: disable=unused-import
 
-from .base import _LIB  # pylint: disable=unused-import
+from . import base  # pylint: disable=unused-import
 from .interface.openai_api import ChatMessage
 
 # pylint: disable=line-too-long
@@ -794,14 +794,18 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
         Parameters
         ----------
-        prompt : Union[str, List[ChatMessage]]
+        prompt: Union[str, List[ChatMessage]]
             The user input prompt, i.e. a question to ask the chat module.
             It can also be the whole conversation history (list of messages with role and content)
-            eg: ```[
-                ChatMessage(role="user", content="Hello, how are you?"),
-                ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
-                ChatMessage(role="user", content="I'm good too."),
-            ]```
+            eg:
+
+            .. code::
+
+                [
+                    ChatMessage(role="user", content="Hello, how are you?"),
+                    ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
+                    ChatMessage(role="user", content="I'm good too."),
+                ]
         generation_config: Optional[GenerationConfig]
             The generation config object to override the ChatConfig generation settings.
         progress_callback: object
@@ -1011,11 +1015,15 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         input : Union[str, List[ChatMessage]]
             The user input prompt, i.e. a question to ask the chat module.
             It can also be the whole conversation history (list of messages with role and content)
-            eg: ```[
-                ChatMessage(role="user", content="Hello, how are you?"),
-                ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
-                ChatMessage(role="user", content="I'm good too."),
-            ]```
+            eg:
+
+            .. code::
+
+                [
+                    ChatMessage(role="user", content="Hello, how are you?"),
+                    ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
+                    ChatMessage(role="user", content="I'm good too."),
+                ]
         decode_next_token : bool
             Whether to decode the next token after prefilling.
         place_in_prompt: PlaceInPrompt
