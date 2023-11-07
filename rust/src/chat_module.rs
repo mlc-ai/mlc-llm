@@ -443,16 +443,3 @@ impl ChatModule {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let cm =
-            ChatModule::new("/home/yuchen/mlc-llm/dist/Llama2-13B-q8f16_1", "rocm", None).unwrap();
-        let output = cm.generate("what is the meaning of life?", None).unwrap();
-        println!("resp: {:?}", output);
-        println!("stats: {:?}", cm.stats(false));
-    }
-}
