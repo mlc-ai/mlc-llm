@@ -520,6 +520,7 @@ def mod_transform_before_build(
                 num_key_value_heads // args.num_shards,
                 config.hidden_size // args.num_shards,
                 config.position_embedding_base,
+                batched=args.enable_batching,
             )(mod)
 
     if args.target_kind == "cuda":
