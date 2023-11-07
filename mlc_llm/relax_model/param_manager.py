@@ -763,13 +763,22 @@ class ParamManager:
         """
         mod = _create_quantize_func(self)
         if optimize_parameter_order:
-            reorder_pass = ReorderTransformFunc(
-                self.pidx2pname,
-                self.torch_pname2binname,
-                self.f_convert_pname_fwd,
-            )
-            mod = reorder_pass(mod)
+            mod = self.optimize_transform_param_order()(mod)
         return mod
+
+    def optimize_transform_param_order(self) -> tvm.transform.Pass:
+        """Produce an transformation that optimizes for minimal memory footprint
+
+        Returns
+        -------
+        tvm.transform.Pass
+            The transformation
+        """
+        return ReorderTransformFunc(
+            self.pidx2pname,
+            self.torch_pname2binname,
+            self.f_convert_pname_fwd,
+        )
 
 
 @mutator
@@ -1006,3 +1015,132 @@ def _create_quantize_func(param_manager: ParamManager) -> tvm.IRModule:
     param_manager.param2qrange = param2qrange
     # Return the created IRModule.
     return bb.get()
+
+
+def transform_params_for_each_rank(
+    mod: tvm.IRModule, num_shards: int, rank_argument_name: str = "rank_arg"
+) -> tvm.IRModule:
+    """Update a parameter transform to apply across all ranks
+
+    For use in generating a pre-sharded set of weights.  Given a
+    parameter transformation that generates sharded model weights for
+    a single shard, produce a parameter transformation that generates
+    sharded model weights for each shard.
+
+    Parameters
+    ----------
+    mod: tvm.IRModule
+
+        A module containing the parameter transformation function,
+        named "transform_params", along with any subroutines called by
+        the parameter transformation.
+
+    num_shards: int
+
+        The number of shards to generate.
+
+    rank_argument_name: str
+
+        The name of the argument that specifies the rank.  Should be a
+        R.ShapeTuple with a single R.PrimStructInfo('int64').
+
+    Returns
+    -------
+    tvm.IRModule
+
+        The modified parameter transformation
+    """
+    generic_transform = mod["transform_params"]
+    tensor_params = generic_transform.params[1:]
+
+    bb = relax.BlockBuilder()
+
+    with bb.function("transform_params", params=tensor_params):
+        output = []
+        for rank in range(num_shards):
+            # TODO(Lunderberg): Implement this in terms of a
+            # generic utility that inlines local functions.
+            func = generic_transform
+            func = func.bind_params({rank_argument_name: relax.ShapeExpr([rank])})
+            func = relax.utils.copy_with_new_vars(func)
+            func = func.bind_params(
+                {var: tensor_param for (var, tensor_param) in zip(func.params, tensor_params)}
+            )
+            shard_tuple = func.body
+            output.extend([shard_tuple[i] for i in range(len(tensor_params))])
+
+        with bb.dataflow():
+            gv = bb.emit_output(relax.Tuple(output))
+        bb.emit_func_output(gv)
+
+    mod["transform_params"] = bb.get()["transform_params"]
+    return mod
+
+
+def chain_parameter_transforms(mod_a: tvm.IRModule, mod_b: tvm.IRModule) -> tvm.IRModule:
+    """Chain two sequential parameter transformations
+
+    For use in manipulating sets of model weights.  Given two
+    parameter transformations that could be applied sequentially,
+    produce a single parameter transformation whose output is the same
+    as applying the parameter transformations sequentially.
+
+
+    .. code-block:: python
+
+        # Before
+        params_after_a = mod_a['transform_params'](orig_params)
+        params_after_b = mod_b['transform_params'](params_after_a)
+
+        # After
+        mod_ab = chain_parameter_transforms(mod_a, mod_b)
+        params_after_b = mod_ab['transform_params'](orig_params)
+
+    Parameters
+    ----------
+    mod_a: tvm.IRModule
+
+        The module containing the first parameter transformation.
+
+    mod_b: tvm.IRModule
+
+        The module containing the second parameter transformation.
+
+    Returns
+    -------
+    tvm.IRModule
+
+        The module containing the output
+
+    """
+    func_a = mod_a["transform_params"]
+    func_b = mod_b["transform_params"]
+
+    bb = relax.BlockBuilder()
+
+    with bb.function("transform_params", params=func_a.params):
+        with bb.dataflow():
+            # TODO(Lunderberg): Implement this in terms of a
+            # generic utility that inlines local functions.
+            func_a_output = bb.emit(func_a.body)
+            func_b_param_map = {param: expr for (param, expr) in zip(func_b.params, func_a_output)}
+            func_b_output = func_b.bind_params(func_b_param_map).body
+            gv = bb.emit_output(func_b_output)
+        bb.emit_func_output(gv)
+
+    merged_transform_func = bb.get()["transform_params"]
+
+    new_mod = {
+        **{
+            gvar: func
+            for gvar, func in mod_a.functions.items()
+            if gvar.name_hint != "transform_params"
+        },
+        **{
+            gvar: func
+            for gvar, func in mod_b.functions.items()
+            if gvar.name_hint != "transform_params"
+        },
+        "transform_params": merged_transform_func,
+    }
+    return tvm.IRModule(new_mod)
