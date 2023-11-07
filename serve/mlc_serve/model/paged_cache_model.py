@@ -303,7 +303,7 @@ def sample(logits, sampling_params, vocab_size):
 
 
 def load_disco_module(artifact_path, lib_path, num_shards):
-    sess = di.ProcessSession(num_workers=num_shards)
+    sess = di.ThreadedSession(num_workers=num_shards)
     devices = range(num_shards)
     sess.init_ccl("nccl", *devices)
     module = sess.load_vm_module(lib_path)
@@ -314,7 +314,7 @@ def load_disco_module(artifact_path, lib_path, num_shards):
         ndarray_cache_metadata = f.read()
 
     loader = loader_create(metadata_path, ndarray_cache_metadata, "", module)
-    loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadAll")
+    loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadAllPresharded")
     params = loader_load(loader)
 
     return module, params, sess
@@ -327,7 +327,13 @@ def copy_to_worker_0(sess: di.Session, host_array):
 
 
 def get_tvm_model(artifact_path, model, quantization, num_shards, dev):
-    model_artifact_path = os.path.join(artifact_path, f"{model}-{quantization}")
+    if num_shards > 1:
+        model_artifact_path = os.path.join(
+            artifact_path, f"{model}-{quantization}-presharded-{num_shards}gpu"
+        )
+    else:
+        model_artifact_path = os.path.join(artifact_path, f"{model}-{quantization}")
+
     lib_path = os.path.join(model_artifact_path, f"{model}-{quantization}-cuda.so")
 
     if num_shards == 1:
@@ -470,7 +476,9 @@ class Model:
             )
             peak_memory = get_used_memory_func(self.dev)
 
-        param_bytes = sum(math.prod(param.shape) * np.dtype(param.dtype).itemsize for param in params)
+        param_bytes = sum(
+            math.prod(param.shape) * np.dtype(param.dtype).itemsize for param in params
+        )
 
         return peak_memory + param_bytes
 
