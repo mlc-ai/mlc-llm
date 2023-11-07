@@ -10,6 +10,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+
 from mlc_chat.chat_module import GenerationConfig
 
 from .base import set_global_random_seed
@@ -30,6 +31,8 @@ from .interface.openai_api import (
     EmbeddingsRequest,
     EmbeddingsResponse,
     UsageInfo,
+    VisualStudioCodeCompletionRequest,
+    VisualStudioCodeCompletionResponse,
 )
 
 
@@ -215,6 +218,10 @@ async def request_chat_completion(request: ChatCompletionRequest):
             prev_txt = ""
             async for content in AsyncCompletionStream(generation_config=generation_config):
                 if content:
+                    # Remove the replacement character (U+FFFD) from the response
+                    # This is to handle emojis. An emoji might be made up of multiple tokens.
+                    # In the Rest streaming setting, if an emoji gets truncated in the middle of
+                    # its encoded byte sequence, a replacement character will appear.
                     valid_content = content.replace("�", "")
                     chunk = ChatCompletionStreamResponse(
                         choices=[
@@ -357,6 +364,23 @@ async def read_stats_verbose():
     Get the verbose runtime stats.
     """
     return session["chat_mod"].stats(verbose=True)
+
+
+@app.post("/v1/llm-vscode/completions")
+async def request_llm_vscode(request: VisualStudioCodeCompletionRequest):
+    """
+    Creates a vscode code completion for a given prompt.
+    Follows huggingface LSP (https://github.com/huggingface/llm-ls)
+    """
+    generation_config = GenerationConfig(
+        temperature=request.parameters.temperature,
+        top_p=request.parameters.top_p,
+        mean_gen_len=request.parameters.max_new_tokens,
+        max_gen_len=request.parameters.max_new_tokens,
+    )
+    msg = session["chat_mod"].generate(prompt=request.inputs, generation_config=generation_config)
+
+    return VisualStudioCodeCompletionResponse(generated_text=msg)
 
 
 ARGS = convert_args_to_argparser().parse_args()

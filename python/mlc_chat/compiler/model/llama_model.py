@@ -2,14 +2,60 @@
 Implementation for Llama2 architecture.
 TODO: add docstring
 """
+import dataclasses
+import logging
 import math
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from .llama_config import LlamaConfig
+from ...support.config import ConfigBase
+from ...support.style import bold
+
+logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass
+class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+    """Configuration of the Llama model."""
+
+    hidden_size: int
+    intermediate_size: int
+    num_attention_heads: int
+    num_hidden_layers: int
+    rms_norm_eps: float
+    vocab_size: int
+    position_embedding_base: int = 10000
+    max_sequence_length: int = 0
+    num_key_value_heads: int = 0
+    head_dim: int = 0
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+
+    def __post_init__(self):
+        if self.max_sequence_length == 0:
+            if "max_position_embeddings" in self.kwargs:
+                self.max_sequence_length = self.kwargs.pop("max_position_embeddings")
+                logger.info(
+                    "%s not found in config.json. Falling back to %s (%d)",
+                    bold("max_sequence_length"),
+                    bold("max_position_embeddings"),
+                    self.max_sequence_length,
+                )
+            else:
+                raise ValueError(
+                    "Unable to determine the maxmimum sequence length, because neither "
+                    "`max_sequence_length` nor `max_position_embeddings` is provided "
+                    "in `config.json`."
+                )
+        if self.num_key_value_heads == 0:
+            self.num_key_value_heads = self.num_attention_heads
+        if self.head_dim == 0:
+            self.head_dim = self.hidden_size // self.num_attention_heads
+        assert self.num_attention_heads % self.num_key_value_heads == 0
+        assert self.head_dim * self.num_attention_heads == self.hidden_size
+
 
 # pylint: disable=invalid-name,missing-docstring
 
@@ -22,6 +68,8 @@ class RotaryEmbedding(nn.Module):
 
     def forward(self, q: Tensor, k: Tensor, offset: tir.Var):
         def te_op(x: te.Tensor, offset: tir.Var):
+            dtype = x.dtype
+
             def compute(b: tir.Var, s: tir.Var, h: tir.Var, d: tir.Var):
                 head_dim = tir.const(self.head_dim, "int32")
                 position_embedding_base = tir.const(self.position_embedding_base, "float32")
@@ -30,11 +78,13 @@ class RotaryEmbedding(nn.Module):
                     (d * 2 % head_dim).astype("float32") / head_dim,
                 )
                 freq = (offset + s) / freq
-                return tir.cos(freq) * x[b, s, h, d] + tir.sin(freq) * tir.if_then_else(
+                cos = tir.cos(freq).astype(dtype) * x[b, s, h, d]
+                sin = tir.sin(freq).astype(dtype) * tir.if_then_else(
                     d < self.head_dim // 2,
                     -x[b, s, h, d + self.head_dim // 2],
                     x[b, s, h, d - self.head_dim // 2],
                 )
+                return cos + sin
 
             return te.compute(x.shape, compute, name="rotary")
 
@@ -87,6 +137,7 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         d, h_q, h_kv, t = self.head_dim, self.num_q_heads, self.num_kv_heads, total_seq_len
         b, s, _ = hidden_states.shape
         assert b == 1, "Only support batch size 1 at this moment."
+
         q, k, v = self.qkv_proj(hidden_states)
         q = op.reshape(q, (b, s, h_q, d))
         k = op.reshape(k, (b, s, h_kv, d))

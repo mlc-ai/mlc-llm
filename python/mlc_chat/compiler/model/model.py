@@ -1,12 +1,12 @@
 """A centralized registry of all existing model architures and their configurations."""
 import dataclasses
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Tuple
 
 from tvm.relax.frontend import nn
 
-from ..parameter import ExternMapping, QuantizeMapping
-from ..quantization.quantization import QuantizeConfig
-from . import llama_config, llama_model, llama_parameter
+from ..loader import ExternMapping, QuantizeMapping
+from ..quantization.quantization import Quantization
+from . import llama_loader, llama_model, llama_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -16,8 +16,8 @@ a class method `from_file` with the following signature:
         ...
 """
 
-FuncGetExternMap = Callable[[ModelConfig, QuantizeConfig], ExternMapping]
-FuncGetQuantMap = Callable[[ModelConfig, QuantizeConfig], QuantizeMapping]
+FuncGetExternMap = Callable[[ModelConfig, Quantization], ExternMapping]
+FuncQuantization = Callable[[ModelConfig, Quantization], Tuple[nn.Module, QuantizeMapping]]
 
 
 @dataclasses.dataclass
@@ -38,28 +38,171 @@ class Model:
     source : Dict[str, FuncGetExternMap]
         A dictionary that maps the name of a source format to parameter mapping.
 
-    quantize: Dict[str, FuncGetQuantMap]
-        A dictionary that maps the name of a quantization method to quantization mapping.
+    quantize: Dict[str, FuncQuantization]
+        A dictionary that maps the name of a quantization method to quantized model and the
+        quantization parameter mapping.
     """
 
     name: str
     config: ModelConfig
     model: Callable[[ModelConfig], nn.Module]
     source: Dict[str, FuncGetExternMap]
-    quantize: Dict[str, FuncGetQuantMap]
+    quantize: Dict[str, FuncQuantization]
 
 
 MODELS: Dict[str, Model] = {
     "llama": Model(
         name="llama",
         model=llama_model.LlamaForCasualLM,
-        config=llama_config.LlamaConfig,
+        config=llama_model.LlamaConfig,
         source={
-            "huggingface-torch": llama_parameter.huggingface,
-            "huggingface-safetensor": llama_parameter.huggingface,
+            "huggingface-torch": llama_loader.huggingface,
+            "huggingface-safetensor": llama_loader.huggingface,
+            "awq": llama_loader.awq,
         },
-        quantize={},
+        quantize={
+            "group-quant": llama_quantization.group_quant,
+        },
     )
 }
 
-MODEL_PRESETS: Dict[str, Dict[str, Any]] = llama_config.CONFIG
+MODEL_PRESETS: Dict[str, Any] = {
+    "llama2_7b": {
+        "architectures": ["LlamaForCausalLM"],
+        "bos_token_id": 1,
+        "eos_token_id": 2,
+        "hidden_act": "silu",
+        "hidden_size": 4096,
+        "initializer_range": 0.02,
+        "intermediate_size": 11008,
+        "max_position_embeddings": 2048,
+        "model_type": "llama",
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "num_key_value_heads": 32,
+        "pad_token_id": 0,
+        "pretraining_tp": 1,
+        "rms_norm_eps": 1e-05,
+        "rope_scaling": None,
+        "tie_word_embeddings": False,
+        "torch_dtype": "float16",
+        "transformers_version": "4.31.0.dev0",
+        "use_cache": True,
+        "vocab_size": 32000,
+    },
+    "llama2_13b": {
+        "_name_or_path": "meta-llama/Llama-2-13b-hf",
+        "architectures": ["LlamaForCausalLM"],
+        "bos_token_id": 1,
+        "eos_token_id": 2,
+        "hidden_act": "silu",
+        "hidden_size": 5120,
+        "initializer_range": 0.02,
+        "intermediate_size": 13824,
+        "max_position_embeddings": 2048,
+        "model_type": "llama",
+        "num_attention_heads": 40,
+        "num_hidden_layers": 40,
+        "num_key_value_heads": 40,
+        "pad_token_id": 0,
+        "pretraining_tp": 2,
+        "rms_norm_eps": 1e-05,
+        "rope_scaling": None,
+        "tie_word_embeddings": False,
+        "torch_dtype": "float16",
+        "transformers_version": "4.31.0.dev0",
+        "use_cache": True,
+        "vocab_size": 32000,
+    },
+    "llama2_70b": {
+        "architectures": ["LlamaForCausalLM"],
+        "bos_token_id": 1,
+        "eos_token_id": 2,
+        "hidden_act": "silu",
+        "hidden_size": 8192,
+        "initializer_range": 0.02,
+        "intermediate_size": 28672,
+        "max_position_embeddings": 2048,
+        "model_type": "llama",
+        "num_attention_heads": 64,
+        "num_hidden_layers": 80,
+        "num_key_value_heads": 8,
+        "pad_token_id": 0,
+        "rms_norm_eps": 1e-05,
+        "tie_word_embeddings": False,
+        "torch_dtype": "float16",
+        "transformers_version": "4.31.0.dev0",
+        "use_cache": True,
+        "vocab_size": 32000,
+    },
+    "codellama_7b": {
+        "_name_or_path": "codellama/CodeLlama-7b-hf",
+        "architectures": ["LlamaForCausalLM"],
+        "bos_token_id": 1,
+        "eos_token_id": 2,
+        "hidden_act": "silu",
+        "hidden_size": 4096,
+        "initializer_range": 0.02,
+        "intermediate_size": 11008,
+        "max_position_embeddings": 16384,
+        "model_type": "llama",
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "num_key_value_heads": 32,
+        "pretraining_tp": 1,
+        "rms_norm_eps": 1e-05,
+        "rope_scaling": None,
+        "rope_theta": 1000000,
+        "tie_word_embeddings": False,
+        "torch_dtype": "bfloat16",
+        "transformers_version": "4.33.0.dev0",
+        "use_cache": True,
+        "vocab_size": 32016,
+    },
+    "codellama_13b": {
+        "architectures": ["LlamaForCausalLM"],
+        "bos_token_id": 1,
+        "eos_token_id": 2,
+        "hidden_act": "silu",
+        "hidden_size": 5120,
+        "initializer_range": 0.02,
+        "intermediate_size": 13824,
+        "max_position_embeddings": 16384,
+        "model_type": "llama",
+        "num_attention_heads": 40,
+        "num_hidden_layers": 40,
+        "num_key_value_heads": 40,
+        "pretraining_tp": 1,
+        "rms_norm_eps": 1e-05,
+        "rope_scaling": None,
+        "rope_theta": 1000000,
+        "tie_word_embeddings": False,
+        "torch_dtype": "bfloat16",
+        "transformers_version": "4.32.0.dev0",
+        "use_cache": True,
+        "vocab_size": 32016,
+    },
+    "codellama_34b": {
+        "architectures": ["LlamaForCausalLM"],
+        "bos_token_id": 1,
+        "eos_token_id": 2,
+        "hidden_act": "silu",
+        "hidden_size": 8192,
+        "initializer_range": 0.02,
+        "intermediate_size": 22016,
+        "max_position_embeddings": 16384,
+        "model_type": "llama",
+        "num_attention_heads": 64,
+        "num_hidden_layers": 48,
+        "num_key_value_heads": 8,
+        "pretraining_tp": 1,
+        "rms_norm_eps": 1e-05,
+        "rope_scaling": None,
+        "rope_theta": 1000000,
+        "tie_word_embeddings": False,
+        "torch_dtype": "bfloat16",
+        "transformers_version": "4.32.0.dev0",
+        "use_cache": True,
+        "vocab_size": 32016,
+    },
+}

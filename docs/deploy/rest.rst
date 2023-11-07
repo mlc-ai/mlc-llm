@@ -74,11 +74,135 @@ The REST API provides the following endpoints:
 
 .. http:get:: /v1/completions
 
+------------------------------------------------
+
    Get a completion from MLC-Chat using a prompt.
+
+**Request body**
+
+**model**: *str* (required)
+   The model folder after compiling with MLC-LLM build process. The parameter
+   can either be the model name with its quantization scheme
+   (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
+   folder. In the former case, we will use the provided name to search
+   for the model folder over possible paths.
+**prompt**: *str* (required)
+   A list of chat messages. The last message should be from the user.
+**stream**: *bool* (optional)
+   Whether to stream the response. If ``True``, the response will be streamed
+   as the model generates the response. If ``False``, the response will be
+   returned after the model finishes generating the response.
+**temperature**: *float* (optional)
+   The temperature applied to logits before sampling. The default value is
+   ``0.7``. A higher temperature encourages more diverse outputs, while a
+   lower temperature produces more deterministic outputs.
+**top_p**: *float* (optional)
+   This parameter determines the set of tokens from which we sample during
+   decoding. The default value is set to ``0.95``. At each step, we select
+   tokens from the minimal set that has a cumulative probability exceeding
+   the ``top_p`` parameter.
+
+   For additional information on top-p sampling, please refer to this blog
+   post: https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling.
+**repetition_penalty**: *float* (optional)
+   The repetition penalty controls the likelihood of the model generating
+   repeated texts. The default value is set to ``1.0``, indicating that no
+   repetition penalty is applied. Increasing the value reduces the
+   likelihood of repeat text generation. However, setting a high
+   ``repetition_penalty`` may result in the model generating meaningless
+   texts. The ideal choice of repetition penalty may vary among models.
+
+   For more details on how repetition penalty controls text generation, please
+   check out the CTRL paper (https://arxiv.org/pdf/1909.05858.pdf).
+**presence_penalty**: *float* (optional)
+   Positive values penalize new tokens if they are already present in the text so far, 
+   decreasing the model's likelihood to repeat tokens.
+**frequency_penalty**: *float* (optional)
+   Positive values penalize new tokens based on their existing frequency in the text so far, 
+   decreasing the model's likelihood to repeat tokens.
+**mean_gen_len**: *int* (optional)
+   The approximated average number of generated tokens in each round. Used
+   to determine whether the maximum window size would be exceeded.
+**max_gen_len**: *int* (optional)
+   This parameter determines the maximum length of the generated text. If it is
+   not set, the model will generate text until it encounters a stop token.
+
+------------------------------------------------
+
+**Returns** 
+   If ``stream`` is set to ``False``, the response will be a ``CompletionResponse`` object.
+   If ``stream`` is set to ``True``, the response will be a stream of ``CompletionStreamResponse`` objects.
+
 
 .. http:get:: /v1/chat/completions
 
+------------------------------------------------
+
    Get a response from MLC-Chat using a prompt, either with or without streaming.
+
+**Request body**
+
+**model**: *str* (required)
+   The model folder after compiling with MLC-LLM build process. The parameter
+   can either be the model name with its quantization scheme
+   (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
+   folder. In the former case, we will use the provided name to search
+   for the model folder over possible paths.
+**messages**: *list[ChatMessage]* (required)
+   A list of chat messages. The last message should be from the user.
+**stream**: *bool* (optional)
+   Whether to stream the response. If ``True``, the response will be streamed
+   as the model generates the response. If ``False``, the response will be
+   returned after the model finishes generating the response.
+**temperature**: *float* (optional)
+   The temperature applied to logits before sampling. The default value is
+   ``0.7``. A higher temperature encourages more diverse outputs, while a
+   lower temperature produces more deterministic outputs.
+**top_p**: *float* (optional)
+   This parameter determines the set of tokens from which we sample during
+   decoding. The default value is set to ``0.95``. At each step, we select
+   tokens from the minimal set that has a cumulative probability exceeding
+   the ``top_p`` parameter.
+
+   For additional information on top-p sampling, please refer to this blog
+   post: https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling.
+**repetition_penalty**: *float* (optional)
+   The repetition penalty controls the likelihood of the model generating
+   repeated texts. The default value is set to ``1.0``, indicating that no
+   repetition penalty is applied. Increasing the value reduces the
+   likelihood of repeat text generation. However, setting a high
+   ``repetition_penalty`` may result in the model generating meaningless
+   texts. The ideal choice of repetition penalty may vary among models.
+
+   For more details on how repetition penalty controls text generation, please
+   check out the CTRL paper (https://arxiv.org/pdf/1909.05858.pdf).
+**presence_penalty**: *float* (optional)
+   Positive values penalize new tokens if they are already present in the text so far, 
+   decreasing the model's likelihood to repeat tokens.
+**frequency_penalty**: *float* (optional)
+   Positive values penalize new tokens based on their existing frequency in the text so far, 
+   decreasing the model's likelihood to repeat tokens.
+**mean_gen_len**: *int* (optional)
+   The approximated average number of generated tokens in each round. Used
+   to determine whether the maximum window size would be exceeded.
+**max_gen_len**: *int* (optional)
+   This parameter determines the maximum length of the generated text. If it is
+   not set, the model will generate text until it encounters a stop token.
+**n**: *int* (optional)
+   This parameter determines the number of text samples to generate. The default
+   value is ``1``. Note that this parameter is only used when ``stream`` is set to
+   ``False``.
+**stop**: *str* or *list[str]* (optional)
+   When ``stop`` is encountered, the model will stop generating output.
+   It can be a string or a list of strings. If it is a list of strings, the model
+   will stop generating output when any of the strings in the list is encountered.
+   Note that this parameter does not override the default stop string of the model.
+
+------------------------------------------------
+
+**Returns** 
+   If ``stream`` is set to ``False``, the response will be a ``ChatCompletionResponse`` object.
+   If ``stream`` is set to ``True``, the response will be a stream of ``ChatCompletionStreamResponse`` objects.
 
 .. http:get:: /chat/reset
 
@@ -91,6 +215,138 @@ The REST API provides the following endpoints:
 .. http:get:: /verbose_stats
 
    Get the verbose runtime stats (encode/decode speed, total runtime).
+
+
+Request Objects
+---------------
+
+**ChatMessage**
+
+**role**: *str* (required)
+   The role(author) of the message. It can be either ``user`` or ``assistant``.
+**content**: *str* (required)
+   The content of the message.
+**name**: *str* (optional)
+   The name of the author of the message.
+
+Response Objects
+----------------
+
+**CompletionResponse**
+
+**id**: *str*
+   The id of the completion.
+**object**: *str*
+   The object name ``text.completion``.
+**created**: *int*
+   The time when the completion is created.
+**choices**: *list[CompletionResponseChoice]*
+   A list of choices generated by the model.
+**usage**: *UsageInfo* or *None*
+   The usage information of the model.
+
+------------------------------------------------
+
+**CompletionResponseChoice**
+
+**index**: *int*
+   The index of the choice.
+**text**: *str*
+   The message generated by the model.
+**finish_reason**: *str*
+   The reason why the model finishes generating the message. It can be either
+   ``stop`` or ``length``.
+
+
+------------------------------------------------
+
+**CompletionStreamResponse**
+
+**id**: *str*
+   The id of the completion.
+**object**: *str*
+   The object name ``text.completion.chunk``.
+**created**: *int*
+   The time when the completion is created.
+**choices**: *list[ChatCompletionResponseStreamhoice]*
+   A list of choices generated by the model.
+
+------------------------------------------------
+
+**ChatCompletionResponseStreamChoice**
+
+**index**: *int*
+   The index of the choice.
+**text**: *str*
+   The message generated by the model.
+**finish_reason**: *str*
+   The reason why the model finishes generating the message. It can be either
+   ``stop`` or ``length``.
+
+------------------------------------------------
+
+**ChatCompletionResponse**
+
+**id**: *str*
+   The id of the completion.
+**object**: *str*
+   The object name ``chat.completion``.
+**created**: *int*
+   The time when the completion is created.
+**choices**: *list[ChatCompletionResponseChoice]*
+   A list of choices generated by the model.
+**usage**: *UsageInfo* or *None*
+   The usage information of the model.
+
+------------------------------------------------
+
+**ChatCompletionResponseChoice**
+
+**index**: *int*
+   The index of the choice.
+**message**: *ChatMessage*
+   The message generated by the model.
+**finish_reason**: *str*
+   The reason why the model finishes generating the message. It can be either
+   ``stop`` or ``length``.
+
+------------------------------------------------
+
+**ChatCompletionStreamResponse**
+
+**id**: *str*
+   The id of the completion.
+**object**: *str*
+   The object name ``chat.completion.chunk``.
+**created**: *int*
+   The time when the completion is created.
+**choices**: *list[ChatCompletionResponseStreamhoice]*
+   A list of choices generated by the model.
+
+------------------------------------------------
+
+**ChatCompletionResponseStreamChoice**
+
+**index**: *int*
+   The index of the choice.
+**delta**: *DeltaMessage*
+   The delta message generated by the model.
+**finish_reason**: *str*
+   The reason why the model finishes generating the message. It can be either
+   ``stop`` or ``length``.
+
+------------------------------------------------
+
+
+**DeltaMessage**
+
+**role**: *str*
+   The role(author) of the message. It can be either ``user`` or ``assistant``.
+**content**: *str*
+   The content of the message.
+      
+------------------------------------------------
+
 
 Use REST API in your own program
 --------------------------------

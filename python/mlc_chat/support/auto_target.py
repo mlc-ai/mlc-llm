@@ -1,13 +1,16 @@
 """Helper functioms for target auto-detection."""
 import logging
+import os
 from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
+import tvm
 from tvm import IRModule, relax
-from tvm._ffi import register_func
+from tvm._ffi import get_global_func, register_func
 from tvm.contrib import tar, xcode
+from tvm.runtime import Device
 from tvm.target import Target
 
-from .style import green, red
+from .style import bold, green, red
 
 if TYPE_CHECKING:
     from mlc_chat.compiler.compile import CompileArgs
@@ -23,7 +26,7 @@ NOT_FOUND = red("Not found")
 BuildFunc = Callable[[IRModule, "CompileArgs"], None]
 
 
-def detect_target_and_host(target_hint: str, host_hint: str) -> Tuple[Target, BuildFunc]:
+def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[Target, BuildFunc]:
     """Detect the configuration for the target device and its host, for example, target GPU and
     the host CPU.
 
@@ -33,12 +36,41 @@ def detect_target_and_host(target_hint: str, host_hint: str) -> Tuple[Target, Bu
         The hint for the target device.
 
     host_hint : str
-        The hint for the host CPU.
+        The hint for the host CPU, default is "auto".
     """
     target, build_func = _detect_target_gpu(target_hint)
     if target.host is None:
         target = Target(target, host=_detect_target_host(host_hint))
+    if target.kind.name == "cuda":
+        _register_cuda_hook(target)
     return target, build_func
+
+
+def detect_device(device_hint: str) -> Device:
+    """Detect locally available device from string hint."""
+    if device_hint == "auto":
+        device = None
+        for device_type in AUTO_DETECT_DEVICES:
+            cur_device = tvm.device(dev_type=device_type, dev_id=0)
+            if cur_device.exist:
+                logger.info("%s device: %s:0", FOUND, device_type)
+                if device is None:
+                    device = cur_device
+            else:
+                logger.info("%s device: %s:0", NOT_FOUND, device_type)
+        if device is None:
+            logger.info("%s: No available device detected. Falling back to CPU", NOT_FOUND)
+            return tvm.device("cpu:0")
+        device_str = f"{tvm.runtime.Device.MASK2STR[device.device_type]}:{device.device_id}"
+        logger.info("Using device: %s. Use `--device` to override.", bold(device_str))
+        return device
+    try:
+        device = tvm.device(device_hint)
+    except Exception as err:
+        raise ValueError(f"Invalid device name: {device_hint}") from err
+    if not device.exist:
+        raise ValueError(f"Device is not found on your local environment: {device_hint}")
+    return device
 
 
 def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
@@ -81,14 +113,10 @@ def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
 
 def _detect_target_host(hint: str) -> Target:
     """Detect the host CPU architecture."""
-    # cpu = codegen.llvm_get_system_cpu()
-    # triple = codegen.llvm_get_system_triple()
-    # vendor = codegen.llvm_get_system_x86_vendor()
     if hint == "auto":
-        hint = "x86-64"
-    if hint == "x86-64":
-        hint = "x86_64"
-    return Target({"kind": "llvm", "mtriple": f"{hint}-unknown-unknown"})
+        target_triple = get_global_func("tvm.codegen.llvm.GetDefaultTargetTriple")()
+        logger.info("%s host CPU architecture: %s", FOUND, bold(target_triple))
+    return Target({"kind": "llvm", "mtriple": target_triple})
 
 
 def _is_device(device: str):
@@ -101,9 +129,12 @@ def _is_device(device: str):
 
 def _add_prefix_symbol(mod: IRModule, prefix: str, is_system_lib: bool) -> IRModule:
     if is_system_lib and prefix:
-        mod = mod.with_attr("system_lib_prefix", prefix)
+        mod = mod.with_attrs({"system_lib_prefix": prefix})  # type: ignore[dict-item]
     elif is_system_lib:
-        logger.warning("--prefix-symbols is not specified when building a static library")
+        logger.warning(
+            "%s is not specified when building a static library",
+            bold("--prefix-symbols"),
+        )
     elif prefix:
         logger.warning(
             "--prefix-symbols is specified, but it will not take any effect "
@@ -121,7 +152,7 @@ def _detect_target_from_device(device: str) -> Optional[Target]:
     logger.info(
         '%s configuration of target device "%s": %s',
         FOUND,
-        device,
+        bold(device),
         target.export(),
     )
     return target
@@ -221,6 +252,37 @@ def _build_default():
         )
 
     return build
+
+
+def _register_cuda_hook(target: Target):
+    env_multi_arch = os.environ.get("MLC_MULTI_ARCH", None)
+    if env_multi_arch is None:
+        default_arch = target.attrs.get("arch", None)
+        logger.info("Generating code for CUDA architecture: %s", bold(default_arch))
+        logger.info(
+            "To produce multi-arch fatbin, set environment variable %s. "
+            "Example: MLC_MULTI_ARCH=70,72,75,80,86,87,89,90",
+            bold("MLC_MULTI_ARCH"),
+        )
+        multi_arch = None
+    else:
+        logger.info("%s %s: %s", FOUND, bold("MLC_MULTI_ARCH"), env_multi_arch)
+        multi_arch = [int(x.strip()) for x in env_multi_arch.split(",")]
+        logger.info("Generating code for CUDA architecture: %s", multi_arch)
+
+    @register_func("tvm_callback_cuda_compile", override=True)
+    def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
+        """use nvcc to generate fatbin code for better optimization"""
+        from tvm.contrib import nvcc  # pylint: disable=import-outside-toplevel
+
+        if multi_arch is None:
+            ptx = nvcc.compile_cuda(code, target_format="fatbin")
+        else:
+            arch = []
+            for compute_version in multi_arch:
+                arch += ["-gencode", f"arch=compute_{compute_version},code=sm_{compute_version}"]
+            ptx = nvcc.compile_cuda(code, target_format="fatbin", arch=arch)
+        return ptx
 
 
 AUTO_DETECT_DEVICES = ["cuda", "rocm", "metal", "vulkan"]

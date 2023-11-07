@@ -171,7 +171,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val url = URL("${modelUrl}${ModelUrlSuffix}${ModelConfigFilename}")
                 val tempId = UUID.randomUUID().toString()
                 val tempFile = File(
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    application.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
                     tempId
                 )
                 url.openStream().use {

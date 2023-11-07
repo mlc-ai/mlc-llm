@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from mlc_chat.support.auto_config import detect_config
 
 logging.basicConfig(

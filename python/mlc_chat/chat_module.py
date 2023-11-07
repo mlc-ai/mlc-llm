@@ -13,6 +13,7 @@ from typing import List, Optional, Tuple, Union
 import tvm
 from tvm.runtime import disco  # pylint: disable=unused-import
 
+from .base import _LIB  # pylint: disable=unused-import
 from .interface.openai_api import ChatMessage
 
 # pylint: disable=line-too-long

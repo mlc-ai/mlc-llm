@@ -12,11 +12,11 @@
 #include <tokenizers_cpp.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/disco/session.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/relax_vm/memory_manager.h>
 
 #include <cctype>
 #include <chrono>
@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "conversation.h"
+#include "model_metadata.h"
 #include "random.h"
 #include "support.h"
 #include "tokenizers.h"
@@ -158,16 +159,18 @@ struct FunctionTable {
       this->local_vm = fload_exec();
       this->local_vm->GetFunction("vm_initialization")(
           static_cast<int>(device.device_type), device.device_id,
-          static_cast<int>(relax_vm::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-          static_cast<int>(relax_vm::AllocatorType::kPooled));
+          static_cast<int>(memory::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
+          static_cast<int>(memory::AllocatorType::kPooled));
       this->mod_get_func = [this](const std::string& name) -> PackedFunc {
-        return this->local_vm->GetFunction(name, false);
+        PackedFunc func = this->local_vm->GetFunction(name, false);
+        return func;
       };
       this->get_global_func = [](const std::string& name) -> PackedFunc {
         const auto* f = tvm::runtime::Registry::Get(name);
         CHECK(f != nullptr) << "ValueError: Cannot find function " << name;
         return *f;
       };
+      this->model_metadata_ = ModelMetadata::FromModule(this->local_vm);
       this->_InitFunctions();
     }
   }
@@ -188,10 +191,23 @@ struct FunctionTable {
       const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
       ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
       (*fload_cache)(model_path, static_cast<int32_t>(device.device_type), device.device_id);
-      const PackedFunc* fload_params =
-          tvm::runtime::Registry::Get("vm.builtin.param_array_from_cache");
-      ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
-      Array<NDArray> params = (*fload_params)("param", -1);
+      Array<NDArray> params;
+      if (this->model_metadata_.params.empty()) {
+        constexpr const char* name_loader = "vm.builtin.param_array_from_cache";
+        const PackedFunc* fload_params = tvm::runtime::Registry::Get(name_loader);
+        ICHECK(fload_params) << "Cannot find env function: " << name_loader;
+        params = (*fload_params)("param", -1);
+      } else {
+        constexpr const char* name_loader = "vm.builtin.param_array_from_cache_by_name";
+        const PackedFunc* fload_params = tvm::runtime::Registry::Get(name_loader);
+        ICHECK(fload_params) << "Cannot find env function: " << name_loader;
+        Array<String> param_names;
+        param_names.reserve(this->model_metadata_.params.size());
+        for (const auto& param : this->model_metadata_.params) {
+          param_names.push_back(param.name);
+        }
+        params = (*fload_params)(param_names);
+      }
       // after we get params, it is safe to simply clear the cached version
       // as these params are referenced by params_
       const PackedFunc* fclear_ndarray_cache =
@@ -210,6 +226,9 @@ struct FunctionTable {
     this->softmax_func_ = mod_get_func("softmax_with_temperature");
     this->encoding_without_cache_func_ = mod_get_func("encoding_without_cache");
     this->create_kv_cache_func_ = mod_get_func("create_kv_cache");
+    if (this->create_kv_cache_func_ == nullptr) {
+      this->create_kv_cache_func_ = mod_get_func("_initialize_effect");
+    }
     this->reset_kv_cache_func_ = mod_get_func("reset_kv_cache");
     if (this->reset_kv_cache_func_ == nullptr) {
       this->reset_kv_cache_func_ = get_global_func("vm.builtin.attention_kv_cache_array_clear");
@@ -260,6 +279,7 @@ struct FunctionTable {
   PackedFunc reset_kv_cache_func_;
   bool support_backtracking_kv_;
   PackedFunc fkvcache_array_popn_;
+  ModelMetadata model_metadata_;
 };
 
 }  // namespace
@@ -293,6 +313,9 @@ class LLMChat {
 
   bool UpdateMaxWindowSizeFromMetadata() {
     if (ft_.use_disco) {
+      return false;
+    }
+    if (this->sliding_window_ != -1) {
       return false;
     }
     PackedFunc fget_metadata = ft_.mod_get_func("get_metadata");
@@ -368,6 +391,16 @@ class LLMChat {
       CHECK(config["max_window_size"].is<int64_t>());
       this->max_window_size_ =
           std::min(this->max_window_size_, config["max_window_size"].get<int64_t>());
+    }
+    if (config.count("sliding_window")) {
+      CHECK(config["sliding_window"].is<int64_t>());
+      CHECK(!config.count("max_window_size"))
+          << "Cannot specify both sliding_window and max_window_size.";
+      this->sliding_window_ = config["sliding_window"].get<int64_t>();
+    }
+    if (config.count("sliding_window_chunk_size")) {
+      CHECK(config["sliding_window_chunk_size"].is<int64_t>());
+      this->sliding_window_chunk_size_ = config["sliding_window_chunk_size"].get<int64_t>();
     }
     if (config.count("model_name")) {
       CHECK(config["model_name"].is<std::string>());
@@ -462,9 +495,11 @@ class LLMChat {
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
     this->ft_.Init(reload_lib, device_, this->num_shards_);
-    UpdateMaxWindowSizeFromMetadata();
-    CHECK(max_window_size_ != std::numeric_limits<int64_t>::max())
-        << "Key \"max_window_size\" not found.";
+    if (this->sliding_window_ == -1) {
+      UpdateMaxWindowSizeFromMetadata();
+      CHECK(max_window_size_ != std::numeric_limits<int64_t>::max())
+          << "Key \"max_window_size\" not found.";
+    }
     // Step 4. Initialize sample functions.
     auto fsample_topp_from_prob_ptr =
         tvm::runtime::Registry::Get("vm.builtin.sample_top_p_from_prob");
@@ -562,7 +597,8 @@ class LLMChat {
     std::string all_prompt = GetConcatPrompt(prompts, 0, 0);
     std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
-    if (this->total_seq_len_ + tokens.size() + gen_mean_gen_len < this->max_window_size_) {
+    if (this->sliding_window_ != -1 ||  // There is no max window size if we use sliding window
+        this->total_seq_len_ + tokens.size() + gen_mean_gen_len < this->max_window_size_) {
       return tokens;
     }
     // need shift window and re-encode
@@ -753,6 +789,10 @@ class LLMChat {
       if (ft_.use_disco) {
         LOG(FATAL) << "NotImplementedError: Distributed inference is not supported for this model";
       }
+      if (this->sliding_window_ != -1) {
+        LOG(FATAL)
+            << "NotImplementedError: Sliding window attention does not support separate embedding";
+      }
       NDArray embedding = Downcast<NDArray>(
           EmbedStep(inp, append_conversation, place_in_prompt, generation_config_str));
       PrefillWithEmbedStep(embedding, decode_next_token, generation_config_str);
@@ -772,8 +812,28 @@ class LLMChat {
     }
     auto tstart = std::chrono::high_resolution_clock::now();
 
-    int32_t new_seq_len = total_seq_len_ + token_len;
-    NDArray logits_on_device = this->ForwardTokens(prompt_tokens, new_seq_len);
+    int32_t new_seq_len = total_seq_len_;
+    NDArray logits_on_device;
+    if (this->sliding_window_ != -1) {
+      // Use chunking if we use sliding window attention (see Mistral paper figure 3).
+      int64_t sliding_window_chunk_size = this->sliding_window_chunk_size_;
+      if (this->sliding_window_chunk_size_ == -1) {
+        // One chunk if chunk size not specified
+        sliding_window_chunk_size = token_len;
+      }
+      for (int64_t begin = 0; begin < token_len; begin += sliding_window_chunk_size) {
+        int64_t end = std::min(token_len, begin + sliding_window_chunk_size);
+        std::vector<int32_t> chunk =
+            std::vector<int32_t>(prompt_tokens.begin() + begin, prompt_tokens.begin() + end);
+        new_seq_len += static_cast<int64_t>(chunk.size());
+        logits_on_device = this->ForwardTokens(chunk, new_seq_len);
+      }
+      ICHECK_EQ(new_seq_len, total_seq_len_ + token_len) << "Expect chunking process all tokens";
+    } else {
+      // Otherwise, prefill entire prompt at once.
+      new_seq_len += token_len;
+      logits_on_device = this->ForwardTokens(prompt_tokens, new_seq_len);
+    }
     total_seq_len_ = new_seq_len;
 
     if (!decode_next_token) {
@@ -957,7 +1017,7 @@ class LLMChat {
     }
     if (generation_config.count("presence_penalty")) {
       CHECK(generation_config["presence_penalty"].is<double>());
-      CHECK(abs(generation_config["presence_penalty"].get<double>()) <= 2)
+      CHECK(fabs(generation_config["presence_penalty"].get<double>()) <= 2)
           << "Presence penalty must be in the range -2 to 2!";
       *gen_presence_penalty = generation_config["presence_penalty"].get<double>();
     } else {
@@ -965,7 +1025,7 @@ class LLMChat {
     }
     if (generation_config.count("frequency_penalty")) {
       CHECK(generation_config["frequency_penalty"].is<double>());
-      CHECK(abs(generation_config["frequency_penalty"].get<double>()) <= 2)
+      CHECK(fabs(generation_config["frequency_penalty"].get<double>()) <= 2)
           << "Frequency penalty must be in the range -2 to 2!";
       *gen_frequency_penalty = generation_config["frequency_penalty"].get<double>();
     } else {
@@ -1108,7 +1168,12 @@ class LLMChat {
 
     if (static_cast<int64_t>(output_ids_.size()) >= gen_max_gen_len) {
       stop_triggered_ = true;
-    } else if (total_seq_len_ >= max_window_size_) {
+    }
+    // max_window_size_ != -1 to handle
+    // https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py#L588-L589
+    // sliding_window_ == -1 to make sure we do not stop when using sliding window
+    else if (max_window_size_ != -1 && sliding_window_ == -1 &&
+             total_seq_len_ >= max_window_size_) {
       stop_triggered_ = true;
     }
     if (stop_triggered_) {
@@ -1122,7 +1187,18 @@ class LLMChat {
     if (input_tokens.size() > 1 && ft_.prefill_func_.defined()) {
       ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray(input_tokens));
       ShapeTuple cur_pos_shape = ShapeTuple({cur_pos});
-      ret = ft_.prefill_func_(input_data, cur_pos_shape, kv_cache_, params_);
+      if (sliding_window_ == -1) {
+        ret = ft_.prefill_func_(input_data, cur_pos_shape, kv_cache_, params_);
+      } else {
+        // Sliding window attention needs extra shape parameters
+        int64_t seq_len = static_cast<int64_t>(input_tokens.size());
+        // Number of elements in the cache
+        int64_t cache_len = std::min(this->sliding_window_, cur_pos - seq_len);
+        ShapeTuple cache_len_shape = ShapeTuple({cache_len});
+        ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
+        ret = ft_.prefill_func_(input_data, cur_pos_shape, cache_len_shape, kv_seq_len_shape,
+                                kv_cache_, params_);
+      }
     } else {
       // running decode function when prefill is not available
       for (int i = 0; i < input_tokens.size(); ++i) {
@@ -1135,8 +1211,19 @@ class LLMChat {
           input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray({input_tokens[i]}));
         }
         int64_t pos = cur_pos + i + 1 - input_tokens.size();
-        ShapeTuple pos_shape = ShapeTuple({cur_pos});
-        ret = ft_.decode_func_(input_data, pos_shape, kv_cache_, params_);
+        ShapeTuple pos_shape = ShapeTuple({pos});
+        if (sliding_window_ == -1) {
+          ret = ft_.decode_func_(input_data, pos_shape, kv_cache_, params_);
+        } else {
+          // Sliding window attention needs extra shape parameters
+          int64_t seq_len = static_cast<int64_t>(input_tokens.size());
+          // Number of elements in the cache
+          int64_t cache_len = std::min(this->sliding_window_, pos - seq_len);
+          ShapeTuple cache_len_shape = ShapeTuple({cache_len});
+          ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
+          ret = ft_.decode_func_(input_data, pos_shape, cache_len_shape, kv_seq_len_shape,
+                                 kv_cache_, params_);
+        }
       }
     }
     if (ft_.use_disco) {
@@ -1262,9 +1349,10 @@ class LLMChat {
   Conversation conversation_;
   // total sequence len,
   int64_t total_seq_len_{0};
-  // max window size, mean generation length
+  // max window size, mean and max generation length, sliding window
+  // If we use sliding window, max window size is its default max() value
   int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128},
-      max_gen_len_{512};
+      max_gen_len_{512}, sliding_window_{-1}, sliding_window_chunk_size_{-1};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference
