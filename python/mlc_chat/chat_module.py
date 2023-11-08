@@ -754,6 +754,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         self._embed_func = chat_mod["embed"]
         self._prefill_with_embed_func = chat_mod["prefill_with_embed"]
         self._decode_func = chat_mod["decode"]
+        self._logprob_func = chat_mod["loglikelihood"]
         self._raw_generate_func = chat_mod["raw_generate"]
         self._reset_chat_func = chat_mod["reset_chat"]
         self._load_json_override_func = chat_mod["load_json_override"]
@@ -1137,6 +1138,33 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         generation_config = _get_generation_config(self.chat_config, generation_config)
         generation_config_str = _convert_generation_config_to_json_str(generation_config)
         self._decode_func(generation_config_str)
+
+    def _logprob(
+        self,
+        context: str,
+        continuation: str,
+        generation_config: Optional[GenerationConfig] = None,
+    ):
+        r"""Generate log probes for given context and continuation.
+        Return logprobes and is_greedy boolean
+
+        Parameters
+        ----------
+        context : str
+            The user input context string.
+        continuation : str
+            The user input continuation string.
+        generation_config: Optional[GenerationConfig]
+            The generation config to override the ChatConfig generation settings.
+
+        Returns
+        -------
+        {"logprobes": float, "is_greedy": bool} : dict
+        """
+        generation_config = _get_generation_config(self.chat_config, generation_config)
+        generation_config_str = _convert_generation_config_to_json_str(generation_config)
+
+        return self._logprob_func(context, continuation, generation_config_str)
 
     def _stopped(self) -> bool:
         r"""Check if the stop condition is met for the current round.

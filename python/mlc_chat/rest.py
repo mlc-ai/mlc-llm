@@ -285,6 +285,10 @@ async def request_completion(request: CompletionRequest):
     else:
         prompt = request.prompt
 
+    # TODO(vvchernov): possibly in OpenAI API format the logprobs can be calculated in stream
+    if request.stream and request.logprobs:
+        raise ValueError("Logprobs calculation is not supported in stream regime")
+
     if request.stream:
         session["chat_mod"]._prefill(  # pylint: disable=protected-access
             input=prompt,
@@ -308,12 +312,26 @@ async def request_completion(request: CompletionRequest):
                     yield f"data: {chunk.json(exclude_unset=True)}\n\n"
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
-    msg = session["chat_mod"].generate(prompt=prompt, generation_config=generation_config)
-    return CompletionResponse(
-        choices=[CompletionResponseChoice(index=0, text=msg)],
-        # TODO: Fill in correct usage info
-        usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
-    )
+    else:
+        if request.logprobs:
+            logprob_dict_str = session["chat_mod"]._logprob(
+                context=request.context,
+                continuation=request.continuation,
+                generation_config=generation_config
+            )
+            import json
+            return CompletionResponse(
+                choices=[CompletionResponseChoice(index=0, text=logprob_dict_str)],
+                # TODO: Fill in correct usage info
+                usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+            )
+        else:
+            msg = session["chat_mod"].generate(prompt=prompt, generation_config=generation_config)
+            return CompletionResponse(
+                choices=[CompletionResponseChoice(index=0, text=msg)],
+                # TODO: Fill in correct usage info
+                usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+            )
 
 
 @app.post("/v1/embeddings")

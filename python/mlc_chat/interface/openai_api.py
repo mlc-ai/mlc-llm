@@ -82,8 +82,10 @@ class ChatCompletionStreamResponse(BaseModel):
 
 class CompletionRequest(BaseModel):
     model: str
-    prompt: Union[str, List[str]]
-    stream: Optional[bool] = False
+    prompt: str | list[str]
+    context: str        # TODO(vvchernov): temporal solution
+    continuation: str   # TODO(vvchernov): temporal solution
+    stream: bool | None = False
     temperature: float = None
     repetition_penalty: float = None
     top_p: float = None
@@ -96,7 +98,11 @@ class CompletionRequest(BaseModel):
     # suffix
     # max_tokens: Optional[int]
     # n: Optional[int] = 1
-    # logprobs
+    # TODO(vvchernov): in deprecated OpenAI API logprobs: int
+    # They plan to return logprobs, but API is not known for it
+    # if it remains the same it is needed to developed chat/completion pipeline
+    # Currently we use it for loglikelihood calculations in separated pipeline
+    logprobs: bool = False
     # echo
     # stop: Optional[Union[str, List[str]]] = None
     # best_of
