@@ -7,6 +7,27 @@ namespace mlc {
 namespace llm {
 namespace {
 
+Conversation ChatML() {
+  Conversation conv;
+  conv.name = "chatml";
+  conv.roles = {"<|im_start|>user", "<|im_start|>assistant"};
+  conv.system =
+      ("<|im_start|>system A conversation between a user and an LLM-based AI assistant. The "
+       "assistant gives helpful and honest answers.<|im_end|> ");
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"<|im_end|>", "<|im_end|>"};
+  conv.role_msg_sep = "\n";
+  conv.role_empty_sep = "\n";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2};
+  conv.stop_str = "<|im_end|>";
+  conv.add_bos = true;
+  return conv;
+}
+
 Conversation LlamaDefault() {
   Conversation conv;
   conv.name = "llama_default";
@@ -583,6 +604,7 @@ using ConvFactory = Conversation (*)();
 
 Conversation Conversation::FromTemplate(const std::string& name) {
   static std::unordered_map<std::string, ConvFactory> factory = {
+      {"chatml", ChatML},
       {"llama_default", LlamaDefault},
       {"llama-2", Llama2},
       {"mistral_default", MistralDefault},
