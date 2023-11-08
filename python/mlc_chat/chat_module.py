@@ -8,13 +8,15 @@ import sys
 import warnings
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
-from typing import List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import tvm
 from tvm.runtime import disco  # pylint: disable=unused-import
 
 from . import base  # pylint: disable=unused-import
-from .interface.openai_api import ChatMessage
+
+if TYPE_CHECKING:
+    from .interface.openai_api import ChatMessage
 
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
@@ -784,7 +786,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
     def generate(
         self,
-        prompt: Union[str, List[ChatMessage]],
+        prompt: Union[str, List["ChatMessage"]],
         generation_config: Optional[GenerationConfig] = None,
         progress_callback=None,
     ) -> Union[str, List[str]]:
@@ -1002,7 +1004,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
     def _prefill(
         self,
-        input: Union[str, List[ChatMessage]],  # pylint: disable=redefined-builtin
+        input: Union[str, List["ChatMessage"]],  # pylint: disable=redefined-builtin
         decode_next_token: bool = True,
         place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
         generation_config: Optional[GenerationConfig] = None,
