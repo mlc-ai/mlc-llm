@@ -27,7 +27,7 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     num_hidden_layers: int
     rms_norm_eps: float
     vocab_size: int
-    position_embedding_base: int = 10000
+    position_embedding_base: int = 0
     max_sequence_length: int = 0
     num_key_value_heads: int = 0
     head_dim: int = 0
@@ -49,6 +49,11 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                     "`max_sequence_length` nor `max_position_embeddings` is provided "
                     "in `config.json`."
                 )
+        if self.position_embedding_base == 0:
+            if "rope_theta" in self.kwargs:
+                self.position_embedding_base = self.kwargs.pop("rope_theta")
+            else:
+                self.position_embedding_base = 10000
         if self.num_key_value_heads == 0:
             self.num_key_value_heads = self.num_attention_heads
         if self.head_dim == 0:
@@ -58,6 +63,69 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
 
 # pylint: disable=invalid-name,missing-docstring
+
+
+class RMSNorm(nn.Module):
+    """
+    Module for rms norm layer.
+    """
+
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        hidden_size: int,
+        axes,  # pylint: disable=unused-argument
+        epsilon: float = 1e-5,
+        bias: bool = True,
+        dtype: Optional[str] = None,
+    ):
+        super().__init__()
+        self.epsilon = epsilon
+        self.weight = nn.Parameter((hidden_size,), dtype=dtype)
+        if bias:
+            self.bias = nn.Parameter((hidden_size,), dtype=dtype)
+        else:
+            self.bias = None
+
+    def forward(self, x: Tensor):
+        """
+        Forward method for rms norm layer.
+
+        Parameters
+        ----------
+        x : Tensor
+            The input tensor.
+
+        Returns
+        -------
+        ret : Tensor
+            The output tensor for the rms norm layer.
+        """
+
+        def f_square(x):
+            x = x.astype("float32")
+            return x * x
+
+        def f_div_mult(x, square_sum, weight, *indices):
+            *i, k = indices
+            s = tir.sqrt(square_sum[*i] / x.shape[-1] + self.epsilon)
+            s = x[*i, k].astype("float32") / s
+            s = (weight[k] * s).astype(x.dtype)
+            return s
+
+        def te_op(x: te.Tensor, weight: te.Tensor):
+            k = te.reduce_axis((0, x.shape[-1]), name="k")
+            square_sum = te.compute(
+                x.shape[:-1],
+                lambda *i: te.sum(f_square(x[*i, k]), axis=k),
+                name=x.op.name + "red_temp",
+            )
+            return te.compute(
+                x.shape,
+                lambda *i: f_div_mult(x, square_sum, weight, *i),
+                name="rms_norm",
+            )
+
+        return op.tensor_expr_op(te_op, "rms_norm", args=[x, self.weight])
 
 
 class RotaryEmbedding(nn.Module):
@@ -80,9 +148,9 @@ class RotaryEmbedding(nn.Module):
                 freq = (offset + s) / freq
                 cos = tir.cos(freq).astype(dtype) * x[b, s, h, d]
                 sin = tir.sin(freq).astype(dtype) * tir.if_then_else(
-                    d < self.head_dim // 2,
-                    -x[b, s, h, d + self.head_dim // 2],
-                    x[b, s, h, d - self.head_dim // 2],
+                    d < head_dim // 2,
+                    -x[b, s, h, d + head_dim // 2],
+                    x[b, s, h, d - head_dim // 2],
                 )
                 return cos + sin
 
@@ -146,8 +214,8 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
 
         self.k_cache.append(op.squeeze(k, axis=0))
         self.v_cache.append(op.squeeze(v, axis=0))
-        k = op.reshape(self.k_cache.view(total_seq_len), (b, t, h_kv, d))
-        v = op.reshape(self.v_cache.view(total_seq_len), (b, t, h_kv, d))
+        k = op.reshape(self.k_cache.view(t), (b, t, h_kv, d))
+        v = op.reshape(self.v_cache.view(t), (b, t, h_kv, d))
         if h_kv != h_q:
             k = k.repeat(h_q // h_kv, axis=2)
             v = v.repeat(h_q // h_kv, axis=2)
@@ -163,11 +231,9 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
             attn_weights = op.softmax(attn_weights, axis=-1)
         else:
             attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
-        return self.o_proj(
-            op.matmul(attn_weights, v)  # [b, h, s, t] x [b, h, t, d] = [b, h, s, d]
-            .permute_dims([0, 2, 1, 3])  # [b, s, h, d]
-            .reshape((b, s, h_q * d))
-        )
+        # [b, h, s, t] x [b, h, t, d] => [b, h, s, d] => [b, s, h, d]
+        output = op.matmul(attn_weights, v)
+        return self.o_proj(output.permute_dims([0, 2, 1, 3]).reshape((b, s, h_q * d)))
 
 
 class LlamaDecoderLayer(nn.Module):
@@ -175,8 +241,8 @@ class LlamaDecoderLayer(nn.Module):
         rms_norm_eps = config.rms_norm_eps
         self.self_attn = LlamaAttention(config, rotary_embedding)
         self.mlp = LlamaFFN(config)
-        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
-        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
+        self.input_layernorm = RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
+        self.post_attention_layernorm = RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
 
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
         hidden_states = (
@@ -195,7 +261,7 @@ class LlamaModel(nn.Module):
         self.layers = nn.ModuleList(
             [LlamaDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
         )
-        self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.norm = RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
     def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
         hidden_states = self.embed_tokens(inputs)
