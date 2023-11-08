@@ -52,41 +52,46 @@ def _attach_auxiliary_methods(
     mod: IRModule,
     named_params: List[Tuple[str, nn.Parameter]],
     args: CompileArgs,
-    model_config,
 ) -> None:
-    def _metadata():
-        metadata = {
-            "quantization": args.quantization.name,
-            "model_type": args.model.name,
-            "memory_usage": {str(k): int(v) for k, v in mod.attrs["mlc_llm.memory_usage"].items()},
-            "params": [
-                {
-                    "name": name,
-                    "shape": list(param.shape),
-                    "dtype": param.dtype,
-                }
-                for name, param in named_params
-            ],
-        }
-        print(json.dumps(metadata, indent=2))
+    def _get_memory_usage():
+        return {str(k): int(v) for k, v in mod.attrs["mlc_llm.memory_usage"].items()}
+
+    def _get_param_info():
+        return [
+            {
+                "name": name,
+                "shape": list(param.shape),
+                "dtype": param.dtype,
+            }
+            for name, param in named_params
+        ]
+
+    def _emit_metadata(metadata):
         bb = relax.BlockBuilder()  # pylint: disable=invalid-name
         with bb.function("main", params=[]):
             bb.emit_func_output(relax.StringImm(json.dumps(metadata)))
         return bb.get()["main"]
 
-    def _attach_variable_bounds():
-        for g_var, func in mod.functions_items():
-            if isinstance(func, relax.Function):
-                mod[g_var] = func.with_attr(
-                    "tir_var_upper_bound",
-                    {
-                        "seq_len": model_config.max_sequence_length,
-                        "total_seq_len": model_config.max_sequence_length,
-                    },
-                )
+    mod["_metadata"] = _emit_metadata(
+        metadata={
+            "quantization": args.quantization.name,
+            "model_type": args.model.name,
+            "memory_usage": _get_memory_usage(),
+            "params": _get_param_info(),
+        }
+    )
 
-    mod["_metadata"] = _metadata()
-    _attach_variable_bounds()
+
+def _attach_variable_bounds(mod, model_config):
+    for g_var, func in mod.functions_items():
+        if isinstance(func, relax.Function):
+            mod[g_var] = func.with_attr(
+                "tir_var_upper_bound",
+                {
+                    "seq_len": model_config.max_sequence_length,
+                    "total_seq_len": model_config.max_sequence_length,
+                },
+            )
 
 
 def _compile(args: CompileArgs):
@@ -99,9 +104,10 @@ def _compile(args: CompileArgs):
         spec=model.get_default_spec(),  # type: ignore
     )
     logger.info("Running optimizations using TVM Unity")
+    _attach_variable_bounds(mod, model_config)
     with args.target:
         mod = relax.get_pipeline("mlc_llm")(mod)
-    _attach_auxiliary_methods(mod, named_params, args, model_config)
+    _attach_auxiliary_methods(mod, named_params, args)
     logger.info("Generating code using TVM Unity")
     args.build_func(mod, args)
     logger.info("Generated: %s", bold(str(args.output)))
