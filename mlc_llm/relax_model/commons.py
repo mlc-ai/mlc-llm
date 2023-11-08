@@ -10,6 +10,8 @@ def create_metadata_func(
     max_window_size: int,
     stop_tokens: List[int],
     add_prefix_space: bool,
+    sliding_window: int = -1,
+    sliding_window_chunk_size: int = -1,
 ):
     metadata = json.dumps(
         {
@@ -17,6 +19,8 @@ def create_metadata_func(
             "max_window_size": max_window_size,
             "stop_tokens": stop_tokens,
             "add_prefix_space": add_prefix_space,
+            "sliding_window": sliding_window,
+            "sliding_window_chunk_size": sliding_window_chunk_size,
         }
     )
     with bb.function("get_metadata", params=[]):
