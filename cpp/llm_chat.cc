@@ -397,10 +397,16 @@ class LLMChat {
       CHECK(!config.count("max_window_size"))
           << "Cannot specify both sliding_window and max_window_size.";
       this->sliding_window_ = config["sliding_window"].get<int64_t>();
+      CHECK(this->sliding_window_ > 0) << "Sliding window size needs to be positive";
+      CHECK(config.count("sliding_window_chunk_size"))
+          << "Need to specify chunk size if using sliding window attention.";
     }
     if (config.count("sliding_window_chunk_size")) {
       CHECK(config["sliding_window_chunk_size"].is<int64_t>());
       this->sliding_window_chunk_size_ = config["sliding_window_chunk_size"].get<int64_t>();
+      CHECK(this->sliding_window_chunk_size_ > 0)
+          << "Sliding window chunk size needs to be positive";
+      CHECK(config.count("sliding_window")) << "Need to specify sliding window size.";
     }
     if (config.count("model_name")) {
       CHECK(config["model_name"].is<std::string>());
@@ -816,13 +822,8 @@ class LLMChat {
     NDArray logits_on_device;
     if (this->sliding_window_ != -1) {
       // Use chunking if we use sliding window attention (see Mistral paper figure 3).
-      int64_t sliding_window_chunk_size = this->sliding_window_chunk_size_;
-      if (this->sliding_window_chunk_size_ == -1) {
-        // One chunk if chunk size not specified
-        sliding_window_chunk_size = token_len;
-      }
-      for (int64_t begin = 0; begin < token_len; begin += sliding_window_chunk_size) {
-        int64_t end = std::min(token_len, begin + sliding_window_chunk_size);
+      for (int64_t begin = 0; begin < token_len; begin += this->sliding_window_chunk_size_) {
+        int64_t end = std::min(token_len, begin + this->sliding_window_chunk_size_);
         std::vector<int32_t> chunk =
             std::vector<int32_t>(prompt_tokens.begin() + begin, prompt_tokens.begin() + end);
         new_seq_len += static_cast<int64_t>(chunk.size());
