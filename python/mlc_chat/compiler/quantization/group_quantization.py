@@ -222,8 +222,11 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         max_abs = te.compute(
             shape=scale_shape,
             fcompute=lambda i, j: te.max(
-                te.abs(weight[i, j * self.group_size + r]),
-                where=j * self.group_size + r < k,
+                tir.if_then_else(
+                    j * self.group_size + r < k,
+                    te.abs(weight[i, j * self.group_size + r]),
+                    te.min_value(self.model_dtype),
+                ),
                 axis=r,
             ),
             name="max_abs_value",
@@ -251,9 +254,13 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         quantized_weight = te.compute(
             shape=quantized_weight_shape,
             fcompute=lambda i, j: tir.sum(
-                scaled_weight[i, j * self.num_elem_per_storage + r] << (r * quantize_dtype.bits),
+                tir.if_then_else(
+                    j * self.num_elem_per_storage + r < k,
+                    scaled_weight[i, j * self.num_elem_per_storage + r]
+                    << (r * quantize_dtype.bits),
+                    0,
+                ),
                 axis=r,
-                where=j * self.num_elem_per_storage + r < k,
             ),
             name="weight",
         )

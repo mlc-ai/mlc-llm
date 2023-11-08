@@ -24,6 +24,14 @@ It is also required to have the following method:
 """
 
 QUANTIZATION: Dict[str, Quantization] = {
+    "q3f16_1": GroupQuantize(
+        name="q3f16_1",
+        kind="group-quant",
+        group_size=40,
+        quantize_dtype="int3",
+        storage_dtype="uint32",
+        model_dtype="float16",
+    ),
     "q4f16_1": GroupQuantize(
         name="q4f16_1",
         kind="group-quant",
@@ -31,6 +39,14 @@ QUANTIZATION: Dict[str, Quantization] = {
         quantize_dtype="int4",
         storage_dtype="uint32",
         model_dtype="float16",
+    ),
+    "q4f32_1": GroupQuantize(
+        name="q4f32_1",
+        kind="group-quant",
+        group_size=32,
+        quantize_dtype="int4",
+        storage_dtype="uint32",
+        model_dtype="float32",
     ),
     "q4f16_awq": AWQQuantize(
         name="q4f16_awq",
