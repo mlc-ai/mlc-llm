@@ -758,7 +758,11 @@ def build_model_from_args(args: argparse.Namespace):
 
         if args.model_category == "mistral":
             args.sliding_window = model_config.sliding_window
-            args.sliding_window_chunk_size = model_config.sliding_window_chunk_size
+            # This line is introduced by the merge with upstream
+            #   see: https://github.com/octoml/mlc-llm/pull/52
+            # However, HF config does not have this info and we don't need this info.
+            # So commented out for now.
+            # args.sliding_window_chunk_size = model_config.sliding_window_chunk_size
 
         for qspec_updater_class in param_manager.qspec_updater_classes:
             qspec_updater = qspec_updater_class(param_manager)
