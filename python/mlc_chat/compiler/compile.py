@@ -58,6 +58,7 @@ def _attach_auxiliary_methods(
         metadata = {
             "quantization": args.quantization.name,
             "model_type": args.model.name,
+            "memory_usage": {str(k): int(v) for k, v in mod.attrs["mlc_llm.memory_usage"].items()},
             "params": [
                 {
                     "name": name,
@@ -67,6 +68,7 @@ def _attach_auxiliary_methods(
                 for name, param in named_params
             ],
         }
+        print(json.dumps(metadata, indent=2))
         bb = relax.BlockBuilder()  # pylint: disable=invalid-name
         with bb.function("main", params=[]):
             bb.emit_func_output(relax.StringImm(json.dumps(metadata)))
@@ -96,10 +98,10 @@ def _compile(args: CompileArgs):
     mod, named_params = model.export_tvm(
         spec=model.get_default_spec(),  # type: ignore
     )
-    _attach_auxiliary_methods(mod, named_params, args, model_config)
     logger.info("Running optimizations using TVM Unity")
     with args.target:
         mod = relax.get_pipeline("mlc_llm")(mod)
+    _attach_auxiliary_methods(mod, named_params, args, model_config)
     logger.info("Generating code using TVM Unity")
     args.build_func(mod, args)
     logger.info("Generated: %s", bold(str(args.output)))
