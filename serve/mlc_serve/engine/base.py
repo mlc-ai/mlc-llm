@@ -14,6 +14,7 @@ class StoppingCriteria:
     """
 
     max_tokens: Optional[int]
+    stop_sequences: Optional[list[str]]
 
 
 @dataclass
@@ -168,3 +169,21 @@ class RequestState:
     stopping_criteria: StoppingCriteria
     debug_options: DebugOptions
     is_ended: bool = False
+
+def check_stopping_sequences(stopping_criteria, output_text, delta, is_ended):
+    if stopping_criteria.stop_sequences:
+        for t in stopping_criteria.stop_sequences:
+            if t in output_text:
+                # since search pattern can include only part of the new generated token,
+                # we need to trim generated string
+                # for example, we have "I " in the stopping criteria, previously existed
+                # output_text had "I" and new coming token "am" would add space before the word
+                # thus final output_text would have "I am" before verification on stop sequence
+                # While eventually we need to return "I "
+                if not output_text.endswith(t):
+                    sub_index = output_text.find(t)
+                    delta = delta[:-(len(output_text) - sub_index - len(t))]
+                    output_text = output_text[:output_text.find(t) + len(t)]
+                is_ended = True
+                break
+    return output_text, delta, is_ended

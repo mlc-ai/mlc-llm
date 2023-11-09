@@ -19,6 +19,7 @@ from .base import (
     SamplingParams,
     SequenceOutput,
     StoppingCriteria,
+    check_stopping_sequences
 )
 from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId
 
@@ -176,6 +177,11 @@ class SynchronousInferenceEngine(InferenceEngine):
             state = self.current_batch[request_id]
             delta = self._decode_last_output(state)
             state.output_text += delta
+
+            state.output_text, delta, state.is_ended = check_stopping_sequences(state.stopping_criteria,
+                                                                              state.output_text,
+                                                                              delta,
+                                                                              state.is_ended)
 
             outputs.append(
                 RequestOutput(

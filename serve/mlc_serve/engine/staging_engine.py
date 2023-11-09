@@ -15,6 +15,7 @@ from .base import (
     RequestState,
     ScopedInferenceEngine,
     SequenceOutput,
+    check_stopping_sequences
 )
 from .model_module import ModelModule, TokenizerModule
 from .staging_engine_worker import (
@@ -170,6 +171,11 @@ class StagingInferenceEngine(ScopedInferenceEngine):
 
                 delta = self._decode_last_output(state)
                 state.output_text += delta
+
+                state.output_text, delta, state.is_ended = check_stopping_sequences(state.stopping_criteria,
+                                                                                state.output_text,
+                                                                                delta,
+                                                                                state.is_ended)
 
                 outputs.append(
                     RequestOutput(

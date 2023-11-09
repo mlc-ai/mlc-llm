@@ -84,13 +84,20 @@ async def request_completion(
             issues with sampling parameters
             """
         )
-
+    # TODO(amalyshe): need to verify quantity, according to OpenAI API:
+    # <<Up to 4 sequences where the API will stop generating further tokens.>>
+    # The behavior in case of bigger number of stop sequences is unknown - need to shrink
+    # or return error
+    # To figure out how to handle properly and add verification
+    stop_sequences = None
+    if request.stop:
+        stop_sequences = request.stop if type(request.stop) == list else [request.stop]
     text_generation_request = Request(
         request_id=request_id,
         messages=request.messages,
         num_sequences=request.n,
         sampling_params=sampling_params,
-        stopping_criteria=StoppingCriteria(max_tokens=request.max_tokens),
+        stopping_criteria=StoppingCriteria(max_tokens=request.max_tokens, stop_sequences=stop_sequences),
         debug_options=DebugOptions(ignore_eos=request.ignore_eos),
     )
     if isinstance(request.messages, str):
