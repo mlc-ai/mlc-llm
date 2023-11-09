@@ -303,7 +303,7 @@ def sample(logits, sampling_params, vocab_size):
 
 
 def load_disco_module(artifact_path, lib_path, num_shards):
-    sess = di.ThreadedSession(num_workers=num_shards)
+    sess = di.ProcessSession(num_workers=num_shards)
     devices = range(num_shards)
     sess.init_ccl("nccl", *devices)
     module = sess.load_vm_module(lib_path)
