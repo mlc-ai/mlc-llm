@@ -6,7 +6,7 @@ from tvm.relax.frontend import nn
 
 from ..loader import ExternMapping, QuantizeMapping
 from ..quantization.quantization import Quantization
-from . import llama_loader, llama_model, llama_quantization
+from . import llama_loader, llama_model, llama_quantization, mistral_model
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -65,7 +65,20 @@ MODELS: Dict[str, Model] = {
             "group-quant": llama_quantization.group_quant,
             "awq": llama_quantization.awq_quant,
         },
-    )
+    ),
+    "mistral": Model(
+        name="mistral",
+        model=mistral_model.MistralForCasualLM,
+        config=mistral_model.MistralConfig,
+        source={
+            "huggingface-torch": llama_loader.huggingface,
+            "huggingface-safetensor": llama_loader.huggingface,
+            "awq": llama_loader.awq,
+        },
+        quantize={
+            "group-quant": llama_quantization.group_quant,
+        },
+    ),
 }
 
 MODEL_PRESETS: Dict[str, Any] = {
@@ -209,5 +222,27 @@ MODEL_PRESETS: Dict[str, Any] = {
         "transformers_version": "4.32.0.dev0",
         "use_cache": True,
         "vocab_size": 32016,
+    },
+    "mistral_7b_v0.1": {
+        "architectures": ["MistralForCausalLM"],
+        "bos_token_id": 1,
+        "eos_token_id": 2,
+        "hidden_act": "silu",
+        "hidden_size": 4096,
+        "initializer_range": 0.02,
+        "intermediate_size": 14336,
+        "max_position_embeddings": 32768,
+        "model_type": "mistral",
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "num_key_value_heads": 8,
+        "rms_norm_eps": 1e-05,
+        "rope_theta": 10000.0,
+        "sliding_window": 4096,
+        "tie_word_embeddings": False,
+        "torch_dtype": "bfloat16",
+        "transformers_version": "4.34.0.dev0",
+        "use_cache": True,
+        "vocab_size": 32000,
     },
 }
