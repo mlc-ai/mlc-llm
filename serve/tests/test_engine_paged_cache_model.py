@@ -94,7 +94,7 @@ def test(args: argparse.Namespace):
                     request_id=str(i),
                     messages=[ChatMessage(role="user", content=prompt)],
                     sampling_params=random.choice(sampling_params_choices),
-                    stopping_criteria=StoppingCriteria(max_tokens=args.max_output_len),
+                    stopping_criteria=StoppingCriteria(max_tokens=args.max_output_len, stop_sequences=None),
                     debug_options=DebugOptions(prompt=prompt),
                 )
             ]
