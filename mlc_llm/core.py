@@ -849,7 +849,7 @@ def build_model_from_args(args: argparse.Namespace):
 
         mod = mod_transform_before_build(mod, param_manager, args, model_config)
         if args.num_shards > 1:
-            # We requires a "create_sharding_info" function for all
+            # We require a "create_sharding_info" function for all
             # multi-GPU models, even if they are using pre-sharded
             # weights.  When using pre-sharded weights, the list of
             # initialization-time transforms to apply is empty.

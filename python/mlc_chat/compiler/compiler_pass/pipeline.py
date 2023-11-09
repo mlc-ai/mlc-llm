@@ -7,6 +7,7 @@ from tvm import dlight as dl
 from tvm.relax import register_pipeline  # pylint: disable=no-name-in-module
 
 from .clean_up_tir_attrs import CleanUpTIRAttrs
+from .estimate_memory_usage import EstimateMemoryUsage
 from .fuse_dequantize_matmul_ewise import FuseDequantizeMatmulEwise
 from .fuse_dequantize_take import FuseDequantizeTake
 from .fuse_dequantize_transpose import FuseDequantizeTranspose
@@ -64,6 +65,7 @@ def _mlc_llm_pipeline():
                 _LogProgress("Running memory optimizations"),
                 LiftTIRGlobalBufferAlloc(),
                 tvm.tir.transform.ForceNarrowIndexToInt32(),
+                EstimateMemoryUsage(),
             ]
         )
         mod = seq(mod._move())  # pylint: disable=protected-access

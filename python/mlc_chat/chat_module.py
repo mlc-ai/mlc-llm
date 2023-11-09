@@ -8,13 +8,15 @@ import sys
 import warnings
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
-from typing import List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import tvm
 from tvm.runtime import disco  # pylint: disable=unused-import
 
-from .base import _LIB  # pylint: disable=unused-import
-from .interface.openai_api import ChatMessage
+from . import base  # pylint: disable=unused-import
+
+if TYPE_CHECKING:
+    from .interface.openai_api import ChatMessage
 
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
@@ -41,10 +43,10 @@ class ConvConfig:  # pylint: disable=too-many-instance-attributes
     roles : Optional[List[str]]
         An array that describes the role names of the user and the model. These
         names are specific to the model being used.
-    messages : Optional[List[str]]
+    messages : Optional[List[List[str]]]
         The chat history represented as an array of string pairs in the following
         format: ``[[role_0, msg_0], [role_1, msg_1], ...]``.
-    offset : Optional[str]
+    offset : Optional[int]
         The offset used to begin the chat from the chat history. When offset
         is not ``0``, ``messages[0:offset-1]`` will be encoded.
     separator_style : Optional[int]
@@ -69,7 +71,7 @@ class ConvConfig:  # pylint: disable=too-many-instance-attributes
     system: Optional[str] = None
     roles: Optional[List[str]] = None
     messages: Optional[List[List[str]]] = None
-    offset: Optional[str] = None
+    offset: Optional[int] = None
     separator_style: Optional[int] = None
     seps: Optional[List[str]] = None
     role_msg_sep: Optional[str] = None
@@ -787,7 +789,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
     def generate(
         self,
-        prompt: Union[str, List[ChatMessage]],
+        prompt: Union[str, List["ChatMessage"]],
         generation_config: Optional[GenerationConfig] = None,
         progress_callback=None,
     ) -> Union[str, List[str]]:
@@ -797,14 +799,18 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
         Parameters
         ----------
-        prompt : Union[str, List[ChatMessage]]
+        prompt: Union[str, List[ChatMessage]]
             The user input prompt, i.e. a question to ask the chat module.
             It can also be the whole conversation history (list of messages with role and content)
-            eg: ```[
-                ChatMessage(role="user", content="Hello, how are you?"),
-                ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
-                ChatMessage(role="user", content="I'm good too."),
-            ]```
+            eg:
+
+            .. code::
+
+                [
+                    ChatMessage(role="user", content="Hello, how are you?"),
+                    ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
+                    ChatMessage(role="user", content="I'm good too."),
+                ]
         generation_config: Optional[GenerationConfig]
             The generation config object to override the ChatConfig generation settings.
         progress_callback: object
@@ -841,8 +847,6 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         if (generation_config is not None) and (generation_config.n is not None):
             num_return_sequences = generation_config.n
             return_str = False
-        else:
-            num_return_sequences = 1
 
         for _ in range(num_return_sequences):
             self.reset_chat()
@@ -1001,7 +1005,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
     def _prefill(
         self,
-        input: Union[str, List[ChatMessage]],  # pylint: disable=redefined-builtin
+        input: Union[str, List["ChatMessage"]],  # pylint: disable=redefined-builtin
         decode_next_token: bool = True,
         place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
         generation_config: Optional[GenerationConfig] = None,
@@ -1014,11 +1018,15 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         input : Union[str, List[ChatMessage]]
             The user input prompt, i.e. a question to ask the chat module.
             It can also be the whole conversation history (list of messages with role and content)
-            eg: ```[
-                ChatMessage(role="user", content="Hello, how are you?"),
-                ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
-                ChatMessage(role="user", content="I'm good too."),
-            ]```
+            eg:
+
+            .. code::
+
+                [
+                    ChatMessage(role="user", content="Hello, how are you?"),
+                    ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
+                    ChatMessage(role="user", content="I'm good too."),
+                ]
         decode_next_token : bool
             Whether to decode the next token after prefilling.
         place_in_prompt: PlaceInPrompt

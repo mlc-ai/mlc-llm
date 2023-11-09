@@ -949,6 +949,9 @@ def get_model(args, hf_config):
         sliding_window_chunk_size=args.sliding_window_chunk_size,
     )
 
+    assert config.sliding_window != -1
+    assert config.sliding_window_chunk_size != -1
+
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
 
@@ -962,6 +965,8 @@ def get_model(args, hf_config):
         max_window_size=config.max_sequence_length,
         stop_tokens=[2],
         add_prefix_space=False,
+        sliding_window=config.sliding_window,
+        sliding_window_chunk_size=config.sliding_window_chunk_size,
     )
 
     mod = bb.get()

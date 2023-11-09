@@ -18,17 +18,11 @@ def convert_uint_to_float(  # pylint: disable=too-many-arguments
         shape=[weight.shape[0], weight.shape[1] * num_elem_per_storage]
         if out_shape is None
         else out_shape,
-        fcompute=lambda i, j: tir.Cast(
-            model_dtype,
-            tir.bitwise_and(
-                tir.shift_right(
-                    weight[i, j // num_elem_per_storage],
-                    tir.Cast(
-                        storage_dtype,
-                        (j % num_elem_per_storage) * bits,
-                    ),
-                ),
-                tir_bin_mask,
+        fcompute=lambda i, j: tir.bitwise_and(
+            tir.shift_right(
+                weight[i, j // num_elem_per_storage],
+                ((j % num_elem_per_storage) * bits).astype(storage_dtype),
             ),
-        ),
+            tir_bin_mask,
+        ).astype(model_dtype),
     )
