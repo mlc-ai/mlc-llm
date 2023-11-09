@@ -1,5 +1,6 @@
 # pylint: disable=missing-docstring, redefined-outer-name, not-callable
 import argparse
+import functools
 import json
 import os
 import pickle
@@ -29,7 +30,8 @@ from mlc_llm.relax_model import (
     rwkv,
     stablelm_3b,
 )
-from mlc_llm.relax_model.commons import create_shard_info_func
+from mlc_llm.relax_model.commons import create_shard_info_func, create_shard_transformation_func
+from mlc_llm.relax_model.param_manager import transform_params_for_each_rank, chain_parameter_transforms
 from mlc_llm.transform import fuse_split_rotary_embedding, rewrite_attention
 
 
@@ -279,6 +281,13 @@ class BuildArgs:
             ),
         },
     )
+    use_presharded_weights: bool = field(
+        default=False,
+        metadata={
+            "action": "store_true",
+            "help": "Produce separate weight sets for each shard.",
+        },
+    )
     use_flash_attn_mqa: bool = field(
         default=False,
         metadata={
@@ -366,9 +375,14 @@ def _parse_args(parsed) -> argparse.Namespace:
             "tvm.contrib.vllm.single_query_cached_kv_attention", True
         ), "TVM needs to be built with -DUSE_VLLM=ON."
 
-    parsed.artifact_path = os.path.join(
-        parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
-    )
+    model_name = [
+        parsed.model,
+        parsed.quantization.name,
+    ]
+    if parsed.use_presharded_weights:
+        model_name.append(f"presharded-{parsed.num_shards}gpu")
+
+    parsed.artifact_path = os.path.join(parsed.artifact_path, "-".join(model_name))
 
     return parsed
 
@@ -602,6 +616,7 @@ def dump_mlc_chat_config(
     config["mean_gen_len"] = mean_gen_len
     config["max_gen_len"] = max_gen_len
     config["num_shards"] = args.num_shards
+    config["use_presharded_weights"] = args.use_presharded_weights
     config["shift_fill_factor"] = shift_fill_factor
     if rwkv_world:
         config["tokenizer_files"] = ["tokenizer_model"]
@@ -741,12 +756,46 @@ def build_model_from_args(args: argparse.Namespace):
             qspec_updater.visit_module(mod)
 
         if not args.build_model_only:
+            parameter_transforms = []
+
             # Run pre-quantization if provided.
             args.model_path = param_manager.run_pre_quantize(args.model_path)
             param_manager.init_torch_pname_to_bin_name(args.use_safetensors)
+            parameter_transforms.append(param_manager.create_parameter_transformation())
 
-            new_params = utils.convert_weights(param_manager, params, args)
-            utils.save_params(new_params, args.artifact_path)
+            # Run pre-sharding if required
+            if args.num_shards > 1 and args.use_presharded_weights:
+                mod_shard = create_shard_transformation_func(param_manager, args, model_config)
+                mod_shard = transform_params_for_each_rank(mod_shard, num_shards=args.num_shards)
+                parameter_transforms.append(mod_shard)
+
+            # Chain all parameter transforms together.  This allows
+            # ReorderTransformFunc to be applied to the single
+            # resulting parameter transformation function.
+            mod_transform = functools.reduce(chain_parameter_transforms, parameter_transforms)
+
+            seq = tvm.ir.transform.Sequential(
+                [
+                    relax.transform.CanonicalizeBindings(),
+                    relax.transform.EliminateCommonSubexpr(),
+                    relax.transform.DeadCodeElimination(),
+                    # TODO(Lunderberg): Implement
+                    # relax.transform.Simplify() that applies
+                    # canonicalization, CSE, and DCE until
+                    # convergence.
+                    relax.transform.CanonicalizeBindings(),
+                    relax.transform.EliminateCommonSubexpr(),
+                    relax.transform.DeadCodeElimination(),
+                    param_manager.optimize_transform_param_order(),
+                ],
+                name="SimplifyModTransform",
+            )
+
+            mod_transform = seq(mod_transform)
+
+            params = utils.convert_weights(mod_transform, param_manager, params, args)
+            utils.save_params(params, args.artifact_path, args.num_shards if args.use_presharded_weights else 1)
+
             if args.model_category != "minigpt":
                 utils.copy_tokenizer(args)
             if args.model_category == "rwkv" or args.model_category == "rwkv_world":
@@ -772,7 +821,13 @@ def build_model_from_args(args: argparse.Namespace):
 
         mod = mod_transform_before_build(mod, param_manager, args, model_config)
         if args.num_shards > 1:
-            create_shard_info_func(mod, param_manager, args, model_config)
+            # We require a "create_sharding_info" function for all
+            # multi-GPU models, even if they are using pre-sharded
+            # weights.  When using pre-sharded weights, the list of
+            # initialization-time transforms to apply is empty.
+            sharding_module = create_shard_info_func(param_manager, args, model_config)
+            mod.update(sharding_module)
+
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)
         print(f"Save a cached module to {cache_path}.")

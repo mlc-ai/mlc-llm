@@ -210,16 +210,11 @@ def debug_dump_shader(ex: tvm.relax.Executable, name: str, args: argparse.Namesp
 
 
 def convert_weights(
+    mod_transform: tvm.IRModule,
     param_mgr: param_manager.ParamManager,
     model_params: List[Optional[tvm.nd.NDArray]],
     args: argparse.Namespace,
 ):
-    # Create the quantization function.
-    # We first create an initial one, then reorder it according to each
-    # weight's location in the binary files, in the purpose of reducing
-    # memory usage when loading torch weights as well as acceleration.
-    mod_transform = param_mgr.create_parameter_transformation()
-
     # Save the number of parameters before we lower mod_transform, so
     # we can use them in the progress bar.
     transform_func = mod_transform["transform_params"]
@@ -231,6 +226,7 @@ def convert_weights(
     mod_transform = relax.transform.ToNonDataflow()(mod_transform)
     mod_transform = relax.transform.LazyTransformParams()(mod_transform)
     mod_transform = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_transform)
+    mod_transform = relax.transform.LegalizeOps()(mod_transform)
 
     debug_dump_script(mod_transform, "mod_convert_weights.py", args)
 
@@ -278,16 +274,24 @@ def convert_weights(
     return loaded_params
 
 
-def save_params(params: List[tvm.nd.NDArray], artifact_path: str) -> None:
+def save_params(params: List[tvm.nd.NDArray], artifact_path: str, num_presharded: int = 1) -> None:
     from tvm.contrib import tvmjs  # pylint: disable=import-outside-toplevel
+
+    assert len(params) % num_presharded == 0
+    num_weights = len(params) // num_presharded
 
     meta_data = {}
     param_dict = {}
     meta_data["ParamSize"] = len(params)
-    total_size = 0.0
     for i, nd in enumerate(params):
-        assert nd is not None, f"Missing parameter at index {i}"
-        param_dict[f"param_{i}"] = nd
+        if num_presharded == 1:
+            param_name = f"param_{i}"
+        else:
+            expected_worker_id = i // num_weights
+            orig_param_id = i % num_weights
+            param_name = f"param_{orig_param_id}_shard-{expected_worker_id+1}-of-{num_presharded}"
+
+        param_dict[param_name] = nd
 
     total_size_bytes = sum(math.prod(param.shape) * np.dtype(param.dtype).itemsize for param in params)
     total_size_gb = total_size_bytes / (1024 ** 3)

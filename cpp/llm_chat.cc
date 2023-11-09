@@ -175,19 +175,25 @@ struct FunctionTable {
     }
   }
 
-  ObjectRef LoadParams(const std::string& model_path, Device device) {
+  ObjectRef LoadParams(const std::string& model_path, Device device, bool use_presharded_weights) {
     if (this->use_disco) {
       std::filesystem::path fs_model_path = model_path;
       std::string metadata_path = (fs_model_path / "ndarray-cache.json").string();
       std::string ndarray_cache_metadata = LoadBytesFromFile(metadata_path);
       PackedFunc loader_create = this->get_global_func("runtime.disco.ShardLoader");
-      PackedFunc loader_load_all = this->get_global_func("runtime.disco.ShardLoaderLoadAll");
+
+      auto load_all_func_name = use_presharded_weights
+                                    ? "runtime.disco.ShardLoaderLoadAllPresharded"
+                                    : "runtime.disco.ShardLoaderLoadAll";
+      PackedFunc loader_load_all = this->get_global_func(load_all_func_name);
       CHECK(loader_create != nullptr);
       CHECK(loader_load_all != nullptr);
       DRef loader = loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod);
       DRef params = loader_load_all(loader);
       return params;
     } else {
+      CHECK(!use_presharded_weights) << "Use of pre-sharded weights requires more than one GPU";
+
       const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
       ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
       (*fload_cache)(model_path, static_cast<int32_t>(device.device_type), device.device_id);
@@ -387,6 +393,12 @@ class LLMChat {
     } else {
       this->num_shards_ = 1;
     }
+    if (config.count("use_presharded_weights")) {
+      CHECK(config["use_presharded_weights"].is<bool>());
+      this->use_presharded_weights_ = config["use_presharded_weights"].get<bool>();
+    } else {
+      this->use_presharded_weights_ = false;
+    }
     if (config.count("max_window_size")) {
       CHECK(config["max_window_size"].is<int64_t>());
       this->max_window_size_ =
@@ -518,7 +530,7 @@ class LLMChat {
         << "Cannot find env function vm.builtin.sample_top_p_from_logits";
     fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
     // Step 5. Load params in nd-array cache.
-    this->params_ = ft_.LoadParams(model_path, device_);
+    this->params_ = ft_.LoadParams(model_path, device_, use_presharded_weights_);
     // Step 6. KV cache creation.
     this->kv_cache_ = ft_.create_kv_cache_func_();
     // Step 7. Pre-allocate fixed size ndarray
@@ -1358,6 +1370,8 @@ class LLMChat {
   int64_t vocab_size_;
   // number of shards in distributed inference
   int64_t num_shards_;
+  // Load weights that were saved in sharded form
+  bool use_presharded_weights_;
   // shift window fill factor
   double shift_fill_factor_{0.3};
   // temperature
