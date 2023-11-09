@@ -40,7 +40,7 @@ class StableLM3bConfig:
         combine_matmul=True,
         num_shards=1,
         build_model_only=False,
-        convert_weight_only=False,
+        convert_weights_only=False,
         **kwargs,
     ):
         self.dtype = dtype
@@ -376,17 +376,21 @@ class StableLM3bDecoderLayer(nn.Module):
             all_seq_len_shape=all_seq_len_shape,
         )
         if self.self_attn.num_shards > 1:
-            residual = nn.emit(residual / R.const(self.self_attn.num_shards, dtype=residual.struct_info.dtype))
+            residual = nn.emit(
+                residual / R.const(self.self_attn.num_shards, dtype=residual.struct_info.dtype)
+            )
         hidden_states = nn.emit(residual + hidden_states)
         if self.self_attn.num_shards > 1:
             hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
-            
+
         # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
         hidden_states = self.mlp(hidden_states)
         if self.mlp.num_shards > 1:
-            residual = nn.emit(residual / R.const(self.mlp.num_shards, dtype=residual.struct_info.dtype))
+            residual = nn.emit(
+                residual / R.const(self.mlp.num_shards, dtype=residual.struct_info.dtype)
+            )
         hidden_states = nn.emit(residual + hidden_states)
         if self.mlp.num_shards > 1:
             hidden_states = nn.emit(ccl.allreduce(hidden_states, "sum"))
@@ -444,7 +448,9 @@ class StableLM3bEmbedTokensWrapper(nn.Module):
 
 
 class StableLM3bModell(nn.Module):
-    def __init__(self, config: StableLM3bConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
+    def __init__(
+        self, config: StableLM3bConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False
+    ):
         rotary_embedding = RotaryEmbedding(
             hidden_size=config.hidden_size,
             num_attention_heads=config.num_attention_heads,
@@ -461,7 +467,10 @@ class StableLM3bModell(nn.Module):
             self.embed_tokens = Embedding(vocab_size_var, config.hidden_size, dtype=config.dtype)
 
         self.layers = ModuleList(
-            [StableLM3bDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
+            [
+                StableLM3bDecoderLayer(config, rotary_embedding)
+                for _ in range(config.num_hidden_layers)
+            ]
         )
         self.norm = LayerNorm(config.hidden_size, dtype=config.dtype, eps=config.norm_eps)
 
@@ -530,7 +539,9 @@ class StableLM3bModell(nn.Module):
 
 
 class StableLM3bForCausalLM(nn.Module):
-    def __init__(self, config: StableLM3bConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
+    def __init__(
+        self, config: StableLM3bConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False
+    ):
         self.model = StableLM3bModell(config, vocab_size_var, sep_embed)
         self.lm_head = Linear(config.hidden_size, vocab_size_var, dtype=config.dtype, bias=False)
 
@@ -779,7 +790,7 @@ def get_model(args, hf_config):
         combine_matmul=True,
         num_shards=args.num_shards,
         build_model_only=args.build_model_only,
-        convert_weight_only=args.convert_weight_only,
+        convert_weights_only=args.convert_weights_only,
     )
     if max_seq_len != -1:
         config.max_sequence_length = max_seq_len

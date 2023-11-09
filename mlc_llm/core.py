@@ -196,10 +196,10 @@ class BuildArgs:
     )
     convert_weights_only: bool = field(
         default=False,
-        dest="convert_weights_only",
         metadata={
-            "help": "Whether to only convert model weights and not build the model.",
+            "dest": "convert_weights_only",
             "action": "store_true",
+            "help": "Whether to only convert model weights and not build the model.",
         },
     )
     build_model_only: bool = field(
@@ -763,7 +763,7 @@ def build_model_from_args(args: argparse.Namespace):
             "and it is highly recommended to use q4f16_1 instead"
         )
     if args.num_shards > 1:
-        if (not args.build_model_only) and (not args.convert_weight_only):
+        if (not args.build_model_only) and (not args.convert_weights_only):
             raise ValueError(
                 "`num_shards` should be used together with "
                 "`--build-model-only` and `--convert-weight-only`"
@@ -787,7 +787,7 @@ def build_model_from_args(args: argparse.Namespace):
         with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
             config = json.load(i_f)
 
-    if not use_cache or args.convert_weight_only:
+    if not use_cache or args.convert_weights_only:
         model_generators = {
             "llama": llama,
             "mistral": mistral,
@@ -882,7 +882,7 @@ def build_model_from_args(args: argparse.Namespace):
                     max_window_size=model_config.max_sequence_length,
                 )
 
-        if args.convert_weight_only:
+        if args.convert_weights_only:
             exit(0)
 
         mod = mod_transform_before_build(mod, param_manager, args, model_config)
