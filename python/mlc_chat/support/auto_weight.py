@@ -84,6 +84,8 @@ def detect_weight(
         weight_config_path = check_func(weight_path)
         if not weight_config_path:
             raise ValueError(f"The weight is not in {weight_format} format.")
+    else:
+        weight_config_path = weight_path
     return weight_config_path, weight_format
 
 
@@ -143,5 +145,5 @@ CHECK_FORMAT_METHODS = {
     "huggingface-safetensor": _check_safetensor,
 }
 
-# "awq", "ggml", "gguf" are not supported yet.
-AVAILABLE_WEIGHT_FORMAT = ["huggingface-torch", "huggingface-safetensor"]
+# "ggml", "gguf" are not supported yet.
+AVAILABLE_WEIGHT_FORMAT = ["huggingface-torch", "huggingface-safetensor", "awq"]

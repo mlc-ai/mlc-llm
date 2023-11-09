@@ -31,8 +31,8 @@ def main():
         if path == "auto":
             return config_path.parent
         path = Path(path)
-        if not path.is_dir():
-            raise argparse.ArgumentTypeError(f"Directory does not exist: {path}")
+        if not path.exists():
+            raise argparse.ArgumentTypeError(f"Model source does not exist: {path}")
         return path
 
     def _parse_output(path: Union[str, Path]) -> Path:
@@ -60,7 +60,7 @@ def main():
     parser.add_argument(
         "--source-format",
         type=str,
-        choices=["auto", "huggingface-torch", "huggingface-safetensor"],
+        choices=["auto", "huggingface-torch", "huggingface-safetensor", "awq"],
         default="auto",
         help="The format of source model weight, infer from `config` if missing. "
         "(default: %(default)s)",
