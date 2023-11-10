@@ -1,6 +1,6 @@
 """This file specifies how MLC's Llama parameters are quantized using group quantization
 or other formats."""
-from typing import Tuple, Union
+from typing import Tuple
 
 from tvm.relax.frontend import nn
 
@@ -11,7 +11,7 @@ from .mistral_model import MistralConfig, MistralForCasualLM
 
 
 def group_quant(
-    model_config: Union[LlamaConfig, MistralConfig],
+    model_config: LlamaConfig,
     quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Llama-architecture model using group quantization."""
@@ -30,7 +30,7 @@ def group_quant(
 
 
 def awq_quant(
-    model_config: Union[LlamaConfig, MistralConfig],
+    model_config: LlamaConfig,
     quantization: AWQQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Llama-architecture model using Activation-aware Weight Quantization(AWQ)."""

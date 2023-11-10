@@ -10,39 +10,29 @@ from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from ...support.config import ConfigBase
-from .llama_model import LlamaFFN, RMSNorm, RotaryEmbedding
+from ...support.style import bold
+from .llama_model import LlamaConfig, LlamaFFN, RMSNorm, RotaryEmbedding
 
 logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class MistralConfig(LlamaConfig):
     """Configuration of the Mistral model."""
 
-    hidden_size: int
-    intermediate_size: int
-    num_attention_heads: int
-    num_hidden_layers: int
-    rms_norm_eps: float
-    vocab_size: int
-    position_embedding_base: int = 0
-    num_key_value_heads: int = 0
-    head_dim: int = 0
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    sliding_window: int = 4096
+    sliding_window_chunk_size: int = 0
 
     def __post_init__(self):
-        if self.position_embedding_base == 0:
-            if "rope_theta" in self.kwargs:
-                self.position_embedding_base = self.kwargs.pop("rope_theta")
-            else:
-                self.position_embedding_base = 10000
-        if self.num_key_value_heads == 0:
-            self.num_key_value_heads = self.num_attention_heads
-        if self.head_dim == 0:
-            self.head_dim = self.hidden_size // self.num_attention_heads
-        assert self.num_attention_heads % self.num_key_value_heads == 0
-        assert self.head_dim * self.num_attention_heads == self.hidden_size
+        super().__post_init__()
+        if self.sliding_window_chunk_size == 0:
+            # chunk size same as sliding window by default
+            self.sliding_window_chunk_size = self.sliding_window
+        self.max_sequence_length = -1
+        logger.info(
+            "Using sliding window attention, setting %s to -1",
+            bold("max_sequence_length"),
+        )
 
 
 class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
