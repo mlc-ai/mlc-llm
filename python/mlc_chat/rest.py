@@ -334,6 +334,34 @@ async def request_completion(request: CompletionRequest):
             )
 
 
+@app.post("/v1/logprob")
+async def request_completion(request: LogprobRequest):
+    """
+    Creates a logprob for a given context and continuation.
+    """
+
+    generation_config = GenerationConfig()
+
+    session["chat_mod"].reset_chat()
+
+    logprob_dict_str = session["chat_mod"]._logprob(
+        context=request.context,
+        continuation=request.continuation,
+        generation_config=generation_config
+    )
+    import json
+    logprob_dict = json.loads(logprob_dict_str)
+    logprob = logprob_dict["logprobes"]
+    is_greedy = logprob_dict["is_greedy"]
+
+    return LogprobResponse(
+        logprob=logprob,
+        is_greedy=is_greedy,
+        # TODO: Fill in correct usage info
+        usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+    )
+
+
 @app.post("/v1/embeddings")
 async def request_embeddings(request: EmbeddingsRequest):
     """

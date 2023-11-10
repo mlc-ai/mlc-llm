@@ -138,6 +138,18 @@ class CompletionStreamResponse(BaseModel):
     created: int = Field(default_factory=lambda: int(time.time()))
     choices: List[CompletionResponseStreamChoice]
 
+class LogprobRequest(BaseModel):
+    model: str
+    context: str
+    continuation: str
+
+class LogprobResponse(BaseModel):
+    id: str = Field(default_factory=lambda: f"cmpl-{shortuuid.random()}")
+    object: str = "text_logprobe"
+    created: int = Field(default_factory=lambda: int(time.time()))
+    logprob: float
+    is_greedy: bool
+    usage: UsageInfo
 
 class EmbeddingsRequest(BaseModel):
     model: Optional[str] = None
