@@ -61,7 +61,9 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         self,
         hidden_states: Tensor,
         attention_mask: Tensor,
-        total_seq_len: tir.Var,
+        total_seq_len: tir.Var,  # Number of already-processed tokens plus ``seq_len``.
+        cache_len: tir.Var,  # Number of elements currently in the cache.
+        kv_seq_len: tir.Var,  # Equals to ``seq_len + cache_len``.
     ):
         """Forward pass of MistralAttention, performing QKV."""
         d, h_q, h_kv, t = self.head_dim, self.num_q_heads, self.num_kv_heads, total_seq_len
@@ -108,10 +110,23 @@ class MistralDecoderLayer(nn.Module):
         self.input_layernorm = RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
 
-    def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
+    def forward(
+        self,
+        hidden_states: Tensor,
+        attention_mask: Tensor,
+        total_seq_len: tir.Var,
+        cache_len: tir.Var,
+        kv_seq_len: tir.Var,
+    ):
         """Forward pass of a decoder layer; calculate attention, and add an residual connection."""
         hidden_states = (
-            self.self_attn(self.input_layernorm(hidden_states), attention_mask, total_seq_len)
+            self.self_attn(
+                self.input_layernorm(hidden_states),
+                attention_mask,
+                total_seq_len,
+                cache_len,
+                kv_seq_len,
+            )
             + hidden_states
         )
         hidden_states = self.mlp(self.post_attention_layernorm(hidden_states)) + hidden_states
@@ -130,11 +145,20 @@ class MistralModel(nn.Module):
         )
         self.norm = RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
-    def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
+    def forward(
+        self,
+        inputs: Tensor,
+        total_seq_len: tir.Var,
+        cache_len: tir.Var,
+        kv_seq_len: tir.Var,
+        attention_mask: Tensor,
+    ):
         """Forward pass of the model, passing through all decoder layers."""
         hidden_states = self.embed_tokens(inputs)
         for layer in self.layers:
-            hidden_states = layer(hidden_states, attention_mask, total_seq_len)
+            hidden_states = layer(
+                hidden_states, attention_mask, total_seq_len, cache_len, kv_seq_len
+            )
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
@@ -146,6 +170,7 @@ class MistralForCasualLM(nn.Module):
         self.model = MistralModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.vocab_size = config.vocab_size
+        self.sliding_window = config.sliding_window
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):
@@ -153,51 +178,87 @@ class MistralForCasualLM(nn.Module):
         if dtype is not None:
             self.dtype = dtype
 
-    def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
+    def forward(
+        self,
+        inputs: Tensor,
+        total_seq_len: tir.Var,
+        cache_len: tir.Var,
+        kv_seq_len: tir.Var,
+        attention_mask: Tensor,
+    ):
         """Forward pass."""
 
         def _index(x: te.Tensor):  # x[:-1,:]
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-        hidden_states = self.model(inputs, total_seq_len, attention_mask)
+        hidden_states = self.model(inputs, total_seq_len, cache_len, kv_seq_len, attention_mask)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
 
-    def prefill(self, inputs: Tensor, total_seq_len: tir.Var):
-        """Prefilling the prompt."""
+    def prefill(
+        self, inputs: Tensor, total_seq_len: tir.Var, cache_len: tir.Var, kv_seq_len: tir.Var
+    ):
+        """
+        Prefilling the prompt.
 
-        def _attention_mask(batch_size, seq_len, total_seq_len):
+        Parameters
+        ----------
+        inputs: Tensor
+            Input tokens, having ``seq_len`` number of tokens.
+
+        total_seq_len: tir.Var
+            Number of already-processed tokens plus ``seq_len``.
+
+        cache_len: tir.Var
+            Number of elements currently in the cache.
+
+        kv_seq_len: tir.Var
+            Equals to ``seq_len + cache_len``.
+        """
+
+        def _sliding_window_attention_mask(
+            batch_size, seq_len, cache_len, kv_seq_len, sliding_window
+        ):
+            # See `tests/legacy-python/test_sliding_window_mask.py` for its behavior
             return te.compute(
-                (batch_size, 1, seq_len, total_seq_len),
-                lambda b, _, i, j: tir.if_then_else(
-                    i < j - (total_seq_len - seq_len),
-                    tir.min_value(self.dtype),
+                (batch_size, 1, seq_len, kv_seq_len),
+                lambda b, _, i, j: tir.Select(
+                    tir.all(i + cache_len >= j, i + cache_len - j < sliding_window),
                     tir.max_value(self.dtype),
+                    tir.min_value(self.dtype),
                 ),
-                name="attention_mask_prefill",
+                name="sliding_window_attention_mask_prefill",
             )
 
         batch_size, seq_len = inputs.shape
         attention_mask = op.tensor_expr_op(
-            _attention_mask,
-            name_hint="attention_mask_prefill",
-            args=[batch_size, seq_len, total_seq_len],
+            _sliding_window_attention_mask,
+            name_hint="sliding_window_attention_mask_prefill",
+            args=[
+                batch_size,
+                seq_len,
+                cache_len,
+                kv_seq_len,
+                self.sliding_window,
+            ],
         )
-        return self.forward(inputs, total_seq_len, attention_mask)
+        return self.forward(inputs, total_seq_len, cache_len, kv_seq_len, attention_mask)
 
-    def decode(self, inputs: Tensor, total_seq_len: tir.Var):
+    def decode(
+        self, inputs: Tensor, total_seq_len: tir.Var, cache_len: tir.Var, kv_seq_len: tir.Var
+    ):
         """Decoding step."""
         batch_size, seq_len = inputs.shape
         attention_mask = op.full(
-            shape=[batch_size, 1, seq_len, total_seq_len],
+            shape=[batch_size, 1, seq_len, kv_seq_len],
             fill_value=tir.max_value(self.dtype),
             dtype=self.dtype,
         )
-        return self.forward(inputs, total_seq_len, attention_mask)
+        return self.forward(inputs, total_seq_len, cache_len, kv_seq_len, attention_mask)
 
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
         """Softmax."""
@@ -210,6 +271,8 @@ class MistralForCasualLM(nn.Module):
             "prefill": {
                 "inputs": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
                 "total_seq_len": int,
+                "cache_len": int,
+                "kv_seq_len": int,
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "packed",
@@ -218,6 +281,8 @@ class MistralForCasualLM(nn.Module):
             "decode": {
                 "inputs": nn.spec.Tensor([batch_size, 1], "int32"),
                 "total_seq_len": int,
+                "cache_len": int,
+                "kv_seq_len": int,
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "packed",
