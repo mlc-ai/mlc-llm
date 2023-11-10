@@ -159,7 +159,7 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
                 tir.subtract(float_weight[i, j], float_zeros[i, j // self.group_size]),
                 scale[i, j // self.group_size],
             ),
-            name="decode",
+            name="dequantize",
         )
 
 
@@ -250,7 +250,7 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
                 scale,
                 [tir.IntImm("int64", self.out_features), tir.IntImm("int64", self.in_features)],
             ),
-            name_hint="decode",
+            name_hint="dequantize",
             args=[self.qweight, self.qzeros, self.scales],
         )
         w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
@@ -356,7 +356,7 @@ class AWQQuantizeMultiLinear(nn.Module):  # pylint: disable=too-many-instance-at
                     tir.IntImm("int64", self.in_features),
                 ],
             ),
-            name_hint="decode",
+            name_hint="dequantize",
             args=[self.qweight, self.qzeros, self.scales],
         )
         w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
