@@ -1,5 +1,6 @@
 import time
 import uuid
+import json
 from http import HTTPStatus
 from typing import Annotated, AsyncIterator
 
@@ -146,7 +147,7 @@ async def generate_completion_stream(
             for i in range(num_sequences)
         ],
     )
-    yield f"data: {first_chunk.json(exclude_unset=True, ensure_ascii=False)}\n\n"
+    yield f"data: {json.dumps(first_chunk.dict(exclude_unset=True), ensure_ascii=False)}\n\n"
 
     async for res in result_generator:
         if res.error:
@@ -167,7 +168,7 @@ async def generate_completion_stream(
                 for seq in res.sequences
             ]
         )
-        yield f"data: {chunk.json(exclude_unset=True, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps(chunk.dict(exclude_unset=True), ensure_ascii=False)}\n\n"
 
     yield "data: [DONE]\n\n"
 

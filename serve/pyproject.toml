@@ -4,7 +4,7 @@ requires-python = ">=3.9"
 description = "LLM Batch Inference server"
 dynamic = ["version"]
 
-dependencies = ["fastapi==0.103.1"]
+dependencies = ["fastapi==0.103.1", "pydantic>=1.8.0"]
 
 [project.optional-dependencies]
 test = ["pytest~=7.4.2", "httpx_sse~=0.3.1", "pytest-timeout~=2.2.0"]
