@@ -223,7 +223,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "use_cache": True,
         "vocab_size": 32016,
     },
-    "mistral_7b_v0.1": {
+    "mistral_7b": {
         "architectures": ["MistralForCausalLM"],
         "bos_token_id": 1,
         "eos_token_id": 2,

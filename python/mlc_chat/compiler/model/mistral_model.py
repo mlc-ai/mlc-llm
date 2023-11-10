@@ -4,7 +4,7 @@ Implementation for Mistral.
 import dataclasses
 import logging
 import math
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from tvm import te, tir
 from tvm.relax.frontend import nn
@@ -54,8 +54,8 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
             bias=False,
         )
         self.o_proj = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
-        self.k_cache = nn.KVCache(config.max_sequence_length, [self.num_kv_heads, self.head_dim])
-        self.v_cache = nn.KVCache(config.max_sequence_length, [self.num_kv_heads, self.head_dim])
+        self.k_cache = nn.KVCache(config.sliding_window, [self.num_kv_heads, self.head_dim])
+        self.v_cache = nn.KVCache(config.sliding_window, [self.num_kv_heads, self.head_dim])
 
     def forward(  # pylint: disable=too-many-locals
         self,
