@@ -61,6 +61,7 @@ MODELS: Dict[str, Model] = {
             "awq": llama_loader.awq,
         },
         quantize={
+            "no-quant": llama_quantization.no_quant,
             "group-quant": llama_quantization.group_quant,
             "awq": llama_quantization.awq_quant,
         },
