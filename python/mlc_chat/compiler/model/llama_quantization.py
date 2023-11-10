@@ -18,7 +18,7 @@ def group_quant(
     if isinstance(model_config, MistralConfig):
         model: nn.Module = MistralForCasualLM(model_config)
     else:
-        model: nn.Module = LlamaForCasualLM(model_config)
+        model = LlamaForCasualLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     model = quantization.quantize_model(
@@ -37,7 +37,7 @@ def awq_quant(
     if isinstance(model_config, MistralConfig):
         model: nn.Module = MistralForCasualLM(model_config)
     else:
-        model: nn.Module = LlamaForCasualLM(model_config)
+        model = LlamaForCasualLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     model = quantization.quantize_model(

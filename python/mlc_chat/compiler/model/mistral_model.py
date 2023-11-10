@@ -11,7 +11,7 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from ...support.style import bold
-from .llama_model import LlamaConfig, LlamaFFN, RMSNorm, RotaryEmbedding
+from .llama_model import LlamaConfig, LlamaFFN, RotaryEmbedding
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.k_cache = nn.KVCache(self.sliding_window, [self.num_kv_heads, self.head_dim])
         self.v_cache = nn.KVCache(self.sliding_window, [self.num_kv_heads, self.head_dim])
 
-    def interleave_kv(
+    def interleave_kv(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         k_cur: Tensor,
         v_cur: Tensor,
@@ -66,7 +66,8 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         kv_seq_len: tir.Var,
         cache_len: tir.Var,
     ):
-        d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
+        """Unrotate and concatenate currunt and cached k and v"""
+        d, _, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
         t, kv_s, c = total_seq_len, kv_seq_len, cache_len
         b, s, _, _ = k_cur.shape
         cache_offset = (t - s) % self.sliding_window
@@ -88,7 +89,7 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
                 ),
                 name="unrotate_concat_te",
             )
-        
+
         k = op.tensor_expr_op(
             _unrotate_concat,
             name_hint="te_unrotate_concat_key",
@@ -105,7 +106,7 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
 
         return k, v
 
-    def forward(  # pylint: disable=too-many-locals
+    def forward(  # pylint: disable=too-many-arguments, too-many-locals
         self,
         hidden_states: Tensor,
         attention_mask: Tensor,
@@ -124,7 +125,7 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         v_cur = op.reshape(v_cur, (b, s, h_kv, d))
         q, k_cur = self.rotary_embedding(q, k_cur, t - s)
 
-        k, v = self.interleave_kv()
+        k, v = self.interleave_kv(k_cur, v_cur, total_seq_len, kv_seq_len, cache_len)
 
         if h_kv != h_q:
             k = k.repeat(h_q // h_kv, axis=2)
@@ -153,10 +154,10 @@ class MistralDecoderLayer(nn.Module):
         rms_norm_eps = config.rms_norm_eps
         self.self_attn = MistralAttention(config, rotary_embedding)
         self.mlp = LlamaFFN(config)
-        self.input_layernorm = RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
-        self.post_attention_layernorm = RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
+        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
+        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
 
-    def forward(
+    def forward(  # pylint: disable=too-many-arguments
         self,
         hidden_states: Tensor,
         attention_mask: Tensor,
@@ -189,9 +190,9 @@ class MistralModel(nn.Module):
         self.layers = nn.ModuleList(
             [MistralDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
         )
-        self.norm = RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
-    def forward(
+    def forward(  # pylint: disable=too-many-arguments
         self,
         inputs: Tensor,
         total_seq_len: tir.Var,
@@ -224,7 +225,7 @@ class MistralForCasualLM(nn.Module):
         if dtype is not None:
             self.dtype = dtype
 
-    def forward(
+    def forward(  # pylint: disable=too-many-arguments
         self,
         inputs: Tensor,
         total_seq_len: tir.Var,
