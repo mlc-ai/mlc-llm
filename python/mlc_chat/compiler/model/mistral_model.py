@@ -44,6 +44,7 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads
         self.num_kv_heads = config.num_key_value_heads
+        self.sliding_window = config.sliding_window
         self.qkv_proj = nn.MultiLinear(
             in_features=config.hidden_size,
             out_features=[
@@ -54,8 +55,55 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
             bias=False,
         )
         self.o_proj = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
-        self.k_cache = nn.KVCache(config.sliding_window, [self.num_kv_heads, self.head_dim])
-        self.v_cache = nn.KVCache(config.sliding_window, [self.num_kv_heads, self.head_dim])
+        self.k_cache = nn.KVCache(self.sliding_window, [self.num_kv_heads, self.head_dim])
+        self.v_cache = nn.KVCache(self.sliding_window, [self.num_kv_heads, self.head_dim])
+
+    def interleave_kv(
+        self,
+        k_cur: Tensor,
+        v_cur: Tensor,
+        total_seq_len: tir.Var,
+        kv_seq_len: tir.Var,
+        cache_len: tir.Var,
+    ):
+        d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
+        t, kv_s, c = total_seq_len, kv_seq_len, cache_len
+        b, s, _, _ = k_cur.shape
+        cache_offset = (t - s) % self.sliding_window
+
+        k_cached = op.reshape(self.k_cache.view(c), (b, c, h_kv, d))
+        v_cached = op.reshape(self.v_cache.view(c), (b, c, h_kv, d))
+
+        def _unrotate_concat(x_cur, x_cached, cache_offset, cache_len):
+            return te.compute(
+                (b, kv_s, h_kv, d),
+                lambda xb, xs, xh, xd: te.if_then_else(
+                    xs < cache_len - cache_offset,
+                    x_cached[xb, cache_offset + xs, xh, xd],
+                    te.if_then_else(
+                        xs < cache_len,
+                        x_cached[xb, xs + cache_offset - cache_len, xh, xd],
+                        x_cur[xb, xs - cache_len, xh, xd],
+                    ),
+                ),
+                name="unrotate_concat_te",
+            )
+        
+        k = op.tensor_expr_op(
+            _unrotate_concat,
+            name_hint="te_unrotate_concat_key",
+            args=[k_cur, k_cached, cache_offset, c],
+        )
+        v = op.tensor_expr_op(
+            _unrotate_concat,
+            name_hint="te_unrotate_concat_value",
+            args=[v_cur, v_cached, cache_offset, c],
+        )
+
+        self.k_cache.override(op.squeeze(k_cur, axis=0), self.sliding_window)
+        self.v_cache.override(op.squeeze(v_cur, axis=0), self.sliding_window)
+
+        return k, v
 
     def forward(  # pylint: disable=too-many-locals
         self,
@@ -70,16 +118,14 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         b, s, _ = hidden_states.shape
         assert b == 1, "Only support batch size 1 at this moment."
 
-        q, k, v = self.qkv_proj(hidden_states)
+        q, k_cur, v_cur = self.qkv_proj(hidden_states)
         q = op.reshape(q, (b, s, h_q, d))
-        k = op.reshape(k, (b, s, h_kv, d))
-        v = op.reshape(v, (b, s, h_kv, d))
-        q, k = self.rotary_embedding(q, k, t - s)
+        k_cur = op.reshape(k_cur, (b, s, h_kv, d))
+        v_cur = op.reshape(v_cur, (b, s, h_kv, d))
+        q, k_cur = self.rotary_embedding(q, k_cur, t - s)
 
-        self.k_cache.append(op.squeeze(k, axis=0))
-        self.v_cache.append(op.squeeze(v, axis=0))
-        k = op.reshape(self.k_cache.view(t), (b, t, h_kv, d))
-        v = op.reshape(self.v_cache.view(t), (b, t, h_kv, d))
+        k, v = self.interleave_kv()
+
         if h_kv != h_q:
             k = k.repeat(h_q // h_kv, axis=2)
             v = v.repeat(h_q // h_kv, axis=2)
