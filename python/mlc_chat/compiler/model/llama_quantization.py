@@ -5,7 +5,7 @@ from typing import Tuple
 from tvm.relax.frontend import nn
 
 from ..loader import QuantizeMapping
-from ..quantization import AWQQuantize, GroupQuantize
+from ..quantization import AWQQuantize, GroupQuantize, NoQuantize
 from .llama_model import LlamaConfig, LlamaForCasualLM
 
 
@@ -38,4 +38,15 @@ def awq_quant(
         quant_map,
         "",
     )
+    return model, quant_map
+
+
+def no_quant(
+    model_config: LlamaConfig,
+    quantization: NoQuantize,
+) -> Tuple[nn.Module, QuantizeMapping]:
+    """Quantize a Llama2 model without quantization."""
+    model: nn.Module = LlamaForCasualLM(model_config)
+    model.to(quantization.model_dtype)
+    quant_map = QuantizeMapping({}, {})
     return model, quant_map

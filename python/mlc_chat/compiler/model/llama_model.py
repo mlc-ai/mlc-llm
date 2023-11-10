@@ -65,69 +65,6 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 # pylint: disable=invalid-name,missing-docstring
 
 
-class RMSNorm(nn.Module):
-    """
-    Module for rms norm layer.
-    """
-
-    def __init__(  # pylint: disable=too-many-arguments
-        self,
-        hidden_size: int,
-        axes,  # pylint: disable=unused-argument
-        epsilon: float = 1e-5,
-        bias: bool = True,
-        dtype: Optional[str] = None,
-    ):
-        super().__init__()
-        self.epsilon = epsilon
-        self.weight = nn.Parameter((hidden_size,), dtype=dtype)
-        if bias:
-            self.bias = nn.Parameter((hidden_size,), dtype=dtype)
-        else:
-            self.bias = None
-
-    def forward(self, x: Tensor):
-        """
-        Forward method for rms norm layer.
-
-        Parameters
-        ----------
-        x : Tensor
-            The input tensor.
-
-        Returns
-        -------
-        ret : Tensor
-            The output tensor for the rms norm layer.
-        """
-
-        def f_square(x):
-            x = x.astype("float32")
-            return x * x
-
-        def f_div_mult(x, square_sum, weight, *indices):
-            *i, k = indices
-            s = tir.sqrt(square_sum[*i] / x.shape[-1] + self.epsilon)
-            s = x[*i, k].astype("float32") / s
-            s = (weight[k] * s).astype(x.dtype)
-            return s
-
-        def te_op(x: te.Tensor, weight: te.Tensor):
-            k = te.reduce_axis((0, x.shape[-1]), name="k")
-            square_sum = te.compute(
-                x.shape[:-1],
-                lambda *i: te.sum(f_square(x[*i, k]), axis=k),
-                name=x.op.name + "red_temp",
-            )
-            return te.compute(
-                x.shape,
-                lambda *i: f_div_mult(x, square_sum, weight, *i),
-                name="rms_norm",
-            )
-
-        return op.tensor_expr_op(te_op, "rms_norm", args=[x, self.weight])
-
-
 class RotaryEmbedding(nn.Module):
     def __init__(self, config: LlamaConfig):
         super().__init__()
@@ -241,8 +178,8 @@ class LlamaDecoderLayer(nn.Module):
         rms_norm_eps = config.rms_norm_eps
         self.self_attn = LlamaAttention(config, rotary_embedding)
         self.mlp = LlamaFFN(config)
-        self.input_layernorm = RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
-        self.post_attention_layernorm = RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
+        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
+        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
 
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
         hidden_states = (
@@ -261,7 +198,7 @@ class LlamaModel(nn.Module):
         self.layers = nn.ModuleList(
             [LlamaDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
         )
-        self.norm = RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
     def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
         hidden_states = self.embed_tokens(inputs)

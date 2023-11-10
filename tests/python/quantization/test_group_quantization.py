@@ -14,6 +14,7 @@ from mlc_chat.compiler.quantization.group_quantization import (
     GroupQuantize,
     GroupQuantizeEmbedding,
     GroupQuantizeLinear,
+    GroupQuantizeMultiLinear,
 )
 
 
@@ -160,6 +161,7 @@ def test_quantize_model(quant_name: str, shape: List[int], dtype: str):
         def __init__(self) -> None:
             super().__init__()
             self.linear = nn.Linear(shape[0], shape[1], dtype=dtype)
+            self.multilinear = nn.MultiLinear(shape[0], [shape[1], shape[1]], dtype=dtype)
             self.embedding = nn.Embedding(shape[0], shape[1], dtype=dtype)
 
         def forward(self, x: nn.Tensor):
@@ -175,6 +177,12 @@ def test_quantize_model(quant_name: str, shape: List[int], dtype: str):
     ]
     assert quant_map.map_func["model.linear.weight"] == config.quantize_weight
     assert isinstance(mod.linear, GroupQuantizeLinear)
+    assert quant_map.param_map["model.multilinear.weight"] == [
+        "model.multilinear.q_weight",
+        "model.multilinear.q_scale",
+    ]
+    assert quant_map.map_func["model.multilinear.weight"] == config.quantize_weight
+    assert isinstance(mod.multilinear, GroupQuantizeMultiLinear)
     assert quant_map.param_map["model.embedding.weight"] == [
         "model.embedding.q_weight",
         "model.embedding.q_scale",

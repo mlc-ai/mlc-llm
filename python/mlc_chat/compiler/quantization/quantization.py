@@ -3,6 +3,7 @@ from typing import Any, Dict
 
 from .awq_quantization import AWQQuantize
 from .group_quantization import GroupQuantize
+from .no_quantization import NoQuantize
 
 Quantization = Any
 """Quantization is an object that represents an quantization algorithm. It is required to
@@ -24,6 +25,16 @@ It is also required to have the following method:
 """
 
 QUANTIZATION: Dict[str, Quantization] = {
+    "q0f16": NoQuantize(
+        name="q0f16",
+        kind="no-quant",
+        model_dtype="float16",
+    ),
+    "q0f32": NoQuantize(
+        name="q0f32",
+        kind="no-quant",
+        model_dtype="float32",
+    ),
     "q3f16_1": GroupQuantize(
         name="q3f16_1",
         kind="group-quant",
