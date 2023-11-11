@@ -11,7 +11,6 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
-#include "../random.h"
 #include "model.h"
 #include "request.h"
 #include "request_state.h"
@@ -289,8 +288,8 @@ class Engine {
       ICHECK_EQ(logits->shape[0], 1);
       ICHECK_EQ(logits->shape[1], 1);
 
-      std::vector<int32_t> next_token = SampleTokens(logits, /*model_id=*/0, /*sampler_id=*/0,
-                                                     {state.mstates[0]}, {request->generation_cfg});
+      ShapeTuple next_token = SampleTokens(logits, /*model_id=*/0, /*sampler_id=*/0,
+                                           {state.mstates[0]}, {request->generation_cfg});
       ICHECK_EQ(next_token.size(), 1);
 
       // - Update the committed tokens of states.
@@ -356,7 +355,7 @@ class Engine {
     ICHECK_EQ(logits->shape[1], 1);
 
     // - Sample tokens.
-    std::vector<int32_t> next_tokens =
+    ShapeTuple next_tokens =
         SampleTokens(logits, /*model_id=*/0, /*sampler_id=*/0, mstates, generation_cfg);
     ICHECK_EQ(next_tokens.size(), num_requests);
 
@@ -699,9 +698,9 @@ class Engine {
    * in the input batch.
    * \return The sampled tokens, one for each request in the batch.
    */
-  std::vector<int32_t> SampleTokens(NDArray logits_on_device, int model_id, int sampler_id,
-                                    Array<RequestModelState> request_mstates,
-                                    Array<GenerationConfig> generation_cfg) {
+  ShapeTuple SampleTokens(NDArray logits_on_device, int model_id, int sampler_id,
+                          Array<RequestModelState> request_mstates,
+                          Array<GenerationConfig> generation_cfg) {
     ICHECK(logits_on_device.defined());
     ICHECK_EQ(logits_on_device->ndim, 3);
     ICHECK_EQ(logits_on_device->shape[1], 1)
@@ -723,12 +722,10 @@ class Engine {
       logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(probs_on_device);
     } else {
       logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(logits_on_device);
-      for (int i = 0; i < num_sequence; ++i) {
-        // The "compute_probs_from_logits_inplace" function updates
-        // `logits_or_probs_on_cpu` in place.
-        fsampler_compute_probs_from_logits_inplace_[sampler_id](
-            logits_or_probs_on_cpu, /*token_offset=*/i, request_mstates[i], generation_cfg[i]);
-      }
+      // The "compute_probs_from_logits_inplace" function updates
+      // `logits_or_probs_on_cpu` in place.
+      fsampler_compute_probs_from_logits_inplace_[sampler_id](
+          logits_or_probs_on_cpu, std::move(request_mstates), generation_cfg);
     }
     // `CopyLogitsOrProbsToCPU` flattens the first two dimensions.
     ICHECK_EQ(logits_or_probs_on_cpu->ndim, 2);
@@ -737,18 +734,8 @@ class Engine {
     // NOTE: Though we have the probability field in RequestModelState,
     //       we do not save the probabilities right now.
     //       We will handle this in the future when we work on speculation.
-    std::vector<int32_t> new_tokens;
-    std::vector<double> randnums;
-    new_tokens.reserve(num_sequence);
-    randnums.reserve(num_sequence);
-    for (int i = 0; i < num_sequence; ++i) {
-      randnums.push_back(RandomGenerator::GetInstance().GetRandomNumber());
-    }
-    for (int i = 0; i < num_sequence; ++i) {
-      int32_t token_id = fsampler_sample_token_from_probs_[sampler_id](
-          logits_or_probs_on_cpu, /*token_offset=*/i, generation_cfg[i], randnums[i]);
-      new_tokens.push_back(token_id);
-    }
+    ShapeTuple new_tokens =
+        fsampler_sample_token_from_probs_[sampler_id](logits_or_probs_on_cpu, generation_cfg);
     return new_tokens;
   }
 
