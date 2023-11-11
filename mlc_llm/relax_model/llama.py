@@ -456,14 +456,7 @@ class LlamaAttention(LlamaAttentionBase):
         attention_mask = kwargs["attention_mask"]
         kv_seq_len = kwargs["all_seq_len_shape"].struct_info.values[0]
 
-        from tvm.relax.op import (
-            astype,
-            matmul,
-            maximum,
-            permute_dims,
-            reshape,
-            squeeze,
-        )
+        from tvm.relax.op import astype, matmul, maximum, permute_dims, reshape, squeeze
         from tvm.relax.op.nn import softmax
 
         offset = kv_seq_len - q_len
@@ -1358,16 +1351,17 @@ def get_model(args, hf_config):
     )
 
     mod = bb.get()
+
+    tir_bound_map = dict()
+    tir_bound_map["n"] = config.max_sequence_length
+    tir_bound_map["m"] = config.max_sequence_length
+    tir_bound_map["vocab_size"] = args.max_vocab_size
+    if enable_batching:
+        tir_bound_map["nseq"] = args.max_batch_size
     for gv in mod.functions:
         func = mod[gv]
         if isinstance(func, relax.Function):
-            mod[gv] = func.with_attr(
-                "tir_var_upper_bound",
-                {
-                    "n": config.max_sequence_length,
-                    "m": config.max_sequence_length,
-                },
-            )
+            mod[gv] = func.with_attr("tir_var_upper_bound", tir_bound_map)
 
     if args.build_model_only:
         return mod, param_manager, None, config
