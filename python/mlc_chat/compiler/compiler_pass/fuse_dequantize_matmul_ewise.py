@@ -1,12 +1,12 @@
-"""A compiler pass that fuses decode + matmul + elementwise."""
+"""A compiler pass that fuses dequantize + matmul + elementwise."""
 import tvm
 from tvm import IRModule, relax
 from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcard
 
 
-@tvm.transform.module_pass(opt_level=0, name="FuseDecodeMatmulEwise")
-class FuseDecodeMatmulEwise:  # pylint: disable=too-few-public-methods
-    """A compiler pass that fuses decode + matmul + elementwise."""
+@tvm.transform.module_pass(opt_level=0, name="FuseDequantizeMatmulEwise")
+class FuseDequantizeMatmulEwise:  # pylint: disable=too-few-public-methods
+    """A compiler pass that fuses dequantize + matmul + elementwise."""
 
     def transform_module(
         self,
@@ -23,7 +23,7 @@ class FuseDecodeMatmulEwise:  # pylint: disable=too-few-public-methods
                     relax.transform.FuseOpsByPattern(
                         [
                             (
-                                "decode_matmul",
+                                "dequantize_matmul",
                                 *_pattern(match_ewise, n_aux_tensor),
                             )
                         ]
@@ -62,7 +62,9 @@ def _pattern(match_ewise: int, n_aux_tensor: int):
         g_var = call.args[0]
         if not isinstance(g_var, relax.GlobalVar):
             return False
-        return g_var.name_hint.startswith("decode") or g_var.name_hint.startswith("fused_decode")
+        return g_var.name_hint.startswith("dequantize") or g_var.name_hint.startswith(
+            "fused_dequantize"
+        )
 
     def _check_matmul(ctx: relax.transform.PatternCheckContext) -> bool:
         call = ctx.annotated_expr["matmul"]

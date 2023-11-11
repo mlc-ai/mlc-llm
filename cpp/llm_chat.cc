@@ -12,11 +12,11 @@
 #include <tokenizers_cpp.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/disco/session.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/relax_vm/memory_manager.h>
 
 #include <cctype>
 #include <chrono>
@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "conversation.h"
+#include "model_metadata.h"
 #include "random.h"
 #include "support.h"
 #include "tokenizers.h"
@@ -158,40 +159,61 @@ struct FunctionTable {
       this->local_vm = fload_exec();
       this->local_vm->GetFunction("vm_initialization")(
           static_cast<int>(device.device_type), device.device_id,
-          static_cast<int>(relax_vm::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-          static_cast<int>(relax_vm::AllocatorType::kPooled));
+          static_cast<int>(memory::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
+          static_cast<int>(memory::AllocatorType::kPooled));
       this->mod_get_func = [this](const std::string& name) -> PackedFunc {
-        return this->local_vm->GetFunction(name, false);
+        PackedFunc func = this->local_vm->GetFunction(name, false);
+        return func;
       };
       this->get_global_func = [](const std::string& name) -> PackedFunc {
         const auto* f = tvm::runtime::Registry::Get(name);
         CHECK(f != nullptr) << "ValueError: Cannot find function " << name;
         return *f;
       };
+      this->model_metadata_ = ModelMetadata::FromModule(this->local_vm);
       this->_InitFunctions();
     }
   }
 
-  ObjectRef LoadParams(const std::string& model_path, Device device) {
+  ObjectRef LoadParams(const std::string& model_path, Device device, bool use_presharded_weights) {
     if (this->use_disco) {
       std::filesystem::path fs_model_path = model_path;
       std::string metadata_path = (fs_model_path / "ndarray-cache.json").string();
       std::string ndarray_cache_metadata = LoadBytesFromFile(metadata_path);
       PackedFunc loader_create = this->get_global_func("runtime.disco.ShardLoader");
-      PackedFunc loader_load_all = this->get_global_func("runtime.disco.ShardLoaderLoadAll");
+
+      auto load_all_func_name = use_presharded_weights
+                                    ? "runtime.disco.ShardLoaderLoadAllPresharded"
+                                    : "runtime.disco.ShardLoaderLoadAll";
+      PackedFunc loader_load_all = this->get_global_func(load_all_func_name);
       CHECK(loader_create != nullptr);
       CHECK(loader_load_all != nullptr);
       DRef loader = loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod);
       DRef params = loader_load_all(loader);
       return params;
     } else {
+      CHECK(!use_presharded_weights) << "Use of pre-sharded weights requires more than one GPU";
+
       const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
       ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
       (*fload_cache)(model_path, static_cast<int32_t>(device.device_type), device.device_id);
-      const PackedFunc* fload_params =
-          tvm::runtime::Registry::Get("vm.builtin.param_array_from_cache");
-      ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
-      Array<NDArray> params = (*fload_params)("param", -1);
+      Array<NDArray> params;
+      if (this->model_metadata_.params.empty()) {
+        constexpr const char* name_loader = "vm.builtin.param_array_from_cache";
+        const PackedFunc* fload_params = tvm::runtime::Registry::Get(name_loader);
+        ICHECK(fload_params) << "Cannot find env function: " << name_loader;
+        params = (*fload_params)("param", -1);
+      } else {
+        constexpr const char* name_loader = "vm.builtin.param_array_from_cache_by_name";
+        const PackedFunc* fload_params = tvm::runtime::Registry::Get(name_loader);
+        ICHECK(fload_params) << "Cannot find env function: " << name_loader;
+        Array<String> param_names;
+        param_names.reserve(this->model_metadata_.params.size());
+        for (const auto& param : this->model_metadata_.params) {
+          param_names.push_back(param.name);
+        }
+        params = (*fload_params)(param_names);
+      }
       // after we get params, it is safe to simply clear the cached version
       // as these params are referenced by params_
       const PackedFunc* fclear_ndarray_cache =
@@ -210,6 +232,9 @@ struct FunctionTable {
     this->softmax_func_ = mod_get_func("softmax_with_temperature");
     this->encoding_without_cache_func_ = mod_get_func("encoding_without_cache");
     this->create_kv_cache_func_ = mod_get_func("create_kv_cache");
+    if (this->create_kv_cache_func_ == nullptr) {
+      this->create_kv_cache_func_ = mod_get_func("_initialize_effect");
+    }
     this->reset_kv_cache_func_ = mod_get_func("reset_kv_cache");
     if (this->reset_kv_cache_func_ == nullptr) {
       this->reset_kv_cache_func_ = get_global_func("vm.builtin.attention_kv_cache_array_clear");
@@ -260,6 +285,7 @@ struct FunctionTable {
   PackedFunc reset_kv_cache_func_;
   bool support_backtracking_kv_;
   PackedFunc fkvcache_array_popn_;
+  ModelMetadata model_metadata_;
 };
 
 }  // namespace
@@ -367,6 +393,12 @@ class LLMChat {
     } else {
       this->num_shards_ = 1;
     }
+    if (config.count("use_presharded_weights")) {
+      CHECK(config["use_presharded_weights"].is<bool>());
+      this->use_presharded_weights_ = config["use_presharded_weights"].get<bool>();
+    } else {
+      this->use_presharded_weights_ = false;
+    }
     if (config.count("max_window_size")) {
       CHECK(config["max_window_size"].is<int64_t>());
       this->max_window_size_ =
@@ -377,10 +409,16 @@ class LLMChat {
       CHECK(!config.count("max_window_size"))
           << "Cannot specify both sliding_window and max_window_size.";
       this->sliding_window_ = config["sliding_window"].get<int64_t>();
+      CHECK(this->sliding_window_ > 0) << "Sliding window size needs to be positive";
+      CHECK(config.count("sliding_window_chunk_size"))
+          << "Need to specify chunk size if using sliding window attention.";
     }
     if (config.count("sliding_window_chunk_size")) {
       CHECK(config["sliding_window_chunk_size"].is<int64_t>());
       this->sliding_window_chunk_size_ = config["sliding_window_chunk_size"].get<int64_t>();
+      CHECK(this->sliding_window_chunk_size_ > 0)
+          << "Sliding window chunk size needs to be positive";
+      CHECK(config.count("sliding_window")) << "Need to specify sliding window size.";
     }
     if (config.count("model_name")) {
       CHECK(config["model_name"].is<std::string>());
@@ -492,7 +530,7 @@ class LLMChat {
         << "Cannot find env function vm.builtin.sample_top_p_from_logits";
     fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
     // Step 5. Load params in nd-array cache.
-    this->params_ = ft_.LoadParams(model_path, device_);
+    this->params_ = ft_.LoadParams(model_path, device_, use_presharded_weights_);
     // Step 6. KV cache creation.
     this->kv_cache_ = ft_.create_kv_cache_func_();
     // Step 7. Pre-allocate fixed size ndarray
@@ -796,13 +834,8 @@ class LLMChat {
     NDArray logits_on_device;
     if (this->sliding_window_ != -1) {
       // Use chunking if we use sliding window attention (see Mistral paper figure 3).
-      int64_t sliding_window_chunk_size = this->sliding_window_chunk_size_;
-      if (this->sliding_window_chunk_size_ == -1) {
-        // One chunk if chunk size not specified
-        sliding_window_chunk_size = token_len;
-      }
-      for (int64_t begin = 0; begin < token_len; begin += sliding_window_chunk_size) {
-        int64_t end = std::min(token_len, begin + sliding_window_chunk_size);
+      for (int64_t begin = 0; begin < token_len; begin += this->sliding_window_chunk_size_) {
+        int64_t end = std::min(token_len, begin + this->sliding_window_chunk_size_);
         std::vector<int32_t> chunk =
             std::vector<int32_t>(prompt_tokens.begin() + begin, prompt_tokens.begin() + end);
         new_seq_len += static_cast<int64_t>(chunk.size());
@@ -997,7 +1030,7 @@ class LLMChat {
     }
     if (generation_config.count("presence_penalty")) {
       CHECK(generation_config["presence_penalty"].is<double>());
-      CHECK(abs(generation_config["presence_penalty"].get<double>()) <= 2)
+      CHECK(fabs(generation_config["presence_penalty"].get<double>()) <= 2)
           << "Presence penalty must be in the range -2 to 2!";
       *gen_presence_penalty = generation_config["presence_penalty"].get<double>();
     } else {
@@ -1005,7 +1038,7 @@ class LLMChat {
     }
     if (generation_config.count("frequency_penalty")) {
       CHECK(generation_config["frequency_penalty"].is<double>());
-      CHECK(abs(generation_config["frequency_penalty"].get<double>()) <= 2)
+      CHECK(fabs(generation_config["frequency_penalty"].get<double>()) <= 2)
           << "Frequency penalty must be in the range -2 to 2!";
       *gen_frequency_penalty = generation_config["frequency_penalty"].get<double>();
     } else {
@@ -1337,6 +1370,8 @@ class LLMChat {
   int64_t vocab_size_;
   // number of shards in distributed inference
   int64_t num_shards_;
+  // Load weights that were saved in sharded form
+  bool use_presharded_weights_;
   // shift window fill factor
   double shift_fill_factor_{0.3};
   // temperature

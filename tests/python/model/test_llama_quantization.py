@@ -10,12 +10,12 @@ from mlc_chat.compiler.quantization.group_quantization import (
 
 
 @pytest.mark.parametrize(
-    "model_name, quant_name",
-    [
-        ("llama2_7b", "q4f16_1"),
-        ("llama2_13b", "q4f16_1"),
-        ("llama2_70b", "q4f16_1"),
-    ],
+    "model_name",
+    ["llama2_7b", "llama2_13b", "llama2_70b"],
+)
+@pytest.mark.parametrize(
+    "quant_name",
+    ["q3f16_1", "q4f16_1", "q4f32_1"],
 )
 def test_llama2_group_quantization(model_name: str, quant_name: str):
     model_info = MODELS["llama"]
@@ -49,6 +49,22 @@ def test_llama2_group_quantization(model_name: str, quant_name: str):
             model.model.layers[i].mlp.down_proj,  # type: ignore[attr-defined]
             GroupQuantizeLinear,
         )
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    ["llama2_7b", "llama2_13b", "llama2_70b"],
+)
+@pytest.mark.parametrize(
+    "quant_name",
+    ["q0f16", "q0f32"],
+)
+def test_llama2_no_quantization(model_name: str, quant_name: str):
+    model_info = MODELS["llama"]
+    config = model_info.config.from_dict(MODEL_PRESETS[model_name])
+    _, quant_map = model_info.quantize["no-quant"](config, QUANTIZATION[quant_name])
+    assert len(quant_map.param_map) == 0
+    assert len(quant_map.map_func) == 0
 
 
 if __name__ == "__main__":

@@ -83,7 +83,7 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         self.cached_files = {}
         self.torch_to_path = {}
         self.quantize_param_map = quantize_param_map
-        if path.suffix in (".bin", ".safetensors"):
+        if path.suffix in (".bin", ".safetensors", ".pt"):
             self._load_file(path)
             for name in self.cached_files[path].keys():
                 self.torch_to_path[name] = path

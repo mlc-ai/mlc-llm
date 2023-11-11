@@ -14,6 +14,7 @@ from mlc_chat.compiler.quantization.group_quantization import (
     GroupQuantize,
     GroupQuantizeEmbedding,
     GroupQuantizeLinear,
+    GroupQuantizeMultiLinear,
 )
 
 
@@ -35,8 +36,10 @@ def quantize_np(config: GroupQuantize, weight: np.ndarray):
         0,
         config.max_int_value * 2,
     ).astype(config.storage_dtype)
+    weight_filtered = np.reshape(weight_scaled_reshaped, (n, k))
+    weight_filtered[..., weight.shape[1] :] = 0
     weight_scaled = np.reshape(
-        weight_scaled_reshaped, (n, k // config.num_elem_per_storage, config.num_elem_per_storage)
+        weight_filtered, (n, k // config.num_elem_per_storage, config.num_elem_per_storage)
     )
     indice_k = np.indices(weight_scaled.shape, dtype=config.storage_dtype)[-1]
     quantized_weight = np.sum(
@@ -53,6 +56,7 @@ def dequantize_np(
     scale: np.ndarray,
     out_shape: List[int] = None,
 ):
+    assert weight.shape[0] == scale.shape[0]
     bin_mask = (1 << DataType(config.quantize_dtype).bits) - 1
     max_int = config.max_int_value
     out_shape = (
@@ -70,13 +74,21 @@ def dequantize_np(
         ),
         bin_mask,
     )
-    return ((weight_bin - max_int) * scale_repeated)[: out_shape[0]][: out_shape[1]]
+    assert weight_bin.shape[1] <= scale_repeated.shape[1]
+    return ((weight_bin - max_int) * scale_repeated[..., : weight_bin.shape[1]])[
+        : out_shape[0], : out_shape[1]
+    ]
 
 
 @pytest.mark.parametrize(
     "quant_name, shape, dtype, device",
     [
+        ("q3f16_1", [2, 13], "float16", "cpu"),
+        ("q3f16_1", [16, 120], "float16", "cpu"),
+        ("q4f16_1", [2, 13], "float16", "cpu"),
         ("q4f16_1", [16, 128], "float16", "cpu"),
+        ("q4f32_1", [2, 13], "float32", "cpu"),
+        ("q4f32_1", [16, 128], "float32", "cpu"),
     ],
 )
 def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: str):
@@ -90,15 +102,20 @@ def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: 
     tvm.testing.assert_allclose(
         dequantize_np(config, quantized_weight, scale, shape),
         dequantize_np(config, quantized_weight_ref, scale_ref, shape),
-        rtol=1e-3,
-        atol=0.2,
+        rtol=1e-2 if quant_name.startswith("q3") else 1e-3,
+        atol=0.4 if quant_name.startswith("q3") else 0.2,
     )
 
 
 @pytest.mark.parametrize(
     "quant_name, shape, dtype",
     [
+        ("q3f16_1", [2, 13], "float16"),
+        ("q3f16_1", [16, 120], "float16"),
+        ("q4f16_1", [2, 13], "float16"),
         ("q4f16_1", [16, 128], "float16"),
+        ("q4f32_1", [2, 13], "float32"),
+        ("q4f32_1", [16, 128], "float32"),
     ],
 )
 def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
@@ -115,9 +132,9 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
     weight_np = np.random.randint(
         np.iinfo(config.storage_dtype).min,
         np.iinfo(config.storage_dtype).max,
-        (shape[0], shape[1] // config.num_elem_per_storage),
+        (shape[0], -(shape[1] // -config.num_elem_per_storage)),
     ).astype(config.storage_dtype)
-    scale_np = np.random.random((shape[0], shape[1] // config.group_size)).astype(
+    scale_np = np.random.random((shape[0], -(shape[1] // -config.group_size))).astype(
         config.model_dtype
     )
     mod = config.quantize_model(Test(), QuantizeMapping({}, {}), "")
@@ -127,14 +144,16 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
     out = model["forward"](
         torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype)))  # pylint: disable=no-member
     )
-    ref = dequantize_np(config, weight_np, scale_np).T
+    ref = dequantize_np(config, weight_np, scale_np, shape).T
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
 
 @pytest.mark.parametrize(
     "quant_name, shape, dtype",
     [
+        ("q3f16_1", [16, 128], "float16"),
         ("q4f16_1", [16, 128], "float16"),
+        ("q4f32_1", [16, 128], "float32"),
     ],
 )
 def test_quantize_model(quant_name: str, shape: List[int], dtype: str):
@@ -142,6 +161,7 @@ def test_quantize_model(quant_name: str, shape: List[int], dtype: str):
         def __init__(self) -> None:
             super().__init__()
             self.linear = nn.Linear(shape[0], shape[1], dtype=dtype)
+            self.multilinear = nn.MultiLinear(shape[0], [shape[1], shape[1]], dtype=dtype)
             self.embedding = nn.Embedding(shape[0], shape[1], dtype=dtype)
 
         def forward(self, x: nn.Tensor):
@@ -157,6 +177,12 @@ def test_quantize_model(quant_name: str, shape: List[int], dtype: str):
     ]
     assert quant_map.map_func["model.linear.weight"] == config.quantize_weight
     assert isinstance(mod.linear, GroupQuantizeLinear)
+    assert quant_map.param_map["model.multilinear.weight"] == [
+        "model.multilinear.q_weight",
+        "model.multilinear.q_scale",
+    ]
+    assert quant_map.map_func["model.multilinear.weight"] == config.quantize_weight
+    assert isinstance(mod.multilinear, GroupQuantizeMultiLinear)
     assert quant_map.param_map["model.embedding.weight"] == [
         "model.embedding.q_weight",
         "model.embedding.q_scale",

@@ -8,4 +8,5 @@ Loader = Any
 LOADER: Dict[str, Any] = {
     "huggingface-torch": HuggingFaceLoader,
     "huggingface-safetensor": HuggingFaceLoader,
+    "awq": HuggingFaceLoader,
 }

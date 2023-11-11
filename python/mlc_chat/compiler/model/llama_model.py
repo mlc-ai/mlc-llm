@@ -3,6 +3,7 @@ Implementation for Llama2 architecture.
 TODO: add docstring
 """
 import dataclasses
+import logging
 import math
 from typing import Any, Dict, Optional
 
@@ -11,26 +12,48 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from ...support.config import ConfigBase
+from ...support.style import bold
+
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
 class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the Llama model."""
 
-    hidden_act: str
     hidden_size: int
     intermediate_size: int
     num_attention_heads: int
     num_hidden_layers: int
     rms_norm_eps: float
     vocab_size: int
-    max_sequence_length: int = 2048
-    position_embedding_base: int = 10000
+    position_embedding_base: int = 0
+    max_sequence_length: int = 0
     num_key_value_heads: int = 0
     head_dim: int = 0
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
+        if self.max_sequence_length == 0:
+            if "max_position_embeddings" in self.kwargs:
+                self.max_sequence_length = self.kwargs.pop("max_position_embeddings")
+                logger.info(
+                    "%s not found in config.json. Falling back to %s (%d)",
+                    bold("max_sequence_length"),
+                    bold("max_position_embeddings"),
+                    self.max_sequence_length,
+                )
+            else:
+                raise ValueError(
+                    "Unable to determine the maxmimum sequence length, because neither "
+                    "`max_sequence_length` nor `max_position_embeddings` is provided "
+                    "in `config.json`."
+                )
+        if self.position_embedding_base == 0:
+            if "rope_theta" in self.kwargs:
+                self.position_embedding_base = self.kwargs.pop("rope_theta")
+            else:
+                self.position_embedding_base = 10000
         if self.num_key_value_heads == 0:
             self.num_key_value_heads = self.num_attention_heads
         if self.head_dim == 0:
@@ -62,9 +85,9 @@ class RotaryEmbedding(nn.Module):
                 freq = (offset + s) / freq
                 cos = tir.cos(freq).astype(dtype) * x[b, s, h, d]
                 sin = tir.sin(freq).astype(dtype) * tir.if_then_else(
-                    d < self.head_dim // 2,
-                    -x[b, s, h, d + self.head_dim // 2],
-                    x[b, s, h, d - self.head_dim // 2],
+                    d < head_dim // 2,
+                    -x[b, s, h, d + head_dim // 2],
+                    x[b, s, h, d - head_dim // 2],
                 )
                 return cos + sin
 
@@ -128,8 +151,8 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
 
         self.k_cache.append(op.squeeze(k, axis=0))
         self.v_cache.append(op.squeeze(v, axis=0))
-        k = op.reshape(self.k_cache.view(total_seq_len), (b, t, h_kv, d))
-        v = op.reshape(self.v_cache.view(total_seq_len), (b, t, h_kv, d))
+        k = op.reshape(self.k_cache.view(t), (b, t, h_kv, d))
+        v = op.reshape(self.v_cache.view(t), (b, t, h_kv, d))
         if h_kv != h_q:
             k = k.repeat(h_q // h_kv, axis=2)
             v = v.repeat(h_q // h_kv, axis=2)
@@ -145,11 +168,9 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
             attn_weights = op.softmax(attn_weights, axis=-1)
         else:
             attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
-        return self.o_proj(
-            op.matmul(attn_weights, v)  # [b, h, s, t] x [b, h, t, d] = [b, h, s, d]
-            .permute_dims([0, 2, 1, 3])  # [b, s, h, d]
-            .reshape((b, s, h_q * d))
-        )
+        # [b, h, s, t] x [b, h, t, d] => [b, h, s, d] => [b, s, h, d]
+        output = op.matmul(attn_weights, v)
+        return self.o_proj(output.permute_dims([0, 2, 1, 3]).reshape((b, s, h_q * d)))
 
 
 class LlamaDecoderLayer(nn.Module):

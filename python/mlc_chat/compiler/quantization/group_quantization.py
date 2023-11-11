@@ -12,6 +12,7 @@ from tvm.runtime import NDArray
 from tvm.target import Target
 
 from ..loader import QuantizeMapping
+from .utils import convert_uint_to_float
 
 logger = logging.getLogger(__name__)
 
@@ -126,30 +127,27 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         scale: te.Tensor,
         out_shape: Optional[List[tir.PrimExpr]] = None,
     ):
-        tir_bin_mask = tir.const((1 << DataType(self.quantize_dtype).bits) - 1, self.storage_dtype)
         tir_max_int = tir.const(self.max_int_value, self.model_dtype)
+        float_weight = convert_uint_to_float(
+            weight,
+            DataType(self.quantize_dtype).bits,
+            self.num_elem_per_storage,
+            self.storage_dtype,
+            self.model_dtype,
+            out_shape,
+        )
         return te.compute(
             shape=[weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
             if out_shape is None
             else out_shape,
             fcompute=lambda i, j: tir.multiply(
                 tir.subtract(
-                    tir.bitwise_and(
-                        tir.shift_right(
-                            weight[i, j // self.num_elem_per_storage],
-                            tir.Cast(
-                                self.storage_dtype,
-                                (j % self.num_elem_per_storage)
-                                * DataType(self.quantize_dtype).bits,
-                            ),
-                        ),
-                        tir_bin_mask,
-                    ),
+                    float_weight[i, j],
                     tir_max_int,
                 ),
                 scale[i, j // self.group_size],
             ),
-            name="decode",
+            name="dequantize",
         )
 
     def quantize_weight(self, weight: NDArray) -> List[NDArray]:
@@ -224,8 +222,11 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         max_abs = te.compute(
             shape=scale_shape,
             fcompute=lambda i, j: te.max(
-                te.abs(weight[i, j * self.group_size + r]),
-                where=j * self.group_size + r < k,
+                tir.if_then_else(
+                    j * self.group_size + r < k,
+                    te.abs(weight[i, j * self.group_size + r]),
+                    te.min_value(self.model_dtype),
+                ),
                 axis=r,
             ),
             name="max_abs_value",
@@ -253,9 +254,13 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         quantized_weight = te.compute(
             shape=quantized_weight_shape,
             fcompute=lambda i, j: tir.sum(
-                scaled_weight[i, j * self.num_elem_per_storage + r] << (r * quantize_dtype.bits),
+                tir.if_then_else(
+                    j * self.num_elem_per_storage + r < k,
+                    scaled_weight[i, j * self.num_elem_per_storage + r]
+                    << (r * quantize_dtype.bits),
+                    0,
+                ),
                 axis=r,
-                where=j * self.num_elem_per_storage + r < k,
             ),
             name="weight",
         )
@@ -336,7 +341,7 @@ class GroupQuantizeLinear(nn.Module):
                 scale,
                 [tir.IntImm("int64", self.out_features), tir.IntImm("int64", self.in_features)],
             ),
-            name_hint="decode",
+            name_hint="dequantize",
             args=[self.q_weight, self.q_scale],
         )
         w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
@@ -430,7 +435,7 @@ class GroupQuantizeMultiLinear(nn.Module):  # pylint: disable=too-many-instance-
                     tir.IntImm("int64", self.in_features),
                 ],
             ),
-            name_hint="decode",
+            name_hint="dequantize",
             args=[self.q_weight, self.q_scale],
         )
         # x: [*B, in_features]
@@ -501,7 +506,7 @@ class GroupQuantizeEmbedding(nn.Module):
                 scale,
                 [tir.IntImm("int64", self.num), tir.IntImm("int64", self.dim)],
             ),
-            name_hint="decode",
+            name_hint="dequantize",
             args=[self.q_weight, self.q_scale],
         )
         if x.ndim == 1:
