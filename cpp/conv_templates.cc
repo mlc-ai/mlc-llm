@@ -615,6 +615,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"redpajama_chat", RedPajamaChat},
       {"rwkv_world", RWKVWorld},
       {"rwkv", RWKV},
+      {"rwkv5", RWKVWorld},
       {"gorilla", Gorilla},
       {"guanaco", Guanaco},
       {"dolly", Dolly},
