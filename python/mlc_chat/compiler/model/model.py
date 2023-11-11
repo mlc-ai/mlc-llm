@@ -6,7 +6,8 @@ from tvm.relax.frontend import nn
 
 from ..loader import ExternMapping, QuantizeMapping
 from ..quantization.quantization import Quantization
-from . import llama_loader, llama_model, llama_quantization, mistral_model
+from .llama import llama_loader, llama_model, llama_quantization
+from .mistral import mistral_loader, mistral_model, mistral_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -71,12 +72,12 @@ MODELS: Dict[str, Model] = {
         model=mistral_model.MistralForCasualLM,
         config=mistral_model.MistralConfig,
         source={
-            "huggingface-torch": llama_loader.huggingface,
-            "huggingface-safetensor": llama_loader.huggingface,
-            "awq": llama_loader.awq,
+            "huggingface-torch": mistral_loader.huggingface,
+            "huggingface-safetensor": mistral_loader.huggingface,
+            "awq": mistral_loader.awq,
         },
         quantize={
-            "group-quant": llama_quantization.group_quant,
+            "group-quant": mistral_quantization.group_quant,
         },
     ),
 }

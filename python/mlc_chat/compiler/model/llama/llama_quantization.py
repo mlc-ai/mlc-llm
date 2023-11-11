@@ -4,10 +4,9 @@ from typing import Tuple
 
 from tvm.relax.frontend import nn
 
-from ..loader import QuantizeMapping
-from ..quantization import AWQQuantize, GroupQuantize, NoQuantize
+from ...loader import QuantizeMapping
+from ...quantization import AWQQuantize, GroupQuantize, NoQuantize
 from .llama_model import LlamaConfig, LlamaForCasualLM
-from .mistral_model import MistralConfig, MistralForCasualLM
 
 
 def group_quant(
@@ -15,10 +14,7 @@ def group_quant(
     quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Llama-architecture model using group quantization."""
-    if isinstance(model_config, MistralConfig):
-        model: nn.Module = MistralForCasualLM(model_config)
-    else:
-        model = LlamaForCasualLM(model_config)
+    model: nn.Module = LlamaForCasualLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     model = quantization.quantize_model(
@@ -34,10 +30,7 @@ def awq_quant(
     quantization: AWQQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Llama-architecture model using Activation-aware Weight Quantization(AWQ)."""
-    if isinstance(model_config, MistralConfig):
-        model: nn.Module = MistralForCasualLM(model_config)
-    else:
-        model = LlamaForCasualLM(model_config)
+    model: nn.Module = LlamaForCasualLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     model = quantization.quantize_model(

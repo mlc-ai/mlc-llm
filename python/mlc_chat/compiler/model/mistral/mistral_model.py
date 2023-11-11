@@ -1,31 +1,68 @@
 """
-Implementation for Mistral.
+Implementation for Mistral architecture.
 """
 import dataclasses
 import logging
 import math
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from tvm import relax as rx
 from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from ...support.style import bold
-from .llama_model import LlamaConfig, LlamaFFN, RotaryEmbedding
+from ....support.config import ConfigBase
+from ....support.style import bold
 
 logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class MistralConfig(LlamaConfig):
+class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the Mistral model."""
 
+    hidden_size: int
+    intermediate_size: int
+    num_attention_heads: int
+    num_hidden_layers: int
+    rms_norm_eps: float
+    vocab_size: int
+    position_embedding_base: int = 0
+    max_sequence_length: int = 0
+    num_key_value_heads: int = 0
+    head_dim: int = 0
     sliding_window: int = 4096
     sliding_window_chunk_size: int = 0
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
-        super().__post_init__()
+        if self.max_sequence_length == 0:
+            if "max_position_embeddings" in self.kwargs:
+                self.max_sequence_length = self.kwargs.pop("max_position_embeddings")
+                logger.info(
+                    "%s not found in config.json. Falling back to %s (%d)",
+                    bold("max_sequence_length"),
+                    bold("max_position_embeddings"),
+                    self.max_sequence_length,
+                )
+            else:
+                raise ValueError(
+                    "Unable to determine the maxmimum sequence length, because neither "
+                    "`max_sequence_length` nor `max_position_embeddings` is provided "
+                    "in `config.json`."
+                )
+        if self.position_embedding_base == 0:
+            if "rope_theta" in self.kwargs:
+                self.position_embedding_base = self.kwargs.pop("rope_theta")
+            else:
+                self.position_embedding_base = 10000
+        if self.num_key_value_heads == 0:
+            self.num_key_value_heads = self.num_attention_heads
+        if self.head_dim == 0:
+            self.head_dim = self.hidden_size // self.num_attention_heads
+        assert self.num_attention_heads % self.num_key_value_heads == 0
+        assert self.head_dim * self.num_attention_heads == self.hidden_size
+
         if self.sliding_window_chunk_size == 0:
             # chunk size same as sliding window by default
             self.sliding_window_chunk_size = self.sliding_window
@@ -34,6 +71,61 @@ class MistralConfig(LlamaConfig):
             "Using sliding window attention, setting %s to -1",
             bold("max_sequence_length"),
         )
+
+
+# pylint: disable=invalid-name,missing-docstring
+
+
+class RotaryEmbedding(nn.Module):
+    """Same as in Llama architecture."""
+
+    def __init__(self, config: MistralConfig):
+        super().__init__()
+        self.head_dim = config.head_dim
+        self.position_embedding_base = config.position_embedding_base
+
+    def forward(self, q: Tensor, k: Tensor, offset: tir.Var):
+        def te_op(x: te.Tensor, offset: tir.Var):
+            dtype = x.dtype
+
+            def compute(b: tir.Var, s: tir.Var, h: tir.Var, d: tir.Var):
+                head_dim = tir.const(self.head_dim, "int32")
+                position_embedding_base = tir.const(self.position_embedding_base, "float32")
+                freq = tir.power(
+                    position_embedding_base,
+                    (d * 2 % head_dim).astype("float32") / head_dim,
+                )
+                freq = (offset + s) / freq
+                cos = tir.cos(freq).astype(dtype) * x[b, s, h, d]
+                sin = tir.sin(freq).astype(dtype) * tir.if_then_else(
+                    d < head_dim // 2,
+                    -x[b, s, h, d + head_dim // 2],
+                    x[b, s, h, d - head_dim // 2],
+                )
+                return cos + sin
+
+            return te.compute(x.shape, compute, name="rotary")
+
+        q_embed = op.tensor_expr_op(te_op, "rotary_embedding", args=[q, offset])
+        k_embed = op.tensor_expr_op(te_op, "rotary_embedding", args=[k, offset])
+        return q_embed, k_embed
+
+
+class MistralMLP(nn.Module):
+    """Same as in Llama architecture (LlamaFFN)."""
+
+    def __init__(self, config: MistralConfig):
+        super().__init__()
+        self.gate_up_proj = nn.MultiLinear(
+            in_features=config.hidden_size,
+            out_features=[config.intermediate_size, config.intermediate_size],
+            bias=False,
+        )
+        self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
+
+    def forward(self, x: Tensor):
+        x1, x2 = self.gate_up_proj(x)
+        return self.down_proj(op.silu(x1) * x2)
 
 
 class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
@@ -157,7 +249,7 @@ class RollingKVCache(nn.KVCache):
 
     def override(self, new_element: Tensor, max_cache_size: int) -> None:
         """
-        Override elements in RollingKVCache.
+        Override cache elements in RollingKVCache.
 
         Parameters
         ----------
@@ -191,7 +283,7 @@ class MistralDecoderLayer(nn.Module):
     def __init__(self, config: MistralConfig, rotary_embedding: RotaryEmbedding):
         rms_norm_eps = config.rms_norm_eps
         self.self_attn = MistralAttention(config, rotary_embedding)
-        self.mlp = LlamaFFN(config)
+        self.mlp = MistralMLP(config)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
 

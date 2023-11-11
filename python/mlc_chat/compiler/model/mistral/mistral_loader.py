@@ -1,25 +1,25 @@
 """
-This file specifies how MLC's Llama parameter maps from other formats, for example HuggingFace
+This file specifies how MLC's Mistral parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
 import functools
 
 import numpy as np
 
-from ..loader import ExternMapping
-from ..quantization import Quantization
-from .llama_model import LlamaConfig, LlamaForCasualLM
-from .llama_quantization import awq_quant
+from ...loader import ExternMapping
+from ...quantization import Quantization
+from .mistral_model import MistralConfig, MistralForCasualLM
+from .mistral_quantization import awq_quant
 
 
-def huggingface(model_config: LlamaConfig, quantization: Quantization) -> ExternMapping:
+def huggingface(model_config: MistralConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
     Parameters
     ----------
-    model_config : LlamaConfig
-        The configuration of the Llama model.
+    model_config : MistralConfig
+        The configuration of the Mistral model.
 
     quantization : Quantization
         The quantization configuration.
@@ -29,7 +29,7 @@ def huggingface(model_config: LlamaConfig, quantization: Quantization) -> Extern
     param_map : ExternMapping
         The parameter mapping from MLC to HuggingFace PyTorch.
     """
-    model = LlamaForCasualLM(model_config)
+    model = MistralForCasualLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
     _, _named_params = model.export_tvm(spec=model.get_default_spec())
@@ -85,13 +85,13 @@ def huggingface(model_config: LlamaConfig, quantization: Quantization) -> Extern
     return mapping
 
 
-def awq(model_config: LlamaConfig, quantization: Quantization) -> ExternMapping:
+def awq(model_config: MistralConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of AWQ parameters.
     Parameters
     ----------
-    model_config : LlamaConfig
-        The configuration of the Llama model.
+    model_config : MistralConfig
+        The configuration of the Mistral model.
 
     quantization : Quantization
         The quantization configuration.
