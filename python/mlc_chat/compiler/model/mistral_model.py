@@ -6,8 +6,8 @@ import logging
 import math
 from typing import Optional
 
-from tvm import te, tir
 from tvm import relax as rx
+from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
