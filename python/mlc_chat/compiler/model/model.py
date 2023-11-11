@@ -6,9 +6,13 @@ from tvm.relax.frontend import nn
 
 from ..loader import ExternMapping, QuantizeMapping
 from ..quantization.quantization import Quantization
+<<<<<<< HEAD
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
+=======
+from . import llama_loader, llama_model, llama_quantization,llava_model
+>>>>>>> b141da3 (feat: update model registration for .so generation)
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -65,7 +69,20 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": llama_quantization.no_quant,
             "group-quant": llama_quantization.group_quant,
-            "awq": llama_quantization.awq_quant,
+        },
+    ),
+    "llava":Model(
+        name='llava',
+        model=llava_model.LLavaModel,
+        config=llava_model.LlavaConfig,
+        # TODO: update the source for llava
+        source={
+            "huggingface-torch": llama_loader.huggingface,
+            "huggingface-safetensor": llama_loader.huggingface,
+            "awq": llama_loader.awq,
+        },
+        quantize={
+            "group-quant": llava_model.group_quant,
         },
     ),
     "mistral": Model(
@@ -97,6 +114,11 @@ MODELS: Dict[str, Model] = {
 }
 
 MODEL_PRESETS: Dict[str, Any] = {
+    "llava":{
+        "architectures": ["LLavaModel"],
+        "model_type":"llava",
+    },
+
     "llama2_7b": {
         "architectures": ["LlamaForCausalLM"],
         "bos_token_id": 1,
