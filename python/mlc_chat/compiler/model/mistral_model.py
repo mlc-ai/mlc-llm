@@ -7,6 +7,7 @@ import math
 from typing import Optional
 
 from tvm import te, tir
+from tvm import relax as rx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -55,8 +56,8 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
             bias=False,
         )
         self.o_proj = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
-        self.k_cache = nn.KVCache(self.sliding_window, [self.num_kv_heads, self.head_dim])
-        self.v_cache = nn.KVCache(self.sliding_window, [self.num_kv_heads, self.head_dim])
+        self.k_cache = RollingKVCache(self.sliding_window, [self.num_kv_heads, self.head_dim])
+        self.v_cache = RollingKVCache(self.sliding_window, [self.num_kv_heads, self.head_dim])
 
     def interleave_kv(  # pylint: disable=too-many-arguments,too-many-locals
         self,
@@ -145,6 +146,43 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         # [b, h, s, t] x [b, h, t, d] => [b, h, s, d] => [b, s, h, d]
         output = op.matmul(attn_weights, v)
         return self.o_proj(output.permute_dims([0, 2, 1, 3]).reshape((b, s, h_q * d)))
+
+
+class RollingKVCache(nn.KVCache):
+    """
+    Rolling buffer cache implementation.
+    """
+
+    cache: Optional[rx.Var]
+
+    def override(self, new_element: Tensor, max_cache_size: int) -> None:
+        """
+        Override elements in RollingKVCache.
+
+        Parameters
+        ----------
+        new_element : Tensor
+            The new tensor to append.
+
+        max_cache_size : int
+            Max size of the cache.
+        """
+        if new_element.dtype != self.dtype:
+            raise TypeError(
+                f'RollingKVCache has been set to use dtype "{self.dtype}", '
+                f'but got "{new_element.dtype}"'
+            )
+        self.cache = rx.BlockBuilder.current().emit(
+            rx.Call(
+                rx.extern("vm.builtin.attention_kv_cache_window_override"),
+                args=[
+                    self.cache,
+                    new_element._expr,  # pylint: disable=protected-access
+                    rx.PrimValue(max_cache_size),
+                ],
+                sinfo_args=[rx.ObjectStructInfo()],
+            )
+        )
 
 
 class MistralDecoderLayer(nn.Module):
