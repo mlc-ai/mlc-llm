@@ -30,8 +30,14 @@ from mlc_llm.relax_model import (
     rwkv,
     stablelm_3b,
 )
-from mlc_llm.relax_model.commons import create_shard_info_func, create_shard_transformation_func
-from mlc_llm.relax_model.param_manager import transform_params_for_each_rank, chain_parameter_transforms
+from mlc_llm.relax_model.commons import (
+    create_shard_info_func,
+    create_shard_transformation_func,
+)
+from mlc_llm.relax_model.param_manager import (
+    chain_parameter_transforms,
+    transform_params_for_each_rank,
+)
 from mlc_llm.transform import fuse_split_rotary_embedding, rewrite_attention
 
 
@@ -679,6 +685,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
                     mod_deploy
                 )
             )
+        if not args.enable_batching:
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 
     if args.debug_load_script:
@@ -806,7 +813,9 @@ def build_model_from_args(args: argparse.Namespace):
             mod_transform = seq(mod_transform)
 
             params = utils.convert_weights(mod_transform, param_manager, params, args)
-            utils.save_params(params, args.artifact_path, args.num_shards if args.use_presharded_weights else 1)
+            utils.save_params(
+                params, args.artifact_path, args.num_shards if args.use_presharded_weights else 1
+            )
 
             if args.model_category != "minigpt":
                 utils.copy_tokenizer(args)
