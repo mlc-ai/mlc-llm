@@ -49,7 +49,9 @@ class RWKV5Config:
         self.hidden_size = hidden_size
         self.intermediate_size = intermediate_size
         self.head_size = head_size
-        self.attention_hidden_size = attention_hidden_size if attention_hidden_size is not None else hidden_size
+        self.attention_hidden_size = (
+            attention_hidden_size if attention_hidden_size is not None else hidden_size
+        )
         self.rescale_every = rescale_every
         self.layer_norm_epsilon = layer_norm_epsilon
         self.max_sequence_length = context_length
@@ -63,15 +65,37 @@ class State:
     FFN_X = 2
 
 
-def _load_state(state: Expr, hidden_size: int, num_attention_heads: int, dtype: str, kv: bool) -> Expr:
+def _load_state(
+    state: Expr, hidden_size: int, num_attention_heads: int, dtype: str, kv: bool
+) -> Expr:
     # Reuse `attention_kv_cache_view`
     f_load_cache = relax.extern("vm.builtin.attention_kv_cache_view")
     if kv:
         cache = nn.emit(
             relax.Call(
                 f_load_cache,
-                [state, R.shape([1, num_attention_heads, hidden_size // num_attention_heads, hidden_size // num_attention_heads])],
-                sinfo_args=[R.Tensor((1, num_attention_heads, hidden_size // num_attention_heads, hidden_size // num_attention_heads), dtype)],
+                [
+                    state,
+                    R.shape(
+                        [
+                            1,
+                            num_attention_heads,
+                            hidden_size // num_attention_heads,
+                            hidden_size // num_attention_heads,
+                        ]
+                    ),
+                ],
+                sinfo_args=[
+                    R.Tensor(
+                        (
+                            1,
+                            num_attention_heads,
+                            hidden_size // num_attention_heads,
+                            hidden_size // num_attention_heads,
+                        ),
+                        dtype,
+                    )
+                ],
             )
         )
     else:
@@ -108,24 +132,31 @@ def _te_concat_saved_x(saved_x: te.Tensor, x: te.Tensor):
         lambda i, j: tir.if_then_else(i == 0, saved_x[0, j], x[i - 1, j]),
     )
 
+
 def _te_get_last_x(x: te.Tensor):
     seq_len, hidden_size = x.shape
     return te.compute((1, hidden_size), lambda _, j: x[seq_len - 1, j])
+
 
 def _te_get_receptance(x: te.Tensor, t):
     h, t, s = x.shape
     return te.compute((h, 1, s), lambda i, _, j: x[i, t, j])
 
+
 def _te_get_key(x: te.Tensor, t):
     h, t, s = x.shape
     return te.compute((h, t, 1), lambda i, j, _: x[i, j, t])
+
 
 def _te_get_value(x: te.Tensor, t):
     h, t, s = x.shape
     return te.compute((h, 1, s), lambda i, _, j: x[i, t, j])
 
+
 # https://github.com/GiantPandaCV/mlc-llm/pull/1/files#diff-e39fd9584b9046e39f007d1c432b5c90703959d148de2e8eca29f08231c9fa57R127-R212
-def create_wkv5_func(B: T.int32, T_dim: T.int32, C: T.int32, H: T.int32, dtype: str, out_dtype: str):
+def create_wkv5_func(
+    B: T.int32, T_dim: T.int32, C: T.int32, H: T.int32, dtype: str, out_dtype: str
+):
     @T.prim_func
     def wkv_func(
         r: T.handle,
@@ -134,40 +165,42 @@ def create_wkv5_func(B: T.int32, T_dim: T.int32, C: T.int32, H: T.int32, dtype: 
         w: T.handle,
         u: T.handle,
         state: T.handle,
-        out: T.handle
+        out_state: T.handle,
+        out: T.handle,
     ):
         T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
         # Define buffer variables
-        r_buf = T.match_buffer(r, (B, T_dim, H, C // H), dtype=dtype,)
-        k_buf = T.match_buffer(k, (B, T_dim, H, C // H), dtype=dtype,)
-        v_buf = T.match_buffer(v, (B, T_dim, H, C // H), dtype=dtype,)
-        w_buf = T.match_buffer(w, (H, C // H), dtype=dtype,)
-        u_buf = T.match_buffer(u, (H, C // H), dtype=dtype,)
-        state_buf = T.match_buffer(state, (B, H, C // H, C // H), dtype=dtype,)
-        out_buf = T.match_buffer(out, (B, T_dim, H, C // H), dtype=out_dtype,)
+        r_buf = T.match_buffer(r, (B, T_dim, H, C // H), dtype=dtype)
+        k_buf = T.match_buffer(k, (B, T_dim, H, C // H), dtype=dtype)
+        v_buf = T.match_buffer(v, (B, T_dim, H, C // H), dtype=dtype)
+        w_buf = T.match_buffer(w, (H, C // H), dtype=dtype)
+        u_buf = T.match_buffer(u, (H, C // H), dtype=dtype)
+        state_buf = T.match_buffer(state, (B, H, C // H, C // H), dtype=dtype)
+        out_state_buf = T.match_buffer(state, (B, H, C // H, C // H), dtype=dtype)
+        out_buf = T.match_buffer(out, (B, T_dim, H, C // H), dtype=out_dtype)
 
-        # Initialize out_buf with zeros
-        for i, j, k, l in T.grid(B, T_dim, H, C // H):
-            out_buf[i, j, k, l] = 0
+        for b in T.thread_binding(B, thread="blockIdx.y"):
+            for h in T.thread_binding(H, thread="blockIdx.x"):
+                for t in T.thread_binding(T_dim, thread="threadIdx.x"):
+                    for i in range(C // H):
+                        with T.block("init"):
+                            out_buf[b, t, h, i] = 0
 
-        # Define computation
-        for b, h in T.grid(B, H):
-            for t in T.serial(T_dim):
-                for i, j in T.grid(C // H, C // H):
-                    x = k_buf[b, t, h, j] * v_buf[b, t, h, i]
-                    s = state_buf[b, h, i, j]
-                    out_buf[b, t, h, i] += r_buf[b, t, h, j] * (u_buf[h, j] * x + s)
-                    state_buf[b, h, i, j] = s * w_buf[h, j] + x
+                    for i, j in T.grid(C // H, C // H):
+                        with T.block("block"):
+                            s = state_buf[b, h, i, j]
+                            x = k_buf[b, t, h, j] * v_buf[b, t, h, i]
+                            out_buf[b, t, h, i] += r_buf[b, t, h, j] * (u_buf[h, j] * x + s)
+                            out_state_buf[b, h, i, j] = state_buf[b, h, i, j] * w_buf[h, j] + x
 
     return wkv_func
+
 
 class RWKV_Embedding(nn.Module):
     def __init__(self, num_embeddings, embedding_dim, dtype):
         self.num_embeddings = num_embeddings
         self.embedding_dim = embedding_dim
-        self.weight = nn.Parameter(
-            (num_embeddings, embedding_dim), dtype=dtype, name="weight"
-        )
+        self.weight = nn.Parameter((num_embeddings, embedding_dim), dtype=dtype, name="weight")
 
     def forward(self, x: relax.Expr) -> relax.Var:
         x = nn.emit(op.reshape(x, shape=[-1]))
@@ -181,9 +214,7 @@ class RWKV_LayerNorm(nn.Module):
         self.weight = nn.Parameter(
             (intermediate_size,), dtype=dtype, name=f"{name_prefix}_ln_weight"
         )
-        self.bias = nn.Parameter(
-            (intermediate_size,), dtype=dtype, name=f"{name_prefix}_ln_bias"
-        )
+        self.bias = nn.Parameter((intermediate_size,), dtype=dtype, name=f"{name_prefix}_ln_bias")
 
     def forward(self, x: relax.Expr) -> relax.Var:
         x = nn.emit(
@@ -196,6 +227,7 @@ class RWKV_LayerNorm(nn.Module):
             )
         )
         return x
+
 
 class RWKV_GroupNorm(nn.Module):
     def __init__(
@@ -236,37 +268,33 @@ class RWKV_FFN(nn.Module):
         self.num_attention_heads = self.hidden_size // self.head_size
         self.index = index
         intermediate_size = (
-                config.intermediate_size if config.intermediate_size is not None else int((config.hidden_size * 3.5) // 32 * 32)
-            )
+            config.intermediate_size
+            if config.intermediate_size is not None
+            else int((config.hidden_size * 3.5) // 32 * 32)
+        )
         self.time_mix_key = nn.Parameter(
             (self.hidden_size,), dtype=config.dtype, name=f"ffn_{index}_time_mix_k"
         )
         self.time_mix_receptance = nn.Parameter(
             (self.hidden_size,), dtype=config.dtype, name=f"ffn_{index}_time_mix_r"
         )
-        self.key = Linear(
-            self.hidden_size, intermediate_size, dtype=config.dtype, bias=False
-        )
-        self.receptance = Linear(
-            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
-        )
-        self.value = Linear(
-            intermediate_size, self.hidden_size, dtype=config.dtype, bias=False
-        )
+        self.key = Linear(self.hidden_size, intermediate_size, dtype=config.dtype, bias=False)
+        self.receptance = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
+        self.value = Linear(intermediate_size, self.hidden_size, dtype=config.dtype, bias=False)
 
     def forward(self, x: Expr, state: Expr) -> Expr:
         offset = self.index * 3 + State.FFN_X
         context_length = x.struct_info.shape[0]
         hidden_size = self.hidden_size
 
-        saved_x = _load_state(state[offset], hidden_size, self.num_attention_heads, self.dtype, kv=False)
+        saved_x = _load_state(
+            state[offset], hidden_size, self.num_attention_heads, self.dtype, kv=False
+        )
         if not is_one(context_length):
             saved_x = nn.emit_te(_te_concat_saved_x, saved_x, x)
         ones = nn.emit(relax.op.ones((hidden_size,), self.dtype))
         xk = nn.emit(x * self.time_mix_key + saved_x * (ones - self.time_mix_key))
-        xr = nn.emit(
-            x * self.time_mix_receptance + saved_x * (ones - self.time_mix_receptance)
-        )
+        xr = nn.emit(x * self.time_mix_receptance + saved_x * (ones - self.time_mix_receptance))
         if not is_one(context_length):
             x = nn.emit_te(_te_get_last_x, x)
         assert is_one(x.struct_info.shape[0])
@@ -288,13 +316,17 @@ class RWKV_Attention(nn.Module):
         self.num_attention_heads = self.hidden_size // self.head_size
         self.eps = config.layer_norm_epsilon
         self.time_decay = nn.Parameter(
-            (self.num_attention_heads, self.head_size), dtype="float32", name=f"att_{index}_time_decay"
+            (self.num_attention_heads, self.head_size),
+            dtype="float32",
+            name=f"att_{index}_time_decay",
         )
         self.time_faaaa = nn.Parameter(
-            (self.num_attention_heads, self.head_size), dtype="float32", name=f"att_{index}_time_faaaa"
+            (self.num_attention_heads, self.head_size),
+            dtype="float32",
+            name=f"att_{index}_time_faaaa",
         )
         self.time_mix_gate = nn.Parameter(
-            (self.hidden_size, ), dtype=config.dtype, name=f"att_{index}_time_mix_gate"
+            (self.hidden_size,), dtype=config.dtype, name=f"att_{index}_time_mix_gate"
         )
         self.time_mix_key = nn.Parameter(
             (self.hidden_size,), dtype=config.dtype, name=f"att_{index}_time_mix_k"
@@ -305,21 +337,11 @@ class RWKV_Attention(nn.Module):
         self.time_mix_receptance = nn.Parameter(
             (self.hidden_size,), dtype=config.dtype, name=f"att_{index}_time_mix_r"
         )
-        self.key = Linear(
-            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
-        )
-        self.value = Linear(
-            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
-        )
-        self.receptance = Linear(
-            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
-        )
-        self.gate = Linear(
-            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
-        )
-        self.output = Linear(
-            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
-        )
+        self.key = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
+        self.value = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
+        self.receptance = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
+        self.gate = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
+        self.output = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
         self.ln_x = RWKV_GroupNorm(self.hidden_size // self.head_size, self.hidden_size)
 
     def forward(self, x: Expr, state: Expr) -> Expr:
@@ -335,16 +357,26 @@ class RWKV_Attention(nn.Module):
         context_length = x.struct_info.shape[0]
         bb = relax.BlockBuilder.current()
 
-        saved_kv = _load_state(state[index * 3 + State.ATT_KV], hidden_size, self.num_attention_heads, "float32", kv=True)
-        saved_x = _load_state(state[index * 3 + State.ATT_X], hidden_size, self.num_attention_heads, self.dtype, kv=False)
+        saved_kv = _load_state(
+            state[index * 3 + State.ATT_KV],
+            hidden_size,
+            self.num_attention_heads,
+            "float32",
+            kv=True,
+        )
+        saved_x = _load_state(
+            state[index * 3 + State.ATT_X],
+            hidden_size,
+            self.num_attention_heads,
+            self.dtype,
+            kv=False,
+        )
         if not is_one(context_length):
             saved_x = nn.emit_te(_te_concat_saved_x, saved_x, x)
 
         xk = nn.emit(x * self.time_mix_key + saved_x * (ones - self.time_mix_key))
         xv = nn.emit(x * self.time_mix_value + saved_x * (ones - self.time_mix_value))
-        xr = nn.emit(
-            x * self.time_mix_receptance + saved_x * (ones - self.time_mix_receptance)
-        )
+        xr = nn.emit(x * self.time_mix_receptance + saved_x * (ones - self.time_mix_receptance))
         xg = nn.emit(x * self.time_mix_gate + saved_x * (ones - self.time_mix_gate))
         g = nn.emit(silu(self.gate(xg)))
 
@@ -370,14 +402,29 @@ class RWKV_Attention(nn.Module):
                     gv,
                     [r, k, v, w, u, saved_kv],
                     [
-                        R.Tensor((1, context_length, hidden_size), self.dtype),
-                        R.Tensor((1, self.num_attention_heads, hidden_size // self.num_attention_heads, hidden_size // self.num_attention_heads), "float32"),
+                        R.Tensor((1, H, C // H, C // H,), "float32",),
+                        R.Tensor((1, T, H, C // H), self.dtype)
                     ],
                 )
             )
-            saved_kv = ret[1]
-            out = nn.emit(op.reshape(ret[0], shape=([T, H*N])))
-            out = nn.emit(op.squeeze(op.nn.group_norm(op.astype(op.expand_dims(out, 0), "float32"), self.ln_x.weight, self.ln_x.bias, self.ln_x.num_groups, channel_axis=-1, axes=[0, 1], epsilon=self.eps), 0))
+            print('saved_kv.shape: ', ret[0].struct_info.shape)
+            print('out.shape: ', ret[1].struct_info.shape)
+            saved_kv = ret[0]
+            out = nn.emit(op.reshape(ret[1], shape=([T, H * N])))
+            out = nn.emit(
+                op.squeeze(
+                    op.nn.group_norm(
+                        op.astype(op.expand_dims(out, 0), "float32"),
+                        self.ln_x.weight,
+                        self.ln_x.bias,
+                        self.ln_x.num_groups,
+                        channel_axis=-1,
+                        axes=[0, 1],
+                        epsilon=self.eps,
+                    ),
+                    0,
+                )
+            )
             out = nn.emit(op.multiply(op.astype(out, self.dtype), g))
             out = nn.emit(self.output(out))
         else:
@@ -389,10 +436,30 @@ class RWKV_Attention(nn.Module):
             # out = out.to(dtype=hidden.dtype) * gate
             # out = out @ ow\
             a = nn.emit(op.matmul(k, v))
-            out = nn.emit(op.matmul(r, op.add(op.reshape(self.time_faaaa, shape=[H ,-1, 1]) * a, op.squeeze(saved_kv, 0))))
-            saved_kv = nn.emit(a + op.reshape(self.time_decay, shape=[H ,-1, 1]) * saved_kv)
+            out = nn.emit(
+                op.matmul(
+                    r,
+                    op.add(
+                        op.reshape(self.time_faaaa, shape=[H, -1, 1]) * a, op.squeeze(saved_kv, 0)
+                    ),
+                )
+            )
+            saved_kv = nn.emit(a + op.reshape(self.time_decay, shape=[H, -1, 1]) * saved_kv)
             out = nn.emit(op.flatten(out))
-            out = nn.emit(op.squeeze(op.nn.group_norm(op.astype(op.expand_dims(out, 0), "float32"), self.ln_x.weight, self.ln_x.bias, self.ln_x.num_groups, channel_axis=-1, axes=[0], epsilon=self.eps), 0))
+            out = nn.emit(
+                op.squeeze(
+                    op.nn.group_norm(
+                        op.astype(op.expand_dims(out, 0), "float32"),
+                        self.ln_x.weight,
+                        self.ln_x.bias,
+                        self.ln_x.num_groups,
+                        channel_axis=-1,
+                        axes=[0],
+                        epsilon=self.eps,
+                    ),
+                    0,
+                )
+            )
             out = nn.emit(op.multiply(op.astype(out, self.dtype), g))
             out = nn.emit(self.output(out))
 
@@ -431,7 +498,7 @@ class RWKVLayer(nn.Module):
             eps=config.layer_norm_epsilon,
             name_prefix=f"ffn_{index}",
         )
-        
+
         self.attention = RWKV_Attention(config, index)
         self.feed_forward = RWKV_FFN(config, index)
         self.rescale_every = config.rescale_every
@@ -458,9 +525,7 @@ class RWKVModel(nn.Module):
             embedding_dim=config.hidden_size,
             dtype=config.dtype,
         )
-        self.blocks = ModuleList(
-            [RWKVLayer(config, i) for i in range(config.num_hidden_layers)]
-        )
+        self.blocks = ModuleList([RWKVLayer(config, i) for i in range(config.num_hidden_layers)])
         self.ln_out = RWKV_LayerNorm(
             config.hidden_size,
             config.dtype,
@@ -486,9 +551,7 @@ class RWKVModel(nn.Module):
 class RWKV5ForCausalLM(nn.Module):
     def __init__(self, config: RWKV5Config):
         self.rwkv = RWKVModel(config)
-        self.head = Linear(
-            config.hidden_size, config.vocab_size, dtype=config.dtype, bias=False
-        )
+        self.head = Linear(config.hidden_size, config.vocab_size, dtype=config.dtype, bias=False)
         self.vocab_size = config.vocab_size
         ############ End ############
 
@@ -506,9 +569,7 @@ class RWKV5ForCausalLM(nn.Module):
         return logits, key_value_cache
 
 
-def get_param_quant_kind(
-    name: str, param_info: relax.TensorStructInfo
-) -> ParamQuantKind:
+def get_param_quant_kind(name: str, param_info: relax.TensorStructInfo) -> ParamQuantKind:
     if name.endswith("embeddings.weight"):
         return ParamQuantKind.embedding_table
     elif name == "head.weight":
@@ -532,9 +593,7 @@ def create_func(
 
     with bb.function(func_name):
         model = RWKV5ForCausalLM(config)
-        param_manager.register_params(
-            model, func_name, quant_scheme, get_param_quant_kind
-        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((1, seq_len), dtype="int32", name="input_ids")
         # Placeholder for compatibility to RWKV
@@ -563,7 +622,14 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: RWKV5Config) -> None:
     """NOTE: It's not typical kv-cache, but try to reuse the logic for the quick hack."""
     init_shape = relax.ShapeExpr((1, config.hidden_size))
     num_attention_heads = config.hidden_size // config.head_size
-    init_kv_shape = relax.ShapeExpr((1, num_attention_heads, config.hidden_size // num_attention_heads, config.hidden_size // num_attention_heads))
+    init_kv_shape = relax.ShapeExpr(
+        (
+            1,
+            num_attention_heads,
+            config.hidden_size // num_attention_heads,
+            config.hidden_size // num_attention_heads,
+        )
+    )
     with bb.function("create_kv_cache", []):
         with bb.dataflow():
             input_dtype_zeros = bb.emit(relax.op.zeros(init_shape, config.dtype))
@@ -607,29 +673,30 @@ def create_kv_cache_reset_func(bb: relax.BlockBuilder, config: RWKV5Config) -> N
     state = relax.Var("state", R.Tuple([R.Object()] * config.num_hidden_layers * 3))
     init_shape = relax.ShapeExpr((1, config.hidden_size))
     num_attention_heads = config.hidden_size // config.head_size
-    init_kv_shape = relax.ShapeExpr((1, num_attention_heads, config.hidden_size // num_attention_heads, config.hidden_size // num_attention_heads))
+    init_kv_shape = relax.ShapeExpr(
+        (
+            1,
+            num_attention_heads,
+            config.hidden_size // num_attention_heads,
+            config.hidden_size // num_attention_heads,
+        )
+    )
     with bb.function("reset_kv_cache", [state]):
         with bb.dataflow():
             input_dtype_zeros = bb.emit(relax.op.zeros(init_shape, config.dtype))
             fp32_zeros = bb.emit(relax.op.zeros(init_kv_shape, "float32"))
             caches = []
             for i in range(config.num_hidden_layers):
-                caches.append(
-                    _store_state(state[i * 3 + State.ATT_X], input_dtype_zeros)
-                )
+                caches.append(_store_state(state[i * 3 + State.ATT_X], input_dtype_zeros))
                 caches.append(_store_state(state[i * 3 + State.ATT_KV], fp32_zeros))
-                caches.append(
-                    _store_state(state[i * 3 + State.FFN_X], input_dtype_zeros)
-                )
+                caches.append(_store_state(state[i * 3 + State.FFN_X], input_dtype_zeros))
             gv = bb.emit_output(caches)
         bb.emit_func_output(gv)
 
 
 def create_softmax_func(bb: relax.BlockBuilder, config: RWKV5Config) -> None:
     with bb.function("softmax_with_temperature"):
-        logits = nn.Placeholder(
-            (1, 1, config.vocab_size), dtype="float32", name="logits"
-        )
+        logits = nn.Placeholder((1, 1, config.vocab_size), dtype="float32", name="logits")
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
             div = bb.emit(relax.op.divide(logits, temperature))
@@ -683,7 +750,6 @@ def get_model(args, hf_config):
             return [pname]
 
     def f_convert_param_bkwd(torch_pname: str, torch_param):
-        print(torch_pname, torch_param.shape, torch_param.dtype)
         # torch_param: numpy.ndarray
         import numpy as np  # pylint: disable=import-outside-toplevel
 
@@ -700,7 +766,7 @@ def get_model(args, hf_config):
         # reshape
         if "time_mix_" in torch_pname:
             torch_param = torch_param.squeeze().squeeze()
-        
+
         if "ln_x" in torch_pname:
             return [(torch_pname, torch_param.astype("float32"))]
 
