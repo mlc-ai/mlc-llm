@@ -151,7 +151,7 @@ It is recommended to have at least 6GB free VRAM to run it.
     - Redmi Note 12 Pro with Snapdragon 685
     - Google Pixel phones
 
-    **Tutorial and source code**. The source code of the iOS app is fully `open source <https://github.com/mlc-ai/mlc-llm/tree/main/android>`__,
+    **Tutorial and source code**. The source code of the android app is fully `open source <https://github.com/mlc-ai/mlc-llm/tree/main/android>`__,
     and a :doc:`tutorial <deploy/android>` is included in documentation.
 
     .. figure:: https://blog.mlc.ai/img/android/android-recording.gif
