@@ -1,6 +1,5 @@
 """Command line entrypoint of compilation."""
 import argparse
-import logging
 import re
 from pathlib import Path
 from typing import Union
@@ -17,22 +16,15 @@ from ..support.argparse import ArgumentParser
 from ..support.auto_config import detect_config, detect_model_type
 from ..support.auto_target import detect_target_and_host
 
-logging.basicConfig(
-    level=logging.INFO,
-    style="{",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    format="[{asctime}] {levelname} {filename}:{lineno}: {message}",
-)
 
-
-def main():
+def main(argv):
     """Parse command line argumennts and call `mlc_llm.compiler.compile`."""
 
     def _parse_output(path: Union[str, Path]) -> Path:
         path = Path(path)
         parent = path.parent
         if not parent.is_dir():
-            raise ValueError(f"Directory does not exist: {parent}")
+            raise argparse.ArgumentTypeError(f"Directory does not exist: {parent}")
         return path
 
     def _check_prefix_symbols(prefix: str) -> str:
@@ -103,7 +95,7 @@ def main():
         required=True,
         help=HELP["output_compile"] + " (required)",
     )
-    parsed = parser.parse_args()
+    parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
     parsed.model_type = detect_model_type(parsed.model_type, parsed.config)
     compile(
@@ -117,7 +109,3 @@ def main():
         output=parsed.output,
         max_sequence_length=parsed.max_sequence_length,
     )
-
-
-if __name__ == "__main__":
-    main()

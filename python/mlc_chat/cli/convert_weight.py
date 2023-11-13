@@ -1,6 +1,5 @@
 """Command line entrypoint of weight conversion."""
 import argparse
-import logging
 from pathlib import Path
 from typing import Union
 
@@ -11,15 +10,8 @@ from ..support.auto_config import detect_config, detect_model_type
 from ..support.auto_target import detect_device
 from ..support.auto_weight import detect_weight
 
-logging.basicConfig(
-    level=logging.INFO,
-    style="{",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    format="[{asctime}] {levelname} {filename}:{lineno}: {message}",
-)
 
-
-def main():
+def main(argv):
     """Parse command line argumennts and apply quantization."""
 
     def _parse_source(path: Union[str, Path], config_path: Path) -> Path:
@@ -85,7 +77,7 @@ def main():
         help=HELP["output_quantize"] + " (required)",
     )
 
-    parsed = parser.parse_args()
+    parsed = parser.parse_args(argv)
     parsed.source, parsed.source_format = detect_weight(
         weight_path=_parse_source(parsed.source, parsed.config),
         config_json_path=parsed.config,
@@ -101,7 +93,3 @@ def main():
         source_format=parsed.source_format,
         output=parsed.output,
     )
-
-
-if __name__ == "__main__":
-    main()
