@@ -187,11 +187,15 @@ def create_wkv5_func(
                             out_buf[b, t, h, i] = 0
 
                     for i, j in T.grid(C // H, C // H):
-                        with T.block("block"):
+                        with T.block("main"):
                             s = state_buf[b, h, i, j]
                             x = k_buf[b, t, h, j] * v_buf[b, t, h, i]
                             out_buf[b, t, h, i] += r_buf[b, t, h, j] * (u_buf[h, j] * x + s)
-                            out_state_buf[b, h, i, j] = state_buf[b, h, i, j] * w_buf[h, j] + x
+                            state_buf[b, h, i, j] = s * w_buf[h, j] + x
+
+                for i, j in T.grid(C // H, C // H):
+                    with T.block("write_back"):
+                        out_state_buf[b, h, i, j] = state_buf[b, h, i, j]
 
     return wkv_func
 
@@ -394,21 +398,17 @@ class RWKV_Attention(nn.Module):
             # out, s = self.RUN_RWKV_5(1, T, self.args.n_att, H, s.transpose(-1,-2).contiguous(), r, k, v, w=t_decay, u=t_first)
             # s = s.transpose(-1,-2)
             # s means saved_kv here
-            w = nn.emit(op.reshape(self.time_decay, shape=([H, N])))
-            u = nn.emit(op.reshape(self.time_faaaa, shape=([H, N])))
             gv = bb.add_func(create_wkv5_func(1, T, hidden_size, H, "float32", self.dtype), "wkv")
             ret = nn.emit(
                 relax.call_tir(
                     gv,
-                    [r, k, v, w, u, saved_kv],
+                    [r, k, v, self.time_decay, self.time_faaaa, saved_kv],
                     [
                         R.Tensor((1, H, C // H, C // H,), "float32",),
                         R.Tensor((1, T, H, C // H), self.dtype)
                     ],
                 )
             )
-            print('saved_kv.shape: ', ret[0].struct_info.shape)
-            print('out.shape: ', ret[1].struct_info.shape)
             saved_kv = ret[0]
             out = nn.emit(op.reshape(ret[1], shape=([T, H * N])))
             out = nn.emit(
