@@ -85,16 +85,8 @@ def main():
         "--host",
         type=str,
         default="auto",
-        choices=[
-            "auto",
-            "arm",
-            "arm64",
-            "aarch64",
-            "x86-64",
-        ],
         help="The host CPU ISA to compile the model to. If not set, it is inferred from the "
-        "local CPU. "
-        "(default: %(default)s)",
+        "local CPU. (default: %(default)s)",
     )
     parser.add_argument(
         "--opt",
