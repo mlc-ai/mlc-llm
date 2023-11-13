@@ -4,6 +4,8 @@ import logging
 import time
 from contextlib import contextmanager
 
+from mlc_chat.support.style import green
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,10 +69,11 @@ class Stats:
     def log_time_info(self, weight_format: str):
         """Log the time used in loading, pre-quantization and quantization."""
         logger.info(
-            "Time usage: "
+            "%s: "
             "%s loading: %.3f sec; "
             "Pre-quantization mapping: %.3f sec; "
             "Quantization: %.3f sec",
+            green("Time usage"),
             weight_format,
             self.load_time_sec,
             self.map_time_sec,
@@ -80,7 +83,8 @@ class Stats:
     def log_mem_usage(self):
         """Log the Memory usage information."""
         logger.info(
-            "RAM usage: Peak RAM: %.3f GB. Total bytes loaded from disk: %.3f GB",
+            "%s: Peak RAM: %.3f GB. Total bytes loaded from disk: %.3f GB",
+            green("RAM usage"),
             self.total_memory_gb,
             self.max_memory_gb,
         )
