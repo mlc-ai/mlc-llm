@@ -825,6 +825,7 @@ def build_model_from_args(args: argparse.Namespace):
                     args,
                     vocab_size=config["vocab_size"],
                     max_window_size=model_config.max_sequence_length,
+                    max_gen_len=model_config.max_sequence_length,
                     top_p=0.6,
                     temperature=1.2,
                     repetition_penalty=0.996,
@@ -835,6 +836,7 @@ def build_model_from_args(args: argparse.Namespace):
                     args,
                     vocab_size=config["vocab_size"],
                     max_window_size=model_config.max_sequence_length,
+                    max_gen_len=model_config.max_sequence_length,
                 )
 
         if args.convert_weight_only:
