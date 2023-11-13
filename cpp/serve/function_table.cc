@@ -7,11 +7,11 @@
 #include "function_table.h"
 
 #include <tvm/runtime/disco/session.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/relax_vm/memory_manager.h>
 
 #include <filesystem>
 #include <string>
@@ -108,8 +108,8 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, int num_shards) 
     this->local_vm = fload_exec();
     this->local_vm->GetFunction("vm_initialization")(
         static_cast<int>(device.device_type), device.device_id,
-        static_cast<int>(relax_vm::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-        static_cast<int>(relax_vm::AllocatorType::kPooled));
+        static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
+        static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
     this->mod_get_func = [this](const std::string& name) -> PackedFunc {
       return this->local_vm->GetFunction(name, false);
     };
@@ -169,6 +169,8 @@ void FunctionTable::_InitFunctions() {
       get_global_func("vm.builtin.paged_attention_kv_cache_sync_aux_array_to_device");
   this->remove_from_kv_cache_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_remove");
   this->popn_from_kv_cache_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_popn");
+  this->get_num_available_pages_kv_cache_func_ =
+      get_global_func("vm.builtin.paged_attention_kv_cache_get_num_available_pages");
   support_backtracking_kv_ = true;
 }
 
