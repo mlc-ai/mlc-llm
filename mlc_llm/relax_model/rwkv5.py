@@ -176,7 +176,7 @@ def create_wkv5_func(
         w_buf = T.match_buffer(w, (H, C // H), dtype=dtype)
         u_buf = T.match_buffer(u, (H, C // H), dtype=dtype)
         state_buf = T.match_buffer(state, (B, H, C // H, C // H), dtype=dtype)
-        out_state_buf = T.match_buffer(state, (B, H, C // H, C // H), dtype=dtype)
+        out_state_buf = T.match_buffer(out_state, (B, H, C // H, C // H), dtype=dtype)
         out_buf = T.match_buffer(out, (B, T_dim, H, C // H), dtype=out_dtype)
 
         for b in T.thread_binding(B, thread="blockIdx.y"):
