@@ -221,12 +221,12 @@ class Engine:
     def stats(self) -> Dict[str, float]:
         """The engine runtime statistics.
         We collect the following entries:
-        - prefill token latency (s/tok)
-            avg latency of processing one token in prefill
-        - decode token latency (s/tok)
-            avg latency of processing one token in decode
-        - token throughput (tok/s)
-            avg number of tokens processed per second (prefill + decode)
+        - single token prefill latency (s/tok): avg latency of processing one token in prefill
+        - single token decode latency (s/tok): avg latency of processing one token in decode
+        - engine time for prefill (sec)
+        - engine time for decode (sec)
+        - total number of processed tokens in prefill.
+        - total number of processed tokens in decode.
         """
         stats_json_str = self._get_stats_func()
         stats = json.loads(stats_json_str)
