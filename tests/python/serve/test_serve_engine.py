@@ -3,6 +3,7 @@
 from typing import Callable, List, Optional
 
 import numpy as np
+
 from mlc_chat.serve import GenerationConfig, KVCacheConfig, Request, data
 from mlc_chat.serve.engine import Engine, ModelInfo
 
@@ -66,7 +67,7 @@ def test_engine_basic():
 
     # Hyperparameters for tests (you can try different combinations).
     num_requests = 10  # [4, 8, 10]
-    temperature = 0.9  # [0.8, 0.9, 1.0, 1.1]
+    temperature = 0.9  # [0, 0.8, 0.9, 1.0, 1.1]
     repetition_penalty = 1.0  # [1.0, 1.01]
     max_new_tokens: int = 256  # [32, 128, 256]
     np.random.seed(0)
@@ -181,7 +182,7 @@ def test_engine_continuous_batching_1():
         print(f"Prompt {req_id}: {request.inputs[0]}")
         print(f"Output {req_id}:{output}\n")
         assert isinstance(output, data.TextData)
-        assert fin_time == num_requests + request.generation_config.max_new_tokens - 2
+        assert fin_time == request.generation_config.max_new_tokens - 1
 
 
 def test_engine_continuous_batching_2():
