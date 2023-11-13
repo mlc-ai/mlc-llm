@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # TODO: add help message on how to specify the target manually # pylint: disable=fixme
-# TODO: include host detection logic below after the new TVM build is done. # pylint: disable=fixme
 HELP_MSG = """TBD"""
 FOUND = green("Found")
 NOT_FOUND = red("Not found")
@@ -115,7 +114,10 @@ def _detect_target_host(hint: str) -> Target:
     """Detect the host CPU architecture."""
     if hint == "auto":
         target_triple = get_global_func("tvm.codegen.llvm.GetDefaultTargetTriple")()
-        logger.info("%s host CPU architecture: %s", FOUND, bold(target_triple))
+        logger.info("%s host LLVM triple: %s", FOUND, bold(target_triple))
+    else:
+        target_triple = hint
+        logger.info("Using LLVM triple specified by --host: %s", bold(target_triple))
     return Target({"kind": "llvm", "mtriple": target_triple})
 
 

@@ -4,8 +4,9 @@ import logging
 from pathlib import Path
 from typing import Union
 
-from mlc_chat.compiler import MODELS, QUANTIZATION, convert_weight
+from mlc_chat.compiler import HELP, MODELS, QUANTIZATION, convert_weight
 
+from ..support.argparse import ArgumentParser
 from ..support.auto_config import detect_config, detect_model_type
 from ..support.auto_target import detect_device
 from ..support.auto_weight import detect_weight
@@ -21,12 +22,6 @@ logging.basicConfig(
 def main():
     """Parse command line argumennts and apply quantization."""
 
-    def _parse_config(path: Union[str, Path]) -> Path:
-        try:
-            return detect_config(path)
-        except ValueError as err:
-            raise argparse.ArgumentTypeError(f"No valid config.json in: {path}. Error: {err}")
-
     def _parse_source(path: Union[str, Path], config_path: Path) -> Path:
         if path == "auto":
             return config_path.parent
@@ -41,61 +36,52 @@ def main():
             path.mkdir(parents=True, exist_ok=True)
         return path
 
-    parser = argparse.ArgumentParser("MLC AutoLLM Quantization Framework")
+    parser = ArgumentParser("MLC AutoLLM Quantization Framework")
     parser.add_argument(
-        "--config",
-        type=_parse_config,
+        "--model",
+        type=detect_config,
         required=True,
-        help="Path to config.json file or to the directory that contains config.json, which is "
-        "a HuggingFace standard that defines model architecture, for example, "
-        "https://huggingface.co/codellama/CodeLlama-7b-Instruct-hf/blob/main/config.json",
-    )
-    parser.add_argument(
-        "--source",
-        type=str,
-        default="auto",
-        help="The path to original model weight, infer from `config` if missing. "
-        "(default: %(default)s)",
-    )
-    parser.add_argument(
-        "--source-format",
-        type=str,
-        choices=["auto", "huggingface-torch", "huggingface-safetensor", "awq"],
-        default="auto",
-        help="The format of source model weight, infer from `config` if missing. "
-        "(default: %(default)s)",
+        help=HELP["model"] + " (required)",
     )
     parser.add_argument(
         "--quantization",
         type=str,
         required=True,
         choices=list(QUANTIZATION.keys()),
-        help="Quantization format, for example `q4f16_1`.",
+        help=HELP["quantization"] + " (required, choices: %(choices)s)",
     )
     parser.add_argument(
         "--model-type",
         type=str,
         default="auto",
         choices=["auto"] + list(MODELS.keys()),
-        help="Model architecture, for example, llama. If not set, it is inferred "
-        "from the config.json file. "
-        "(default: %(default)s)",
+        help=HELP["model_type"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--device",
         default="auto",
         type=detect_device,
-        help="The device used to do quantization, for example, / `cuda:0`. "
-        "Detect from local environment if not specified. "
-        "(default: %(default)s)",
+        help=HELP["device_quantize"] + ' (default: "%(default)s")',
+    )
+    parser.add_argument(
+        "--source",
+        type=str,
+        default="auto",
+        help=HELP["source"] + ' (default: "%(default)s")',
+    )
+    parser.add_argument(
+        "--source-format",
+        type=str,
+        choices=["auto", "huggingface-torch", "huggingface-safetensor", "awq"],
+        default="auto",
+        help=HELP["source_format"] + ' (default: "%(default)s", choices: %(choices)s")',
     )
     parser.add_argument(
         "--output",
         "-o",
         type=_parse_output,
         required=True,
-        help="The output directory to save the quantized model weight, "
-        "will contain `params_shard_*.bin` and `ndarray-cache.json`.",
+        help=HELP["output_quantize"] + " (required)",
     )
 
     parsed = parser.parse_args()
