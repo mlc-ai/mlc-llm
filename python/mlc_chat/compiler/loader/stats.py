@@ -85,6 +85,6 @@ class Stats:
         logger.info(
             "%s: Peak RAM: %.3f GB. Total bytes loaded from disk: %.3f GB",
             green("RAM usage"),
-            self.total_memory_gb,
             self.max_memory_gb,
+            self.total_memory_gb,
         )
