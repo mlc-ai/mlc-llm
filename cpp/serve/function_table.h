@@ -69,6 +69,7 @@ struct FunctionTable {
   PackedFunc sync_device_kv_cache_func_;
   PackedFunc remove_from_kv_cache_func_;
   PackedFunc popn_from_kv_cache_func_;
+  PackedFunc get_num_available_pages_kv_cache_func_;
 };
 
 }  // namespace serve

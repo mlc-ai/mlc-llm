@@ -86,13 +86,16 @@ class RequestModelState : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestModelState, ObjectRef, RequestModelStateNode);
 };
 
-struct RequestState {
+class RequestStateNode : public Object {
+ public:
   /*!
    * \brief The state with regard to each model.
    * \sa RequestModelState
    */
   Array<RequestModelState> mstates;
 
+  /*! \brief The summed up input length of the request. */
+  int raw_input_length = 0;
   /*! \brief The decoded text string output. */
   std::string output = "";
 
@@ -101,13 +104,17 @@ struct RequestState {
   /*! \brief The time of finishing prefill stage. */
   std::chrono::_V2::system_clock::time_point tprefill_finish;
 
-  explicit RequestState(int num_models, Array<Data> inputs) {
-    mstates.reserve(num_models);
-    for (int i = 0; i < num_models; ++i) {
-      mstates.push_back(RequestModelState(i, inputs));
-    }
-    tadd = std::chrono::high_resolution_clock::now();
-  }
+  static constexpr const char* _type_key = "mlc.serve.RequestState";
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  TVM_DECLARE_FINAL_OBJECT_INFO(RequestStateNode, Object);
+};
+
+class RequestState : public ObjectRef {
+ public:
+  explicit RequestState(int num_models, Array<Data> inputs, int raw_input_length);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestState, ObjectRef, RequestStateNode);
 };
 
 }  // namespace serve
