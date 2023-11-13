@@ -1,5 +1,4 @@
 """Command line entrypoint of configuration generation."""
-import logging
 from pathlib import Path
 from typing import Union
 
@@ -8,15 +7,8 @@ from mlc_chat.compiler import CONV_TEMPLATES, HELP, MODELS, QUANTIZATION, gen_co
 from ..support.argparse import ArgumentParser
 from ..support.auto_config import detect_config, detect_model_type
 
-logging.basicConfig(
-    level=logging.INFO,
-    style="{",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    format="[{asctime}] {levelname} {filename}:{lineno}: {message}",
-)
 
-
-def main():
+def main(argv):
     """Parse command line argumennts and call `mlc_llm.compiler.gen_config`."""
     parser = ArgumentParser("MLC LLM Configuration Generator")
 
@@ -67,7 +59,7 @@ def main():
         required=True,
         help=HELP["output_gen_mlc_chat_config"] + " (required)",
     )
-    parsed = parser.parse_args()
+    parsed = parser.parse_args(argv)
     model = detect_model_type(parsed.model_type, parsed.config)
     gen_config(
         config=parsed.config,
@@ -77,7 +69,3 @@ def main():
         max_sequence_length=parsed.max_sequence_length,
         output=parsed.output,
     )
-
-
-if __name__ == "__main__":
-    main()
