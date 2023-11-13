@@ -363,15 +363,15 @@ class RWKV_Attention(nn.Module):
 
         saved_kv = _load_state(
             state[index * 3 + State.ATT_KV],
-            hidden_size,
-            self.num_attention_heads,
+            C,
+            H,
             "float32",
             kv=True,
         )
         saved_x = _load_state(
             state[index * 3 + State.ATT_X],
-            hidden_size,
-            self.num_attention_heads,
+            C,
+            H,
             self.dtype,
             kv=False,
         )
@@ -394,11 +394,8 @@ class RWKV_Attention(nn.Module):
             v = nn.emit(op.reshape(op.astype(self.value(xv), "float32"), shape=[1, T, H, N]))
 
         if not is_one(context_length):
-            # TODO: add rwkv5 tir here
-            # out, s = self.RUN_RWKV_5(1, T, self.args.n_att, H, s.transpose(-1,-2).contiguous(), r, k, v, w=t_decay, u=t_first)
-            # s = s.transpose(-1,-2)
-            # s means saved_kv here
-            gv = bb.add_func(create_wkv5_func(1, T, hidden_size, H, "float32", "float32"), "wkv")
+            # out, s = self.RUN_RWKV_5(1, T, self.args.n_att, H, s, r, k, v, w=t_decay, u=t_first)
+            gv = bb.add_func(create_wkv5_func(1, T, hidden_size, H, "float32", "float32"), "wkv5")
             ret = nn.emit(
                 relax.call_tir(
                     gv,
@@ -410,7 +407,7 @@ class RWKV_Attention(nn.Module):
                 )
             )
             saved_kv = ret[0]
-            out = nn.emit(op.reshape(ret[1], shape=([T, H * N])))
+            out = nn.emit(op.reshape(ret[1], shape=([T, C])))
             out = nn.emit(
                 op.squeeze(
                     op.nn.group_norm(
