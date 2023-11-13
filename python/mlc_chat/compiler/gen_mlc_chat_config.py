@@ -15,11 +15,14 @@ logger = logging.getLogger(__name__)
 
 FOUND = green("Found")
 NOT_FOUND = red("Not found")
+VERSION = "0.1.0"
 
 
 @dataclasses.dataclass
 class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     """Arguments for `mlc_chat.compiler.gen_config`."""
+
+    version: str = VERSION
 
     model_type: str = None
     quantization: str = None

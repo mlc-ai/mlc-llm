@@ -8,6 +8,7 @@ from .convert_weight import ConversionArgs, convert_weight
 from .flags_model_config_override import ModelConfigOverride
 from .flags_optimization import OptimizationFlags
 from .gen_mlc_chat_config import CONV_TEMPLATES, gen_config
+from .help import HELP
 from .loader import LOADER, ExternMapping, HuggingFaceLoader, QuantizeMapping
 from .model import MODEL_PRESETS, MODELS, Model
 from .quantization import QUANTIZATION
