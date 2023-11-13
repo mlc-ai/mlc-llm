@@ -278,7 +278,7 @@ impl ChatModule {
 
         // 1. Get device name and id
         let device_type = match device_name {
-            "cude" => 2,
+            "cuda" => 2,
             "opencl" => 4,
             "vulkan" => 7,
             "metal" => 8,
