@@ -49,6 +49,7 @@ def main():
         "--model",
         type=detect_config,
         required=True,
+        dest="config",
         help=HELP["model"] + " (required)",
     )
     parser.add_argument(
