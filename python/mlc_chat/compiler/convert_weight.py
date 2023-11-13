@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 from tvm.contrib import tvmjs
+from tvm.relax.frontend import nn
 from tvm.runtime import Device, NDArray
 from tvm.runtime import cpu as cpu_device
 from tvm.target import Target
@@ -51,6 +52,14 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
         print(out.getvalue().rstrip())
 
 
+def _calc_total_params(model: nn.Module) -> int:
+    _, named_params = model.export_tvm(spec=model.get_default_spec())  # type: ignore
+    total_params = 0
+    for _, param in named_params:
+        total_params += math.prod(param.shape)
+    return total_params
+
+
 def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-locals
     # model config & quantization config
     model_config = args.model.config.from_file(args.config)
@@ -82,8 +91,8 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
 
     # load and quantize
     param_dict = {}
+    total_params = _calc_total_params(args.model.model(model_config))
     total_bytes = 0.0
-    total_params = 0
     with Target.from_device(args.device), tqdm.redirect():
         for name, param in LOADER[args.source_format](
             path=args.source,
@@ -94,7 +103,6 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
             param = param.copyto(cpu_device())
             param_dict[name] = param
             total_bytes += math.prod(param.shape) * np.dtype(param.dtype).itemsize
-            total_params += math.prod(param.shape)
     if named_params:
         raise ValueError(f"Parameter not found in source: {', '.join(named_params.keys())}")
     # dump to output directory
@@ -104,10 +112,18 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
         meta_data={"ParamSize": len(param_dict)},
         encode_format="raw",
     )
-    logger.info("%s to %s", green("Saved"), bold(str(args.output)))
-    logger.info("%s: %.3f GB", green("Total parameter size"), total_bytes / (1024**3))
-    logger.info("%s: %d", green("Total number of parameter tensors"), len(param_dict))
-    logger.info(f"%s: {total_params:,}", green("Total number of parameters"))
+    logger.info("Saved to directory: %s", bold(str(args.output)))
+    logger.info(
+        "%s after quantization: %.3f GB",
+        green("Parameter size"),
+        total_bytes / (1024**3),
+    )
+    logger.info(f"%s: {total_params:,}", green("Total parameters"))
+    logger.info(
+        "%s: %.3f",
+        green("Bits per parameter"),
+        total_bytes * 8.0 / total_params,
+    )
 
 
 def convert_weight(  # pylint: disable=too-many-arguments
