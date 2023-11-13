@@ -77,10 +77,10 @@ class ModelModule : public ModuleNode {
         CHECK_EQ(args.size(), 1);
         *rv = TokenEmbed(args[0]);
       });
-    } else if (name == "single_seq_prefill") {
+    } else if (name == "batch_prefill") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        CHECK_EQ(args.size(), 2);
-        *rv = SingleSequencePrefill(args[0], args[1]);
+        CHECK_EQ(args.size(), 3);
+        *rv = BatchPrefill(args[0], args[1], args[2]);
       });
     } else if (name == "decode") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
@@ -115,15 +115,18 @@ class ModelModule : public ModuleNode {
         ICHECK_EQ(args.size(), 0);
         Reset();
       });
+    } else if (name == "get_num_available_pages") {
+      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.size(), 0);
+        ICHECK(kv_cache_.defined());
+        *rv = ft_.get_num_available_pages_kv_cache_func_(kv_cache_);
+      });
     } else if (name == "get_max_window_size") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 0);
         CHECK_NE(max_window_size_, -1) << "The model has not been initialized";
         *rv = max_window_size_;
       });
-    } else if (name == "runtime_stats_text") {
-      // Todo: JSON style
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = GetStats(); });
     } else {
       return PackedFunc(nullptr);
     }
@@ -156,7 +159,8 @@ class ModelModule : public ModuleNode {
     }
     // Copy input token ids to device.
     DLDataType dtype(DataType::Int(32));
-    NDArray token_ids_nd = CopyArrayToDevice(flattened_token_ids, &input_token_ids_, dtype, 2048);
+    NDArray token_ids_nd =
+        CopyArrayToDevice(flattened_token_ids, &input_token_ids_, dtype, max_window_size_);
     ICHECK_EQ(token_ids_nd->ndim, 1);
     ICHECK_EQ(token_ids_nd->shape[0], total_length);
     token_ids_nd = token_ids_nd.CreateView({1, total_length}, dtype);
@@ -165,12 +169,7 @@ class ModelModule : public ModuleNode {
         << "`embed` function is not found in the model. Please make sure the model is compiled "
            "with flag `--sep-embed` and `--enable-batching`";
 
-    auto tstart = std::chrono::high_resolution_clock::now();
     NDArray embeddings = ft_.embed_func_(ft_.CopyToWorker0(token_ids_nd), params_);
-    auto tend = std::chrono::high_resolution_clock::now();
-
-    this->embed_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
-    this->embed_total_tokens += total_length;
 
     // embeddings: (1, total_length, hidden_size)
     ICHECK_EQ(embeddings->ndim, 3);
@@ -183,14 +182,33 @@ class ModelModule : public ModuleNode {
    * \brief Single-sequence prefill function. Embedding in, logits out.
    * \param embeddings The embedding of the input to be prefilled.
    * \param seq_id The id of the sequence in the KV cache.
+   * \param lengths The length of each sequence to prefill.
    * \return The logits for the next token.
    */
-  NDArray SingleSequencePrefill(NDArray embeddings, int seq_id) {
+  NDArray BatchPrefill(Array<NDArray> embedding_arr, ShapeTuple seq_ids, ShapeTuple lengths) {
+    CHECK(!seq_ids.empty());
+    CHECK_EQ(seq_ids.size(), lengths.size());
+    int num_sequences = seq_ids.size();
+    int total_length = 0;
+    std::vector<int> logit_pos;
+    logit_pos.reserve(num_sequences);
+    for (int i = 0; i < num_sequences; ++i) {
+      total_length += lengths[i];
+      logit_pos.push_back(total_length);
+      if (i > 0) {
+        CHECK_GT(seq_ids[i], seq_ids[i - 1]) << "The input sequence ids must be non-decreasing.";
+      }
+    }
+
     // embeddings: (1, n, h)
-    CHECK_EQ(embeddings->ndim, 3);
-    CHECK_EQ(embeddings->shape[0], 1);
-    CHECK_EQ(embeddings->device.device_type, device_.device_type);
-    CHECK_EQ(embeddings->device.device_id, device_.device_id);
+    NDArray embeddings = ConcatEmbeddings(std::move(embedding_arr), total_length);
+    ICHECK_EQ(embeddings->ndim, 3);
+    ICHECK_EQ(embeddings->shape[0], 1);
+    ICHECK_EQ(embeddings->shape[1], total_length);
+    ICHECK_EQ(embeddings->device.device_type, device_.device_type);
+    ICHECK_EQ(embeddings->device.device_id, device_.device_id);
+
+    NDArray logit_pos_nd = CopyArrayToDevice(logit_pos, &logit_pos_arr_, DataType::Int(32), 32);
 
     CHECK(ft_.prefill_func_.defined())
         << "`prefill_with_embed` function is not found in the model. Please make sure the model is "
@@ -202,22 +220,20 @@ class ModelModule : public ModuleNode {
 
     // Reserve in KV cache for the length of the input.
     ft_.reset_append_length_kv_cache_func_(kv_cache_);
-    ft_.reserve_length_in_kv_cache_func_(kv_cache_, seq_id, /*length=*/embeddings->shape[1]);
+    for (int i = 0; i < num_sequences; ++i) {
+      ft_.reserve_length_in_kv_cache_func_(kv_cache_, seq_ids[i], lengths[i]);
+    }
     ft_.sync_device_kv_cache_func_(kv_cache_);
 
-    auto tstart = std::chrono::high_resolution_clock::now();
-    // args: embeddings, kv_cache, params
-    Array<ObjectRef> ret = ft_.prefill_func_(ft_.CopyToWorker0(embeddings), kv_cache_, params_);
-    auto tend = std::chrono::high_resolution_clock::now();
+    // args: embeddings, logit_pos, kv_cache, params
+    Array<ObjectRef> ret =
+        ft_.prefill_func_(ft_.CopyToWorker0(embeddings), logit_pos_nd, kv_cache_, params_);
 
-    this->prefill_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
-    this->prefill_total_tokens += embeddings->shape[1];
-
-    // logits: (1, 1, v)
+    // logits: (1, num_sequences, v)
     NDArray logits = Downcast<NDArray>(ret[0]);
     ICHECK_EQ(logits->ndim, 3);
     ICHECK_EQ(logits->shape[0], 1);
-    ICHECK_EQ(logits->shape[1], 1);
+    ICHECK_EQ(logits->shape[1], num_sequences);
     return logits;
   }
 
@@ -251,13 +267,8 @@ class ModelModule : public ModuleNode {
     }
     ft_.sync_device_kv_cache_func_(kv_cache_);
 
-    auto tstart = std::chrono::high_resolution_clock::now();
     // args: embeddings, kv_cache, params
     Array<ObjectRef> ret = ft_.decode_func_(ft_.CopyToWorker0(embeddings), kv_cache_, params_);
-    auto tend = std::chrono::high_resolution_clock::now();
-
-    this->decode_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
-    this->decode_total_tokens += embeddings->shape[0];
 
     // logits: (b, 1, v)
     NDArray logits = Downcast<NDArray>(ret[0]);
@@ -286,7 +297,7 @@ class ModelModule : public ModuleNode {
     for (GenerationConfig cfg : generation_cfg) {
       temperatures.push_back(cfg->temperature);
     }
-    NDArray temperatures_nd = CopyArrayToDevice(temperatures, &temperature_arr_, logits->dtype, 16);
+    NDArray temperatures_nd = CopyArrayToDevice(temperatures, &temperature_arr_, logits->dtype, 32);
     ICHECK_EQ(temperatures_nd->ndim, 1);
     ICHECK_EQ(temperatures_nd->shape[0], batch_size);
 
@@ -316,6 +327,57 @@ class ModelModule : public ModuleNode {
     NDArray view = dst->CreateView(ShapeTuple({static_cast<int64_t>(array.size())}), dtype);
     view.CopyFromBytes(array.data(), array.size() * sizeof(T));
     return view;
+  }
+
+  /*! \brief Concatenate the input embeddings. */
+  NDArray ConcatEmbeddings(Array<NDArray> embedding_arr, int64_t total_length) {
+    ICHECK(!embedding_arr.empty());
+    int hidden_size = -1;
+    DataType dtype;
+    for (NDArray inp_embeddings : embedding_arr) {
+      // inp_embedding: (1, n, h)
+      CHECK_EQ(inp_embeddings->ndim, 3);
+      CHECK_EQ(inp_embeddings->shape[0], 1);
+      CHECK_EQ(inp_embeddings->device.device_type, device_.device_type);
+      CHECK_EQ(inp_embeddings->device.device_id, device_.device_id);
+      if (hidden_size == -1) {
+        hidden_size = inp_embeddings->shape[2];
+        dtype = inp_embeddings.DataType();
+      } else {
+        CHECK_EQ(inp_embeddings->shape[2], hidden_size);
+        CHECK_EQ(inp_embeddings.DataType(), dtype);
+      }
+    }
+
+    // - Resize the shared embedding array.
+    if (embeddings_.defined()) {
+      ICHECK_EQ(embeddings_->ndim, 3);
+      ICHECK_EQ(embeddings_->shape[0], 1);
+      ICHECK_EQ(embeddings_->shape[2], hidden_size);
+    }
+    int64_t init_size = embeddings_.defined() ? embeddings_->shape[1] : max_window_size_;
+    while (init_size < total_length) {
+      init_size *= 2;
+    }
+    if (!embeddings_.defined() || init_size != embeddings_->shape[1]) {
+      embeddings_ = NDArray::Empty({1, init_size, hidden_size}, dtype, device_);
+    }
+
+    // - Copy input embeddings.
+    int64_t start_pos = 0;
+    for (NDArray inp_embeddings : embedding_arr) {
+      int64_t length = inp_embeddings->shape[1];
+      CHECK_LE(start_pos + length, total_length);
+
+      DLTensor copy_dst = *(embeddings_.operator->());
+      copy_dst.byte_offset = start_pos * hidden_size * dtype.bytes();
+      copy_dst.shape = inp_embeddings->shape;
+      NDArray::CopyFromTo(inp_embeddings.operator->(), &copy_dst);
+
+      start_pos += length;
+    }
+    CHECK_EQ(start_pos, total_length);
+    return embeddings_.CreateView({1, total_length, hidden_size}, dtype);
   }
 
   /*! \brief Load model configuration from JSON. */
@@ -350,37 +412,12 @@ class ModelModule : public ModuleNode {
 
   /*! \brief reset the runtime states. */
   void Reset() {
-    // Reset the statistics.
-    this->embed_total_tokens = 0;
-    this->prefill_total_tokens = 0;
-    this->decode_total_tokens = 0;
-    this->embed_total_time = 0;
-    this->prefill_total_time = 0;
-    this->decode_total_time = 0;
     // Reset the KV cache.
     if (kv_cache_.defined()) {
       ft_.reset_kv_cache_func_(kv_cache_);
     }
   }
 
-  /*! \brief Return statistics in JSON format. */
-  String GetStats() {
-    picojson::object stats;
-    stats["prefill_speed"] = picojson::value(prefill_total_tokens / prefill_total_time);
-    stats["decode_speed"] = picojson::value(decode_total_tokens / decode_total_time);
-    stats["embed_speed"] = picojson::value(embed_total_tokens / embed_total_time);
-    return picojson::value(stats).serialize(true);
-  }
-
-  //----------------------------
-  // Statistics
-  //----------------------------
-  double embed_total_time = 0;
-  double decode_total_time = 0;
-  double prefill_total_time = 0;
-  int64_t embed_total_tokens = 0;
-  int64_t decode_total_tokens = 0;
-  int64_t prefill_total_tokens = 0;
   //----------------------------
   // Model configurations
   //----------------------------
@@ -400,6 +437,8 @@ class ModelModule : public ModuleNode {
   ObjectRef params_;
   // Shared NDArray
   NDArray input_token_ids_{nullptr};
+  NDArray embeddings_{nullptr};
+  NDArray logit_pos_arr_{nullptr};
   NDArray temperature_arr_{nullptr};
 };
 
