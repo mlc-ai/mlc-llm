@@ -4,6 +4,7 @@
  * \brief The implementation for runtime module of serving engine module in MLC LLM.
  */
 #define __STDC_FORMAT_MACROS
+#define PICOJSON_USE_INT64
 
 #include <picojson.h>
 #include <tvm/runtime/module.h>
@@ -67,21 +68,23 @@ class Engine {
     // Step 1. Create models and their PackedFuncs.
     ICHECK(models_.empty());
     models_.reserve(num_models);
-    fmodel_single_seq_prefill_.clear();
+    fmodel_batch_prefill_.clear();
     fmodel_decode_.clear();
     fmodel_token_embed_.clear();
     fmodel_add_new_sequence_.clear();
     fmodel_remove_sequence_.clear();
     fmodel_softmax_with_temperature_.clear();
+    fmodel_get_num_available_pages_.clear();
     for (int i = 0; i < num_models; ++i) {
       Module model = CreateModelModule(reload_libs[i], model_paths[i], devices_[i]);
       models_.push_back(model);
-      fmodel_single_seq_prefill_.push_back(model->GetFunction("single_seq_prefill"));
+      fmodel_batch_prefill_.push_back(model->GetFunction("batch_prefill"));
       fmodel_decode_.push_back(model->GetFunction("decode"));
       fmodel_token_embed_.push_back(model->GetFunction("token_embed"));
       fmodel_add_new_sequence_.push_back(model->GetFunction("add_new_sequence"));
       fmodel_remove_sequence_.push_back(model->GetFunction("remove_sequence"));
       fmodel_softmax_with_temperature_.push_back(model->GetFunction("softmax_with_temperature"));
+      fmodel_get_num_available_pages_.push_back(model->GetFunction("get_num_available_pages"));
     }
     // Step 2. Fetch max single sequence length from models.
     max_single_sequence_length_ = std::numeric_limits<int>::max();
@@ -124,7 +127,8 @@ class Engine {
    */
   void AddRequest(Request request) {
     waiting_queue_.push_back(request);
-    request_states_.emplace(request, RequestState(models_.size(), request->inputs));
+    request_states_.emplace(
+        request, RequestState(models_.size(), request->inputs, GetInputLength(request->inputs)));
   }
 
   /*! \brief Abort the input request. */
@@ -193,42 +197,48 @@ class Engine {
     }
 
     current_total_seq_len_ = 0;
-    prefill_total_time = 0.0f;
-    decode_total_time = 0.0f;
-    prefill_total_length = 0;
-    decode_total_length = 0;
+    request_total_prefill_time_ = 0.0f;
+    request_total_decode_time_ = 0.0f;
+    engine_total_prefill_time_ = 0.0f;
+    engine_total_decode_time_ = 0.0f;
+    total_prefill_length_ = 0;
+    total_decode_length_ = 0;
     tokenize_cache_.clear();
   }
 
   /*!
    * \brief Return the engine runtime statistics in JSON string.
    * We collect the following entries:
-   * - prefill token latency (s/tok): avg latency of processing one token in prefill
-   * - decode token latency (s/tok): avg latency of processing one token in decode
-   * - token throughput (tok/s): avg number of tokens processed per second (prefill + decode)
+   * - single token prefill latency (s/tok): avg latency of processing one token in prefill
+   * - single token decode latency (s/tok): avg latency of processing one token in decode
+   * - engine time for prefill (sec)
+   * - engine time for decode (sec)
+   * - total number of processed tokens in prefill.
+   * - total number of processed tokens in decode.
    * \return The statistics in JSON string.
    */
   String StatisticsJSON() {
     picojson::object config;
-    config["prefill_token_latency"] = picojson::value(prefill_total_time / prefill_total_length);
-    config["decode_token_latency"] = picojson::value(decode_total_time / decode_total_length);
-    config["token_throughput"] = picojson::value((prefill_total_length + decode_total_length) /
-                                                 (prefill_total_time + decode_total_time));
+    config["single_token_prefill_latency"] =
+        picojson::value(request_total_prefill_time_ / total_prefill_length_);
+    config["single_token_decode_latency"] =
+        picojson::value(request_total_decode_time_ / total_decode_length_);
+    config["engine_total_prefill_time"] = picojson::value(engine_total_prefill_time_);
+    config["engine_total_decode_time"] = picojson::value(engine_total_decode_time_);
+    config["total_prefill_tokens"] = picojson::value(total_prefill_length_);
+    config["total_decode_tokens"] = picojson::value(total_decode_length_);
     return picojson::value(config).serialize(true);
   }
 
  private:
   /*! \brief Pick applicable requests and run prefill. */
   bool StepPrefill() {
-    auto [requests, sample_new_token] = GetRequestsToPrefill();
-    ICHECK_EQ(requests.size(), sample_new_token.size());
+    auto [requests, states, sample_new_token] = GetRequestsToPrefill();
     if (requests.empty()) {
       return false;
     }
 
-    // Collect ids of the first-time prefilled requests.
-    // We will set the prefill finish time for these requests.
-    std::unordered_set<int> first_time_prefill_ids;
+    auto tstart = std::chrono::high_resolution_clock::now();
 
     for (Request request : requests) {
       int req_id = running_queue_.size();
@@ -242,65 +252,83 @@ class Engine {
       running_queue_.push_back(request);
       // - Assign request id for the requests.
       AssignIDForRequest(request, req_id);
-      first_time_prefill_ids.insert(req_id);
     }
 
-    // NOTE: Right now only single-sequence prefill is supported.
-    //       So we prefill the requests one by one for now.
-    for (int req_idx = 0; req_idx < static_cast<int>(requests.size()); ++req_idx) {
-      Request request = requests[req_idx];
-      RequestState& state = request_states_.at(request);
-      ICHECK_EQ(state.mstates.size(), models_.size());
-      NDArray logits{nullptr};
-      current_total_seq_len_ += GetRequestPrefillInputLength(request);
-      // - Prefill the inputs for each model.
-      for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
-        Module model = models_[model_id];
-        RequestModelState mstate = state.mstates[model_id];
+    int sum_prefill_lengths = 0;
+    NDArray logits_for_sample{nullptr};
+    Array<RequestModelState> mstates_for_sample;
+    Array<GenerationConfig> generation_cfg_for_sample;
+    mstates_for_sample.reserve(requests.size());
+    generation_cfg_for_sample.reserve(requests.size());
+    for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
+      Module model = models_[model_id];
+      auto [request_list, mstates, prefill_lengths] =
+          FilterPrefillRequests(requests, states, model_id);
+      Array<NDArray> embeddings;
+      std::vector<int> request_ids;
+      embeddings.reserve(request_list.size());
+      request_ids.reserve(request_list.size());
+      for (int i = 0; i < static_cast<int>(request_list.size()); ++i) {
+        Request request = request_list[i];
+        int prefill_length = prefill_lengths[i];
+        RequestModelState mstate = mstates[i];
+        if (model_id == 0) {
+          // Accumulate the sequence length.
+          sum_prefill_lengths += prefill_length;
+          current_total_seq_len_ += prefill_length;
+          mstates_for_sample.push_back(mstate);
+          generation_cfg_for_sample.push_back(request->generation_cfg);
+        }
         ICHECK(mstate->draft_output_tokens.empty());
         ICHECK(mstate->draft_output_token_prob.empty());
         ICHECK(mstate->draft_output_prob_dist.empty());
-        if (mstate->inputs.empty()) {
-          continue;
-        }
+        ICHECK(!mstate->inputs.empty());
+        request_ids.push_back(mstate->request_id);
         for (int i = 0; i < static_cast<int>(mstate->inputs.size()); ++i) {
-          NDArray embedding = GetEmbedding(mstate->inputs[i], fmodel_token_embed_[model_id]);
-          NDArray output_logits =
-              fmodel_single_seq_prefill_[model_id](embedding, mstate->request_id);
-
-          // Only the output logits of the last input on the first model will be send for sampling.
-          if (model_id == 0 && i == static_cast<int>(mstate->inputs.size()) - 1) {
-            logits = output_logits;
-          }
+          embeddings.push_back(GetEmbedding(mstate->inputs[i], fmodel_token_embed_[model_id]));
         }
         // Clean up `inputs` after prefill
         mstate->inputs.clear();
       }
-      if (!sample_new_token[req_idx]) {
-        // This request does not need to sample a new token.
-        // In this case, it must not be a first-time prefilled request.
-        ICHECK(first_time_prefill_ids.count(state.mstates[0]->request_id));
-        continue;
-      }
 
-      ICHECK(logits.defined());
+      NDArray logits = fmodel_batch_prefill_[model_id](
+          embeddings, ShapeTuple(request_ids.begin(), request_ids.end()), prefill_lengths);
       ICHECK_EQ(logits->ndim, 3);
       ICHECK_EQ(logits->shape[0], 1);
-      ICHECK_EQ(logits->shape[1], 1);
+      ICHECK_EQ(logits->shape[1], request_list.size());
 
-      ShapeTuple next_token = SampleTokens(logits, /*model_id=*/0, /*sampler_id=*/0,
-                                           {state.mstates[0]}, {request->generation_cfg});
-      ICHECK_EQ(next_token.size(), 1);
-
-      // - Update the committed tokens of states.
-      for (RequestModelState mstate : state.mstates) {
-        mstate->committed_tokens.push_back(next_token[0]);
-      }
-      // If the request is first-time prefilled, set the prefill finish time.
-      if (first_time_prefill_ids.count(state.mstates[0]->request_id)) {
-        state.tprefill_finish = std::chrono::high_resolution_clock::now();
+      if (model_id == 0) {
+        // We only need to sample for model 0 in prefill.
+        logits_for_sample = logits;
       }
     }
+
+    if (sample_new_token) {
+      // - Sample tokens.
+      int num_requests = requests.size();
+      ICHECK(logits_for_sample.defined());
+      ICHECK_EQ(logits_for_sample->shape[1], num_requests);
+      ICHECK_EQ(mstates_for_sample.size(), num_requests);
+      ICHECK_EQ(generation_cfg_for_sample.size(), num_requests);
+      logits_for_sample = logits_for_sample.CreateView(
+          {num_requests, 1, logits_for_sample->shape[2]}, logits_for_sample->dtype);
+      ShapeTuple next_tokens = SampleTokens(logits_for_sample, /*model_id=*/0, /*sampler_id=*/0,
+                                            mstates_for_sample, generation_cfg_for_sample);
+      ICHECK_EQ(next_tokens.size(), num_requests);
+      // - Update the committed tokens of states.
+      // - If a request is first-time prefilled, set the prefill finish time.
+      auto tnow = std::chrono::high_resolution_clock::now();
+      for (int i = 0; i < num_requests; ++i) {
+        mstates_for_sample[i]->committed_tokens.push_back(next_tokens[i]);
+        if (mstates_for_sample[i]->committed_tokens.size() == 1) {
+          request_states_.at(requests[i])->tprefill_finish = tnow;
+        }
+      }
+    }
+
+    auto tend = std::chrono::high_resolution_clock::now();
+    engine_total_prefill_time_ += static_cast<double>((tend - tstart).count()) / 1e9;
+
     return true;
   }
 
@@ -311,18 +339,19 @@ class Engine {
       return false;
     }
 
-    Array<Request> requests = GetRequestsToDecode();
-    if (requests.empty()) {
+    PreemptUnfittableRequests();
+    if (running_queue_.empty()) {
       return false;
     }
 
+    auto tstart = std::chrono::high_resolution_clock::now();
+
     // NOTE: Right now we only support decode all the running requests at a time.
-    ICHECK_EQ(requests.size(), running_queue_.size());
-    int num_requests = requests.size();
+    int num_requests = running_queue_.size();
     // Check if the requests ids are in an ascending order.
     for (int i = 1; i < num_requests; ++i) {
-      ICHECK_GT(request_states_.at(requests[i]).mstates[0]->request_id,
-                request_states_.at(requests[i - 1]).mstates[0]->request_id);
+      ICHECK_GT(request_states_.at(running_queue_[i])->mstates[0]->request_id,
+                request_states_.at(running_queue_[i - 1])->mstates[0]->request_id);
     }
 
     current_total_seq_len_ += num_requests;
@@ -337,10 +366,10 @@ class Engine {
     inputs.reserve(num_requests);
     mstates.reserve(num_requests);
     generation_cfg.reserve(num_requests);
-    for (Request request : requests) {
+    for (Request request : running_queue_) {
       RequestState& state = request_states_.at(request);
-      inputs.push_back(TokenData(ShapeTuple({state.mstates[0]->committed_tokens.back()})));
-      mstates.push_back(state.mstates[0]);
+      inputs.push_back(TokenData(ShapeTuple({state->mstates[0]->committed_tokens.back()})));
+      mstates.push_back(state->mstates[0]);
       generation_cfg.push_back(request->generation_cfg);
     }
 
@@ -363,6 +392,10 @@ class Engine {
     for (int i = 0; i < num_requests; ++i) {
       mstates[i]->committed_tokens.push_back(next_tokens[i]);
     }
+
+    auto tend = std::chrono::high_resolution_clock::now();
+    engine_total_decode_time_ += static_cast<double>((tend - tstart).count()) / 1e9;
+
     return true;
   }
 
@@ -413,8 +446,9 @@ class Engine {
       // The request to abort is in running queue
       int req_id = it_running - running_queue_.begin();
       running_queue_.erase(it_running);
-      current_total_seq_len_ -= GetRequestRawInputLength(request) +
-                                request_states_.at(request).mstates[0]->committed_tokens.size() - 1;
+      RequestState state = request_states_.at(request);
+      current_total_seq_len_ -=
+          state->raw_input_length + state->mstates[0]->committed_tokens.size() - 1;
       RemoveSequenceFromModels(req_id);
       UpdateRequestIDAfterRemoval(req_id);
     } else {
@@ -440,8 +474,8 @@ class Engine {
     // - Update `inputs` for future prefill.
     RequestState& state = request_states_.at(request);
     current_total_seq_len_ -=
-        GetRequestRawInputLength(request) + state.mstates[0]->committed_tokens.size() - 1;
-    for (RequestModelState mstate : state.mstates) {
+        state->raw_input_length + state->mstates[0]->committed_tokens.size() - 1;
+    for (RequestModelState mstate : state->mstates) {
       mstate->request_id = -1;
       mstate->draft_output_tokens.clear();
       mstate->draft_output_token_prob.clear();
@@ -465,51 +499,78 @@ class Engine {
    * additionally return a boolean flag indicating if a new
    * token needs to be sampled from logits after prefill.
    */
-  std::pair<Array<Request>, std::vector<bool>> GetRequestsToPrefill() {
-    // NOTE: Right now we only support single-sequence prefill.
+  std::tuple<Array<Request>, Array<RequestState>, bool> GetRequestsToPrefill() {
+    // - Try to prefill pending requests.
+    std::vector<Request> prefill_requests;
+    std::vector<RequestState> states;
     if (!waiting_queue_.empty()) {
-      Array<Request> prefill_requests{waiting_queue_.front()};
-      if (CanPrefill(prefill_requests)) {
+      int total_input_length = 0;
+      int total_required_pages = 0;
+      ICHECK(fmodel_get_num_available_pages_[0].defined());
+      int num_available_pages = fmodel_get_num_available_pages_[0]();
+
+      for (int i = 0; i < static_cast<int>(waiting_queue_.size()); ++i) {
+        Request request = waiting_queue_[i];
+        RequestState state = request_states_.at(request);
+        int input_length = GetInputLength(state->mstates[0]->inputs);
+        int num_require_pages =
+            (input_length + kv_cache_config_->page_size - 1) / kv_cache_config_->page_size;
+        total_input_length += input_length;
+        total_required_pages += num_require_pages;
+        if (CanPrefill(i + 1, total_input_length, total_required_pages, num_available_pages)) {
+          prefill_requests.push_back(request);
+          states.push_back(state);
+        } else {
+          total_input_length -= input_length;
+          total_required_pages -= num_require_pages;
+          break;
+        }
+      }
+      if (!prefill_requests.empty()) {
         // Need to sample a new token for waiting requests.
-        return {prefill_requests, {true}};
+        return {prefill_requests, states, true};
       }
     }
 
+    // Try to prefill for small models.
     for (Request request : running_queue_) {
-      Array<RequestModelState> mstates = request_states_.at(request).mstates;
+      RequestState state = request_states_.at(request);
+      Array<RequestModelState> mstates = state->mstates;
       for (int i = 0; i < static_cast<int>(mstates.size()); ++i) {
         if (!mstates[i]->inputs.empty()) {
           ICHECK_NE(i, 0);
-          // This return happens only for "small" models in
-          // speculative inference settings.
-          // Therefore no need to sample new token from logits.
-          return {{request}, {false}};
+          prefill_requests.push_back(request);
+          states.push_back(state);
+          break;
         }
       }
     }
-
-    return {};
+    // This return happens only for "small" models in
+    // speculative inference settings.
+    // Therefore no need to sample new token from logits.
+    return {prefill_requests, states, false};
   }
 
-  /*! \brief Find requests to decode. */
-  Array<Request> GetRequestsToDecode() {
+  /*! \brief Preempt the requests unfittable for decode. */
+  void PreemptUnfittableRequests() {
     if (running_queue_.empty()) {
-      return {};
+      return;
     }
 
-    // NOTE: Right now we only support decode all the running requests at a time.
-    Array<Request> requests(running_queue_);
-    if (CanDecode(requests)) {
-      return requests;
+    int num_available_pages = fmodel_get_num_available_pages_[0]();
+    while (true) {
+      if (CanDecode(running_queue_.size())) {
+        break;
+      }
+      StepPreempt(running_queue_.back());
     }
-    return {};
   }
 
   /*! \brief Assign the given id for the given request. */
   void AssignIDForRequest(Request request, int req_id) {
     // Set id in the request state.
     RequestState& state = request_states_.at(request);
-    for (RequestModelState mstate : state.mstates) {
+    for (RequestModelState mstate : state->mstates) {
       mstate->request_id = req_id;
     }
     // Add a new sequence to each model.
@@ -521,9 +582,9 @@ class Engine {
   }
 
   /*! \brief Check if the input requests can be prefilled under conditions. */
-  bool CanPrefill(Array<Request> requests) {
+  bool CanPrefill(int num_prefill_req, int total_input_length, int num_required_pages,
+                  int num_available_pages) {
     int num_running_requests = running_queue_.size();
-    int num_prefill_req = requests.size();
     ICHECK_LE(num_running_requests, kv_cache_config_->max_num_sequence);
 
     // No exceeding of the maximum allowed requests that can
@@ -532,55 +593,53 @@ class Engine {
       return false;
     }
 
-    // The total length + the maximum allowed single-sequence length does
-    // not exceed the maximum allowed total length.
-    // NOTE: this condition is heuristic and can be revised.
-    int total_input_length = 0;
-    int total_max_new_tokens = 0;
-    for (Request request : requests) {
-      total_input_length += GetRequestPrefillInputLength(request);
-      total_max_new_tokens += request->generation_cfg->max_new_tokens;
-    }
-    return current_total_seq_len_ + std::min(total_input_length + total_max_new_tokens,
-                                             num_prefill_req * max_single_sequence_length_) <
-           kv_cache_config_->max_total_sequence_length;
+    // NOTE: The conditions are heuristic and can be revised.
+    // Cond 1: total input length <= max allowed single sequence length.
+    // Cond 2: remaining pages >= 10, where 10 is a watermark number can
+    // be configured and adjusted in the future.
+    // Cond 3: at least one decode can be performed after prefill.
+    // Todo: move watermark to config.
+    int new_batch_size = num_running_requests + num_prefill_req;
+    return total_input_length <= max_single_sequence_length_ &&
+           num_required_pages + new_batch_size <= num_available_pages &&
+           current_total_seq_len_ + total_input_length + 8 * new_batch_size <=
+               kv_cache_config_->max_total_sequence_length;
   }
 
   /*! \brief Check if the input requests can be decoded under conditions. */
-  bool CanDecode(Array<Request> requests) {
-    return current_total_seq_len_ + requests.size() < kv_cache_config_->max_total_sequence_length;
+  bool CanDecode(int num_requests) {
+    int num_available_pages = fmodel_get_num_available_pages_[0]();
+    return num_requests <= num_available_pages;
   }
 
-  /*!
-   * \brief Get the total equivalent **input length to prefill**
-   * of the given request's current state.
-   */
-  int GetRequestPrefillInputLength(const Request& request) {
-    auto it = request_states_.find(request);
-    ICHECK(it != request_states_.end());
+  /*! \brief Filter the requests to prefill on the given model. */
+  std::tuple<Array<Request>, Array<RequestModelState>, ShapeTuple> FilterPrefillRequests(
+      Array<Request> requests, Array<RequestState> states, int model_id) {
+    ICHECK_EQ(requests.size(), states.size());
+    int num_requests = requests.size();
+    Array<Request> filtered_requests;
+    Array<RequestModelState> filtered_mstates;
+    std::vector<int> prefill_length;
+    filtered_requests.reserve(num_requests);
+    filtered_mstates.reserve(num_requests);
+    prefill_length.reserve(num_requests);
 
-    const RequestState& state = it->second;
-    ICHECK_EQ(state.mstates.size(), models_.size());
-    int input_length = -1;
-    for (const RequestModelState& mstate : state.mstates) {
-      int length_sum = 0;
-      for (Data input : mstate->inputs) {
-        length_sum += GetInputLength(input);
-      }
-      if (input_length == -1) {
-        input_length = length_sum;
-      } else {
-        ICHECK_EQ(length_sum, input_length);
+    for (int i = 0; i < num_requests; ++i) {
+      int length = GetInputLength(states[i]->mstates[model_id]->inputs);
+      if (length > 0) {
+        filtered_requests.push_back(requests[i]);
+        filtered_mstates.push_back(states[i]->mstates[model_id]);
+        prefill_length.push_back(length);
       }
     }
-    ICHECK_NE(input_length, -1);
-    return input_length;
+    return {filtered_requests, filtered_mstates,
+            ShapeTuple(prefill_length.begin(), prefill_length.end())};
   }
 
-  /*! \brief Get the total equivalent **input length** of the given request. */
-  int GetRequestRawInputLength(const Request& request) {
+  /*! \brief Get the total input length of the given inputs. */
+  int GetInputLength(Array<Data> inputs) {
     int length_sum = 0;
-    for (Data input : request->inputs) {
+    for (Data input : inputs) {
       length_sum += GetInputLength(input);
     }
     return length_sum;
@@ -595,6 +654,7 @@ class Engine {
       return tokens_input->token_ids.size();
     } else {
       ICHECK(false) << "Cannot reach here";
+      throw;
     }
   }
 
@@ -633,6 +693,7 @@ class Engine {
       return fmodel_token_embed(Array<ShapeTuple>{tokens_input->token_ids});
     } else {
       ICHECK(false) << "Cannot reach here";
+      throw;
     }
   }
 
@@ -785,7 +846,7 @@ class Engine {
   void UpdateRequestIDAfterRemoval(int removed_req_id) {
     for (auto& it : request_states_) {
       RequestState& state = it.second;
-      for (RequestModelState mstate : state.mstates) {
+      for (RequestModelState mstate : state->mstates) {
         ICHECK_NE(mstate->request_id, removed_req_id);
         if (mstate->request_id > removed_req_id) {
           --mstate->request_id;
@@ -819,10 +880,10 @@ class Engine {
       running_queue_.erase(it);
 
       RequestState& state = request_states_.at(request);
-      int num_input_tokens = GetRequestRawInputLength(request);
-      int num_output_tokens = state.mstates[0]->committed_tokens.size() - 1;
+      int num_input_tokens = state->raw_input_length;
+      int num_output_tokens = state->mstates[0]->committed_tokens.size() - 1;
       current_total_seq_len_ -= num_input_tokens + num_output_tokens;
-      for (RequestModelState mstate : state.mstates) {
+      for (RequestModelState mstate : state->mstates) {
         ICHECK_EQ(mstate->request_id, req_id);
         mstate->request_id = -1;
       }
@@ -830,15 +891,19 @@ class Engine {
       UpdateRequestIDAfterRemoval(req_id);
 
       auto trequest_finish = std::chrono::high_resolution_clock::now();
-      prefill_total_time += static_cast<double>((state.tprefill_finish - state.tadd).count()) / 1e9;
-      prefill_total_length += num_input_tokens;
-      decode_total_time +=
-          static_cast<double>((trequest_finish - state.tprefill_finish).count()) / 1e9;
-      decode_total_length += num_output_tokens;
+      request_total_prefill_time_ +=
+          static_cast<double>((state->tprefill_finish - state->tadd).count()) / 1e9;
+      total_prefill_length_ += num_input_tokens;
+      request_total_decode_time_ +=
+          static_cast<double>((trequest_finish - state->tprefill_finish).count()) / 1e9;
+      total_decode_length_ += num_output_tokens;
 
       // NOTE: right now we only return the generated text.
       // In the future we might optional return text or token ids.
-      request->fcallback(request, TextData(state.output));
+      String output = ftokenizer_decode(ShapeTuple(state->mstates[0]->committed_tokens.begin(),
+                                                   state->mstates[0]->committed_tokens.end()));
+      state->output = output.operator std::string();
+      request->fcallback(request, TextData(state->output));
 
       // Remove the request from states.
       request_states_.erase(request);
@@ -851,23 +916,18 @@ class Engine {
 
     // - Case 0. There is remaining draft output ==> Unfinished
     //   All draft outputs are supposed to be processed before finish.
-    for (RequestModelState mstate : state.mstates) {
+    for (RequestModelState mstate : state->mstates) {
       if (!mstate->draft_output_tokens.empty()) {
         return false;
       }
     }
 
     // - Decode committed tokens.
-    const std::vector<int32_t>& committed_tokens = state.mstates[0]->committed_tokens;
-    String output = ftokenizer_decode(ShapeTuple(committed_tokens.begin(), committed_tokens.end()));
-    state.output = output.operator std::string();
+    const std::vector<int32_t>& committed_tokens = state->mstates[0]->committed_tokens;
 
     // Case 1. Any of the stop strings appears in output ==> Finished
-    for (String stop_str : request->generation_cfg->stop_strs) {
-      if (state.output.rfind(stop_str) != std::string::npos) {
-        return true;
-      }
-    }
+    // Todo: handle stop_str by tokenizing. So that we don't detokenize during check
+
     // Case 2. Any of the stop tokens appears in the committed tokens ===> Finished
     if (std::any_of(request->generation_cfg->stop_tokens.begin(),
                     request->generation_cfg->stop_tokens.end(), [&committed_tokens](int32_t token) {
@@ -880,7 +940,7 @@ class Engine {
       return true;
     }
     // Case 4. Total length of the request reaches the maximum single sequence length ==> Finished
-    if (GetRequestRawInputLength(request) + static_cast<int>(committed_tokens.size()) >=
+    if (state->raw_input_length + static_cast<int>(committed_tokens.size()) >=
         max_single_sequence_length_) {
       return true;
     }
@@ -905,12 +965,13 @@ class Engine {
   NDArray logits_or_probs_on_cpu_{nullptr};
 
   // PackedFuncs from model/tokenizer/sampler/env.
-  std::vector<PackedFunc> fmodel_single_seq_prefill_;
+  std::vector<PackedFunc> fmodel_batch_prefill_;
   std::vector<PackedFunc> fmodel_decode_;
   std::vector<PackedFunc> fmodel_token_embed_;
   std::vector<PackedFunc> fmodel_add_new_sequence_;
   std::vector<PackedFunc> fmodel_remove_sequence_;
   std::vector<PackedFunc> fmodel_softmax_with_temperature_;
+  std::vector<PackedFunc> fmodel_get_num_available_pages_;
   std::vector<PackedFunc> fsampler_require_gpu_softmax_;
   std::vector<PackedFunc> fsampler_compute_probs_from_logits_inplace_;
   std::vector<PackedFunc> fsampler_sample_token_from_probs_;
@@ -919,10 +980,18 @@ class Engine {
 
   // Runtime statistics
   int64_t current_total_seq_len_;
-  double prefill_total_time = 0;
-  double decode_total_time = 0;
-  int64_t prefill_total_length = 0;
-  int64_t decode_total_length = 0;
+  /*! \brief The sum of "prefill time of each request". */
+  double request_total_prefill_time_ = 0.0f;
+  /*! \brief The sum of "decode time of each request". */
+  double request_total_decode_time_ = 0.0f;
+  /*! \brief The total engine time on prefill. */
+  double engine_total_prefill_time_ = 0.0f;
+  /*! \brief The total engine time on decode. */
+  double engine_total_decode_time_ = 0.0f;
+  /*! \brief The total number of processed tokens in prefill. */
+  int64_t total_prefill_length_ = 0;
+  /*! \brief The total number of processed tokens in decode. */
+  int64_t total_decode_length_ = 0;
 
   // Tokenization cache
   std::unordered_map<String, ShapeTuple, ObjectPtrHash, ObjectPtrEqual> tokenize_cache_;

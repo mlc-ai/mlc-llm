@@ -23,6 +23,21 @@ RequestModelState::RequestModelState(int model_id, Array<Data> inputs) {
   data_ = std::move(n);
 }
 
+TVM_REGISTER_OBJECT_TYPE(RequestStateNode);
+
+RequestState::RequestState(int num_models, Array<Data> inputs, int raw_input_length) {
+  ObjectPtr<RequestStateNode> n = make_object<RequestStateNode>();
+  Array<RequestModelState> mstates;
+  mstates.reserve(num_models);
+  for (int i = 0; i < num_models; ++i) {
+    mstates.push_back(RequestModelState(i, inputs));
+  }
+  n->mstates = std::move(mstates);
+  n->raw_input_length = raw_input_length;
+  n->tadd = std::chrono::high_resolution_clock::now();
+  data_ = std::move(n);
+}
+
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc
