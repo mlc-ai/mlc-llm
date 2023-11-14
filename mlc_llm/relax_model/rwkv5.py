@@ -180,18 +180,21 @@ def create_wkv5_func(
         out_buf = T.match_buffer(out, (B, T_dim, H, C // H), dtype=out_dtype)
 
         for b in T.thread_binding(B, thread="blockIdx.y"):
-            for h in T.thread_binding(H, thread="blockIdx.x"):
-                for t in T.thread_binding(T_dim, thread="threadIdx.x"):
+            for h in T.thread_binding(H, thread="threadIdx.x"):
+                for t in range(T_dim):
                     for i in range(C // H):
                         with T.block("init"):
-                            out_buf[b, t, h, i] = 0
+                            vb, vt, vh, vi = T.axis.remap("SSSR", [b, t, h, i])
+                            out_buf[vb, vt, vh, vi] = 0
 
-                    for i, j in T.grid(C // H, C // H):
+                    for i, k in T.grid(C // H, C // H):
                         with T.block("main"):
-                            s = state_buf[b, h, i, j]
-                            x = k_buf[b, t, h, j] * v_buf[b, t, h, i]
-                            out_buf[b, t, h, i] += r_buf[b, t, h, j] * (u_buf[h, j] * x + s)
-                            state_buf[b, h, i, j] = s * w_buf[h, j] + x
+                            vb, vt, vh, vi, vk = T.axis.remap("SRSSR", [b, t, h, i, k])
+                            x = k_buf[vb, vt, vh, vk] * v_buf[vb, vt, vh, vi]
+                            out_buf[vb, vt, vh, vi] += r_buf[vb, vt, vh, vk] * (
+                                u_buf[vh, vk] * x + state_buf[vb, vh, vi, vk]
+                            )
+                            state_buf[vb, vh, vi, vk] = state_buf[vb, vh, vi, vk] * w_buf[vh, vk] + x
 
                 for i, j in T.grid(C // H, C // H):
                     with T.block("write_back"):
@@ -255,8 +258,8 @@ class RWKV_GroupNorm(nn.Module):
                 gamma=self.weight,
                 beta=self.bias,
                 num_groups=self.num_groups,
-                channel_axis=-2,
-                axes=-1,
+                channel_axis=-1,
+                axes=[0, 1],
                 epsilon=self.eps,
             )
         )
@@ -346,7 +349,7 @@ class RWKV_Attention(nn.Module):
         self.receptance = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
         self.gate = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
         self.output = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
-        self.ln_x = RWKV_GroupNorm(self.hidden_size // self.head_size, self.hidden_size)
+        self.ln_x = RWKV_GroupNorm(self.num_attention_heads, self.hidden_size)
 
     def forward(self, x: Expr, state: Expr) -> Expr:
         H = self.num_attention_heads
@@ -409,18 +412,15 @@ class RWKV_Attention(nn.Module):
             saved_kv = ret[0]
             out = nn.emit(op.reshape(ret[1], shape=([T, C])))
             out = nn.emit(
-                op.squeeze(
-                    op.nn.group_norm(
-                        op.astype(op.expand_dims(out, 0), "float32"),
-                        self.ln_x.weight,
-                        self.ln_x.bias,
-                        self.ln_x.num_groups,
-                        channel_axis=-1,
-                        axes=[0, 1],
-                        epsilon=self.eps,
-                    ),
-                    0,
-                )
+                op.nn.group_norm(
+                    out,
+                    self.ln_x.weight,
+                    self.ln_x.bias,
+                    self.ln_x.num_groups,
+                    channel_axis=1,
+                    axes=[0],
+                    epsilon=self.eps,
+                ),
             )
             out = nn.emit(op.multiply(op.astype(out, self.dtype), g))
             out = nn.emit(self.output(out))
