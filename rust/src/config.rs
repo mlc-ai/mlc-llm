@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Builder, Debug, Serialize, Deserialize)]
 #[builder(default)]
 pub struct ConvConfig {
+    /// Token list prefixing the conversation.
+    prefix_tokens: Option<Vec<i32>>,
+
     /// Name of the conversation.
     name: Option<String>,
 
@@ -21,10 +24,10 @@ pub struct ConvConfig {
     roles: Option<Vec<String>>,
 
     /// The chat history represented as an array of string pairs.
-    messages: Option<Vec<Vec<String>>>,
+    pub messages: Option<Vec<Vec<String>>>,
 
     /// The offset used to begin the chat from the chat history.
-    offset: Option<usize>,
+    pub offset: Option<usize>,
 
     /// Specifies whether we are in chat-bot mode (`0`) or pure LM prompt mode (`1`).
     separator_style: Option<i32>,
@@ -102,7 +105,7 @@ pub struct ChatConfig {
     tokenizer_files: Option<Vec<String>>,
 
     /// Partial overriding configuration for conversation template.
-    conv_config: Option<ConvConfig>,
+    pub conv_config: Option<ConvConfig>,
 
     /// The category of the model's architecture (e.g. `llama`, `gpt_neox`, `rwkv`).
     model_category: Option<String>,
