@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::result;
@@ -22,27 +23,16 @@ impl From<tvm_rt::Error> for ChatModuleError {
 
 pub type Result<T> = result::Result<T, ChatModuleError>;
 
-/// The ChatModule for MLC LLM.
-///
-/// # Examples
-///
-/// ```
-/// use mlc_llm::chat_module::ChatModule;
-///
-/// // Create a ChatModule instance
-/// let cm = ChatModule::new("Llama-2-7b-chat-hf-q4f16_1", "cuda", None, None).unwrap();
-///
-/// // Generate a response for a given prompt
-/// let output = cm.generate("What is the meaning of life?", None).unwrap();
-///
-/// // Print prefill and decode performance statistics
-/// println!("Statistics: {:?}\n", cm.stats(false).unwrap());
-///
-/// let output = cm.generate("What is Rust?", None).unwrap();
-/// ```
-pub struct ChatModule {
-    chat_module: Module,
-    chat_config: ChatConfig,
+#[derive(Debug, Clone)]
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum Prompt {
+    String(String),
+    MessageList(Vec<ChatMessage>),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -265,6 +255,29 @@ fn get_lib_module_path(
     }
 }
 
+/// The ChatModule for MLC LLM.
+///
+/// # Examples
+///
+/// ```
+/// use mlc_llm::chat_module::ChatModule;
+///
+/// // Create a ChatModule instance
+/// let cm = ChatModule::new("Llama-2-7b-chat-hf-q4f16_1", "cuda", None, None).unwrap();
+///
+/// // Generate a response for a given prompt
+/// let output = cm.generate(&Prompt::String("what is the meaning of life?".to_owned()), None).unwrap();
+///
+/// // Print prefill and decode performance statistics
+/// println!("Statistics: {:?}\n", cm.stats(false).unwrap());
+///
+/// let output = cm.generate(&Prompt::String("what is Rust?".to_owned()), None).unwrap();
+/// ```
+pub struct ChatModule {
+    chat_module: Module,
+    chat_config: ChatConfig,
+}
+
 impl ChatModule {
     pub fn new(model: &str, device: &str, model_lib_path: Option<&str>) -> Result<Self> {
         let device_err_msg = format!(
@@ -312,7 +325,7 @@ impl ChatModule {
 
         let chat_mod = Self {
             chat_module: m,
-            chat_config: chat_config,
+            chat_config,
         };
         let model_lib_str = model_lib_path.as_path().display().to_string();
         let model_path_str = model_path.as_path().display().to_string();
@@ -350,7 +363,7 @@ impl ChatModule {
         }
         let f = self.chat_module.get_function("runtime_stats_text", false)?;
         let res: String = f.invoke(vec![])?.try_into().expect("call should succeed");
-        return Ok(res);
+        Ok(res)
     }
 
     /// Check if the stop condition is met for the current round.
@@ -382,12 +395,40 @@ impl ChatModule {
         Ok(())
     }
 
+    /// Load JSON config and override existing configurations for the chat module.
+    fn load_json_override(&self, config_str: &str, partial_update: bool) -> Result<()> {
+        let f = self.chat_module.get_function("load_json_override", false)?;
+        f.invoke(vec![config_str.into(), (&partial_update).into()])?;
+        Ok(())
+    }
+
+    /// Get the configuration of the chat module in a single json string.
+    fn get_config_json(&self) -> Result<String> {
+        let f = self.chat_module.get_function("get_config_json", false)?;
+        let res: String = f.invoke(vec![])?.try_into().expect("call should succeed");
+        Ok(res)
+    }
+
+    /// Get the name of role 0 in the conversation.
+    fn get_role_0(&self) -> Result<String> {
+        let f = self.chat_module.get_function("get_role0", false)?;
+        let res: String = f.invoke(vec![])?.try_into().expect("call should succeed");
+        Ok(res)
+    }
+
+    /// Get the name of role 0 in the conversation.
+    fn get_role_1(&self) -> Result<String> {
+        let f = self.chat_module.get_function("get_role1", false)?;
+        let res: String = f.invoke(vec![])?.try_into().expect("call should succeed");
+        Ok(res)
+    }
+
     /// A high-level method that returns the full response from the chat module given a user
     /// prompt. User can optionally specify which callback method to use upon receiving the
     /// response.
     pub fn generate(
         &self,
-        prompt: &str,
+        prompt: &Prompt,
         generation_config: Option<&GenerationConfig>,
     ) -> Result<Vec<String>> {
         // TODO: add progress_callback
@@ -419,7 +460,7 @@ impl ChatModule {
     /// User can decide where to place the input in the prompt.
     fn prefill(
         &self,
-        input: &str,
+        input: &Prompt,
         decode_next_token: bool,
         place_in_promt: PlaceInPrompt,
         generation_config: Option<&GenerationConfig>,
@@ -432,9 +473,54 @@ impl ChatModule {
             }
         };
 
+        let input_string = match input {
+            Prompt::String(inp) => inp.clone(),
+            Prompt::MessageList(chat_msgs) => {
+                let mut chat_msgs = chat_msgs.clone();
+                if chat_msgs.len() == 1 {
+                    chat_msgs.remove(0).content
+                } else {
+                    let chat_config = ChatConfig::from_json(&(self.get_config_json()?)).unwrap();
+                    let mut conv_config = chat_config
+                        .conv_config
+                        .unwrap_or_else(|| ConvConfigBuilder::default().build().unwrap());
+
+                    let role0 = self.get_role_0()?;
+                    let role1 = self.get_role_1()?;
+
+                    let last_msg = chat_msgs
+                        .last()
+                        .expect("No last message in the vector")
+                        .clone();
+                    if last_msg.role != "user" {
+                        panic!("Last message should be from user.");
+                    }
+
+                    let mut messages = Vec::new();
+                    let msg_len = chat_msgs.len();
+                    for msg in chat_msgs.into_iter().take(msg_len - 1) {
+                        match msg.role.as_str() {
+                            "user" => messages.push(vec![role0.clone(), msg.content]),
+                            "assistant" => messages.push(vec![role1.clone(), msg.content]),
+                            _ => panic!("Only user and assistant roles are supported."),
+                        }
+                    }
+
+                    conv_config.messages = Some(messages);
+                    conv_config.offset = Some(0);
+
+                    let mut map = HashMap::new();
+                    map.insert("conv_config", conv_config);
+                    self.load_json_override(&serde_json::to_string(&map).unwrap(), true)?;
+
+                    last_msg.content
+                }
+            }
+        };
+
         let f = self.chat_module.get_function("prefill", false)?;
         f.invoke(vec![
-            input.into(),
+            input_string.into(),
             (&decode_next_token).into(),
             place_in_promt.to_value().into(),
             generation_config_str.into(),
@@ -442,4 +528,3 @@ impl ChatModule {
         Ok(())
     }
 }
-
