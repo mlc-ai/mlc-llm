@@ -99,17 +99,17 @@ def main(argv):
         "--sliding-window",
         type=int,
         default=None,
-        help="The sliding window size in sliding window attention (SWA). "
+        help="(Experimental) The sliding window size in sliding window attention (SWA). "
         "This optional field overrides the `sliding_window` in config.json for "
-        "those models that use SWA. Currently only useful when compiling Mistral.",
+        "those models that use SWA. Currently only useful when compiling Mistral. This flag subjects to future refactoring.",
     )
     parser.add_argument(
         "--sliding-window-chunk-size",
         type=int,
         default=None,
-        help="The chunk size in sliding window attention (SWA) during prefilling. "
+        help="(Experimental) The chunk size in sliding window attention (SWA) during prefilling. "
         "By default, the chunk size is the same as sliding window. "
-        "Currently only useful when compiling Mistral.",
+        "Currently only useful when compiling Mistral. This flag subjects to future refactoring.",
     )
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
