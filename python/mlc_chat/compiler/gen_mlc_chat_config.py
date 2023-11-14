@@ -90,8 +90,8 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments
     # Step 3. Copy tokenizer configuration
     for filename in TOKENIZER_FILES:
         file = config.parent / filename
-        mlc_chat_config.tokenizer_files.append(filename)
         if file.exists():
+            mlc_chat_config.tokenizer_files.append(filename)
             dest = output / filename
             shutil.copy(file, dest)
             logger.info("%s tokenizer config: %s. Copying to %s", FOUND, file, bold(str(dest)))
