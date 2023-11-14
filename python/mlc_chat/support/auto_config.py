@@ -36,7 +36,8 @@ def detect_config(config: Union[str, Path]) -> Path:
 
     if isinstance(config, str) and config in MODEL_PRESETS:
         logger.info("%s preset model: %s", FOUND, config)
-        content = MODEL_PRESETS[config]
+        content = MODEL_PRESETS[config].copy()
+        content["model_preset_tag"] = config
         temp_file = tempfile.NamedTemporaryFile(  # pylint: disable=consider-using-with
             suffix=".json",
             delete=False,
