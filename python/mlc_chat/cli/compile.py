@@ -101,7 +101,8 @@ def main(argv):
         default=None,
         help="(Experimental) The sliding window size in sliding window attention (SWA). "
         "This optional field overrides the `sliding_window` in config.json for "
-        "those models that use SWA. Currently only useful when compiling Mistral. This flag subjects to future refactoring.",
+        "those models that use SWA. Currently only useful when compiling Mistral."
+        "This flag subjects to future refactoring.",
     )
     parser.add_argument(
         "--sliding-window-chunk-size",
