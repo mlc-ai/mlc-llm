@@ -284,12 +284,12 @@ fn get_lib_module_path(
 /// let cm = ChatModule::new("Llama-2-7b-chat-hf-q4f16_1", "cuda", None, None).unwrap();
 ///
 /// // Generate a response for a given prompt
-/// let output = cm.generate(&Prompt::String("what is the meaning of life?".to_owned()), None).unwrap();
+/// let output = cm.generate("what is the meaning of life?", None).unwrap();
 ///
 /// // Print prefill and decode performance statistics
 /// println!("Statistics: {:?}\n", cm.stats(false).unwrap());
 ///
-/// let output = cm.generate(&Prompt::String("what is Rust?".to_owned()), None).unwrap();
+/// let output = cm.generate("what is Rust?", None).unwrap();
 /// ```
 pub struct ChatModule {
     chat_module: Module,
