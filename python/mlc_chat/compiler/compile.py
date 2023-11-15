@@ -88,8 +88,8 @@ def _attach_variable_bounds(mod, model_config):
             mod[g_var] = func.with_attr(
                 "tir_var_upper_bound",
                 {
-                    "seq_len": model_config.max_sequence_length,
-                    "total_seq_len": model_config.max_sequence_length,
+                    "seq_len": model_config.context_window_size,
+                    "total_seq_len": model_config.context_window_size,
                 },
             )
 
@@ -122,7 +122,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     build_func: Callable[[IRModule, CompileArgs], None],
     prefix_symbols: str,
     output: Path,
-    max_sequence_length: Optional[int],
+    context_window_size: Optional[int],
     sliding_window: Optional[int],
     sliding_window_chunk_size: Optional[int],
 ):
@@ -137,7 +137,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
         prefix_symbols,
         output,
         ModelConfigOverride(
-            max_sequence_length=max_sequence_length,
+            context_window_size=context_window_size,
             sliding_window=sliding_window,
             sliding_window_chunk_size=sliding_window_chunk_size,
         ),
