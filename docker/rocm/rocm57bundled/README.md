@@ -2,7 +2,7 @@
 
 #### Pre-requisites
 
-These containers will ONLY run on:
+This container will ONLY run on:
 
 * System with AMD GPUs supporting the specified ROCm version(s)
 * System already with the latest [ROCm supporting drivers and libraries](https://rocm.docs.amd.com/en/latest/rocm.html) installed and tested. 
