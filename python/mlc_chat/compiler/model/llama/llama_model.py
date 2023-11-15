@@ -11,8 +11,8 @@ from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from ...support.config import ConfigBase
-from ...support.style import bold
+from ....support.config import ConfigBase
+from ....support.style import bold
 
 logger = logging.getLogger(__name__)
 

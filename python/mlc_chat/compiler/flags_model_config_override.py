@@ -15,6 +15,8 @@ class ModelConfigOverride:
     max_sequence_length: Optional[int] = None
     max_batch_size: Optional[int] = None
     num_shards: Optional[int] = None
+    sliding_window: Optional[int] = None
+    sliding_window_chunk_size: Optional[int] = None
 
     def apply(self, model_config):
         """Apply the overrides to the given model config."""
@@ -30,3 +32,29 @@ class ModelConfigOverride:
             model_config.max_batch_size = self.max_batch_size
         if self.num_shards is not None:
             model_config.num_shards = self.num_shards
+
+        # Handle sliding window and sliding window chunk size
+        if self.sliding_window is not None:
+            logger.info(
+                "Overriding %s from %d to %d",
+                bold("sliding_window"),
+                model_config.sliding_window,
+                self.sliding_window,
+            )
+            model_config.sliding_window = self.sliding_window
+            if self.sliding_window_chunk_size is None:
+                logger.info(
+                    "Provided %s but did not provide %s, setting both to %d",
+                    bold("sliding_window"),
+                    bold("sliding_window_chunk_size"),
+                    model_config.sliding_window,
+                )
+                model_config.sliding_window_chunk_size = self.sliding_window_chunk_size
+        if self.sliding_window_chunk_size is not None:
+            logger.info(
+                "Overriding %s from %d to %d",
+                bold("sliding_window_chunk_size"),
+                model_config.sliding_window_chunk_size,
+                self.sliding_window_chunk_size,
+            )
+            model_config.sliding_window_chunk_size = self.sliding_window_chunk_size

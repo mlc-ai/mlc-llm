@@ -123,6 +123,8 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     prefix_symbols: str,
     output: Path,
     max_sequence_length: Optional[int],
+    sliding_window: Optional[int],
+    sliding_window_chunk_size: Optional[int],
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
     args = CompileArgs(
@@ -134,7 +136,11 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
         build_func,
         prefix_symbols,
         output,
-        ModelConfigOverride(max_sequence_length=max_sequence_length),
+        ModelConfigOverride(
+            max_sequence_length=max_sequence_length,
+            sliding_window=sliding_window,
+            sliding_window_chunk_size=sliding_window_chunk_size,
+        ),
     )
     args.display()
     _compile(args)
