@@ -939,6 +939,8 @@ def get_model(args, hf_config):
 
     if args.sliding_window != -1:
         hf_config["sliding_window"] = args.sliding_window
+    if args.max_seq_len != -1:
+        hf_config["max_sequence_length"] = args.max_seq_len
 
     config = MistralConfig(
         **hf_config,
