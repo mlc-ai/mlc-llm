@@ -51,7 +51,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments
     model: Model,
     quantization: Quantization,
     conv_template: str,
-    max_sequence_length: Optional[int],
+    context_window_size: Optional[int],
     output: Path,
 ):
     """Entrypoint of MLC Chat configuration generation."""
@@ -59,7 +59,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments
         model_config_json = json.load(in_file)
     model_config = model.config.from_dict(model_config_json)
     ModelConfigOverride(
-        max_sequence_length=max_sequence_length,
+        context_window_size=context_window_size,
     ).apply(model_config)
 
     mlc_chat_config = MLCChatConfig(
@@ -68,7 +68,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments
         model_config=model_config_json,
         vocab_size=model_config.vocab_size,
         conv_template=conv_template,
-        max_window_size=model_config.max_sequence_length,
+        max_window_size=model_config.context_window_size,
     )
     # Step 1. Load `config.json`
     for key, value in model_config_json.items():

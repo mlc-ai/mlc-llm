@@ -56,11 +56,11 @@ Adding a prefix to all symbols exported. Similar to "objcopy --prefix-symbols".
 This is useful when compiling multiple models into a single library to avoid symbol
 conflicts. Differet from objcopy, this takes no effect for shared library.
 """.strip(),
-    "max_sequence_length": """
+    "context_window_size": """
 Option to provide the maximum sequence length supported by the model.
 This is usually explictly shown as context length or context window in the model card.
 If this option is not set explicitly, by default, 
-it will be determined by `max_sequence_length` or `max_position_embeddings` in `config.json`,
+it will be determined by `context_window_size` or `max_position_embeddings` in `config.json`,
 and the latter is usually inaccurate for some models.
 """.strip(),
     "output_compile": """
@@ -88,5 +88,16 @@ Conversation template. It depends on how the model is tuned. Use "LM" for vanill
     "output_gen_mlc_chat_config": """
 The output directory for generated configurations, including `mlc-chat-config.json` and tokenizer
 configuration.
+""".strip(),
+    "sliding_window": """
+(Experimental) The sliding window size in sliding window attention (SWA).
+This optional field overrides the `sliding_window` in config.json for
+those models that use SWA. Currently only useful when compiling Mistral.
+This flag subjects to future refactoring.
+""".strip(),
+    "sliding_window_chunk_size": """
+(Experimental) The chunk size in sliding window attention (SWA) during prefilling. By default,
+the chunk size is the same as sliding window. Currently only useful when compiling Mistral.
+This flag subjects to future refactoring.
 """.strip(),
 }
