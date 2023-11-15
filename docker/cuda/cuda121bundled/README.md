@@ -2,7 +2,7 @@
 
 #### Pre-requisites
 
-These containers will ONLY run on:
+This container will ONLY run on:
 
 * System with Nvidia GPUs supporting the specified CUDA version(s)
 * System installed and tested with [NVidia Container Runtime](https://developer.nvidia.com/nvidia-container-runtime)
