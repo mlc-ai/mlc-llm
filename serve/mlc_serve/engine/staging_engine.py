@@ -5,7 +5,8 @@ import logging
 import multiprocessing
 import queue
 from threading import Lock
-from typing import Callable
+from typing import Callable, List
+from dataclasses import dataclass
 
 from .base import (
     InferenceStepResult,
@@ -15,8 +16,10 @@ from .base import (
     RequestState,
     ScopedInferenceEngine,
     SequenceOutput,
-    check_stopping_sequences
+    check_stopping_sequences,
+    StagingInferenceEngineConfig,
 )
+
 from .model_module import ModelModule, TokenizerModule
 from .staging_engine_worker import (
     AddRequestsCommand,
@@ -26,7 +29,6 @@ from .staging_engine_worker import (
 )
 
 logger = logging.getLogger(__name__)
-
 
 class StagingInferenceEngine(ScopedInferenceEngine):
     """
@@ -41,10 +43,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
         tokenizer_module: TokenizerModule,
         model_module_loader: Callable[..., ModelModule],
         model_module_loader_kwargs: dict,
-        max_batched_tokens: int = 2560,
-        min_decode_steps: int = 32,
-        max_decode_steps: int = 48,
-        prompt_allocate_ratio: float = 2.0,
+        config: StagingInferenceEngineConfig,
     ):
         self.next_generation_output = None
         self.requests_lock = Lock()
@@ -63,10 +62,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                 model_module_loader,
                 model_module_loader_kwargs,
                 {
-                    "max_batched_tokens": max_batched_tokens,
-                    "min_decode_steps": min_decode_steps,
-                    "max_decode_steps": max_decode_steps,
-                    "prompt_allocate_ratio": prompt_allocate_ratio,
+                    "config": config,
                 },
                 self.command_queue,
                 self.result_queue,
@@ -85,7 +81,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
         self.command_queue.put(ShutdownCommand())
         self.worker_process.join()
 
-    def add(self, requests: list[Request]):
+    def add(self, requests: List[Request]):
         if not self._is_ready_to_serve():
             raise RuntimeError("GenerationLoopWorker process is not running")
 
@@ -141,7 +137,8 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                 f"Error when calling GenerationLoopWorker: {generation_output.error}"
             )
 
-        outputs = list[RequestOutput]()
+        outputs: List[RequestOutput] = []
+
         with self.requests_lock:
             for seq_output in generation_output.sequences:
                 # TODO: support multi-sequence per request
@@ -209,6 +206,9 @@ class StagingInferenceEngine(ScopedInferenceEngine):
             prompt = self.conversation_template.apply(request.messages)
 
         prompt_tokens = self.tokenizer.encode(prompt)
+
+        if request.on_tokenization is not None:
+            import pdb; pdb.set_trace()
 
         return RequestState(
             request_id=request.request_id,

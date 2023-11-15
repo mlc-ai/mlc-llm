@@ -7,9 +7,9 @@ import multiprocessing
 from collections import deque
 from dataclasses import dataclass
 from threading import Condition, Lock, Thread
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, List
 
-from .base import FinishReason, RequestId, RequestState
+from .base import FinishReason, RequestId, RequestState, StagingInferenceEngineConfig
 from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ class ShutdownCommand:
 
 @dataclass
 class AddRequestsCommand:
-    request_states: list[RequestState]
+    request_states: List[RequestState]
 
 
 @dataclass
@@ -38,14 +38,14 @@ GenerationLoopWorkerCommand = Union[
 @dataclass
 class SequenceGenerationOutput:
     id: SequenceId
-    new_tokens: list[int]
+    new_tokens: List[int]
     finish_reason: Optional[FinishReason] = None
     error: Optional[str] = None
 
 
 @dataclass
 class GenerationLoopWorkerOutput:
-    sequences: list[SequenceGenerationOutput]
+    sequences: List[SequenceGenerationOutput]
     error: Optional[str] = None
 
 
@@ -53,22 +53,20 @@ class GenerationLoopWorker:
     def __init__(
         self,
         model_module: ModelModule,
-        max_batched_tokens: int = 2560,
-        min_decode_steps: int = 32,
-        max_decode_steps: int = 48,
-        prompt_allocate_ratio: float = 2.0,
+        config: StagingInferenceEngineConfig,
     ):
         self.text_generator = model_module.text_generator
         self.cache_manager = model_module.cache_manager
         self.tokenizer = model_module.tokenizer
 
-        self.max_batched_tokens = max_batched_tokens
+        self.max_model_tokens = config.max_model_tokens
+        self.max_batched_tokens = config.max_batched_tokens
         self.max_decode_steps = min(
-            self.cache_manager.get_kv_cache_size(), max_decode_steps
+            self.cache_manager.get_kv_cache_size(), config.max_decode_steps
         )
-        self.min_decode_steps = min(self.max_decode_steps - 1, min_decode_steps)
-        self.prompt_allocate_ratio = prompt_allocate_ratio
-        assert prompt_allocate_ratio >= 1.0
+        self.min_decode_steps = min(self.max_decode_steps - 1, config.min_decode_steps)
+        self.prompt_allocate_ratio = config.prompt_allocate_ratio
+        assert config.prompt_allocate_ratio >= 1.0
 
         self.queue_lock = Lock()
         self.queue = deque[RequestState]()
@@ -293,10 +291,8 @@ class GenerationLoopWorker:
         return self.queue or self.current_batch
 
     def _should_stop_by_length(self, state: RequestState) -> bool:
-        # TODO: put to config
-        max_tokens = 4096
         if state.stopping_criteria.max_tokens is not None:
-            max_tokens = min(max_tokens, state.stopping_criteria.max_tokens)
+            max_tokens = min(self.max_model_tokens, state.stopping_criteria.max_tokens)
 
         return len(state.token_ids) - state.prompt_len >= max_tokens
 

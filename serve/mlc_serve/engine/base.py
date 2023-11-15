@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Optional, Callable, Awaitable, List, Any
 
 from .sampling_params import SamplingParams, SamplingType
 
@@ -35,11 +35,16 @@ class FinishReason(Enum):
     Length = "length"
     Cancelled = "cancelled"
 
+# take the tokens as input
+OnTokenization = Callable[[List[Any]], Awaitable[bool]]
 
 @dataclass
 class Request:
     request_id: RequestId
     messages: list[ChatMessage]
+
+    # This might not be the best long term design, but will have to do for now.
+    on_tokenization: Optional[OnTokenization] = None
 
     # Number of sequences to generate
     num_sequences: int = 1
@@ -169,6 +174,16 @@ class RequestState:
     stopping_criteria: StoppingCriteria
     debug_options: DebugOptions
     is_ended: bool = False
+
+@dataclass
+class StagingInferenceEngineConfig:
+    # The maximum possible input tokens the model can consume.
+    max_model_tokens: int = 4096
+    # The maximum number of tokens in the batch.
+    max_batched_tokens: int = 2560
+    min_decode_steps: int = 32
+    max_decode_steps: int = 48
+    prompt_allocate_ratio: float = 2.0
 
 def check_stopping_sequences(stopping_criteria, output_text, delta, is_ended):
     if stopping_criteria.stop_sequences:
