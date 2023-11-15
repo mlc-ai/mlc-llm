@@ -17,6 +17,8 @@ Before building the image, you MUST place the associated weights and library of 
 1. place the weights into the `fixedmodel/dist/prebuilt` folder  (the default example is for Llama-2-7b-chat-hf-q4f16_1 and `mlc-chat-Llama-2-7b-chat-hf-q4f16_1` from huggingface should be `git cloned` here)
 2. place the library into `fixedmodel/dist/prebuilt/lib` folder  (in the case of cuda121 for llama2 7b q4f16_1, it will be `Llama-2-7b-chat-hf-q4f16_1-cuda.so`)
 
+Make sure there is no extra files littering under the `fixedmodel` directory hierachy, as _everything_ under this directory will be added into the container image.
+
 Build the image:
 
 ```
