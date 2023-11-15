@@ -1,16 +1,11 @@
 extern crate mlc_llm;
 
-use mlc_llm::chat_module::{ChatMessage, ChatModule, Prompt};
+use mlc_llm::chat_module::{ChatMessage, ChatModule};
 
 fn main() {
     // Single prompt example
     let cm = ChatModule::new("/path/to/Llama2-13B-q8f16_1", "rocm", None).unwrap();
-    let output = cm
-        .generate(
-            &Prompt::String("what is the meaning of life?".to_owned()),
-            None,
-        )
-        .unwrap();
+    let output = cm.generate("what is the meaning of life?", None).unwrap();
     println!("resp: {:?}", output);
     println!("stats: {:?}", cm.stats(false));
 
@@ -38,9 +33,7 @@ fn main() {
 
     let messages = vec![message1, message2, message3, message4, message5];
 
-    let prompt = Prompt::MessageList(messages);
-
-    let output = cm.generate(&prompt, None).unwrap();
+    let output = cm.generate(messages, None).unwrap();
     println!("resp: {:?}", output);
     println!("stats: {:?}", cm.stats(false));
 }

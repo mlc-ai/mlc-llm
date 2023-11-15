@@ -35,6 +35,24 @@ pub enum Prompt {
     MessageList(Vec<ChatMessage>),
 }
 
+impl From<&str> for Prompt {
+    fn from(s: &str) -> Self {
+        Prompt::String(s.to_owned())
+    }
+}
+
+impl From<String> for Prompt {
+    fn from(s: String) -> Self {
+        Prompt::String(s)
+    }
+}
+
+impl From<Vec<ChatMessage>> for Prompt {
+    fn from(messages: Vec<ChatMessage>) -> Self {
+        Prompt::MessageList(messages)
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum PlaceInPrompt {
     All = 0,
@@ -266,12 +284,12 @@ fn get_lib_module_path(
 /// let cm = ChatModule::new("Llama-2-7b-chat-hf-q4f16_1", "cuda", None, None).unwrap();
 ///
 /// // Generate a response for a given prompt
-/// let output = cm.generate(&Prompt::String("what is the meaning of life?".to_owned()), None).unwrap();
+/// let output = cm.generate("what is the meaning of life?", None).unwrap();
 ///
 /// // Print prefill and decode performance statistics
 /// println!("Statistics: {:?}\n", cm.stats(false).unwrap());
 ///
-/// let output = cm.generate(&Prompt::String("what is Rust?".to_owned()), None).unwrap();
+/// let output = cm.generate("what is Rust?", None).unwrap();
 /// ```
 pub struct ChatModule {
     chat_module: Module,
@@ -428,7 +446,7 @@ impl ChatModule {
     /// response.
     pub fn generate(
         &self,
-        prompt: &Prompt,
+        prompt: impl Into<Prompt>,
         generation_config: Option<&GenerationConfig>,
     ) -> Result<Vec<String>> {
         // TODO: add progress_callback
@@ -441,9 +459,10 @@ impl ChatModule {
             }
         }
 
+        let prompt = prompt.into();
         for _ in 0..num_return_sequences {
             self.reset_chat().unwrap();
-            self.prefill(prompt, true, PlaceInPrompt::All, generation_config)
+            self.prefill(&prompt, true, PlaceInPrompt::All, generation_config)
                 .unwrap();
 
             while !self.stopped().unwrap() {
