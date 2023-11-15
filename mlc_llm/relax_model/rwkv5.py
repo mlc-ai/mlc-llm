@@ -138,21 +138,6 @@ def _te_get_last_x(x: te.Tensor):
     return te.compute((1, hidden_size), lambda _, j: x[seq_len - 1, j])
 
 
-def _te_get_receptance(x: te.Tensor, t):
-    h, t, s = x.shape
-    return te.compute((h, 1, s), lambda i, _, j: x[i, t, j])
-
-
-def _te_get_key(x: te.Tensor, t):
-    h, t, s = x.shape
-    return te.compute((h, t, 1), lambda i, j, _: x[i, j, t])
-
-
-def _te_get_value(x: te.Tensor, t):
-    h, t, s = x.shape
-    return te.compute((h, 1, s), lambda i, _, j: x[i, t, j])
-
-
 # https://github.com/GiantPandaCV/mlc-llm/pull/1/files#diff-e39fd9584b9046e39f007d1c432b5c90703959d148de2e8eca29f08231c9fa57R127-R212
 def create_wkv5_func(
     B: T.int32, T_dim: T.int32, C: T.int32, H: T.int32, dtype: str, out_dtype: str
@@ -252,18 +237,14 @@ class RWKV_GroupNorm(nn.Module):
     def forward(self, x: relax.Expr) -> relax.Var:
         if x.struct_info.dtype != "float32":
             x = nn.emit(relax.op.astype(x, "float32"))
-        x = nn.emit(
-            group_norm(
-                x,
-                gamma=self.weight,
-                beta=self.bias,
-                num_groups=self.num_groups,
-                channel_axis=-1,
-                axes=[0, 1],
-                epsilon=self.eps,
-            )
-        )
-        return x
+        
+        N, C = x.struct_info.shape
+        x = nn.emit(op.reshape(x, shape=([N, self.num_groups, C // self.num_groups])))
+        mean = nn.emit(op.mean(x, 2, True))
+        var = nn.emit(op.variance(x, 2, True))
+        normalized = nn.emit((x - mean) / op.sqrt(var + relax.const(self.eps, "float32")))
+        normalized = nn.emit(op.reshape(normalized, shape=[N, C]))
+        return nn.emit(normalized * op.expand_dims(self.weight, 0) + self.bias)
 
 
 class RWKV_FFN(nn.Module):
@@ -409,19 +390,10 @@ class RWKV_Attention(nn.Module):
                     ],
                 )
             )
-            saved_kv = ret[0]
+            saved_kv = nn.emit(ret[0])
             out = nn.emit(op.reshape(ret[1], shape=([T, C])))
-            out = nn.emit(
-                op.nn.group_norm(
-                    out,
-                    self.ln_x.weight,
-                    self.ln_x.bias,
-                    self.ln_x.num_groups,
-                    channel_axis=1,
-                    axes=[0],
-                    epsilon=self.eps,
-                ),
-            )
+            # out = self.ln_x(out)
+            out = nn.emit(op.nn.group_norm(out, self.ln_x.weight, self.ln_x.bias, self.ln_x.num_groups, channel_axis=-1, axes=[]))
             out = nn.emit(op.multiply(op.astype(out, self.dtype), g))
             out = nn.emit(self.output(out))
         else:
@@ -442,21 +414,9 @@ class RWKV_Attention(nn.Module):
                 )
             )
             saved_kv = nn.emit(a + op.reshape(self.time_decay, shape=[H, -1, 1]) * saved_kv)
-            out = nn.emit(op.flatten(out))
-            out = nn.emit(
-                op.squeeze(
-                    op.nn.group_norm(
-                        op.astype(op.expand_dims(out, 0), "float32"),
-                        self.ln_x.weight,
-                        self.ln_x.bias,
-                        self.ln_x.num_groups,
-                        channel_axis=-1,
-                        axes=[0],
-                        epsilon=self.eps,
-                    ),
-                    0,
-                )
-            )
+            out = nn.emit(op.expand_dims(op.flatten(out), 0))
+            out = nn.emit(op.nn.group_norm(out, self.ln_x.weight, self.ln_x.bias, self.ln_x.num_groups, channel_axis=-1, axes=[]))
+            out = nn.emit(op.squeeze(out, 0))
             out = nn.emit(op.multiply(op.astype(out, self.dtype), g))
             out = nn.emit(self.output(out))
 

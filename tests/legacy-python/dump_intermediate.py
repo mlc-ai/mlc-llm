@@ -26,7 +26,10 @@ class DumpInstrument:
             return
 
         global cnt
-        if cnt >= 11 and cnt <= 14:
+        if cnt <= 30:
+            if cnt == 20:
+                import numpy as np
+                np.save('/Users/bbuf/工作目录/RWKV/mlc_llm_state', args[-1].numpy().flatten())
             print(f"[{self.counter}][{name}]")
             print(args[-1].numpy().shape)
             print(args[-1].numpy().flatten()[:30])
