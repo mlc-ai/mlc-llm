@@ -83,10 +83,10 @@ def main(argv):
         help=HELP["prefix_symbols"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--max-sequence-length",
+        "--context-window-size",
         type=int,
         default=None,
-        help=HELP["max_sequence_length"] + ' (default: "%(default)s")',
+        help=HELP["context_window_size"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--output",
@@ -99,18 +99,13 @@ def main(argv):
         "--sliding-window",
         type=int,
         default=None,
-        help="(Experimental) The sliding window size in sliding window attention (SWA). "
-        "This optional field overrides the `sliding_window` in config.json for "
-        "those models that use SWA. Currently only useful when compiling Mistral."
-        "This flag subjects to future refactoring.",
+        help=HELP["sliding_window"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--sliding-window-chunk-size",
         type=int,
         default=None,
-        help="(Experimental) The chunk size in sliding window attention (SWA) during prefilling. "
-        "By default, the chunk size is the same as sliding window. "
-        "Currently only useful when compiling Mistral. This flag subjects to future refactoring.",
+        help=HELP["sliding_window_chunk_size"] + ' (default: "%(default)s")',
     )
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
@@ -124,7 +119,7 @@ def main(argv):
         build_func=build_func,
         prefix_symbols=parsed.prefix_symbols,
         output=parsed.output,
-        max_sequence_length=parsed.max_sequence_length,
+        context_window_size=parsed.context_window_size,
         sliding_window=parsed.sliding_window,
         sliding_window_chunk_size=parsed.sliding_window_chunk_size,
     )
