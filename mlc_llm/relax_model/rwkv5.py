@@ -376,9 +376,10 @@ class RWKV_Attention(nn.Module):
             r = nn.emit(op.reshape(op.astype(self.receptance(xr), "float32"), shape=[1, T, H, N]))
             k = nn.emit(op.reshape(op.astype(self.key(xk), "float32"), shape=[1, T, H, N]))
             v = nn.emit(op.reshape(op.astype(self.value(xv), "float32"), shape=[1, T, H, N]))
-
+        
         if not is_one(context_length):
             # out, s = self.RUN_RWKV_5(1, T, self.args.n_att, H, s, r, k, v, w=t_decay, u=t_first)
+            saved_kv = nn.emit(op.permute_dims(saved_kv, [0, 1, 3, 2]))
             gv = bb.add_func(create_wkv5_func(1, T, hidden_size, H, "float32", "float32"), "wkv5")
             ret = nn.emit(
                 relax.call_tir(
@@ -390,7 +391,7 @@ class RWKV_Attention(nn.Module):
                     ],
                 )
             )
-            saved_kv = nn.emit(ret[0])
+            saved_kv = nn.emit(op.permute_dims(ret[0], [0, 1, 3, 2]))
             out = nn.emit(op.reshape(ret[1], shape=([T, C])))
             # out = self.ln_x(out)
             out = nn.emit(op.nn.group_norm(out, self.ln_x.weight, self.ln_x.bias, self.ln_x.num_groups, channel_axis=-1, axes=[]))
@@ -469,8 +470,8 @@ class RWKVLayer(nn.Module):
         x = nn.emit(x + att)
         ffn, ffn_state = self.feed_forward(self.ln2(x), state)
         x = nn.emit(x + ffn)
-        if self.rescale_every > 0 and (self.index + 1) % self.rescale_every == 0:
-            x = nn.emit(x / relax.const(2, dtype=self.dtype))
+        # if self.rescale_every > 0 and (self.index + 1) % self.rescale_every == 0:
+        #     x = nn.emit(x / relax.const(2, dtype=self.dtype))
         return x, att_state + ffn_state
 
 
@@ -711,14 +712,14 @@ def get_model(args, hf_config):
         import numpy as np  # pylint: disable=import-outside-toplevel
 
         # rescale_every
-        if config.rescale_every > 0 and "blocks." in torch_pname:
-            # based-on the assumption that the layer id is the second element in torch_pname
-            layer_id = int(torch_pname.split(".")[2])
-            if (
-                "attention.output.weight" in torch_pname
-                or "feed_forward.value.weight" in torch_pname
-            ):
-                torch_param = torch_param / (2 ** (layer_id // config.rescale_every))
+        # if config.rescale_every > 0 and "blocks." in torch_pname:
+        #     # based-on the assumption that the layer id is the second element in torch_pname
+        #     layer_id = int(torch_pname.split(".")[2])
+        #     if (
+        #         "attention.output.weight" in torch_pname
+        #         or "feed_forward.value.weight" in torch_pname
+        #     ):
+        #         torch_param = torch_param / (2 ** (layer_id // config.rescale_every))
 
         # reshape
         if "time_mix_" in torch_pname:

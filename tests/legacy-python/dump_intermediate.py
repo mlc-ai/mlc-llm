@@ -10,7 +10,6 @@ from tvm import relax
 
 from mlc_llm import utils
 
-cnt = 0
 
 class DumpInstrument:
     def __init__(self, verbose=True):
@@ -25,16 +24,8 @@ class DumpInstrument:
         if any(not isinstance(x, tvm.nd.NDArray) for x in args):
             return
 
-        global cnt
-        if cnt <= 30:
-            if cnt == 20:
-                import numpy as np
-                np.save('/Users/bbuf/工作目录/RWKV/mlc_llm_state', args[-1].numpy().flatten())
-            print(f"[{self.counter}][{name}]")
-            print(args[-1].numpy().shape)
-            print(args[-1].numpy().flatten()[:30])
-            print(args[-1].numpy().flatten()[-30:])
-        cnt += 1
+        print(f"[{self.counter}][{name}]")
+        print(args[-1])
         self.counter += 1
 
 
@@ -81,13 +72,12 @@ def deploy_to_pipeline(args) -> None:
     primary_device = tvm.device(args.primary_device)
     const_params = utils.load_params(args.artifact_path, primary_device)
     state = TestState(args)
-    # tokenizer = AutoTokenizer.from_pretrained(
-    #     os.path.join(args.artifact_path, "params"), trust_remote_code=True
-    # )
+    tokenizer = AutoTokenizer.from_pretrained(
+        os.path.join(args.artifact_path, "params"), trust_remote_code=True
+    )
 
     print("Tokenizing...")
-    # inputs = tokenizer(args.prompt, return_tensors="pt").input_ids.to(torch.int32).numpy()
-    inputs = tvm.nd.array(np.ones(shape=(1, 10)).astype("int32"), primary_device)
+    inputs = tokenizer(args.prompt, return_tensors="pt").input_ids.to(torch.int32).numpy()
     first_sampled_token = tvm.nd.array(np.array([[6234]]).astype("int32"), primary_device)
     seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1]])
     second_seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1] + 1])
