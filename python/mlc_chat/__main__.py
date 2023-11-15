@@ -21,7 +21,7 @@ def main():
         choices=["compile", "convert_weight", "gen_mlc_chat_config"],
         help="Subcommand to to run. (choices: %(choices)s)",
     )
-    parsed = parser.parse_args([sys.argv[1]])
+    parsed = parser.parse_args(sys.argv[1:2])
     # pylint: disable=import-outside-toplevel
     if parsed.subcommand == "compile":
         from mlc_chat.cli import compile as cli
