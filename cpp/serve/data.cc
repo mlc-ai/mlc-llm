@@ -6,6 +6,8 @@
 
 #include <tvm/runtime/registry.h>
 
+#include "model.h"
+
 namespace mlc {
 namespace llm {
 namespace serve {
@@ -24,6 +26,16 @@ TextData::TextData(String text) {
   data_ = std::move(n);
 }
 
+int TextDataNode::GetLength() const {
+  LOG(FATAL) << "\"GetLength\" for TextData is not supported. "
+                "Please tokenize the text and construct a TokenData object.";
+}
+
+NDArray TextDataNode::GetEmbedding(Model model) const {
+  LOG(FATAL) << "\"GetEmbedding\" for TextData is not supported. "
+                "Please tokenize the text and construct a TokenData object.";
+}
+
 TVM_REGISTER_GLOBAL("mlc.serve.TextData").set_body_typed([](String text) {
   return TextData(std::move(text));
 });
@@ -36,7 +48,7 @@ TVM_REGISTER_GLOBAL("mlc.serve.TextDataGetTextString").set_body_typed([](TextDat
 
 TVM_REGISTER_OBJECT_TYPE(TokenDataNode);
 
-TokenData::TokenData(ShapeTuple token_ids) {
+TokenData::TokenData(IntTuple token_ids) {
   ObjectPtr<TokenDataNode> n = make_object<TokenDataNode>();
   n->token_ids = std::move(token_ids);
   data_ = std::move(n);
@@ -44,9 +56,13 @@ TokenData::TokenData(ShapeTuple token_ids) {
 
 TokenData::TokenData(std::vector<int32_t> token_ids) {
   ObjectPtr<TokenDataNode> n = make_object<TokenDataNode>();
-  n->token_ids = ShapeTuple(token_ids.begin(), token_ids.end());
+  n->token_ids = IntTuple(token_ids.begin(), token_ids.end());
   data_ = std::move(n);
 }
+
+int TokenDataNode::GetLength() const { return token_ids.size(); }
+
+NDArray TokenDataNode::GetEmbedding(Model model) const { return model->TokenEmbed(token_ids); }
 
 TVM_REGISTER_GLOBAL("mlc.serve.TokenData").set_body([](TVMArgs args, TVMRetValue* rv) {
   std::vector<int32_t> token_ids;
