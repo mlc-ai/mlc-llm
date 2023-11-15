@@ -27,7 +27,7 @@ docker run --device=/dev/kfd --device=/dev/dri  --security-opt seccomp=unconfine
 
 This will mount the `./mlcllm` directoy into the container.  Before running, you must place the model's weights into `mlcllm/dist/prebuild` and the library into `mlcllm/dist/prebuild/lib`.
 
-By default, the `llama2 7b q4f16` model is expected.c
+By default, the `llama2 7b q4f16` model is expected.
 
 But you can easily change the model that will be served by adding options to the command line (running red pajama 3b q4f16 instead):
 
