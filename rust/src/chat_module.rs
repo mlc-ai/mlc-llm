@@ -35,6 +35,24 @@ pub enum Prompt {
     MessageList(Vec<ChatMessage>),
 }
 
+impl From<&str> for Prompt {
+    fn from(s: &str) -> Self {
+        Prompt::String(s.to_owned())
+    }
+}
+
+impl From<String> for Prompt {
+    fn from(s: String) -> Self {
+        Prompt::String(s)
+    }
+}
+
+impl From<Vec<ChatMessage>> for Prompt {
+    fn from(messages: Vec<ChatMessage>) -> Self {
+        Prompt::MessageList(messages)
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum PlaceInPrompt {
     All = 0,
@@ -428,7 +446,7 @@ impl ChatModule {
     /// response.
     pub fn generate(
         &self,
-        prompt: &Prompt,
+        prompt: impl Into<Prompt>,
         generation_config: Option<&GenerationConfig>,
     ) -> Result<Vec<String>> {
         // TODO: add progress_callback
@@ -441,9 +459,10 @@ impl ChatModule {
             }
         }
 
+        let prompt = prompt.into();
         for _ in 0..num_return_sequences {
             self.reset_chat().unwrap();
-            self.prefill(prompt, true, PlaceInPrompt::All, generation_config)
+            self.prefill(&prompt, true, PlaceInPrompt::All, generation_config)
                 .unwrap();
 
             while !self.stopped().unwrap() {
