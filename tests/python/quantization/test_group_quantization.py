@@ -129,14 +129,13 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
 
     config = QUANTIZATION[quant_name]
     assert isinstance(config, GroupQuantize)
+    num_group = -(shape[1] // -config.group_size)
     weight_np = np.random.randint(
         np.iinfo(config.storage_dtype).min,
         np.iinfo(config.storage_dtype).max,
-        (shape[0], -(shape[1] // -config.num_elem_per_storage)),
+        (shape[0], config.num_storage_per_group * num_group),
     ).astype(config.storage_dtype)
-    scale_np = np.random.random((shape[0], -(shape[1] // -config.group_size))).astype(
-        config.model_dtype
-    )
+    scale_np = np.random.random((shape[0], num_group)).astype(config.model_dtype)
     mod = config.quantize_model(Test(), QuantizeMapping({}, {}), "")
     mod.linear.q_weight.data = weight_np
     mod.linear.q_scale.data = scale_np
