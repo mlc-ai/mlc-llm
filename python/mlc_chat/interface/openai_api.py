@@ -132,6 +132,7 @@ class CompletionStreamResponse(BaseModel):
     created: int = Field(default_factory=lambda: int(time.time()))
     choices: List[CompletionResponseStreamChoice]
 
+
 # TODO(vvchernov): in deprecated OpenAI API logprobs: int
 # They plan to return logprobs, but API is not known for it
 # if it remains the same it is needed to developed chat/completion pipeline
@@ -141,6 +142,7 @@ class LogprobRequest(BaseModel):
     context: str
     continuation: str
 
+
 class LogprobResponse(BaseModel):
     id: str = Field(default_factory=lambda: f"cmpl-{shortuuid.random()}")
     object: str = "text_logprobe"
@@ -148,6 +150,7 @@ class LogprobResponse(BaseModel):
     logprob: float
     is_greedy: bool
     usage: UsageInfo
+
 
 class EmbeddingsRequest(BaseModel):
     model: Optional[str] = None

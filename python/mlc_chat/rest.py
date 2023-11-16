@@ -330,9 +330,10 @@ async def request_completion(request: LogprobRequest):
     logprob_dict_str = session["chat_mod"]._logprob(
         context=request.context,
         continuation=request.continuation,
-        generation_config=generation_config
+        generation_config=generation_config,
     )
     import json
+
     logprob_dict = json.loads(logprob_dict_str)
     logprob = logprob_dict["logprobes"]
     is_greedy = logprob_dict["is_greedy"]
