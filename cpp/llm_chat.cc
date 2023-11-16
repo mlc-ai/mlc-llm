@@ -525,10 +525,8 @@ class LLMChat {
     ICHECK(fsample_topp_from_logits_ptr)
         << "Cannot find env function vm.builtin.sample_top_p_from_logits";
     fsample_topp_from_logits_ = *fsample_topp_from_logits_ptr;
-    auto flog_softmax_ptr =
-        tvm::runtime::Registry::Get("vm.builtin.log_softmax");
-    ICHECK(flog_softmax_ptr)
-        << "Cannot find env function vm.builtin.log_softmax";
+    auto flog_softmax_ptr = tvm::runtime::Registry::Get("vm.builtin.log_softmax");
+    ICHECK(flog_softmax_ptr) << "Cannot find env function vm.builtin.log_softmax";
     flog_softmax_ = *flog_softmax_ptr;
     // Step 5. Load params in nd-array cache.
     this->params_ = ft_.LoadParams(model_path, device_, use_presharded_weights_);
@@ -888,12 +886,11 @@ class LLMChat {
     this->ProcessNextToken(next_token, generation_config);
   }
 
-  std::string LogLikelihoodStep(
-      const std::string& context, const std::string& continuation,
-      String generation_config_str = "") {
+  std::string LogLikelihoodStep(const std::string& context, const std::string& continuation,
+                                String generation_config_str = "") {
     // process generation settings
     picojson::object generation_config = picojson::object();
-    if(!generation_config_str.empty()) {
+    if (!generation_config_str.empty()) {
       picojson::value generation_config_json;
       picojson::parse(generation_config_json, generation_config_str);
       generation_config = generation_config_json.get<picojson::object>();
@@ -918,12 +915,12 @@ class LLMChat {
     // There is advanced fix for any cases, but need study reason and fix it
     int64_t i = 1;
     int64_t cont_token_length = continuation_tokens.size();
-    for (;i <= cont_token_length;++i) {
+    for (; i <= cont_token_length; ++i) {
       if (prompt_tokens[token_len - i] != continuation_tokens[cont_token_length - i]) {
         break;
       }
     }
-    for (int64_t j = 0; j < cont_token_length + 1 - i;++j) {
+    for (int64_t j = 0; j < cont_token_length + 1 - i; ++j) {
       continuation_tokens.erase(continuation_tokens.begin());
     }
 
@@ -1195,12 +1192,13 @@ class LLMChat {
   /*!
    * \brief Argmax calculated for logprobs
    */
-  std::vector<int32_t> LogProbsArgmax(const float* in_logprobs, size_t seq_length, int32_t vocab_length) {
+  std::vector<int32_t> LogProbsArgmax(const float* in_logprobs, size_t seq_length,
+                                      int32_t vocab_length) {
     std::vector<int32_t> res(seq_length);
 
-    for (size_t seq_ind = 0; seq_ind < seq_length; ++seq_ind){
+    for (size_t seq_ind = 0; seq_ind < seq_length; ++seq_ind) {
       // Find max and its index in the slice
-      const float* logprobs = in_logprobs + vocab_length*seq_ind;
+      const float* logprobs = in_logprobs + vocab_length * seq_ind;
       float max_value = logprobs[0];
       int32_t maxarg_ind = 0;
       for (int32_t i = 0; i < vocab_length; ++i) {
@@ -1307,7 +1305,8 @@ class LLMChat {
   }
 
   // run forward compute
-  NDArray ForwardTokens(std::vector<int32_t> input_tokens, int64_t cur_pos, bool need_logprobes = false) {
+  NDArray ForwardTokens(std::vector<int32_t> input_tokens, int64_t cur_pos,
+                        bool need_logprobes = false) {
     ObjectRef ret{nullptr};
     if (input_tokens.size() > 1 && ft_.prefill_func_.defined()) {
       ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray(input_tokens));
@@ -1466,13 +1465,14 @@ class LLMChat {
   }
 
   /*!
-  * \brief Using TVM function calculating log(softmax(logits)).
-  */
+   * \brief Using TVM function calculating log(softmax(logits)).
+   */
   NDArray SampleLogProbsFromLogitsOnCPU() {
     ICHECK(logits_on_cpu_.defined()) << "logits_on_cpu_ is not defined";
     ICHECK_EQ(logits_on_cpu_->ndim, 3) << "logits_on_cpu_ should be 3D";
     ICHECK_EQ(logits_on_cpu_->shape[0], 1) << "logits_on_cpu_ should be 1 batch";
-    auto log_probs = NDArray::Empty(logits_on_cpu_.Shape(), logits_on_cpu_.DataType(), DLDevice{kDLCPU, 0});
+    auto log_probs =
+        NDArray::Empty(logits_on_cpu_.Shape(), logits_on_cpu_.DataType(), DLDevice{kDLCPU, 0});
     flog_softmax_(logits_on_cpu_, log_probs);
     return log_probs;
   }

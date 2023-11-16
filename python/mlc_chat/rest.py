@@ -30,6 +30,8 @@ from .interface.openai_api import (
     DeltaMessage,
     EmbeddingsRequest,
     EmbeddingsResponse,
+    LogprobRequest,
+    LogprobResponse,
     UsageInfo,
     VisualStudioCodeCompletionRequest,
     VisualStudioCodeCompletionResponse,
@@ -308,17 +310,17 @@ async def request_completion(request: CompletionRequest):
                     yield f"data: {chunk.json(exclude_unset=True)}\n\n"
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
-    else:
-        msg = session["chat_mod"].generate(prompt=prompt, generation_config=generation_config)
-        return CompletionResponse(
-            choices=[CompletionResponseChoice(index=0, text=msg)],
-            # TODO: Fill in correct usage info
-            usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
-        )
+
+    msg = session["chat_mod"].generate(prompt=prompt, generation_config=generation_config)
+    return CompletionResponse(
+        choices=[CompletionResponseChoice(index=0, text=msg)],
+        # TODO: Fill in correct usage info
+        usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+    )
 
 
 @app.post("/v1/logprob")
-async def request_completion(request: LogprobRequest):
+async def request_logprob(request: LogprobRequest):
     """
     Creates a logprob for a given context and continuation.
     """
@@ -327,12 +329,12 @@ async def request_completion(request: LogprobRequest):
 
     session["chat_mod"].reset_chat()
 
-    logprob_dict_str = session["chat_mod"]._logprob(
+    logprob_dict_str = session["chat_mod"]._logprob(  # pylint: disable=protected-access
         context=request.context,
         continuation=request.continuation,
         generation_config=generation_config,
     )
-    import json
+    import json  # pylint: disable=import-outside-toplevel
 
     logprob_dict = json.loads(logprob_dict_str)
     logprob = logprob_dict["logprobes"]
