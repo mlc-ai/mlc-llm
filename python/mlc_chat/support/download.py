@@ -52,14 +52,14 @@ def _ensure_directory_not_exist(path: Path, force_redo: bool) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def git_clone(url: str, destination: Path) -> None:
+def git_clone(url: str, destination: Path, ignore_lfs: bool) -> None:
     """Clone a git repository into a directory."""
     repo_name = ".tmp"
     command = ["git", "clone", url, repo_name]
     _ensure_directory_not_exist(destination, force_redo=False)
     try:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            logger.info("Cloning git repo %s to %s", url, destination)
+            logger.info("[Git] Cloning %s to %s", url, destination)
             subprocess.run(
                 command,
                 env={"GIT_LFS_SKIP_SMUDGE": "1"},
@@ -68,12 +68,35 @@ def git_clone(url: str, destination: Path) -> None:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            shutil.move(os.path.join(tmp_dir, repo_name), str(destination))
+            git_dir = os.path.join(tmp_dir, repo_name)
+            if not ignore_lfs:
+                git_lfs_pull(Path(git_dir))
+            shutil.move(git_dir, str(destination))
     except subprocess.CalledProcessError as error:
         raise ValueError(
             f"Git clone failed with return code {error.returncode}: {error.stderr}. "
             f"The command was: {command}"
         ) from error
+
+
+def git_lfs_pull(repo_dir: Path) -> None:
+    """Pull files with Git LFS."""
+    filenames = (
+        subprocess.check_output(
+            ["git", "-C", str(repo_dir), "lfs", "ls-files", "-n"],
+            stderr=subprocess.STDOUT,
+        )
+        .decode("utf-8")
+        .splitlines()
+    )
+    logger.info("[Git LFS] Downloading %d files with Git LFS: %s", len(filenames), filenames)
+    with tqdm.redirect():
+        for file in tqdm.tqdm(filenames):
+            logger.info("[Git LFS] Downloading %s", file)
+            subprocess.check_output(
+                ["git", "-C", str(repo_dir), "lfs", "pull", file],
+                stderr=subprocess.STDOUT,
+            )
 
 
 def download_file(
@@ -124,7 +147,7 @@ def download_mlc_weights(  # pylint: disable=too-many-locals
     with tempfile.TemporaryDirectory() as tmp_dir_prefix:
         tmp_dir = Path(tmp_dir_prefix) / "tmp"
         git_url = git_url_template.format(user=user, repo=repo)
-        git_clone(git_url, tmp_dir)
+        git_clone(git_url, tmp_dir, ignore_lfs=True)
         shutil.rmtree(tmp_dir / ".git", ignore_errors=True)
         with (tmp_dir / "ndarray-cache.json").open(encoding="utf-8") as in_file:
             param_metadata = json.load(in_file)["records"]

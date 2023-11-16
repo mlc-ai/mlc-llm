@@ -77,7 +77,7 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
             The quantization mapping from MLC to quantized MLC parameters, default to None, which
             means no quantization.
         """
-        assert path.is_file()
+        assert path.is_file(), f"Path {path} is not a file"
         self.stats = Stats()
         self.extern_param_map = extern_param_map
         self.cached_files = {}
