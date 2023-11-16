@@ -141,6 +141,8 @@ class SynchronousInferenceEngine(InferenceEngine):
         results = self.text_generator.generate(requests, self.cache_manager.get_cache())
         logger.debug("Finished text generation.")
 
+        valid_results = []
+
         for res in results:
             # For now we only support single sequence per request
             request_id = res.sequence_id.request_id
@@ -154,11 +156,15 @@ class SynchronousInferenceEngine(InferenceEngine):
                         error=res.error,
                     )
                 )
-                continue
+            else:
+                valid_results.append(res)
 
+        for res in valid_results:
+            request_id = res.sequence_id.request_id
             state = self.current_batch[request_id]
             state.next_start_position = len(state.token_ids)
             new_token_ids = res.generated_tokens
+
             for i, token_id in enumerate(new_token_ids):
                 if (
                     token_id == self.tokenizer.eos_token_id
@@ -167,11 +173,9 @@ class SynchronousInferenceEngine(InferenceEngine):
                     new_token_ids = new_token_ids[:i]
                     state.is_ended = True
                     break
+
             state.token_ids.extend(new_token_ids)
 
-        for res in results:
-            request_id = res.sequence_id.request_id
-            state = self.current_batch[request_id]
             delta = self._decode_last_output(state)
             state.output_text += delta
 
