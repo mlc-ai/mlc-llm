@@ -840,13 +840,18 @@ class LlamaForCausalLM(nn.Module):
             logits = nn.emit(relax.op.astype(logits, "float32"))
 
         def te_slicing(x: te.Tensor):
+            assert x.ndim == 3
             return te.compute(
-                shape=(1, 1, x.shape[-1]),
+                shape=(x.shape[0], 1, x.shape[2]),
                 fcompute=lambda i, j, k: x[i, x.shape[1] - 1, k],
                 name="slice",
             )
 
-        last_logits = nn.emit_te(te_slicing, logits, primfunc_name_hint="slice")
+        if hidden_states.struct_info.shape[1] != 1:
+            if logit_positions is None:
+                last_logits = nn.emit_te(te_slicing, logits, primfunc_name_hint="slice")
+            else:
+                last_logits = relax.op.take(logits, logit_positions, axis=1)
 
         return last_logits, key_value_cache, logits
 

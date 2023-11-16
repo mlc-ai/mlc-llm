@@ -82,8 +82,8 @@ class ChatCompletionStreamResponse(BaseModel):
 
 class CompletionRequest(BaseModel):
     model: str
-    prompt: str | list[str]
-    stream: bool | None = False
+    prompt: Union[str, List[str]]
+    stream: Optional[bool] = False
     temperature: float = None
     repetition_penalty: float = None
     top_p: float = None
