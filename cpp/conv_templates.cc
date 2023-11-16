@@ -249,9 +249,9 @@ Conversation RWKV() {
 }
 
 Conversation RWKVWorld() {
-  const std::string kUserPrefix = "User: ";
+  const std::string kUserPrefix = "Question: ";
   const std::string kAssistantPrefix =
-      "Assistant: Hi. I am your assistant and I will provide expert "
+      "Answer: Hi. I am your assistant and I will provide expert "
       "full response in full details. Please feel free to ask any question and I will always "
       "answer it.";
   const std::string kDoubleNewLine = "\n\n";

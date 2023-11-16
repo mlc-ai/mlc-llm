@@ -165,25 +165,25 @@ def create_wkv5_func(
         out_buf = T.match_buffer(out, (B, T_dim, H, C // H), dtype=out_dtype)
 
         for b in T.thread_binding(B, thread="blockIdx.y"):
-            for h in T.thread_binding(H, thread="threadIdx.x"):
-                for t in range(T_dim):
-                    for i in range(C // H):
+            for h in T.thread_binding(H, thread="blockIdx.x"):
+                for i in T.thread_binding(C // H, thread="threadIdx.x"):
+                    for t in range(T_dim):
                         with T.block("init"):
                             vb, vt, vh, vi = T.axis.remap("SSSR", [b, t, h, i])
                             out_buf[vb, vt, vh, vi] = 0
 
-                    for i, k in T.grid(C // H, C // H):
-                        with T.block("main"):
-                            vb, vt, vh, vi, vk = T.axis.remap("SRSSR", [b, t, h, i, k])
-                            x = k_buf[vb, vt, vh, vk] * v_buf[vb, vt, vh, vi]
-                            out_buf[vb, vt, vh, vi] += r_buf[vb, vt, vh, vk] * (
-                                u_buf[vh, vk] * x + state_buf[vb, vh, vi, vk]
-                            )
-                            state_buf[vb, vh, vi, vk] = state_buf[vb, vh, vi, vk] * w_buf[vh, vk] + x
+                        for k in T.grid(C // H):
+                            with T.block("main"):
+                                vb, vt, vh, vi, vk = T.axis.remap("SRSSR", [b, t, h, i, k])
+                                x = k_buf[vb, vt, vh, vk] * v_buf[vb, vt, vh, vi]
+                                out_buf[vb, vt, vh, vi] += r_buf[vb, vt, vh, vk] * (
+                                    u_buf[vh, vk] * x + state_buf[vb, vh, vi, vk]
+                                )
+                                state_buf[vb, vh, vi, vk] = state_buf[vb, vh, vi, vk] * w_buf[vh, vk] + x
 
-                for i, j in T.grid(C // H, C // H):
-                    with T.block("write_back"):
-                        out_state_buf[b, h, i, j] = state_buf[b, h, i, j]
+                    for j in T.grid(C // H):
+                        with T.block("write_back"):
+                            out_state_buf[b, h, i, j] = state_buf[b, h, i, j]
 
     return wkv_func
 
@@ -470,8 +470,8 @@ class RWKVLayer(nn.Module):
         x = nn.emit(x + att)
         ffn, ffn_state = self.feed_forward(self.ln2(x), state)
         x = nn.emit(x + ffn)
-        # if self.rescale_every > 0 and (self.index + 1) % self.rescale_every == 0:
-        #     x = nn.emit(x / relax.const(2, dtype=self.dtype))
+        if self.rescale_every > 0 and (self.index + 1) % self.rescale_every == 0:
+            x = nn.emit(x / relax.const(2, dtype=self.dtype))
         return x, att_state + ffn_state
 
 
@@ -712,14 +712,14 @@ def get_model(args, hf_config):
         import numpy as np  # pylint: disable=import-outside-toplevel
 
         # rescale_every
-        # if config.rescale_every > 0 and "blocks." in torch_pname:
-        #     # based-on the assumption that the layer id is the second element in torch_pname
-        #     layer_id = int(torch_pname.split(".")[2])
-        #     if (
-        #         "attention.output.weight" in torch_pname
-        #         or "feed_forward.value.weight" in torch_pname
-        #     ):
-        #         torch_param = torch_param / (2 ** (layer_id // config.rescale_every))
+        if config.rescale_every > 0 and "blocks." in torch_pname:
+            # based-on the assumption that the layer id is the second element in torch_pname
+            layer_id = int(torch_pname.split(".")[2])
+            if (
+                "attention.output.weight" in torch_pname
+                or "feed_forward.value.weight" in torch_pname
+            ):
+                torch_param = torch_param / (2 ** (layer_id // config.rescale_every))
 
         # reshape
         if "time_mix_" in torch_pname:
