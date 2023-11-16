@@ -105,14 +105,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
             total_bytes += math.prod(param.shape) * np.dtype(param.dtype).itemsize
     if named_params:
         raise ValueError(f"Parameter not found in source: {', '.join(named_params.keys())}")
-    # dump to output directory
-    tvmjs.dump_ndarray_cache(
-        param_dict,
-        str(args.output),
-        meta_data={"ParamSize": len(param_dict)},
-        encode_format="raw",
-    )
-    logger.info("Saved to directory: %s", bold(str(args.output)))
+    # Log necessary statistics
     logger.info(
         "%s after quantization: %.3f GB",
         green("Parameter size"),
@@ -124,6 +117,18 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
         green("Bits per parameter"),
         total_bytes * 8.0 / total_params,
     )
+    # dump to output directory
+    tvmjs.dump_ndarray_cache(
+        param_dict,
+        str(args.output),
+        meta_data={
+            "ParamSize": len(param_dict),
+            "ParamBytes": total_bytes,
+            "BitsPerParam": total_bytes * 8.0 / total_params,
+        },
+        encode_format="raw",
+    )
+    logger.info("Saved to directory: %s", bold(str(args.output)))
 
 
 def convert_weight(  # pylint: disable=too-many-arguments
