@@ -852,6 +852,8 @@ class LlamaForCausalLM(nn.Module):
                 last_logits = nn.emit_te(te_slicing, logits, primfunc_name_hint="slice")
             else:
                 last_logits = relax.op.take(logits, logit_positions, axis=1)
+        else:
+            last_logits = logits
 
         return last_logits, key_value_cache, logits
 
