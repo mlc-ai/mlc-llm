@@ -156,6 +156,7 @@ class BuildArgs:
         default=None, metadata={"help": "Whether to reuse a previously generated lib."}
     )
     artifact_path: str = field(default="dist", metadata={"help": "Where to store the output."})
+    artifact_tag: str = field(default=None, metadata={"help": "User-defined tag for the artifact"})
     use_cache: int = field(
         default=1,
         metadata={"help": "Whether to use previously pickled IRModule and skip trace."},
@@ -392,7 +393,12 @@ def _parse_args(parsed) -> argparse.Namespace:
     if parsed.use_presharded_weights:
         model_name.append(f"presharded-{parsed.num_shards}gpu")
 
-    parsed.artifact_path = os.path.join(parsed.artifact_path, "-".join(model_name))
+    # TODO(@sunggg): currently, we overwrite the artifact_path which forces to rely on name deduction rule. 
+    # Ideally, it is better to separate its root path and name tag.
+    # Until we make the change in upstream, this is a temporary hack.
+    artifact_tag = parsed.artifact_tag if parsed.artifact_tag else "-".join(model_name)
+    parsed.artifact_path = os.path.join(parsed.artifact_path, artifact_tag)
+
     parsed.lib_name = f"{parsed.model}-{parsed.quantization.name}-{parsed.target_kind}.{parsed.lib_format}"
     parsed.lib_path = os.path.join(parsed.artifact_path, parsed.lib_name)
 
