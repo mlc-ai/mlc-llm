@@ -24,7 +24,7 @@ __version__ = git_describe_version(None)
 
 setup(
     name="mlc_llm",
-    version="0.1.0",
+    version=__version__,
     description="MLC LLM: Universal Compilation of Large Language Models",
     url="https://llm.mlc.ai/",
     author="MLC LLM Contributors",
