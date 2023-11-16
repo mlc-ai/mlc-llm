@@ -62,6 +62,8 @@ class ConvConfig:  # pylint: disable=too-many-instance-attributes
         When the ``stop_str`` is encountered, the model will stop generating output.
     stop_tokens : Optional[List[int]]
         A list of token IDs that act as stop tokens.
+    prefix_tokens : Optional[List[int]]
+        Token list prefixing the conversation.
     add_bos : Optional[bool]
         Determines whether a beginning-of-string (bos) token should be added
         before the input tokens.
@@ -78,6 +80,7 @@ class ConvConfig:  # pylint: disable=too-many-instance-attributes
     role_empty_sep: Optional[str] = None
     stop_str: Optional[str] = None
     stop_tokens: Optional[List[int]] = None
+    prefix_tokens: Optional[List[int]] = None
     add_bos: Optional[bool] = None
 
     def __post_init__(self):

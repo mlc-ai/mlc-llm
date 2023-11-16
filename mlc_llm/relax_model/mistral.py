@@ -42,7 +42,7 @@ class MistralConfig:
         vocab_size=32000,
         dtype="float32",
         sliding_window_chunk_size=-1,
-        max_sequence_length=-1,  # Does not play a role, kept for compatibility.
+        max_sequence_length=16384,
         combine_matmul=True,
         build_model_only=False,
         num_shards=1,
@@ -70,7 +70,7 @@ class MistralConfig:
             self.sliding_window_chunk_size = self.sliding_window
         else:
             self.sliding_window_chunk_size = sliding_window_chunk_size
-        self.max_sequence_length = max_sequence_length
+        self.max_sequence_length = sliding_window * 4
         self.combine_matmul = combine_matmul
         if build_model_only and num_shards > 1:
             self.num_shards = num_shards
@@ -376,17 +376,17 @@ class MistralAttention(nn.Module):
         squeezed_key = nn.emit_te(te_squeeze, key_cur)
         squeezed_value = nn.emit_te(te_squeeze, value_cur)
 
-        f_kv_cache_overwrite = relax.extern("vm.builtin.attention_kv_cache_window_override")
+        f_kv_cache_override = relax.extern("vm.builtin.attention_kv_cache_window_override")
         k_cache = nn.emit(
             relax.Call(
-                f_kv_cache_overwrite,
+                f_kv_cache_override,
                 args=[k_cache, squeezed_key, relax.PrimValue(self.sliding_window)],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
         )
         v_cache = nn.emit(
             relax.Call(
-                f_kv_cache_overwrite,
+                f_kv_cache_override,
                 args=[v_cache, squeezed_value, relax.PrimValue(self.sliding_window)],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
@@ -939,6 +939,8 @@ def get_model(args, hf_config):
 
     if args.sliding_window != -1:
         hf_config["sliding_window"] = args.sliding_window
+    if args.max_seq_len != -1:
+        hf_config["max_sequence_length"] = args.max_seq_len
 
     config = MistralConfig(
         **hf_config,

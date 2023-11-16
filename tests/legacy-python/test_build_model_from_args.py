@@ -27,7 +27,7 @@ class BuildModelTest(unittest.TestCase):
         self.mock_args.sep_embed = False
         self.mock_args.build_model_only = True
         self.mock_args.use_safetensors = False
-        self.mock_args.convert_weight_only = False
+        self.mock_args.convert_weights_only = False
         self.mock_args.no_cutlass_attn = True
         self.mock_args.no_cutlass_norm = True
         self.mock_args.reuse_lib = True

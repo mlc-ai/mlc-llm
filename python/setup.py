@@ -89,6 +89,11 @@ def main():
         keywords="machine learning",
         zip_safe=False,
         packages=find_packages(),
+        entry_points={
+            "console_scripts": [
+                "mlc_chat = mlc_chat.__main__:main",
+            ],
+        },
         package_dir={"mlc_chat": "mlc_chat"},
         install_requires=["fastapi", "uvicorn", "shortuuid"],
         distclass=BinaryDistribution,

@@ -420,12 +420,6 @@ class LLMChat {
           << "Sliding window chunk size needs to be positive";
       CHECK(config.count("sliding_window")) << "Need to specify sliding window size.";
     }
-    if (config.count("model_name")) {
-      CHECK(config["model_name"].is<std::string>());
-      this->model_name_ = config["model_name"].get<std::string>();
-    } else {
-      CHECK(partial_update) << "Key \"model_name\" not found.";
-    }
     if (config.count("top_p")) {
       CHECK(config["top_p"].is<double>());
       this->top_p_ = config["top_p"].get<double>();
@@ -1356,8 +1350,6 @@ class LLMChat {
   //----------------------------
   // Conversation
   //----------------------------
-  // model name
-  std::string model_name_;
   // conversation
   Conversation conversation_;
   // total sequence len,

@@ -8,4 +8,4 @@ export PYTHONPATH="./python:$PYTHONPATH"
 
 set -x
 
-mypy ./python/ ./tests/python/
+mypy --install-types --non-interactive ./python/ ./tests/python/
