@@ -5,7 +5,7 @@ import logging
 import multiprocessing
 import queue
 from threading import Lock
-from typing import Callable
+from typing import Callable, Optional
 
 from .base import (
     InferenceStepResult,
@@ -84,6 +84,8 @@ class StagingInferenceEngine(ScopedInferenceEngine):
             # TODO: verify that request id is unique
             if req.num_sequences > 1:
                 raise RuntimeError("num_sequences > 1 is not supported for now")
+
+            # If the request violates the tokenization, this returns None, so skip.
             state = self._get_new_request_state(req)
             new_request_states.append(state)
 
@@ -200,6 +202,10 @@ class StagingInferenceEngine(ScopedInferenceEngine):
 
         prompt_tokens = self.tokenizer.encode(prompt)
 
+        validation_err = None
+        if request.validate_tokens is not None:
+            validation_err = request.validate_tokens(request, prompt_tokens)
+
         return RequestState(
             request_id=request.request_id,
             token_ids=prompt_tokens,
@@ -209,6 +215,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
             stopping_criteria=request.stopping_criteria,
             debug_options=request.debug_options,
             output_text="",
+            validation_err=validation_err,
         )
 
     def _decode_last_output(self, state: RequestState) -> str:

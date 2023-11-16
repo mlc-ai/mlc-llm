@@ -7,13 +7,13 @@ import multiprocessing
 from collections import deque
 from dataclasses import dataclass
 from threading import Condition, Lock, Thread
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, Any
 
 from .base import FinishReason, RequestId, RequestState
 from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId
+import structlog
 
 logger = logging.getLogger(__name__)
-
 
 @dataclass
 class ShutdownCommand:
@@ -77,7 +77,15 @@ class GenerationLoopWorker:
 
     def add(self, request_states: list[RequestState]):
         with self.queue_lock:
-            self.queue.extend(request_states)
+            # States which have been invalidated should never be added, directly
+            # cancel them instead.
+            valid_states = []
+            for request_state in request_states:
+                if request_state.validation_err is not None:
+                    self.cancelled_requests.append(request_state)
+                else:
+                    valid_states.append(request_state)
+            self.queue.extend(valid_states)
             self.has_new_requests.notify_all()
 
     def cancel(self, request_id: RequestId):
@@ -102,7 +110,7 @@ class GenerationLoopWorker:
             )
 
     def has_pending_requests(self) -> bool:
-        return self.queue or self.current_batch
+        return self.queue or self.current_batch or self.cancelled_requests
 
     def step(self) -> GenerationLoopWorkerOutput:
         logger.debug("Starting new inference step.")
@@ -130,12 +138,17 @@ class GenerationLoopWorker:
                 self._remove_request_from_batch(state.request_id)
 
         for state in self.cancelled_requests:
+            err = None
+            if state.validation_err:
+                err = state.validation_err
+
             outputs.append(
                 SequenceGenerationOutput(
                     # TODO: support multi-sequence
                     id=SequenceId(state.request_id, 0),
                     new_tokens=[],
                     finish_reason=FinishReason.Cancelled,
+                    error = err
                 )
             )
             if state.request_id in self.current_batch:

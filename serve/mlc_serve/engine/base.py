@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, List
+from typing import List, Callable, Any, Optional
 import json
 import inspect
 from .sampling_params import SamplingParams, SamplingType
@@ -41,10 +43,10 @@ def get_engine_config(dict_config, enable_check = True):
         # assert engine_config.max_num_sequences > 0
         # assert engine_config.max_num_sequences * engine_config.max_input_len == engine_config.max_num_batched_tokens
 
-        assert (engine_config.min_decode_steps > 0) and (engine_config.max_decode_steps > 0) 
+        assert (engine_config.min_decode_steps > 0) and (engine_config.max_decode_steps > 0)
         assert engine_config.max_decode_steps > engine_config.min_decode_steps
         assert engine_config.prompt_allocate_ratio > 0
-    
+
     return engine_config
 
 @dataclass
@@ -75,20 +77,32 @@ class FinishReason(Enum):
     Length = "length"
     Cancelled = "cancelled"
 
+# A single token.
+Token = List[int]
+
+@dataclass
+class ValidationError:
+    msg: str
+
+# The type signature of the token validation callback.
+ValidateTokensCallback = Callable[["Request", List[Token]], ValidationError]
 
 @dataclass
 class Request:
     request_id: RequestId
     messages: list[ChatMessage]
-
     # Number of sequences to generate
     num_sequences: int = 1
     # TODO: should `best_of` be handled in the serving layer?
     best_of: int = None
-
+    # Options for sampling.
     sampling_params: SamplingParams = field(default_factory=SamplingParams)
+    # Options for stopping.
     stopping_criteria: StoppingCriteria = field(default_factory=StoppingCriteria)
+    # Options for debugging.
     debug_options: DebugOptions = field(default_factory=DebugOptions)
+    # Perform request validation post-tokenization, used by the HTTP layer to control validation.
+    validate_tokens: Optional[ValidateTokensCallback] = None
 
     def __post_init__(self):
         if self.best_of is None:
@@ -132,7 +146,11 @@ class RequestOutput:
     # TODO: reconsider the place to put this number
     # Only set for outputs with valid sequence otuputs
     num_prompt_tokens: Optional[int] = None
-
+    # TODO(@jroesch): We should generalize the type here so we are allowed to return more structured information
+    # for logging/user output.
+    #
+    # Right now I am abusing dynamic typing by putting the ValidationError in here.
+    # I would prefer to unblock ourselves then figure this one out right now
     error: Optional[str] = None
 
     @property
@@ -209,6 +227,7 @@ class RequestState:
     stopping_criteria: StoppingCriteria
     debug_options: DebugOptions
     is_ended: bool = False
+    validation_err: Optional[ValidationError] = None
 
 def check_stopping_sequences(stopping_criteria, output_text, delta, is_ended):
     if stopping_criteria.stop_sequences:

@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import AsyncIterator
+from typing import AsyncIterator, Any
 
 from .base import (
     InferenceEngine,
@@ -15,7 +15,9 @@ ResultQueue = asyncio.Queue[RequestOutput]
 
 
 class TextGenerationError(Exception):
-    pass
+    def __init__(self, error: Any) -> None:
+        self.error = error
+        super().__init__(error)
 
 
 class AsyncEngineConnector:
