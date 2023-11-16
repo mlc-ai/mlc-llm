@@ -28,6 +28,7 @@ from mlc_llm.relax_model import (
     mistral,
     param_manager,
     rwkv,
+    rwkv5,
     stablelm_3b,
 )
 from mlc_llm.relax_model.commons import create_shard_info_func, create_shard_transformation_func
@@ -798,6 +799,7 @@ def build_model_from_args(args: argparse.Namespace):
             "gptj": gptj,
             "rwkv": rwkv,
             "rwkv_world": rwkv,
+            "rwkv5": rwkv5,
             "chatglm": chatglm,
         }
 
@@ -864,7 +866,7 @@ def build_model_from_args(args: argparse.Namespace):
 
             if args.model_category != "minigpt":
                 utils.copy_tokenizer(args)
-            if args.model_category == "rwkv" or args.model_category == "rwkv_world":
+            if args.model_category == "rwkv" or args.model_category == "rwkv_world" or args.model_category == "rwkv5":
                 # TODO: refactor config into model definition
                 dump_mlc_chat_config(
                     args,
