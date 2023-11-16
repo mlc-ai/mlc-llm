@@ -41,10 +41,6 @@ class StagingInferenceEngine(ScopedInferenceEngine):
         tokenizer_module: TokenizerModule,
         model_module_loader: Callable[..., ModelModule],
         model_module_loader_kwargs: dict,
-        max_batched_tokens: int = 2560,
-        min_decode_steps: int = 32,
-        max_decode_steps: int = 48,
-        prompt_allocate_ratio: float = 2.0,
     ):
         self.next_generation_output = None
         self.requests_lock = Lock()
@@ -62,12 +58,6 @@ class StagingInferenceEngine(ScopedInferenceEngine):
             args=(
                 model_module_loader,
                 model_module_loader_kwargs,
-                {
-                    "max_batched_tokens": max_batched_tokens,
-                    "min_decode_steps": min_decode_steps,
-                    "max_decode_steps": max_decode_steps,
-                    "prompt_allocate_ratio": prompt_allocate_ratio,
-                },
                 self.command_queue,
                 self.result_queue,
                 self.ready_event,

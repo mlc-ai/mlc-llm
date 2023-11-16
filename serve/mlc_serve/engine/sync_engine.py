@@ -35,23 +35,20 @@ class SynchronousInferenceEngine(InferenceEngine):
     def __init__(
         self,
         model_module: ModelModule,
-        max_batched_tokens: int = 2560,
-        min_decode_steps: int = 100,
-        max_decode_steps: int = 300,
-        prompt_allocate_ratio: float = 2.0,
     ):
         self.text_generator = model_module.text_generator
         self.tokenizer = model_module.tokenizer
         self.conversation_template = model_module.conversation_template
         self.cache_manager = model_module.cache_manager
+        self.model_artifact_config = model_module.model_artifact_config
 
-        self.max_batched_tokens = max_batched_tokens
+        self.max_num_batched_tokens = model_module.engine_config.max_num_batched_tokens
         self.max_decode_steps = min(
-            self.cache_manager.get_kv_cache_size(), max_decode_steps
+            self.cache_manager.get_kv_cache_size(), model_module.engine_config.max_decode_steps
         )
-        self.min_decode_steps = min(self.max_decode_steps - 1, min_decode_steps)
-        self.prompt_allocate_ratio = prompt_allocate_ratio
-        assert prompt_allocate_ratio >= 1.0
+        self.min_decode_steps = min(self.max_decode_steps - 1, model_module.engine_config.min_decode_steps)
+        self.prompt_allocate_ratio = model_module.engine_config.prompt_allocate_ratio
+        assert self.prompt_allocate_ratio >= 1.0
 
         self.queue_lock = Lock()
         self.queue = deque[RequestState]()
@@ -241,9 +238,9 @@ class SynchronousInferenceEngine(InferenceEngine):
                 state = self.queue[0]
                 num_tokens = len(state.token_ids)
                 num_new_batched_tokens += num_tokens
-                if num_new_batched_tokens > self.max_batched_tokens > 0:
+                if num_new_batched_tokens > self.max_num_batched_tokens > 0:
                     logger.debug(
-                        "Stop growing the batch due to max_batched_tokens. Batched tokens: %s",
+                        "Stop growing the batch due to max_num_batched_tokens. Batched tokens: %s",
                         num_new_batched_tokens,
                     )
                     break
@@ -352,8 +349,7 @@ class SynchronousInferenceEngine(InferenceEngine):
         return full[len(prefix) :]
 
     def _should_stop_by_length(self, state: RequestState) -> bool:
-        # TODO: put to config
-        max_tokens = 4096
+        max_tokens = self.model_artifact_config.max_context_length
         if state.stopping_criteria.max_tokens is not None:
             max_tokens = min(max_tokens, state.stopping_criteria.max_tokens)
 

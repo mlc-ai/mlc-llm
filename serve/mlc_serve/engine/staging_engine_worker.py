@@ -53,22 +53,19 @@ class GenerationLoopWorker:
     def __init__(
         self,
         model_module: ModelModule,
-        max_batched_tokens: int = 2560,
-        min_decode_steps: int = 32,
-        max_decode_steps: int = 48,
-        prompt_allocate_ratio: float = 2.0,
     ):
         self.text_generator = model_module.text_generator
         self.cache_manager = model_module.cache_manager
         self.tokenizer = model_module.tokenizer
+        self.model_artifact_config = model_module.model_artifact_config
 
-        self.max_batched_tokens = max_batched_tokens
+        self.max_num_batched_tokens = model_module.engine_config.max_num_batched_tokens
         self.max_decode_steps = min(
-            self.cache_manager.get_kv_cache_size(), max_decode_steps
+            self.cache_manager.get_kv_cache_size(), model_module.engine_config.max_decode_steps
         )
-        self.min_decode_steps = min(self.max_decode_steps - 1, min_decode_steps)
-        self.prompt_allocate_ratio = prompt_allocate_ratio
-        assert prompt_allocate_ratio >= 1.0
+        self.min_decode_steps = min(self.max_decode_steps - 1, model_module.engine_config.min_decode_steps)
+        self.prompt_allocate_ratio = model_module.engine_config.prompt_allocate_ratio
+        assert self.prompt_allocate_ratio >= 1.0
 
         self.queue_lock = Lock()
         self.queue = deque[RequestState]()
@@ -223,9 +220,9 @@ class GenerationLoopWorker:
                 state = self.queue[0]
                 num_tokens = len(state.token_ids)
                 num_new_batched_tokens += num_tokens
-                if num_new_batched_tokens > self.max_batched_tokens > 0:
+                if num_new_batched_tokens > self.max_num_batched_tokens > 0:
                     logger.debug(
-                        "Stop growing the batch due to max_batched_tokens. Batched tokens: %s",
+                        "Stop growing the batch due to max_num_batched_tokens. Batched tokens: %s",
                         num_new_batched_tokens,
                     )
                     break
@@ -293,8 +290,7 @@ class GenerationLoopWorker:
         return self.queue or self.current_batch
 
     def _should_stop_by_length(self, state: RequestState) -> bool:
-        # TODO: put to config
-        max_tokens = 4096
+        max_tokens = self.model_artifact_config.max_context_length
         if state.stopping_criteria.max_tokens is not None:
             max_tokens = min(max_tokens, state.stopping_criteria.max_tokens)
 
@@ -329,7 +325,6 @@ def setup_logging(level):
 def run_generation_loop_worker(
     model_module_loader: Callable[..., ModelModule],
     model_module_loader_kwargs: dict,
-    worker_kwargs: dict,
     command_queue: multiprocessing.Queue,
     result_queue: multiprocessing.Queue,
     ready_event: multiprocessing.Event,
@@ -337,7 +332,7 @@ def run_generation_loop_worker(
 ):
     setup_logging(log_level)
     model_module = model_module_loader(**model_module_loader_kwargs)
-    worker = GenerationLoopWorker(model_module=model_module, **worker_kwargs)
+    worker = GenerationLoopWorker(model_module=model_module)
 
     should_stop = False
 

@@ -9,7 +9,9 @@ from mlc_serve.engine import (
     RequestOutput,
     SamplingParams,
     StoppingCriteria,
+    get_engine_config
 )
+from mlc_serve.model.base import ModelArtifactConfig
 from mlc_serve.engine.model_module import (
     ConversationTemplate,
     DecodeRequest,
@@ -120,6 +122,14 @@ class DummaryModelModule:
         self.conversation_template = DummyConversationTemplate()
         self.text_generator = DummyTextGenerator()
         self.cache_manager = DummyCacheManager(max_cached_tokens)
+        self.model_artifact_config = ModelArtifactConfig._from_json({
+            "max_context_length": 1024,
+        })
+        self.engine_config = get_engine_config({
+            "max_decode_steps": 0, 
+            "min_decode_steps": 0, 
+            "prompt_allocate_ratio": 1.0
+        }, enable_check = False)
 
 
 def create_messages(prompt) -> list[ChatMessage]:
@@ -136,9 +146,7 @@ def get_output_for_request(
 
 
 def test_single_request():
-    engine = SynchronousInferenceEngine(
-        DummaryModelModule(30), max_decode_steps=0, min_decode_steps=0
-    )
+    engine = SynchronousInferenceEngine(DummaryModelModule(30))
     request_id = "1"
     engine.add(
         [
@@ -159,9 +167,7 @@ def test_single_request():
 
 
 def test_single_request_step_to_finish():
-    engine = SynchronousInferenceEngine(
-        DummaryModelModule(30), max_decode_steps=0, min_decode_steps=0
-    )
+    engine = SynchronousInferenceEngine(DummaryModelModule(30))
 
     request_id = "1"
     engine.add(
@@ -183,12 +189,7 @@ def test_single_request_step_to_finish():
 
 
 def test_multiple_requests_wait_queue():
-    engine = SynchronousInferenceEngine(
-        DummaryModelModule(20),
-        max_decode_steps=0,
-        min_decode_steps=0,
-        prompt_allocate_ratio=1.0,
-    )
+    engine = SynchronousInferenceEngine(DummaryModelModule(20))
 
     request_id_1 = "1"
     request_id_2 = "2"
@@ -234,12 +235,7 @@ def test_multiple_requests_wait_queue():
 
 
 def test_multiple_requests_preempt():
-    engine = SynchronousInferenceEngine(
-        DummaryModelModule(30),
-        max_decode_steps=0,
-        min_decode_steps=0,
-        prompt_allocate_ratio=1.0,
-    )
+    engine = SynchronousInferenceEngine(DummaryModelModule(30))
 
     request_id_1 = "1"
     request_id_2 = "2"

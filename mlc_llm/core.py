@@ -4,6 +4,7 @@ import functools
 import json
 import os
 import pickle
+import shutil
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Dict, Optional
 
@@ -262,6 +263,15 @@ class BuildArgs:
             "action": "store_true",
         },
     )
+    no_cache_dump: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Disable dumping `mod_cache_before_build.pkl`. When this flag is set, cached build would not be available."
+            ),
+            "action": "store_true",
+        },
+    )
     use_cuda_graph: bool = field(
         default=False,
         metadata={
@@ -383,6 +393,8 @@ def _parse_args(parsed) -> argparse.Namespace:
         model_name.append(f"presharded-{parsed.num_shards}gpu")
 
     parsed.artifact_path = os.path.join(parsed.artifact_path, "-".join(model_name))
+    parsed.lib_name = f"{parsed.model}-{parsed.quantization.name}-{parsed.target_kind}.{parsed.lib_format}"
+    parsed.lib_path = os.path.join(parsed.artifact_path, parsed.lib_name)
 
     return parsed
 
@@ -590,6 +602,18 @@ def mod_transform_before_build(
 
     return mod_deploy
 
+def dump_build_config(
+    args: argparse.Namespace
+):
+    build_config_path = os.path.join(args.artifact_path, "build_config.json")
+    config: Dict[str, Any] = {
+        "num_shards": args.num_shards,
+        "quantization": args.quantization.name,
+        "library_name": args.lib_name,
+        "build_options": str(args)
+    }
+    with open(build_config_path, "w", encoding="utf-8") as outfile:
+        json.dump(config, outfile, indent=4)
 
 def dump_mlc_chat_config(
     args: argparse.Namespace,
@@ -689,10 +713,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
             mod_deploy["decode"] = mod_deploy["decode"].with_attr({"num_input": 3})
         ex = relax.build(mod_deploy, args.target, system_lib=args.system_lib)
 
-    output_filename = f"{args.model}-{args.quantization.name}-{target_kind}.{args.lib_format}"
-
     utils.debug_dump_shader(ex, f"{args.model}_{args.quantization.name}_{target_kind}", args)
-    args.lib_path = os.path.join(args.artifact_path, output_filename)
     ex.export_library(args.lib_path, **args.export_kwargs)
     print(f"Finish exporting to {args.lib_path}")
 
@@ -732,7 +753,7 @@ def build_model_from_args(args: argparse.Namespace):
         with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
             config = json.load(i_f)
 
-    if not use_cache or args.convert_weight_only:
+    if not use_cache or args.convert_weight_only or not os.path.exists(cache_path):
         model_generators = {
             "llama": llama,
             "mistral": mistral,
@@ -824,25 +845,56 @@ def build_model_from_args(args: argparse.Namespace):
 
             utils.save_params(params, args.artifact_path, args.num_shards if args.use_presharded_weights else 1)
 
-            if args.model_category != "minigpt":
-                utils.copy_tokenizer(args)
-            if args.model_category == "rwkv" or args.model_category == "rwkv_world":
-                # TODO: refactor config into model definition
-                dump_mlc_chat_config(
-                    args,
-                    vocab_size=config["vocab_size"],
-                    max_window_size=model_config.max_sequence_length,
-                    top_p=0.6,
-                    temperature=1.2,
-                    repetition_penalty=0.996,
-                    rwkv_world=True,
-                )
-            else:
-                dump_mlc_chat_config(
-                    args,
-                    vocab_size=config["vocab_size"],
-                    max_window_size=model_config.max_sequence_length,
-                )
+            if not args.enable_batching:
+                if args.model_category == "rwkv" or args.model_category == "rwkv_world":
+                    # TODO: refactor config into model definition
+                    dump_mlc_chat_config(
+                        args,
+                        vocab_size=config["vocab_size"],
+                        max_window_size=model_config.max_sequence_length,
+                        top_p=0.6,
+                        temperature=1.2,
+                        repetition_penalty=0.996,
+                        rwkv_world=True,
+                    )
+                else:
+                    dump_mlc_chat_config(
+                        args,
+                        vocab_size=config["vocab_size"],
+                        max_window_size=model_config.max_sequence_length,
+                    )
+
+        if args.enable_batching:
+            # when batching is enabled, we dump info for mlc_serve runtime
+            dump_build_config(args)
+            model_info_path = os.path.join(args.artifact_path, "model")
+            os.makedirs(model_info_path, exist_ok=True)
+            mlc_model_config_path = os.path.join(model_info_path, "mlc-model-config.json")
+
+            max_context_length = args.max_seq_len
+            if args.max_seq_len == -1:
+                # for llama-1 family
+                if "max_sequence_length" in config:
+                    max_context_length = config["max_sequence_length"]
+                # for llama-2, mistral, etc.
+                elif "max_position_embeddings" in config:
+                    max_context_length = config["max_position_embeddings"]
+                else:
+                    raise Exception("The model config should contain information about maximum context length.")
+
+            # Overwrite some configs
+            config["max_context_length"] = max_context_length
+            if args.sliding_window != -1 and "sliding_window" in config:
+                config["sliding_window"] = args.sliding_window
+
+            # copy hf config into mlc_model_config
+            mlc_model_config = config.copy()
+            
+            with open(mlc_model_config_path, "w", encoding="utf-8") as outfile:
+                json.dump(mlc_model_config, outfile, indent=4)
+
+        if args.model_category != "minigpt":
+            utils.copy_tokenizer(args)
 
         if args.convert_weight_only:
             exit(0)
@@ -856,9 +908,10 @@ def build_model_from_args(args: argparse.Namespace):
             sharding_module = create_shard_info_func(param_manager, args, model_config)
             mod.update(sharding_module)
 
-        with open(cache_path, "wb") as outfile:
-            pickle.dump(mod, outfile)
-        print(f"Save a cached module to {cache_path}.")
+        if not args.no_cache_dump:
+            with open(cache_path, "wb") as outfile:
+                pickle.dump(mod, outfile)
+            print(f"Save a cached module to {cache_path}.")
     else:
         print(
             f"Load cached module from {cache_path} and skip tracing. "
