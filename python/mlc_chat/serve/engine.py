@@ -101,7 +101,6 @@ class Engine:
 
         # - Set the engine functions
         self._reload_func = engine["reload"]
-        self._unload_func = engine["unload"]
         self._add_request_func = engine["add_request"]
         self._abort_func = engine["abort"]
         self._step_func = engine["step"]
@@ -175,6 +174,7 @@ class Engine:
             )
             self.add_request(
                 Request(
+                    request_id=str(req_id),
                     inputs=input_data,
                     generation_config=generation_cfg,
                     fcallback=callback_getter(req_id),
