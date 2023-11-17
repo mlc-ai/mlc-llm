@@ -371,7 +371,9 @@ class MistralForCasualLM(nn.Module):
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-        hidden_states = self.model(inputs, total_seq_len, rolling_cache_len, kv_seq_len, attention_mask)
+        hidden_states = self.model(
+            inputs, total_seq_len, rolling_cache_len, kv_seq_len, attention_mask
+        )
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
@@ -379,7 +381,11 @@ class MistralForCasualLM(nn.Module):
         return logits
 
     def prefill(
-        self, inputs: Tensor, total_seq_len: tir.Var, rolling_cache_len: tir.Var, kv_seq_len: tir.Var
+        self,
+        inputs: Tensor,
+        total_seq_len: tir.Var,
+        rolling_cache_len: tir.Var,
+        kv_seq_len: tir.Var,
     ):
         """
         Prefilling the prompt.
@@ -428,7 +434,11 @@ class MistralForCasualLM(nn.Module):
         return self.forward(inputs, total_seq_len, rolling_cache_len, kv_seq_len, attention_mask)
 
     def decode(
-        self, inputs: Tensor, total_seq_len: tir.Var, rolling_cache_len: tir.Var, kv_seq_len: tir.Var
+        self,
+        inputs: Tensor,
+        total_seq_len: tir.Var,
+        rolling_cache_len: tir.Var,
+        kv_seq_len: tir.Var,
     ):
         """Decoding step."""
         batch_size, seq_len = inputs.shape

@@ -83,7 +83,7 @@ def _attach_auxiliary_methods(
 
 
 def _attach_variable_bounds(mod, model_config):
-    tir_bound_map = dict()
+    tir_bound_map = {}
     tir_bound_map["seq_len"] = model_config.prefill_chunk_size
     if model_config.context_window_size != -1:
         tir_bound_map["total_seq_len"] = model_config.context_window_size
