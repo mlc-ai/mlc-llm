@@ -12,9 +12,9 @@ from tvm.script import relax as R
 
 from ..quantization import ParamQuantKind, QuantizationScheme
 from .commons import create_metadata_func
+from .llama import Embedding, Linear
 from .modules import ModuleList, RotaryEmbedding
 from .param_manager import ParamManager
-from .llama import Embedding, Linear
 
 
 @dataclass
@@ -593,7 +593,7 @@ def create_embed_func(
     func_name = "embed"
 
     bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")
+    seq_len = tvm.tir.Var("m", "int64")
     with bb.function(func_name):
         model = StableLM3bEmbedTokensWrapper(config, tvm.tir.Var("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
@@ -665,7 +665,7 @@ def create_decoding_func(
     func_name = "decode"
 
     bsz = 1
-    all_seq_len = tvm.tir.Var("n", "int64")
+    all_seq_len = tvm.tir.Var("m", "int64")
 
     with bb.function(func_name):
         model = StableLM3bForCausalLM(config, tvm.tir.Var("vocab_size", "int64"))
@@ -795,6 +795,11 @@ def get_model(args, hf_config):
     if max_seq_len != -1:
         config.max_sequence_length = max_seq_len
 
+    # prefill chunk size same as max sequence length by default
+    prefill_chunk_size = args.prefill_chunk_size
+    if prefill_chunk_size < 1:
+        prefill_chunk_size = config.max_sequence_length
+
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
     emit_shard3d(bb)
@@ -811,6 +816,7 @@ def get_model(args, hf_config):
         max_window_size=config.max_sequence_length,
         stop_tokens=[2],
         add_prefix_space=False,
+        prefill_chunk_size=prefill_chunk_size,
     )
 
     mod = bb.get()
@@ -820,7 +826,7 @@ def get_model(args, hf_config):
             mod[gv] = func.with_attr(
                 "tir_var_upper_bound",
                 {
-                    "n": config.max_sequence_length,
+                    "n": prefill_chunk_size,
                     "m": config.max_sequence_length,
                 },
             )

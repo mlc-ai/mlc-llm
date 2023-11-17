@@ -41,7 +41,6 @@ class MistralConfig:
         tie_word_embeddings=False,
         vocab_size=32000,
         dtype="float32",
-        sliding_window_chunk_size=-1,
         max_sequence_length=16384,
         combine_matmul=True,
         build_model_only=False,
@@ -65,11 +64,6 @@ class MistralConfig:
         self.tie_word_embeddings = tie_word_embeddings
         self.vocab_size = vocab_size
         self.dtype = dtype
-        if sliding_window_chunk_size == -1:
-            # chunk size same as sliding window by default
-            self.sliding_window_chunk_size = self.sliding_window
-        else:
-            self.sliding_window_chunk_size = sliding_window_chunk_size
         self.max_sequence_length = sliding_window * 4
         self.combine_matmul = combine_matmul
         if build_model_only and num_shards > 1:
@@ -948,11 +942,13 @@ def get_model(args, hf_config):
         combine_matmul=True,
         num_shards=args.num_shards,
         build_model_only=args.build_model_only,
-        sliding_window_chunk_size=args.sliding_window_chunk_size,
     )
 
     assert config.sliding_window != -1
-    assert config.sliding_window_chunk_size != -1
+
+    # prefill chunk size same as sliding window by default
+    if args.prefill_chunk_size < 1:
+        args.prefill_chunk_size = config.sliding_window
 
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
@@ -968,7 +964,7 @@ def get_model(args, hf_config):
         stop_tokens=[2],
         add_prefix_space=False,
         sliding_window=config.sliding_window,
-        sliding_window_chunk_size=config.sliding_window_chunk_size,
+        prefill_chunk_size=args.prefill_chunk_size,
     )
 
     mod = bb.get()
@@ -978,9 +974,9 @@ def get_model(args, hf_config):
             mod[gv] = func.with_attr(
                 "tir_var_upper_bound",
                 {
-                    "n": config.sliding_window_chunk_size,
+                    "n": args.prefill_chunk_size,
                     "c": config.sliding_window,
-                    "k": config.sliding_window + config.sliding_window_chunk_size,
+                    "k": config.sliding_window + args.prefill_chunk_size,
                 },
             )
 

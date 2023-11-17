@@ -1,10 +1,9 @@
 import json
-from typing import List, Optional, Dict
-
-import tvm
-from tvm import relax, tir, te, topi
+from typing import Dict, List, Optional
 
 import mlc_llm
+import tvm
+from tvm import relax, te, tir, topi
 
 
 def create_metadata_func(
@@ -13,8 +12,8 @@ def create_metadata_func(
     max_window_size: int,
     stop_tokens: List[int],
     add_prefix_space: bool,
+    prefill_chunk_size: int = -1,
     sliding_window: int = -1,
-    sliding_window_chunk_size: int = -1,
 ):
     metadata = json.dumps(
         {
@@ -22,8 +21,8 @@ def create_metadata_func(
             "max_window_size": max_window_size,
             "stop_tokens": stop_tokens,
             "add_prefix_space": add_prefix_space,
+            "prefill_chunk_size": prefill_chunk_size,
             "sliding_window": sliding_window,
-            "sliding_window_chunk_size": sliding_window_chunk_size,
         }
     )
     with bb.function("get_metadata", params=[]):
