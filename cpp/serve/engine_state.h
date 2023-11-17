@@ -19,7 +19,7 @@ using namespace tvm::runtime;
 /*! \brief Runtime statistics of engine. */
 struct EngineStats {
   /*! \brief The current total sequence length in the first model. */
-  int64_t current_total_seq_len;
+  int64_t current_total_seq_len = 0;
   /*! \brief The sum of "prefill time of each request". */
   double request_total_prefill_time = 0.0f;
   /*! \brief The sum of "decode time of each request". */
@@ -85,15 +85,7 @@ class EngineState : public ObjectRef {
  public:
   explicit EngineState();
 
-  // Default constructors.
-  EngineState(const EngineState& other) = default;
-  EngineState(EngineState&& other) = default;
-  EngineState& operator=(const EngineState& other) = default;
-  EngineState& operator=(EngineState&& other) = default;
-
-  explicit EngineState(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ObjectRef(n) {}
-  EngineStateObj* operator->() const { return static_cast<EngineStateObj*>(data_.get()); }
-  using ContainerType = EngineStateObj;
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(EngineState, ObjectRef, EngineStateObj);
 };
 
 }  // namespace serve
