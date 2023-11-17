@@ -798,9 +798,8 @@ class LLMChat {
       if (ft_.use_disco) {
         LOG(FATAL) << "NotImplementedError: Distributed inference is not supported for this model";
       }
-      // TODO: FIX sep_emb with chunking
       if (this->prefill_chunk_size_ != -1) {
-        LOG(FATAL) << "NotImplementedError: Chunking does not support separate embedding";
+        LOG(FATAL) << "NotImplementedError: Separate embedding does not support chunking";
       }
       NDArray embedding = Downcast<NDArray>(
           EmbedStep(inp, append_conversation, place_in_prompt, generation_config_str));
