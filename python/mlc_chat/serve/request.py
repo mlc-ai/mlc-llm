@@ -17,6 +17,10 @@ class Request(Object):
 
     Parameters
     ----------
+    request_id : str
+        The unique identifier of the request.
+        Different requests should have different ids.
+
     inputs : List[Data]
         The user inputs of a request. Input may have multi-modality.
 
@@ -32,6 +36,7 @@ class Request(Object):
 
     def __init__(
         self,
+        request_id: str,
         inputs: Union[Data, List[Data]],
         generation_config: GenerationConfig,
         fcallback: Callable[["Request", Data], None],
@@ -40,6 +45,7 @@ class Request(Object):
             inputs = [inputs]
         self.__init_handle_by_constructor__(
             _ffi_api.Request,  # type: ignore  # pylint: disable=no-member
+            request_id,
             inputs,
             generation_config.asjson(),
             fcallback,
