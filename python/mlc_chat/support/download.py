@@ -17,6 +17,8 @@ from . import tqdm
 
 logger = logging.getLogger(__name__)
 
+MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
+
 
 def get_cache_dir() -> Path:
     """Return the path to the cache directory."""
@@ -58,7 +60,7 @@ def git_clone(url: str, destination: Path, ignore_lfs: bool) -> None:
     command = ["git", "clone", url, repo_name]
     _ensure_directory_not_exist(destination, force_redo=False)
     try:
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir:
             logger.info("[Git] Cloning %s to %s", url, destination)
             subprocess.run(
                 command,
@@ -94,7 +96,7 @@ def git_lfs_pull(repo_dir: Path) -> None:
         for file in tqdm.tqdm(filenames):
             logger.info("[Git LFS] Downloading %s", file)
             subprocess.check_output(
-                ["git", "-C", str(repo_dir), "lfs", "pull", file],
+                ["git", "-C", str(repo_dir), "lfs", "pull", "--include", file],
                 stderr=subprocess.STDOUT,
             )
 
@@ -144,7 +146,7 @@ def download_mlc_weights(  # pylint: disable=too-many-locals
     except ValueError:
         logger.info("Weights already downloaded: %s", git_dir)
         return
-    with tempfile.TemporaryDirectory() as tmp_dir_prefix:
+    with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir_prefix:
         tmp_dir = Path(tmp_dir_prefix) / "tmp"
         git_url = git_url_template.format(user=user, repo=repo)
         git_clone(git_url, tmp_dir, ignore_lfs=True)
