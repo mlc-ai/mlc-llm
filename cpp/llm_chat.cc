@@ -834,6 +834,7 @@ class LLMChat {
       ICHECK_EQ(new_seq_len, total_seq_len_ + token_len) << "Expect chunking process all tokens";
     } else {
       // Otherwise, prefill entire prompt at once.
+      CHECK(sliding_window_ == -1) << "Expect chunking with sliding window attention";
       new_seq_len += token_len;
       logits_on_device = this->ForwardTokens(prompt_tokens, new_seq_len);
     }
