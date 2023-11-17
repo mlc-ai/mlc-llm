@@ -11,6 +11,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 
+#include "../tokenizers.h"
 #include "config.h"
 #include "data.h"
 
@@ -32,10 +33,21 @@ using namespace tvm::runtime;
 class RequestNode : public Object {
  public:
   /*!
+   * \brief The unique identifier of the request.
+   * Different requests should have different ids.
+   */
+  String id;
+  /*!
    * \brief The user inputs of a request. Input may have multi-modality.
    * \sa data.h
    */
   Array<Data> inputs;
+  /*!
+   * \brief The equivalent total input sequence length of the request.
+   * "-1" means the total input length is unknown due to the existence
+   * of untokenized text data.
+   */
+  int input_total_length = -1;
   /*!
    * \brief The sampling configuration which may contain temperature,
    * top_p, repetition_penalty, max_gen_len, etc.
@@ -56,7 +68,17 @@ class RequestNode : public Object {
 
 class Request : public ObjectRef {
  public:
-  explicit Request(Array<Data> inputs, GenerationConfig generation_cfg, PackedFunc fcallback);
+  explicit Request(String id, Array<Data> inputs, GenerationConfig generation_cfg,
+                   PackedFunc fcallback);
+
+  /*!
+   * \brief Return a request object with all text data tokenized,
+   * and the request ID kept the same as the input one.
+   * \param request The request to be tokenized.
+   * \param tokenizer The tokenizer to tokenize the input data of the given request.
+   * \return The request object whose data are tokenized.
+   */
+  static Request FromUntokenized(Request request, const std::unique_ptr<Tokenizer>& tokenizer);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Request, ObjectRef, RequestNode);
 };

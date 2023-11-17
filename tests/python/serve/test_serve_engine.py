@@ -38,6 +38,7 @@ def create_requests(
         max_new_tokens = np.random.randint(max_new_tokens_low, max_new_tokens_high)
         requests.append(
             Request(
+                request_id=str(req_id),
                 inputs=data.TextData(prompt),
                 generation_config=GenerationConfig(
                     temperature=temperature,
