@@ -31,6 +31,7 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     context_window_size: int = 0
     num_key_value_heads: int = 0
     head_dim: int = 0
+    prefill_chunk_size: int = 0
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -62,6 +63,10 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.head_dim = self.hidden_size // self.num_attention_heads
         assert self.num_attention_heads % self.num_key_value_heads == 0
         assert self.head_dim * self.num_attention_heads == self.hidden_size
+
+        if self.prefill_chunk_size == 0:
+            # chunk size same as context window size by default
+            self.prefill_chunk_size = self.context_window_size
 
 
 # pylint: disable=invalid-name,missing-docstring

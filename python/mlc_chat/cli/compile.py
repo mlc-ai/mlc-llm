@@ -102,10 +102,10 @@ def main(argv):
         help=HELP["sliding_window"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--sliding-window-chunk-size",
+        "--prefill-chunk-size",
         type=int,
         default=None,
-        help=HELP["sliding_window_chunk_size"] + ' (default: "%(default)s")',
+        help=HELP["prefill_chunk_size"] + ' (default: "%(default)s")',
     )
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
@@ -121,5 +121,5 @@ def main(argv):
         output=parsed.output,
         context_window_size=parsed.context_window_size,
         sliding_window=parsed.sliding_window,
-        sliding_window_chunk_size=parsed.sliding_window_chunk_size,
+        prefill_chunk_size=parsed.prefill_chunk_size,
     )
