@@ -562,7 +562,12 @@ def mod_transform_before_build(
     mod = param_manager.transform_dequantize()(mod)
     mod = relax.transform.BundleModelParams()(mod)
 
-    use_ft_quant = args.quantization.name in ["q4f16_ft", "q8f16_ft"]
+    use_ft_quant = args.quantization.name in [
+        "q4f16_ft",
+        "q8f16_ft",
+        "q4f16_ft_group",
+        "q8f16_ft_group",
+    ]
     mod = mlc_llm.transform.FuseDecodeTranspose(skip_gemm=not use_ft_quant)(mod)
 
     if (
