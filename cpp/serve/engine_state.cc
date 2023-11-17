@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file serve/engine_stats.cc
+ * \file serve/engine_state.cc
  */
 #define PICOJSON_USE_INT64
 
-#include "engine_stats.h"
+#include "engine_state.h"
 
 #include <picojson.h>
 
@@ -33,6 +33,22 @@ void EngineStats::Reset() {
   engine_total_decode_time = 0.0f;
   total_prefill_length = 0;
   total_decode_length = 0;
+}
+
+TVM_REGISTER_OBJECT_TYPE(EngineStateObj);
+
+EngineState::EngineState() { data_ = make_object<EngineStateObj>(); }
+
+void EngineStateObj::Reset() {
+  running_queue.clear();
+  waiting_queue.clear();
+  abort_queue.clear();
+  request_states.clear();
+  stats.Reset();
+}
+
+RequestState EngineStateObj::GetRequestState(Request request) {
+  return request_states.at(request->id);
 }
 
 }  // namespace serve
