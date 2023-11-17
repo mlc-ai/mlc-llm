@@ -286,7 +286,7 @@ class MistralAttention(nn.Module):
         key_cur: relax.Expr,
         value_cur: relax.Expr,
         kv_seq_len: int,
-        cache_len: int,
+        rolling_cache_len: int,
         cache_offset: int,
         past_key_value: Tuple[relax.Expr],
     ):
@@ -297,9 +297,9 @@ class MistralAttention(nn.Module):
         kv_cur_dtype = key_cur.struct_info.dtype
         assert kv_cur_shape[0] == 1  # bsz
         kv_batched_cache_shape = R.shape(
-            [kv_cur_shape[0], cache_len, kv_cur_shape[2], kv_cur_shape[3]]
+            [kv_cur_shape[0], rolling_cache_len, kv_cur_shape[2], kv_cur_shape[3]]
         )
-        kv_cache_shape = R.shape([cache_len, kv_cur_shape[2], kv_cur_shape[3]])
+        kv_cache_shape = R.shape([rolling_cache_len, kv_cur_shape[2], kv_cur_shape[3]])
 
         # fecth past keys and values from cache
         k_cache, v_cache = past_key_value
@@ -322,16 +322,16 @@ class MistralAttention(nn.Module):
         key_cached = nn.emit(reshape(key_cached, kv_batched_cache_shape))
         value_cached = nn.emit(reshape(value_cached, kv_batched_cache_shape))
 
-        def te_unrotate_concat(x, x_cached, cache_offset, cache_len):
+        def te_unrotate_concat(x, x_cached, cache_offset, rolling_cache_len):
             return te.compute(
                 (kv_cur_shape[0], kv_seq_len, kv_cur_shape[2], kv_cur_shape[3]),
                 lambda b, s, h, d: te.if_then_else(
-                    s < cache_len - cache_offset,
+                    s < rolling_cache_len - cache_offset,
                     x_cached[b, cache_offset + s, h, d],
                     te.if_then_else(
-                        s < cache_len,
-                        x_cached[b, s + cache_offset - cache_len, h, d],
-                        x[b, s - cache_len, h, d],
+                        s < rolling_cache_len,
+                        x_cached[b, s + cache_offset - rolling_cache_len, h, d],
+                        x[b, s - rolling_cache_len, h, d],
                     ),
                 ),
                 name="unrotate_concat_te",
@@ -342,7 +342,7 @@ class MistralAttention(nn.Module):
             key_cur,
             key_cached,
             cache_offset,
-            cache_len,
+            rolling_cache_len,
             primfunc_name_hint="te_unrotate_concat_key",
         )
         value = nn.emit_te(
@@ -350,7 +350,7 @@ class MistralAttention(nn.Module):
             value_cur,
             value_cached,
             cache_offset,
-            cache_len,
+            rolling_cache_len,
             primfunc_name_hint="te_unrotate_concat_value",
         )
 
@@ -452,11 +452,11 @@ class MistralAttention(nn.Module):
         )
 
         # concat current kv with cached kv (unrotating the cache)
-        cache_len = cache_len_shape.struct_info.values[0]
+        rolling_cache_len = cache_len_shape.struct_info.values[0]
         kv_seq_len = kv_seq_len_shape.struct_info.values[0]
         cache_offset = (all_seq_len - q_len) % self.sliding_window
         key, value, updated_key_value = self.interleave_kv(
-            key_cur, value_cur, kv_seq_len, cache_len, cache_offset, past_key_value
+            key_cur, value_cur, kv_seq_len, rolling_cache_len, cache_offset, past_key_value
         )
 
         if self.num_key_value_heads != self.num_query_heads:
@@ -785,7 +785,7 @@ def create_encoding_func(
     bsz = 1
     seq_len = tvm.tir.Var("n", "int64")  # number of tokens for the input
     all_seq_len = tvm.tir.Var("m", "int64")  # total_seq_len in `llm_chat.cc` (including seq_len)
-    cache_len = tvm.tir.Var("c", "int64")  # cache_len captures number of elements in the cache
+    rolling_cache_len = tvm.tir.Var("c", "int64")  # rolling_cache_len captures number of elements in the cache
     kv_seq_len = tvm.tir.Var(
         "k", "int64"
     )  # kv_seq_len captures number of elements in cache + seq_len
@@ -801,7 +801,7 @@ def create_encoding_func(
             else nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
         )
         all_seq_len_shape = relax.Var("all_seq_len", relax.ShapeStructInfo((all_seq_len,)))
-        cache_len_shape = relax.Var("cache_len", relax.ShapeStructInfo((cache_len,)))
+        cache_len_shape = relax.Var("rolling_cache_len", relax.ShapeStructInfo((rolling_cache_len,)))
         kv_seq_len_shape = relax.Var("kv_seq_len", relax.ShapeStructInfo((kv_seq_len,)))
         past_key_values = relax.Var(
             "kv_cache",
@@ -842,7 +842,7 @@ def create_decoding_func(
 
     bsz = 1
     all_seq_len = tvm.tir.Var("m", "int64")
-    cache_len = tvm.tir.Var("c", "int64")  # cache_len captures number of elements in the cache
+    rolling_cache_len = tvm.tir.Var("c", "int64")  # rolling_cache_len captures number of elements in the cache
     kv_seq_len = tvm.tir.Var(
         "k", "int64"
     )  # kv_seq_len captures number of elements in cache + seq_len
@@ -853,7 +853,7 @@ def create_decoding_func(
 
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
         all_seq_len_shape = relax.Var("all_seq_len", relax.ShapeStructInfo((all_seq_len,)))
-        cache_len_shape = relax.Var("cache_len", relax.ShapeStructInfo((cache_len,)))
+        cache_len_shape = relax.Var("rolling_cache_len", relax.ShapeStructInfo((rolling_cache_len,)))
         kv_seq_len_shape = relax.Var("kv_seq_len", relax.ShapeStructInfo((kv_seq_len,)))
         past_key_values = relax.Var(
             "kv_cache",
