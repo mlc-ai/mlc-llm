@@ -11,7 +11,7 @@
 #include <tvm/runtime/object.h>
 
 #include "config.h"
-#include "data.h"
+#include "request.h"
 
 namespace mlc {
 namespace llm {
@@ -30,7 +30,7 @@ using namespace tvm::runtime;
 class RequestModelStateNode : public Object {
  public:
   /*!
-   * \brief The corresponding request id of this state.
+   * \brief The internal request id of this state.
    * It is the **physical index** of the request in the running request queue.
    * If the request is on hold (not in the running queue), the request id
    * should be -1.
@@ -73,6 +73,9 @@ class RequestModelStateNode : public Object {
    */
   std::vector<float> draft_output_token_prob;
 
+  /*! \brief Return the total length of the input data. */
+  int GetInputLength() const;
+
   static constexpr const char* _type_key = "mlc.serve.RequestModelState";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
@@ -88,21 +91,24 @@ class RequestModelState : public ObjectRef {
 
 class RequestStateNode : public Object {
  public:
+  /*! \brief The request that this state corresponds to. */
+  Request request;
   /*!
    * \brief The state with regard to each model.
    * \sa RequestModelState
    */
   Array<RequestModelState> mstates;
 
-  /*! \brief The summed up input length of the request. */
-  int raw_input_length = 0;
-  /*! \brief The decoded text string output. */
-  std::string output = "";
-
   /*! \brief The time of adding the request to engine. */
   std::chrono::_V2::system_clock::time_point tadd;
   /*! \brief The time of finishing prefill stage. */
   std::chrono::_V2::system_clock::time_point tprefill_finish;
+
+  /*!
+   * \brief Check if the request generation is finished.
+   * \param max_single_sequence_length The maximum allowed single sequence length.
+   */
+  bool GenerationFinished(int max_single_sequence_length) const;
 
   static constexpr const char* _type_key = "mlc.serve.RequestState";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -112,7 +118,7 @@ class RequestStateNode : public Object {
 
 class RequestState : public ObjectRef {
  public:
-  explicit RequestState(int num_models, Array<Data> inputs, int raw_input_length);
+  explicit RequestState(Request request, int num_models);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestState, ObjectRef, RequestStateNode);
 };
