@@ -3,6 +3,7 @@ import argparse
 import dataclasses
 import json
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
@@ -24,6 +25,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
 
 
 @dataclasses.dataclass
@@ -58,7 +60,7 @@ class DeferredScope:
 
     def create_temp_dir(self) -> Path:
         """Create a temporary directory that will be deleted when exiting the scope."""
-        temp_dir = tempfile.mkdtemp()
+        temp_dir = tempfile.mkdtemp(dir=MLC_TEMP_DIR)
         self.add(lambda: shutil.rmtree(temp_dir, ignore_errors=True))
         return Path(temp_dir)
 
@@ -94,47 +96,41 @@ def _run_quantization(
         api.create_repo(repo_id=repo, private=False)
         logger.info("[HF] Repo recreated")
     succeeded = True
-    with tempfile.TemporaryDirectory() as output_dir:
+    with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as output_dir:
         log_path = Path(output_dir) / "logs.txt"
         with log_path.open("a", encoding="utf-8") as log_file:
             assert isinstance(model_info.model, Path)
             logger.info("[MLC] Processing in directory: %s", output_dir)
-            subprocess.run(
-                [
-                    "mlc_chat",
-                    "gen_mlc_chat_config",
-                    "--model",
-                    str(model_info.model),
-                    "--quantization",
-                    model_info.quantization,
-                    "--conv-template",
-                    model_info.conv_template,
-                    "--context-window-size",
-                    str(model_info.context_window_size),
-                    "--output",
-                    output_dir,
-                ],
-                check=True,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-            )
-            subprocess.run(
-                [
-                    "mlc_chat",
-                    "convert_weight",
-                    "--model",
-                    str(model_info.model),
-                    "--quantization",
-                    model_info.quantization,
-                    "--source-format",
-                    model_info.source_format,
-                    "--output",
-                    output_dir,
-                ],
-                check=False,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-            )
+            cmd = [
+                "mlc_chat",
+                "gen_mlc_chat_config",
+                "--model",
+                str(model_info.model),
+                "--quantization",
+                model_info.quantization,
+                "--conv-template",
+                model_info.conv_template,
+                "--context-window-size",
+                str(model_info.context_window_size),
+                "--output",
+                output_dir,
+            ]
+            print(" ".join(cmd), file=log_file, flush=True)
+            subprocess.run(cmd, check=True, stdout=log_file, stderr=subprocess.STDOUT)
+            cmd = [
+                "mlc_chat",
+                "convert_weight",
+                "--model",
+                str(model_info.model),
+                "--quantization",
+                model_info.quantization,
+                "--source-format",
+                model_info.source_format,
+                "--output",
+                output_dir,
+            ]
+            print(" ".join(cmd), file=log_file, flush=True)
+            subprocess.run(cmd, check=False, stdout=log_file, stderr=subprocess.STDOUT)
             logger.info("[MLC] Complete!")
         if not (Path(output_dir) / "ndarray-cache.json").exists():
             logger.error(
@@ -145,11 +141,19 @@ def _run_quantization(
             )
             succeeded = False
         logger.info("[HF] Uploading to: https://huggingface.co/%s", repo)
-        api.upload_folder(
-            folder_path=output_dir,
-            repo_id=repo,
-            commit_message="Initial commit",
-        )
+        for _retry in range(10):
+            try:
+                api.upload_folder(
+                    folder_path=output_dir,
+                    repo_id=repo,
+                    commit_message="Initial commit",
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.error("[%s] %s. Retrying...", red("FAILED"), exc)
+            else:
+                break
+        else:
+            raise RuntimeError("Failed to upload to HuggingFace Hub with 10 retries")
     return succeeded
 
 
