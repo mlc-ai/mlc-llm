@@ -7,7 +7,7 @@ from mlc_chat.compiler import HELP, MODELS, QUANTIZATION, convert_weight
 
 from ..support.argparse import ArgumentParser
 from ..support.auto_config import detect_config, detect_model_type
-from ..support.auto_target import detect_device
+from ..support.auto_device import detect_device
 from ..support.auto_weight import detect_weight
 
 
