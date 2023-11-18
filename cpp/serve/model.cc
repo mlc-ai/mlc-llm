@@ -164,7 +164,7 @@ class ModelImpl : public ModelObj {
     } else {
       embeddings_ndarray = Downcast<NDArray>(embeddings);
     }
-        // embeddings: (1, total_length, hidden_size)
+    // embeddings: (1, total_length, hidden_size)
     ICHECK_EQ(embeddings_ndarray->ndim, 3);
     ICHECK_EQ(embeddings_ndarray->shape[0], 1);
     ICHECK_EQ(embeddings_ndarray->shape[1], num_tokens);
@@ -300,15 +300,16 @@ class ModelImpl : public ModelObj {
   /*********************** KV Cache Management  ***********************/
 
   void CreateKVCache(KVCacheConfig kv_cache_config) final {
-    IntTuple kv_cache_config_shape({kv_cache_config->max_num_sequence, kv_cache_config->max_total_sequence_length,
-                    kv_cache_config->page_size});
+    IntTuple kv_cache_config_shape({kv_cache_config->max_num_sequence,
+                                    kv_cache_config->max_total_sequence_length,
+                                    kv_cache_config->page_size});
     kv_cache_ = ft_.create_kv_cache_func_(kv_cache_config_shape);
   }
 
   /*! \brief Add a new sequence to the KV cache. Return the in-cache id of the sequence. */
   int AddNewSequence() final {
-    if(!ft_.use_disco){
-      return ft_.add_sequence_to_kv_cache_func_(kv_cache_); 
+    if (!ft_.use_disco) {
+      return ft_.add_sequence_to_kv_cache_func_(kv_cache_);
     } else {
       DRef in_cache_id = ft_.add_sequence_to_kv_cache_func_(kv_cache_);
       return in_cache_id->DebugGetFromRemote(0);
@@ -320,9 +321,9 @@ class ModelImpl : public ModelObj {
 
   /*! \brief Get the number of available pages in KV cache. */
   int GetNumAvailablePages() const final {
-    if(!ft_.use_disco){
+    if (!ft_.use_disco) {
       return ft_.get_num_available_pages_kv_cache_func_(kv_cache_);
-    } else{
+    } else {
       DRef ret = ft_.get_num_available_pages_kv_cache_func_(kv_cache_);
       return ret->DebugGetFromRemote(0);
     }
