@@ -176,6 +176,7 @@ It is recommended to have at least 6GB free VRAM to run it.
 
    deploy/javascript.rst
    deploy/rest.rst
+   deploy/webui.rst
    deploy/cli.rst
    deploy/python.rst
    deploy/ios.rst
