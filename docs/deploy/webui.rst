@@ -33,9 +33,11 @@ Run WebUI
 ---------
 
 Run the text-generation-webui server using the following command
+
 .. code:: bash
    
    python server.py
+
 
 Navigate to the ``Model`` tab. Under the ``Model`` dropdown menu, select your MLC-Chat model name (which you had copied into the ``text-generation-webui/models/<model_name>`` directory). Under the ``Model loader`` dropdown menu, select ``MLCChat``. Click on ``Load``. The model should now be loaded and ready to use.
 
