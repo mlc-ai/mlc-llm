@@ -85,11 +85,12 @@ def _attach_auxiliary_methods(
 def _attach_variable_bounds(mod, model_config):
     tir_bound_map = {}
     tir_bound_map["seq_len"] = model_config.prefill_chunk_size
-    if model_config.context_window_size != -1:
-        tir_bound_map["total_seq_len"] = model_config.context_window_size
+
     if hasattr(model_config, "sliding_window"):
         tir_bound_map["rolling_cache_len"] = model_config.sliding_window
         tir_bound_map["kv_seq_len"] = model_config.sliding_window + model_config.prefill_chunk_size
+    else:
+        tir_bound_map["total_seq_len"] = model_config.context_window_size
 
     for g_var, func in mod.functions_items():
         if isinstance(func, relax.Function):
