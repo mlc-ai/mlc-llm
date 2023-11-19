@@ -18,7 +18,7 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 image = 'mlcaidev/ci-cpu:caab922'
-docker_run = 'bash ci/bash.sh ${image}'
+docker_run = "bash ci/bash.sh ${image}"
 
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
@@ -26,11 +26,6 @@ def per_exec_ws(folder) {
 
 def init_git(submodule = false) {
   checkout scm
-  // Add more info about job node
-  sh(
-    script: "echo NODE_NAME=${env.NODE_NAME}",
-    label: 'Show executor node info',
-  )
   if (submodule) {
     retry(5) {
       timeout(time: 2, unit: 'MINUTES') {
@@ -41,6 +36,7 @@ def init_git(submodule = false) {
 }
 
 def lint_common(cmd) {
+  // No need to checkout submodule for lint
   node('CPU-SMALL') {
     ws(per_exec_ws('mlc-llm-lint')) {
       init_git()
@@ -52,7 +48,6 @@ def lint_common(cmd) {
 }
 
 stage('Lint') {
-  // No need to checkout submodule for lint
   parallel(
     'isort': {
       lint_common('bash ci/task/isort.sh')
