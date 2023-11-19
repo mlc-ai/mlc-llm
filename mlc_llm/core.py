@@ -815,7 +815,6 @@ def build_model_from_args(args: argparse.Namespace):
 
         if args.model_category == "mistral":
             args.sliding_window = model_config.sliding_window
-            # args.prefill_chunk_size = model_config.prefill_chunk_size
 
         for qspec_updater_class in param_manager.qspec_updater_classes:
             qspec_updater = qspec_updater_class(param_manager)

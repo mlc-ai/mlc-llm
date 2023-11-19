@@ -512,9 +512,8 @@ class LLMChat {
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
     this->ft_.Init(reload_lib, device_, this->num_shards_);
-    // UpdateConfigFromMetadata(); TODO
+    UpdateConfigFromMetadata();
     if (this->sliding_window_ == -1) {
-      UpdateConfigFromMetadata();
       CHECK(max_window_size_ != std::numeric_limits<int64_t>::max())
           << "Key \"max_window_size\" not found.";
     }
