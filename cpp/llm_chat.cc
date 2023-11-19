@@ -317,25 +317,33 @@ class LLMChat {
     return os.str();
   }
 
-  bool UpdateMaxWindowSizeFromMetadata() {
+  void UpdateConfigFromMetadata() {
     if (ft_.use_disco) {
-      return false;
+      return;
     }
-    if (this->sliding_window_ != -1) {
-      return false;
-    }
+
     PackedFunc fget_metadata = ft_.mod_get_func("get_metadata");
     if (fget_metadata == nullptr) {
-      return false;
+      return;
     }
     ObjectRef ret = fget_metadata();
     std::string metadata_str = std::string(Downcast<String>(ret));
     picojson::value metadata_info;
     picojson::parse(metadata_info, std::string(metadata_str));
     auto metadata = metadata_info.get<picojson::object>();
+
     ICHECK(metadata["max_window_size"].is<int64_t>());
     max_window_size_ = std::min(max_window_size_, metadata["max_window_size"].get<int64_t>());
-    return true;
+
+    if (metadata.count("prefill_chunk_size")) {
+      ICHECK(metadata["prefill_chunk_size"].is<int64_t>());
+      prefill_chunk_size_ =
+          std::min(prefill_chunk_size_, metadata["prefill_chunk_size"].get<int64_t>());
+    }
+    if (metadata.count("sliding_window")) {
+      ICHECK(metadata["sliding_window"].is<int64_t>());
+      sliding_window_ = std::min(sliding_window_, metadata["sliding_window"].get<int64_t>());
+    }
   }
 
   /*!
@@ -504,8 +512,9 @@ class LLMChat {
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
     this->ft_.Init(reload_lib, device_, this->num_shards_);
+    // UpdateConfigFromMetadata(); TODO
     if (this->sliding_window_ == -1) {
-      UpdateMaxWindowSizeFromMetadata();
+      UpdateConfigFromMetadata();
       CHECK(max_window_size_ != std::numeric_limits<int64_t>::max())
           << "Key \"max_window_size\" not found.";
     }
