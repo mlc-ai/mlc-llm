@@ -18,7 +18,7 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 image = 'mlcaidev/ci-cpu:caab922'
-docker_run = 'ci/bash.sh ${image}'
+docker_run = 'bash ci/bash.sh ${image}'
 
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
