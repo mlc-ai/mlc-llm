@@ -24,9 +24,26 @@ def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
 }
 
+def init_git(submodule = false) {
+  checkout scm
+  // Add more info about job node
+  sh(
+    script: "echo NODE_NAME=${env.NODE_NAME}",
+    label: 'Show executor node info',
+  )
+  if (submodule) {
+    retry(5) {
+      timeout(time: 2, unit: 'MINUTES') {
+        sh(script: 'git submodule update --init --recursive -f', label: 'Update git submodules')
+      }
+    }
+  }
+}
+
 def lint_common(cmd) {
   node('CPU-SMALL') {
     ws(per_exec_ws('mlc-llm-lint')) {
+      init_git()
       sh(script: "ls", label: 'debug')
       sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
       sh(script: "${docker_run} ${cmd}", label: 'Lint')
