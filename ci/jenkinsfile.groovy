@@ -27,7 +27,7 @@ def per_exec_ws(folder) {
 def lint_common(cmd) {
   node('CPU-SMALL') {
     ws(per_exec_ws('mlc-llm-lint')) {
-      sh(script: "ls", label: 'List files')
+      sh(script: "ls", label: 'debug')
       sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
       sh(script: "${docker_run} ${cmd}", label: 'Lint')
     }
