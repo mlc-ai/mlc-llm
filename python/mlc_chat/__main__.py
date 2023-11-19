@@ -18,7 +18,7 @@ def main():
     parser.add_argument(
         "subcommand",
         type=str,
-        choices=["compile", "convert_weight", "gen_mlc_chat_config"],
+        choices=["chat", "compile", "convert_weight", "gen_mlc_chat_config"],
         help="Subcommand to to run. (choices: %(choices)s)",
     )
     parsed = parser.parse_args(sys.argv[1:2])
@@ -33,6 +33,10 @@ def main():
         cli.main(sys.argv[2:])
     elif parsed.subcommand == "gen_mlc_chat_config":
         from mlc_chat.cli import gen_mlc_chat_config as cli
+
+        cli.main(sys.argv[2:])
+    elif parsed.subcommand == "chat":
+        from mlc_chat.cli import chat as cli
 
         cli.main(sys.argv[2:])
     else:
