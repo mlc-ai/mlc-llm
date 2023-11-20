@@ -155,14 +155,20 @@ class ModelImpl : public ModelObj {
     CHECK(ft_.embed_func_.defined())
         << "`embed` function is not found in the model. Please make sure the model is compiled "
            "with flag `--sep-embed` and `--enable-batching`";
+    auto token_ids_dref_or_nd = ft_.CopyToWorker0(token_ids_nd);
 
-    NDArray embeddings = ft_.embed_func_(ft_.CopyToWorker0(token_ids_nd), params_);
-
+    ObjectRef embeddings = ft_.embed_func_(token_ids_dref_or_nd, params_);
+    NDArray embeddings_ndarray;
+    if (ft_.use_disco) {
+      embeddings_ndarray = Downcast<DRef>(embeddings)->DebugGetFromRemote(0);
+    } else {
+      embeddings_ndarray = Downcast<NDArray>(embeddings);
+    }
     // embeddings: (1, total_length, hidden_size)
-    ICHECK_EQ(embeddings->ndim, 3);
-    ICHECK_EQ(embeddings->shape[0], 1);
-    ICHECK_EQ(embeddings->shape[1], num_tokens);
-    return embeddings;
+    ICHECK_EQ(embeddings_ndarray->ndim, 3);
+    ICHECK_EQ(embeddings_ndarray->shape[0], 1);
+    ICHECK_EQ(embeddings_ndarray->shape[1], num_tokens);
+    return embeddings_ndarray;
   }
 
   NDArray BatchPrefill(Array<NDArray> embedding_arr, std::vector<int> seq_ids,
@@ -208,12 +214,18 @@ class ModelImpl : public ModelObj {
     }
     ft_.sync_device_kv_cache_func_(kv_cache_);
 
+    ObjectRef embeddings_dref_or_nd = ft_.CopyToWorker0(embeddings);
+    ObjectRef logit_pos_dref_or_nd = ft_.CopyToWorker0(logit_pos_nd);
     // args: embeddings, logit_pos, kv_cache, params
-    Array<ObjectRef> ret =
-        ft_.prefill_func_(ft_.CopyToWorker0(embeddings), logit_pos_nd, kv_cache_, params_);
-
-    // logits: (1, num_sequences, v)
-    NDArray logits = Downcast<NDArray>(ret[0]);
+    ObjectRef ret =
+        ft_.prefill_func_(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, params_);
+    NDArray logits;
+    if (ft_.use_disco) {
+      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      logits = Downcast<NDArray>(result[0]);
+    } else {
+      logits = Downcast<Array<NDArray>>(ret)[0];
+    }
     ICHECK_EQ(logits->ndim, 3);
     ICHECK_EQ(logits->shape[0], 1);
     ICHECK_EQ(logits->shape[1], num_sequences);
@@ -241,12 +253,18 @@ class ModelImpl : public ModelObj {
       ft_.reserve_length_in_kv_cache_func_(kv_cache_, seq_id, /*length=*/1);
     }
     ft_.sync_device_kv_cache_func_(kv_cache_);
+    ObjectRef embeddings_dref_or_nd = ft_.CopyToWorker0(embeddings);
 
     // args: embeddings, kv_cache, params
-    Array<ObjectRef> ret = ft_.decode_func_(ft_.CopyToWorker0(embeddings), kv_cache_, params_);
-
+    ObjectRef ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
+    NDArray logits;
+    if (ft_.use_disco) {
+      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      logits = Downcast<NDArray>(result[0]);
+    } else {
+      logits = Downcast<Array<NDArray>>(ret)[0];
+    }
     // logits: (b, 1, v)
-    NDArray logits = Downcast<NDArray>(ret[0]);
     ICHECK_EQ(logits->ndim, 3);
     ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
     ICHECK_EQ(logits->shape[1], 1);
@@ -282,20 +300,33 @@ class ModelImpl : public ModelObj {
   /*********************** KV Cache Management  ***********************/
 
   void CreateKVCache(KVCacheConfig kv_cache_config) final {
-    kv_cache_ = ft_.create_kv_cache_func_(
-        IntTuple({kv_cache_config->max_num_sequence, kv_cache_config->max_total_sequence_length,
-                  kv_cache_config->page_size}));
+    IntTuple kv_cache_config_shape({kv_cache_config->max_num_sequence,
+                                    kv_cache_config->max_total_sequence_length,
+                                    kv_cache_config->page_size});
+    kv_cache_ = ft_.create_kv_cache_func_(kv_cache_config_shape);
   }
 
   /*! \brief Add a new sequence to the KV cache. Return the in-cache id of the sequence. */
-  int AddNewSequence() final { return ft_.add_sequence_to_kv_cache_func_(kv_cache_); }
+  int AddNewSequence() final {
+    if (!ft_.use_disco) {
+      return ft_.add_sequence_to_kv_cache_func_(kv_cache_);
+    } else {
+      DRef in_cache_id = ft_.add_sequence_to_kv_cache_func_(kv_cache_);
+      return in_cache_id->DebugGetFromRemote(0);
+    }
+  }
 
   /*! \brief Remove the given sequence from the KV cache in the model. */
   void RemoveSequence(int seq_id) final { ft_.remove_from_kv_cache_func_(kv_cache_, seq_id); }
 
   /*! \brief Get the number of available pages in KV cache. */
   int GetNumAvailablePages() const final {
-    return ft_.get_num_available_pages_kv_cache_func_(kv_cache_);
+    if (!ft_.use_disco) {
+      return ft_.get_num_available_pages_kv_cache_func_(kv_cache_);
+    } else {
+      DRef ret = ft_.get_num_available_pages_kv_cache_func_(kv_cache_);
+      return ret->DebugGetFromRemote(0);
+    }
   }
 
   /*********************** Utilities  ***********************/
