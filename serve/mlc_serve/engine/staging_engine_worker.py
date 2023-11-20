@@ -11,7 +11,7 @@ from typing import Callable, Optional, Union, Any
 
 from .base import FinishReason, RequestId, RequestState
 from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId
-import structlog
+
 
 logger = logging.getLogger(__name__)
 

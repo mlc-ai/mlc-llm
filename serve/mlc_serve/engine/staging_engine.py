@@ -65,11 +65,14 @@ class StagingInferenceEngine(ScopedInferenceEngine):
         )
 
     def start(self):
-        self.worker_process.start()
-        if not self.ready_event.wait(timeout=180):
-            raise RuntimeError(
-                "StagingInferenceEngine worker is not ready before timeout."
-            )
+        try:
+            self.worker_process.start()
+            if not self.ready_event.wait(timeout=90):
+                raise RuntimeError(
+                    "StagingInferenceEngine worker is not ready before timeout."
+                )
+        except:
+            raise RuntimeError("Failed to start StagingInferenceEngine worker process.")
 
     def stop(self):
         self.command_queue.put(ShutdownCommand())
