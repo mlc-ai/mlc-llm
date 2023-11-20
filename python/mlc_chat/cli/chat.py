@@ -7,19 +7,21 @@ from mlc_chat.callback import StreamToStdout
 from ..support.argparse import ArgumentParser
 
 
-def printAvailableCommands():
+def print_available_commands():
+    """Function printing available internal commands."""
     print("You can use the following special commands:")
     print("\t/help\t\tprint the special commands")
     print("\t/exit\t\tquite the cli")
     print("\t/stats\t\tprint out the latest stats (token/sec)")
     print("\t/reset\t\trestart a fresh chat")
     print(
-        "\t/reload [model]\treload model `model` from disk, or reload the current model if `model` not not specified"
+        "\t/reload [model]\treload model `model` from disk, or reload\
+             the current model if `model` not not specified"
     )
 
 
 def chat(modelname: str, devicename: str, chatconfig: ChatConfig, modellib: str):
-    # Create a ChatModule instance
+    """Command line chat with a specific open source LLM."""
     cm = ChatModule(
         model=modelname, device=devicename, chat_config=chatconfig, model_lib_path=modellib
     )
@@ -28,38 +30,34 @@ def chat(modelname: str, devicename: str, chatconfig: ChatConfig, modellib: str)
     print("Using model weights:", os.path.abspath(cm.model_path))
     print("Using model library:", os.path.abspath(cm.model_lib_path))
 
-    printAvailableCommands()
+    print_available_commands()
+    ps = cm._get_role_0()   # pylint: disable=W0212
 
-    PS = cm._get_role_0()
-
-    prompt = input(f"{PS} ")
+    prompt = input(f"{ps} ")
 
     while prompt != "/exit":
         match prompt:
             case "/help":
-                printAvailableCommands()
+                print_available_commands()
             case "/stats":
                 print(f"Statistics: {cm.stats()}\n")
             case "/reset":
                 cm.reset_chat()
             case "/reload":
-                cm._reload(
-                    os.path.abspath(cm.model_lib_path),
-                    os.path.abspath(cm.model_path),
-                    os.path.abspath(cm.config_file_path),
-                )
+                print("not yet implemented.")
             case _:
-                output = cm.generate(
+                cm.generate(
                     prompt,
                     progress_callback=StreamToStdout(callback_interval=2),
                 )
-        prompt = input(f"{PS} ")
+        prompt = input(f"{ps} ")
 
     # Print prefill and decode performance statistics
     print(f"Statistics: {cm.stats()}\n")
 
 
 def main(argv):
+    """Main entry point."""
     parser = ArgumentParser(description="Chat with open source LLMs")
     parser.add_argument(
         "--model",
