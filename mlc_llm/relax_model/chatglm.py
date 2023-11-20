@@ -735,11 +735,6 @@ def get_model(args: argparse.Namespace, hf_config):
             dtype=dtype,
         )
 
-        # prefill chunk size same as max sequence length by default
-        prefill_chunk_size = args.prefill_chunk_size
-        if prefill_chunk_size < 1:
-            prefill_chunk_size = config.max_sequence_length
-
         param_manager = ParamManager()
         bb = relax.BlockBuilder()
         create_encoding_func(bb, param_manager, config, args.quantization)
@@ -752,20 +747,20 @@ def get_model(args: argparse.Namespace, hf_config):
             max_window_size=config.max_sequence_length,
             stop_tokens=[0],
             add_prefix_space=False,
-            prefill_chunk_size=prefill_chunk_size,
+            prefill_chunk_size=args.prefill_chunk_size,
         )
 
         mod = bb.get()
+
+        tir_bound_map = dict()
+        tir_bound_map["n"] = (
+            args.prefill_chunk_size if args.prefill_chunk_size > 0 else config.max_sequence_length
+        )
+        tir_bound_map["m"] = config.max_sequence_length
         for gv in mod.functions:
             func = mod[gv]
             if isinstance(func, relax.Function):
-                mod[gv] = func.with_attr(
-                    "tir_var_upper_bound",
-                    {
-                        "n": prefill_chunk_size,
-                        "m": config.max_sequence_length,
-                    },
-                )
+                mod[gv] = func.with_attr("tir_var_upper_bound", tir_bound_map)
 
         if args.build_model_only:
             return mod, param_manager, None, config

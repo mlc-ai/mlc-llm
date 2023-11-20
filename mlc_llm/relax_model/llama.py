@@ -1338,11 +1338,6 @@ def get_model(args, hf_config):
     if args.max_seq_len != -1:
         config.max_sequence_length = args.max_seq_len
 
-    # prefill chunk size same as max sequence length by default
-    prefill_chunk_size = args.prefill_chunk_size
-    if prefill_chunk_size < 1:
-        prefill_chunk_size = config.max_sequence_length
-
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
 
@@ -1367,13 +1362,15 @@ def get_model(args, hf_config):
         max_window_size=config.max_sequence_length,
         stop_tokens=[2],
         add_prefix_space=False,
-        prefill_chunk_size=prefill_chunk_size,
+        prefill_chunk_size=args.prefill_chunk_size,
     )
 
     mod = bb.get()
 
     tir_bound_map = dict()
-    tir_bound_map["n"] = prefill_chunk_size
+    tir_bound_map["n"] = (
+        args.prefill_chunk_size if args.prefill_chunk_size > 0 else config.max_sequence_length
+    )
     tir_bound_map["m"] = config.max_sequence_length
     tir_bound_map["vocab_size"] = args.max_vocab_size
     if enable_batching:
