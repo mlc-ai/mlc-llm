@@ -31,7 +31,7 @@ def chat(modelname: str, devicename: str, chatconfig: ChatConfig, modellib: str)
     print("Using model library:", os.path.abspath(cm.model_lib_path))
 
     print_available_commands()
-    ps = cm._get_role_0()   # pylint: disable=W0212
+    ps = cm._get_role_0()  # pylint: disable=W0212
 
     prompt = input(f"{ps} ")
 
