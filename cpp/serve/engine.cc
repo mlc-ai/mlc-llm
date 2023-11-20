@@ -3,13 +3,15 @@
  * \file serve/engine.cc
  * \brief The implementation for runtime module of serving engine module in MLC LLM.
  */
-#define __STDC_FORMAT_MACROS
-
+#include <dlpack/dlpack.h>
 #include <tokenizers_cpp.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+
+#include <tuple>
 
 #include "../tokenizers.h"
 #include "engine_actions/action.h"
@@ -57,58 +59,42 @@ class Engine {
  public:
   /********************** Engine Management **********************/
 
-  /*!
-   * \brief (Re)initialize the engine with the given lists of
-   * models and KV cache config.
-   * \param reload_libs The model libraries of the input models.
-   * \param model_paths The weight/config directories of the input models.
-   * \param devices The devices where each of the input model runs.
-   * \param kv_cache_config_json The page KV cache configuration.
-   * \note `reload_libs`, `model_paths` and `devices` should have the same size.
-   */
-  void Reload(std::vector<TVMArgValue> reload_libs, std::vector<String> model_paths,
-              std::vector<DLDevice> devices, String kv_cache_config_json) {
-    int num_models = reload_libs.size();
-    ICHECK_GE(num_models, 1);
-    ICHECK_EQ(model_paths.size(), num_models);
-    ICHECK_EQ(devices.size(), num_models);
-
-    // Step 1. Create models and their PackedFuncs.
-    ICHECK(models_.empty());
-    models_.reserve(num_models);
-    for (int i = 0; i < num_models; ++i) {
-      models_.push_back(Model::Create(reload_libs[i], model_paths[i], devices[i]));
+  explicit Engine(int max_single_sequence_length, String tokenizer_path,
+                  String kv_cache_config_json_str,
+                  std::vector<std::tuple<TVMArgValue, String, DLDevice>> model_infos) {
+    CHECK_GE(model_infos.size(), 1) << "ValueError: No model is provided in the engine.";
+    // Step 1. Initialize metadata and singleton states inside the engine
+    this->estate_->Reset();
+    this->max_single_sequence_length_ = max_single_sequence_length;
+    this->kv_cache_config_ = KVCacheConfig(kv_cache_config_json_str, max_single_sequence_length);
+    this->sampler_ = Sampler::Create(/*sampler_kind=*/"cpu");
+    this->tokenizer_ = TokenizerFromPath(tokenizer_path);
+    // Step 2. Initialize each model independently.
+    this->models_.clear();
+    for (const auto& model_info : model_infos) {
+      TVMArgValue model_lib = std::get<0>(model_info);
+      String model_path = std::get<1>(model_info);
+      DLDevice device = std::get<2>(model_info);
+      Model model = Model::Create(model_lib, model_path, device);
+      model->CreateKVCache(this->kv_cache_config_);
+      CHECK_GE(model->GetMaxWindowSize(), this->max_single_sequence_length_)
+          << "The window size of the model, " << model->GetMaxWindowSize()
+          << ", is smaller than the pre-defined max single sequence length, "
+          << this->max_single_sequence_length_;
+      this->models_.push_back(model);
     }
-    // Step 2. Fetch max single sequence length from models.
-    max_single_sequence_length_ = std::numeric_limits<int>::max();
-    for (Model model : models_) {
-      int max_window_size = model->GetMaxWindowSize();
-      max_single_sequence_length_ = std::min(max_single_sequence_length_, max_window_size);
-    }
-    // Step 3. Process KV cache config json string.
-    kv_cache_config_ = KVCacheConfig(kv_cache_config_json, max_single_sequence_length_);
-    // Step 4. Create KV cache for each model.
-    for (Model model : models_) {
-      model->CreateKVCache(kv_cache_config_);
-    }
-    // Step 5. Create sampler and tokenizer.
-    //         The tokenizer is created from the first model.
-    //         We assume all models have the same tokenizer, which is the basic
-    //         requirement of speculative encoding.
-    sampler_ = Sampler::Create(/*sampler_kind=*/"cpu");
-    tokenizer_ = TokenizerFromPath(model_paths[0]);
-    // Step 6. Initialize action lists.
-    action_abort_request_ = EngineAction::AbortRequest(models_);
-    action_new_request_prefill_ = EngineAction::NewRequestPrefill(
-        models_, sampler_, kv_cache_config_, max_single_sequence_length_);
-    action_batch_decode_ = EngineAction::BatchDecode(models_, sampler_);
-
-    ResetEngine();
+    // Step 3. Initialize engine actions that represent state transitions.
+    this->action_abort_request_ = EngineAction::AbortRequest(this->models_);
+    this->action_new_request_prefill_ =
+        EngineAction::NewRequestPrefill(this->models_,           //
+                                        this->sampler_,          //
+                                        this->kv_cache_config_,  //
+                                        this->max_single_sequence_length_);
+    this->action_batch_decode_ = EngineAction::BatchDecode(this->models_, this->sampler_);
   }
 
   /*! \brief Reset the engine, clean up all running data and statistics. */
   void ResetEngine() {
-    ICHECK(estate_.defined());
     estate_->Reset();
     for (Model model : models_) {
       model->Reset();
@@ -148,141 +134,124 @@ class Engine {
   void Step() {
     // - Action 0. Abort requests.
     action_abort_request_->Step(estate_);
-
     // - Action 1. Prefill the front-most waiting request.
     bool prefill_processed = action_new_request_prefill_->Step(estate_);
     if (prefill_processed) {
       return;
     }
-
     // - Action 2. Run decode step.
     bool decode_processed = action_batch_decode_->Step(estate_);
     if (decode_processed) {
       ProcessFinishedRequest(estate_, models_, tokenizer_, max_single_sequence_length_);
       return;
     }
-
     ICHECK(estate_->running_queue.empty())
-        << "Not taking any action in a step is not expected with running requests.";
+        << "Internal assumption violated: It is expected that an engine step takes at least one "
+           "action (e.g. prefill, decode, etc.) but it does not.";
   }
 
  private:
   // Engine state, managing requests and request states.
   EngineState estate_;
-
-  // Models, sampler and tokenizer.
-  Array<Model> models_;
+  // Configurations and singletons
+  KVCacheConfig kv_cache_config_;
+  int max_single_sequence_length_;
   Sampler sampler_;
   std::unique_ptr<Tokenizer> tokenizer_;
-
+  // Models
+  Array<Model> models_;
   // Engine actions.
   EngineAction action_abort_request_;
   EngineAction action_new_request_prefill_;
   EngineAction action_batch_decode_;
-
-  // Configurations
-  KVCacheConfig kv_cache_config_;
-  int max_single_sequence_length_ = -1;
 };
+
+/*! Clear global memory manager */
+void ClearGlobalMemoryManager() {
+  static const char* kFunc = "vm.builtin.memory_manager.clear";
+  const PackedFunc* f = tvm::runtime::Registry::Get(kFunc);
+  CHECK(f != nullptr) << "ValueError: Cannot find function `" << kFunc << "` in TVM runtime";
+  (*f)();
+}
 
 class EngineModule : public ModuleNode {
  public:
-  // clear global memory manager
-  static void ClearGlobalMemoryManager() {
-    // Step 0. Clear the previously allocated memory.
-    const PackedFunc* fclear_memory_manager =
-        tvm::runtime::Registry::Get("vm.builtin.memory_manager.clear");
-    ICHECK(fclear_memory_manager) << "Cannot find env function vm.builtin.memory_manager.clear";
-    (*fclear_memory_manager)();
-  }
+  TVM_MODULE_VTABLE_BEGIN("mlc.serve.engine");
+  TVM_MODULE_VTABLE_ENTRY_PACKED("init", &EngineModule::InitPacked);
+  TVM_MODULE_VTABLE_ENTRY("add_request", &EngineModule::AddRequest);
+  TVM_MODULE_VTABLE_ENTRY("abort", &EngineModule::Abort);
+  TVM_MODULE_VTABLE_ENTRY("step", &EngineModule::Step);
+  TVM_MODULE_VTABLE_ENTRY("stats", &EngineModule::Stats);
+  TVM_MODULE_VTABLE_ENTRY("reset", &EngineModule::Reset);
+  TVM_MODULE_VTABLE_END();
 
-  // overrides
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
-    if (name == "reload") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        // The args of `reload` is expected to be in the following pattern.
-        // Assume we want to load `n` models in the engine, then there
-        // is supposed to have (4n + 1) arguments.
-        // For each i (i from 0 to n),
-        // - args[4 * i    ] denotes the model lib,
-        // - args[4 * i + 1] denotes the model path (for weights/config),
-        // - args[4 * i + 2] denotes the device type,
-        // - args[4 * i + 3] denotes the device id.
-        // And the last argument denotes the KV cache config in JSON string.
-
-        engine_ = nullptr;
-        ClearGlobalMemoryManager();
-        engine_ = std::make_unique<Engine>(Engine());
-        // num_models x (model lib, model path, device type, device id) + kv_cache_config
-        std::vector<TVMArgValue> reload_libs;
-        std::vector<String> model_paths;
-        std::vector<DLDevice> devices;
-        CHECK_EQ(args.size() % 4, 1)
-            << "Unexpected number of reload arguments. "
-               "Reload arguments should be one or many of (reload_lib, "
-               "model_path, device_type, device_id) with a trailing KV cache config JSON string.";
-
-        int num_models = args.size() / 4;
-        reload_libs.reserve(num_models);
-        model_paths.reserve(num_models);
-        devices.reserve(num_models);
-        for (int i = 0; i < num_models; ++i) {
-          reload_libs.push_back(args[i * 4]);
-          model_paths.push_back(args[i * 4 + 1]);
-          int device_type = args[i * 4 + 2];
-          int device_id = args[i * 4 + 3];
-          devices.push_back(DLDevice{static_cast<DLDeviceType>(device_type), device_id});
-        }
-        engine_->Reload(reload_libs, model_paths, devices, args[num_models * 4]);
-      });
-    } else if (name == "add_request") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        CHECK_EQ(args.size(), 1);
-        GetEngine()->AddRequest(args[0]);
-      });
-    } else if (name == "abort") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        CHECK_EQ(args.size(), 0);
-        GetEngine()->AbortRequest(args[0]);
-      });
-    } else if (name == "step") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        CHECK_EQ(args.size(), 0);
-        GetEngine()->Step();
-      });
-    } else if (name == "stats") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        CHECK_EQ(args.size(), 0);
-        *rv = GetEngine()->estate_->stats.AsJSON();
-      });
-    } else if (name == "reset") {
-      return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        CHECK_EQ(args.size(), 0);
-        GetEngine()->ResetEngine();
-      });
-    } else {
-      return PackedFunc(nullptr);
+  void InitPacked(TVMArgs args, TVMRetValue* rv) {
+    static const char* kErrorMessage =
+        "With `n` models, engine initialization "
+        "takes (4 * n + 3) arguments. The first 3 arguments should be: "
+        "1) (int) maximum length of a sequence, which must be equal or smaller than the context "
+        "window size of each model; "
+        "2) (string) path to tokenizer configuration files, which in MLC LLM, usually in a model "
+        "weights directory; "
+        "3) (string) JSON configuration for the KVCache. "
+        "The following (4 * n) arguments, 4 for each model, should be: "
+        "1) (tvm.runtime.Module) The model library loaded into TVM's RelaxVM; "
+        "2) (string) Model path which includes weights and mlc-chat-config.json; "
+        "3) (int, enum DLDeviceType) Device type, e.g. CUDA, ROCm, etc; "
+        "4) (int) Device id, i.e. the ordinal index of the device that exists locally.";
+    int num_models = (args.size() - 3) / 4;
+    int max_single_sequence_length;
+    std::string tokenizer_path;
+    std::string kv_cache_config_json_str;
+    std::vector<std::tuple<TVMArgValue, String, DLDevice>> model_infos;
+    model_infos.reserve(num_models);
+    try {
+      CHECK_EQ(num_models * 4 + 3, args.size()) << "Incorrect number of arguments. ";
+      max_single_sequence_length = args.At<int>(0);
+      tokenizer_path = args.At<std::string>(1);
+      kv_cache_config_json_str = args.At<std::string>(2);
+      for (int i = 0; i < num_models; ++i) {
+        TVMArgValue model_lib = args[i * 4 + 3];
+        std::string model_path = args.At<std::string>(i * 4 + 4);
+        DLDeviceType device_type = static_cast<DLDeviceType>(args.At<int>(i * 4 + 5));
+        int device_id = args.At<int>(i * 4 + 6);
+        model_infos.emplace_back(model_lib, model_path, DLDevice{device_type, device_id});
+      }
+    } catch (const dmlc::Error& e) {
+      LOG(FATAL) << "ValueError: " << e.what() << kErrorMessage;
     }
+    {
+      // Clean up the existing engine
+      this->engine_ = nullptr;
+      ClearGlobalMemoryManager();
+    }
+    this->engine_ = std::make_unique<Engine>(max_single_sequence_length, tokenizer_path,
+                                             kv_cache_config_json_str, model_infos);
   }
 
+  /*! \brief Construct an EngineModule. */
+  static tvm::runtime::Module Create() { return Module(make_object<EngineModule>()); }
+  /*! brief Redirection to `Engine::AddRequest`. */
+  void AddRequest(Request request) { return GetEngine()->AddRequest(request); }
+  /*! brief Redirection to `Engine::AbortRequest`. */
+  void Abort(Request request) { return GetEngine()->AbortRequest(request); }
+  /*! brief Redirection to `Engine::Step`. */
+  void Step() { return GetEngine()->Step(); }
+  /*! brief Redirection to `Engine::ResetEngine`. */
+  void Reset() { return GetEngine()->ResetEngine(); }
+  /*! brief Getting stats from the engine */
+  String Stats() { return GetEngine()->estate_->stats.AsJSON(); }
+
+ private:
   Engine* GetEngine() {
     ICHECK(engine_ != nullptr) << "Engine is not initialized via reload";
     return engine_.get();
   }
 
-  const char* type_key() const final { return "mlc.serve.engine"; }
-
- private:
   std::unique_ptr<Engine> engine_ = nullptr;
 };
 
-tvm::runtime::Module CreateEngineModule() {
-  ObjectPtr<EngineModule> n = make_object<EngineModule>();
-  return Module(n);
-}
-
-// register as a system function that can be queried
-TVM_REGISTER_GLOBAL("mlc.serve.create_engine").set_body_typed(CreateEngineModule);
+TVM_REGISTER_GLOBAL("mlc.serve.create_engine").set_body_typed(EngineModule::Create);
 
 }  // namespace serve
 }  // namespace llm
