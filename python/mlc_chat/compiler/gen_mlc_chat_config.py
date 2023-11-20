@@ -138,6 +138,7 @@ CONV_TEMPLATES = {
     "llama_default",
     "llama-2",
     "mistral_default",
+    "gpt2",
     "codellama_completion",
     "codellama_instruct",
     "vicuna_v1.1",

@@ -84,6 +84,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "codellama-13b-instruct": "codellama_instruct",
         "codellama-34b-instruct": "codellama_instruct",
         "codellama": "codellama_completion",
+        "gpt2": "gpt2",
         "vicuna-": "vicuna_v1.1",
         "dolly-": "dolly",
         "stablelm-3b-": "stablelm-3b",
