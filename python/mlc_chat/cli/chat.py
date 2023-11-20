@@ -1,7 +1,7 @@
 """A command line tool for directly chatting with open source LLMs"""
 import os
 
-from mlc_chat import ChatModule
+from mlc_chat import ChatModule, ChatConfig
 from mlc_chat.callback import StreamToStdout
 
 from ..support.argparse import ArgumentParser
@@ -18,7 +18,7 @@ def printAvailableCommands():
     )
 
 
-def chat(modelname: str, devicename: str, chatconfig: str, modellib: str):
+def chat(modelname: str, devicename: str, chatconfig: ChatConfig, modellib: str):
     # Create a ChatModule instance
     cm = ChatModule(
         model=modelname, device=devicename, chat_config=chatconfig, model_lib_path=modellib
@@ -97,7 +97,3 @@ def main(argv):
         chatconfig=args.chat_config,
         modellib=args.model_lib,
     )
-
-
-if __name__ == "__main__":
-    main()
