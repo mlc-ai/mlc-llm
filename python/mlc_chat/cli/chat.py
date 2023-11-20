@@ -13,34 +13,28 @@ def printAvailableCommands():
     print("\t/exit\t\tquite the cli")
     print("\t/stats\t\tprint out the latest stats (token/sec)")
     print("\t/reset\t\trestart a fresh chat")
-    print("\t/reload [model]\treload model `model` from disk, or reload the current model if `model` not not specified")
+    print(
+        "\t/reload [model]\treload model `model` from disk, or reload the current model if `model` not not specified"
+    )
 
 
-def chat(
-    modelname: str,
-    devicename: str,
-    chatconfig: str,
-    modellib: str    
-    ):
-
+def chat(modelname: str, devicename: str, chatconfig: str, modellib: str):
     # Create a ChatModule instance
-    cm = ChatModule(model=modelname, 
-                    device=devicename,
-                    chat_config=chatconfig,
-                    model_lib_path=modellib)
+    cm = ChatModule(
+        model=modelname, device=devicename, chat_config=chatconfig, model_lib_path=modellib
+    )
 
-
-    print("Using MLC config: ", os.path.abspath( cm.config_file_path) )
-    print("Using model weights:",os.path.abspath( cm.model_path))
+    print("Using MLC config: ", os.path.abspath(cm.config_file_path))
+    print("Using model weights:", os.path.abspath(cm.model_path))
     print("Using model library:", os.path.abspath(cm.model_lib_path))
 
     printAvailableCommands()
 
-    PS=cm._get_role_0()
+    PS = cm._get_role_0()
 
-    prompt=input(f"{PS} ")
+    prompt = input(f"{PS} ")
 
-    while( prompt != '/exit'):
+    while prompt != "/exit":
         match prompt:
             case "/help":
                 printAvailableCommands()
@@ -48,20 +42,24 @@ def chat(
                 print(f"Statistics: {cm.stats()}\n")
             case "/reset":
                 cm.reset_chat()
-            case "/reload":  
-                cm._reload(os.path.abspath(cm.model_lib_path), os.path.abspath(cm.model_path), os.path.abspath(cm.config_file_path))
+            case "/reload":
+                cm._reload(
+                    os.path.abspath(cm.model_lib_path),
+                    os.path.abspath(cm.model_path),
+                    os.path.abspath(cm.config_file_path),
+                )
             case _:
                 output = cm.generate(
                     prompt,
                     progress_callback=StreamToStdout(callback_interval=2),
                 )
-        prompt=input(f"{PS} ")
+        prompt = input(f"{PS} ")
 
     # Print prefill and decode performance statistics
     print(f"Statistics: {cm.stats()}\n")
 
-def main(argv):
 
+def main(argv):
     parser = ArgumentParser(description="Chat with open source LLMs")
     parser.add_argument(
         "--model",
@@ -99,6 +97,7 @@ def main(argv):
         chatconfig=args.chat_config,
         modellib=args.model_lib,
     )
+
 
 if __name__ == "__main__":
     main()
