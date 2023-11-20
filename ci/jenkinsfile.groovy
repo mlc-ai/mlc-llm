@@ -35,34 +35,57 @@ def init_git(submodule = false) {
   }
 }
 
-def lint_common(cmd) {
-  // No need to checkout submodule for lint
-  node('CPU-SMALL') {
-    ws(per_exec_ws('mlc-llm-lint')) {
-      init_git()
-      sh(script: "ls", label: 'debug')
-      sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
-      sh(script: "${docker_run} ${cmd}", label: 'Lint')
-    }
-  }
-}
-
 stage('Lint') {
   parallel(
     'isort': {
-      lint_common('bash ci/task/isort.sh')
+      node('CPU-SMALL') {
+        ws(per_exec_ws('mlc-llm-lint-isort')) {
+          init_git()
+          sh(script: "ls", label: 'debug')
+          sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
+          sh(script: "${docker_run} bash ci/task/isort.sh", label: 'Lint')
+        }
+      }
     },
     'black': {
-      lint_common('bash ci/task/black.sh')
+      node('CPU-SMALL') {
+        ws(per_exec_ws('mlc-llm-lint-black')) {
+          init_git()
+          sh(script: "ls", label: 'debug')
+          sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
+          sh(script: "${docker_run} bash ci/task/black.sh", label: 'Lint')
+        }
+      }
     },
     'mypy': {
-      lint_common('bash ci/task/mypy.sh')
+      node('CPU-SMALL') {
+        ws(per_exec_ws('mlc-llm-lint-mypy')) {
+          init_git()
+          sh(script: "ls", label: 'debug')
+          sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
+          sh(script: "${docker_run} bash ci/task/mypy.sh", label: 'Lint')
+        }
+      }
     },
     'pylint': {
-      lint_common('bash ci/task/pylint.sh')
+      node('CPU-SMALL') {
+        ws(per_exec_ws('mlc-llm-lint-pylint')) {
+          init_git()
+          sh(script: "ls", label: 'debug')
+          sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
+          sh(script: "${docker_run} bash ci/task/pylint.sh", label: 'Lint')
+        }
+      }
     },
     'clang-format': {
-      lint_common('bash ci/task/clang-format.sh')
+      node('CPU-SMALL') {
+        ws(per_exec_ws('mlc-llm-lint-clang-format')) {
+          init_git()
+          sh(script: "ls", label: 'debug')
+          sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
+          sh(script: "${docker_run} bash ci/task/clang-format.sh", label: 'Lint')
+        }
+      }
     },
   )
 }
