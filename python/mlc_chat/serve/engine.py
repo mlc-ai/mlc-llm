@@ -1,10 +1,14 @@
 """The MLC LLM Serving Engine."""
 import json
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 import tvm
+from tvm.runtime import Device
 
+from mlc_chat.support.auto_device import detect_device
+
+from ..chat_module import _get_chat_config, _get_lib_module_path, _get_model_path
 from . import data
 from .config import GenerationConfig, KVCacheConfig
 from .request import Request
@@ -34,30 +38,19 @@ class ModelInfo:
     """
 
     model: str
-    device: str = "auto"
+    device: Device = "auto"  # type: ignore
     lib_path: Optional[str] = None
 
+    def __post_init__(self):
+        if isinstance(self.device, str):
+            self.device = detect_device(self.device)
+        assert isinstance(self.device, Device)
 
-def _detect_local_device():
-    """Automatically detect the local device.
 
-    Returns
-    ------
-    device_name : str
-        The name of the local device.
-    """
-    if tvm.metal().exist:
-        return "metal"
-    if tvm.rocm().exist:
-        return "rocm"
-    if tvm.cuda().exist:
-        return "cuda"
-    if tvm.vulkan().exist:
-        return "vulkan"
-    if tvm.opencl().exist:
-        return "opencl"
-
-    raise ValueError("No available local GPU is detected.")
+def _create_tvm_module(creator: str, ffi_funcs: Sequence[str]) -> Dict[str, Callable]:
+    """Internal method to create a module."""
+    module = tvm.get_global_func(creator, allow_missing=False)()
+    return {key: module[key] for key in ffi_funcs}
 
 
 class Engine:
@@ -91,24 +84,49 @@ class Engine:
         models: Union[ModelInfo, List[ModelInfo]],
         kv_cache_config: KVCacheConfig,
     ):
-        if not isinstance(models, list):
-            models = [models]
+        max_single_sequence_length = int(1e9)
+        tokenizer_path: Optional[str] = None
 
-        # - Create engine
-        fcreate_engine = tvm.get_global_func("mlc.serve.create_engine")
-        assert fcreate_engine is not False
-        engine = fcreate_engine()
+        def _convert_model_info(model: ModelInfo) -> List[Any]:
+            nonlocal max_single_sequence_length, tokenizer_path
 
-        # - Set the engine functions
-        self._reload_func = engine["reload"]
-        self._add_request_func = engine["add_request"]
-        self._abort_func = engine["abort"]
-        self._step_func = engine["step"]
-        self._get_stats_func = engine["stats"]
-        self._reset_engine_func = engine["reset"]
+            device = model.device
+            model_path, config_file_path = _get_model_path(model.model)
+            chat_config = _get_chat_config(config_file_path, user_chat_config=None)
+            if chat_config.max_window_size:
+                max_single_sequence_length = min(
+                    max_single_sequence_length,
+                    chat_config.max_window_size,
+                )
+            if tokenizer_path is None:
+                tokenizer_path = model_path
+            lib_path = _get_lib_module_path(
+                model=model.model,
+                model_path=model_path,
+                chat_config=chat_config,
+                model_lib_path=model.lib_path,
+                device_name=device.MASK2STR[device.device_type],
+                config_file_path=config_file_path,
+            )
+            return [lib_path, model_path, device.device_type, device.device_id]
 
-        # Load the engine with the input models and KV cache config.
-        self._reload(models, kv_cache_config)
+        if isinstance(models, list):
+            model_args: List[Any] = sum(
+                (_convert_model_info(model) for model in models),
+                start=[],
+            )
+        else:
+            model_args = _convert_model_info(models)
+        self._ffi = _create_tvm_module(
+            "mlc.serve.create_engine",
+            ffi_funcs=["init", "add_request", "abort", "step", "stats", "reset"],
+        )
+        self._ffi["init"](
+            max_single_sequence_length,
+            tokenizer_path,
+            kv_cache_config.asjson(),
+            *model_args,
+        )
 
     def generate(
         self,
@@ -198,7 +216,7 @@ class Engine:
         request : Request
             The request to add.
         """
-        self._add_request_func(request)
+        self._ffi["add_request"](request)
 
     def step(self) -> None:
         """The main function that the engine takes a step of action.
@@ -212,11 +230,11 @@ class Engine:
         check if any request has finished, and will return the
         generation results for those finished requests.
         """
-        self._step_func()
+        self._ffi["step"]()
 
     def reset(self) -> None:
         """Reset the engine, clean up all running data and statistics."""
-        self._reset_engine_func()
+        self._ffi["reset"]()
 
     def stats(self) -> Dict[str, float]:
         """The engine runtime statistics.
@@ -228,40 +246,5 @@ class Engine:
         - total number of processed tokens in prefill.
         - total number of processed tokens in decode.
         """
-        stats_json_str = self._get_stats_func()
-        stats = json.loads(stats_json_str)
-        return stats
-
-    def _reload(self, models: List[ModelInfo], kv_cache_config: KVCacheConfig):
-        """Internal method for engine to load models and kv cache config."""
-        from ..chat_module import (  # pylint: disable=import-outside-toplevel
-            _get_chat_config,
-            _get_lib_module_path,
-            _get_model_path,
-            _parse_device_str,
-        )
-
-        # - Collect the engine reload arguments.
-        engine_reload_arg_list = []
-        for model in models:
-            # - Get the device type and id
-            device, device_name = _parse_device_str(
-                model.device if model.device != "auto" else _detect_local_device()
-            )
-
-            # - Get the model path and the library path
-            model_path, config_file_path = _get_model_path(model.model)
-            chat_config = _get_chat_config(config_file_path, user_chat_config=None)
-            lib_path = _get_lib_module_path(
-                model.model,
-                model_path,
-                chat_config,
-                model.lib_path,
-                device_name,
-                config_file_path,
-            )
-
-            engine_reload_arg_list += [lib_path, model_path, device.device_type, device.device_id]
-
-        # Invoke engine's reload function
-        self._reload_func(*engine_reload_arg_list, kv_cache_config.asjson())
+        stats_json_str = self._ffi["stats"]()
+        return json.loads(stats_json_str)
