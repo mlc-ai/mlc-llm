@@ -193,7 +193,7 @@ class EngineModule : public ModuleNode {
         "window size of each model; "
         "2) (string) path to tokenizer configuration files, which in MLC LLM, usually in a model "
         "weights directory; "
-        "3) (string) JSOON configuration for the KVCache. "
+        "3) (string) JSON configuration for the KVCache. "
         "The following (4 * n) arguments, 4 for each model, should be: "
         "1) (tvm.runtime.Module) The model library loaded into TVM's RelaxVM; "
         "2) (string) Model path which includes weights and mlc-chat-config.json; "
