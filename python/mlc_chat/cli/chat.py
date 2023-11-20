@@ -1,7 +1,9 @@
 """A command line tool for directly chatting with open source LLMs"""
+import os
+
 from mlc_chat import ChatModule
 from mlc_chat.callback import StreamToStdout
-import os
+
 from ..support.argparse import ArgumentParser
 
 
