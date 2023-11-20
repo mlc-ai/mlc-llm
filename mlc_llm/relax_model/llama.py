@@ -1144,7 +1144,7 @@ def emit_paged_kv_cache_op(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     from tvm.script import tir as T
 
     num_layers = config.num_hidden_layers
-    num_heads = config.num_key_value_heads
+    num_heads = config.num_key_value_heads // config.num_shards
     head_dim = config.hidden_size // config.num_attention_heads
 
     # fmt: off
