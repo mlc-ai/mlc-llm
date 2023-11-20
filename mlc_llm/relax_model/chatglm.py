@@ -1,37 +1,31 @@
-import math
 import argparse
+import math
 from dataclasses import dataclass
-from typing import Tuple, List
-
-from .commons import create_metadata_func
+from typing import List, Tuple
 
 import tvm
 from tvm import relax, te, tir
-from tvm.relax.testing import nn
-from tvm.relax.op.nn import softmax, silu
-from tvm.script import relax as R
 from tvm.relax.op import (
+    astype,
     broadcast_to,
-    permute_dims,
     expand_dims,
+    matmul,
     maximum,
     minimum,
-    reshape,
-    squeeze,
-    astype,
-    matmul,
-    split,
+    permute_dims,
     repeat,
+    reshape,
+    split,
+    squeeze,
 )
+from tvm.relax.op.nn import silu, softmax
+from tvm.relax.testing import nn
+from tvm.script import relax as R
 
 from ..quantization import ParamQuantKind, QuantizationScheme
+from .commons import create_metadata_func
+from .modules import Embedding, Linear, ModuleList, RotaryEmbedding
 from .param_manager import ParamManager
-from .modules import (
-    ModuleList,
-    Embedding,
-    Linear,
-    RotaryEmbedding,
-)
 
 
 @dataclass
@@ -92,11 +86,7 @@ class RMSNorm(nn.Module):
             is_float32 = x.dtype == "float32"
 
             def f_square(x):
-                return (
-                    tir.Cast("float32", x) * tir.Cast("float32", x)
-                    if not is_float32
-                    else x * x
-                )
+                return tir.Cast("float32", x) * tir.Cast("float32", x) if not is_float32 else x * x
 
             k = te.reduce_axis((0, x.shape[2]), name="k")
             square_sum = te.compute(
@@ -137,9 +127,7 @@ class CoreAttention(nn.Module):
 
         # Per attention head and per partition values.
         self.hidden_size_per_partition = projection_size
-        self.hidden_size_per_attention_head = (
-            projection_size // config.num_attention_heads
-        )
+        self.hidden_size_per_attention_head = projection_size // config.num_attention_heads
         self.num_attention_heads_per_partition = config.num_attention_heads
 
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
@@ -206,9 +194,7 @@ class SelfAttention(nn.Module):
         self.projection_size = config.kv_channels * config.num_attention_heads
 
         # Per attention head and per partition values.
-        self.hidden_size_per_attention_head = (
-            self.projection_size // config.num_attention_heads
-        )
+        self.hidden_size_per_attention_head = self.projection_size // config.num_attention_heads
         self.num_attention_heads_per_partition = config.num_attention_heads
 
         # Multi-query attention config
@@ -256,8 +242,7 @@ class SelfAttention(nn.Module):
             split(
                 self.query_key_value(hidden_states),
                 indices_or_sections=[
-                    self.num_attention_heads_per_partition
-                    * self.hidden_size_per_attention_head,
+                    self.num_attention_heads_per_partition * self.hidden_size_per_attention_head,
                     (
                         self.num_attention_heads_per_partition
                         + self.num_multi_query_groups_per_partition
@@ -294,9 +279,7 @@ class SelfAttention(nn.Module):
         q, k = self.rotary_pos_emb(q, k, kv_sl - sl)
 
         assert k.struct_info.shape[0] == 1 and v.struct_info.shape[0] == 1
-        squeezed_k, squeezed_v = nn.emit(squeeze(k, axis=0)), nn.emit(
-            squeeze(v, axis=0)
-        )
+        squeezed_k, squeezed_v = nn.emit(squeeze(k, axis=0)), nn.emit(squeeze(v, axis=0))
 
         k_cache, v_cache = past_key_value
         f_kv_cache_append = relax.extern("vm.builtin.attention_kv_cache_append")
@@ -335,10 +318,7 @@ class SelfAttention(nn.Module):
             )
         )
 
-        n_rep = (
-            self.num_attention_heads_per_partition
-            // self.num_multi_query_groups_per_partition
-        )
+        n_rep = self.num_attention_heads_per_partition // self.num_multi_query_groups_per_partition
         kv_attn_shape = R.shape(
             [
                 bsz,
@@ -440,9 +420,7 @@ class GLMTransformer(nn.Module):
     def __init__(self, config: ChatGLMConfig, rotary_pos_emb: RotaryEmbedding):
         self.num_layers = config.num_layers
 
-        self.layers = ModuleList(
-            [GLMBlock(config, rotary_pos_emb) for _ in range(self.num_layers)]
-        )
+        self.layers = ModuleList([GLMBlock(config, rotary_pos_emb) for _ in range(self.num_layers)])
         self.final_layernorm = RMSNorm(
             hidden_size=config.hidden_size,
             dtype=config.dtype,
@@ -617,9 +595,7 @@ class ChatGLMForCausalLM(nn.Module):
         return lm_logits, key_value_cache
 
 
-def get_param_quant_kind(
-    name: str, param_info: relax.TensorStructInfo
-) -> ParamQuantKind:
+def get_param_quant_kind(name: str, param_info: relax.TensorStructInfo) -> ParamQuantKind:
     if "embedding.weight" in name:
         return ParamQuantKind.embedding_table
     elif "transformer.output_layer.weight" in name:
@@ -643,19 +619,13 @@ def create_encoding_func(
     all_seq_len = tvm.tir.Var("m", "int64")
     with bb.function(func_name):
         model = ChatGLMForCausalLM(config)
-        param_manager.register_params(
-            model, func_name, quant_scheme, get_param_quant_kind
-        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, sl), dtype="int32", name="input_ids")
-        all_seq_len_shape = relax.Var(
-            "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
-        )
+        all_seq_len_shape = relax.Var("all_seq_len", relax.ShapeStructInfo((all_seq_len,)))
         past_key_values = relax.Var(
             "kv_cache",
-            relax.TupleStructInfo(
-                [relax.ObjectStructInfo() for _ in range(config.num_layers * 2)]
-            ),
+            relax.TupleStructInfo([relax.ObjectStructInfo() for _ in range(config.num_layers * 2)]),
         )
 
         with bb.dataflow():
@@ -686,23 +656,17 @@ def create_decoding_func(
     func_name = "decode"
 
     bsz = 1
-    all_seq_len = tvm.tir.Var("n", "int64")
+    all_seq_len = tvm.tir.Var("m", "int64")
 
     with bb.function(func_name):
         model = ChatGLMForCausalLM(config)
-        param_manager.register_params(
-            model, func_name, quant_scheme, get_param_quant_kind
-        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
-        all_seq_len_shape = relax.Var(
-            "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
-        )
+        all_seq_len_shape = relax.Var("all_seq_len", relax.ShapeStructInfo((all_seq_len,)))
         past_key_values = relax.Var(
             "kv_cache",
-            relax.TupleStructInfo(
-                [relax.ObjectStructInfo() for _ in range(config.num_layers * 2)]
-            ),
+            relax.TupleStructInfo([relax.ObjectStructInfo() for _ in range(config.num_layers * 2)]),
         )
         with bb.dataflow():
             logits, key_value_cache = model(
@@ -752,9 +716,7 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: ChatGLMConfig) -> None:
 
 def create_softmax_func(bb: relax.BlockBuilder, config: ChatGLMConfig) -> None:
     with bb.function("softmax_with_temperature"):
-        logits = nn.Placeholder(
-            (1, 1, config.padded_vocab_size), dtype="float32", name="logits"
-        )
+        logits = nn.Placeholder((1, 1, config.padded_vocab_size), dtype="float32", name="logits")
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
             div = bb.emit(relax.op.divide(logits, temperature))
@@ -785,19 +747,20 @@ def get_model(args: argparse.Namespace, hf_config):
             max_window_size=config.max_sequence_length,
             stop_tokens=[0],
             add_prefix_space=False,
+            prefill_chunk_size=args.prefill_chunk_size,
         )
 
         mod = bb.get()
+
+        tir_bound_map = dict()
+        tir_bound_map["n"] = (
+            args.prefill_chunk_size if args.prefill_chunk_size > 0 else config.max_sequence_length
+        )
+        tir_bound_map["m"] = config.max_sequence_length
         for gv in mod.functions:
             func = mod[gv]
             if isinstance(func, relax.Function):
-                mod[gv] = func.with_attr(
-                    "tir_var_upper_bound",
-                    {
-                        "n": config.max_sequence_length,
-                        "m": config.max_sequence_length,
-                    },
-                )
+                mod[gv] = func.with_attr("tir_var_upper_bound", tir_bound_map)
 
         if args.build_model_only:
             return mod, param_manager, None, config
@@ -805,9 +768,7 @@ def get_model(args: argparse.Namespace, hf_config):
         def f_convert_pname_fwd(pname: str) -> List[str]:
             if "transformer.embedding" in pname:
                 return [
-                    pname.replace(
-                        "transformer.embedding", "transformer.embedding.word_embeddings"
-                    )
+                    pname.replace("transformer.embedding", "transformer.embedding.word_embeddings")
                 ]
             else:
                 return [pname]

@@ -7,15 +7,9 @@ import pickle
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Dict, Optional
 
+import mlc_llm
 import tvm
 import tvm.relax.backend.contrib.cublas as _
-from tvm import dlight as dl
-from tvm import relax
-from tvm.contrib.nvcc import parse_compute_version
-from tvm.relax.backend import get_patterns_with_prefix
-from tvm.relax.backend.contrib.cutlass import annotate_workspace
-
-import mlc_llm
 from mlc_llm import utils
 from mlc_llm.relax_model import (
     chatglm,
@@ -30,12 +24,20 @@ from mlc_llm.relax_model import (
     rwkv,
     stablelm_3b,
 )
-from mlc_llm.relax_model.commons import create_shard_info_func, create_shard_transformation_func
+from mlc_llm.relax_model.commons import (
+    create_shard_info_func,
+    create_shard_transformation_func,
+)
 from mlc_llm.relax_model.param_manager import (
-    transform_params_for_each_rank,
     chain_parameter_transforms,
+    transform_params_for_each_rank,
 )
 from mlc_llm.transform import fuse_split_rotary_embedding, rewrite_attention
+from tvm import dlight as dl
+from tvm import relax
+from tvm.contrib.nvcc import parse_compute_version
+from tvm.relax.backend import get_patterns_with_prefix
+from tvm.relax.backend.contrib.cutlass import annotate_workspace
 
 
 @dataclass
@@ -107,9 +109,9 @@ class BuildArgs:
         overrides the `sliding_window` in config.json for those models that use SWA.
         Currently only useful when compiling Mistral.
 
-    sliding_window_chunk_size: int
-        The chunk size in sliding window attention (SWA) during prefilling. By default,
-        the chunk size is the same as sliding window. Currently only useful when compiling Mistral.
+    prefill_chunk_size: int
+        The chunk size during prefilling. By default, the chunk size is the same as
+        max sequence length. Currently only useful when compiling Mistral.
 
     cc_path: str
         ``/path/to/cross_compiler_path``; currently only used for cross-compile
@@ -349,12 +351,12 @@ class BuildArgs:
             ),
         },
     )
-    sliding_window_chunk_size: int = field(
+    prefill_chunk_size: int = field(
         default=-1,
         metadata={
             "help": (
-                "The chunk size in sliding window attention (SWA) during prefilling. "
-                "By default, the chunk size is the same as sliding window. "
+                "The chunk size during prefilling. By default, the chunk size is "
+                "the same as the sliding window size or the max sequence length. "
                 "Currently only useful when compiling Mistral."
             ),
         },
@@ -688,10 +690,10 @@ def dump_mlc_chat_config(
     config["model_category"] = args.model_category
     config["model_name"] = args.model
     config["vocab_size"] = vocab_size
+    config["prefill_chunk_size"] = args.prefill_chunk_size
     if args.sliding_window != -1:
         # Do not add max window size if use sliding window
         config["sliding_window"] = args.sliding_window
-        config["sliding_window_chunk_size"] = args.sliding_window_chunk_size
     else:
         config["max_window_size"] = max_window_size
 
@@ -813,7 +815,6 @@ def build_model_from_args(args: argparse.Namespace):
 
         if args.model_category == "mistral":
             args.sliding_window = model_config.sliding_window
-            args.sliding_window_chunk_size = model_config.sliding_window_chunk_size
 
         for qspec_updater_class in param_manager.qspec_updater_classes:
             qspec_updater = qspec_updater_class(param_manager)

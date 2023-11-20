@@ -83,15 +83,18 @@ def _attach_auxiliary_methods(
 
 
 def _attach_variable_bounds(mod, model_config):
+    tir_bound_map = {}
+    tir_bound_map["seq_len"] = model_config.prefill_chunk_size
+
+    if hasattr(model_config, "sliding_window"):
+        tir_bound_map["rolling_cache_len"] = model_config.sliding_window
+        tir_bound_map["kv_seq_len"] = model_config.sliding_window + model_config.prefill_chunk_size
+    else:
+        tir_bound_map["total_seq_len"] = model_config.context_window_size
+
     for g_var, func in mod.functions_items():
         if isinstance(func, relax.Function):
-            mod[g_var] = func.with_attr(
-                "tir_var_upper_bound",
-                {
-                    "seq_len": model_config.context_window_size,
-                    "total_seq_len": model_config.context_window_size,
-                },
-            )
+            mod[g_var] = func.with_attr("tir_var_upper_bound", tir_bound_map)
 
 
 def _compile(args: CompileArgs):
@@ -124,7 +127,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     output: Path,
     context_window_size: Optional[int],
     sliding_window: Optional[int],
-    sliding_window_chunk_size: Optional[int],
+    prefill_chunk_size: Optional[int],
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
     args = CompileArgs(
@@ -139,7 +142,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
         ModelConfigOverride(
             context_window_size=context_window_size,
             sliding_window=sliding_window,
-            sliding_window_chunk_size=sliding_window_chunk_size,
+            prefill_chunk_size=prefill_chunk_size,
         ),
     )
     args.display()
