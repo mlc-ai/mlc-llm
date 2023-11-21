@@ -704,7 +704,6 @@ class PagedCacheModelModule:
         model_artifact_path: str,
         engine_config: MLCServeEngineConfig,
     ):
-        max_num_batched_tokens, max_input_len = engine_config.max_num_batched_tokens, engine_config.max_input_len
         model_artifact_config = get_model_artifact_config(model_artifact_path)
 
         dev = tvm.device("cuda", 0)
@@ -717,14 +716,10 @@ class PagedCacheModelModule:
         num_kv_heads = model_artifact_config.num_key_value_heads // model_artifact_config.num_shards
         head_size = model_artifact_config.hidden_size // model_artifact_config.num_attention_heads
 
-        if max_num_batched_tokens > 0:
-            assert max_input_len > 0
-            assert max_num_batched_tokens % max_input_len == 0  # for simplicity
-
-            num_seqs = max_num_batched_tokens // max_input_len
+        if engine_config.max_num_batched_tokens > 0:
             num_blocks = get_num_cache_blocks(
                 model,
-                [max_input_len] * num_seqs,
+                [engine_config.max_input_len] * engine_config.max_num_sequences,
                 model_artifact_config.num_hidden_layers,
                 num_kv_heads,
                 head_size,

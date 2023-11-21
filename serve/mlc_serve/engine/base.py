@@ -15,9 +15,14 @@ class MLCServeEngineConfig:
     # The maximum number of tokens in the batch.
     # TODO(@sunggg): figure out better defaults
     use_staging_engine: bool = True
-    max_num_batched_tokens: int = 4096
+    # we don't generally expect users to set `max_num_batched_tokens` directly
+    # since it is less intuitive.
+    # instead, we expose `max_input_len` and `max_num_sequences` 
+    # so that `max_num_batched_tokens` can be deduced by the following equation.
+    # -> `max_num_batched_tokens` = `max_input_len`*`max_num_sequences` 
     max_input_len: int = 512
     max_num_sequences: int = 8
+    max_num_batched_tokens: int = -1
     min_decode_steps: int = 32
     max_decode_steps: int = 48
     prompt_allocate_ratio: float = 2.0
@@ -37,11 +42,21 @@ def get_engine_config(dict_config, enable_check = True):
     # Checks to make sure engine configs are set correctly
     # since engine config is critical to the performance
     if enable_check:
+        assert isinstance(engine_config.use_staging_engine, bool)
+        assert isinstance(engine_config.max_num_batched_tokens, int)
+        assert isinstance(engine_config.max_input_len, int)
+        assert isinstance(engine_config.max_num_sequences, int)
+        assert isinstance(engine_config.max_decode_steps, int)
+        assert isinstance(engine_config.min_decode_steps, int)
+        assert isinstance(engine_config.prompt_allocate_ratio, float)
+
         # TODO(@sunggg): engine allows -1 for these params. figure out the behavior and enable checks properly
-        # assert engine_config.max_num_batched_tokens > 0
-        # assert engine_config.max_input_len > 0
-        # assert engine_config.max_num_sequences > 0
-        # assert engine_config.max_num_sequences * engine_config.max_input_len == engine_config.max_num_batched_tokens
+        assert engine_config.max_num_batched_tokens == -1, \
+            "`max_num_batched_tokens` is not supposed to be configured directly. \
+              Use `max_num_sequences` and `max_input_len` instead."
+        assert engine_config.max_input_len > 0
+        assert engine_config.max_num_sequences > 0
+        engine_config.max_num_batched_tokens = engine_config.max_num_sequences * engine_config.max_input_len
 
         assert (engine_config.min_decode_steps > 0) and (engine_config.max_decode_steps > 0)
         assert engine_config.max_decode_steps > engine_config.min_decode_steps
