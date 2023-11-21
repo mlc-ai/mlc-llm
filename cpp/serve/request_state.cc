@@ -40,6 +40,7 @@ RequestState::RequestState(Request request, int num_models) {
   }
   n->request = std::move(request);
   n->mstates = std::move(mstates);
+  n->next_callback_token_pos = 0;
   n->tadd = std::chrono::high_resolution_clock::now();
   data_ = std::move(n);
 }
