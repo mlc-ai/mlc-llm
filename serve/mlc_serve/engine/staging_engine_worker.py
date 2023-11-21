@@ -307,11 +307,16 @@ class GenerationLoopWorker:
         return self.queue or self.current_batch
 
     def _should_stop_by_length(self, state: RequestState) -> bool:
-        max_tokens = self.model_artifact_config.max_context_length
-        if state.stopping_criteria.max_tokens is not None:
-            max_tokens = min(max_tokens, state.stopping_criteria.max_tokens)
-
-        return len(state.token_ids) - state.prompt_len >= max_tokens
+        # TODO: currently, we simply return true for both stopping reasons. 
+        #       in the future, we can differentiate these two. 
+        # this include prompt tokens and gen tokens so far
+        num_context_tokens = len(state.token_ids) 
+        if num_context_tokens >= self.model_artifact_config.max_context_length:
+            return True
+        num_gen_tokens = num_context_tokens - state.prompt_len 
+        if num_gen_tokens >= state.stopping_criteria.max_tokens:
+            return True
+        return False
 
 
 def setup_logging(level):
