@@ -25,6 +25,7 @@ def per_exec_ws(folder) {
 }
 
 def init_git(submodule = false) {
+  cleanWs()
   checkout scm
   if (submodule) {
     retry(5) {
