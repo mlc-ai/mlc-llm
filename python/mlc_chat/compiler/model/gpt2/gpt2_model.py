@@ -16,6 +16,7 @@ from ....support.style import bold
 
 logger = logging.getLogger(__name__)
 
+
 @dataclasses.dataclass
 class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the GPT-2 model."""
@@ -30,7 +31,7 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
-        if self.n_inner == -1:
+        if self.n_inner is None or self.n_inner == -1:
             self.n_inner = 4 * self.n_embd
 
         if self.context_window_size == 0:
@@ -50,7 +51,8 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
                     "`context_window_size`, `n_positions` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
-            
+
+
 class GPT2Attention(nn.Module):
     def __init__(self, config: GPT2Config):
         super().__init__()
@@ -72,15 +74,17 @@ class GPT2Attention(nn.Module):
 
         self.k_cache = nn.KVCache(config.context_window_size, [self.num_heads, self.head_dim])
         self.v_cache = nn.KVCache(config.context_window_size, [self.num_heads, self.head_dim])
-    
-    def forward(self,
+
+    def forward(
+        self,
         hidden_states: Tensor,
         attention_mask: Tensor,
-        total_seq_len: tir.Var,):
+        total_seq_len: tir.Var,
+    ):
         d, h, t = self.head_dim, self.num_heads, total_seq_len
         b, s, _ = hidden_states.shape
         assert b == 1, "Only support batch size 1 at this moment."
-        
+
         q, k, v = self.c_attn(hidden_states)
         q = op.reshape(q, (b, s, h, d))
         k = op.reshape(k, (b, s, h, d))
@@ -108,7 +112,7 @@ class GPT2Attention(nn.Module):
         # [b, h, s, t] x [b, h, t, d] => [b, h, s, d] => [b, s, h, d]
         output = op.matmul(attn_weights, v)
         return self.c_proj(output.permute_dims([0, 2, 1, 3]).reshape((b, s, h * d)))
-    
+
 
 class GPT2MLP(nn.Module):
     def __init__(self, config: GPT2Config):
@@ -120,13 +124,14 @@ class GPT2MLP(nn.Module):
 
     def forward(self, hidden_states: Tensor):
         hidden_states = self.c_fc(hidden_states)
-        hidden_states = op.gelu(hidden_states, approximate="tanh")
+        # hidden_states = op.gelu(hidden_states, approximate="tanh")
+        hidden_states = op.gelu(hidden_states)
         hidden_states = self.c_proj(hidden_states)
         return hidden_states
 
 
 class GPT2Block(nn.Module):
-    def  __init__(self, config: GPT2Config):
+    def __init__(self, config: GPT2Config):
         super().__init__()
         hidden_size = config.n_embd
         self.ln_1 = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
@@ -136,27 +141,11 @@ class GPT2Block(nn.Module):
 
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
         hidden_states = (
-            self.attn(self.ln_1(hidden_states), attention_mask, total_seq_len)
-            + hidden_states
+            self.attn(self.ln_1(hidden_states), attention_mask, total_seq_len) + hidden_states
         )
 
         hidden_states = self.mlp(self.ln_2(hidden_states)) + hidden_states
         return hidden_states
-    
-
-class PositionEmbedding(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, token_embd: Tensor, weight: Tensor, offset: tir.Var):
-        def te_op(x: te.Tensor, w: te.Tensor, offset: tir.Var):
-            def compute(b: tir.Var, s: tir.Var, e: tir.Var):
-                return w[s + offset, e] + x[b, s, e]
-
-            return te.compute(x.shape, compute, name="position")
-
-        position_embd = op.tensor_expr_op(te_op, "position_embedding", args=[token_embd, weight, offset])
-        return position_embd
 
 
 class GPT2LMHeadModel(nn.Module):
@@ -167,10 +156,8 @@ class GPT2LMHeadModel(nn.Module):
         self.embed_dim = config.n_embd
         self.wte = nn.Embedding(config.vocab_size, self.embed_dim)
         self.wpe = nn.Embedding(config.context_window_size, self.embed_dim)
-        self.position_embd = PositionEmbedding()
-        self.h = nn.ModuleList(
-            [GPT2Block(config) for _ in range(config.n_layer)]
-        )
+        # self.position_embd = PositionEmbedding()
+        self.h = nn.ModuleList([GPT2Block(config) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
         self.vocab_size = config.vocab_size
@@ -186,9 +173,22 @@ class GPT2LMHeadModel(nn.Module):
         t_embd = self.wte(inputs)
 
         # Position Embeddings
-        offset = total_seq_len - inputs.shape[1]
-        hidden_states = self.position_embd(t_embd, self.wpe.weight, offset)
+        # Generate np.arange(offset, offset+seq_len)
+        def _input_positions(inputs: te.Tensor, total_seq_len: tir.Var):
+            b, s = inputs.shape
+            offset = total_seq_len - s
+            return te.compute(
+                (b, s), lambda _, j: (offset + j).astype("int32"), name="input_positions"
+            )
 
+        input_positions = op.tensor_expr_op(
+            _input_positions,
+            name_hint="input_positions",
+            args=[inputs, total_seq_len],
+        )
+        pos_embd = self.wpe(input_positions)
+
+        hidden_states = t_embd + pos_embd
         for layer in self.h:
             hidden_states = layer(hidden_states, attention_mask, total_seq_len)
         hidden_states = self.ln_f(hidden_states)
@@ -196,13 +196,13 @@ class GPT2LMHeadModel(nn.Module):
         def _index(x: te.Tensor):  # x[:-1,:]
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
-        
+
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
-    
+
     def prefill(self, inputs: Tensor, total_seq_len: tir.Var):
         def _attention_mask(batch_size, seq_len, total_seq_len):
             return te.compute(
