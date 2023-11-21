@@ -24,7 +24,6 @@ from .staging_engine_worker import (
     ShutdownCommand,
     run_generation_loop_worker,
 )
-
 logger = logging.getLogger(__name__)
 
 
@@ -87,6 +86,12 @@ class StagingInferenceEngine(ScopedInferenceEngine):
             # TODO: verify that request id is unique
             if req.num_sequences > 1:
                 raise RuntimeError("num_sequences > 1 is not supported for now")
+
+            # wrap the stop sequence with list if necessary
+            if req.stopping_criteria.stop_sequences:
+                if isinstance(req.stopping_criteria.stop_sequences, str):
+                    req.stopping_criteria.stop_sequences = [req.stopping_criteria.stop_sequences]
+                assert isinstance(req.stopping_criteria.stop_sequences, list)
 
             # If the request violates the tokenization, this returns None, so skip.
             state = self._get_new_request_state(req)
@@ -164,6 +169,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                 state.next_start_position = len(state.token_ids)
                 state.token_ids.extend(seq_output.new_tokens)
 
+                # detokenize
                 delta = self._decode_last_output(state)
                 state.output_text += delta
 
@@ -171,6 +177,9 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                                                                                 state.output_text,
                                                                                 delta,
                                                                                 state.is_ended)
+                # signal workers to stop generation                             
+                if state.is_ended:
+                    self.cancel(state.request_id)
 
                 outputs.append(
                     RequestOutput(

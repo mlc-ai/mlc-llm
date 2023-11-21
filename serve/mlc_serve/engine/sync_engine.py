@@ -66,6 +66,13 @@ class SynchronousInferenceEngine(InferenceEngine):
             # TODO: verify that request id is unique
             if req.num_sequences > 1:
                 raise RuntimeError("num_sequences > 1 is not supported for now")
+
+            # wrap the stop sequence with list if necessary
+            if req.stopping_criteria.stop_sequences:
+                if isinstance(req.stopping_criteria.stop_sequences, str):
+                    req.stopping_criteria.stop_sequences = [req.stopping_criteria.stop_sequences]
+                assert isinstance(req.stopping_criteria.stop_sequences, list)
+
             state = self._get_new_request_state(req)
             new_request_states.append(state)
 

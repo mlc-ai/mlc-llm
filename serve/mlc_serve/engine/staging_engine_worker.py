@@ -184,6 +184,8 @@ class GenerationLoopWorker:
             state = self.current_batch[request_id]
             state.next_start_position = len(state.token_ids)
             new_tokens = res.generated_tokens
+
+            # Need to match at the token-id level
             for i, token_id in enumerate(new_tokens):
                 if (
                     token_id == self.tokenizer.eos_token_id
@@ -192,6 +194,7 @@ class GenerationLoopWorker:
                     new_tokens = new_tokens[:i]
                     state.is_ended = True
                     break
+
             state.token_ids.extend(new_tokens)
             outputs.append(
                 SequenceGenerationOutput(id=res.sequence_id, new_tokens=new_tokens)

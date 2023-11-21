@@ -54,10 +54,8 @@ class StoppingCriteria:
     """
     Parameters about when to stop text generation.
     """
-
     max_tokens: Optional[int]
     stop_sequences: Optional[list[str]] = None
-
 
 @dataclass
 class ChatMessage:

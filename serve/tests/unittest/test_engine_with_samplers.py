@@ -138,9 +138,53 @@ def test_ignore_eos(
         engine.stop()
 
 
+def test_stop(
+    model_artifact_path,
+    use_staging_engine,
+    max_num_batched_tokens=2560,
+    max_input_len=2560,
+    num_requests=5,
+):
+    prompt = "Write a merge sort program in Python."
+    engine = create_engine(
+        model_artifact_path,
+        use_staging_engine,
+        max_num_batched_tokens,
+        max_input_len,
+    )
+    ignore_eos = False
+    requests = []
+    for n, stop in enumerate(["\n", ["\n"], "\n\n", "!", ["n", "!"]]):
+        requests.append(create_request(idx=str(n), prompt=prompt, temp=0, max_tokens=300, stop=stop, ignore_eos=False))
+    engine.add(requests)
+
+    generated = ["" for _ in range(num_requests)]
+
+    while engine.has_pending_requests():
+        results = engine.step()
+        for res in results.outputs:
+            assert len(res.sequences) == 1
+            seq = res.sequences[0]
+            req_id = int(res.request_id)
+            if seq.is_finished:
+                # TODO: Currently staging engine returns FinishReason.Cancelled.
+                # This needs to be fixed. 
+                #assert seq.finish_reason == FinishReason.Stop, f"{seq.finish_reason.name}"
+                assert not seq.delta
+                gen_txt = generated[req_id]
+                
+                # stop token should appear only once in the gen text.
+                found = sum([gen_txt.count(str_stop) for str_stop in requests[req_id].stopping_criteria.stop_sequences])
+                assert found == 1, f"{gen_txt!r}, matches: {found}"
+            else:
+                generated[int(res.request_id)] += seq.delta
+
+    if use_staging_engine:
+        engine.stop()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    args = parser.parse_args()
     parser.add_argument("--local-id", type=str, required=True)
     parser.add_argument("--artifact-path", type=str, default="../../../dist")
     args = parser.parse_args()
@@ -150,3 +194,5 @@ if __name__ == "__main__":
     test_max_tokens(model_artifact_path, use_staging_engine=False)
     test_ignore_eos(model_artifact_path, use_staging_engine=True)
     test_ignore_eos(model_artifact_path, use_staging_engine=False)
+    test_stop(model_artifact_path, use_staging_engine=False)
+    test_stop(model_artifact_path, use_staging_engine=True)
