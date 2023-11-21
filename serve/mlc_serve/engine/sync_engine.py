@@ -41,7 +41,7 @@ class SynchronousInferenceEngine(InferenceEngine):
         self.conversation_template = model_module.conversation_template
         self.cache_manager = model_module.cache_manager
         self.model_artifact_config = model_module.model_artifact_config
-
+        self.max_context_length = self.model_artifact_config.max_context_length
         self.max_num_batched_tokens = model_module.engine_config.max_num_batched_tokens
         self.max_decode_steps = min(
             self.cache_manager.get_kv_cache_size(), model_module.engine_config.max_decode_steps
@@ -68,6 +68,9 @@ class SynchronousInferenceEngine(InferenceEngine):
                 raise RuntimeError("num_sequences > 1 is not supported for now")
             state = self._get_new_request_state(req)
             new_request_states.append(state)
+
+            if state.prompt_len >= self.max_context_length:
+                self.cancel(req.request_id)
 
         with self.queue_lock:
             self.queue.extend(new_request_states)

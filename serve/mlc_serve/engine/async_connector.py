@@ -85,7 +85,7 @@ class AsyncEngineConnector:
                 if output.is_finished:
                     return
         except asyncio.CancelledError:
-            asyncio.to_thread(self.engine.cancel, request.request_id)
+            await asyncio.to_thread(self.engine.cancel, request.request_id)
         finally:
             self.result_queues.pop(request.request_id, None)
 

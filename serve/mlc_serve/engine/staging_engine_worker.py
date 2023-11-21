@@ -58,7 +58,7 @@ class GenerationLoopWorker:
         self.cache_manager = model_module.cache_manager
         self.tokenizer = model_module.tokenizer
         self.model_artifact_config = model_module.model_artifact_config
-
+        self.max_context_length = self.model_artifact_config.max_context_length
         self.max_num_batched_tokens = model_module.engine_config.max_num_batched_tokens
         self.max_decode_steps = min(
             self.cache_manager.get_kv_cache_size(), model_module.engine_config.max_decode_steps
@@ -81,10 +81,11 @@ class GenerationLoopWorker:
             # cancel them instead.
             valid_states = []
             for request_state in request_states:
-                if request_state.validation_err is not None:
+                if request_state.validation_err is not None or request_state.prompt_len >= self.max_context_length:
                     self.cancelled_requests.append(request_state)
                 else:
                     valid_states.append(request_state)
+
             self.queue.extend(valid_states)
             self.has_new_requests.notify_all()
 
