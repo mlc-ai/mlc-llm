@@ -55,8 +55,6 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
 class GPT2Attention(nn.Module):
     def __init__(self, config: GPT2Config):
-        super().__init__()
-
         self.embed_dim = config.n_embd
         self.num_heads = config.n_head
         self.head_dim = self.embed_dim // self.num_heads
@@ -116,7 +114,6 @@ class GPT2Attention(nn.Module):
 
 class GPT2MLP(nn.Module):
     def __init__(self, config: GPT2Config):
-        super().__init__()
         embed_dim = config.n_embd
         intermediate_size = config.n_inner
         self.c_fc = nn.Linear(embed_dim, intermediate_size)
@@ -132,7 +129,6 @@ class GPT2MLP(nn.Module):
 
 class GPT2Block(nn.Module):
     def __init__(self, config: GPT2Config):
-        super().__init__()
         hidden_size = config.n_embd
         self.ln_1 = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
         self.attn = GPT2Attention(config)
@@ -148,25 +144,13 @@ class GPT2Block(nn.Module):
         return hidden_states
 
 
-class GPT2LMHeadModel(nn.Module):
+class GPT2Model(nn.Module):
     def __init__(self, config: GPT2Config):
-        super().__init__()
         assert config.n_embd % config.n_head == 0
-
-        self.embed_dim = config.n_embd
-        self.wte = nn.Embedding(config.vocab_size, self.embed_dim)
-        self.wpe = nn.Embedding(config.context_window_size, self.embed_dim)
-        # self.position_embd = PositionEmbedding()
+        self.wte = nn.Embedding(config.vocab_size, config.n_embd)
+        self.wpe = nn.Embedding(config.context_window_size, config.n_embd)
         self.h = nn.ModuleList([GPT2Block(config) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
-        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
-        self.vocab_size = config.vocab_size
-        self.dtype = "float32"
-
-    def to(self, dtype: Optional[str] = None):
-        super().to(dtype=dtype)
-        if dtype is not None:
-            self.dtype = dtype
 
     def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
         # Token Embeddings
@@ -188,15 +172,33 @@ class GPT2LMHeadModel(nn.Module):
         )
         pos_embd = self.wpe(input_positions)
 
+        # Pass through GPT2Block
         hidden_states = t_embd + pos_embd
         for layer in self.h:
             hidden_states = layer(hidden_states, attention_mask, total_seq_len)
         hidden_states = self.ln_f(hidden_states)
 
+        return hidden_states
+
+
+class GPT2LMHeadModel(nn.Module):
+    def __init__(self, config: GPT2Config):
+        self.transformer = GPT2Model(config)
+        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+        self.vocab_size = config.vocab_size
+        self.dtype = "float32"
+
+    def to(self, dtype: Optional[str] = None):
+        super().to(dtype=dtype)
+        if dtype is not None:
+            self.dtype = dtype
+
+    def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
         def _index(x: te.Tensor):  # x[:-1,:]
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
+        hidden_states = self.transformer(inputs, total_seq_len, attention_mask)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
