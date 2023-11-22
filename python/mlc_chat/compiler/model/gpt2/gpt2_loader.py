@@ -4,7 +4,6 @@ PyTorch, HuggingFace safetensors.
 """
 import functools
 
-
 from ...loader import ExternMapping
 from ...quantization import Quantization
 from .gpt2_model import GPT2Config, GPT2LMHeadModel

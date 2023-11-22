@@ -124,7 +124,6 @@ class GPT2MLP(nn.Module):
 
     def forward(self, hidden_states: Tensor):
         hidden_states = self.c_fc(hidden_states)
-        # hidden_states = op.gelu(hidden_states, approximate="tanh")
         hidden_states = op.gelu(hidden_states)
         hidden_states = self.c_proj(hidden_states)
         return hidden_states
