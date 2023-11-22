@@ -28,28 +28,30 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     rms_norm_eps: float
     vocab_size: int
     position_embedding_base: int = 0
-    max_sequence_length: int = 0
+    context_window_size: int = 0
     num_key_value_heads: int = 0
     head_dim: int = 0
     sliding_window: int = 4096
-    sliding_window_chunk_size: int = 0
+    prefill_chunk_size: int = 0
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
-        if self.max_sequence_length == 0:
-            if "max_position_embeddings" in self.kwargs:
-                self.max_sequence_length = self.kwargs.pop("max_position_embeddings")
-                logger.info(
-                    "%s not found in config.json. Falling back to %s (%d)",
-                    bold("max_sequence_length"),
-                    bold("max_position_embeddings"),
-                    self.max_sequence_length,
-                )
+        if self.context_window_size == 0:
+            for name in ["max_position_embeddings", "max_sequence_length"]:
+                if name in self.kwargs:
+                    self.context_window_size = self.kwargs.pop(name)
+                    logger.info(
+                        "%s not found in config.json. Falling back to %s (%d)",
+                        bold("context_window_size"),
+                        bold(name),
+                        self.context_window_size,
+                    )
+                    break
             else:
                 raise ValueError(
-                    "Unable to determine the maxmimum sequence length, because neither "
-                    "`max_sequence_length` nor `max_position_embeddings` is provided "
-                    "in `config.json`."
+                    "Unable to determine the maxmimum sequence length, because none of "
+                    "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
+                    "provided in `config.json`."
                 )
         if self.position_embedding_base == 0:
             if "rope_theta" in self.kwargs:
@@ -63,13 +65,13 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         assert self.num_attention_heads % self.num_key_value_heads == 0
         assert self.head_dim * self.num_attention_heads == self.hidden_size
 
-        if self.sliding_window_chunk_size == 0:
+        if self.prefill_chunk_size == 0:
             # chunk size same as sliding window by default
-            self.sliding_window_chunk_size = self.sliding_window
-        self.max_sequence_length = -1
+            self.prefill_chunk_size = self.sliding_window
+        self.context_window_size = -1
         logger.info(
             "Using sliding window attention, setting %s to -1",
-            bold("max_sequence_length"),
+            bold("context_window_size"),
         )
 
 
@@ -157,27 +159,27 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         v_cur: Tensor,
         total_seq_len: tir.Var,
         kv_seq_len: tir.Var,
-        cache_len: tir.Var,
+        rolling_cache_len: tir.Var,
     ):
         """Unrotate and concatenate currunt and cached k and v"""
         d, _, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
-        t, kv_s, c = total_seq_len, kv_seq_len, cache_len
+        t, kv_s, c = total_seq_len, kv_seq_len, rolling_cache_len
         b, s, _, _ = k_cur.shape
         cache_offset = (t - s) % self.sliding_window
 
         k_cached = op.reshape(self.k_cache.view(c), (b, c, h_kv, d))
         v_cached = op.reshape(self.v_cache.view(c), (b, c, h_kv, d))
 
-        def _unrotate_concat(x_cur, x_cached, cache_offset, cache_len):
+        def _unrotate_concat(x_cur, x_cached, cache_offset, rolling_cache_len):
             return te.compute(
                 (b, kv_s, h_kv, d),
                 lambda xb, xs, xh, xd: te.if_then_else(
-                    xs < cache_len - cache_offset,
+                    xs < rolling_cache_len - cache_offset,
                     x_cached[xb, cache_offset + xs, xh, xd],
                     te.if_then_else(
-                        xs < cache_len,
-                        x_cached[xb, xs + cache_offset - cache_len, xh, xd],
-                        x_cur[xb, xs - cache_len, xh, xd],
+                        xs < rolling_cache_len,
+                        x_cached[xb, xs + cache_offset - rolling_cache_len, xh, xd],
+                        x_cur[xb, xs - rolling_cache_len, xh, xd],
                     ),
                 ),
                 name="unrotate_concat_te",
@@ -204,8 +206,8 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         hidden_states: Tensor,
         attention_mask: Tensor,
         total_seq_len: tir.Var,  # Number of already-processed tokens plus ``seq_len``.
-        cache_len: tir.Var,  # Number of elements currently in the cache.
-        kv_seq_len: tir.Var,  # Equals to ``seq_len + cache_len``.
+        rolling_cache_len: tir.Var,  # Number of elements currently in the cache.
+        kv_seq_len: tir.Var,  # Equals to ``seq_len + rolling_cache_len``.
     ):
         """Forward pass of MistralAttention, performing QKV."""
         d, h_q, h_kv, t = self.head_dim, self.num_q_heads, self.num_kv_heads, total_seq_len
@@ -218,7 +220,7 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         v_cur = op.reshape(v_cur, (b, s, h_kv, d))
         q, k_cur = self.rotary_embedding(q, k_cur, t - s)
 
-        k, v = self.interleave_kv(k_cur, v_cur, total_seq_len, kv_seq_len, cache_len)
+        k, v = self.interleave_kv(k_cur, v_cur, total_seq_len, kv_seq_len, rolling_cache_len)
 
         if h_kv != h_q:
             k = k.repeat(h_q // h_kv, axis=2)
@@ -292,7 +294,7 @@ class MistralDecoderLayer(nn.Module):
         hidden_states: Tensor,
         attention_mask: Tensor,
         total_seq_len: tir.Var,
-        cache_len: tir.Var,
+        rolling_cache_len: tir.Var,
         kv_seq_len: tir.Var,
     ):
         """Forward pass of a decoder layer; calculate attention, and add an residual connection."""
@@ -301,7 +303,7 @@ class MistralDecoderLayer(nn.Module):
                 self.input_layernorm(hidden_states),
                 attention_mask,
                 total_seq_len,
-                cache_len,
+                rolling_cache_len,
                 kv_seq_len,
             )
             + hidden_states
@@ -326,7 +328,7 @@ class MistralModel(nn.Module):
         self,
         inputs: Tensor,
         total_seq_len: tir.Var,
-        cache_len: tir.Var,
+        rolling_cache_len: tir.Var,
         kv_seq_len: tir.Var,
         attention_mask: Tensor,
     ):
@@ -334,7 +336,7 @@ class MistralModel(nn.Module):
         hidden_states = self.embed_tokens(inputs)
         for layer in self.layers:
             hidden_states = layer(
-                hidden_states, attention_mask, total_seq_len, cache_len, kv_seq_len
+                hidden_states, attention_mask, total_seq_len, rolling_cache_len, kv_seq_len
             )
         hidden_states = self.norm(hidden_states)
         return hidden_states
@@ -359,7 +361,7 @@ class MistralForCasualLM(nn.Module):
         self,
         inputs: Tensor,
         total_seq_len: tir.Var,
-        cache_len: tir.Var,
+        rolling_cache_len: tir.Var,
         kv_seq_len: tir.Var,
         attention_mask: Tensor,
     ):
@@ -369,7 +371,9 @@ class MistralForCasualLM(nn.Module):
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-        hidden_states = self.model(inputs, total_seq_len, cache_len, kv_seq_len, attention_mask)
+        hidden_states = self.model(
+            inputs, total_seq_len, rolling_cache_len, kv_seq_len, attention_mask
+        )
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
@@ -377,7 +381,11 @@ class MistralForCasualLM(nn.Module):
         return logits
 
     def prefill(
-        self, inputs: Tensor, total_seq_len: tir.Var, cache_len: tir.Var, kv_seq_len: tir.Var
+        self,
+        inputs: Tensor,
+        total_seq_len: tir.Var,
+        rolling_cache_len: tir.Var,
+        kv_seq_len: tir.Var,
     ):
         """
         Prefilling the prompt.
@@ -390,21 +398,21 @@ class MistralForCasualLM(nn.Module):
         total_seq_len: tir.Var
             Number of already-processed tokens plus ``seq_len``.
 
-        cache_len: tir.Var
+        rolling_cache_len: tir.Var
             Number of elements currently in the cache.
 
         kv_seq_len: tir.Var
-            Equals to ``seq_len + cache_len``.
+            Equals to ``seq_len + rolling_cache_len``.
         """
 
         def _sliding_window_attention_mask(
-            batch_size, seq_len, cache_len, kv_seq_len, sliding_window
+            batch_size, seq_len, rolling_cache_len, kv_seq_len, sliding_window
         ):
             # See `tests/legacy-python/test_sliding_window_mask.py` for its behavior
             return te.compute(
                 (batch_size, 1, seq_len, kv_seq_len),
                 lambda b, _, i, j: tir.Select(
-                    tir.all(i + cache_len >= j, i + cache_len - j < sliding_window),
+                    tir.all(i + rolling_cache_len >= j, i + rolling_cache_len - j < sliding_window),
                     tir.max_value(self.dtype),
                     tir.min_value(self.dtype),
                 ),
@@ -418,15 +426,19 @@ class MistralForCasualLM(nn.Module):
             args=[
                 batch_size,
                 seq_len,
-                cache_len,
+                rolling_cache_len,
                 kv_seq_len,
                 self.sliding_window,
             ],
         )
-        return self.forward(inputs, total_seq_len, cache_len, kv_seq_len, attention_mask)
+        return self.forward(inputs, total_seq_len, rolling_cache_len, kv_seq_len, attention_mask)
 
     def decode(
-        self, inputs: Tensor, total_seq_len: tir.Var, cache_len: tir.Var, kv_seq_len: tir.Var
+        self,
+        inputs: Tensor,
+        total_seq_len: tir.Var,
+        rolling_cache_len: tir.Var,
+        kv_seq_len: tir.Var,
     ):
         """Decoding step."""
         batch_size, seq_len = inputs.shape
@@ -435,7 +447,7 @@ class MistralForCasualLM(nn.Module):
             fill_value=tir.max_value(self.dtype),
             dtype=self.dtype,
         )
-        return self.forward(inputs, total_seq_len, cache_len, kv_seq_len, attention_mask)
+        return self.forward(inputs, total_seq_len, rolling_cache_len, kv_seq_len, attention_mask)
 
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
         """Softmax."""
@@ -448,7 +460,7 @@ class MistralForCasualLM(nn.Module):
             "prefill": {
                 "inputs": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
                 "total_seq_len": int,
-                "cache_len": int,
+                "rolling_cache_len": int,
                 "kv_seq_len": int,
                 "$": {
                     "param_mode": "packed",
@@ -458,7 +470,7 @@ class MistralForCasualLM(nn.Module):
             "decode": {
                 "inputs": nn.spec.Tensor([batch_size, 1], "int32"),
                 "total_seq_len": int,
-                "cache_len": int,
+                "rolling_cache_len": int,
                 "kv_seq_len": int,
                 "$": {
                     "param_mode": "packed",

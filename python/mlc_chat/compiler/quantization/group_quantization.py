@@ -283,13 +283,11 @@ class GroupQuantizeLinear(nn.Module):
         self.out_features = out_features
         self.out_dtype = out_dtype
         self.config = config
+        num_group = tir.ceildiv(in_features, config.group_size)
         self.q_weight = nn.Parameter(
-            (out_features, tir.ceildiv(in_features, config.num_elem_per_storage)),
-            config.storage_dtype,
+            (out_features, config.num_storage_per_group * num_group), config.storage_dtype
         )
-        self.q_scale = nn.Parameter(
-            (out_features, tir.ceildiv(in_features, config.group_size)), config.model_dtype
-        )
+        self.q_scale = nn.Parameter((out_features, num_group), config.model_dtype)
         if bias:
             self.bias = nn.Parameter((out_features,), config.model_dtype)
         else:
@@ -370,14 +368,12 @@ class GroupQuantizeMultiLinear(nn.Module):  # pylint: disable=too-many-instance-
         self.out_features = out_features
         self.out_dtype = out_dtype
         self.config = config
+        num_group = tir.ceildiv(in_features, config.group_size)
         self.q_weight = nn.Parameter(
-            (self.total_out_features, tir.ceildiv(in_features, config.num_elem_per_storage)),
+            (self.total_out_features, config.num_storage_per_group * num_group),
             config.storage_dtype,
         )
-        self.q_scale = nn.Parameter(
-            (self.total_out_features, tir.ceildiv(in_features, config.group_size)),
-            config.model_dtype,
-        )
+        self.q_scale = nn.Parameter((self.total_out_features, num_group), config.model_dtype)
         if bias:
             self.bias = nn.Parameter((self.total_out_features,), config.model_dtype)
         else:
@@ -456,14 +452,11 @@ class GroupQuantizeEmbedding(nn.Module):
         self.num = num
         self.dim = dim
         self.config = config
+        num_group = tir.ceildiv(dim, config.group_size)
         self.q_weight = nn.Parameter(
-            (num, tir.ceildiv(dim, config.num_elem_per_storage)),
-            config.storage_dtype,
+            (num, config.num_storage_per_group * num_group), config.storage_dtype
         )
-        self.q_scale = nn.Parameter(
-            (num, tir.ceildiv(dim, config.group_size)),
-            config.model_dtype,
-        )
+        self.q_scale = nn.Parameter((num, num_group), config.model_dtype)
 
     @staticmethod
     def from_embedding(embedding: nn.Embedding, config: GroupQuantize) -> "GroupQuantizeEmbedding":

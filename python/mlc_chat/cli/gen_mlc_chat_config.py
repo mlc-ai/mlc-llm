@@ -47,10 +47,10 @@ def main(argv):
         help=HELP["conv_template"] + " (required, choices: %(choices)s)",
     )
     parser.add_argument(
-        "--max-sequence-length",
+        "--context-window-size",
         type=int,
         default=None,
-        help=HELP["max_sequence_length"] + ' (default: "%(default)s")',
+        help=HELP["context_window_size"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--output",
@@ -66,6 +66,6 @@ def main(argv):
         model=model,
         quantization=QUANTIZATION[parsed.quantization],
         conv_template=parsed.conv_template,
-        max_sequence_length=parsed.max_sequence_length,
+        context_window_size=parsed.context_window_size,
         output=parsed.output,
     )
