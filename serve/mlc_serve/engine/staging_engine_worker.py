@@ -102,20 +102,20 @@ class GenerationLoopWorker:
             self.queue.extend(valid_states)
             self.has_new_requests.notify_all()
 
-    def _get_request_state(self, request_id: RequestId) -> Optional[RequestState]:
-        for state in self.queue:
-            if state.request_id == request_id:
-                return state
-
-        return None
 
     def _cacnel_or_stop_request(
         self, request_id: RequestId, requests: list[RequestState]
     ):
         with self.queue_lock:
-            state = self._get_request_state(request_id)
-            if state:
-                del state
+            queue_index_to_delete = None
+            for i, state in enumerate(self.queue):
+                if state.request_id == request_id:
+                    queue_index_to_delete = i
+                    requests.append(state)
+                    break
+
+            if queue_index_to_delete is not None:
+                del self.queue[queue_index_to_delete]
 
             if request_id in self.current_batch:
                 requests.append(self.current_batch[request_id])
