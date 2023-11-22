@@ -26,10 +26,10 @@ class BatchDecodeActionObj : public EngineActionObj {
   explicit BatchDecodeActionObj(Array<Model> models, Sampler sampler)
       : models_(std::move(models)), sampler_(std::move(sampler)) {}
 
-  bool Step(EngineState estate) final {
+  Array<Request> Step(EngineState estate) final {
     // - Do not run decode when there are multiple models or no running requests.
     if (models_.size() > 1 || estate->running_queue.empty()) {
-      return false;
+      return {};
     }
 
     // Preempt requests when decode cannot apply.
@@ -94,7 +94,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     auto tend = std::chrono::high_resolution_clock::now();
     estate->stats.engine_total_decode_time += static_cast<double>((tend - tstart).count()) / 1e9;
 
-    return true;
+    return estate->running_queue;
   }
 
  private:
