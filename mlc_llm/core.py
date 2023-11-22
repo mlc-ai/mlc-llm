@@ -625,7 +625,7 @@ def mod_transform_before_build(
 
         has_cublas = tvm.get_global_func("relax.ext.cublas", True)
 
-        if has_cublas and args.quantization.name in ("q0f16", "q0f32") and not args.no_cublas:
+        if has_cublas and (args.quantization.name in ("q0f16", "q0f32") or args.quantization.name.startswith("smq_q8i8f16")) and not args.no_cublas:
             patterns += get_patterns_with_prefix("cublas")
 
         if len(patterns) > 0:
