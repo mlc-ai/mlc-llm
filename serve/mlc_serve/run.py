@@ -31,8 +31,8 @@ def parse_args():
     args.add_argument("--local-id", type=str, required=True)
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument("--use-staging-engine", action="store_true")
-    args.add_argument("--max-num-batched-tokens", type=int, default=-1)
-    args.add_argument("--max-input-len", type=int, default=-1)
+    args.add_argument("--max-num-sequences", type=int, default=8)
+    args.add_argument("--max-input-len", type=int, default=512)
     args.add_argument("--min-decode-steps", type=int, default=12)
     args.add_argument("--max-decode-steps", type=int, default=16)
     args.add_argument("--prompt-allocate-ratio", type=float, default=2.0)
@@ -90,7 +90,7 @@ def create_engine(
     # Set the engine config
     engine_config = get_engine_config({
         "use_staging_engine": args.use_staging_engine,
-        "max_num_batched_tokens": args.max_num_batched_tokens, 
+        "max_num_sequences": args.max_num_sequences,
         "max_input_len": args.max_input_len,    
         "min_decode_steps": args.min_decode_steps,
         "max_decode_steps": args.max_decode_steps,
