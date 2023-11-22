@@ -23,7 +23,7 @@ prompts = [
 
 def create_requests(
     num_requests: int,
-    callback_getter: Callable[[int], Callable[[Request, data.Data], None]],
+    fcallback: Callable[[str, data.TokenData, bool], None],
     stop_token: Optional[int] = None,
     temperature: float = 0.8,
     repetition_penalty: float = 1.0,
@@ -46,7 +46,7 @@ def create_requests(
                     max_new_tokens=max_new_tokens,
                     stop_tokens=stop_tokens,
                 ),
-                fcallback=callback_getter(req_id),
+                fcallback=fcallback,
             )
         )
     return requests
@@ -74,27 +74,24 @@ def test_engine_basic():
     np.random.seed(0)
 
     # Output list
-    outputs = [None] * num_requests
+    outputs = [[] for _ in range(num_requests)]
+
+    # Create engine
+    engine = Engine(model, kv_cache_config)
 
     # Define the callback function for request generation results
-    def callback_getter(req_id: int):
-        def fcallback(request: Request, output: data.Data):
-            print(f"Request {req_id} finished at step.")
-            outputs[req_id] = output
-
-        return fcallback
+    def fcallback(request_id: str, token_data: data.TokenData, finished: bool):
+        outputs[int(request_id)] += token_data.token_ids
 
     # Create requests
     requests = create_requests(
         num_requests,
-        callback_getter,
+        fcallback,
         temperature=temperature,
         repetition_penalty=repetition_penalty,
         max_new_tokens_low=max_new_tokens,
         max_new_tokens_high=max_new_tokens + 1,
     )
-    # Create engine
-    engine = Engine(model, kv_cache_config)
 
     # Add all requests to engine
     for request in requests:
@@ -106,9 +103,8 @@ def test_engine_basic():
         engine.step()
 
     for req_id, output in enumerate(outputs):
-        assert isinstance(output, data.TextData)
         print(f"Prompt {req_id}: {requests[req_id].inputs[0]}")
-        print(f"Output {req_id}:{output}\n")
+        print(f"Output {req_id}:{engine.detokenize(output)}\n")
 
 
 def test_engine_continuous_batching_1():
@@ -135,18 +131,22 @@ def test_engine_continuous_batching_1():
     np.random.seed(0)
 
     # Output list
-    outputs = [None] * num_requests
+    outputs = [[] for _ in range(num_requests)]
     finish_time = [None] * num_requests
+
+    # Create engine
+    engine = Engine(model, kv_cache_config)
 
     # Define the callback class for request generation results
     class CallbackTimer:
         timer: int = -1
 
-        def callback_getter(self, req_id: int) -> Callable[[Request, data.Data], None]:
-            def fcallback(request: Request, output: data.Data):
-                print(f"Request {req_id} finished at step {self.timer}.")
-                outputs[req_id] = output
-                finish_time[req_id] = self.timer
+        def callback_getter(self) -> Callable[[str, data.TokenData, bool], None]:
+            def fcallback(request_id: str, token_data: data.TokenData, finished: bool):
+                if finished:
+                    print(f"Request {request_id} finished at step {self.timer}.")
+                outputs[int(request_id)] += token_data.token_ids
+                finish_time[int(request_id)] = self.timer
 
             return fcallback
 
@@ -157,14 +157,12 @@ def test_engine_continuous_batching_1():
     timer = CallbackTimer()
     requests = create_requests(
         num_requests,
-        timer.callback_getter,
+        timer.callback_getter(),
         temperature=temperature,
         repetition_penalty=repetition_penalty,
         max_new_tokens_low=max_new_tokens_low,
         max_new_tokens_high=max_new_tokens_high,
     )
-    # Create engine
-    engine = Engine(model, kv_cache_config)
 
     # Add all requests to engine
     for request in requests:
@@ -181,8 +179,7 @@ def test_engine_continuous_batching_1():
 
     for req_id, (request, output, fin_time) in enumerate(zip(requests, outputs, finish_time)):
         print(f"Prompt {req_id}: {request.inputs[0]}")
-        print(f"Output {req_id}:{output}\n")
-        assert isinstance(output, data.TextData)
+        print(f"Output {req_id}:{engine.detokenize(output)}\n")
         assert fin_time == request.generation_config.max_new_tokens - 1
 
 
@@ -210,18 +207,22 @@ def test_engine_continuous_batching_2():
     np.random.seed(0)
 
     # Output list
-    outputs = [None] * num_requests
+    outputs = [[] for _ in range(num_requests)]
     finish_time = [None] * num_requests
+
+    # Create engine
+    engine = Engine(model, kv_cache_config)
 
     # Define the callback class for request generation results
     class CallbackTimer:
         timer: int = -1
 
-        def callback_getter(self, req_id: int) -> Callable[[Request, data.Data], None]:
-            def fcallback(request: Request, output: data.Data):
-                print(f"Request {req_id} finished at step {self.timer}.")
-                outputs[req_id] = output
-                finish_time[req_id] = self.timer
+        def callback_getter(self) -> Callable[[str, data.TokenData, bool], None]:
+            def fcallback(request_id: str, token_data: data.TokenData, finished: bool):
+                if finished:
+                    print(f"Request {request_id} finished at step {self.timer}.")
+                outputs[int(request_id)] += token_data.token_ids
+                finish_time[int(request_id)] = self.timer
 
             return fcallback
 
@@ -232,15 +233,13 @@ def test_engine_continuous_batching_2():
     timer = CallbackTimer()
     requests = create_requests(
         num_requests,
-        timer.callback_getter,
+        timer.callback_getter(),
         stop_token=stop_token,
         temperature=temperature,
         repetition_penalty=repetition_penalty,
         max_new_tokens_low=max_new_tokens,
         max_new_tokens_high=max_new_tokens + 1,
     )
-    # Create engine
-    engine = Engine(model, kv_cache_config)
 
     # Add all requests to engine
     for request in requests:
@@ -257,8 +256,7 @@ def test_engine_continuous_batching_2():
         print(f"Prompt {req_id}: {request.inputs[0]}")
         if fin_time < num_requests + max_new_tokens - 2:
             print(f"Request {req_id} ends early on the stop token")
-        print(f"Output {req_id}:{output}\n")
-        assert isinstance(output, data.TextData)
+        print(f"Output {req_id}:{engine.detokenize(output)}\n")
 
 
 def test_engine_continuous_batching_3():
@@ -285,20 +283,24 @@ def test_engine_continuous_batching_3():
     np.random.seed(0)
 
     # Output list
-    outputs = [None] * num_requests
+    outputs = [[] for _ in range(num_requests)]
     finish_time = [None] * num_requests
+
+    # Create engine
+    engine = Engine(model, kv_cache_config)
 
     # Define the callback class for request generation results
     class CallbackTimer:
         timer: int = -1
         finished_requests: int = 0
 
-        def callback_getter(self, req_id: int) -> Callable[[Request, data.Data], None]:
-            def fcallback(request: Request, output: data.Data):
-                print(f"Request {req_id} finished at step {self.timer}.")
-                outputs[req_id] = output
-                finish_time[req_id] = self.timer
-                self.finished_requests += 1
+        def callback_getter(self) -> Callable[[str, data.TokenData, bool], None]:
+            def fcallback(request_id: str, token_data: data.TokenData, finished: bool):
+                if finished:
+                    print(f"Request {request_id} finished at step {self.timer}.")
+                    self.finished_requests += 1
+                outputs[int(request_id)] += token_data.token_ids
+                finish_time[int(request_id)] = self.timer
 
             return fcallback
 
@@ -312,15 +314,13 @@ def test_engine_continuous_batching_3():
     timer = CallbackTimer()
     requests = create_requests(
         num_requests,
-        timer.callback_getter,
+        timer.callback_getter(),
         stop_token=stop_token,
         temperature=temperature,
         repetition_penalty=repetition_penalty,
         max_new_tokens_low=max_new_tokens_low,
         max_new_tokens_high=max_new_tokens_high,
     )
-    # Create engine
-    engine = Engine(model, kv_cache_config)
 
     # Assign the time to add requests to engine
     request_add_time = [np.random.randint(0, 200) for _ in range(num_requests)]
@@ -340,8 +340,7 @@ def test_engine_continuous_batching_3():
     for req_id, (request, output, fin_time) in enumerate(zip(requests, outputs, finish_time)):
         print(f"Prompt {req_id}: {request.inputs[0]}")
         print(f"Finish time: {fin_time}")
-        print(f"Output {req_id}:{output}\n")
-        assert isinstance(output, data.TextData)
+        print(f"Output {req_id}:{engine.detokenize(output)}\n")
 
 
 def test_engine_generate():

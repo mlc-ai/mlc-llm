@@ -64,7 +64,7 @@ class ModelObj : public Object {
    * \return The logits for the next token.
    */
   virtual NDArray BatchPrefill(Array<NDArray> embedding_arr, std::vector<int> seq_ids,
-                               std::vector<int>) = 0;
+                               std::vector<int> lengths) = 0;
 
   /*!
    * \brief Batch decode function. Embedding in, logits out.
