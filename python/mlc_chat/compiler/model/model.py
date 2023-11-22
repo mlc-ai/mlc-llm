@@ -6,9 +6,9 @@ from tvm.relax.frontend import nn
 
 from ..loader import ExternMapping, QuantizeMapping
 from ..quantization.quantization import Quantization
+from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
-from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -93,7 +93,7 @@ MODELS: Dict[str, Model] = {
             "no-quant": gpt2_quantization.no_quant,
             "group-quant": gpt2_quantization.group_quant,
         },
-    )
+    ),
 }
 
 MODEL_PRESETS: Dict[str, Any] = {

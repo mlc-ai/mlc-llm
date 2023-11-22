@@ -53,6 +53,9 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 )
 
 
+# pylint: disable=invalid-name,missing-docstring
+
+
 class GPT2Attention(nn.Module):
     def __init__(self, config: GPT2Config):
         self.embed_dim = config.n_embd
