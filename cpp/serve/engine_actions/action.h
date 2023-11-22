@@ -31,9 +31,9 @@ class EngineActionObj : public Object {
   /*!
    * \brief The behavior of the engine action in a single step.
    * \param estate The engine state to be analyzed and updated.
-   * \return A boolean indicating if the action is successfully taken.
+   * \return The processed requests in this step.
    */
-  virtual bool Step(EngineState estate) = 0;
+  virtual Array<Request> Step(EngineState estate) = 0;
 
   static constexpr const char* _type_key = "mlc.serve.EngineAction";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -48,14 +48,6 @@ class EngineActionObj : public Object {
  */
 class EngineAction : public ObjectRef {
  public:
-  /*!
-   * \brief Create the action that aborts the requests in the `abort_queue`
-   * of the engine state.
-   * \param models The models where the requests to abort also need
-   * to be removed from.
-   * \return The created action object.
-   */
-  static EngineAction AbortRequest(Array<Model> models);
   /*!
    * \brief Create the action that prefills requests in the `waiting_queue`
    * of the engine state.

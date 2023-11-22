@@ -73,13 +73,8 @@ TVM_REGISTER_GLOBAL("mlc.serve.TokenData").set_body([](TVMArgs args, TVMRetValue
   *rv = TokenData(std::move(token_ids));
 });
 
-TVM_REGISTER_GLOBAL("mlc.serve.TokenDataGetLength").set_body_typed([](TokenData data) {
-  return static_cast<int64_t>(data->token_ids.size());
-});
-
-TVM_REGISTER_GLOBAL("mlc.serve.TokenDataGetElem").set_body_typed([](TokenData data, int idx) {
-  ICHECK_LT(idx, static_cast<int>(data->token_ids.size()));
-  return data->token_ids[idx];
+TVM_REGISTER_GLOBAL("mlc.serve.TokenDataGetTokenIds").set_body_typed([](TokenData data) {
+  return data->token_ids;
 });
 
 }  // namespace serve

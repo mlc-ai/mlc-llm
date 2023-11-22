@@ -59,8 +59,6 @@ class EngineStateObj : public Object {
   std::vector<Request> running_queue;
   /*! \brief The requests that have not started for process yet. */
   std::vector<Request> waiting_queue;
-  /*! \brief The requests to abort. */
-  std::vector<Request> abort_queue;
   /*! \brief The states of all requests. */
   std::unordered_map<String, RequestState, ObjectPtrHash, ObjectPtrEqual> request_states;
   /*! \brief Runtime statistics. */
