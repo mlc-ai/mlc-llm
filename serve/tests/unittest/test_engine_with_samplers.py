@@ -20,16 +20,16 @@ from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
 from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModelModule
 
 def create_engine(
-        model_artifact_path, 
-        use_staging_engine, 
-        max_num_sequences, 
+        model_artifact_path,
+        use_staging_engine,
+        max_num_sequences,
         max_input_len,
-        
+
     ):
     engine_config = get_engine_config({
         "use_staging_engine": use_staging_engine,
-        "max_num_sequences": max_num_sequences, 
-        "max_input_len": max_input_len,    
+        "max_num_sequences": max_num_sequences,
+        "max_input_len": max_input_len,
         # Use defaults for "min_decode_steps", "max_decode_steps", "prompt_allocate_ratio"
     })
 
@@ -57,27 +57,27 @@ def create_request(idx, prompt, temp, max_tokens, stop, ignore_eos):
         messages = [ChatMessage(role="user", content=prompt)],
         sampling_params = SamplingParams(
                             temperature=0.0,
-        ), 
+        ),
         stopping_criteria = StoppingCriteria(
-            max_tokens=max_tokens, 
+            max_tokens=max_tokens,
             stop_sequences=stop
-        ), 
+        ),
         debug_options = DebugOptions(ignore_eos = ignore_eos)
     )
 
 def test_max_tokens(
-        model_artifact_path, 
-        use_staging_engine, 
-        max_num_sequences=4, 
+        model_artifact_path,
+        use_staging_engine,
+        max_num_sequences=4,
         max_input_len=512,
         num_requests=5,
         ignore_eos=False
     ):
     prompt = "Write a merge sort program in Python."
     engine = create_engine(
-        model_artifact_path, 
-        use_staging_engine, 
-        max_num_sequences, 
+        model_artifact_path,
+        use_staging_engine,
+        max_num_sequences,
         max_input_len,
     )
 
@@ -91,7 +91,7 @@ def test_max_tokens(
         for res in results.outputs:
             assert len(res.sequences) == 1
             seq = res.sequences[0]
-            
+
             if seq.is_finished:
                 assert seq.num_generated_tokens == requests[int(res.request_id)].stopping_criteria.max_tokens
                 assert seq.finish_reason == FinishReason.Length
@@ -103,17 +103,17 @@ def test_max_tokens(
 
 
 def test_ignore_eos(
-    model_artifact_path, 
-    use_staging_engine, 
-    max_num_sequences=4, 
+    model_artifact_path,
+    use_staging_engine,
+    max_num_sequences=4,
     max_input_len=512,
     num_requests=5,
 ):
     prompt = "hi"
     engine = create_engine(
-        model_artifact_path, 
-        use_staging_engine, 
-        max_num_sequences, 
+        model_artifact_path,
+        use_staging_engine,
+        max_num_sequences,
         max_input_len,
     )
     s = 113
@@ -141,7 +141,7 @@ def test_ignore_eos(
 def test_stop(
     model_artifact_path,
     use_staging_engine,
-    max_num_sequences=4, 
+    max_num_sequences=4,
     max_input_len=512,
     num_requests=5,
 ):
@@ -167,12 +167,10 @@ def test_stop(
             seq = res.sequences[0]
             req_id = int(res.request_id)
             if seq.is_finished:
-                # TODO: Currently staging engine returns FinishReason.Cancelled.
-                # This needs to be fixed. 
-                #assert seq.finish_reason == FinishReason.Stop, f"{seq.finish_reason.name}"
+                assert seq.finish_reason == FinishReason.Stop, f"{seq.finish_reason.name}"
                 assert not seq.delta
                 gen_txt = generated[req_id]
-                
+
                 # stop token should appear only once in the gen text.
                 found = sum([gen_txt.count(str_stop) for str_stop in requests[req_id].stopping_criteria.stop_sequences])
                 assert found == 1, f"{gen_txt!r}, matches: {found}"
@@ -186,10 +184,10 @@ def test_stop(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--local-id", type=str, required=True)
-    parser.add_argument("--artifact-path", type=str, default="../../../dist")
+    parser.add_argument("--artifact-path", type=str, default="dist")
     args = parser.parse_args()
     model_artifact_path = os.path.join(args.artifact_path, args.local_id)
-    
+
     test_max_tokens(model_artifact_path, use_staging_engine=True)
     test_max_tokens(model_artifact_path, use_staging_engine=False)
     test_ignore_eos(model_artifact_path, use_staging_engine=True)

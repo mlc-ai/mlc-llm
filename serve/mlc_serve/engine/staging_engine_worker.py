@@ -15,6 +15,7 @@ from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class ShutdownCommand:
     pass
@@ -27,6 +28,11 @@ class AddRequestsCommand:
 
 @dataclass
 class CancelRequestCommand:
+    request_id: RequestId
+
+
+@dataclass
+class StopRequestCommand:
     request_id: RequestId
 
 
@@ -61,9 +67,12 @@ class GenerationLoopWorker:
         self.max_context_length = self.model_artifact_config.max_context_length
         self.max_num_batched_tokens = model_module.engine_config.max_num_batched_tokens
         self.max_decode_steps = min(
-            self.cache_manager.get_kv_cache_size(), model_module.engine_config.max_decode_steps
+            self.cache_manager.get_kv_cache_size(),
+            model_module.engine_config.max_decode_steps,
         )
-        self.min_decode_steps = min(self.max_decode_steps - 1, model_module.engine_config.min_decode_steps)
+        self.min_decode_steps = min(
+            self.max_decode_steps - 1, model_module.engine_config.min_decode_steps
+        )
         self.prompt_allocate_ratio = model_module.engine_config.prompt_allocate_ratio
         assert self.prompt_allocate_ratio >= 1.0
 
@@ -72,6 +81,7 @@ class GenerationLoopWorker:
         self.has_new_requests = Condition(lock=self.queue_lock)
 
         self.cancelled_requests = list[RequestState]()
+        self.stopped_requests = list[RequestState]()
 
         self.current_batch = dict[RequestId, RequestState]()
 
@@ -81,7 +91,10 @@ class GenerationLoopWorker:
             # cancel them instead.
             valid_states = []
             for request_state in request_states:
-                if request_state.validation_err is not None or request_state.prompt_len >= self.max_context_length:
+                if (
+                    request_state.validation_err is not None
+                    or request_state.prompt_len >= self.max_context_length
+                ):
                     self.cancelled_requests.append(request_state)
                 else:
                     valid_states.append(request_state)
@@ -89,20 +102,29 @@ class GenerationLoopWorker:
             self.queue.extend(valid_states)
             self.has_new_requests.notify_all()
 
-    def cancel(self, request_id: RequestId):
-        with self.queue_lock:
-            queue_index_to_delete = None
-            for i, state in enumerate(self.queue):
-                if state.request_id == request_id:
-                    queue_index_to_delete = i
-                    self.cancelled_requests.append(state)
-                    break
+    def _get_request_state(self, request_id: RequestId) -> Optional[RequestState]:
+        for state in self.queue:
+            if state.request_id == request_id:
+                return state
 
-            if queue_index_to_delete is not None:
-                del self.queue[queue_index_to_delete]
+        return None
+
+    def _cacnel_or_stop_request(
+        self, request_id: RequestId, requests: list[RequestState]
+    ):
+        with self.queue_lock:
+            state = self._get_request_state(request_id)
+            if state:
+                del state
 
             if request_id in self.current_batch:
-                self.cancelled_requests.append(self.current_batch[request_id])
+                requests.append(self.current_batch[request_id])
+
+    def cancel_request(self, request_id: RequestId):
+        self._cacnel_or_stop_request(request_id, self.cancelled_requests)
+
+    def stop_request(self, request_id: RequestId):
+        self._cacnel_or_stop_request(request_id, self.stopped_requests)
 
     def wait_for_request(self, timeout_seconds=None) -> bool:
         with self.queue_lock:
@@ -138,6 +160,20 @@ class GenerationLoopWorker:
                 )
                 self._remove_request_from_batch(state.request_id)
 
+        for state in self.stopped_requests:
+            outputs.append(
+                SequenceGenerationOutput(
+                    # TODO: support multi-sequence
+                    id=SequenceId(state.request_id, 0),
+                    new_tokens=[],
+                    finish_reason=FinishReason.Stop,
+                )
+            )
+            if state.request_id in self.current_batch:
+                self._remove_request_from_batch(state.request_id)
+
+        self.stopped_requests.clear()
+
         for state in self.cancelled_requests:
             err = None
             if state.validation_err:
@@ -149,7 +185,7 @@ class GenerationLoopWorker:
                     id=SequenceId(state.request_id, 0),
                     new_tokens=[],
                     finish_reason=FinishReason.Cancelled,
-                    error = err
+                    error=err,
                 )
             )
             if state.request_id in self.current_batch:
@@ -307,13 +343,13 @@ class GenerationLoopWorker:
         return self.queue or self.current_batch
 
     def _should_stop_by_length(self, state: RequestState) -> bool:
-        # TODO: currently, we simply return true for both stopping reasons. 
-        #       in the future, we can differentiate these two. 
+        # TODO: currently, we simply return true for both stopping reasons.
+        #       in the future, we can differentiate these two.
         # this include prompt tokens and gen tokens so far
-        num_context_tokens = len(state.token_ids) 
+        num_context_tokens = len(state.token_ids)
         if num_context_tokens >= self.model_artifact_config.max_context_length:
             return True
-        num_gen_tokens = num_context_tokens - state.prompt_len 
+        num_gen_tokens = num_context_tokens - state.prompt_len
         if num_gen_tokens >= state.stopping_criteria.max_tokens:
             return True
         return False
@@ -366,7 +402,9 @@ def run_generation_loop_worker(
             elif isinstance(cmd, AddRequestsCommand):
                 worker.add(cmd.request_states)
             elif isinstance(cmd, CancelRequestCommand):
-                worker.cancel(cmd.request_id)
+                worker.cancel_request(cmd.request_id)
+            elif isinstance(cmd, StopRequestCommand):
+                worker.stop_request(cmd.request_id)
             else:
                 logger.error("Unknown command type %s", type(cmd))
                 break
