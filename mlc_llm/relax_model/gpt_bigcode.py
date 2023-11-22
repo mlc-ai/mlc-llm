@@ -1,29 +1,28 @@
-import math
 import argparse
+import math
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
 
-from .commons import create_metadata_func
-
 import tvm
 from tvm import relax, te
-from tvm.relax.testing import nn
-from tvm.relax.op.nn import gelu, softmax, layer_norm
-from tvm.script import relax as R
 from tvm.relax.op import (
+    astype,
     broadcast_to,
-    permute_dims,
     expand_dims,
+    matmul,
     maximum,
     minimum,
+    permute_dims,
     reshape,
     squeeze,
-    astype,
-    matmul,
 )
+from tvm.relax.op.nn import gelu, layer_norm, softmax
+from tvm.relax.testing import nn
+from tvm.script import relax as R
 
 from ..quantization import ParamQuantKind, QuantizationScheme
-from .modules import ModuleList, Embedding, Linear
+from .commons import create_metadata_func
+from .modules import Embedding, Linear, ModuleList
 from .param_manager import ParamManager
 
 
@@ -167,9 +166,7 @@ class GPTBigCodeAttention(nn.Module):
         self.n_head = config.n_head
         self.head_dim = config.n_embd // config.n_head
 
-        self.c_attn = Linear(
-            self.n_embd, self.n_embd + 2 * self.head_dim, config.dtype, bias=True
-        )
+        self.c_attn = Linear(self.n_embd, self.n_embd + 2 * self.head_dim, config.dtype, bias=True)
         self.c_proj = Linear(self.n_embd, self.n_embd, config.dtype, bias=True)
 
         self.dtype = config.dtype
@@ -198,9 +195,7 @@ class GPTBigCodeAttention(nn.Module):
 
         query_key_value = self.c_attn(hidden_states)
         # queries: [batch_size, seq_len, n_embd]
-        q = nn.emit_te(
-            te_slice, query_key_value, 0, self.n_embd, primfunc_name_hint="slice"
-        )
+        q = nn.emit_te(te_slice, query_key_value, 0, self.n_embd, primfunc_name_hint="slice")
         # keys: [batch_size, seq_len, head_dim]
         k = nn.emit_te(
             te_slice,
@@ -473,9 +468,7 @@ class GPTBigCodeForCausalLM(nn.Module):
         return logits, key_value_cache
 
 
-def get_param_quant_kind(
-    name: str, param_info: relax.TensorStructInfo
-) -> ParamQuantKind:
+def get_param_quant_kind(name: str, param_info: relax.TensorStructInfo) -> ParamQuantKind:
     if "wte.weight" in name:
         return ParamQuantKind.embedding_table
     elif "lm_head.weight" in name:
@@ -499,21 +492,13 @@ def create_encoding_func(
     all_seq_len = tvm.tir.Var("m", "int64")
     with bb.function(func_name):
         model = GPTBigCodeForCausalLM(config)
-        param_manager.register_params(
-            model, func_name, quant_scheme, get_param_quant_kind
-        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
-        input_ids = nn.Placeholder(
-            (batch_size, seq_len), dtype="int32", name="input_ids"
-        )
-        all_seq_len_shape = relax.Var(
-            "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
-        )
+        input_ids = nn.Placeholder((batch_size, seq_len), dtype="int32", name="input_ids")
+        all_seq_len_shape = relax.Var("all_seq_len", relax.ShapeStructInfo((all_seq_len,)))
         past_key_values = relax.Var(
             "kv_cache",
-            relax.TupleStructInfo(
-                [relax.ObjectStructInfo() for _ in range(config.n_layer * 2)]
-            ),
+            relax.TupleStructInfo([relax.ObjectStructInfo() for _ in range(config.n_layer * 2)]),
         )
 
         with bb.dataflow():
@@ -545,23 +530,17 @@ def create_decoding_func(
 
     bsz = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.IntImm("int64", 1)
-    all_seq_len = tvm.tir.Var("n", "int64")
+    all_seq_len = tvm.tir.Var("m", "int64")
 
     with bb.function(func_name):
         model = GPTBigCodeForCausalLM(config)
-        param_manager.register_params(
-            model, func_name, quant_scheme, get_param_quant_kind
-        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
-        all_seq_len_shape = relax.Var(
-            "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
-        )
+        all_seq_len_shape = relax.Var("all_seq_len", relax.ShapeStructInfo((all_seq_len,)))
         past_key_values = relax.Var(
             "kv_cache",
-            relax.TupleStructInfo(
-                [relax.ObjectStructInfo() for _ in range(config.n_layer * 2)]
-            ),
+            relax.TupleStructInfo([relax.ObjectStructInfo() for _ in range(config.n_layer * 2)]),
         )
         with bb.dataflow():
             logits, key_value_cache = model(
@@ -610,9 +589,7 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: GPTBigCodeConfig) -> No
 
 def create_softmax_func(bb: relax.BlockBuilder, config: GPTBigCodeConfig) -> None:
     with bb.function("softmax_with_temperature"):
-        logits = nn.Placeholder(
-            (1, 1, config.vocab_size), dtype="float32", name="logits"
-        )
+        logits = nn.Placeholder((1, 1, config.vocab_size), dtype="float32", name="logits")
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
             div = bb.emit(relax.op.divide(logits, temperature))
@@ -652,19 +629,20 @@ def get_model(args: argparse.Namespace, hf_config):
             max_window_size=config.max_sequence_length,
             stop_tokens=[0],
             add_prefix_space=False,
+            prefill_chunk_size=args.prefill_chunk_size,
         )
 
         mod = bb.get()
+
+        tir_bound_map = dict()
+        tir_bound_map["n"] = (
+            args.prefill_chunk_size if args.prefill_chunk_size > 0 else config.max_sequence_length
+        )
+        tir_bound_map["m"] = config.max_sequence_length
         for gv in mod.functions:
             func = mod[gv]
             if isinstance(func, relax.Function):
-                mod[gv] = func.with_attr(
-                    "tir_var_upper_bound",
-                    {
-                        "n": config.max_sequence_length,
-                        "m": config.max_sequence_length,
-                    },
-                )
+                mod[gv] = func.with_attr("tir_var_upper_bound", tir_bound_map)
 
         if args.build_model_only:
             return mod, param_manager, None, config

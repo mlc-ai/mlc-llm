@@ -4,7 +4,7 @@ from .quantization import QuantizationSpec, NoQuantizationSpec, ParamQuantKind
 from .quantization import QuantSpecUpdater
 from .group_quantization import GroupQuantizationSpec
 from .autogptq_quantization import AutogptqQuantizationSpec
-from .ft_rowwise_quantization import FTRowwiseQuantizationSpec, FTQuantizeUpdater
+from .ft_quantization import FTQuantizationSpec, FTQuantizeUpdater
 
 
 # The predefined quantization schemes.
@@ -114,9 +114,28 @@ quantization_schemes = {
     ),
     "q4f16_ft": QuantizationScheme(
         name="q4f16_ft",
-        linear_weight=FTRowwiseQuantizationSpec(
+        linear_weight=FTQuantizationSpec(
             dtype="float16",
             nbit=4,
+            group_size=-1,
+        ),
+        embedding_table=GroupQuantizationSpec(
+            dtype="float16",
+            mode="int4",
+            sym=True,
+            storage_nbit=32,
+            group_size=32,
+            transpose=False,
+        ),
+        final_fc_weight="same_as_linear_weight",
+        qspec_updater_class=FTQuantizeUpdater,
+    ),
+    "q4f16_ft_group": QuantizationScheme(
+        name="q4f16_ft_group",
+        linear_weight=FTQuantizationSpec(
+            dtype="float16",
+            nbit=4,
+            group_size=64,
         ),
         embedding_table=GroupQuantizationSpec(
             dtype="float16",
@@ -164,9 +183,27 @@ quantization_schemes = {
     ),
     "q8f16_ft": QuantizationScheme(
         name="q8f16_ft",
-        linear_weight=FTRowwiseQuantizationSpec(
+        linear_weight=FTQuantizationSpec(
             dtype="float16",
             nbit=8,
+        ),
+        embedding_table=GroupQuantizationSpec(
+            dtype="float16",
+            mode="int8",
+            sym=True,
+            storage_nbit=32,
+            group_size=32,
+            transpose=False,
+        ),
+        final_fc_weight="same_as_linear_weight",
+        qspec_updater_class=FTQuantizeUpdater,
+    ),
+    "q8f16_ft_group": QuantizationScheme(
+        name="q8f16_ft_group",
+        linear_weight=FTQuantizationSpec(
+            dtype="float16",
+            nbit=8,
+            group_size=64,
         ),
         embedding_table=GroupQuantizationSpec(
             dtype="float16",

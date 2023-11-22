@@ -6,7 +6,8 @@ from tvm.relax.frontend import nn
 
 from ..loader import ExternMapping, QuantizeMapping
 from ..quantization.quantization import Quantization
-from . import llama_loader, llama_model, llama_quantization
+from .llama import llama_loader, llama_model, llama_quantization
+from .mistral import mistral_loader, mistral_model, mistral_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -61,9 +62,24 @@ MODELS: Dict[str, Model] = {
             "awq": llama_loader.awq,
         },
         quantize={
+            "no-quant": llama_quantization.no_quant,
             "group-quant": llama_quantization.group_quant,
+            "awq": llama_quantization.awq_quant,
         },
-    )
+    ),
+    "mistral": Model(
+        name="mistral",
+        model=mistral_model.MistralForCasualLM,
+        config=mistral_model.MistralConfig,
+        source={
+            "huggingface-torch": mistral_loader.huggingface,
+            "huggingface-safetensor": mistral_loader.huggingface,
+            "awq": mistral_loader.awq,
+        },
+        quantize={
+            "group-quant": mistral_quantization.group_quant,
+        },
+    ),
 }
 
 MODEL_PRESETS: Dict[str, Any] = {
@@ -76,6 +92,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "initializer_range": 0.02,
         "intermediate_size": 11008,
         "max_position_embeddings": 2048,
+        "context_window_size": 4096,
         "model_type": "llama",
         "num_attention_heads": 32,
         "num_hidden_layers": 32,
@@ -100,6 +117,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "initializer_range": 0.02,
         "intermediate_size": 13824,
         "max_position_embeddings": 2048,
+        "context_window_size": 4096,
         "model_type": "llama",
         "num_attention_heads": 40,
         "num_hidden_layers": 40,
@@ -123,6 +141,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "initializer_range": 0.02,
         "intermediate_size": 28672,
         "max_position_embeddings": 2048,
+        "context_window_size": 4096,
         "model_type": "llama",
         "num_attention_heads": 64,
         "num_hidden_layers": 80,
@@ -204,5 +223,27 @@ MODEL_PRESETS: Dict[str, Any] = {
         "transformers_version": "4.32.0.dev0",
         "use_cache": True,
         "vocab_size": 32016,
+    },
+    "mistral_7b": {
+        "architectures": ["MistralForCausalLM"],
+        "bos_token_id": 1,
+        "eos_token_id": 2,
+        "hidden_act": "silu",
+        "hidden_size": 4096,
+        "initializer_range": 0.02,
+        "intermediate_size": 14336,
+        "max_position_embeddings": 32768,
+        "model_type": "mistral",
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "num_key_value_heads": 8,
+        "rms_norm_eps": 1e-05,
+        "rope_theta": 10000.0,
+        "sliding_window": 4096,
+        "tie_word_embeddings": False,
+        "torch_dtype": "bfloat16",
+        "transformers_version": "4.34.0.dev0",
+        "use_cache": True,
+        "vocab_size": 32000,
     },
 }

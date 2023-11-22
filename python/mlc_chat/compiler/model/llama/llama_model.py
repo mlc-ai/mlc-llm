@@ -11,8 +11,8 @@ from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from ...support.config import ConfigBase
-from ...support.style import bold
+from ....support.config import ConfigBase
+from ....support.style import bold
 
 logger = logging.getLogger(__name__)
 
@@ -28,26 +28,29 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     rms_norm_eps: float
     vocab_size: int
     position_embedding_base: int = 0
-    max_sequence_length: int = 0
+    context_window_size: int = 0
     num_key_value_heads: int = 0
     head_dim: int = 0
+    prefill_chunk_size: int = 0
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
-        if self.max_sequence_length == 0:
-            if "max_position_embeddings" in self.kwargs:
-                self.max_sequence_length = self.kwargs.pop("max_position_embeddings")
-                logger.info(
-                    "%s not found in config.json. Falling back to %s (%d)",
-                    bold("max_sequence_length"),
-                    bold("max_position_embeddings"),
-                    self.max_sequence_length,
-                )
+        if self.context_window_size == 0:
+            for name in ["max_position_embeddings", "max_sequence_length"]:
+                if name in self.kwargs:
+                    self.context_window_size = self.kwargs.pop(name)
+                    logger.info(
+                        "%s not found in config.json. Falling back to %s (%d)",
+                        bold("context_window_size"),
+                        bold(name),
+                        self.context_window_size,
+                    )
+                    break
             else:
                 raise ValueError(
-                    "Unable to determine the maxmimum sequence length, because neither "
-                    "`max_sequence_length` nor `max_position_embeddings` is provided "
-                    "in `config.json`."
+                    "Unable to determine the maxmimum sequence length, because none of "
+                    "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
+                    "provided in `config.json`."
                 )
         if self.position_embedding_base == 0:
             if "rope_theta" in self.kwargs:
@@ -61,71 +64,12 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         assert self.num_attention_heads % self.num_key_value_heads == 0
         assert self.head_dim * self.num_attention_heads == self.hidden_size
 
+        if self.prefill_chunk_size == 0:
+            # chunk size same as context window size by default
+            self.prefill_chunk_size = self.context_window_size
+
 
 # pylint: disable=invalid-name,missing-docstring
-
-
-class RMSNorm(nn.Module):
-    """
-    Module for rms norm layer.
-    """
-
-    def __init__(  # pylint: disable=too-many-arguments
-        self,
-        hidden_size: int,
-        axes,  # pylint: disable=unused-argument
-        epsilon: float = 1e-5,
-        bias: bool = True,
-        dtype: Optional[str] = None,
-    ):
-        super().__init__()
-        self.epsilon = epsilon
-        self.weight = nn.Parameter((hidden_size,), dtype=dtype)
-        if bias:
-            self.bias = nn.Parameter((hidden_size,), dtype=dtype)
-        else:
-            self.bias = None
-
-    def forward(self, x: Tensor):
-        """
-        Forward method for rms norm layer.
-
-        Parameters
-        ----------
-        x : Tensor
-            The input tensor.
-
-        Returns
-        -------
-        ret : Tensor
-            The output tensor for the rms norm layer.
-        """
-
-        def f_square(x):
-            x = x.astype("float32")
-            return x * x
-
-        def f_div_mult(x, square_sum, weight, *indices):
-            *i, k = indices
-            s = tir.sqrt(square_sum[*i] / x.shape[-1] + self.epsilon)
-            s = x[*i, k].astype("float32") / s
-            s = (weight[k] * s).astype(x.dtype)
-            return s
-
-        def te_op(x: te.Tensor, weight: te.Tensor):
-            k = te.reduce_axis((0, x.shape[-1]), name="k")
-            square_sum = te.compute(
-                x.shape[:-1],
-                lambda *i: te.sum(f_square(x[*i, k]), axis=k),
-                name=x.op.name + "red_temp",
-            )
-            return te.compute(
-                x.shape,
-                lambda *i: f_div_mult(x, square_sum, weight, *i),
-                name="rms_norm",
-            )
-
-        return op.tensor_expr_op(te_op, "rms_norm", args=[x, self.weight])
 
 
 class RotaryEmbedding(nn.Module):
@@ -193,8 +137,8 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
             bias=False,
         )
         self.o_proj = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
-        self.k_cache = nn.KVCache(config.max_sequence_length, [self.num_kv_heads, self.head_dim])
-        self.v_cache = nn.KVCache(config.max_sequence_length, [self.num_kv_heads, self.head_dim])
+        self.k_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
+        self.v_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
 
     def forward(  # pylint: disable=too-many-locals
         self,
@@ -241,8 +185,8 @@ class LlamaDecoderLayer(nn.Module):
         rms_norm_eps = config.rms_norm_eps
         self.self_attn = LlamaAttention(config, rotary_embedding)
         self.mlp = LlamaFFN(config)
-        self.input_layernorm = RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
-        self.post_attention_layernorm = RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
+        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
+        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
 
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
         hidden_states = (
@@ -261,7 +205,7 @@ class LlamaModel(nn.Module):
         self.layers = nn.ModuleList(
             [LlamaDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
         )
-        self.norm = RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
     def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
         hidden_states = self.embed_tokens(inputs)

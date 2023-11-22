@@ -14,6 +14,7 @@ from mlc_chat.compiler.quantization.group_quantization import (
     GroupQuantize,
     GroupQuantizeEmbedding,
     GroupQuantizeLinear,
+    GroupQuantizeMultiLinear,
 )
 
 
@@ -128,14 +129,13 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
 
     config = QUANTIZATION[quant_name]
     assert isinstance(config, GroupQuantize)
+    num_group = -(shape[1] // -config.group_size)
     weight_np = np.random.randint(
         np.iinfo(config.storage_dtype).min,
         np.iinfo(config.storage_dtype).max,
-        (shape[0], -(shape[1] // -config.num_elem_per_storage)),
+        (shape[0], config.num_storage_per_group * num_group),
     ).astype(config.storage_dtype)
-    scale_np = np.random.random((shape[0], -(shape[1] // -config.group_size))).astype(
-        config.model_dtype
-    )
+    scale_np = np.random.random((shape[0], num_group)).astype(config.model_dtype)
     mod = config.quantize_model(Test(), QuantizeMapping({}, {}), "")
     mod.linear.q_weight.data = weight_np
     mod.linear.q_scale.data = scale_np
@@ -160,6 +160,7 @@ def test_quantize_model(quant_name: str, shape: List[int], dtype: str):
         def __init__(self) -> None:
             super().__init__()
             self.linear = nn.Linear(shape[0], shape[1], dtype=dtype)
+            self.multilinear = nn.MultiLinear(shape[0], [shape[1], shape[1]], dtype=dtype)
             self.embedding = nn.Embedding(shape[0], shape[1], dtype=dtype)
 
         def forward(self, x: nn.Tensor):
@@ -175,6 +176,12 @@ def test_quantize_model(quant_name: str, shape: List[int], dtype: str):
     ]
     assert quant_map.map_func["model.linear.weight"] == config.quantize_weight
     assert isinstance(mod.linear, GroupQuantizeLinear)
+    assert quant_map.param_map["model.multilinear.weight"] == [
+        "model.multilinear.q_weight",
+        "model.multilinear.q_scale",
+    ]
+    assert quant_map.map_func["model.multilinear.weight"] == config.quantize_weight
+    assert isinstance(mod.multilinear, GroupQuantizeMultiLinear)
     assert quant_map.param_map["model.embedding.weight"] == [
         "model.embedding.q_weight",
         "model.embedding.q_scale",

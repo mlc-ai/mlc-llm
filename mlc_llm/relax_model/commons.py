@@ -1,10 +1,9 @@
 import json
-from typing import List, Optional, Dict
-
-import tvm
-from tvm import relax, tir, te, topi
+from typing import Dict, List, Optional
 
 import mlc_llm
+import tvm
+from tvm import relax, te, tir, topi
 
 
 def create_metadata_func(
@@ -13,6 +12,8 @@ def create_metadata_func(
     max_window_size: int,
     stop_tokens: List[int],
     add_prefix_space: bool,
+    prefill_chunk_size: int = -1,
+    sliding_window: int = -1,
 ):
     metadata = json.dumps(
         {
@@ -20,6 +21,8 @@ def create_metadata_func(
             "max_window_size": max_window_size,
             "stop_tokens": stop_tokens,
             "add_prefix_space": add_prefix_space,
+            "prefill_chunk_size": prefill_chunk_size,
+            "sliding_window": sliding_window,
         }
     )
     with bb.function("get_metadata", params=[]):
@@ -94,8 +97,8 @@ def _get_shard_strategies_ft(
     q_heads = model_config.num_attention_heads
     kv_heads = model_config.get_num_key_value_heads()
 
-    def shard_qkv_weight(weight: relax.TensorStructInfo):
-        (red, spatial), dtype = weight.shape, weight.dtype
+    def shard_qkv_weight_scale(x: relax.TensorStructInfo):
+        (red, spatial), dtype = x.shape, x.dtype
         red, spatial = int(red), int(spatial)
         if param_shape_is_already_sharded:
             spatial *= num_shards
@@ -114,31 +117,6 @@ def _get_shard_strategies_ft(
         func = te.create_prim_func([a, w])
         return func
 
-    def shard_qkv_scale(scale: relax.TensorStructInfo):
-        (spatial,), dtype = scale.shape, scale.dtype
-        spatial = int(spatial)
-        if param_shape_is_already_sharded:
-            spatial *= num_shards
-        head_dim = spatial // (q_heads + 2 * kv_heads)
-        a = te.placeholder((spatial,), dtype=dtype)
-        w = topi.reshape(a, (spatial // head_dim, head_dim))
-        q = te.compute((q_heads, head_dim), lambda i, j: w[i, j])
-        k = te.compute((kv_heads, head_dim), lambda i, j: w[q_heads + i, j])
-        v = te.compute((kv_heads, head_dim), lambda i, j: w[q_heads + kv_heads + i, j])
-        q = topi.reshape(q, (num_shards, q_heads // num_shards, head_dim))
-        k = topi.reshape(k, (num_shards, kv_heads // num_shards, head_dim))
-        v = topi.reshape(v, (num_shards, kv_heads // num_shards, head_dim))
-        w = topi.concatenate((q, k, v), axis=1)
-        w = topi.reshape(w, (num_shards, (q_heads + kv_heads * 2) // num_shards * head_dim))
-        func = te.create_prim_func([a, w])
-        return func
-
-    def shard_qkv_weight_scale(x: relax.TensorStructInfo):
-        if x.ndim == 2:
-            return shard_qkv_weight(x)
-        else:
-            return shard_qkv_scale(x)
-
     def shard_k_weight(weight: relax.TensorStructInfo):
         (red, spatial), dtype = weight.shape, weight.dtype
         red, spatial = int(red), int(spatial)
@@ -149,8 +127,8 @@ def _get_shard_strategies_ft(
         func = te.create_prim_func([a, w])
         return func
 
-    def shard_gate_up_weight(weight: relax.TensorStructInfo):
-        (red, spatial), dtype = weight.shape, weight.dtype
+    def shard_gate_up_weight_scale(x: relax.TensorStructInfo):
+        (red, spatial), dtype = x.shape, x.dtype
         red, spatial = int(red), int(spatial)
         if param_shape_is_already_sharded:
             spatial *= num_shards
@@ -164,27 +142,6 @@ def _get_shard_strategies_ft(
         w = topi.transpose(w, (1, 0, 2))
         func = te.create_prim_func([a, w])
         return func
-
-    def shard_gate_up_scale(weight: relax.TensorStructInfo):
-        (spatial,), dtype = weight.shape, weight.dtype
-        spatial = int(spatial)
-        if param_shape_is_already_sharded:
-            spatial *= num_shards
-        a = te.placeholder((spatial,), dtype=dtype)
-        g = te.compute((spatial // 2,), lambda i: a[i])
-        u = te.compute((spatial // 2,), lambda i: a[spatial // 2 + i])
-        g = topi.reshape(g, (num_shards, spatial // 2 // num_shards))
-        u = topi.reshape(u, (num_shards, spatial // 2 // num_shards))
-        w = topi.concatenate((g, u), axis=1)
-        w = topi.reshape(w, (num_shards, spatial // num_shards))
-        func = te.create_prim_func([a, w])
-        return func
-
-    def shard_gate_up_weight_scale(x: relax.TensorStructInfo):
-        if x.ndim == 2:
-            return shard_gate_up_weight(x)
-        else:
-            return shard_gate_up_scale(x)
 
     return {
         "shard_qkv": shard_qkv_weight_scale,
@@ -246,7 +203,7 @@ def create_shard_info_func(param_manager, args, model_config) -> tvm.IRModule:
 
 
 def create_shard_transformation_func(param_manager, args, model_config) -> tvm.IRModule:
-    use_ft_quant = args.quantization.name in ["q4f16_ft", "q8f16_ft"]
+    use_ft_quant = args.quantization.name in ["q4f16_ft", "q8f16_ft", "q4f16_ft_group", "q8f16_ft_group"]
 
     if use_ft_quant:
         shard_strategy_to_func = _get_shard_strategies_ft(
@@ -307,13 +264,14 @@ def create_shard_transformation_func(param_manager, args, model_config) -> tvm.I
             if param.shard_strategy is None or (
                 use_ft_quant
                 and param.shard_strategy in ["shard_mlp_k", "shard_o_proj_k"]
-                and len(qparam_sinfo.shape) == 1
+                and qparam_sinfo.shape[0] == 1
             ):
                 sharded = arg
             else:
                 strategy_func = shard_strategy_to_func[param.shard_strategy](
                     qparam_sinfo
                 ).without_attr("global_symbol")
+
                 strategy_gvar = bb.add_func(
                     strategy_func,
                     func_name=f"{arg_name}.sharding_func",

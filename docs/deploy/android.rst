@@ -33,7 +33,7 @@ Prerequisite
   TVM_NDK_CC: $ANDROID_NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
   # Example on Windows
   ANDROID_NDK: $HOME/Library/Android/sdk/ndk/25.2.9519653
-  TVM_NDK_CC: $ANDROID_NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
+  TVM_NDK_CC: $ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
 
 **JDK**, such as OpenJDK >= 17, to compile Java bindings of TVM Unity runtime. It could be installed via Homebrew on macOS, apt on Ubuntu or other package managers. Set up the following environment variable:
 
@@ -164,6 +164,6 @@ Instructions have been provided to build an Android App with MLC LLM in previous
 .. code-block:: bash
 
   adb install android/MLCChat/app/release/app-release.apk
-  adb push dist/${MODEL_NAME}-${QUANTIZATION}/params /data/local/tmp/${MODEL_NAME}/
+  adb push dist/${MODEL_NAME}-${QUANTIZATION}/params /data/local/tmp/${MODEL_NAME}-${QUANTIZATION}/
   adb shell "mkdir -p /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/"
-  adb shell "mv /data/local/tmp/${MODEL_NAME} /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/${MODEL_NAME}"
+  adb shell "mv /data/local/tmp/${MODEL_NAME}-${QUANTIZATION} /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/"
