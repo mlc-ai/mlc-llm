@@ -39,6 +39,9 @@ def load_torch_shard(path: Path) -> Iterator[Tuple[str, np.ndarray]]:
     import torch  # pylint: disable=import-outside-toplevel
 
     for name, param in torch.load(path, map_location=torch.device("cpu")).items():
+        if param is None:
+            logger.warning("Encountered None param, skipping it: %s", name)
+            continue
         param = param.detach().cpu()
         dtype = str(param.dtype)
         if dtype == "torch.bfloat16":
