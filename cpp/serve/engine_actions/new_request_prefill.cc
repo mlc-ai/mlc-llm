@@ -25,13 +25,13 @@ class NewRequestPrefillActionObj : public EngineActionObj {
         kv_cache_config_(std::move(kv_cache_config)),
         max_single_sequence_length_(max_single_sequence_length) {}
 
-  bool Step(EngineState estate) final {
+  Array<Request> Step(EngineState estate) final {
     // - Find the requests in `waiting_queue` that can prefill in this step.
     auto [requests, rstates, prefill_lengths] = GetRequestsToPrefill(estate);
     ICHECK_EQ(requests.size(), rstates.size());
     ICHECK_EQ(requests.size(), prefill_lengths.size());
     if (requests.empty()) {
-      return false;
+      return {};
     }
 
     int num_requests = requests.size();
@@ -112,7 +112,7 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     auto tend = std::chrono::high_resolution_clock::now();
     estate->stats.engine_total_prefill_time += static_cast<double>((tend - tstart).count()) / 1e9;
 
-    return true;
+    return requests;
   }
 
  private:

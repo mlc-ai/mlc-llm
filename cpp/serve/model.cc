@@ -181,7 +181,7 @@ class ModelImpl : public ModelObj {
     logit_pos.reserve(num_sequences);
     for (int i = 0; i < num_sequences; ++i) {
       total_length += lengths[i];
-      logit_pos.push_back(total_length);
+      logit_pos.push_back(total_length - 1);
       if (i > 0) {
         CHECK_GT(seq_ids[i], seq_ids[i - 1]) << "The input sequence ids must be non-decreasing.";
       }
