@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 import tvm
+from transformers import AutoTokenizer  # pylint: disable=import-error
 from tvm.runtime import Device
 
 from mlc_chat.support.auto_device import detect_device
@@ -127,6 +128,7 @@ class Engine:
             kv_cache_config.asjson(),
             *model_args,
         )
+        self._tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
 
     def generate(
         self,
@@ -143,6 +145,13 @@ class Engine:
         prompts : Union[str, List[str], List[int], List[List[int]]]
             One or a list of input prompts for text generation.
             Each prompt can be a string or a list of token ids.
+
+        generation_config : Union[GenerationConfig, List[GenerationConfig]]
+            The generation config for each requests.
+            If the it is a single GenerationConfig instance,
+            this config will be shared by all the prompts.
+            Otherwise, one generation config is required for every
+            prompt.
 
         Returns
         -------
@@ -172,16 +181,18 @@ class Engine:
         ), "Number of generation config and number of prompts mismatch"
 
         num_finished_requests = 0
-        outputs: List[data.Data] = [None] * num_requests
+        outputs: List[List[int]] = [[] for _ in range(num_requests)]
 
         # Define the callback function for request generation results
-        def callback_getter(req_id: int):
-            def fcallback(request: Request, output: data.Data):  # pylint: disable=unused-argument
-                nonlocal num_finished_requests
-                outputs[req_id] = output
+        def fcallback(
+            request_id: str,
+            token_data: data.TokenData,
+            finished: bool,  # pylint: disable=unused-argument
+        ):
+            nonlocal num_finished_requests
+            outputs[int(request_id)] += token_data.token_ids
+            if finished:
                 num_finished_requests += 1
-
-            return fcallback
 
         # Add requests to engine.
         for req_id, (prompt, generation_cfg) in enumerate(zip(prompts, generation_config)):
@@ -195,7 +206,7 @@ class Engine:
                     request_id=str(req_id),
                     inputs=input_data,
                     generation_config=generation_cfg,
-                    fcallback=callback_getter(req_id),
+                    fcallback=fcallback,
                 )
             )
 
@@ -204,8 +215,7 @@ class Engine:
 
         output_strs = []
         for output in outputs:
-            assert isinstance(output, data.TextData)
-            output_strs.append(output.text)
+            output_strs.append(self.detokenize(output))
         return output_strs
 
     def add_request(self, request: Request) -> None:
@@ -217,6 +227,16 @@ class Engine:
             The request to add.
         """
         self._ffi["add_request"](request)
+
+    def abort_request(self, request_id: str) -> None:
+        """Abort the generation of the request corresponding to the input request id.
+
+        Parameters
+        ----------
+        request_id : str
+            The unique id of the request to abort.
+        """
+        self._ffi["abort"](request_id)
 
     def step(self) -> None:
         """The main function that the engine takes a step of action.
@@ -248,3 +268,19 @@ class Engine:
         """
         stats_json_str = self._ffi["stats"]()
         return json.loads(stats_json_str)
+
+    def detokenize(self, token_ids: List[int]) -> str:
+        """Detokenize the given token ids to strings with the tokenizer
+        that backs the engine.
+
+        Parameters
+        ----------
+        token_ids : List[int]
+            The token ids to decode.
+
+        Returns
+        -------
+        output : str
+            The detokenized text string.
+        """
+        return self._tokenizer.decode(token_ids)

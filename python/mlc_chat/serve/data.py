@@ -3,7 +3,6 @@ from typing import List
 
 import tvm._ffi
 from tvm.runtime import Object
-from tvm.runtime.container import getitem_helper
 
 from . import _ffi_api
 
@@ -51,8 +50,7 @@ class TokenData(Data):
     def __init__(self, token_ids: List[int]):
         self.__init_handle_by_constructor__(_ffi_api.TokenData, *token_ids)  # type: ignore  # pylint: disable=no-member
 
-    def __len__(self) -> int:
-        return _ffi_api.TokenDataGetLength(self)  # type: ignore  # pylint: disable=no-member
-
-    def __getitem__(self, idx) -> int:
-        return getitem_helper(self, _ffi_api.TokenDataGetElem, len(self), idx)  # type: ignore  # pylint: disable=no-member
+    @property
+    def token_ids(self) -> List[int]:
+        """Return the token ids of the TokenData."""
+        return list(_ffi_api.TokenDataGetTokenIds(self))  # type: ignore  # pylint: disable=no-member

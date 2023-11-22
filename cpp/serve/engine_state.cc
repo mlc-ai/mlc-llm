@@ -42,7 +42,6 @@ EngineState::EngineState() { data_ = make_object<EngineStateObj>(); }
 void EngineStateObj::Reset() {
   running_queue.clear();
   waiting_queue.clear();
-  abort_queue.clear();
   request_states.clear();
   stats.Reset();
 }

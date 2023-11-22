@@ -98,6 +98,11 @@ class RequestStateNode : public Object {
    * \sa RequestModelState
    */
   Array<RequestModelState> mstates;
+  /*!
+   * \brief The start position of the committed tokens in the
+   * next request callback invocation.
+   */
+  int next_callback_token_pos;
 
   /*! \brief The time of adding the request to engine. */
   std::chrono::_V2::system_clock::time_point tadd;
