@@ -107,6 +107,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "stablecode-completion": "stablecode_completion",
         "stablecode-instruct": "stablecode_instruct",
         "chatglm2": "glm",
+        "chatglm3": "glm",
         "codegeex2": "glm",
     }
 
