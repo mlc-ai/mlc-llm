@@ -6,7 +6,7 @@ from tvm.runtime import Object
 
 from . import _ffi_api
 from .config import GenerationConfig
-from .data import Data
+from .data import Data, TokenData
 
 
 @tvm._ffi.register_object("mlc.serve.Request")  # pylint: disable=protected-access
@@ -28,10 +28,15 @@ class Request(Object):
         The sampling configuration which may contain temperature,
         top_p, repetition_penalty, max_gen_len, etc.
 
-    fcallback : Callable[[Request, Data], None]
+    fcallback : Callable[[str, TokenData, bool], None]
         The provided callback function to handle the generation
-        output. It has the signature of `(Request, Data) -> None`,
-        which takes the request and the generation output as parameters.
+        output. It has the signature of `(str, TokenData, bool) -> None`,
+        where
+        - the string is the request id,
+        - the TokenData contains the generated **delta** token ids since
+        the invocation of the callback on the specific request,
+        - the boolean value denotes if the generation of the request is
+        finished.
     """
 
     def __init__(
@@ -39,7 +44,7 @@ class Request(Object):
         request_id: str,
         inputs: Union[Data, List[Data]],
         generation_config: GenerationConfig,
-        fcallback: Callable[["Request", Data], None],
+        fcallback: Callable[[str, TokenData, bool], None],
     ):
         if not isinstance(inputs, list):
             inputs = [inputs]
