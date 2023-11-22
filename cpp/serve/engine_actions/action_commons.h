@@ -25,20 +25,21 @@ using namespace tvm::runtime;
 void RemoveRequestFromModel(EngineState estate, int req_id, Array<Model> models);
 
 /*!
- * \brief For each request in the `running_queue` of the engine state,
- * check if the request has finished its generation. Update the state
- * and return the generation result via request callback for the finished
- * requests.
- * \note This function removes requests from the `running_queue`.
+ * \brief The request post-processing after an engine action step.
+ * It includes
+ * - invoke the request function callback to return new generated tokens,
+ * - update the engine state for finished requests.
+ * \note This function may remove requests from the `running_queue`.
+ * \param requests The requests to process.
  * \param estate The engine state.
  * \param models The models to remove the finished from.
  * \param tokenizer The tokenizer used to decode the generated tokens of requests.
  * \param max_single_sequence_length The max single sequence length to help decide
  * if a request is finished.
  */
-void ProcessFinishedRequest(EngineState estate, Array<Model> models,
-                            const std::unique_ptr<Tokenizer>& tokenizer,
-                            int max_single_sequence_length);
+void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
+                           const std::unique_ptr<Tokenizer>& tokenizer,
+                           int max_single_sequence_length);
 
 }  // namespace serve
 }  // namespace llm
