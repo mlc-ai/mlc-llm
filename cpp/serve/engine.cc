@@ -84,13 +84,11 @@ class Engine {
       this->models_.push_back(model);
     }
     // Step 3. Initialize engine actions that represent state transitions.
-    this->action_abort_request_ = EngineAction::AbortRequest(this->models_);
-    this->action_new_request_prefill_ =
-        EngineAction::NewRequestPrefill(this->models_,           //
-                                        this->sampler_,          //
-                                        this->kv_cache_config_,  //
-                                        this->max_single_sequence_length_);
-    this->action_batch_decode_ = EngineAction::BatchDecode(this->models_, this->sampler_);
+    this->actions_ = {EngineAction::NewRequestPrefill(this->models_,           //
+                                                      this->sampler_,          //
+                                                      this->kv_cache_config_,  //
+                                                      this->max_single_sequence_length_),
+                      EngineAction::BatchDecode(this->models_, this->sampler_)};
   }
 
   /*! \brief Reset the engine, clean up all running data and statistics. */
@@ -117,7 +115,34 @@ class Engine {
   }
 
   /*! \brief Abort the input request. */
-  void AbortRequest(Request request) { estate_->abort_queue.push_back(request); }
+  void AbortRequest(String request_id) {
+    auto it_rstate = estate_->request_states.find(request_id);
+    CHECK(it_rstate != estate_->request_states.end())
+        << "The request to abort must have been added to the engine";
+    RequestState rstate = it_rstate->second;
+    Request request = rstate->request;
+
+    // - Check if the request is running or pending.
+    auto it_running =
+        std::find(estate_->running_queue.begin(), estate_->running_queue.end(), request);
+    auto it_waiting =
+        std::find(estate_->waiting_queue.begin(), estate_->waiting_queue.end(), request);
+    ICHECK(it_running != estate_->running_queue.end() ||
+           it_waiting != estate_->waiting_queue.end());
+
+    if (it_running != estate_->running_queue.end()) {
+      // The request to abort is in running queue
+      int internal_req_id = it_running - estate_->running_queue.begin();
+      estate_->running_queue.erase(it_running);
+      estate_->stats.current_total_seq_len -=
+          request->input_total_length + rstate->mstates[0]->committed_tokens.size() - 1;
+      RemoveRequestFromModel(estate_, internal_req_id, models_);
+    } else {
+      // The request to abort is in waiting queue
+      estate_->waiting_queue.erase(it_waiting);
+    }
+    estate_->request_states.erase(request->id);
+  }
 
   /*********************** Engine Action ***********************/
 
@@ -132,18 +157,13 @@ class Engine {
    * generation results for those finished requests.
    */
   void Step() {
-    // - Action 0. Abort requests.
-    action_abort_request_->Step(estate_);
-    // - Action 1. Prefill the front-most waiting request.
-    bool prefill_processed = action_new_request_prefill_->Step(estate_);
-    if (prefill_processed) {
-      return;
-    }
-    // - Action 2. Run decode step.
-    bool decode_processed = action_batch_decode_->Step(estate_);
-    if (decode_processed) {
-      ProcessFinishedRequest(estate_, models_, tokenizer_, max_single_sequence_length_);
-      return;
+    for (EngineAction action : actions_) {
+      Array<Request> processed_requests = action->Step(estate_);
+      if (!processed_requests.empty()) {
+        ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
+                              max_single_sequence_length_);
+        return;
+      }
     }
     ICHECK(estate_->running_queue.empty())
         << "Internal assumption violated: It is expected that an engine step takes at least one "
@@ -161,9 +181,7 @@ class Engine {
   // Models
   Array<Model> models_;
   // Engine actions.
-  EngineAction action_abort_request_;
-  EngineAction action_new_request_prefill_;
-  EngineAction action_batch_decode_;
+  Array<EngineAction> actions_;
 };
 
 /*! Clear global memory manager */
@@ -234,7 +252,7 @@ class EngineModule : public ModuleNode {
   /*! brief Redirection to `Engine::AddRequest`. */
   void AddRequest(Request request) { return GetEngine()->AddRequest(request); }
   /*! brief Redirection to `Engine::AbortRequest`. */
-  void Abort(Request request) { return GetEngine()->AbortRequest(request); }
+  void Abort(String request_id) { return GetEngine()->AbortRequest(request_id); }
   /*! brief Redirection to `Engine::Step`. */
   void Step() { return GetEngine()->Step(); }
   /*! brief Redirection to `Engine::ResetEngine`. */
