@@ -793,8 +793,6 @@ def build_model_from_args(args: argparse.Namespace):
     else:
         with open(os.path.join(args.model_path, "config.json"), encoding="utf-8") as i_f:
             config = json.load(i_f)
-    if 'vocab_size' not in config and 'padded_vocab_size' in config:
-        config['vocab_size'] = config['padded_vocab_size']
 
     if not use_cache or args.convert_weights_only:
         model_generators = {
