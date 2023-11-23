@@ -119,6 +119,95 @@ void SetProbWithArgmaxOnCPU(NDArray logits, int token_offset) {
 }
 
 /*!
+ * \brief Sample a value from the input probability distribution with top-p
+ * using reject sampling. The input is a batch of distributions, and we use
+ * `unit_offset` to specify which distribution to sample from.
+ * \param prob The input batch of probability distributions.
+ * \param unit_offset The offset specifying which distribution to sample from.
+ * \param top_p The top-p value of sampling.
+ * \param uniform_sample A list of random numbers in [0, 1] for sampling, the
+ * size of the list is the maximum number of rejects we can tolerate for reject
+ * sampling.
+ * \return The sampled value.
+ * \note If we cannot find eligible choice within max_num_rejects rounds, this
+ * function will return -1.
+ */
+int RejectSampleTopPFromProb(NDArray prob, int unit_offset, double top_p,
+                             const std::vector<double>& uniform_samples) {
+  // prob: (*, v)
+  // The prob array may have arbitrary ndim and shape.
+  // The last dimension corresponds to the prob distribution size.
+  // We use the `unit_offset` parameter to determine which slice
+  // of the prob array we sample from.
+
+  ICHECK(prob.IsContiguous());
+  ICHECK(prob.DataType() == DataType::Float(32));
+
+  if (prob->device.device_type != kDLCPU) {
+    prob = prob.CopyTo(DLDevice{kDLCPU, 0});
+  }
+
+  ICHECK(prob->device.device_type == kDLCPU);
+
+  int64_t ndata = prob->shape[prob->ndim - 1];
+  const float* __restrict p_prob =
+      static_cast<float*>(__builtin_assume_aligned(prob->data, 4)) + (unit_offset * ndata);
+  constexpr double one = 1.0f - 1e-5f;
+
+  auto draw_sample_from_prob_distribution = [&](const float* p, size_t ndata,
+                                                double uniform_sample) {
+    double prob_sum = 0.f;
+    for (int64_t i = 0; i < ndata; ++i) {
+      prob_sum += p[i];
+      if (prob_sum >= uniform_sample) {
+        return i;
+      }
+    }
+    LOG(INFO) << "prob sum = " << prob_sum << ", sample = " << uniform_sample;
+    ICHECK(false) << "Possibly prob distribution contains NAN.";
+  };
+
+  if (top_p >= one) {
+    // Specially handle case where top_p == 1.
+    return draw_sample_from_prob_distribution(p_prob, ndata, uniform_samples[0]);
+  }
+  double q = 1 - top_p;
+
+  // rejection sampling
+  std::vector<float> normalized_prob(p_prob, p_prob + ndata);
+
+  const int max_num_rejects = uniform_samples.size();
+  for (int round = 0; round < max_num_rejects; ++round) {
+    int i =
+        draw_sample_from_prob_distribution(normalized_prob.data(), ndata, uniform_samples[round]);
+    float pi = normalized_prob[i];
+    double prob_sum_lt_pi = 0.f;
+    for (int j = 0; j < ndata; ++j) {
+      if (normalized_prob[j] < pi) {
+        prob_sum_lt_pi += normalized_prob[j];
+      }
+    }
+    if (prob_sum_lt_pi >= q) {
+      return i;
+    } else {
+      double normalize_scale = 1.f / (1 - prob_sum_lt_pi);
+      q = (q - prob_sum_lt_pi) * normalize_scale;
+      // reject and normalize probabilities
+      for (int j = 0; j < ndata; ++j) {
+        if (normalized_prob[j] < pi) {
+          normalized_prob[j] = 0.f;
+        } else {
+          normalized_prob[j] *= normalize_scale;
+        }
+      }
+    }
+  }
+
+  // cannot find eligible choice in max_num_rejects rounds, return -1
+  return -1;
+}
+
+/*!
  * \brief Sample a value from the input probability distribution with top-p.
  * The input is a batch of distributions, and we use `unit_offset` to specify
  * which distribution to sample from.
@@ -391,20 +480,33 @@ class CPUSampler : public SamplerObj {
     CHECK_EQ(probs->ndim, 2);
     CHECK_EQ(probs->device.device_type, kDLCPU);
 
+    const int max_num_rejects = 6;
     int n = probs->shape[0];
-    std::vector<double> random_numbers;
+    std::vector<std::vector<double>> random_numbers;
     std::vector<int32_t> sampled_tokens;
     random_numbers.reserve(n);
     sampled_tokens.resize(n);
     for (int i = 0; i < n; ++i) {
-      random_numbers.push_back(rng_.GetRandomNumber());
+      std::vector<double> random_numbers_i;
+      for (int j = 0; j < max_num_rejects; ++j) {
+        random_numbers_i.push_back(rng_.GetRandomNumber());
+      }
+      random_numbers.push_back(random_numbers_i);
     }
 
     tvm::runtime::parallel_for_with_threading_backend(
         [&sampled_tokens, &probs, &generation_cfg, &random_numbers](int i) {
           // Sample top p from probability.
-          sampled_tokens[i] =
-              SampleTopPFromProb(probs, i, generation_cfg[i]->top_p, random_numbers[i]);
+          int reject_sampled_token =
+              RejectSampleTopPFromProb(probs, i, generation_cfg[i]->top_p, random_numbers[i]);
+          if (reject_sampled_token == -1) {
+            // Reject sampling do not find results in max_num_rejects rounds, use sort-based
+            // sampling instead.
+            sampled_tokens[i] =
+                SampleTopPFromProb(probs, i, generation_cfg[i]->top_p, random_numbers[i][0]);
+          } else {
+            sampled_tokens[i] = reject_sampled_token;
+          }
         },
         0, n);
     return sampled_tokens;
