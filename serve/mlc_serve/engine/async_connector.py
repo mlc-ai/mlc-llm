@@ -1,5 +1,5 @@
 import asyncio
-import logging
+import structlog
 from typing import AsyncIterator, Any
 
 from .base import (
@@ -10,6 +10,8 @@ from .base import (
     RequestOutput,
     ScopedInferenceEngine,
 )
+
+LOG = structlog.stdlib.get_logger(__name__)
 
 ResultQueue = asyncio.Queue[RequestOutput]
 
@@ -33,6 +35,7 @@ class AsyncEngineConnector:
         """
         Needs to be called in the thread with event loop
         """
+        LOG.info("Starting AsyncEngineConnector.", engine_wait_timeout=self.engine_wait_timeout)
         if self.engine_loop_task is not None:
             return
 
@@ -60,7 +63,7 @@ class AsyncEngineConnector:
                 nonlocal should_stop_inference
                 should_stop_inference = True
             except Exception as e:
-                logging.exception("Error in inference loop")
+                LOG.exception("Error in inference loop")
                 self.engine_loop_exception = e
                 raise
             finally:

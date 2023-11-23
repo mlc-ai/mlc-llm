@@ -7,6 +7,10 @@ import queue
 from threading import Lock
 from typing import Callable, Optional
 
+import os
+
+import structlog
+
 from .base import (
     InferenceStepResult,
     Request,
@@ -26,7 +30,9 @@ from .staging_engine_worker import (
     run_generation_loop_worker,
 )
 
-logger = logging.getLogger(__name__)
+from ..logging_utils import log_every
+
+LOG = structlog.stdlib.get_logger(__name__)
 
 
 class StagingInferenceEngine(ScopedInferenceEngine):
@@ -42,6 +48,8 @@ class StagingInferenceEngine(ScopedInferenceEngine):
         tokenizer_module: TokenizerModule,
         model_module_loader: Callable[..., ModelModule],
         model_module_loader_kwargs: dict,
+        # maybe find a better way to do this
+        json_log_output: bool = False,
     ):
         self.next_generation_output = None
         self.requests_lock = Lock()
@@ -54,6 +62,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
         self.command_queue = self.mp_context.Queue()
         self.result_queue = self.mp_context.Queue(maxsize=1)
         self.ready_event = self.mp_context.Event()
+
         self.worker_process = self.mp_context.Process(
             target=run_generation_loop_worker,
             args=(
@@ -62,10 +71,15 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                 self.command_queue,
                 self.result_queue,
                 self.ready_event,
+                # Log state
+                structlog.contextvars.get_contextvars(),
+                json_log_output,
+                logging.getLevelName(logging.getLogger().level)
             ),
         )
 
     def start(self):
+        LOG.info("StagingInferenceEngine.start")
         try:
             self.worker_process.start()
             if not self.ready_event.wait(timeout=90):
@@ -80,6 +94,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
         self.worker_process.join()
 
     def add(self, requests: list[Request]):
+        LOG.info("StagingInferenceEngine.add", requests=requests)
         if not self._is_ready_to_serve():
             raise RuntimeError("GenerationLoopWorker process is not running")
 
@@ -107,11 +122,13 @@ class StagingInferenceEngine(ScopedInferenceEngine):
             self.requests.update({s.request_id: s for s in new_request_states})
 
     def cancel(self, request_id: RequestId):
+        LOG.info("StagingInferenceEngine.cancel", request_id=request_id)
         if not self._is_ready_to_serve():
             raise RuntimeError("GenerationLoopWorker process is not running")
         self.command_queue.put(CancelRequestCommand(request_id))
 
     def stop_request(self, request_id: RequestId):
+        LOG.info("StagingInferenceEngine.stop_request", request_id=request_id)
         if not self._is_ready_to_serve():
             raise RuntimeError("GenerationLoopWorker process is not running")
         self.command_queue.put(StopRequestCommand(request_id))
@@ -134,8 +151,13 @@ class StagingInferenceEngine(ScopedInferenceEngine):
             return False
 
     def step(self) -> InferenceStepResult:
+        log_every(self, 1000, LOG.debug, "StagingInferenceEngine.step",
+            _is_ready_to_serve=self._is_ready_to_serve(),
+            has_pending_requests=self.has_pending_requests())
+
         if not self._is_ready_to_serve():
             raise RuntimeError("GenerationLoopWorker process is not running")
+
         if not self.has_pending_requests():
             return InferenceStepResult([])
 
@@ -152,11 +174,12 @@ class StagingInferenceEngine(ScopedInferenceEngine):
 
         outputs = list[RequestOutput]()
         with self.requests_lock:
+            LOG.debug("StagingInferenceEngine.step obtained requests_lock", generation_output=generation_output)
             for seq_output in generation_output.sequences:
                 # TODO: support multi-sequence per request
                 request_id = seq_output.id.request_id
                 if request_id not in self.requests:
-                    logger.warn(
+                    LOG.warn(
                         "Unknown request %s from GenerationLoopWorkerOutput", request_id
                     )
                     continue

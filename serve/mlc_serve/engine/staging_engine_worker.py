@@ -1,20 +1,20 @@
 """
 The worker for StagingInferenceEngine
 """
-
-import logging
+import os
 import multiprocessing
 from collections import deque
 from dataclasses import dataclass
 from threading import Condition, Lock, Thread
-from typing import Callable, Optional, Union, Any
+from typing import Callable, Optional, Union, Any, Dict
+
+import structlog
 
 from .base import FinishReason, RequestId, RequestState
 from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId
+from ..logging_utils import configure_logging
 
-
-logger = logging.getLogger(__name__)
-
+LOG = structlog.stdlib.get_logger(__name__)
 
 @dataclass
 class ShutdownCommand:
@@ -86,6 +86,7 @@ class GenerationLoopWorker:
         self.current_batch = dict[RequestId, RequestState]()
 
     def add(self, request_states: list[RequestState]):
+        LOG.debug("GenerationLoopWorker", requests_states=request_states)
         with self.queue_lock:
             # States which have been invalidated should never be added, directly
             # cancel them instead.
@@ -136,7 +137,7 @@ class GenerationLoopWorker:
         return self.queue or self.current_batch or self.cancelled_requests
 
     def step(self) -> GenerationLoopWorkerOutput:
-        logger.debug("Starting new inference step.")
+        LOG.debug("Starting new inference step.")
 
         outputs = list[SequenceGenerationOutput]()
         result = GenerationLoopWorkerOutput(sequences=outputs)
@@ -200,7 +201,7 @@ class GenerationLoopWorker:
 
         requests = self._get_requests_to_process()
         results = self.text_generator.generate(requests, self.cache_manager.get_cache())
-        logger.debug("Finished text generation.")
+        LOG.debug("Finished text generation.")
 
         for res in results:
             # For now we only support single sequence per request
@@ -236,7 +237,7 @@ class GenerationLoopWorker:
                 SequenceGenerationOutput(id=res.sequence_id, new_tokens=new_tokens)
             )
 
-        logger.debug("Finished state update and stopping criteria check.")
+        LOG.debug("Finished state update and stopping criteria check.")
 
         return result
 
@@ -248,13 +249,13 @@ class GenerationLoopWorker:
                 )
                 self._remove_request_from_batch(request_to_remove.request_id)
                 self.queue.appendleft(request_to_remove)
-                logger.debug(
+                LOG.debug(
                     "Preempt request to free %s tokens",
                     len(request_to_remove.token_ids),
                 )
 
             if self.cache_manager.get_max_new_tokens() <= self.max_decode_steps:
-                logger.debug(
+                LOG.debug(
                     "Skip growing the batch due to max_decode_steps. Decode steps: %s",
                     self.cache_manager.get_max_new_tokens(),
                 )
@@ -264,7 +265,7 @@ class GenerationLoopWorker:
             while self.queue:
                 max_new_tokens = self.cache_manager.get_max_new_tokens()
                 if max_new_tokens < self.min_decode_steps:
-                    logger.debug(
+                    LOG.debug(
                         "Stop growing the batch due to min_decode_steps. Decode steps: %s",
                         max_new_tokens,
                     )
@@ -274,7 +275,7 @@ class GenerationLoopWorker:
                 num_tokens = len(state.token_ids)
                 num_new_batched_tokens += num_tokens
                 if num_new_batched_tokens > self.max_num_batched_tokens > 0:
-                    logger.debug(
+                    LOG.debug(
                         "Stop growing the batch due to max_num_batched_tokens. Batched tokens: %s",
                         num_new_batched_tokens,
                     )
@@ -283,7 +284,7 @@ class GenerationLoopWorker:
                     self.cache_manager.get_free_space()
                     <= self.prompt_allocate_ratio * num_tokens
                 ):
-                    logger.debug(
+                    LOG.debug(
                         "Stop growing the batch due to not enough free space. Free: %s, Num tokens: %s",
                         self.cache_manager.get_free_space(),
                         num_tokens,
@@ -317,10 +318,10 @@ class GenerationLoopWorker:
                             sampling_params=state.sampling_params,
                         )
                     )
-            logger.debug(
-                "Creating prompt batch with %s requests with %s total tokens.",
-                len(requests),
-                sum(len(r.token_ids) for r in requests),
+            LOG.debug(
+                "Creating prompt batch.",
+                num_requests=len(requests),
+                total_tokens=sum(len(r.token_ids) for r in requests),
             )
         else:
             for state in self.current_batch.values():
@@ -335,7 +336,7 @@ class GenerationLoopWorker:
                 self.cache_manager.extend(
                     seq_id, len(state.token_ids) - state.next_start_position
                 )
-            logger.debug("Creating decode batch with %s requests.", len(requests))
+            LOG.debug("Creating decode batch with %s requests.", len(requests))
 
         return requests
 
@@ -355,40 +356,19 @@ class GenerationLoopWorker:
         return False
 
 
-def setup_logging(level):
-    logging_config = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "standard": {
-                "format": "%(asctime)s [%(levelname)s] - %(name)s - %(message)s",
-            },
-        },
-        "handlers": {
-            "console": {
-                "level": level,  # Set the handler's log level to DEBUG
-                "class": "logging.StreamHandler",
-                "formatter": "standard",
-            },
-        },
-        "root": {
-            "handlers": ["console"],
-            "level": level,  # Set the logger's log level to DEBUG
-        },
-        "mlc_serve.engine.staging_engine_worker": {"level": level},
-    }
-    logging.config.dictConfig(logging_config)
-
-
 def run_generation_loop_worker(
     model_module_loader: Callable[..., ModelModule],
     model_module_loader_kwargs: dict,
     command_queue: multiprocessing.Queue,
     result_queue: multiprocessing.Queue,
     ready_event: multiprocessing.Event,
+    contextvars: Dict[str, Any] = None,
+    enable_json_logs = False,
     log_level="INFO",
 ):
-    setup_logging(log_level)
+
+    configure_logging(enable_json_logs, log_level)
+    structlog.contextvars.bind_contextvars(**contextvars)
     model_module = model_module_loader(**model_module_loader_kwargs)
     worker = GenerationLoopWorker(model_module=model_module)
 
@@ -406,7 +386,7 @@ def run_generation_loop_worker(
             elif isinstance(cmd, StopRequestCommand):
                 worker.stop_request(cmd.request_id)
             else:
-                logger.error("Unknown command type %s", type(cmd))
+                LOG.error("Unknown command type %s", type(cmd))
                 break
 
         nonlocal should_stop
@@ -429,7 +409,7 @@ def run_generation_loop_worker(
         try:
             output = worker.step()
         except Exception as exc:
-            logger.exception("Error when calling GenerationLoopWorker.step")
+            LOG.exception("Error when calling GenerationLoopWorker.step")
             output = GenerationLoopWorkerOutput(sequences=[], error=str(exc))
             result_queue.put(output)
             break

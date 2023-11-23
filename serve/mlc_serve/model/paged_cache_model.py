@@ -1,5 +1,4 @@
 import json
-import logging
 import math
 import os
 from collections import defaultdict
@@ -7,6 +6,7 @@ from typing import List, Union, Optional
 from dataclasses import dataclass
 import inspect
 
+import structlog
 import numpy as np
 import torch
 import tvm
@@ -25,7 +25,7 @@ from ..engine.model_module import (
     TextGenerationResult,
 )
 
-logger = logging.getLogger(__name__)
+LOG = structlog.stdlib.get_logger(__name__)
 
 
 class KVCache:
@@ -727,7 +727,7 @@ class PagedCacheModelModule:
         else:
             num_blocks = 500
 
-        logger.info(f"Using {num_blocks} cache blocks.")
+        LOG.info(f"Using {num_blocks} cache blocks.", num_blocks=num_blocks)
 
         cache_manager = CacheManager(
             num_blocks,

@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from abc import ABC, abstractmethod
+
 from typing import List, Callable, Any, Optional
 import json
 import inspect
+
 from .sampling_params import SamplingParams, SamplingType
 
 RequestId = str
@@ -17,9 +20,9 @@ class MLCServeEngineConfig:
     use_staging_engine: bool = True
     # we don't generally expect users to set `max_num_batched_tokens` directly
     # since it is less intuitive.
-    # instead, we expose `max_input_len` and `max_num_sequences` 
+    # instead, we expose `max_input_len` and `max_num_sequences`
     # so that `max_num_batched_tokens` can be deduced by the following equation.
-    # -> `max_num_batched_tokens` = `max_input_len`*`max_num_sequences` 
+    # -> `max_num_batched_tokens` = `max_input_len`*`max_num_sequences`
     max_input_len: int = 512
     max_num_sequences: int = 8
     max_num_batched_tokens: int = -1
@@ -69,7 +72,7 @@ class StoppingCriteria:
     """
     Parameters about when to stop text generation.
     """
-    max_tokens: Optional[int]
+    max_tokens: Optional[int] = None
     stop_sequences: Optional[list[str]] = None
 
 @dataclass
@@ -107,15 +110,17 @@ class Request:
     # Number of sequences to generate
     num_sequences: int = 1
     # TODO: should `best_of` be handled in the serving layer?
-    best_of: int = None
+    best_of: Optional[int] = None
     # Options for sampling.
     sampling_params: SamplingParams = field(default_factory=SamplingParams)
     # Options for stopping.
-    stopping_criteria: StoppingCriteria = field(default_factory=StoppingCriteria)
+    stopping_criteria: StoppingCriteria = field(default_factory=lambda: StoppingCriteria())
     # Options for debugging.
     debug_options: DebugOptions = field(default_factory=DebugOptions)
     # Perform request validation post-tokenization, used by the HTTP layer to control validation.
     validate_tokens: Optional[ValidateTokensCallback] = None
+    # Context variables to attach to logging.
+    contextvars: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if self.best_of is None:
@@ -176,28 +181,35 @@ class InferenceStepResult:
     outputs: list[RequestOutput]
 
 
-class InferenceEngine:
-    def add(self, requests: list[Request]):
+class InferenceEngine(ABC):
+    @abstractmethod
+    def add(self, requests: list[Request]) -> None:
         """
         Add requests to the InferenceEngine.
 
         Requests will be processed when `step` is called, if there is capacity.
         Requests will be handled on a first-in, first-out basis.
         """
+        ...
 
-    def cancel(self, request_id: RequestId):
+    @abstractmethod
+    def cancel(self, request_id: RequestId) -> None:
         """
         Cancel the generation of a request.
 
         The next call to `step` will return TextGenerationOutput for cancelled requests.
         The output will contain empty delta and finish reason `cancelled`.
         """
+        ...
 
+    @abstractmethod
     def has_pending_requests(self) -> bool:
         """
         Check if there is pending requests in the engine.
         """
+        ...
 
+    @abstractmethod
     def wait_for_request(self, timeout_seconds=None) -> bool:
         """
         Block until there is request to process.
@@ -205,7 +217,9 @@ class InferenceEngine:
         no requests are coming in. The return value is a boolean that indicates whether
         there are requests when it's returned.
         """
+        ...
 
+    @abstractmethod
     def step(self) -> InferenceStepResult:
         """
         Perform a single inference step. In general it will generates one token for each
@@ -215,14 +229,17 @@ class InferenceEngine:
         If the engine has no requests in the queue, `step` will return immediately with
         an empty `InferenceStepResult.outputs`.
         """
+        ...
 
 
 class ScopedInferenceEngine(InferenceEngine):
-    def start(self):
-        pass
+    @abstractmethod
+    def start(self) -> None:
+        ...
 
-    def stop(self):
-        pass
+    @abstractmethod
+    def stop(self) -> None:
+        ...
 
 
 @dataclass
