@@ -9,9 +9,11 @@ from structlog.typing import Processor, WrappedLogger, EventDict
 
 _JSON = False
 
+
 def json_logging_enabled() -> bool:
     global _JSON
     return
+
 
 def configure_logging(enable_json_logs: bool = False, log_level: str = "INFO"):
     """Configure logging to use structlog and include additional info."""
@@ -115,15 +117,18 @@ def _drop_color_message_key(_, __, event_dict: EventDict) -> EventDict:
     event_dict.pop("color_message", None)
     return event_dict
 
+
 def log_every(state: Any, iterations: int, log_fn: Any, message: str, **kw_args):
-    if not hasattr(state, '_log_iterations'):
+    if not hasattr(state, "_log_iterations"):
         state._log_iterations = {}
 
     if message not in state._log_iterations:
         state._log_iterations[message] = 1
 
     if state._log_iterations[message] % iterations == 0:
-        log_fn(level, message, log_every=True, iteration=state._log_iterations[message], **kw_args)
+        log_fn(
+            message, log_every=True, iteration=state._log_iterations[message], **kw_args
+        )
         state._log_iterations[message] = 1
     else:
-        state._log_iterations[message] +=1
+        state._log_iterations[message] += 1
