@@ -124,7 +124,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
     args.quantization = quantization_schemes[args.quantization]
 
 
-def debug_dump_script(mod, name, args: argparse.Namespace, show_meta=True):
+def debug_dump_script(mod, name, args: argparse.Namespace, show_meta=False):
     """Debug dump mode"""
     if not args.debug_dump:
         return
@@ -335,16 +335,13 @@ def split_transform_deploy_mod(
 
     mod_transform = relax.transform.DeadCodeElimination(transform_func_names)(mod_transform)
     mod_deploy = relax.transform.DeadCodeElimination(model_names)(mod_deploy)
-    mod_deploy = mod_deploy.with_attrs(
-        {
-            "external_mods": mod.get_attr("external_mods"),
-            "const_name_to_constant": mod.get_attr("const_name_to_constant"),
-        }
-    )
     return mod_transform, mod_deploy
 
 
 def copy_tokenizer(args: argparse.Namespace) -> None:
+    params_dir = os.path.join(args.artifact_path, "params")
+    if not os.path.exists(params_dir):
+        os.makedirs(params_dir)
     for filename in os.listdir(args.model_path):
         if filename in [
             "tokenizer.model",
@@ -354,10 +351,7 @@ def copy_tokenizer(args: argparse.Namespace) -> None:
             "added_tokens.json",
             "tokenizer_config.json",
         ]:
-            shutil.copy(
-                os.path.join(args.model_path, filename),
-                os.path.join(args.artifact_path, "params"),
-            )
+            shutil.copy(os.path.join(args.model_path, filename), params_dir)
 
 
 def get_tokenizer_files(path) -> List[str]:

@@ -38,6 +38,7 @@ from tvm import relax
 from tvm.contrib.nvcc import parse_compute_version
 from tvm.relax.backend import get_patterns_with_prefix
 from tvm.relax.backend.contrib.cutlass import annotate_workspace
+from mlc_llm.quantization.smoothquant_utils import smoothquant, dataset_list
 
 
 @dataclass
@@ -533,13 +534,7 @@ def validate_config(model_path: str):
         ), f"Model type {config['model_type']} not supported."
 
 
-def mod_transform_before_build(
-    mod: tvm.IRModule,
-    param_manager: param_manager.ParamManager,
-    args: argparse.Namespace,
-    config: Dict,
-) -> tvm.IRModule:
-    """First-stage: Legalize ops and trace"""
+def get_model_names(args: argparse.Namespace):
     if args.model.startswith("minigpt"):
         model_names = ["embed"]
     else:
@@ -566,10 +561,18 @@ def mod_transform_before_build(
         if args.model.lower().startswith("rwkv-"):
             model_names += ["reset_kv_cache"]
 
-    if args.quantization.name.startswith("smq_q8i8f16"):
-        mod = smoothquant(args, mod, model_names)
-        utils.debug_dump_script(mod, "mod_smoothquant.py", args)
-    else:
+    return model_names
+
+
+def mod_transform_before_build(
+    mod: tvm.IRModule,
+    param_manager: param_manager.ParamManager,
+    args: argparse.Namespace,
+    config: Dict,
+) -> tvm.IRModule:
+    """First-stage: Legalize ops and trace"""
+    model_names = get_model_names(args)
+    if not args.quantization.name.startswith("smq_q8i8f16"):
         mod = param_manager.transform_dequantize()(mod)
         mod = relax.transform.BundleModelParams()(mod)
 
@@ -625,7 +628,12 @@ def mod_transform_before_build(
 
         has_cublas = tvm.get_global_func("relax.ext.cublas", True)
 
-        if has_cublas and (args.quantization.name in ("q0f16", "q0f32") or args.quantization.name.startswith("smq_q8i8f16")) and not args.no_cublas:
+        qname = args.quantization.name
+        if (
+            has_cublas
+            and (qname in ("q0f16", "q0f32")  or qname.startswith("smq_q8i8f16"))
+            and not args.no_cublas
+        ):
             patterns += get_patterns_with_prefix("cublas")
 
         if len(patterns) > 0:
@@ -660,12 +668,7 @@ def mod_transform_before_build(
     mod = mlc_llm.transform.FuseDecodeTake()(mod)
     mod = relax.transform.DeadCodeElimination(model_names)(mod)
     mod = mlc_llm.transform.CleanUpTIRAttrs()(mod)
-    if args.quantization.name.startswith("smq_q8i8f16"):
-        mod_deploy, new_params = smoothquant_quantize_params(mod, model_names, args)
-        smoothquant_prepare_dir(os.path.join(args.artifact_path, "params"))
-        utils.save_params(new_params, args.artifact_path)
-    else:
-        mod_deploy = mod
+    mod_deploy = mod
 
     utils.debug_dump_script(mod_deploy, "mod_deploy.py", args)
 
@@ -842,6 +845,28 @@ def build_model_from_args(args: argparse.Namespace):
             qspec_updater.visit_module(mod)
 
         if not args.build_model_only:
+            if args.model_category != "minigpt":
+                utils.copy_tokenizer(args)
+            if args.model_category == "rwkv" or args.model_category == "rwkv_world":
+                # TODO: refactor config into model definition
+                dump_mlc_chat_config(
+                    args,
+                    vocab_size=config["vocab_size"],
+                    max_window_size=model_config.max_sequence_length,
+                    max_gen_len=model_config.max_sequence_length,
+                    top_p=0.6,
+                    temperature=1.2,
+                    repetition_penalty=0.996,
+                    rwkv_world=True,
+                )
+            else:
+                dump_mlc_chat_config(
+                    args,
+                    vocab_size=config["vocab_size"],
+                    max_window_size=model_config.max_sequence_length,
+                    max_gen_len=model_config.max_sequence_length,
+                )
+
             parameter_transforms = []
 
             # Run pre-quantization if provided.
@@ -880,10 +905,17 @@ def build_model_from_args(args: argparse.Namespace):
             mod_transform = seq(mod_transform)
 
             params = utils.convert_weights(mod_transform, param_manager, params, args)
+
+            if args.quantization.name.startswith("smq_q8i8f16"):
+                model_names = get_model_names(args)
+                mod, params = smoothquant(args, mod, params, model_names)
+                utils.debug_dump_script(mod, "mod_smoothquant.py", args)
+
             utils.save_params(
                 params, args.artifact_path, args.num_shards if args.use_presharded_weights else 1
             )
 
+<<<<<<< HEAD
             if args.model_category != "minigpt":
                 utils.copy_tokenizer(args)
             if args.model_category == "rwkv" or args.model_category == "rwkv_world":
@@ -913,6 +945,8 @@ def build_model_from_args(args: argparse.Namespace):
                     max_gen_len=model_config.max_sequence_length,
                 )
 
+=======
+>>>>>>> efd4243 ([SmoothQuant] Merge smoothing and params transform into one step)
         if args.convert_weights_only:
             exit(0)
 

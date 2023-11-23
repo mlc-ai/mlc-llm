@@ -13,23 +13,11 @@ from tvm import relax
 import mlc_llm
 from mlc_llm import utils
 from mlc_llm.utils import load_params
+from ..transform.smoothquant import SCALE_PREFIX_NAME, ZP_PREFIX_NAME
 
 
 # List of supported calibration datasets.
 dataset_list = ["dummy", "piqa"]
-
-SCALE_PREFIX_NAME = "sq_scale_"
-ZP_PREFIX_NAME = "sq_zp_"
-
-def _try_convert_to_scalar_const(expr: tvm.relax.Expr) -> Union[tvm.relax.Expr, float, int]:
-    if isinstance(expr, tvm.relax.Constant):
-        if expr.struct_info.ndim == 0:
-            return expr.data.numpy()[()].item()
-        elif expr.struct_info.ndim == 1:
-            dim_size = expr.struct_info.shape[0].value
-            if dim_size == 1:
-                return expr.data.numpy()[0].item()
-    return expr
 
 
 def get_runtime_func(funcs: List[str], mod: tvm.IRModule):
@@ -329,11 +317,17 @@ def _calibrate(
     return mod
 
 
-def smoothquant(args, mod, model_names):
+def smoothquant(
+    args: argparse.Namespace,
+    mod: tvm.IRModule,
+    cpu_params: List[tvm.nd.NDArray],
+    model_names: List[str],
+):
     target = args.target
     smq_device = tvm.device(target.kind.default_keys[0])
-    assert args.build_model_only is False, "build_model_only in True is not supported in SMQ"
-    params = load_params(args.artifact_path, device=smq_device)
+    params = to_device(cpu_params, smq_device)
+    # Free memory on the host:
+    cpu_params.clear()
 
     dataset, stop_tokens = _get_dataset(args.dataset, args.artifact_path, device=smq_device)
     smq_config: Dict[str, Any] = {}
@@ -348,27 +342,31 @@ def smoothquant(args, mod, model_names):
         mod = _smooth(mod, params, model_names, dataset, smq_config)
         print("[SmoothQuant] Run calibration and quantization...")
         mod = _calibrate(mod, params, model_names, dataset, smq_config)
-    # Free memory:
+        print("[SmoothQuant] Smoothing and calibration were done!")
+
+    mod = mlc_llm.transform.SmoothQuantStopLiftParamsOptimizer()(mod)
+    mod = relax.transform.LiftTransformParams()(mod)
+    mod = relax.transform.BundleModelParams()(mod)
+    mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
+    new_params = smoothquant_transform_params(mod_transform, params, target)
+
+    # Free memory on device:
     params.clear()
-    print("[SmoothQuant] Smoothing and calibration were done!")
-    return mod
+
+    return mod_deploy, new_params
 
 
 def smoothquant_transform_params(
-    args: argparse.Namespace,
     mod_transform: tvm.IRModule,
-    params: List[tvm.nd.NDArray] = None,
+    params: List[tvm.nd.NDArray],
+    target: tvm.target.Target,
 ) -> List[tvm.nd.NDArray]:
     mod_transform = relax.transform.ToNonDataflow()(mod_transform)
     mod_transform = relax.transform.LazyTransformParams()(mod_transform)
+    mod_transform = tvm.relax.transform.LegalizeOps()(mod_transform)
 
-    target = args.target
-    smq_device=tvm.device(target.kind.default_keys[0])
-
+    smq_device = tvm.device(target.kind.default_keys[0])
     new_params: List[tvm.nd.NDArray] = []
-    if params is None:
-        assert args.build_model_only is False, "build_model_only in True is not supported in SMQ"
-        params = load_params(args.artifact_path, device=smq_device)
 
     @tvm.register_func("get_item", override=True)
     def get_item(i):
@@ -390,46 +388,6 @@ def smoothquant_transform_params(
     vm = relax.vm.VirtualMachine(ex, smq_device)
     vm["decode_transform_params"]()
     return new_params
-
-
-def smoothquant_quantize_params(
-    mod: tvm.IRModule,
-    model_names: List[str],
-    args: argparse.Namespace,
-):
-    mod = relax.transform.LiftTransformParams()(mod)
-    mod = relax.transform.BundleModelParams()(mod)
-    mod_transform, mod_deploy = utils.split_transform_deploy_mod(mod, model_names)
-    new_params = smoothquant_transform_params(args, mod_transform)
-    return mod_deploy, new_params
-
-
-def smoothquant_prepare_dir(path: str):
-    files = os.listdir(path)
-    for file in files:
-        if "params_shard_" in file or file == "ndarray-cache.json":
-            os.remove(os.path.join(path, file))
-
-
-def _get_dummy_dataset(artifact_path, device, num=3):
-    prompts_dataset = [
-        "The capital of Canada is",
-        "2+2=?",
-        "What is the capital of France?",
-        "Who is the president of the USA?",
-    ]
-    dataset = []
-    print("[SmoothQuant] Starting to initialize tokenizer...")
-    tokenizer_path = os.path.join(artifact_path, "params")
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
-    print("[SmoothQuant] Initialization of tokenizer was completed...")
-    for prompt in prompts_dataset:
-        prompt_tokens = tokenizer.encode(prompt)
-        data = tvm.nd.array(np.array([prompt_tokens]).astype("int32"), device=device)
-        dataset.append(data)
-    stop_tokens = ([tokenizer.eos_token_id])
-
-    return dataset, stop_tokens
 
 
 def _prepare_dummy_dataset(artifact_path: str):

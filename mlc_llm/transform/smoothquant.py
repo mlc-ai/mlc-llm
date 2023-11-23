@@ -6,9 +6,9 @@ from tvm.relax.dpl import rewrite_call, is_op, wildcard
 from tvm.relax.expr_functor import PyExprMutator, mutator
 from tvm.script import relax as R
 
-from ..quantization.smoothquant_utils import (
-    SCALE_PREFIX_NAME, ZP_PREFIX_NAME, _try_convert_to_scalar_const
-)
+#from ..quantization.smoothquant_utils import (
+#    SCALE_PREFIX_NAME, ZP_PREFIX_NAME, _try_convert_to_scalar_const
+#)
 
 from typing import Dict, List, Union
 from enum import Enum
@@ -16,6 +16,20 @@ from enum import Enum
 
 QSCHEMES = ("smq_q8i8f16_0", "smq_q8i8f16_1", "smq_q8i8f16_2")
 OPMODES = ("smoothing", *QSCHEMES)
+
+SCALE_PREFIX_NAME = "sq_scale_"
+ZP_PREFIX_NAME = "sq_zp_"
+
+def _try_convert_to_scalar_const(expr: tvm.relax.Expr) -> Union[tvm.relax.Expr, float, int]:
+    if isinstance(expr, tvm.relax.Constant):
+        if expr.struct_info.ndim == 0:
+            return expr.data.numpy()[()].item()
+        elif expr.struct_info.ndim == 1:
+            dim_size = expr.struct_info.shape[0].value
+            if dim_size == 1:
+                return expr.data.numpy()[0].item()
+    return expr
+
 
 class QKind(Enum):
     KIND_ACT = 1,
@@ -60,6 +74,9 @@ class Annotator(PyExprMutator):
         act = call.args[0]
         weights = permute.args[0]
         if weights.struct_info.ndim != 2:
+            return call
+        # Skip linear ops with weights of dynamic shape
+        if any([isinstance(dim, tvm.tir.Var) for dim in weights.struct_info.shape]):
             return call
         if act.struct_info.ndim != 2 and act.struct_info.ndim != 3:
             return call
@@ -275,34 +292,6 @@ class SmoothQuantStatCollector:
         return ParamsAndOutputsMutator(mod, self.op_mode).transform()
 
 
-"""
-@tvm.transform.module_pass(opt_level=0, name="SmoothQuantOpConverter")
-class SmoothQuantOpConverter:
-    def __init__(self, op_mode: str) -> None:
-        self.op_name = "quantize" if op_mode in QSCHEMES else op_mode
-
-    def transform_module(self, mod: tvm.IRModule, ctx: tvm.transform.PassContext) -> tvm.IRModule:
-        attrs = {"mode": "identity"}
-        data = wildcard()
-        scale = wildcard()
-        zp = wildcard()
-        pattern = is_op("relax.annotate.smooth")(data, scale, zp).has_attr(attrs)
-
-        def rewriter(_, matchings):
-            kind = matchings[pattern].attrs.kind
-            return R.smooth(
-                matchings[data], matchings[scale], matchings[zp], kind=kind, mode=self.op_name
-            )
-
-        new_mod = tvm.IRModule()
-        for gv, func in mod.functions.items():
-            if isinstance(func, relax.Function):
-                new_mod[gv] = rewrite_call(pattern, rewriter, func)
-            else:
-                new_mod[gv] = func
-        return new_mod
-"""
-
 def is_zero(expr: Union[int, tvm.relax.Constant]) -> bool:
     if isinstance(expr, int) and expr == 0:
         return True
@@ -407,3 +396,32 @@ class SmoothQuantLegalizer:
             else:
                 new_mod[gv] = func
         return new_mod
+
+
+@tvm.relax.transform.function_pass(opt_level=0, name="SmoothQuantStopLiftParamsOptimizer")
+class SmoothQuantStopLiftParamsOptimizer:
+    """
+    Transformation pass to insert stop_lift_params op before linear op.
+    """
+
+    def __init__(self):
+        self.input = wildcard()
+        self.weights = wildcard()
+        permute = is_op("relax.permute_dims")(self.weights)
+        self.pattern = is_op("relax.matmul")(self.input, permute)
+
+    def transform_function(self, func, mod: tvm.IRModule, ctx: tvm.transform.PassContext):
+        if not isinstance(func, relax.Function):
+            return func
+
+        def rewriter(expr, matches):
+            weights = matches[self.weights]
+            if weights.struct_info.ndim != 2:
+                return expr
+            if isinstance(weights, relax.Call) and weights.op == tvm.ir.Op.get("relax.builtin.stop_lift_params"):
+                return expr
+            stop =  R.builtin.stop_lift_params(weights)
+            out_dtype = matches[self.pattern].attrs.out_dtype
+            return R.linear(matches[self.input], stop, out_dtype=out_dtype)
+
+        return rewrite_call(self.pattern, rewriter, func)
