@@ -10,6 +10,7 @@ from .engine import AsyncEngineConnector, get_engine_config
 from .engine.staging_engine import StagingInferenceEngine
 from .engine.sync_engine import SynchronousInferenceEngine
 from .model.paged_cache_model import HfTokenizerModule, PagedCacheModelModule
+from .logging_utils import configure_logging
 
 
 def parse_args():
@@ -41,45 +42,14 @@ def parse_args():
     return parsed
 
 
-def setup_logging(args):
-    level = "INFO"
-    if args.debug_logging:
-        level = "DEBUG"
-
-    logging_config = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "standard": {
-                "format": "%(asctime)s [%(levelname)s] - %(name)s - %(message)s",
-            },
-        },
-        "handlers": {
-            "console": {
-                "level": level,  # Set the handler's log level to DEBUG
-                "class": "logging.StreamHandler",
-                "formatter": "standard",
-            },
-        },
-        "root": {
-            "handlers": ["console"],
-            "level": level,  # Set the logger's log level to DEBUG
-        },
-        "mlc_serve.engine.sync_engine": {"level": level},
-        "mlc_serve.engine.staging_engine": {"level": level},
-        "mlc_serve.engine.staging_engine_worker": {"level": level},
-    }
-    logging.config.dictConfig(logging_config)
-
-
 def create_engine(
     args: argparse.Namespace,
 ):
     """
       `model_artifact_path` has the following structure
       |- compiled artifact (.so)
-      |- `build_config.json`: stores compile-time info, such as `num_shards` and `quantization`. 
-      |- params/ : stores weights in mlc format and `ndarray-cache.json`. 
+      |- `build_config.json`: stores compile-time info, such as `num_shards` and `quantization`.
+      |- params/ : stores weights in mlc format and `ndarray-cache.json`.
       |            `ndarray-cache.json` is especially important for Disco.
       |- model/ : stores info from hf model cards such as max context length and tokenizer
     """
@@ -91,12 +61,12 @@ def create_engine(
     engine_config = get_engine_config({
         "use_staging_engine": args.use_staging_engine,
         "max_num_sequences": args.max_num_sequences,
-        "max_input_len": args.max_input_len,    
+        "max_input_len": args.max_input_len,
         "min_decode_steps": args.min_decode_steps,
         "max_decode_steps": args.max_decode_steps,
         "prompt_allocate_ratio": args.prompt_allocate_ratio
     })
-  
+
     if args.use_staging_engine:
         return StagingInferenceEngine(
             tokenizer_module=HfTokenizerModule(model_artifact_path),
@@ -117,7 +87,9 @@ def create_engine(
 
 def run_server():
     args = parse_args()
-    setup_logging(args)
+
+    log_level = "DEBUG" if args.debug_logging else "INFO"
+    configure_logging(enable_json_logs=True, log_level=log_level)
 
     engine = create_engine(args)
     connector = AsyncEngineConnector(engine)

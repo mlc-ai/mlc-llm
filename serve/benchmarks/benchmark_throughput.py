@@ -17,9 +17,7 @@ from mlc_serve.engine import (
 from mlc_serve.engine.staging_engine import StagingInferenceEngine
 from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
 from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModelModule
-from mlc_serve.run import setup_logging
-
-from mlc_llm import utils
+from mlc_serve.logging_utils import configure_logging
 
 
 def sample_requests(
@@ -102,7 +100,7 @@ def create_engine_and_tokenizer_module(
     engine_config = get_engine_config({
         "use_staging_engine": args.use_staging_engine,
         "max_num_sequences": args.max_num_sequences,
-        "max_input_len": args.max_input_len,    
+        "max_input_len": args.max_input_len,
         "min_decode_steps": args.min_decode_steps,
         "max_decode_steps": args.max_decode_steps,
         "prompt_allocate_ratio": args.prompt_allocate_ratio
@@ -196,7 +194,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("--debug-logging", action="store_true")
     args = parser.parse_args()
-    setup_logging(args)
+
+    log_level = "DEBUG" if args.debug_logging else "INFO"
+    configure_logging(enable_json_logs=False, log_level=log_level)
 
     args.model_artifact_path = os.path.join(args.artifact_path, args.local_id)
     if not os.path.exists(args.model_artifact_path):
