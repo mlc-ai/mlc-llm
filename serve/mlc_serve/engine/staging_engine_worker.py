@@ -369,8 +369,13 @@ def run_generation_loop_worker(
 
     configure_logging(enable_json_logs, log_level)
     structlog.contextvars.bind_contextvars(**contextvars)
-    model_module = model_module_loader(**model_module_loader_kwargs)
-    worker = GenerationLoopWorker(model_module=model_module)
+
+    try:
+        model_module = model_module_loader(**model_module_loader_kwargs)
+        worker = GenerationLoopWorker(model_module=model_module)
+    except:
+        LOG.exception("An error raised in model initialization.")
+        return
 
     should_stop = False
 

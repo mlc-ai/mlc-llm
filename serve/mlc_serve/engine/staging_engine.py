@@ -174,7 +174,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
 
         outputs = list[RequestOutput]()
         with self.requests_lock:
-            LOG.debug("StagingInferenceEngine.step obtained requests_lock", generation_output=generation_output)
+            # LOG.debug("StagingInferenceEngine.step obtained requests_lock", generation_output=generation_output)
             for seq_output in generation_output.sequences:
                 # TODO: support multi-sequence per request
                 request_id = seq_output.id.request_id

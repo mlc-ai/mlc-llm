@@ -625,7 +625,10 @@ class Model:
         except RuntimeError:
             # Fallback to per-token sampling in case some logits values are corrupted.
             outputs = []
-            err_msg = "Error from sampling: probability tensor contains either `inf`, `nan` or element < 0"
+            err_msg = (
+                "Error from sampling: probability tensor contains either `inf`, `nan`"
+                " or element < 0"
+            )
 
             for sequence_id, logits_per_token, sampling_param in zip(
                 sequence_ids, torch.from_dlpack(logits), sampling_params
@@ -713,8 +716,14 @@ class PagedCacheModelModule:
         if model_artifact_config.num_shards > 1:
             model.disco_session.sync_worker_0()
 
-        num_kv_heads = model_artifact_config.num_key_value_heads // model_artifact_config.num_shards
-        head_size = model_artifact_config.hidden_size // model_artifact_config.num_attention_heads
+        num_kv_heads = (
+            model_artifact_config.num_key_value_heads
+            // model_artifact_config.num_shards
+        )
+        head_size = (
+            model_artifact_config.hidden_size
+            // model_artifact_config.num_attention_heads
+        )
 
         if engine_config.max_num_batched_tokens > 0:
             num_blocks = get_num_cache_blocks(
@@ -727,7 +736,18 @@ class PagedCacheModelModule:
         else:
             num_blocks = 500
 
-        LOG.info(f"Using {num_blocks} cache blocks.", num_blocks=num_blocks)
+        num_cache_slots = num_blocks * CacheManager.block_size
+
+        if num_cache_slots <= engine_config.max_num_batched_tokens:
+            raise RuntimeError(
+                f"max_num_batched_tokens = {engine_config.max_num_batched_tokens} but"
+                f" only {num_blocks} cache blocks can be allocated. The number of"
+                f" available cache slots is {num_cache_slots}, not enough for"
+                f" {engine_config.max_num_batched_tokens} tokens. Try reducing"
+                " --max_input_len or --max_num_sequences."
+            )
+
+        LOG.info(f"Using {num_blocks} cache blocks.")
 
         cache_manager = CacheManager(
             num_blocks,
