@@ -323,7 +323,12 @@ Set environment variable in your shell startup profile in to point to <code clas
 </section>
 <section id="step-3-prepare-wasm-runtime">
 <h2>Step 3: Prepare Wasm Runtime<a class="headerlink" href="#step-3-prepare-wasm-runtime" title="Permalink to this heading">¶</a></h2>
-<p>Now we can prepare wasm runtime</p>
+<p>First, we need to obtain a copy of the mlc-llm source code for the setup script</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/mlc-llm.git<span class="w"> </span>--recursive
+<span class="nb">cd</span><span class="w"> </span>mlc-llm
+</pre></div>
+</div>
+<p>Now we can prepare wasm runtime using the script in mlc-llm repo</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./scripts/prep_emcc_deps.sh
 </pre></div>
 </div>

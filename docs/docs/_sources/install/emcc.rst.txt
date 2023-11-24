@@ -36,10 +36,17 @@ Set environment variable in your shell startup profile in to point to ``3rdparty
 Step 3: Prepare Wasm Runtime
 ----------------------------
 
-Now we can prepare wasm runtime
+First, we need to obtain a copy of the mlc-llm source code for the setup script
 
 .. code:: bash
+    
+    git clone https://github.com/mlc-ai/mlc-llm.git --recursive
+    cd mlc-llm
 
+Now we can prepare wasm runtime using the script in mlc-llm repo
+
+.. code:: bash
+    
     ./scripts/prep_emcc_deps.sh
 
 We cna then validate the outcome
