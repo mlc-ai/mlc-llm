@@ -644,7 +644,10 @@ def parse_target(args: argparse.Namespace) -> None:
         from tvm.contrib import nvcc
 
         assert args.target.arch[3:] != ""
-        if int(args.target.arch[3:]) >= 70:
+        arch_list = os.getenv("CUDA_ARCH_LIST") or os.getenv("TORCH_CUDA_ARCH_LIST")
+        if arch_list:
+            compute_versions = [int(v) for v in arch_list.replace(" ", ";").split(";")]
+        elif int(args.target.arch[3:]) >= 70:
             compute_versions = [70, 72, 75, 80, 86, 87, 89, 90]
         else:
             compute_versions = [60, 61, 62]
