@@ -351,7 +351,10 @@ class GenerationLoopWorker:
         if num_context_tokens >= self.model_artifact_config.max_context_length:
             return True
         num_gen_tokens = num_context_tokens - state.prompt_len
-        if num_gen_tokens >= state.stopping_criteria.max_tokens:
+        if (
+            state.stopping_criteria.max_tokens is not None
+            and num_gen_tokens >= state.stopping_criteria.max_tokens
+        ):
             return True
         return False
 

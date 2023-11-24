@@ -19,7 +19,7 @@ from .base import (
     SamplingParams,
     SequenceOutput,
     StoppingCriteria,
-    check_stopping_sequences
+    check_stopping_sequences,
 )
 from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId
 
@@ -44,9 +44,12 @@ class SynchronousInferenceEngine(InferenceEngine):
         self.max_context_length = self.model_artifact_config.max_context_length
         self.max_num_batched_tokens = model_module.engine_config.max_num_batched_tokens
         self.max_decode_steps = min(
-            self.cache_manager.get_kv_cache_size(), model_module.engine_config.max_decode_steps
+            self.cache_manager.get_kv_cache_size(),
+            model_module.engine_config.max_decode_steps,
         )
-        self.min_decode_steps = min(self.max_decode_steps - 1, model_module.engine_config.min_decode_steps)
+        self.min_decode_steps = min(
+            self.max_decode_steps - 1, model_module.engine_config.min_decode_steps
+        )
         self.prompt_allocate_ratio = model_module.engine_config.prompt_allocate_ratio
         assert self.prompt_allocate_ratio >= 1.0
 
@@ -70,7 +73,9 @@ class SynchronousInferenceEngine(InferenceEngine):
             # wrap the stop sequence with list if necessary
             if req.stopping_criteria.stop_sequences:
                 if isinstance(req.stopping_criteria.stop_sequences, str):
-                    req.stopping_criteria.stop_sequences = [req.stopping_criteria.stop_sequences]
+                    req.stopping_criteria.stop_sequences = [
+                        req.stopping_criteria.stop_sequences
+                    ]
                 assert isinstance(req.stopping_criteria.stop_sequences, list)
 
             state = self._get_new_request_state(req)
@@ -189,10 +194,9 @@ class SynchronousInferenceEngine(InferenceEngine):
             delta = self._decode_last_output(state)
             state.output_text += delta
 
-            state.output_text, delta, state.is_ended = check_stopping_sequences(state.stopping_criteria,
-                                                                              state.output_text,
-                                                                              delta,
-                                                                              state.is_ended)
+            state.output_text, delta, state.is_ended = check_stopping_sequences(
+                state.stopping_criteria, state.output_text, delta, state.is_ended
+            )
 
             outputs.append(
                 RequestOutput(
@@ -363,13 +367,16 @@ class SynchronousInferenceEngine(InferenceEngine):
         return full[len(prefix) :]
 
     def _should_stop_by_length(self, state: RequestState) -> bool:
-        # TODO: currently, we simply return true for both stopping reasons. 
-        #       in the future, we can differentiate these two. 
+        # TODO: currently, we simply return true for both stopping reasons.
+        #       in the future, we can differentiate these two.
         # this include prompt tokens and gen tokens so far
-        num_context_tokens = len(state.token_ids) 
+        num_context_tokens = len(state.token_ids)
         if num_context_tokens >= self.model_artifact_config.max_context_length:
             return True
-        num_gen_tokens = num_context_tokens - state.prompt_len 
-        if num_gen_tokens >= state.stopping_criteria.max_tokens:
+        num_gen_tokens = num_context_tokens - state.prompt_len
+        if (
+            state.stopping_criteria.max_tokens is not None
+            and num_gen_tokens >= state.stopping_criteria.max_tokens
+        ):
             return True
         return False

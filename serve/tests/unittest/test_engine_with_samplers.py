@@ -17,6 +17,7 @@ from mlc_serve.engine import (
 )
 from mlc_serve.engine.staging_engine import StagingInferenceEngine
 from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
+from mlc_serve.model.base import get_model_artifact_config
 from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModelModule
 
 def create_engine(
@@ -95,6 +96,44 @@ def test_max_tokens(
             if seq.is_finished:
                 assert seq.num_generated_tokens == requests[int(res.request_id)].stopping_criteria.max_tokens
                 assert seq.finish_reason == FinishReason.Length
+            else:
+                generated[int(res.request_id)] += seq.delta
+
+    if use_staging_engine:
+        engine.stop()
+
+
+def test_max_context_length(
+        model_artifact_path,
+        use_staging_engine,
+        max_num_sequences=4,
+        num_requests=5,
+        ignore_eos=False
+    ):
+    model_artifact_config = get_model_artifact_config(model_artifact_path)
+    max_context_length = model_artifact_config.max_context_length
+
+    engine = create_engine(
+        model_artifact_path,
+        use_staging_engine,
+        max_num_sequences,
+        max_input_len=max_context_length,
+    )
+    prompt = "hi " * (max_context_length - 15)
+
+    requests = [create_request(idx=str(n), prompt=prompt, temp=0, max_tokens=None, stop=None, ignore_eos=ignore_eos) for n in range(num_requests)]
+    engine.add(requests)
+
+    generated = ["" for _ in range(num_requests)]
+
+    while engine.has_pending_requests():
+        results = engine.step()
+        for res in results.outputs:
+            assert len(res.sequences) == 1
+            seq = res.sequences[0]
+
+            if seq.is_finished:
+                assert seq.finish_reason == FinishReason.Length, seq.finish_reason
             else:
                 generated[int(res.request_id)] += seq.delta
 
@@ -194,3 +233,5 @@ if __name__ == "__main__":
     test_ignore_eos(model_artifact_path, use_staging_engine=False)
     test_stop(model_artifact_path, use_staging_engine=False)
     test_stop(model_artifact_path, use_staging_engine=True)
+    test_max_context_length(model_artifact_path, use_staging_engine=True)
+    test_max_context_length(model_artifact_path, use_staging_engine=False)
