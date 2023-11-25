@@ -45,12 +45,12 @@ RequestState::RequestState(Request request, int num_models) {
   data_ = std::move(n);
 }
 
-bool RequestStateNode::GenerationFinished(int max_single_sequence_length) const {
+Optional<String> RequestStateNode::GenerationFinishReason(int max_single_sequence_length) const {
   // - Case 0. There is remaining draft output ==> Unfinished
   //   All draft outputs are supposed to be processed before finish.
   for (RequestModelState mstate : mstates) {
     if (!mstate->draft_output_tokens.empty()) {
-      return false;
+      return Optional<String>();
     }
   }
 
@@ -64,18 +64,18 @@ bool RequestStateNode::GenerationFinished(int max_single_sequence_length) const 
   if (std::any_of(
           request->generation_cfg->stop_tokens.begin(), request->generation_cfg->stop_tokens.end(),
           [&committed_tokens](int32_t token) { return token == committed_tokens.back(); })) {
-    return true;
+    return String("stop");
   }
   // Case 3. Generation reaches the specified max generation length ==> Finished
   if (static_cast<int>(committed_tokens.size()) >= request->generation_cfg->max_new_tokens) {
-    return true;
+    return String("length");
   }
   // Case 4. Total length of the request reaches the maximum single sequence length ==> Finished
   if (request->input_total_length + static_cast<int>(committed_tokens.size()) >=
       max_single_sequence_length) {
-    return true;
+    return String("length");
   }
-  return false;
+  return Optional<String>();
 }
 
 }  // namespace serve

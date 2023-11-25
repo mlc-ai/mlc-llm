@@ -23,7 +23,7 @@ prompts = [
 
 def create_requests(
     num_requests: int,
-    fcallback: Callable[[str, data.TokenData, bool], None],
+    fcallback: Callable[[str, data.TokenData, Optional[str]], None],
     stop_token: Optional[int] = None,
     temperature: float = 0.8,
     repetition_penalty: float = 1.0,
@@ -80,7 +80,7 @@ def test_engine_basic():
     engine = Engine(model, kv_cache_config)
 
     # Define the callback function for request generation results
-    def fcallback(request_id: str, token_data: data.TokenData, finished: bool):
+    def fcallback(request_id: str, token_data: data.TokenData, finish_reason: Optional[str]):
         outputs[int(request_id)] += token_data.token_ids
 
     # Create requests
@@ -141,9 +141,11 @@ def test_engine_continuous_batching_1():
     class CallbackTimer:
         timer: int = -1
 
-        def callback_getter(self) -> Callable[[str, data.TokenData, bool], None]:
-            def fcallback(request_id: str, token_data: data.TokenData, finished: bool):
-                if finished:
+        def callback_getter(self) -> Callable[[str, data.TokenData, Optional[str]], None]:
+            def fcallback(
+                request_id: str, token_data: data.TokenData, finish_reason: Optional[str]
+            ):
+                if finish_reason is not None:
                     print(f"Request {request_id} finished at step {self.timer}.")
                 outputs[int(request_id)] += token_data.token_ids
                 finish_time[int(request_id)] = self.timer
@@ -217,9 +219,11 @@ def test_engine_continuous_batching_2():
     class CallbackTimer:
         timer: int = -1
 
-        def callback_getter(self) -> Callable[[str, data.TokenData, bool], None]:
-            def fcallback(request_id: str, token_data: data.TokenData, finished: bool):
-                if finished:
+        def callback_getter(self) -> Callable[[str, data.TokenData, Optional[str]], None]:
+            def fcallback(
+                request_id: str, token_data: data.TokenData, finish_reason: Optional[str]
+            ):
+                if finish_reason is not None:
                     print(f"Request {request_id} finished at step {self.timer}.")
                 outputs[int(request_id)] += token_data.token_ids
                 finish_time[int(request_id)] = self.timer
@@ -294,9 +298,11 @@ def test_engine_continuous_batching_3():
         timer: int = -1
         finished_requests: int = 0
 
-        def callback_getter(self) -> Callable[[str, data.TokenData, bool], None]:
-            def fcallback(request_id: str, token_data: data.TokenData, finished: bool):
-                if finished:
+        def callback_getter(self) -> Callable[[str, data.TokenData, Optional[str]], None]:
+            def fcallback(
+                request_id: str, token_data: data.TokenData, finish_reason: Optional[str]
+            ):
+                if finish_reason is not None:
                     print(f"Request {request_id} finished at step {self.timer}.")
                     self.finished_requests += 1
                 outputs[int(request_id)] += token_data.token_ids
