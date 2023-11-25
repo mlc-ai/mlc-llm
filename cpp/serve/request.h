@@ -55,13 +55,13 @@ class RequestNode : public Object {
   GenerationConfig generation_cfg;
   /*!
    * \brief The provided callback function to handle the generation
-   * output. It has the signature of `(String, TokenData, bool) -> None`,
+   * output. It has the signature of `(String, TokenData, Optional<String>) -> None`,
    * where
-   * - the string is the request id,
+   * - the first string is the request id,
    * - the TokenData contains the generated **delta** token ids since
    * the invocation of the callback on the specific request,
-   * - the boolean value denotes if the generation of the request is
-   * finished.
+   * - the optional string value denotes the finish reason if the
+   * generation of the request is finished, or None if it has not finished.
    */
   PackedFunc fcallback;
 
