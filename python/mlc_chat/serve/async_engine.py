@@ -41,7 +41,7 @@ class AsyncRequestStream:
     """
 
     # The asynchronous queue to hold generated tokens or exceptions.
-    _queue: asyncio.Queue[Union[int, Exception]]
+    _queue: asyncio.Queue[Union[Tuple[int, str], Exception]]
     # The finish flag.
     _finished: bool
 
@@ -49,7 +49,7 @@ class AsyncRequestStream:
         self._queue = asyncio.Queue()
         self._finished = False
 
-    def push(self, token_or_exception: Union[int, Exception]) -> None:
+    def push(self, item_or_exception: Union[Tuple[int, str], Exception]) -> None:
         """Push a new token to the stream."""
         if self._finished:
             # No new item is expected after finish.
@@ -60,7 +60,7 @@ class AsyncRequestStream:
                 )
             )
             return
-        self._queue.put_nowait(token_or_exception)
+        self._queue.put_nowait(item_or_exception)
 
     def finish(self) -> None:
         """Mark the finish of the generation in the stream."""
@@ -70,7 +70,7 @@ class AsyncRequestStream:
     def __aiter__(self):
         return self
 
-    async def __anext__(self) -> int:
+    async def __anext__(self) -> Tuple[int, str]:
         result = await self._queue.get()
         if isinstance(result, StopIteration):
             raise StopAsyncIteration
@@ -137,7 +137,9 @@ class AsyncRequestTracker:
 
         # Create the callback function of the request, which pushes new
         # generated tokens to the stream.
-        def stream_callback(rid: str, delta_tokens: data.TokenData, finished: bool) -> None:
+        def stream_callback(
+            rid: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
+        ) -> None:
             if rid != request_id:
                 stream.push(
                     RuntimeError(
@@ -145,9 +147,12 @@ class AsyncRequestTracker:
                         f'Expect "{request_id}" but got "{rid}".'
                     )
                 )
+                return
+
+            finish_reason = str(finish_reason) if finish_reason is not None else None
             for token_id in delta_tokens.token_ids:
-                stream.push(token_id)
-            if finished:
+                stream.push((token_id, finish_reason))
+            if finish_reason is not None:
                 stream.finish()
                 # Remove the request from the tracker.
                 self._request_streams.pop(request_id)
@@ -242,7 +247,7 @@ class AsyncEngine:
 
     async def generate(
         self, prompt: Union[str, List[int]], generation_config: GenerationConfig, request_id: str
-    ) -> AsyncGenerator[int, Any]:
+    ) -> AsyncGenerator[Tuple[int, str], Any]:
         """Asynchronous text generation interface.
         The method is a coroutine that streams the generated tokens to
         the caller side via yield.
@@ -258,6 +263,11 @@ class AsyncEngine:
         request_id : str
             The unique identifier (in string) or this generation request.
         """
+        if not self.is_running:
+            # Lazily start the background loop so that the engine loop is
+            # handled the correct async event loop.
+            self.start_background_loop()
+
         input_data = data.TextData(prompt) if isinstance(prompt, str) else data.TokenData(prompt)
         # Add the request to the tracker and get the stream.
         stream = self._request_tracker.add_request(request_id, input_data, generation_config)
@@ -265,8 +275,9 @@ class AsyncEngine:
         try:
             async for request_output in stream:
                 yield request_output
-        except (Exception, asyncio.CancelledError):  # pylint: disable=broad-exception-caught
+        except (Exception, asyncio.CancelledError) as e:  # pylint: disable=broad-exception-caught
             self._abort(request_id)
+            raise e
 
     async def abort(self, request_id: str) -> None:
         """Generation abortion interface.

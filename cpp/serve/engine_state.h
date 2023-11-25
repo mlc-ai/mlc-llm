@@ -60,7 +60,7 @@ class EngineStateObj : public Object {
   /*! \brief The requests that have not started for process yet. */
   std::vector<Request> waiting_queue;
   /*! \brief The states of all requests. */
-  std::unordered_map<String, RequestState, ObjectPtrHash, ObjectPtrEqual> request_states;
+  std::unordered_map<String, RequestState> request_states;
   /*! \brief Runtime statistics. */
   EngineStats stats;
 
