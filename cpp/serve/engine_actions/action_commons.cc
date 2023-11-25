@@ -69,7 +69,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
   // - Invoke the function callback for requests with new generated tokens.
   for (Request request : requests) {
     RequestState rstate = estate->GetRequestState(request);
-    bool request_finished = rstate->GenerationFinished(max_single_sequence_length);
+    Optional<String> finish_reason = rstate->GenerationFinishReason(max_single_sequence_length);
     int num_committed_tokens = rstate->mstates[0]->committed_tokens.size();
 
     // Check if there are new committed tokens.
@@ -77,7 +77,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
     // Otherwise, we do not invoke, and the request must have not been finished yet.
     ICHECK_LE(rstate->next_callback_token_pos, num_committed_tokens);
     if (rstate->next_callback_token_pos == num_committed_tokens) {
-      ICHECK(!request_finished);
+      ICHECK(!finish_reason.defined());
       continue;
     }
 
@@ -85,10 +85,10 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
                        TokenData(IntTuple(rstate->mstates[0]->committed_tokens.begin() +
                                               rstate->next_callback_token_pos,
                                           rstate->mstates[0]->committed_tokens.end())),
-                       request_finished);
+                       finish_reason);
     rstate->next_callback_token_pos = num_committed_tokens;
 
-    if (request_finished) {
+    if (finish_reason.defined()) {
       finished_requests.push_back(request);
     }
   }

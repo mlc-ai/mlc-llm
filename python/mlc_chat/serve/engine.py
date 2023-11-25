@@ -32,7 +32,7 @@ class ModelInfo:
         It can be "auto", "device_name" (e.g., "cuda") or
         "device_name:device_id" (e.g., "cuda:1").
 
-    lib_path : Optional[str]
+    model_lib_path : Optional[str]
         The compiled library of the model.
         When specified, it is a path to the model library,
         e.g., "dist/prebuilt/lib/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
@@ -40,7 +40,7 @@ class ModelInfo:
 
     model: str
     device: Device = "auto"  # type: ignore
-    lib_path: Optional[str] = None
+    model_lib_path: Optional[str] = None
 
     def __post_init__(self):
         if isinstance(self.device, str):
@@ -101,15 +101,15 @@ class Engine:
                 )
             if tokenizer_path is None:
                 tokenizer_path = model_path
-            lib_path = _get_lib_module_path(
+            model_lib_path = _get_lib_module_path(
                 model=model.model,
                 model_path=model_path,
                 chat_config=chat_config,
-                model_lib_path=model.lib_path,
+                model_lib_path=model.model_lib_path,
                 device_name=device.MASK2STR[device.device_type],
                 config_file_path=config_file_path,
             )
-            return [lib_path, model_path, device.device_type, device.device_id]
+            return [model_lib_path, model_path, device.device_type, device.device_id]
 
         if isinstance(models, list):
             model_args: List[Any] = sum(
@@ -129,6 +129,7 @@ class Engine:
             *model_args,
         )
         self._tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+        self.max_single_sequence_length = max_single_sequence_length
 
     def generate(
         self,
@@ -187,11 +188,11 @@ class Engine:
         def fcallback(
             request_id: str,
             token_data: data.TokenData,
-            finished: bool,  # pylint: disable=unused-argument
+            finish_reason: Optional[str],  # pylint: disable=unused-argument
         ):
             nonlocal num_finished_requests
             outputs[int(request_id)] += token_data.token_ids
-            if finished:
+            if finish_reason is not None:
                 num_finished_requests += 1
 
         # Add requests to engine.
@@ -269,6 +270,22 @@ class Engine:
         stats_json_str = self._ffi["stats"]()
         return json.loads(stats_json_str)
 
+    def tokenize(self, text: str) -> List[int]:
+        """Tokenize the given string to token ids with the tokenizer
+        that backs the engine.
+
+        Parameters
+        ----------
+        text : str
+            The text to tokenize.
+
+        Returns
+        -------
+        output : List[int]
+            The tokenized token ids.
+        """
+        return self._tokenizer.encode(text, add_special_tokens=False)
+
     def detokenize(self, token_ids: List[int]) -> str:
         """Detokenize the given token ids to strings with the tokenizer
         that backs the engine.
@@ -283,4 +300,4 @@ class Engine:
         output : str
             The detokenized text string.
         """
-        return self._tokenizer.decode(token_ids)
+        return self._tokenizer.decode(token_ids, skip_special_tokens=True)
