@@ -117,8 +117,11 @@ class Engine {
   /*! \brief Abort the input request. */
   void AbortRequest(String request_id) {
     auto it_rstate = estate_->request_states.find(request_id);
-    CHECK(it_rstate != estate_->request_states.end())
-        << "The request to abort must have been added to the engine";
+    if (it_rstate == estate_->request_states.end()) {
+      // The request to abort does not exist.
+      return;
+    }
+
     RequestState rstate = it_rstate->second;
     Request request = rstate->request;
 
@@ -130,6 +133,7 @@ class Engine {
     ICHECK(it_running != estate_->running_queue.end() ||
            it_waiting != estate_->waiting_queue.end());
 
+    estate_->request_states.erase(request->id);
     if (it_running != estate_->running_queue.end()) {
       // The request to abort is in running queue
       int internal_req_id = it_running - estate_->running_queue.begin();
@@ -141,7 +145,6 @@ class Engine {
       // The request to abort is in waiting queue
       estate_->waiting_queue.erase(it_waiting);
     }
-    estate_->request_states.erase(request->id);
   }
 
   /*********************** Engine Action ***********************/
