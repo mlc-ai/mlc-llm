@@ -1,4 +1,4 @@
-# pylint: disable=missing-docstring,fixme,import-error
+# pylint: disable=missing-docstring,fixme
 import argparse
 import ast
 import asyncio

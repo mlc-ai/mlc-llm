@@ -110,10 +110,13 @@ class RequestStateNode : public Object {
   std::chrono::_V2::system_clock::time_point tprefill_finish;
 
   /*!
-   * \brief Check if the request generation is finished.
+   * \brief Check if the request generation is finished and return the
+   * finish reason if finished.
    * \param max_single_sequence_length The maximum allowed single sequence length.
+   * \return The finish reason in string if the request is finished,
+   * or None if the request has not finished.
    */
-  bool GenerationFinished(int max_single_sequence_length) const;
+  Optional<String> GenerationFinishReason(int max_single_sequence_length) const;
 
   static constexpr const char* _type_key = "mlc.serve.RequestState";
   static constexpr const bool _type_has_method_sequal_reduce = false;
