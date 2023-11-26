@@ -27,8 +27,7 @@ void RemoveRequestFromModel(EngineState estate, int req_id, Array<Model> models)
 }
 
 void ProcessFinishedRequest(Array<Request> finished_requests, EngineState estate,
-                            Array<Model> models, const std::unique_ptr<Tokenizer>& tokenizer,
-                            int max_single_sequence_length) {
+                            Array<Model> models, int max_single_sequence_length) {
   // - Remove the finished request.
   for (Request request : finished_requests) {
     // Remove from running queue.
@@ -61,15 +60,14 @@ void ProcessFinishedRequest(Array<Request> finished_requests, EngineState estate
 }
 
 void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
-                           const std::unique_ptr<Tokenizer>& tokenizer,
-                           int max_single_sequence_length) {
+                           FRequestCallback f_request_callback, int max_single_sequence_length) {
   Array<Request> finished_requests;
   finished_requests.reserve(requests.size());
 
   // - Invoke the function callback for requests with new generated tokens.
   for (Request request : requests) {
     RequestState rstate = estate->GetRequestState(request);
-    Optional<String> finish_reason = rstate->GenerationFinishReason(max_single_sequence_length);
+    Optional<String> finish_reason = rstate->GenerationFinished(max_single_sequence_length);
     int num_committed_tokens = rstate->mstates[0]->committed_tokens.size();
 
     // Check if there are new committed tokens.
@@ -81,7 +79,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
       continue;
     }
 
-    request->fcallback(request->id,
+    f_request_callback(request->id,
                        TokenData(IntTuple(rstate->mstates[0]->committed_tokens.begin() +
                                               rstate->next_callback_token_pos,
                                           rstate->mstates[0]->committed_tokens.end())),
@@ -94,7 +92,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
   }
 
   ProcessFinishedRequest(std::move(finished_requests), std::move(estate), std::move(models),
-                         tokenizer, max_single_sequence_length);
+                         max_single_sequence_length);
 }
 
 }  // namespace serve
