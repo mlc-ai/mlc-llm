@@ -3,7 +3,9 @@ A implementation of InferenceEngine that executes in the current process.
 """
 
 import logging
+from typing import Deque, Set, Dict
 from collections import deque
+from sre_parse import Tokenizer
 from threading import Condition, Lock
 from uuid import uuid4
 
@@ -21,7 +23,8 @@ from .base import (
     StoppingCriteria,
     check_stopping_sequences,
 )
-from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId
+from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId, TextGenerator, Tokenizer as TokenizerP
+from ..model.base import ModelArtifactConfig
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,19 @@ class SynchronousInferenceEngine(InferenceEngine):
     A implementation of InferenceEngine that does inference synchronously in the current thread
     when `step` is called.
     """
+    text_generator: TextGenerator
+    tokenizer: TokenizerP
+    model_artifact_config: ModelArtifactConfig
+    max_context_length: int
+    max_num_batched_tokens: int
+    max_decode_steps: int
+    min_decode_steps: int
+    prompt_allocate_ratio: float
+    queue_lock: Lock
+    queue: Deque[RequestState]
+    has_new_requests: Condition
+    requests_to_be_cancelled: Set[RequestId]
+    current_batch: Dict[RequestId, RequestState]
 
     def __init__(
         self,
@@ -41,6 +57,7 @@ class SynchronousInferenceEngine(InferenceEngine):
         self.conversation_template = model_module.conversation_template
         self.cache_manager = model_module.cache_manager
         self.model_artifact_config = model_module.model_artifact_config
+        assert self.model_artifact_config.max_context_length, "max_context_length must not be zero"
         self.max_context_length = self.model_artifact_config.max_context_length
         self.max_num_batched_tokens = model_module.engine_config.max_num_batched_tokens
         self.max_decode_steps = min(
@@ -97,7 +114,7 @@ class SynchronousInferenceEngine(InferenceEngine):
 
     def wait_for_request(self, timeout_seconds=None) -> bool:
         with self.queue_lock:
-            self.has_new_requests.wait_for(
+            return self.has_new_requests.wait_for(
                 self.has_pending_requests, timeout=timeout_seconds
             )
 
@@ -321,7 +338,7 @@ class SynchronousInferenceEngine(InferenceEngine):
         return requests
 
     def has_pending_requests(self) -> bool:
-        return self.queue or self.current_batch
+        return bool(self.queue or self.current_batch)
 
     def _discard_cancelled_requests_from_queue(self):
         """
@@ -371,7 +388,7 @@ class SynchronousInferenceEngine(InferenceEngine):
         #       in the future, we can differentiate these two.
         # this include prompt tokens and gen tokens so far
         num_context_tokens = len(state.token_ids)
-        if num_context_tokens >= self.model_artifact_config.max_context_length:
+        if num_context_tokens >= self.max_context_length:
             return True
         num_gen_tokens = num_context_tokens - state.prompt_len
         if (

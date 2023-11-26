@@ -4,7 +4,8 @@ Required interfaces for the actual inference capability in InferenceEngine.
 from dataclasses import dataclass
 from typing import Optional, Protocol, Union
 
-from .base import ChatMessage, RequestId
+from .base import ChatMessage, RequestId, MLCServeEngineConfig
+from ..model.base import ModelArtifactConfig
 from .sampling_params import SamplingParams
 
 
@@ -180,5 +181,5 @@ class TokenizerModule(Protocol):
 
 
 class ModelModule(TextTokenGeneratorModule, TokenizerModule):
-    pass
-
+    model_artifact_config: ModelArtifactConfig
+    engine_config: MLCServeEngineConfig

@@ -16,7 +16,7 @@ from tvm.runtime import disco as di
 from mlc_llm import utils
 
 from .base import get_model_artifact_config
-from .tokenizer import HfTokenizerModule
+from .tokenizer import HfTokenizerModule, ConversationTemplate
 from ..engine import RequestId, SamplingType, MLCServeEngineConfig, SamplingParams
 from ..engine.model_module import (
     DecodeRequest,
@@ -24,6 +24,7 @@ from ..engine.model_module import (
     SequenceId,
     TextGenerationResult,
 )
+from ..engine.model_module import ModelModule
 
 LOG = structlog.stdlib.get_logger(__name__)
 
@@ -702,6 +703,12 @@ class PagedCacheModelTextGenerator:
 
 
 class PagedCacheModelModule:
+    engine_config: MLCServeEngineConfig
+    text_generator: PagedCacheModelTextGenerator
+    cache_manager: CacheManager
+    tokenizer: HfTokenizerModule
+    conversation_template: ConversationTemplate
+
     def __init__(
         self,
         model_artifact_path: str,
@@ -765,3 +772,6 @@ class PagedCacheModelModule:
         tokenizer_module = HfTokenizerModule(model_artifact_path)
         self.tokenizer = tokenizer_module.tokenizer
         self.conversation_template = tokenizer_module.conversation_template
+
+    def _check_implements_model_module(self) -> ModelModule:
+        return self

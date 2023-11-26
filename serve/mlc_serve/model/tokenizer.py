@@ -1,16 +1,18 @@
+from typing import List
 from transformers import AutoTokenizer
 import os
 from ..engine import ChatMessage
+from pathlib import Path
 
 class Tokenizer:
     def __init__(self, hf_tokenizer):
         self._tokenizer = hf_tokenizer
         self.eos_token_id = self._tokenizer.eos_token_id
 
-    def encode(self, text: str) -> list[int]:
+    def encode(self, text: str) -> List[int]:
         return self._tokenizer.encode(text)
 
-    def decode(self, tokens: list[int]) -> str:
+    def decode(self, tokens: List[int]) -> str:
         return self._tokenizer.decode(tokens, skip_special_tokens=True)
 
 
@@ -30,9 +32,9 @@ class ConversationTemplate:
 
 
 class HfTokenizerModule:
-    def __init__(self, model_artifact_path: str):
+    def __init__(self, model_artifact_path: Path):
         hf_tokenizer = AutoTokenizer.from_pretrained(
-            os.path.join(model_artifact_path, "model"),
+            model_artifact_path.joinpath("model"),
             trust_remote_code=False,
         )
         self.tokenizer = Tokenizer(hf_tokenizer)

@@ -4,8 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from abc import ABC, abstractmethod
 
-from typing import List, Callable, Any, Optional
-import json
+from typing import List, Callable, Any, Optional, Dict
 import inspect
 
 from .sampling_params import SamplingParams, SamplingType
@@ -31,7 +30,7 @@ class MLCServeEngineConfig:
     prompt_allocate_ratio: float = 2.0
 
     @classmethod
-    def _from_json(config_cls, json_obj: dict):
+    def _from_json(config_cls, json_obj: Dict[Any, Any]):
         return config_cls(
             **{
                 k: v
@@ -106,7 +105,7 @@ ValidateTokensCallback = Callable[["Request", List[Token]], ValidationError]
 @dataclass
 class Request:
     request_id: RequestId
-    messages: list[ChatMessage]
+    messages: List[ChatMessage]
     # Number of sequences to generate
     num_sequences: int = 1
     # TODO: should `best_of` be handled in the serving layer?

@@ -2,6 +2,7 @@
 import logging
 import sys
 from typing import List, Dict, Tuple, Any
+from psutil import Process
 
 import structlog
 from structlog.types import EventDict
@@ -12,7 +13,7 @@ _JSON = False
 
 def json_logging_enabled() -> bool:
     global _JSON
-    return
+    return _JSON
 
 
 def configure_logging(enable_json_logs: bool = False, log_level: str = "INFO"):
@@ -53,13 +54,13 @@ def configure_logging(enable_json_logs: bool = False, log_level: str = "INFO"):
         cache_logger_on_first_use=True,
     )
 
-    logs_render = (
+    logs_render: Processor = (
         structlog.processors.JSONRenderer()
         if enable_json_logs
         else structlog.dev.ConsoleRenderer(colors=True)
     )
 
-    extra_processors = []
+    extra_processors: List[Processor] = []
     # extra_processors = [StructureVLLMOutput()]
     formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors + extra_processors,

@@ -132,7 +132,7 @@ class AsyncEngineConnector:
         for item in result.outputs:
             request_id = item.request_id
             if request_id not in self.result_queues:
-                logging.warning(
+                LOG.warn(
                     f"Unknown request id when dispatching result: {request_id}"
                 )
                 continue

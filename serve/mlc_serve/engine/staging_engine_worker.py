@@ -6,12 +6,13 @@ import multiprocessing
 from collections import deque
 from dataclasses import dataclass
 from threading import Condition, Lock, Thread
-from typing import Callable, Optional, Union, Any, Dict
+from typing import Callable, Optional, Union, Any, Dict, Deque, List
 
 import structlog
 
 from .base import FinishReason, RequestId, RequestState
-from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId
+from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId, TextGenerator, Tokenizer as TokenizerP
+from ..model.base import ModelArtifactConfig
 from ..logging_utils import configure_logging
 
 LOG = structlog.stdlib.get_logger(__name__)
@@ -56,6 +57,23 @@ class GenerationLoopWorkerOutput:
 
 
 class GenerationLoopWorker:
+    text_generator: TextGenerator
+    cache_manager: Any
+    tokenizer: TokenizerP
+    model_artifact_config: ModelArtifactConfig
+    max_context_length: int
+    max_num_batched_tokens: int
+    max_decode_steps: int
+    min_decode_steps: int
+    prompt_allocate_ratio: float
+    queue_lock: Lock
+    queue: Deque[RequestState]
+    has_new_requests: Condition
+    cancelled_requests: List[RequestState]
+    stopped_requests: List[RequestState]
+    current_batch: Dict[RequestId, RequestState]
+
+
     def __init__(
         self,
         model_module: ModelModule,
@@ -64,6 +82,7 @@ class GenerationLoopWorker:
         self.cache_manager = model_module.cache_manager
         self.tokenizer = model_module.tokenizer
         self.model_artifact_config = model_module.model_artifact_config
+        assert self.model_artifact_config.max_context_length, "must not be None"
         self.max_context_length = self.model_artifact_config.max_context_length
         self.max_num_batched_tokens = model_module.engine_config.max_num_batched_tokens
         self.max_decode_steps = min(
