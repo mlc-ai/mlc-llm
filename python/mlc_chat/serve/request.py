@@ -1,19 +1,19 @@
 """The request class in MLC LLM serving"""
-from typing import Callable, List, Optional, Union
+from typing import List, Union
 
 import tvm._ffi
 from tvm.runtime import Object
 
 from . import _ffi_api
 from .config import GenerationConfig
-from .data import Data, TokenData
+from .data import Data
 
 
 @tvm._ffi.register_object("mlc.serve.Request")  # pylint: disable=protected-access
 class Request(Object):
     """The user submitted text-generation request, which contains
-    a list of multi-modal inputs, a set of generation configuration
-    parameters and a callback function for request finish handling.
+    a unique request id, a list of multi-modal inputs, a set of
+    generation configuration parameters.
 
     Parameters
     ----------
@@ -27,16 +27,6 @@ class Request(Object):
     generation_config : GenerationConfig
         The sampling configuration which may contain temperature,
         top_p, repetition_penalty, max_gen_len, etc.
-
-    fcallback : Callable[[str, TokenData, Optional[str]], None]
-        The provided callback function to handle the generation
-        output. It has the signature of `(str, TokenData, bool) -> None`,
-        where
-        - the first string is the request id,
-        - the TokenData contains the generated **delta** token ids since
-        the invocation of the callback on the specific request,
-        - the optional string value denotes the finish reason if the
-        generation of the request is finished, or None if it has not finished.
     """
 
     def __init__(
@@ -44,7 +34,6 @@ class Request(Object):
         request_id: str,
         inputs: Union[Data, List[Data]],
         generation_config: GenerationConfig,
-        fcallback: Callable[[str, TokenData, Optional[str]], None],
     ):
         if not isinstance(inputs, list):
             inputs = [inputs]
@@ -53,7 +42,6 @@ class Request(Object):
             request_id,
             inputs,
             generation_config.asjson(),
-            fcallback,
         )
 
     @property
