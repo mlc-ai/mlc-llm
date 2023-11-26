@@ -116,7 +116,7 @@ class RequestStateNode : public Object {
    * \return The finish reason in string if the request is finished,
    * or None if the request has not finished.
    */
-  Optional<String> GenerationFinishReason(int max_single_sequence_length) const;
+  Optional<String> GenerationFinished(int max_single_sequence_length) const;
 
   static constexpr const char* _type_key = "mlc.serve.RequestState";
   static constexpr const bool _type_has_method_sequal_reduce = false;
