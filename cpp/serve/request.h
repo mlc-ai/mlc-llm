@@ -25,8 +25,8 @@ using namespace tvm::runtime;
 
 /*!
  * \brief The user submitted text-generation request, which contains
- * a list of multi-modal inputs, a set of generation configuration
- * parameters and a callback function for request finish handling.
+ * a unique request id, a list of multi-modal inputs, a set of
+ * generation configuration parameters.
  * \note Request is immutable and can be re-dispatched to another
  * node and restart the request handling on the new one.
  */
@@ -53,17 +53,6 @@ class RequestNode : public Object {
    * top_p, repetition_penalty, max_gen_len, etc.
    */
   GenerationConfig generation_cfg;
-  /*!
-   * \brief The provided callback function to handle the generation
-   * output. It has the signature of `(String, TokenData, Optional<String>) -> None`,
-   * where
-   * - the first string is the request id,
-   * - the TokenData contains the generated **delta** token ids since
-   * the invocation of the callback on the specific request,
-   * - the optional string value denotes the finish reason if the
-   * generation of the request is finished, or None if it has not finished.
-   */
-  PackedFunc fcallback;
 
   static constexpr const char* _type_key = "mlc.serve.Request";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -73,8 +62,7 @@ class RequestNode : public Object {
 
 class Request : public ObjectRef {
  public:
-  explicit Request(String id, Array<Data> inputs, GenerationConfig generation_cfg,
-                   PackedFunc fcallback);
+  explicit Request(String id, Array<Data> inputs, GenerationConfig generation_cfg);
 
   /*!
    * \brief Return a request object with all text data tokenized,
