@@ -135,31 +135,9 @@ class AsyncRequestTracker:
             )
             return stream
 
-        # Create the callback function of the request, which pushes new
-        # generated tokens to the stream.
-        def stream_callback(
-            rid: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
-        ) -> None:
-            if rid != request_id:
-                stream.push(
-                    RuntimeError(
-                        "Internal error: request id mismatch. "
-                        f'Expect "{request_id}" but got "{rid}".'
-                    )
-                )
-                return
-
-            finish_reason = str(finish_reason) if finish_reason is not None else None
-            for token_id in delta_tokens.token_ids:
-                stream.push((token_id, finish_reason))
-            if finish_reason is not None:
-                stream.finish()
-                # Remove the request from the tracker.
-                self._request_streams.pop(request_id)
-
         # Create the request with the given id, input data, generation
         # config and the created callback.
-        request = Request(request_id, input_data, generation_cfg, stream_callback)
+        request = Request(request_id, input_data, generation_cfg)
         # Record the stream in the tracker
         self._request_streams[request_id] = stream
         # Push the request to the `requests_to_add` queue for the engine
@@ -179,6 +157,10 @@ class AsyncRequestTracker:
             The id of the request to abort.
         """
         self._requests_to_abort.put_nowait(request_id)
+
+    def finish_request(self, request_id: str) -> None:
+        """The input request has finished. Remove its stream from the tracker."""
+        self._request_streams.pop(request_id)
 
     def get_requests_to_add_and_abort(self) -> Tuple[List[Request], List[str]]:
         """Fetch the requests to add to or abort from the engine.
@@ -206,6 +188,12 @@ class AsyncRequestTracker:
         self._new_request_event.clear()
 
         return requests_to_add, requests_to_abort
+
+    def get_request_stream(self, request_id: str) -> AsyncRequestStream:
+        """Fetch the stream of the input request.
+        The request is expected to have the stream in the tracker.
+        """
+        return self._request_streams[request_id]
 
     async def wait_for_new_requests(self):
         """Wait for new requests to add."""
@@ -240,7 +228,7 @@ class AsyncEngine:
     def __init__(
         self, models: Union[ModelInfo, List[ModelInfo]], kv_cache_config: KVCacheConfig
     ) -> None:
-        self.engine = Engine(models, kv_cache_config)
+        self.engine = Engine(models, kv_cache_config, self._request_callback)
         self._request_tracker = AsyncRequestTracker()
         self._background_loop_unshielded: Optional[asyncio.Task] = None
         self._background_loop: Optional[asyncio.Future] = None
@@ -319,6 +307,52 @@ class AsyncEngine:
                 await self._request_tracker.wait_for_new_requests()
             self._engine_step()
             await asyncio.sleep(0)
+
+    def _request_callback(
+        self, request_id: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
+    ) -> None:
+        """The request callback function for engine to stream back
+        the request generation results.
+
+        Parameters
+        ----------
+        request_id : str
+            The id of the request that the function is invoked for.
+
+        delta_tokens : data.TokenData
+            The new generated tokens since the last callback invocation
+            for the input request.
+
+        finish_reason : Optional[str]
+            The finish reason of the request when it is finished,
+            of None if the request has not finished yet.
+
+        Note
+        ----
+        This callback function uses `call_soon_threadsafe` in asyncio to
+        schedule the invocation in the event loop, so that the underlying
+        callback logic will be executed asynchronously in the future rather
+        than right now.
+        """
+        # Schedule a callback run in the event loop without executing right now.
+        asyncio.get_event_loop().call_soon_threadsafe(
+            self._request_callback_impl, request_id, delta_tokens, finish_reason
+        )
+
+    def _request_callback_impl(
+        self, request_id: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
+    ) -> None:
+        """The underlying implementation of request callback."""
+        stream = self._request_tracker.get_request_stream(request_id)
+
+        finish_reason = str(finish_reason) if finish_reason is not None else None
+        # Push new generated tokens to the stream.
+        for token_id in delta_tokens.token_ids:
+            stream.push((token_id, finish_reason))
+        if finish_reason is not None:
+            stream.finish()
+            # Remove the request from the tracker.
+            self._request_tracker.finish_request(request_id)
 
     def _engine_step(self) -> None:
         """Internal implementation of asynchronous engine behavior at each time step."""
