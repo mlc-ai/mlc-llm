@@ -78,12 +78,28 @@ class Engine:
 
     kv_cache_config : KVCacheConfig
         The configuration of the paged KV cache.
+
+    f_request_callback : Optional[Callable[[str, data.TokenData, Optional[str]], None]]
+        The provided callback function to handle the generation
+        output. It has the signature of `(str, data.TokenData, bool) -> None`,
+        where
+        - the first string is the request id,
+        - the TokenData contains the generated **delta** token ids since
+        the last invocation of the callback on the specific request,
+        - the optional string value denotes the finish reason if the
+        generation of the request is finished, or None if it has not finished.
+
+        The callback function is optional at construction, but it needs to
+        be set before the engine executing requests. This can be done via
+        the `set_request_callback` method. Otherwise, the engine will raise
+        exception.
     """
 
     def __init__(
         self,
         models: Union[ModelInfo, List[ModelInfo]],
         kv_cache_config: KVCacheConfig,
+        f_request_callback: Optional[Callable[[str, data.TokenData, Optional[str]], None]] = None,
     ):
         max_single_sequence_length = int(1e9)
         tokenizer_path: Optional[str] = None
@@ -120,12 +136,22 @@ class Engine:
             model_args = _convert_model_info(models)
         self._ffi = _create_tvm_module(
             "mlc.serve.create_engine",
-            ffi_funcs=["init", "add_request", "abort", "step", "stats", "reset"],
+            ffi_funcs=[
+                "init",
+                "add_request",
+                "abort",
+                "step",
+                "stats",
+                "reset",
+                "get_request_callback",
+                "set_request_callback",
+            ],
         )
         self._ffi["init"](
             max_single_sequence_length,
             tokenizer_path,
             kv_cache_config.asjson(),
+            f_request_callback,
             *model_args,
         )
         self._tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
@@ -184,8 +210,13 @@ class Engine:
         num_finished_requests = 0
         outputs: List[List[int]] = [[] for _ in range(num_requests)]
 
+        # Save a copy of the original function callback since `generate`
+        # overrides the callback function.
+        # The original callback will be set back later on.
+        original_callback = self._ffi["get_request_callback"]()
+
         # Define the callback function for request generation results
-        def fcallback(
+        def f_request_callback(
             request_id: str,
             token_data: data.TokenData,
             finish_reason: Optional[str],  # pylint: disable=unused-argument
@@ -194,6 +225,9 @@ class Engine:
             outputs[int(request_id)] += token_data.token_ids
             if finish_reason is not None:
                 num_finished_requests += 1
+
+        # Override the callback function in engine.
+        self._ffi["set_request_callback"](f_request_callback)
 
         # Add requests to engine.
         for req_id, (prompt, generation_cfg) in enumerate(zip(prompts, generation_config)):
@@ -207,7 +241,6 @@ class Engine:
                     request_id=str(req_id),
                     inputs=input_data,
                     generation_config=generation_cfg,
-                    fcallback=fcallback,
                 )
             )
 
@@ -217,6 +250,9 @@ class Engine:
         output_strs = []
         for output in outputs:
             output_strs.append(self.detokenize(output))
+
+        # Restore the callback function in engine.
+        self._ffi["set_request_callback"](original_callback)
         return output_strs
 
     def add_request(self, request: Request) -> None:
