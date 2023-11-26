@@ -7,6 +7,7 @@
 #define MLC_LLM_SERVE_ENGINE_ACTIONS_ACTION_COMMONS_H_
 
 #include "../../tokenizers.h"
+#include "../engine.h"
 #include "../engine_state.h"
 #include "../model.h"
 
@@ -33,13 +34,12 @@ void RemoveRequestFromModel(EngineState estate, int req_id, Array<Model> models)
  * \param requests The requests to process.
  * \param estate The engine state.
  * \param models The models to remove the finished from.
- * \param tokenizer The tokenizer used to decode the generated tokens of requests.
+ * \param f_request_callback The request callback function.
  * \param max_single_sequence_length The max single sequence length to help decide
  * if a request is finished.
  */
 void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
-                           const std::unique_ptr<Tokenizer>& tokenizer,
-                           int max_single_sequence_length);
+                           FRequestCallback f_request_callback, int max_single_sequence_length);
 
 }  // namespace serve
 }  // namespace llm
