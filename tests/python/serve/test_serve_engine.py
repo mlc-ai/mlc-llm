@@ -23,7 +23,6 @@ prompts = [
 
 def create_requests(
     num_requests: int,
-    fcallback: Callable[[str, data.TokenData, Optional[str]], None],
     stop_token: Optional[int] = None,
     temperature: float = 0.8,
     repetition_penalty: float = 1.0,
@@ -46,7 +45,6 @@ def create_requests(
                     max_new_tokens=max_new_tokens,
                     stop_tokens=stop_tokens,
                 ),
-                fcallback=fcallback,
             )
         )
     return requests
@@ -76,17 +74,16 @@ def test_engine_basic():
     # Output list
     outputs = [[] for _ in range(num_requests)]
 
-    # Create engine
-    engine = Engine(model, kv_cache_config)
-
     # Define the callback function for request generation results
     def fcallback(request_id: str, token_data: data.TokenData, finish_reason: Optional[str]):
         outputs[int(request_id)] += token_data.token_ids
 
+    # Create engine
+    engine = Engine(model, kv_cache_config, fcallback)
+
     # Create requests
     requests = create_requests(
         num_requests,
-        fcallback,
         temperature=temperature,
         repetition_penalty=repetition_penalty,
         max_new_tokens_low=max_new_tokens,
@@ -134,9 +131,6 @@ def test_engine_continuous_batching_1():
     outputs = [[] for _ in range(num_requests)]
     finish_time = [None] * num_requests
 
-    # Create engine
-    engine = Engine(model, kv_cache_config)
-
     # Define the callback class for request generation results
     class CallbackTimer:
         timer: int = -1
@@ -155,11 +149,13 @@ def test_engine_continuous_batching_1():
         def step(self) -> None:
             self.timer += 1
 
-    # Create requests
+    # Create engine
     timer = CallbackTimer()
+    engine = Engine(model, kv_cache_config, timer.callback_getter())
+
+    # Create requests
     requests = create_requests(
         num_requests,
-        timer.callback_getter(),
         temperature=temperature,
         repetition_penalty=repetition_penalty,
         max_new_tokens_low=max_new_tokens_low,
@@ -212,9 +208,6 @@ def test_engine_continuous_batching_2():
     outputs = [[] for _ in range(num_requests)]
     finish_time = [None] * num_requests
 
-    # Create engine
-    engine = Engine(model, kv_cache_config)
-
     # Define the callback class for request generation results
     class CallbackTimer:
         timer: int = -1
@@ -233,11 +226,13 @@ def test_engine_continuous_batching_2():
         def step(self) -> None:
             self.timer += 1
 
-    # Create requests
+    # Create engine
     timer = CallbackTimer()
+    engine = Engine(model, kv_cache_config, timer.callback_getter())
+
+    # Create requests
     requests = create_requests(
         num_requests,
-        timer.callback_getter(),
         stop_token=stop_token,
         temperature=temperature,
         repetition_penalty=repetition_penalty,
@@ -290,9 +285,6 @@ def test_engine_continuous_batching_3():
     outputs = [[] for _ in range(num_requests)]
     finish_time = [None] * num_requests
 
-    # Create engine
-    engine = Engine(model, kv_cache_config)
-
     # Define the callback class for request generation results
     class CallbackTimer:
         timer: int = -1
@@ -316,11 +308,13 @@ def test_engine_continuous_batching_3():
         def all_finished(self) -> bool:
             return self.finished_requests == num_requests
 
-    # Create requests
+    # Create engine
     timer = CallbackTimer()
+    engine = Engine(model, kv_cache_config, timer.callback_getter())
+
+    # Create requests
     requests = create_requests(
         num_requests,
-        timer.callback_getter(),
         stop_token=stop_token,
         temperature=temperature,
         repetition_penalty=repetition_penalty,
