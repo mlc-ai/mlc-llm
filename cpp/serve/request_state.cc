@@ -45,7 +45,7 @@ RequestState::RequestState(Request request, int num_models) {
   data_ = std::move(n);
 }
 
-Optional<String> RequestStateNode::GenerationFinishReason(int max_single_sequence_length) const {
+Optional<String> RequestStateNode::GenerationFinished(int max_single_sequence_length) const {
   // - Case 0. There is remaining draft output ==> Unfinished
   //   All draft outputs are supposed to be processed before finish.
   for (RequestModelState mstate : mstates) {

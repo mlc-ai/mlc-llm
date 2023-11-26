@@ -3,6 +3,8 @@
  * \file serve/engine.cc
  * \brief The implementation for runtime module of serving engine module in MLC LLM.
  */
+#include "engine.h"
+
 #include <dlpack/dlpack.h>
 #include <tokenizers_cpp.h>
 #include <tvm/runtime/logging.h>
@@ -60,13 +62,14 @@ class Engine {
   /********************** Engine Management **********************/
 
   explicit Engine(int max_single_sequence_length, String tokenizer_path,
-                  String kv_cache_config_json_str,
+                  String kv_cache_config_json_str, Optional<PackedFunc> f_request_callback,
                   std::vector<std::tuple<TVMArgValue, String, DLDevice>> model_infos) {
     CHECK_GE(model_infos.size(), 1) << "ValueError: No model is provided in the engine.";
     // Step 1. Initialize metadata and singleton states inside the engine
     this->estate_->Reset();
     this->max_single_sequence_length_ = max_single_sequence_length;
     this->kv_cache_config_ = KVCacheConfig(kv_cache_config_json_str, max_single_sequence_length);
+    this->f_request_callback_ = std::move(f_request_callback);
     this->sampler_ = Sampler::Create(/*sampler_kind=*/"cpu");
     this->tokenizer_ = TokenizerFromPath(tokenizer_path);
     // Step 2. Initialize each model independently.
@@ -160,10 +163,12 @@ class Engine {
    * generation results for those finished requests.
    */
   void Step() {
+    CHECK(f_request_callback_.defined())
+        << "The request callback is not set. Engine cannot execute.";
     for (EngineAction action : actions_) {
       Array<Request> processed_requests = action->Step(estate_);
       if (!processed_requests.empty()) {
-        ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
+        ActionStepPostProcess(processed_requests, estate_, models_, f_request_callback_.value(),
                               max_single_sequence_length_);
         return;
       }
@@ -183,6 +188,8 @@ class Engine {
   std::unique_ptr<Tokenizer> tokenizer_;
   // Models
   Array<Model> models_;
+  // Request callback function
+  Optional<PackedFunc> f_request_callback_;
   // Engine actions.
   Array<EngineAction> actions_;
 };
@@ -204,38 +211,43 @@ class EngineModule : public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("step", &EngineModule::Step);
   TVM_MODULE_VTABLE_ENTRY("stats", &EngineModule::Stats);
   TVM_MODULE_VTABLE_ENTRY("reset", &EngineModule::Reset);
+  TVM_MODULE_VTABLE_ENTRY("get_request_callback", &EngineModule::GetRequestCallback);
+  TVM_MODULE_VTABLE_ENTRY("set_request_callback", &EngineModule::SetRequestCallback);
   TVM_MODULE_VTABLE_END();
 
   void InitPacked(TVMArgs args, TVMRetValue* rv) {
     static const char* kErrorMessage =
         "With `n` models, engine initialization "
-        "takes (4 * n + 3) arguments. The first 3 arguments should be: "
+        "takes (4 + 4 * n) arguments. The first 4 arguments should be: "
         "1) (int) maximum length of a sequence, which must be equal or smaller than the context "
         "window size of each model; "
         "2) (string) path to tokenizer configuration files, which in MLC LLM, usually in a model "
         "weights directory; "
-        "3) (string) JSON configuration for the KVCache. "
+        "3) (string) JSON configuration for the KVCache; "
+        "4) (packed function, optional) global request callback function. "
         "The following (4 * n) arguments, 4 for each model, should be: "
         "1) (tvm.runtime.Module) The model library loaded into TVM's RelaxVM; "
         "2) (string) Model path which includes weights and mlc-chat-config.json; "
         "3) (int, enum DLDeviceType) Device type, e.g. CUDA, ROCm, etc; "
         "4) (int) Device id, i.e. the ordinal index of the device that exists locally.";
-    int num_models = (args.size() - 3) / 4;
+    int num_models = (args.size() - 4) / 4;
     int max_single_sequence_length;
     std::string tokenizer_path;
     std::string kv_cache_config_json_str;
+    Optional<PackedFunc> f_request_callback;
     std::vector<std::tuple<TVMArgValue, String, DLDevice>> model_infos;
     model_infos.reserve(num_models);
     try {
-      CHECK_EQ(num_models * 4 + 3, args.size()) << "Incorrect number of arguments. ";
+      CHECK_EQ(num_models * 4 + 4, args.size()) << "Incorrect number of arguments.";
       max_single_sequence_length = args.At<int>(0);
       tokenizer_path = args.At<std::string>(1);
       kv_cache_config_json_str = args.At<std::string>(2);
+      f_request_callback = args.At<Optional<PackedFunc>>(3);
       for (int i = 0; i < num_models; ++i) {
-        TVMArgValue model_lib = args[i * 4 + 3];
-        std::string model_path = args.At<std::string>(i * 4 + 4);
-        DLDeviceType device_type = static_cast<DLDeviceType>(args.At<int>(i * 4 + 5));
-        int device_id = args.At<int>(i * 4 + 6);
+        TVMArgValue model_lib = args[i * 4 + 4];
+        std::string model_path = args.At<std::string>(i * 4 + 5);
+        DLDeviceType device_type = static_cast<DLDeviceType>(args.At<int>(i * 4 + 6));
+        int device_id = args.At<int>(i * 4 + 7);
         model_infos.emplace_back(model_lib, model_path, DLDevice{device_type, device_id});
       }
     } catch (const dmlc::Error& e) {
@@ -246,21 +258,28 @@ class EngineModule : public ModuleNode {
       this->engine_ = nullptr;
       ClearGlobalMemoryManager();
     }
-    this->engine_ = std::make_unique<Engine>(max_single_sequence_length, tokenizer_path,
-                                             kv_cache_config_json_str, model_infos);
+    this->engine_ =
+        std::make_unique<Engine>(max_single_sequence_length, tokenizer_path,
+                                 kv_cache_config_json_str, f_request_callback, model_infos);
   }
 
   /*! \brief Construct an EngineModule. */
   static tvm::runtime::Module Create() { return Module(make_object<EngineModule>()); }
-  /*! brief Redirection to `Engine::AddRequest`. */
+  /*! \brief Redirection to `Engine::AddRequest`. */
   void AddRequest(Request request) { return GetEngine()->AddRequest(request); }
-  /*! brief Redirection to `Engine::AbortRequest`. */
+  /*! \brief Redirection to `Engine::AbortRequest`. */
   void Abort(String request_id) { return GetEngine()->AbortRequest(request_id); }
-  /*! brief Redirection to `Engine::Step`. */
+  /*! \brief Redirection to `Engine::Step`. */
   void Step() { return GetEngine()->Step(); }
-  /*! brief Redirection to `Engine::ResetEngine`. */
+  /*! \brief Get the engine request callback function. */
+  Optional<PackedFunc> GetRequestCallback() { return GetEngine()->f_request_callback_; }
+  /*! \brief Set the engine request callback function. */
+  void SetRequestCallback(Optional<PackedFunc> f_request_callback) {
+    GetEngine()->f_request_callback_ = std::move(f_request_callback);
+  }
+  /*! \brief Redirection to `Engine::ResetEngine`. */
   void Reset() { return GetEngine()->ResetEngine(); }
-  /*! brief Getting stats from the engine */
+  /*! \brief Getting stats from the engine */
   String Stats() { return GetEngine()->estate_->stats.AsJSON(); }
 
  private:
