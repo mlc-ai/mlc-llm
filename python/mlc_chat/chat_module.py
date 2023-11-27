@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 import tvm
 from tvm.runtime import disco  # pylint: disable=unused-import
 
+from mlc_chat.support.auto_device import detect_device
+
 from . import base  # pylint: disable=unused-import
 
 if TYPE_CHECKING:
@@ -591,89 +593,6 @@ def _convert_generation_config_to_json_str(generation_config: Optional[Generatio
     return json.dumps(asdict(generation_config))
 
 
-def _parse_device_str(device: str) -> Tuple[tvm.runtime.Device, str]:
-    """Parse the input device identifier into device name and id.
-
-    Parameters
-    ----------
-    device : str
-        The device identifier to parse.
-        It can be "device_name" (e.g., "cuda") or
-        "device_name:device_id" (e.g., "cuda:1").
-
-    Returns
-    -------
-    dev : tvm.runtime.Device
-        The device.
-
-    device_name : str
-        The name of the device.
-    """
-    device_err_msg = (
-        f"Invalid device name: {device}. Please enter the device in the form "
-        "'device_name:device_id' or 'device_name', where 'device_name' needs to be "
-        "one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto'."
-    )
-    device_args = device.split(":")
-    if len(device_args) == 1:
-        device_name, device_id = device_args[0], 0
-    elif len(device_args) == 2:
-        device_name, device_id = device_args[0], int(device_args[1])
-    elif len(device_args) > 2:
-        raise ValueError(device_err_msg)
-
-    if device_name == "cuda":
-        device = tvm.cuda(device_id)
-    elif device_name == "metal":
-        device = tvm.metal(device_id)
-    elif device_name == "vulkan":
-        device = tvm.vulkan(device_id)
-    elif device_name == "rocm":
-        device = tvm.rocm(device_id)
-    elif device_name == "opencl":
-        device = tvm.opencl(device_id)
-    elif device_name == "auto":
-        device, device_name = _detect_local_device(device_id)
-        logging.info("System automatically detected device: %s", device_name)
-    else:
-        raise ValueError(device_err_msg)
-
-    return device, device_name
-
-
-def _detect_local_device(device_id: int = 0) -> Tuple[tvm.runtime.Device, str]:
-    """Automatically detect the local device if user does not specify.
-
-    Parameters
-    ----------
-    device_id : int
-        The local device id.
-
-    Returns
-    ------
-    dev : tvm.runtime.Device
-        The local device.
-
-    device_name : str
-        The name of the device.
-    """
-    if tvm.metal().exist:
-        return tvm.metal(device_id), "metal"
-    if tvm.rocm().exist:
-        return tvm.rocm(device_id), "rocm"
-    if tvm.cuda().exist:
-        return tvm.cuda(device_id), "cuda"
-    if tvm.vulkan().exist:
-        return tvm.vulkan(device_id), "vulkan"
-    if tvm.opencl().exist:
-        return tvm.opencl(device_id), "opencl"
-    logging.info(
-        "None of the following device is detected: metal, rocm, cuda, vulkan, opencl. "
-        "Switch to llvm instead."
-    )
-    return tvm.cpu(device_id), "llvm"
-
-
 class ChatModule:  # pylint: disable=too-many-instance-attributes
     r"""The ChatModule for MLC LLM.
 
@@ -738,7 +657,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
     ):
         # 0. Get device:
         # Retrieve device_name and device_id (if any, default 0) from device arg
-        self.device, device_name = _parse_device_str(device)
+        self.device = detect_device(device)
         device_type = self.device.device_type
         device_id = self.device.device_id
 
@@ -780,7 +699,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
             self.model_path,
             self.chat_config,
             model_lib_path,
-            device_name,
+            self.device.MASK2STR[self.device.device_type],
             self.config_file_path,
         )
 

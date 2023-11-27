@@ -236,6 +236,7 @@ async def request_chat_completion(request: ChatCompletionRequest):
                     )
                     prev_txt = valid_content
                     yield f"data: {chunk.json(exclude_unset=True)}\n\n"
+            yield "data: [DONE]\n\n"
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
     msg = session["chat_mod"].generate(prompt=request.messages, generation_config=generation_config)

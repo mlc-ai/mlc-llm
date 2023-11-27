@@ -875,7 +875,7 @@ def create_embed_func(
 ) -> None:
     func_name = "embed"
 
-    seq_len = tvm.tir.Var("n", "int64")
+    seq_len = tvm.tir.Var("m", "int64")
     with bb.function(func_name):
         model = LlamaEmbedTokensWrapper(config, tvm.tir.Var("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
@@ -949,7 +949,7 @@ def create_prefill_func_for_batching(
     func_name = "prefill_with_embed"
 
     bsz = tir.Var("nseq", "int64")
-    total_seq_len = tvm.tir.Var("n", "int64")
+    total_seq_len = tvm.tir.Var("m", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = LlamaForCausalLM(
@@ -987,7 +987,7 @@ def create_decoding_func_for_single_seq(
     func_name = "decode"
 
     bsz = 1
-    all_seq_len = tvm.tir.Var("n", "int64")
+    all_seq_len = tvm.tir.Var("m", "int64")
 
     with bb.function(func_name):
         model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"))
@@ -1362,12 +1362,15 @@ def get_model(args, hf_config):
         max_window_size=config.max_sequence_length,
         stop_tokens=[2],
         add_prefix_space=False,
+        prefill_chunk_size=args.prefill_chunk_size,
     )
 
     mod = bb.get()
 
     tir_bound_map = dict()
-    tir_bound_map["n"] = config.max_sequence_length
+    tir_bound_map["n"] = (
+        args.prefill_chunk_size if args.prefill_chunk_size > 0 else config.max_sequence_length
+    )
     tir_bound_map["m"] = config.max_sequence_length
     tir_bound_map["vocab_size"] = args.max_vocab_size
     if enable_batching:

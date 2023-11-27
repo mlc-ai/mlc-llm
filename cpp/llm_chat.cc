@@ -317,25 +317,33 @@ class LLMChat {
     return os.str();
   }
 
-  bool UpdateMaxWindowSizeFromMetadata() {
+  void UpdateConfigFromMetadata() {
     if (ft_.use_disco) {
-      return false;
+      return;
     }
-    if (this->sliding_window_ != -1) {
-      return false;
-    }
+
     PackedFunc fget_metadata = ft_.mod_get_func("get_metadata");
     if (fget_metadata == nullptr) {
-      return false;
+      return;
     }
     ObjectRef ret = fget_metadata();
     std::string metadata_str = std::string(Downcast<String>(ret));
     picojson::value metadata_info;
     picojson::parse(metadata_info, std::string(metadata_str));
     auto metadata = metadata_info.get<picojson::object>();
+
     ICHECK(metadata["max_window_size"].is<int64_t>());
     max_window_size_ = std::min(max_window_size_, metadata["max_window_size"].get<int64_t>());
-    return true;
+
+    if (metadata.count("prefill_chunk_size")) {
+      ICHECK(metadata["prefill_chunk_size"].is<int64_t>());
+      prefill_chunk_size_ =
+          std::min(prefill_chunk_size_, metadata["prefill_chunk_size"].get<int64_t>());
+    }
+    if (metadata.count("sliding_window")) {
+      ICHECK(metadata["sliding_window"].is<int64_t>());
+      sliding_window_ = std::min(sliding_window_, metadata["sliding_window"].get<int64_t>());
+    }
   }
 
   /*!
@@ -410,15 +418,12 @@ class LLMChat {
           << "Cannot specify both sliding_window and max_window_size.";
       this->sliding_window_ = config["sliding_window"].get<int64_t>();
       CHECK(this->sliding_window_ > 0) << "Sliding window size needs to be positive";
-      CHECK(config.count("sliding_window_chunk_size"))
+      CHECK(config.count("prefill_chunk_size"))
           << "Need to specify chunk size if using sliding window attention.";
     }
-    if (config.count("sliding_window_chunk_size")) {
-      CHECK(config["sliding_window_chunk_size"].is<int64_t>());
-      this->sliding_window_chunk_size_ = config["sliding_window_chunk_size"].get<int64_t>();
-      CHECK(this->sliding_window_chunk_size_ > 0)
-          << "Sliding window chunk size needs to be positive";
-      CHECK(config.count("sliding_window")) << "Need to specify sliding window size.";
+    if (config.count("prefill_chunk_size")) {
+      CHECK(config["prefill_chunk_size"].is<int64_t>());
+      this->prefill_chunk_size_ = config["prefill_chunk_size"].get<int64_t>();
     }
     if (config.count("top_p")) {
       CHECK(config["top_p"].is<double>());
@@ -507,8 +512,8 @@ class LLMChat {
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
     this->ft_.Init(reload_lib, device_, this->num_shards_);
+    UpdateConfigFromMetadata();
     if (this->sliding_window_ == -1) {
-      UpdateMaxWindowSizeFromMetadata();
       CHECK(max_window_size_ != std::numeric_limits<int64_t>::max())
           << "Key \"max_window_size\" not found.";
     }
@@ -801,9 +806,8 @@ class LLMChat {
       if (ft_.use_disco) {
         LOG(FATAL) << "NotImplementedError: Distributed inference is not supported for this model";
       }
-      if (this->sliding_window_ != -1) {
-        LOG(FATAL)
-            << "NotImplementedError: Sliding window attention does not support separate embedding";
+      if (this->prefill_chunk_size_ != -1) {
+        LOG(FATAL) << "NotImplementedError: Separate embedding does not support chunking";
       }
       NDArray embedding = Downcast<NDArray>(
           EmbedStep(inp, append_conversation, place_in_prompt, generation_config_str));
@@ -826,10 +830,10 @@ class LLMChat {
 
     int32_t new_seq_len = total_seq_len_;
     NDArray logits_on_device;
-    if (this->sliding_window_ != -1) {
-      // Use chunking if we use sliding window attention (see Mistral paper figure 3).
-      for (int64_t begin = 0; begin < token_len; begin += this->sliding_window_chunk_size_) {
-        int64_t end = std::min(token_len, begin + this->sliding_window_chunk_size_);
+    if (this->prefill_chunk_size_ > 0) {
+      // Perform chunking.
+      for (int64_t begin = 0; begin < token_len; begin += this->prefill_chunk_size_) {
+        int64_t end = std::min(token_len, begin + this->prefill_chunk_size_);
         std::vector<int32_t> chunk =
             std::vector<int32_t>(prompt_tokens.begin() + begin, prompt_tokens.begin() + end);
         new_seq_len += static_cast<int64_t>(chunk.size());
@@ -838,6 +842,7 @@ class LLMChat {
       ICHECK_EQ(new_seq_len, total_seq_len_ + token_len) << "Expect chunking process all tokens";
     } else {
       // Otherwise, prefill entire prompt at once.
+      CHECK(sliding_window_ == -1) << "Expect chunking with sliding window attention";
       new_seq_len += token_len;
       logits_on_device = this->ForwardTokens(prompt_tokens, new_seq_len);
     }
@@ -1357,7 +1362,7 @@ class LLMChat {
   // max window size, mean and max generation length, sliding window
   // If we use sliding window, max window size is its default max() value
   int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128},
-      max_gen_len_{512}, sliding_window_{-1}, sliding_window_chunk_size_{-1};
+      max_gen_len_{512}, sliding_window_{-1}, prefill_chunk_size_{-1};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference
