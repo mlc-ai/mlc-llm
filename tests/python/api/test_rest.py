@@ -32,7 +32,7 @@ def run_rest_server(model):
 @pytest.mark.usefixtures("run_rest_server")
 @pytest.mark.parametrize("stream", [True, False])
 @pytest.mark.parametrize("model", MODELS)
-def test_rest_api(model, stream):
+def test_rest_chat_completions(model, stream):
     payload = {
         "model": model,
         "messages": [
@@ -61,11 +61,45 @@ def test_rest_api(model, stream):
         ) as model_response:
             print("With streaming:")
             for chunk in model_response:
-                content = json.loads(chunk[6:-2])["choices"][0]["delta"].get("content", "")
-                print(f"{content}", end="", flush=True)
+                data = chunk[6:-2]
+                if data != b"[DONE]":
+                    content = json.loads(data)["choices"][0]["delta"].get("content", "")
+                    print(f"{content}", end="", flush=True)
             print("\n")
     else:
         model_response = requests.post(
             "http://127.0.0.1:8000/v1/chat/completions", json=payload, timeout=120
         )
         print(f"\n{model_response.json()['choices'][0]['message']['content']}\n")
+
+
+@pytest.mark.usefixtures("run_rest_server")
+@pytest.mark.parametrize("stream", [True, False])
+@pytest.mark.parametrize("model", MODELS)
+def test_rest_completions(model, stream):
+    payload = {
+        "model": model,
+        "prompt": "What is the meaning of life?",
+        "stream": stream,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0,
+        "temperature": 1.0,
+        "n": 3,
+    }
+    if stream:
+        with requests.post(
+            "http://127.0.0.1:8000/v1/completions", json=payload, stream=True, timeout=120
+        ) as model_response:
+            print("With streaming:")
+            for chunk in model_response:
+                data = chunk[6:-2]
+                if data != b"[DONE]":
+                    content = json.loads(data)["choices"][0]["text"]
+                    print(f"{content}", end="", flush=True)
+            print("\n")
+    else:
+        model_response = requests.post(
+            "http://127.0.0.1:8000/v1/completions", json=payload, timeout=120
+        )
+        assert len(model_response.json()["choices"]) == 3
+        print(f"\n{model_response.json()['choices'][0]['text']}\n")
