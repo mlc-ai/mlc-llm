@@ -615,7 +615,7 @@ class LLMChat {
     std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
     if (this->sliding_window_ != -1 ||  // There is no max window size if we use sliding window
-        this->total_seq_len_ + tokens.size() + gen_mean_gen_len < this->max_window_size_) {
+        this->total_seq_len_ + (int)tokens.size() + gen_mean_gen_len < this->max_window_size_) {
       return tokens;
     }
     // need shift window and re-encode
