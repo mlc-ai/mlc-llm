@@ -24,9 +24,13 @@ def detect_device(device_hint: str) -> Device:
         device = None
         for device_type in AUTO_DETECT_DEVICES:
             cur_device = tvm.device(dev_type=device_type, dev_id=0)
-            if _device_exists(cur_device):
+            # NOTE: we do early exit at first detected device, so that we will not try
+            # all the list of devices in auto detect to reduce VRAM
+            # allocated for other environments
+            if cur_device.exist:
                 if device is None:
                     device = cur_device
+                    break
         if device is None:
             logger.info("%s: No available device detected. Falling back to CPU", NOT_FOUND)
             return tvm.device("cpu:0")
@@ -36,7 +40,7 @@ def detect_device(device_hint: str) -> Device:
         device = tvm.device(device_hint)
     except Exception as err:
         raise ValueError(f"Invalid device name: {device_hint}") from err
-    if not _device_exists(device):
+    if not device.exist:
         raise ValueError(f"Device is not found on your local environment: {device_hint}")
     return device
 
@@ -45,7 +49,10 @@ def _device_to_str(device: Device) -> str:
     return f"{tvm.runtime.Device.MASK2STR[device.device_type]}:{device.device_id}"
 
 
-def _device_exists(device: Device) -> bool:
+def _device_exists_via_check_device(device: Device) -> bool:
+    """Check whether device exists via mlc_chat.cli.check_device"""
+    # NOTE: this function may have issues in return value checkings in windows
+    # as of now we use the same process checking with early exit.
     device_str = _device_to_str(device)
     if device_str in _RESULT_CACHE:
         return _RESULT_CACHE[device_str]
