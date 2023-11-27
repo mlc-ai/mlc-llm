@@ -500,8 +500,6 @@ class RWKVModel(nn.Module):
             hidden_states, layer_states = layer(hidden_states, state)
             states += layer_states
         context_length = hidden_states.struct_info.shape[0]
-        if not is_one(context_length):
-            hidden_states = nn.emit_te(_te_get_last_x, hidden_states)
         hidden_states = self.ln_out(hidden_states)
         return hidden_states, states
 
