@@ -169,16 +169,17 @@ def _calculate_quantization_params(
     def _calculate_scale_zp(arr_max: np.ndarray, arr_min: np.ndarray, dtype: str, algo: QAlgo):
         max_value = arr_max.dtype.type(np.iinfo(dtype).max)
         min_value = arr_max.dtype.type(np.iinfo(dtype).min)
+        size = arr_max.size
         if algo is QAlgo.PER_TENSOR_SYM:
             arr = np.maximum(np.abs(arr_max), np.abs(arr_min))
-            scale = np.array([np.max(arr) / max_value])
+            scale = np.array([np.max(arr) / max_value] * size)
             zp = np.zeros_like(scale, dtype="int8")
         elif algo is QAlgo.PER_CHANNEL_SYM:
             arr = np.maximum(np.abs(arr_max), np.abs(arr_min))
             scale = arr / max_value
             zp = np.zeros_like(scale, dtype="int8")
         elif algo is QAlgo.PER_TENSOR_ASYM:
-            scale = np.array([(np.max(arr_max) - np.min(arr_min)) / (max_value - min_value)])
+            scale = np.array([(np.max(arr_max) - np.min(arr_min)) / (max_value - min_value)] * size)
             zp = (-np.round(np.min(arr_min) / scale) + min_value).astype("int8")
         elif algo is QAlgo.PER_CHANNEL_ASYM:
             scale = (arr_max - arr_min) / (max_value - min_value)
@@ -265,7 +266,7 @@ def _calibrate(
 ):
     qscheme: str = config["qscheme"]
     mod = mlc_llm.transform.SmoothQuantAnnotator(qscheme)(mod)
-    stat_mod = mlc_llm.transform.SmoothQuantStatCollector(qscheme)(mod)
+    stat_mod = mlc_llm.transform.SmoothQuantStatCollector()(mod)
     stat_mod = mlc_llm.transform.FuseTransposeMatmul()(stat_mod)
 
     prefill, decode, kvc, _, _ = get_runtime_func(funcs, stat_mod)
