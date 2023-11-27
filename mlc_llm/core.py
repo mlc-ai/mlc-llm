@@ -879,9 +879,9 @@ def build_model_from_args(args: argparse.Namespace):
                     vocab_size=config["vocab_size"],
                     max_window_size=model_config.max_sequence_length,
                     max_gen_len=model_config.max_sequence_length,
-                    top_p=0.6,
-                    temperature=1.2,
-                    repetition_penalty=0.996,
+                    top_p=0.3,
+                    temperature=1.0,
+                    repetition_penalty=1.0,
                     rwkv_world=True,
                 )
             elif args.model_category == "chatglm":
