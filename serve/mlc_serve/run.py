@@ -3,7 +3,7 @@ import logging
 import logging.config
 import os
 import uvicorn
-#from mlc_llm import utils
+from pathlib import Path
 
 from .api import create_app
 from .engine import AsyncEngineConnector, get_engine_config
@@ -53,7 +53,7 @@ def create_engine(
       |            `ndarray-cache.json` is especially important for Disco.
       |- model/ : stores info from hf model cards such as max context length and tokenizer
     """
-    model_artifact_path = os.path.join(args.artifact_path, args.local_id)
+    model_artifact_path = Path(os.path.join(args.artifact_path, args.local_id))
     if not os.path.exists(model_artifact_path):
         raise Exception(f"Invalid local id: {args.local_id}")
 
