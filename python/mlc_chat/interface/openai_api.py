@@ -92,13 +92,12 @@ class CompletionRequest(BaseModel):
     max_gen_len: int = None
     presence_penalty: float = None
     frequency_penalty: float = None
+    n: int = None
+    stop: Union[str, List[str]] = None
     # TODO: Implement support for the OpenAI API parameters
     # suffix
-    # max_tokens: Optional[int]
-    # n: Optional[int] = 1
     # logprobs
     # echo
-    # stop: Optional[Union[str, List[str]]] = None
     # best_of
     # logit_bias
     # user: Optional[str] = None
