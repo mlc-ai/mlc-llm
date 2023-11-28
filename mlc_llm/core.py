@@ -859,6 +859,13 @@ def build_model_from_args(args: argparse.Namespace):
                     repetition_penalty=0.996,
                     rwkv_world=True,
                 )
+            elif args.model_category == "chatglm":
+                dump_mlc_chat_config(
+                    args,
+                    vocab_size=config["padded_vocab_size"],
+                    max_window_size=model_config.max_sequence_length,
+                    max_gen_len=model_config.max_sequence_length,
+                )
             else:
                 dump_mlc_chat_config(
                     args,
@@ -915,38 +922,6 @@ def build_model_from_args(args: argparse.Namespace):
                 params, args.artifact_path, args.num_shards if args.use_presharded_weights else 1
             )
 
-<<<<<<< HEAD
-            if args.model_category != "minigpt":
-                utils.copy_tokenizer(args)
-            if args.model_category == "rwkv" or args.model_category == "rwkv_world":
-                # TODO: refactor config into model definition
-                dump_mlc_chat_config(
-                    args,
-                    vocab_size=config["vocab_size"],
-                    max_window_size=model_config.max_sequence_length,
-                    max_gen_len=model_config.max_sequence_length,
-                    top_p=0.6,
-                    temperature=1.2,
-                    repetition_penalty=0.996,
-                    rwkv_world=True,
-                )
-            elif args.model_category == "chatglm":
-                dump_mlc_chat_config(
-                    args,
-                    vocab_size=config["padded_vocab_size"],
-                    max_window_size=model_config.max_sequence_length,
-                    max_gen_len=model_config.max_sequence_length,
-                )
-            else:
-                dump_mlc_chat_config(
-                    args,
-                    vocab_size=config["vocab_size"],
-                    max_window_size=model_config.max_sequence_length,
-                    max_gen_len=model_config.max_sequence_length,
-                )
-
-=======
->>>>>>> efd4243 ([SmoothQuant] Merge smoothing and params transform into one step)
         if args.convert_weights_only:
             exit(0)
 
