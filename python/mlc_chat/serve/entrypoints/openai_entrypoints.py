@@ -1,7 +1,7 @@
 """OpenAI API-compatible server entrypoints in MLC LLM"""
 # pylint: disable=too-many-locals,too-many-return-statements
 from http import HTTPStatus
-from typing import AsyncGenerator, Callable, List, Optional, Tuple
+from typing import AsyncGenerator, Optional
 
 import fastapi
 
@@ -10,34 +10,43 @@ from ...protocol.openai_api_protocol import (
     CompletionRequest,
     CompletionResponse,
     CompletionResponseChoice,
+    ListResponse,
+    ModelResponse,
     UsageInfo,
 )
-from ..server_variables import engine, hosted_model_id
+from ..server_context import ServerContext
 from . import entrypoint_utils
 
 app = fastapi.APIRouter()
 
 
+@app.get("/v1/models")
+async def request_models():
+    """OpenAI-compatible served model query API.
+    API reference: https://platform.openai.com/docs/api-reference/models
+    """
+    return ListResponse(data=[ModelResponse(id=model) for model in ServerContext.get_model_list()])
+
+
 @app.post("/v1/completions")
-async def request_completion(
-    request: CompletionRequest, raw_request: fastapi.Request
-) -> fastapi.responses.JSONResponse:
+async def request_completion(request: CompletionRequest, raw_request: fastapi.Request):
     """OpenAI-compatible completion API.
     API reference: https://platform.openai.com/docs/api-reference/completions/create
     """
-    # - Check the model id.
+    # - Check the requested model.
+    async_engine = ServerContext.get_engine(request.model)
+    if async_engine is None:
+        return entrypoint_utils.create_error_response(
+            HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
+        )
+
     # - Check if unsupported arguments are specified.
-    error_checks: List[Tuple[Callable, Tuple]] = [
-        (entrypoint_utils.check_model_id, (request.model, hosted_model_id)),
-        (entrypoint_utils.check_unsupported_fields, (request,)),
-    ]
-    for ferror_check, args in error_checks:
-        error = ferror_check(*args)
-        if error is not None:
-            return error
+    error = entrypoint_utils.check_unsupported_fields(request)
+    if error is not None:
+        return error
 
     # - Process prompt and check validity.
-    prompts = entrypoint_utils.process_prompts(request.prompt, engine.engine.tokenize)
+    prompts = entrypoint_utils.process_prompts(request.prompt, async_engine.tokenizer.encode)
     if isinstance(prompts, fastapi.responses.JSONResponse):
         # Errored when processing the prompts
         return prompts
@@ -47,7 +56,7 @@ async def request_completion(
             message="Entrypoint /v1/completions only accept single prompt. "
             f"However, {len(prompts)} prompts {prompts} are received.",
         )
-    error = entrypoint_utils.check_prompts_length(prompts, engine.engine.max_single_sequence_length)
+    error = entrypoint_utils.check_prompts_length(prompts, async_engine.max_single_sequence_length)
     if error is not None:
         return error
     prompt = prompts[0]
@@ -65,12 +74,12 @@ async def request_completion(
 
             # - Echo back the prompt.
             if request.echo:
-                text = engine.engine.detokenize(prompt)
+                text = async_engine.tokenizer.decode(prompt)
                 prev_text_len = len(text)
                 response = CompletionResponse(
                     id=request_id,
                     choices=[CompletionResponseChoice(text=text)],
-                    model=hosted_model_id,
+                    model=request.model,
                     usage=UsageInfo(
                         prompt_tokens=len(prompt),
                         completion_tokens=0,
@@ -81,11 +90,11 @@ async def request_completion(
             # - Generate new tokens.
             tokens = list(prompt)
             finish_reason = None
-            async for output_token, finish_reason in engine.generate(
+            async for output_token, finish_reason in async_engine.generate(
                 prompt, generation_cfg, request_id
             ):
                 tokens.append(output_token)
-                text = engine.engine.detokenize(tokens)
+                text = async_engine.tokenizer.decode(tokens)
                 delta_text = text[prev_text_len:]
                 prev_text_len = len(text)
 
@@ -97,7 +106,7 @@ async def request_completion(
                             text=delta_text,
                         )
                     ],
-                    model=hosted_model_id,
+                    model=request.model,
                     usage=UsageInfo(
                         prompt_tokens=len(prompt),
                         completion_tokens=len(tokens) - len(prompt),
@@ -116,7 +125,7 @@ async def request_completion(
                             text=request.suffix,
                         )
                     ],
-                    model=hosted_model_id,
+                    model=request.model,
                     usage=UsageInfo(
                         prompt_tokens=len(prompt),
                         completion_tokens=len(tokens) - len(prompt),
@@ -133,19 +142,21 @@ async def request_completion(
     # Normal response.
     output_tokens = []
     finish_reason: Optional[str] = None
-    async for output_token, finish_reason in engine.generate(prompt, generation_cfg, request_id):
+    async for output_token, finish_reason in async_engine.generate(
+        prompt, generation_cfg, request_id
+    ):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
             # when the request is disconnected.
             # Therefore, we check if it is disconnected each time,
             # and abort the request from engine if so.
-            await engine.abort(request_id)
+            await async_engine.abort(request_id)
             return entrypoint_utils.create_error_response(
                 HTTPStatus.BAD_REQUEST, message="The request has disconnected"
             )
         output_tokens.append(output_token)
     assert finish_reason is not None
-    text = engine.engine.detokenize(prompt + output_tokens if request.echo else output_tokens)
+    text = async_engine.tokenizer.decode(prompt + output_tokens if request.echo else output_tokens)
     suffix = request.suffix if request.suffix is not None else ""
     response = CompletionResponse(
         id=request_id,
@@ -155,7 +166,7 @@ async def request_completion(
                 text=text + suffix,
             )
         ],
-        model=hosted_model_id,
+        model=request.model,
         usage=UsageInfo(
             prompt_tokens=len(prompt),
             completion_tokens=len(output_tokens),

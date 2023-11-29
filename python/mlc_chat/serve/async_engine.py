@@ -2,12 +2,14 @@
 Acknowledgment: Part of the code was adapted from the vLLM project.
 """
 import asyncio
+import threading
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
 from . import data
 from .config import GenerationConfig, KVCacheConfig
-from .engine import Engine, ModelInfo
+from .engine import Engine, ModelInfo, _create_tvm_module, _process_model_args
 from .request import Request
+from .tokenizer import Tokenizer
 
 
 class AsyncEngineDeadError(RuntimeError):
@@ -223,15 +225,23 @@ class AsyncEngine:
         The configuration of the paged KV cache.
     """
 
-    engine: Engine
-
     def __init__(
         self, models: Union[ModelInfo, List[ModelInfo]], kv_cache_config: KVCacheConfig
     ) -> None:
-        self.engine = Engine(models, kv_cache_config, self._request_callback)
+        self._background_engine = Engine(models, kv_cache_config, self._request_stream_callback)
+        self.tokenizer = self._background_engine.tokenizer
+        self.max_single_sequence_length = self._background_engine.max_single_sequence_length
+
         self._request_tracker = AsyncRequestTracker()
         self._background_loop_unshielded: Optional[asyncio.Task] = None
         self._background_loop: Optional[asyncio.Future] = None
+        self._terminated: bool = False
+
+    def terminate(self) -> None:
+        """Terminate the engine."""
+        self._terminated = True
+        if not self._background_loop.done():
+            self._background_loop_unshielded.cancel()
 
     async def generate(
         self, prompt: Union[str, List[int]], generation_config: GenerationConfig, request_id: str
@@ -251,6 +261,8 @@ class AsyncEngine:
         request_id : str
             The unique identifier (in string) or this generation request.
         """
+        if self._terminated:
+            raise ValueError("The AsyncEngine has terminated.")
         if not self.is_running:
             # Lazily start the background loop so that the engine loop is
             # handled the correct async event loop.
@@ -308,10 +320,10 @@ class AsyncEngine:
             self._engine_step()
             await asyncio.sleep(0)
 
-    def _request_callback(
+    def _request_stream_callback(
         self, request_id: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
     ) -> None:
-        """The request callback function for engine to stream back
+        """The request stream callback function for engine to stream back
         the request generation results.
 
         Parameters
@@ -336,13 +348,13 @@ class AsyncEngine:
         """
         # Schedule a callback run in the event loop without executing right now.
         asyncio.get_event_loop().call_soon_threadsafe(
-            self._request_callback_impl, request_id, delta_tokens, finish_reason
+            self._request_stream_callback_impl, request_id, delta_tokens, finish_reason
         )
 
-    def _request_callback_impl(
+    def _request_stream_callback_impl(
         self, request_id: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
     ) -> None:
-        """The underlying implementation of request callback."""
+        """The underlying implementation of request stream callback."""
         stream = self._request_tracker.get_request_stream(request_id)
 
         finish_reason = str(finish_reason) if finish_reason is not None else None
@@ -360,14 +372,177 @@ class AsyncEngine:
         # Apply the request add and abortion.
         requests_to_add, requests_to_abort = self._request_tracker.get_requests_to_add_and_abort()
         for request in requests_to_add:
-            self.engine.add_request(request)
+            self._background_engine.add_request(request)
         for request_id in requests_to_abort:
-            self.engine.abort_request(request_id)
+            self._background_engine.abort_request(request_id)
 
         # Take an engine step.
-        self.engine.step()
+        self._background_engine.step()
 
     def _abort(self, request_id: str):
         """Internal implementation of request abortion."""
         # Notify the request tracker about the abortion.
         self._request_tracker.abort_request(request_id)
+
+
+class AsyncThreadedEngine:
+    """
+    The asynchronous engine backed by ThreadedEngine: the only
+    difference between AsyncEngine and AsyncThreadedEngine is that
+    AsyncEngine is backed by a normal Engine, while AsyncThreadedEngine
+    is backed by ThreadedEngine.
+
+    See AsyncEngine for full documentation.
+    """
+
+    def __init__(
+        self, models: Union[ModelInfo, List[ModelInfo]], kv_cache_config: KVCacheConfig
+    ) -> None:
+        model_args, tokenizer_path, self.max_single_sequence_length = _process_model_args(models)
+        self._ffi = _create_tvm_module(
+            "mlc.serve.create_threaded_engine",
+            ffi_funcs=[
+                "add_request",
+                "abort_request",
+                "run_background_loop",
+                "exit_background_loop",
+            ],
+            creator_args=[
+                self.max_single_sequence_length,
+                tokenizer_path,
+                kv_cache_config.asjson(),
+                self._request_stream_callback,
+                *model_args,
+            ],
+        )
+        self.tokenizer = Tokenizer.from_path(tokenizer_path)
+
+        # The mapping from request ids to request asynchronous stream.
+        self._request_streams: Dict[str, AsyncRequestStream] = {}
+        # Create the background engine-driving thread and start the loop.
+        self._background_loop_thread: threading.Thread = threading.Thread(
+            target=self._ffi["run_background_loop"]
+        )
+        self._background_loop_thread.start()
+        # The main thread request handling asyncio event loop, which will
+        # be lazily initialized.
+        self._async_event_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._terminated = False
+
+    def terminate(self):
+        """Terminate the engine."""
+        self._terminated = True
+        self._ffi["exit_background_loop"]()
+        self._background_loop_thread.join()
+
+    async def generate(
+        self, prompt: Union[str, List[int]], generation_config: GenerationConfig, request_id: str
+    ) -> AsyncGenerator[Tuple[int, str], Any]:
+        """Asynchronous text generation interface.
+        The method is a coroutine that streams the generated tokens to
+        the caller side via yield.
+
+        Parameters
+        ----------
+        prompt : Union[str, List[int]]
+            The input prompt in forms of text string or a list of token ids.
+
+        generation_config : GenerationConfig
+            The generation config of the request.
+
+        request_id : str
+            The unique identifier (in string) or this generation request.
+        """
+        if self._terminated:
+            raise ValueError("The AsyncThreadedEngine has terminated.")
+        if self._async_event_loop is None:
+            # Lazily set the asyncio event loop so that the event
+            # loop is the main driving event loop of the process.
+            self._async_event_loop = asyncio.get_event_loop()
+
+        # Create the request with the given id, input data, generation
+        # config and the created callback.
+        input_data = data.TextData(prompt) if isinstance(prompt, str) else data.TokenData(prompt)
+        request = Request(request_id, input_data, generation_config)
+
+        # Create the unique stream of the request.
+        stream = AsyncRequestStream()
+        if request_id in self._request_streams:
+            # Report error in the stream if the request id already exists.
+            stream.push(
+                RuntimeError(
+                    f'The request id "{request_id} already exists. '
+                    'Please make sure the request id is unique."'
+                )
+            )
+        else:
+            # Record the stream in the tracker
+            self._request_streams[request_id] = stream
+            self._ffi["add_request"](request)
+
+        # Iterate the stream asynchronously and yield the token.
+        try:
+            async for request_output in stream:
+                yield request_output
+        except (Exception, asyncio.CancelledError) as e:  # pylint: disable=broad-exception-caught
+            await self.abort(request_id)
+            raise e
+
+    async def abort(self, request_id: str) -> None:
+        """Generation abortion interface.
+
+        Parameter
+        ---------
+        request_id : str
+            The id of the request to abort.
+        """
+        self._request_streams.pop(request_id)
+        self._ffi["abort_request"](request_id)
+
+    def _request_stream_callback(
+        self, request_id: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
+    ) -> None:
+        """The request stream callback function for engine to stream back
+        the request generation results.
+
+        Parameters
+        ----------
+        request_id : str
+            The id of the request that the function is invoked for.
+
+        delta_tokens : data.TokenData
+            The new generated tokens since the last callback invocation
+            for the input request.
+
+        finish_reason : Optional[str]
+            The finish reason of the request when it is finished,
+            of None if the request has not finished yet.
+
+        Note
+        ----
+        This callback function uses `call_soon_threadsafe` in asyncio to
+        schedule the invocation in the event loop, so that the underlying
+        callback logic will be executed asynchronously in the future rather
+        than right now.
+        """
+        # Schedule a callback run in the event loop without executing right now.
+        # NOTE: This function causes GIL during execution.
+        self._async_event_loop.call_soon_threadsafe(
+            self._request_stream_callback_impl, request_id, delta_tokens, finish_reason
+        )
+
+    def _request_stream_callback_impl(
+        self, request_id: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
+    ) -> None:
+        """The underlying implementation of request stream callback."""
+        stream = self._request_streams.get(request_id, None)
+        if stream is None:
+            return
+
+        finish_reason = str(finish_reason) if finish_reason is not None else None
+        # Push new generated tokens to the stream.
+        for token_id in delta_tokens.token_ids:
+            stream.push((token_id, finish_reason))
+        if finish_reason is not None:
+            stream.finish()
+            self._request_streams.pop(request_id)
