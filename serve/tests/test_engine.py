@@ -4,19 +4,20 @@ import argparse
 import json
 import random
 import os
+from pathlib import Path
 
-from mlc_llm import utils
 from mlc_serve.engine import (
     Request,
     ChatMessage,
     DebugOptions,
     SamplingParams,
     StoppingCriteria,
-    get_engine_config
+    get_engine_config,
 )
 from mlc_serve.engine.staging_engine import StagingInferenceEngine
 from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
 from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModelModule
+from mlc_serve.logging_utils import configure_logging
 
 
 def test(args: argparse.Namespace):
@@ -31,14 +32,16 @@ def test(args: argparse.Namespace):
     # Disco:
     # python serve/tests/test_engine_paged_cache_model.py --local-id vicuna-v1-7b-q0f16-presharded-gpu2
 
-    engine_config = get_engine_config({
-        "use_staging_engine": args.use_staging_engine,
-        "max_num_sequences": args.max_num_sequences,
-        "max_input_len": args.max_input_len,
-        "min_decode_steps": args.min_decode_steps,
-        "max_decode_steps": args.max_decode_steps,
-        "prompt_allocate_ratio": args.prompt_allocate_ratio
-    })
+    engine_config = get_engine_config(
+        {
+            "use_staging_engine": args.use_staging_engine,
+            "max_num_sequences": args.max_num_sequences,
+            "max_input_len": args.max_input_len,
+            "min_decode_steps": args.min_decode_steps,
+            "max_decode_steps": args.max_decode_steps,
+            "prompt_allocate_ratio": args.prompt_allocate_ratio,
+        }
+    )
 
     if args.use_staging_engine:
         engine = StagingInferenceEngine(
@@ -53,9 +56,10 @@ def test(args: argparse.Namespace):
     else:
         engine = SynchronousInferenceEngine(
             PagedCacheModelModule(
-                model_artifact_path = args.model_artifact_path,
-                engine_config = engine_config,
-        ))
+                model_artifact_path=args.model_artifact_path,
+                engine_config=engine_config,
+            )
+        )
 
     sampling_params_greedy = SamplingParams(
         temperature=0.0,
@@ -63,7 +67,7 @@ def test(args: argparse.Namespace):
 
     if args.use_random_sampling:
         sampling_params_random = SamplingParams(
-            temperature=0.9,
+            temperature=1.0,
             top_p=1.0,
         )
         sampling_params_choices = [sampling_params_random, sampling_params_greedy]
@@ -73,7 +77,6 @@ def test(args: argparse.Namespace):
     if args.long_prompt:
         with open("serve/tests/data/long_prompts.json", "r") as f:
             prompts = json.load(f)["prompts"]
-            prompts = [prompts[0], prompts[2], prompts[3]]
     else:
         prompts = [
             "Hello, my name is",
@@ -89,7 +92,9 @@ def test(args: argparse.Namespace):
                     request_id=str(i),
                     messages=[ChatMessage(role="user", content=prompt)],
                     sampling_params=random.choice(sampling_params_choices),
-                    stopping_criteria=StoppingCriteria(max_tokens=args.max_output_len, stop_sequences=None),
+                    stopping_criteria=StoppingCriteria(
+                        max_tokens=args.max_output_len, stop_sequences=None
+                    ),
                     debug_options=DebugOptions(prompt=prompt),
                 )
             ]
@@ -131,10 +136,18 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
-    args.model_artifact_path = os.path.join(args.artifact_path, args.local_id)
+    args.model_artifact_path = Path(os.path.join(args.artifact_path, args.local_id))
+
     if not os.path.exists(args.model_artifact_path):
         raise Exception(f"Invalid local id: {args.local_id}")
+
+    if args.long_prompt:
+        args.max_input_len = 10000
+        args.max_num_sequences = 5
+
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
+
+    configure_logging(enable_json_logs=False, log_level="INFO")
 
     test(args)
