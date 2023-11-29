@@ -14,12 +14,14 @@ from .group_quantization import GroupQuantizationSpec
 
 
 @dataclass
-class FTRowwiseQuantizationSpec(QuantizationSpec):
+class FTQuantizationSpec(QuantizationSpec):
     """The quantization specification for the FasterTransformer kernel."""
 
-    def __init__(self, dtype, nbit):
+    def __init__(self, dtype, nbit, group_size=-1):
         super().__init__(dtype)
         self.nbit = nbit
+        assert group_size in [-1, 64, 128], f"Group size {group_size} is not supported."
+        self.group_size = group_size
 
         if tvm.cuda(0).exist:
             major, minor = parse_compute_version(tvm.cuda(0).compute_version)
@@ -38,6 +40,7 @@ class FTRowwiseQuantizationSpec(QuantizationSpec):
                 encoding_func(
                     self.nbit,
                     8,
+                    group_size=self.group_size,
                     dtype=self.dtype,
                 ),
                 inputs[0],
@@ -66,33 +69,47 @@ class FTRowwiseQuantizationSpec(QuantizationSpec):
             decoding_func(
                 self.nbit,
                 storage_nbit=8,
+                group_size=self.group_size,
             ),
             func_name="decode",
         )
 
 
-def encoding_func(nbit: int, storage_nbit: int, dtype: str = "float32"):
+def encoding_func(nbit: int, storage_nbit: int, group_size: int, dtype: str = "float32"):
     def te_encode_sym(weight: te.Tensor):
+        """Encode the weight tensor of shape [N, K] into a quantized weight tensor of shape
+        [K, N // float_per_int] and a scale tensor of shape [K // group_size, N]
+        """
         n_float_per_int = storage_nbit // nbit
         max_int_value = (1 << (nbit - 1)) - 1
 
-        scale_min_shape = (weight.shape[0],)
-        k = te.reduce_axis((0, weight.shape[1]), name="k")
+        cur_group_size = weight.shape[1] if group_size == -1 else group_size
+        scale_min_shape = (tir.ceildiv(weight.shape[1], cur_group_size), weight.shape[0])
+        k = te.reduce_axis((0, cur_group_size), name="k")
         max_abs_value = te.compute(
             shape=scale_min_shape,
-            fcompute=lambda i: te.max(te.abs(weight[i, k]), axis=k),
+            fcompute=lambda group, i: te.max(
+                te.abs(
+                    tir.if_then_else(
+                        group * cur_group_size + k < weight.shape[1],
+                        weight[i, group * cur_group_size + k],
+                        tir.const(0, dtype=weight.dtype),
+                    )
+                ),
+                axis=k,
+            ),
             name="max_abs_value",
         )
 
-        def f_compute_scale(i):
-            max_value = tir.max(tir.Cast(dtype, max_abs_value[i]), tir.const(1e-4, dtype))
+        def f_compute_scale(*idx):
+            max_value = tir.max(tir.Cast(dtype, max_abs_value(*idx)), tir.const(1e-4, dtype))
             return max_value / tir.const(max_int_value + 1, dtype)
 
         scale = te.compute(shape=scale_min_shape, fcompute=f_compute_scale, name="scale")
         storage_dtype = "int" + str(storage_nbit)
 
         def f_scale_weight(i, j):
-            w_scaled = tir.round(tir.Cast(dtype, weight[i, j]) / scale[i])
+            w_scaled = tir.round(tir.Cast(dtype, weight[i, j]) / scale[j // cur_group_size, i])
             w_scaled = T.min(
                 T.max(w_scaled, tir.const(-max_int_value - 1, dtype)),
                 tir.const(max_int_value, dtype),
@@ -135,9 +152,10 @@ def encoding_func(nbit: int, storage_nbit: int, dtype: str = "float32"):
     return te_encode_sym
 
 
-def decoding_func(nbit: int, storage_nbit: int):
+def decoding_func(nbit: int, storage_nbit: int, group_size: int):
     def te_decode_sym(data, scale):
         n_float_per_int = storage_nbit // nbit
+        cur_group_size = data.shape[0] if group_size == -1 else group_size
 
         def f_decode_sym(i, j):
             if n_float_per_int == 1:
@@ -148,7 +166,7 @@ def decoding_func(nbit: int, storage_nbit: int):
                     nbit, data[i, j // n_float_per_int], j % n_float_per_int, dtype="float16"
                 )
 
-            scale_float = scale[j]
+            scale_float = scale[i // cur_group_size, j]
             return data_float * scale_float
 
         shape = (data.shape[0], data.shape[1] * n_float_per_int)

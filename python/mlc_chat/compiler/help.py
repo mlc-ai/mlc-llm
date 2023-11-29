@@ -95,9 +95,9 @@ This optional field overrides the `sliding_window` in config.json for
 those models that use SWA. Currently only useful when compiling Mistral.
 This flag subjects to future refactoring.
 """.strip(),
-    "sliding_window_chunk_size": """
-(Experimental) The chunk size in sliding window attention (SWA) during prefilling. By default,
-the chunk size is the same as sliding window. Currently only useful when compiling Mistral.
+    "prefill_chunk_size": """
+(Experimental) The chunk size during prefilling. By default,
+the chunk size is the same as sliding window or max sequence length.
 This flag subjects to future refactoring.
 """.strip(),
 }

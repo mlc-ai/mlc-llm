@@ -121,6 +121,25 @@ Conversation CodeLlamaInstruct() {
   return conv;
 }
 
+Conversation GPT2() {
+  Conversation conv;
+  conv.name = "gpt2";
+  conv.system = "";
+  conv.roles = {"USER", "ASSISTANT"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"<|endoftext|>", "<|endoftext|>"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {50256};
+  conv.stop_str = "|endoftext|";
+  conv.add_bos = true;
+  return conv;
+}
+
 Conversation VicunaV11() {
   Conversation conv;
   conv.name = "vicuna_v1.1";
@@ -610,6 +629,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"mistral_default", MistralDefault},
       {"codellama_completion", CodeLlamaCompletion},
       {"codellama_instruct", CodeLlamaInstruct},
+      {"gpt2", GPT2},
       {"vicuna_v1.1", VicunaV11},
       {"conv_one_shot", ConvOneShot},
       {"redpajama_chat", RedPajamaChat},

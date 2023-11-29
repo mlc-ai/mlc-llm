@@ -84,6 +84,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "codellama-13b-instruct": "codellama_instruct",
         "codellama-34b-instruct": "codellama_instruct",
         "codellama": "codellama_completion",
+        "gpt2": "gpt2",
         "vicuna-": "vicuna_v1.1",
         "dolly-": "dolly",
         "stablelm-3b-": "stablelm-3b",
@@ -107,6 +108,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "stablecode-completion": "stablecode_completion",
         "stablecode-instruct": "stablecode_instruct",
         "chatglm2": "glm",
+        "chatglm3": "glm",
         "codegeex2": "glm",
     }
 
@@ -623,11 +625,11 @@ def parse_target(args: argparse.Namespace) -> None:
         )
         args.target_kind = "android"
     elif args.target in ["mali"]:
-        from tvm.contrib import ndk
-
-        args.export_kwargs = {
-            "fcompile": ndk.create_shared,
-        }
+        if "TVM_NDK_CC" in os.environ:
+            from tvm.contrib import ndk
+            args.export_kwargs = {
+                "fcompile": ndk.create_shared,
+            }
         target = tvm.target.Target(
             "opencl -device=mali",
             host="llvm -mtriple=aarch64-linux-gnu",
@@ -642,7 +644,10 @@ def parse_target(args: argparse.Namespace) -> None:
         from tvm.contrib import nvcc
 
         assert args.target.arch[3:] != ""
-        if int(args.target.arch[3:]) >= 70:
+        arch_list = os.getenv("CUDA_ARCH_LIST") or os.getenv("TORCH_CUDA_ARCH_LIST")
+        if arch_list:
+            compute_versions = [int(v) for v in arch_list.replace(" ", ";").split(";")]
+        elif int(args.target.arch[3:]) >= 70:
             compute_versions = [70, 72, 75, 80, 86, 87, 89, 90]
         else:
             compute_versions = [60, 61, 62]

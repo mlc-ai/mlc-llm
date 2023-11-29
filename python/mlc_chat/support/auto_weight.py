@@ -123,6 +123,16 @@ def _check_pytorch(weight_path: Path) -> Optional[Path]:
             pytorch_json_path,
         )
         return pytorch_json_path
+
+    pytorch_file_path = weight_path / "pytorch_model.bin"
+    if pytorch_file_path.exists():
+        logger.info(
+            "%s source weight format: huggingface-torch. Source configuration: %s",
+            FOUND,
+            pytorch_file_path,
+        )
+        return pytorch_file_path
+
     logger.info("%s Huggingface PyTorch", NOT_FOUND)
     return None
 

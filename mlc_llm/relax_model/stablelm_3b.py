@@ -12,9 +12,9 @@ from tvm.script import relax as R
 
 from ..quantization import ParamQuantKind, QuantizationScheme
 from .commons import create_metadata_func
+from .llama import Embedding, Linear
 from .modules import ModuleList, RotaryEmbedding
 from .param_manager import ParamManager
-from .llama import Embedding, Linear
 
 
 @dataclass
@@ -593,7 +593,7 @@ def create_embed_func(
     func_name = "embed"
 
     bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")
+    seq_len = tvm.tir.Var("m", "int64")
     with bb.function(func_name):
         model = StableLM3bEmbedTokensWrapper(config, tvm.tir.Var("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
@@ -665,7 +665,7 @@ def create_decoding_func(
     func_name = "decode"
 
     bsz = 1
-    all_seq_len = tvm.tir.Var("n", "int64")
+    all_seq_len = tvm.tir.Var("m", "int64")
 
     with bb.function(func_name):
         model = StableLM3bForCausalLM(config, tvm.tir.Var("vocab_size", "int64"))
@@ -811,19 +811,20 @@ def get_model(args, hf_config):
         max_window_size=config.max_sequence_length,
         stop_tokens=[2],
         add_prefix_space=False,
+        prefill_chunk_size=args.prefill_chunk_size,
     )
 
     mod = bb.get()
+
+    tir_bound_map = dict()
+    tir_bound_map["n"] = (
+        args.prefill_chunk_size if args.prefill_chunk_size > 0 else config.max_sequence_length
+    )
+    tir_bound_map["m"] = config.max_sequence_length
     for gv in mod.functions:
         func = mod[gv]
         if isinstance(func, relax.Function):
-            mod[gv] = func.with_attr(
-                "tir_var_upper_bound",
-                {
-                    "n": config.max_sequence_length,
-                    "m": config.max_sequence_length,
-                },
-            )
+            mod[gv] = func.with_attr("tir_var_upper_bound", tir_bound_map)
 
     if args.build_model_only:
         return mod, param_manager, None, config

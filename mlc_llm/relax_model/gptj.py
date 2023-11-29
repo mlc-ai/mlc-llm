@@ -23,13 +23,7 @@ from tvm.script import relax as R
 from ..quantization import ParamQuantKind, QuantizationScheme
 from .commons import create_metadata_func
 from .gpt_neox import create_kv_cache_func
-from .modules import (
-    Embedding,
-    LayerNorm,
-    Linear,
-    ModuleList,
-    RotaryEmbedding,
-)
+from .modules import Embedding, LayerNorm, Linear, ModuleList, RotaryEmbedding
 from .param_manager import ParamManager
 
 
@@ -459,21 +453,15 @@ class GPTJForCausalLM(nn.Module):
 
 def check_parameters(param_dict, param_list):
     relax_shape_to_list = lambda _: [s.value for s in _.values]
-    shape_dict_0 = {
-        k: relax_shape_to_list(v.struct_info.shape) for k, v in param_dict.items()
-    }
+    shape_dict_0 = {k: relax_shape_to_list(v.struct_info.shape) for k, v in param_dict.items()}
     shape_dict_1 = {k: list(v.shape) for (k, v) in param_list}
     assert len(shape_dict_0) == len(shape_dict_1)
     for k, v in shape_dict_0.items():
         assert k in shape_dict_1, "{}".format(k)
-        assert v == shape_dict_1[k], "key={}, shape_0={}, shape_1={}".format(
-            k, v, shape_dict_1[k]
-        )
+        assert v == shape_dict_1[k], "key={}, shape_0={}, shape_1={}".format(k, v, shape_dict_1[k])
 
 
-def get_param_quant_kind(
-    name: str, param_info: relax.TensorStructInfo
-) -> ParamQuantKind:
+def get_param_quant_kind(name: str, param_info: relax.TensorStructInfo) -> ParamQuantKind:
     if "wte.weight" in name:
         return ParamQuantKind.embedding_table
     elif "lm_head.weight" in name:
@@ -493,12 +481,10 @@ def create_embed_func(
     func_name = "embed"
 
     bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")
+    seq_len = tvm.tir.Var("m", "int64")
     with bb.function(func_name):
         model = GPTJEmbedTokensWrapper(config)
-        param_manager.register_params(
-            model, func_name, quant_scheme, get_param_quant_kind
-        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
         with bb.dataflow():
@@ -527,9 +513,7 @@ def create_encoding_func(
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = GPTJForCausalLM(config, sep_embed)
-        param_manager.register_params(
-            model, func_name, quant_scheme, get_param_quant_kind
-        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         inputs = (
             nn.Placeholder(
@@ -540,9 +524,7 @@ def create_encoding_func(
             if sep_embed
             else nn.Placeholder((batch_size, seq_len), dtype="int32", name="input_ids")
         )
-        all_seq_len_shape = relax.Var(
-            "all_seq_len", relax.ShapeStructInfo((all_seq_len,))
-        )
+        all_seq_len_shape = relax.Var("all_seq_len", relax.ShapeStructInfo((all_seq_len,)))
         past_key_values = relax.Var(
             "kv_cache",
             relax.TupleStructInfo(
@@ -577,16 +559,12 @@ def create_decoding_func(
 
     batch_size = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.IntImm("int64", 1)
-    all_seq_len = tvm.tir.Var("n", "int64")
+    all_seq_len = tvm.tir.Var("m", "int64")
     with bb.function(func_name):
         model = GPTJForCausalLM(config)
-        param_manager.register_params(
-            model, func_name, quant_scheme, get_param_quant_kind
-        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
-        input_ids = nn.Placeholder(
-            (batch_size, seq_len), dtype="int32", name="input_ids"
-        )
+        input_ids = nn.Placeholder((batch_size, seq_len), dtype="int32", name="input_ids")
         all_seq_len_shape = relax.Var(
             "all_seq_len",
             relax.ShapeStructInfo((all_seq_len,)),
@@ -617,9 +595,7 @@ def create_decoding_func(
 
 def create_softmax_func(bb: relax.BlockBuilder, config: GPTJConfig) -> None:
     with bb.function("softmax_with_temperature"):
-        logits = nn.Placeholder(
-            (1, 1, config.vocab_size), dtype="float32", name="logits"
-        )
+        logits = nn.Placeholder((1, 1, config.vocab_size), dtype="float32", name="logits")
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
             div = bb.emit(relax.op.divide(logits, temperature))
@@ -657,18 +633,19 @@ def get_model(args, hf_config):
         max_window_size=config.max_sequence_length,
         stop_tokens=stop_tokens,
         add_prefix_space=True,
+        prefill_chunk_size=args.prefill_chunk_size,
     )
     mod = bb.get()
+
+    tir_bound_map = dict()
+    tir_bound_map["n"] = (
+        args.prefill_chunk_size if args.prefill_chunk_size > 0 else config.max_sequence_length
+    )
+    tir_bound_map["m"] = config.max_sequence_length
     for gv in mod.functions:
         func = mod[gv]
         if isinstance(func, relax.Function):
-            mod[gv] = func.with_attr(
-                "tir_var_upper_bound",
-                {
-                    "n": config.max_sequence_length,
-                    "m": config.max_sequence_length,
-                },
-            )
+            mod[gv] = func.with_attr("tir_var_upper_bound", tir_bound_map)
 
     if args.build_model_only:
         return mod, param_manager, None, config
@@ -684,9 +661,7 @@ def get_model(args, hf_config):
 
     hidden_size = config.hidden_size
 
-    def f_convert_param_bkwd(
-        torch_pname: str, torch_param
-    ) -> Optional[List[Tuple[str, Any]]]:
+    def f_convert_param_bkwd(torch_pname: str, torch_param) -> Optional[List[Tuple[str, Any]]]:
         # torch_param: numpy.ndarray
         if torch_pname.endswith("qkv_proj.weight"):
             assert torch_param.ndim == 2
