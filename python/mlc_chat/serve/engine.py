@@ -1,18 +1,19 @@
 """The MLC LLM Serving Engine."""
 import json
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import tvm
-from transformers import AutoTokenizer  # pylint: disable=import-error
 from tvm.runtime import Device
 
+from mlc_chat.serve import data
 from mlc_chat.support.auto_device import detect_device
 
 from ..chat_module import _get_chat_config, _get_lib_module_path, _get_model_path
 from . import data
 from .config import GenerationConfig, KVCacheConfig
 from .request import Request
+from .tokenizer import Tokenizer
 
 
 @dataclass
@@ -48,10 +49,53 @@ class ModelInfo:
         assert isinstance(self.device, Device)
 
 
-def _create_tvm_module(creator: str, ffi_funcs: Sequence[str]) -> Dict[str, Callable]:
+def _create_tvm_module(
+    creator: str, ffi_funcs: Sequence[str], creator_args: Optional[List[Any]] = None
+) -> Dict[str, Callable]:
     """Internal method to create a module."""
-    module = tvm.get_global_func(creator, allow_missing=False)()
+    if creator_args is None:
+        creator_args = []
+    module = tvm.get_global_func(creator, allow_missing=False)(*creator_args)
     return {key: module[key] for key in ffi_funcs}
+
+
+def _process_model_args(models: Union[ModelInfo, List[ModelInfo]]) -> Tuple[List[Any], str, int]:
+    """Process the input ModelInfo to get the engine initialization arguments."""
+    max_single_sequence_length = int(1e9)
+    tokenizer_path: Optional[str] = None
+
+    def _convert_model_info(model: ModelInfo) -> List[Any]:
+        nonlocal max_single_sequence_length, tokenizer_path
+
+        device = model.device
+        model_path, config_file_path = _get_model_path(model.model)
+        chat_config = _get_chat_config(config_file_path, user_chat_config=None)
+        if chat_config.context_window_size:
+            max_single_sequence_length = min(
+                max_single_sequence_length,
+                chat_config.context_window_size,
+            )
+        if tokenizer_path is None:
+            tokenizer_path = model_path
+        model_lib_path = _get_lib_module_path(
+            model=model.model,
+            model_path=model_path,
+            chat_config=chat_config,
+            model_lib_path=model.model_lib_path,
+            device_name=device.MASK2STR[device.device_type],
+            config_file_path=config_file_path,
+        )
+        return [model_lib_path, model_path, device.device_type, device.device_id]
+
+    if isinstance(models, list):
+        model_args: List[Any] = sum(
+            (_convert_model_info(model) for model in models),
+            start=[],
+        )
+    else:
+        model_args = _convert_model_info(models)
+
+    return model_args, tokenizer_path, max_single_sequence_length
 
 
 class Engine:
@@ -79,7 +123,7 @@ class Engine:
     kv_cache_config : KVCacheConfig
         The configuration of the paged KV cache.
 
-    f_request_callback : Optional[Callable[[str, data.TokenData, Optional[str]], None]]
+    request_stream_callback : Optional[Callable[[str, data.TokenData, Optional[str]], None]]
         The provided callback function to handle the generation
         output. It has the signature of `(str, data.TokenData, bool) -> None`,
         where
@@ -91,7 +135,7 @@ class Engine:
 
         The callback function is optional at construction, but it needs to
         be set before the engine executing requests. This can be done via
-        the `set_request_callback` method. Otherwise, the engine will raise
+        the `set_request_stream_callback` method. Otherwise, the engine will raise
         exception.
     """
 
@@ -99,63 +143,32 @@ class Engine:
         self,
         models: Union[ModelInfo, List[ModelInfo]],
         kv_cache_config: KVCacheConfig,
-        f_request_callback: Optional[Callable[[str, data.TokenData, Optional[str]], None]] = None,
+        request_stream_callback: Optional[
+            Callable[[str, data.TokenData, Optional[str]], None]
+        ] = None,
     ):
-        max_single_sequence_length = int(1e9)
-        tokenizer_path: Optional[str] = None
-
-        def _convert_model_info(model: ModelInfo) -> List[Any]:
-            nonlocal max_single_sequence_length, tokenizer_path
-
-            device = model.device
-            model_path, config_file_path = _get_model_path(model.model)
-            chat_config = _get_chat_config(config_file_path, user_chat_config=None)
-            if chat_config.max_window_size:
-                max_single_sequence_length = min(
-                    max_single_sequence_length,
-                    chat_config.max_window_size,
-                )
-            if tokenizer_path is None:
-                tokenizer_path = model_path
-            model_lib_path = _get_lib_module_path(
-                model=model.model,
-                model_path=model_path,
-                chat_config=chat_config,
-                model_lib_path=model.model_lib_path,
-                device_name=device.MASK2STR[device.device_type],
-                config_file_path=config_file_path,
-            )
-            return [model_lib_path, model_path, device.device_type, device.device_id]
-
-        if isinstance(models, list):
-            model_args: List[Any] = sum(
-                (_convert_model_info(model) for model in models),
-                start=[],
-            )
-        else:
-            model_args = _convert_model_info(models)
+        model_args, tokenizer_path, self.max_single_sequence_length = _process_model_args(models)
         self._ffi = _create_tvm_module(
             "mlc.serve.create_engine",
             ffi_funcs=[
                 "init",
                 "add_request",
-                "abort",
+                "abort_request",
                 "step",
                 "stats",
                 "reset",
-                "get_request_callback",
-                "set_request_callback",
+                "get_request_stream_callback",
+                "set_request_stream_callback",
             ],
         )
         self._ffi["init"](
-            max_single_sequence_length,
+            self.max_single_sequence_length,
             tokenizer_path,
             kv_cache_config.asjson(),
-            f_request_callback,
+            request_stream_callback,
             *model_args,
         )
-        self._tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-        self.max_single_sequence_length = max_single_sequence_length
+        self.tokenizer = Tokenizer.from_path(tokenizer_path)
 
     def generate(
         self,
@@ -213,10 +226,10 @@ class Engine:
         # Save a copy of the original function callback since `generate`
         # overrides the callback function.
         # The original callback will be set back later on.
-        original_callback = self._ffi["get_request_callback"]()
+        original_callback = self._ffi["get_request_stream_callback"]()
 
         # Define the callback function for request generation results
-        def f_request_callback(
+        def request_stream_callback(
             request_id: str,
             token_data: data.TokenData,
             finish_reason: Optional[str],  # pylint: disable=unused-argument
@@ -227,7 +240,7 @@ class Engine:
                 num_finished_requests += 1
 
         # Override the callback function in engine.
-        self._ffi["set_request_callback"](f_request_callback)
+        self._ffi["set_request_stream_callback"](request_stream_callback)
 
         # Add requests to engine.
         for req_id, (prompt, generation_cfg) in enumerate(zip(prompts, generation_config)):
@@ -249,10 +262,10 @@ class Engine:
 
         output_strs = []
         for output in outputs:
-            output_strs.append(self.detokenize(output))
+            output_strs.append(self.tokenizer.decode(output))
 
         # Restore the callback function in engine.
-        self._ffi["set_request_callback"](original_callback)
+        self._ffi["set_request_stream_callback"](original_callback)
         return output_strs
 
     def add_request(self, request: Request) -> None:
@@ -273,7 +286,7 @@ class Engine:
         request_id : str
             The unique id of the request to abort.
         """
-        self._ffi["abort"](request_id)
+        self._ffi["abort_request"](request_id)
 
     def step(self) -> None:
         """The main function that the engine takes a step of action.
@@ -305,35 +318,3 @@ class Engine:
         """
         stats_json_str = self._ffi["stats"]()
         return json.loads(stats_json_str)
-
-    def tokenize(self, text: str) -> List[int]:
-        """Tokenize the given string to token ids with the tokenizer
-        that backs the engine.
-
-        Parameters
-        ----------
-        text : str
-            The text to tokenize.
-
-        Returns
-        -------
-        output : List[int]
-            The tokenized token ids.
-        """
-        return self._tokenizer.encode(text, add_special_tokens=False)
-
-    def detokenize(self, token_ids: List[int]) -> str:
-        """Detokenize the given token ids to strings with the tokenizer
-        that backs the engine.
-
-        Parameters
-        ----------
-        token_ids : List[int]
-            The token ids to decode.
-
-        Returns
-        -------
-        output : str
-            The detokenized text string.
-        """
-        return self._tokenizer.decode(token_ids, skip_special_tokens=True)
