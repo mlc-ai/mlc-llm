@@ -56,7 +56,9 @@ r =  request.post( "http://127.0.0.1:8000/v1/chat/completions", payload, {json: 
     let jsData = '';
     let data = '';
     while (data = this.read()) {
-       jsData = JSON.parse(data.toString().substring(6) );
+       const chunk = data.toString().substring(6);
+       if (chunk.trim() === "[DONE]")  break;
+       jsData = JSON.parse(chunk);
        print(color.GREEN + jsData.choices[0].delta.content + color.END);
     }
 })

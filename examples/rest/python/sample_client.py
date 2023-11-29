@@ -35,6 +35,8 @@ payload = {
 with requests.post("http://127.0.0.1:8000/v1/chat/completions", json=payload, stream=True) as r:
     print(f"{color.BOLD}With streaming:{color.END}")
     for chunk in r:
+        if (chunk[6:].decode('utf-8').strip() == '[DONE]'):
+            break
         content = json.loads(chunk[6:])["choices"][0]["delta"].get("content", "")
         print(f"{color.GREEN}{content}{color.END}", end="", flush=True)
     print("\n")
