@@ -100,7 +100,7 @@ class RequestStateNode : public Object {
   Array<RequestModelState> mstates;
   /*!
    * \brief The start position of the committed tokens in the
-   * next request callback invocation.
+   * next request stream callback invocation.
    */
   int next_callback_token_pos;
 

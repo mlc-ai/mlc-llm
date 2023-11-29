@@ -13,6 +13,11 @@ from ..serve.config import GenerationConfig
 ################ Commons ################
 
 
+class ListResponse(BaseModel):
+    object: str = "list"
+    data: List[Any]
+
+
 class LogProbs(BaseModel):
     pass
 
@@ -28,6 +33,20 @@ class UsageInfo(BaseModel):
             completion_tokens=completion_tokens,
             total_tokens=prompt_tokens + completion_tokens,
         )
+
+
+################ v1/models ################
+
+
+class ModelResponse(BaseModel):
+    """OpenAI "v1/models" response protocol.
+    API reference: https://platform.openai.com/docs/api-reference/models/object
+    """
+
+    id: str
+    created: int = Field(default_factory=lambda: int(time.time()))
+    object: str = "model"
+    owned_by: str = "MLC-LLM"
 
 
 ################ v1/completions ################
