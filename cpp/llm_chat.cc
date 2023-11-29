@@ -9,7 +9,6 @@
 #include "llm_chat.h"
 
 #include <picojson.h>
-#include <tokenizers_cpp.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/memory/memory_manager.h>
@@ -507,7 +506,7 @@ class LLMChat {
       }
     }
     // Step 2. Set tokenizer.
-    this->tokenizer_ = TokenizerFromPath(model_path);
+    this->tokenizer_ = Tokenizer::FromPath(model_path);
     // Step 3. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
@@ -1395,7 +1394,7 @@ class LLMChat {
   // Tokenizer
   //----------------------------
   // internal tokenizer
-  std::unique_ptr<Tokenizer> tokenizer_;
+  Tokenizer tokenizer_;
   // bos token
   int32_t bos_token_id_{1};
   // eos token id

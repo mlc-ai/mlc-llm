@@ -23,17 +23,6 @@ def create_error_response(status_code: HTTPStatus, message: str) -> fastapi.resp
     )
 
 
-def check_model_id(
-    request_model_id: str, hosted_model_id: str
-) -> Optional[fastapi.responses.JSONResponse]:
-    """Check if the requested model is the served model. Return an error if not."""
-    if request_model_id != hosted_model_id:
-        return create_error_response(
-            HTTPStatus.BAD_REQUEST, message="The requested model is not served."
-        )
-    return None
-
-
 def check_unsupported_fields(
     request: RequestProtocol,
 ) -> Optional[fastapi.responses.JSONResponse]:
