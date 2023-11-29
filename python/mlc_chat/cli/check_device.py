@@ -1,20 +1,29 @@
 """Check if a device exists."""
 import sys
 
-import tvm
+from tvm.runtime import Device
+from tvm.runtime import device as as_device
+
+
+def _check_device(device: Device) -> bool:
+    try:
+        return bool(device.exist)
+    except:  # pylint: disable=bare-except
+        return False
 
 
 def main():
     """Entrypoint for device check."""
     device_str = sys.argv[1]
-    try:
-        device = tvm.runtime.device(device_str)
-        if device.exist:
-            print("1")
+    device_ids = []
+    i = 0
+    while True:
+        if _check_device(as_device(device_str, i)):
+            device_ids.append(i)
+            i += 1
         else:
-            print("0")
-    except:  # pylint: disable=bare-except
-        print("0")
+            break
+    print(f"check_device:{','.join(str(i) for i in device_ids)}")
 
 
 if __name__ == "__main__":
