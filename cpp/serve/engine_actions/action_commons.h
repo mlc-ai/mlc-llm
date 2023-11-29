@@ -34,12 +34,13 @@ void RemoveRequestFromModel(EngineState estate, int req_id, Array<Model> models)
  * \param requests The requests to process.
  * \param estate The engine state.
  * \param models The models to remove the finished from.
- * \param f_request_callback The request callback function.
+ * \param request_stream_callback The request stream callback function.
  * \param max_single_sequence_length The max single sequence length to help decide
  * if a request is finished.
  */
 void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
-                           FRequestCallback f_request_callback, int max_single_sequence_length);
+                           FRequestStreamCallback request_stream_callback,
+                           int max_single_sequence_length);
 
 }  // namespace serve
 }  // namespace llm
