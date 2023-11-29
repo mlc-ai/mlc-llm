@@ -71,7 +71,7 @@ class Request : public ObjectRef {
    * \param tokenizer The tokenizer to tokenize the input data of the given request.
    * \return The request object whose data are tokenized.
    */
-  static Request FromUntokenized(Request request, const std::unique_ptr<Tokenizer>& tokenizer);
+  static Request FromUntokenized(const Request& request, const Tokenizer& tokenizer);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Request, ObjectRef, RequestNode);
 };

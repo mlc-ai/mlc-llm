@@ -101,7 +101,7 @@ def test_engine_basic():
 
     for req_id, output in enumerate(outputs):
         print(f"Prompt {req_id}: {requests[req_id].inputs[0]}")
-        print(f"Output {req_id}:{engine.detokenize(output)}\n")
+        print(f"Output {req_id}:{engine.tokenizer.decode(output)}\n")
 
 
 def test_engine_continuous_batching_1():
@@ -177,7 +177,7 @@ def test_engine_continuous_batching_1():
 
     for req_id, (request, output, fin_time) in enumerate(zip(requests, outputs, finish_time)):
         print(f"Prompt {req_id}: {request.inputs[0]}")
-        print(f"Output {req_id}:{engine.detokenize(output)}\n")
+        print(f"Output {req_id}:{engine.tokenizer.decode(output)}\n")
         assert fin_time == request.generation_config.max_new_tokens - 1
 
 
@@ -255,7 +255,7 @@ def test_engine_continuous_batching_2():
         print(f"Prompt {req_id}: {request.inputs[0]}")
         if fin_time < num_requests + max_new_tokens - 2:
             print(f"Request {req_id} ends early on the stop token")
-        print(f"Output {req_id}:{engine.detokenize(output)}\n")
+        print(f"Output {req_id}:{engine.tokenizer.decode(output)}\n")
 
 
 def test_engine_continuous_batching_3():
@@ -340,7 +340,7 @@ def test_engine_continuous_batching_3():
     for req_id, (request, output, fin_time) in enumerate(zip(requests, outputs, finish_time)):
         print(f"Prompt {req_id}: {request.inputs[0]}")
         print(f"Finish time: {fin_time}")
-        print(f"Output {req_id}:{engine.detokenize(output)}\n")
+        print(f"Output {req_id}:{engine.tokenizer.decode(output)}\n")
 
 
 def test_engine_generate():
