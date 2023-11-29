@@ -60,7 +60,8 @@ void ProcessFinishedRequest(Array<Request> finished_requests, EngineState estate
 }
 
 void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
-                           FRequestCallback f_request_callback, int max_single_sequence_length) {
+                           FRequestStreamCallback request_stream_callback,
+                           int max_single_sequence_length) {
   Array<Request> finished_requests;
   finished_requests.reserve(requests.size());
 
@@ -79,11 +80,11 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
       continue;
     }
 
-    f_request_callback(request->id,
-                       TokenData(IntTuple(rstate->mstates[0]->committed_tokens.begin() +
-                                              rstate->next_callback_token_pos,
-                                          rstate->mstates[0]->committed_tokens.end())),
-                       finish_reason);
+    request_stream_callback(request->id,
+                            TokenData(IntTuple(rstate->mstates[0]->committed_tokens.begin() +
+                                                   rstate->next_callback_token_pos,
+                                               rstate->mstates[0]->committed_tokens.end())),
+                            finish_reason);
     rstate->next_callback_token_pos = num_committed_tokens;
 
     if (finish_reason.defined()) {

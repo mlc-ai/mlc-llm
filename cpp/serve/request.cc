@@ -40,7 +40,7 @@ Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg)
   data_ = std::move(n);
 }
 
-Request Request::FromUntokenized(Request request, const std::unique_ptr<Tokenizer>& tokenizer) {
+Request Request::FromUntokenized(const Request& request, const Tokenizer& tokenizer) {
   bool has_untokenized_input = false;
   Array<Data> inputs;
   inputs.reserve(request->inputs.size());

@@ -25,6 +25,7 @@ import pytest
 import requests
 
 OPENAI_V1_COMPLETION_URL = "http://127.0.0.1:8000/v1/completions"
+OPENAI_V1_MODELS_URL = "http://127.0.0.1:8000/v1/models"
 
 
 def check_openai_nonstream_response(
@@ -124,7 +125,7 @@ def test_openai_v1_completions(
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
-    # `served_model` and `launch_server` are pytest fixture
+    # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
 
     prompt = "What is the meaning of life?"
@@ -162,13 +163,30 @@ def test_openai_v1_completions(
         )
 
 
+def test_openai_v1_completions_invalid_requested_model(
+    launch_server,  # pylint: disable=unused-argument
+):
+    # `launch_server` is a pytest fixture defined in conftest.py.
+
+    model = "unserved_model"
+    payload = {
+        "model": model,
+        "prompt": "What is the meaning of life?",
+        "max_tokens": 10,
+    }
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    expect_error(
+        response_str=response.json(), msg_prefix=f'The requested model "{model}" is not served.'
+    )
+
+
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_echo(
     served_model: str,
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
-    # `served_model` and `launch_server` are pytest fixture
+    # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
 
     prompt = "What is the meaning of life?"
@@ -215,7 +233,7 @@ def test_openai_v1_completions_suffix(
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
-    # `served_model` and `launch_server` are pytest fixture
+    # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
 
     prompt = "What is the meaning of life?"
@@ -263,7 +281,7 @@ def test_openai_v1_completions_prompt_overlong(
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
-    # `served_model` and `launch_server` are pytest fixture
+    # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
 
     num_tokens = 17000
@@ -291,6 +309,47 @@ def test_openai_v1_completions_prompt_overlong(
         assert num_chunks == 1
 
 
+def test_openai_v1_completions_unsupported_args(
+    served_model: str,
+    launch_server,  # pylint: disable=unused-argument
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    # Right now "best_of" is unsupported.
+    best_of = 2
+    payload = {
+        "model": served_model,
+        "prompt": "What is the meaning of life?",
+        "max_tokens": 256,
+        "best_of": best_of,
+    }
+
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    error_msg_prefix = 'Request fields "best_of" are not supported right now.'
+    expect_error(response.json(), msg_prefix=error_msg_prefix)
+
+
+def test_openai_v1_models(
+    served_model,
+    launch_server,  # pylint: disable=unused-argument
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    response = requests.get(OPENAI_V1_MODELS_URL, timeout=60).json()
+    assert response["object"] == "list"
+    models = response["data"]
+    assert isinstance(models, list)
+    assert len(models) == 1
+
+    model_card = models[0]
+    assert isinstance(model_card, dict)
+    assert model_card["id"] == served_model
+    assert model_card["object"] == "model"
+    assert model_card["owned_by"] == "MLC-LLM"
+
+
 if __name__ == "__main__":
     MODEL = os.environ.get("MLC_SERVE_MODEL")
     if MODEL is None:
@@ -303,9 +362,12 @@ if __name__ == "__main__":
 
     test_openai_v1_completions(MODEL, None, stream=False)
     test_openai_v1_completions(MODEL, None, stream=True)
+    test_openai_v1_completions_invalid_requested_model(None)
     test_openai_v1_completions_echo(MODEL, None, stream=False)
     test_openai_v1_completions_echo(MODEL, None, stream=True)
     test_openai_v1_completions_suffix(MODEL, None, stream=False)
     test_openai_v1_completions_suffix(MODEL, None, stream=True)
     test_openai_v1_completions_prompt_overlong(MODEL, None, stream=False)
     test_openai_v1_completions_prompt_overlong(MODEL, None, stream=True)
+    test_openai_v1_completions_unsupported_args(MODEL, None)
+    test_openai_v1_models(MODEL, None)
