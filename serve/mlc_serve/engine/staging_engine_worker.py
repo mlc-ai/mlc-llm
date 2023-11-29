@@ -216,6 +216,10 @@ class GenerationLoopWorker:
         self._adjust_batch()
 
         if not self.current_batch:
+            if len(self.queue) > 0:
+                LOG.warn(
+                     f"The engine has {len(self.queue)} requests to be processed in the queue, but none of them were added to the current batch during the execution of StagingEngine._adjust_batch"
+                )
             return result
 
         requests = self._get_requests_to_process()
