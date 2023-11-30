@@ -103,7 +103,7 @@ def encoding_func(nbit: int, storage_nbit: int, group_size: int, dtype: str = "f
 
         def f_compute_scale(*idx):
             max_value = tir.max(tir.Cast(dtype, max_abs_value(*idx)), tir.const(1e-4, dtype))
-            return max_value / tir.const(max_int_value + 1, dtype)
+            return max_value / tir.const(max_int_value, dtype)
 
         scale = te.compute(shape=scale_min_shape, fcompute=f_compute_scale, name="scale")
         storage_dtype = "int" + str(storage_nbit)
