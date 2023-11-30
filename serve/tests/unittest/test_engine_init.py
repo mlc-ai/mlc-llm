@@ -6,7 +6,7 @@ from mlc_serve.engine import get_engine_config
 from mlc_serve.model.paged_cache_model import PagedCacheModelModule
 
 
-def test_insufficient_cache_blocks_fail(artifact_path):
+def _test_insufficient_cache_blocks_fail(artifact_path):
     model_artifact_path = os.path.join(artifact_path, "codellama-13b-instruct-hf-q0f16")
 
     if not os.path.exists(os.path.join(model_artifact_path)):
@@ -20,7 +20,6 @@ def test_insufficient_cache_blocks_fail(artifact_path):
                 "max_input_len": 16384,
                 "min_decode_steps": 12,
                 "max_decode_steps": 16,
-                "prompt_allocate_ratio": 2.0,
             }
         )
 
@@ -41,4 +40,4 @@ if __name__ == "__main__":
     parser.add_argument("--artifact-path", type=str, default="dist")
     args = parser.parse_args()
 
-    test_insufficient_cache_blocks_fail(args.artifact_path)
+    _test_insufficient_cache_blocks_fail(args.artifact_path)

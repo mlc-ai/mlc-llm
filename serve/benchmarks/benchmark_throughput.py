@@ -104,7 +104,6 @@ def create_engine_and_tokenizer_module(
         "max_input_len": args.max_input_len,
         "min_decode_steps": args.min_decode_steps,
         "max_decode_steps": args.max_decode_steps,
-        "prompt_allocate_ratio": args.prompt_allocate_ratio
     })
 
     if args.use_staging_engine:
@@ -182,7 +181,6 @@ if __name__ == "__main__":
     parser.add_argument("--max-input-len", type=int, default=512)
     parser.add_argument("--min-decode-steps", type=int, default=32)
     parser.add_argument("--max-decode-steps", type=int, default=56)
-    parser.add_argument("--prompt-allocate-ratio", type=float, default=2.0)
     parser.add_argument(
         "--num-prompts", type=int, default=1000, help="Number of prompts to process."
     )

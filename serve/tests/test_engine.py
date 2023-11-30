@@ -20,7 +20,7 @@ from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModel
 from mlc_serve.logging_utils import configure_logging
 
 
-def test(args: argparse.Namespace):
+def _test(args: argparse.Namespace):
     # Examples. "--max-output-len" can be used to specify the number of output tokens.
     #
     # Profile the gpu memory usage, and use the maximum number of cache blocks possible:
@@ -39,7 +39,6 @@ def test(args: argparse.Namespace):
             "max_input_len": args.max_input_len,
             "min_decode_steps": args.min_decode_steps,
             "max_decode_steps": args.max_decode_steps,
-            "prompt_allocate_ratio": args.prompt_allocate_ratio,
         }
     )
 
@@ -127,7 +126,6 @@ if __name__ == "__main__":
     parser.add_argument("--max-input-len", type=int, default=512)
     parser.add_argument("--max-num-sequences", type=int, default=8)
     parser.add_argument("--max-output-len", type=int, default=20)
-    parser.add_argument("--prompt-allocate-ratio", type=float, default=2.0)
     parser.add_argument("--long-prompt", action="store_true")
     parser.add_argument("--use-random-sampling", action="store_true")
     parser.add_argument("--use-staging-engine", action="store_true")
@@ -148,6 +146,7 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
 
+
     configure_logging(enable_json_logs=False, log_level="INFO")
 
-    test(args)
+    _test(args)

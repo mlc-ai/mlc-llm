@@ -31,7 +31,7 @@ def create_engine(
         "use_staging_engine": use_staging_engine,
         "max_num_sequences": max_num_sequences,
         "max_input_len": max_input_len,
-        # Use defaults for "min_decode_steps", "max_decode_steps", "prompt_allocate_ratio"
+        # Use defaults for "min_decode_steps", "max_decode_steps"
     })
 
     if use_staging_engine:
@@ -66,7 +66,7 @@ def create_request(idx, prompt, temp, max_tokens, stop, ignore_eos):
         debug_options = DebugOptions(ignore_eos = ignore_eos)
     )
 
-def test_max_tokens(
+def _test_max_tokens(
         model_artifact_path,
         use_staging_engine,
         max_num_sequences=4,
@@ -103,7 +103,7 @@ def test_max_tokens(
         engine.stop()
 
 
-def test_max_context_length(
+def _test_max_context_length(
         model_artifact_path,
         use_staging_engine,
         max_num_sequences=4,
@@ -141,7 +141,7 @@ def test_max_context_length(
         engine.stop()
 
 
-def test_ignore_eos(
+def _test_ignore_eos(
     model_artifact_path,
     use_staging_engine,
     max_num_sequences=4,
@@ -177,7 +177,7 @@ def test_ignore_eos(
         engine.stop()
 
 
-def test_stop(
+def _test_stop(
     model_artifact_path,
     use_staging_engine,
     max_num_sequences=4,
@@ -227,11 +227,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     model_artifact_path = os.path.join(args.artifact_path, args.local_id)
 
-    test_max_tokens(model_artifact_path, use_staging_engine=True)
-    test_max_tokens(model_artifact_path, use_staging_engine=False)
-    test_ignore_eos(model_artifact_path, use_staging_engine=True)
-    test_ignore_eos(model_artifact_path, use_staging_engine=False)
-    test_stop(model_artifact_path, use_staging_engine=False)
-    test_stop(model_artifact_path, use_staging_engine=True)
-    test_max_context_length(model_artifact_path, use_staging_engine=True)
-    test_max_context_length(model_artifact_path, use_staging_engine=False)
+    _test_max_tokens(model_artifact_path, use_staging_engine=True)
+    _test_max_tokens(model_artifact_path, use_staging_engine=False)
+    _test_ignore_eos(model_artifact_path, use_staging_engine=True)
+    _test_ignore_eos(model_artifact_path, use_staging_engine=False)
+    _test_stop(model_artifact_path, use_staging_engine=False)
+    _test_stop(model_artifact_path, use_staging_engine=True)
+    _test_max_context_length(model_artifact_path, use_staging_engine=True)
+    _test_max_context_length(model_artifact_path, use_staging_engine=False)

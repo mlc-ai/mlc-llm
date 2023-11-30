@@ -65,7 +65,6 @@ class GenerationLoopWorker:
     max_num_batched_tokens: int
     max_decode_steps: int
     min_decode_steps: int
-    prompt_allocate_ratio: float
     queue_lock: Lock
     queue: Deque[RequestState]
     has_new_requests: Condition
@@ -92,8 +91,6 @@ class GenerationLoopWorker:
         self.min_decode_steps = min(
             self.max_decode_steps - 1, model_module.engine_config.min_decode_steps
         )
-        self.prompt_allocate_ratio = model_module.engine_config.prompt_allocate_ratio
-        assert self.prompt_allocate_ratio >= 1.0
 
         self.queue_lock = Lock()
         self.queue = deque[RequestState]()
@@ -113,9 +110,14 @@ class GenerationLoopWorker:
             for request_state in request_states:
                 if (
                     request_state.validation_err is not None
-                    or request_state.prompt_len >= self.max_context_length
+                    or request_state.prompt_len > min(self.max_context_length, self.max_num_batched_tokens)
+                    # Need to exclude requests which cannot fit into the kv_cache and can be processed
+                    # at least max_decode_steps steps
+                    or self.cache_manager.get_kv_cache_size() - request_state.prompt_len < self.max_decode_steps
                 ):
                     self.cancelled_requests.append(request_state)
+                    if request_state.validation_err is None:
+                        request_state.validation_err = "The prompt is too long for the given set of engine parameters."
                 else:
                     valid_states.append(request_state)
 
@@ -194,24 +196,25 @@ class GenerationLoopWorker:
 
         self.stopped_requests.clear()
 
-        for state in self.cancelled_requests:
-            err = None
-            if state.validation_err:
-                err = state.validation_err
+        with self.queue_lock:
+            for state in self.cancelled_requests:
+                err = None
+                if state.validation_err:
+                    err = state.validation_err
 
-            outputs.append(
-                SequenceGenerationOutput(
-                    # TODO: support multi-sequence
-                    id=SequenceId(state.request_id, 0),
-                    new_tokens=[],
-                    finish_reason=FinishReason.Cancelled,
-                    error=err,
+                outputs.append(
+                    SequenceGenerationOutput(
+                        # TODO: support multi-sequence
+                        id=SequenceId(state.request_id, 0),
+                        new_tokens=[],
+                        finish_reason=FinishReason.Cancelled,
+                        error=err,
+                    )
                 )
-            )
-            if state.request_id in self.current_batch:
-                self._remove_request_from_batch(state.request_id)
+                if state.request_id in self.current_batch:
+                    self._remove_request_from_batch(state.request_id)
 
-        self.cancelled_requests.clear()
+            self.cancelled_requests.clear()
 
         self._adjust_batch()
 
@@ -297,15 +300,24 @@ class GenerationLoopWorker:
                 state = self.queue[0]
                 num_tokens = len(state.token_ids)
                 num_new_batched_tokens += num_tokens
+                # This can happen when we are recovering from cache eviction and the sum of prompt
+                # and intermediate decode tokens is bigger than the biggest allowable batch size,
+                # self.max_num_batched_tokens. In such cases, we need to discard the recent decode
+                # tokens that cannot fit into a batch, and recompute them after we fill the cache
+                # entries for the older tokens.
+                if len(self.current_batch) == 0 and num_new_batched_tokens > self.max_num_batched_tokens:
+                    state.token_ids = state.token_ids[:self.max_num_batched_tokens]
+                    state.next_start_position = num_new_batched_tokens = num_tokens = self.max_num_batched_tokens
                 if num_new_batched_tokens > self.max_num_batched_tokens > 0:
                     LOG.debug(
                         "Stop growing the batch due to max_num_batched_tokens. Batched tokens: %s",
                         num_new_batched_tokens,
                     )
                     break
+                # Make sure to leave some free space in the KV cache after a request is added or batched
                 if (
-                    self.cache_manager.get_free_space()
-                    <= self.prompt_allocate_ratio * num_tokens
+                    (self.cache_manager.get_free_space() - num_tokens) / (len(self.current_batch) + 1)
+                        < self.max_decode_steps
                 ):
                     LOG.debug(
                         "Stop growing the batch due to not enough free space. Free: %s, Num tokens: %s",

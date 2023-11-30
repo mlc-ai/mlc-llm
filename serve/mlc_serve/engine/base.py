@@ -27,7 +27,6 @@ class MLCServeEngineConfig:
     max_num_batched_tokens: int = -1
     min_decode_steps: int = 32
     max_decode_steps: int = 48
-    prompt_allocate_ratio: float = 2.0
 
     @classmethod
     def _from_json(config_cls, json_obj: Dict[Any, Any]):
@@ -39,30 +38,27 @@ class MLCServeEngineConfig:
             }
         )
 
-def get_engine_config(dict_config, enable_check = True):
+def get_engine_config(dict_config):
     engine_config = MLCServeEngineConfig._from_json(dict_config)
     # Checks to make sure engine configs are set correctly
     # since engine config is critical to the performance
-    if enable_check:
-        assert isinstance(engine_config.use_staging_engine, bool)
-        assert isinstance(engine_config.max_num_batched_tokens, int)
-        assert isinstance(engine_config.max_input_len, int)
-        assert isinstance(engine_config.max_num_sequences, int)
-        assert isinstance(engine_config.max_decode_steps, int)
-        assert isinstance(engine_config.min_decode_steps, int)
-        assert isinstance(engine_config.prompt_allocate_ratio, float)
+    assert isinstance(engine_config.use_staging_engine, bool)
+    assert isinstance(engine_config.max_num_batched_tokens, int)
+    assert isinstance(engine_config.max_input_len, int)
+    assert isinstance(engine_config.max_num_sequences, int)
+    assert isinstance(engine_config.max_decode_steps, int)
+    assert isinstance(engine_config.min_decode_steps, int)
 
-        # TODO(@sunggg): engine allows -1 for these params. figure out the behavior and enable checks properly
-        assert engine_config.max_num_batched_tokens == -1, \
-            "`max_num_batched_tokens` is not supposed to be configured directly. \
-              Use `max_num_sequences` and `max_input_len` instead."
-        assert engine_config.max_input_len > 0
-        assert engine_config.max_num_sequences > 0
-        engine_config.max_num_batched_tokens = engine_config.max_num_sequences * engine_config.max_input_len
+    # TODO(@sunggg): engine allows -1 for these params. figure out the behavior and enable checks properly
+    assert engine_config.max_num_batched_tokens == -1, \
+        "`max_num_batched_tokens` is not supposed to be configured directly. \
+            Use `max_num_sequences` and `max_input_len` instead."
+    assert engine_config.max_input_len > 0
+    assert engine_config.max_num_sequences > 0
+    engine_config.max_num_batched_tokens = engine_config.max_num_sequences * engine_config.max_input_len
 
-        assert (engine_config.min_decode_steps > 0) and (engine_config.max_decode_steps > 0)
-        assert engine_config.max_decode_steps > engine_config.min_decode_steps
-        assert engine_config.prompt_allocate_ratio > 0
+    assert (engine_config.min_decode_steps > 0) and (engine_config.max_decode_steps > 0)
+    assert engine_config.max_decode_steps > engine_config.min_decode_steps
 
     return engine_config
 

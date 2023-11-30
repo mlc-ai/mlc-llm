@@ -41,7 +41,6 @@ class SynchronousInferenceEngine(InferenceEngine):
     max_num_batched_tokens: int
     max_decode_steps: int
     min_decode_steps: int
-    prompt_allocate_ratio: float
     queue_lock: Lock
     queue: Deque[RequestState]
     has_new_requests: Condition
@@ -60,6 +59,7 @@ class SynchronousInferenceEngine(InferenceEngine):
         assert self.model_artifact_config.max_context_length, "max_context_length must not be zero"
         self.max_context_length = self.model_artifact_config.max_context_length
         self.max_num_batched_tokens = model_module.engine_config.max_num_batched_tokens
+        assert self.max_num_batched_tokens > 0, "max_num_batched_tokens must be positive"
         self.max_decode_steps = min(
             self.cache_manager.get_kv_cache_size(),
             model_module.engine_config.max_decode_steps,
@@ -67,8 +67,6 @@ class SynchronousInferenceEngine(InferenceEngine):
         self.min_decode_steps = min(
             self.max_decode_steps - 1, model_module.engine_config.min_decode_steps
         )
-        self.prompt_allocate_ratio = model_module.engine_config.prompt_allocate_ratio
-        assert self.prompt_allocate_ratio >= 1.0
 
         self.queue_lock = Lock()
         self.queue = deque[RequestState]()
@@ -98,8 +96,16 @@ class SynchronousInferenceEngine(InferenceEngine):
             state = self._get_new_request_state(req)
             new_request_states.append(state)
 
-            if state.prompt_len >= self.max_context_length:
+            if (
+                state.validation_err is not None
+                or state.prompt_len > min(self.max_context_length, self.max_num_batched_tokens)
+                # Need to exclude requests which cannot fit into the kv_cache and can be processed
+                # at least max_decode_steps steps
+                or self.cache_manager.get_kv_cache_size() - state.prompt_len < self.max_decode_steps
+            ):
                 self.cancel(req.request_id)
+                if state.validation_err is None:
+                    state.validation_err = "The prompt is too long for the given set of engine parameters."
 
         with self.queue_lock:
             self.queue.extend(new_request_states)
@@ -279,15 +285,24 @@ class SynchronousInferenceEngine(InferenceEngine):
                 state = self.queue[0]
                 num_tokens = len(state.token_ids)
                 num_new_batched_tokens += num_tokens
+                # This can happen when we are recovering from cache eviction and the sum of prompt
+                # and intermediate decode tokens is bigger than the biggest allowable batch size,
+                # self.max_num_batched_tokens. In such cases, we need to discard the recent decode
+                # tokens that cannot fit into a batch, and recompute them after we fill the cache
+                # entries for the older tokens.
+                if not len(self.current_batch) and num_new_batched_tokens > self.max_num_batched_tokens:
+                    state.token_ids = state.token_ids[:self.max_num_batched_tokens]
+                    state.next_start_position = num_new_batched_tokens = num_tokens = self.max_num_batched_tokens
                 if num_new_batched_tokens > self.max_num_batched_tokens > 0:
                     logger.debug(
                         "Stop growing the batch due to max_num_batched_tokens. Batched tokens: %s",
                         num_new_batched_tokens,
                     )
                     break
+                # Make sure to leave some free space in the KV cache after a request is added or batched
                 if (
-                    self.cache_manager.get_free_space()
-                    <= self.prompt_allocate_ratio * num_tokens
+                    (self.cache_manager.get_free_space() - num_tokens) / (len(self.current_batch) + 1)
+                        < self.max_decode_steps
                 ):
                     logger.debug(
                         "Stop growing the batch due to not enough free space. Free: %s, Num tokens: %s",

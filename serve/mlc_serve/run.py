@@ -36,7 +36,6 @@ def parse_args():
     args.add_argument("--max-input-len", type=int, default=512)
     args.add_argument("--min-decode-steps", type=int, default=12)
     args.add_argument("--max-decode-steps", type=int, default=16)
-    args.add_argument("--prompt-allocate-ratio", type=float, default=2.0)
     args.add_argument("--debug-logging", action="store_true")
     parsed = args.parse_args()
     return parsed
@@ -64,7 +63,6 @@ def create_engine(
         "max_input_len": args.max_input_len,
         "min_decode_steps": args.min_decode_steps,
         "max_decode_steps": args.max_decode_steps,
-        "prompt_allocate_ratio": args.prompt_allocate_ratio
     })
 
     if args.use_staging_engine:
