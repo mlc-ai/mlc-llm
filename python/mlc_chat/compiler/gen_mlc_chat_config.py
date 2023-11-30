@@ -48,7 +48,7 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     tokenizer_files: List[str] = dataclasses.field(default_factory=list)
 
 
-def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-branches
+def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-branches,too-many-statements
     config: Path,
     model: Model,
     quantization: Quantization,
