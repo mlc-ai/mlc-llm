@@ -8,13 +8,11 @@ import shutil
 from typing import Any, Dict, List, Optional, Set
 
 import numpy as np
-
 import tvm
 from tvm import relax
 
 from .quantization import quantization_schemes
 from .relax_model import param_manager
-
 
 supported_model_types = set(
     ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj", "chatglm", "mistral", "stablelm_epoch"]
@@ -110,6 +108,8 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "chatglm2": "glm",
         "chatglm3": "glm",
         "codegeex2": "glm",
+        "tinyllama": "chatml",
+        "openhermes-2.5-mistral": "open_hermes_mistral",
     }
 
     for prefix, conv_template in model_conv_templates.items():
