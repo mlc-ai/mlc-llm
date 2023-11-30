@@ -46,7 +46,7 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     tokenizer_files: List[str] = dataclasses.field(default_factory=list)
 
 
-def gen_config(  # pylint: disable=too-many-locals,too-many-arguments
+def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-branches
     config: Path,
     model: Model,
     quantization: Quantization,
@@ -88,6 +88,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments
     else:
         logger.info("%s generation_config.json: %s", NOT_FOUND, generation_config)
     # Step 3. Copy tokenizer configuration
+    # 3.1. Copy over the files and populate mlc_chat_config
     for filename in TOKENIZER_FILES:
         file = config.parent / filename
         if file.exists():
@@ -97,6 +98,34 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments
             logger.info("%s tokenizer config: %s. Copying to %s", FOUND, file, bold(str(dest)))
         else:
             logger.info("%s tokenizer config: %s", NOT_FOUND, file)
+    # 3.2. If we have `tokenizer.model` but not `tokenizer.json`, try convert it to
+    # `tokenizer.json` with `transformers`.
+    tokenizer_json_file = config.parent / "tokenizer.json"
+    tokenizer_model_file = config.parent / "tokenizer.model"
+    if tokenizer_model_file.exists() and (not tokenizer_json_file.exists()):
+        logger.info("Attempting to convert `tokenizer.model` to `tokenizer.json`.")
+        try:
+            # pylint: disable=import-outside-toplevel
+            from transformers import AutoTokenizer
+
+            tokenizer_json_save_dest = output / "tokenizer.json"
+            fast_tokenizer = AutoTokenizer.from_pretrained(str(config.parent), use_fast=True)
+            fast_tokenizer.backend_tokenizer.save(str(tokenizer_json_save_dest))
+            mlc_chat_config.tokenizer_files.append("tokenizer.json")
+            logger.info("Succesfully converted `tokenizer.model` to: %s", tokenizer_json_save_dest)
+        except ImportError:
+            logger.warning(
+                "The model has `tokenizer.model` but not `tokenizer.json`. It is"
+                + "recommended to use `tokenizer.json`, so we try convert it with `transformers`.\n"
+                + "However, we were unable to import `transformers`, hence skipping this step."
+            )
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "The model has `tokenizer.model` but not `tokenizer.json`. It is"
+                + "recommended to use `tokenizer.json`, so we try convert it with `transformers`.\n"
+                + "However, we are skipping this due to an error:\n",
+                error,
+            )
     # Step 4. Load system default value
     for key, value in DEFAULT_CONFIGS.items():
         if getattr(mlc_chat_config, key) is None:
