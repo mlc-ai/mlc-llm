@@ -18,6 +18,7 @@ from mlc_serve.engine.staging_engine import StagingInferenceEngine
 from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
 from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModelModule
 from mlc_serve.logging_utils import configure_logging
+from pathlib import Path
 
 
 def sample_requests(
@@ -198,7 +199,7 @@ if __name__ == "__main__":
     log_level = "DEBUG" if args.debug_logging else "INFO"
     configure_logging(enable_json_logs=False, log_level=log_level)
 
-    args.model_artifact_path = os.path.join(args.artifact_path, args.local_id)
+    args.model_artifact_path = Path(os.path.join(args.artifact_path, args.local_id))
     if not os.path.exists(args.model_artifact_path):
         raise Exception(f"Invalid local id: {args.local_id}")
 
