@@ -54,6 +54,8 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     quantization: Quantization,
     conv_template: str,
     context_window_size: Optional[int],
+    sliding_window: Optional[int],
+    prefill_chunk_size: Optional[int],
     output: Path,
 ):
     """Entrypoint of MLC Chat configuration generation."""
@@ -62,6 +64,8 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     model_config = model.config.from_dict(model_config_json)
     ModelConfigOverride(
         context_window_size=context_window_size,
+        sliding_window=sliding_window,
+        prefill_chunk_size=prefill_chunk_size,
     ).apply(model_config)
 
     mlc_chat_config = MLCChatConfig(

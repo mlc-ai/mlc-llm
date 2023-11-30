@@ -49,7 +49,7 @@ class ModelConfigOverride:
                     bold("prefill_chunk_size"),
                     model_config.sliding_window,
                 )
-                model_config.prefill_chunk_size = self.prefill_chunk_size
+                model_config.prefill_chunk_size = self.sliding_window
         if self.prefill_chunk_size is not None:
             logger.info(
                 "Overriding %s from %d to %d",

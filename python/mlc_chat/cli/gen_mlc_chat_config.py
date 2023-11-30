@@ -53,6 +53,18 @@ def main(argv):
         help=HELP["context_window_size"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
+        "--sliding-window",
+        type=int,
+        default=None,
+        help=HELP["sliding_window"] + ' (default: "%(default)s")',
+    )
+    parser.add_argument(
+        "--prefill-chunk-size",
+        type=int,
+        default=None,
+        help=HELP["prefill_chunk_size"] + ' (default: "%(default)s")',
+    )
+    parser.add_argument(
         "--output",
         "-o",
         type=_parse_output,
@@ -67,5 +79,7 @@ def main(argv):
         quantization=QUANTIZATION[parsed.quantization],
         conv_template=parsed.conv_template,
         context_window_size=parsed.context_window_size,
+        sliding_window=parsed.sliding_window,
+        prefill_chunk_size=parsed.prefill_chunk_size,
         output=parsed.output,
     )
