@@ -2,7 +2,7 @@
 import logging
 import subprocess
 import sys
-from typing import Dict
+from typing import Dict, Optional
 
 import tvm
 from tvm.runtime import Device
@@ -18,29 +18,25 @@ _RESULT_CACHE: Dict[str, bool] = {}
 logger = logging.getLogger(__name__)
 
 
-def detect_device(device_hint: str) -> Device:
+def detect_device(device_hint: str) -> Optional[Device]:
     """Detect locally available device from string hint."""
     if device_hint == "auto":
         device = None
         for device_type in AUTO_DETECT_DEVICES:
             cur_device = tvm.device(dev_type=device_type, dev_id=0)
-            # NOTE: we do early exit at first detected device, so that we will not try
-            # all the list of devices in auto detect to reduce VRAM
-            # allocated for other environments
-            if cur_device.exist:
+            if _device_exists(cur_device):
                 if device is None:
                     device = cur_device
-                    break
         if device is None:
-            logger.info("%s: No available device detected. Falling back to CPU", NOT_FOUND)
-            return tvm.device("cpu:0")
-        logger.info("Using device: %s. Use `--device` to override.", bold(_device_to_str(device)))
+            logger.info("%s: No available device detected", NOT_FOUND)
+            return None
+        logger.info("Using device: %s", bold(_device_to_str(device)))
         return device
     try:
         device = tvm.device(device_hint)
     except Exception as err:
         raise ValueError(f"Invalid device name: {device_hint}") from err
-    if not device.exist:
+    if not _device_exists(device):
         raise ValueError(f"Device is not found on your local environment: {device_hint}")
     return device
 
@@ -49,10 +45,8 @@ def _device_to_str(device: Device) -> str:
     return f"{tvm.runtime.Device.MASK2STR[device.device_type]}:{device.device_id}"
 
 
-def _device_exists_via_check_device(device: Device) -> bool:
-    """Check whether device exists via mlc_chat.cli.check_device"""
-    # NOTE: this function may have issues in return value checkings in windows
-    # as of now we use the same process checking with early exit.
+def _device_exists(device: Device) -> bool:
+    device_type = tvm.runtime.Device.MASK2STR[device.device_type]
     device_str = _device_to_str(device)
     if device_str in _RESULT_CACHE:
         return _RESULT_CACHE[device_str]
@@ -60,13 +54,33 @@ def _device_exists_via_check_device(device: Device) -> bool:
         sys.executable,
         "-m",
         "mlc_chat.cli.check_device",
-        device_str,
+        device_type,
     ]
-    result = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode("utf-8")
-    result_bool = result.strip() == "1"
-    if result_bool:
-        logger.info("%s device: %s", FOUND, device_str)
+    prefix = "check_device:"
+    subproc_outputs = [
+        line[len(prefix) :].strip()
+        for line in subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        .stdout.strip()
+        .splitlines()
+        if line.startswith(prefix)
+    ]
+    if subproc_outputs:
+        if subproc_outputs[0]:
+            for i in subproc_outputs[0].split(","):
+                logger.info("%s device: %s:%s", FOUND, device_type, i)
+                _RESULT_CACHE[f"{device_type}:{i}"] = True
     else:
-        logger.info("%s device: %s", NOT_FOUND, device_str)
-    _RESULT_CACHE[device_str] = result_bool
-    return result_bool
+        logger.error(
+            "GPU device detection failed. Please report this issue with the output of command: %s",
+            " ".join(cmd),
+        )
+    if device_str in _RESULT_CACHE:
+        return _RESULT_CACHE[device_str]
+    logger.info("%s device: %s", NOT_FOUND, device_str)
+    _RESULT_CACHE[device_str] = False
+    return False
