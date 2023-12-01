@@ -104,17 +104,17 @@ def _is_device(device: str):
     return True
 
 
-def _add_prefix_symbol(mod: IRModule, prefix: str, is_system_lib: bool) -> IRModule:
+def _add_system_lib_prefix(mod: IRModule, prefix: str, is_system_lib: bool) -> IRModule:
     if is_system_lib and prefix:
         mod = mod.with_attrs({"system_lib_prefix": prefix})  # type: ignore[dict-item]
     elif is_system_lib:
         logger.warning(
             "%s is not specified when building a static library",
-            bold("--prefix-symbols"),
+            bold("--system-lib-prefix"),
         )
     elif prefix:
         logger.warning(
-            "--prefix-symbols is specified, but it will not take any effect "
+            "--system-lib-prefix is specified, but it will not take any effect "
             "when building the shared library"
         )
     return mod
@@ -123,7 +123,7 @@ def _add_prefix_symbol(mod: IRModule, prefix: str, is_system_lib: bool) -> IRMod
 def _build_metal_x86_64():
     def build(mod: IRModule, args: "CompileArgs"):
         output = args.output
-        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=False)
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=False)
         assert output.suffix == ".dylib"
         relax.build(
             mod,
@@ -147,7 +147,7 @@ def _build_iphone():
 
     def build(mod: IRModule, args: "CompileArgs"):
         output = args.output
-        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=True)
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
         assert output.suffix == ".tar"
         relax.build(
             mod,
@@ -164,7 +164,7 @@ def _build_iphone():
 def _build_android():
     def build(mod: IRModule, args: "CompileArgs"):
         output = args.output
-        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=True)
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
         assert output.suffix == ".tar"
         relax.build(
             mod,
@@ -181,7 +181,7 @@ def _build_android():
 def _build_webgpu():
     def build(mod: IRModule, args: "CompileArgs"):
         output = args.output
-        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=True)
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
         assert output.suffix == ".wasm"
         relax.build(
             mod,
@@ -204,7 +204,7 @@ def _build_default():
         else:
             logger.warning("Unknown output suffix: %s. Assuming shared library.", output.suffix)
             system_lib = False
-        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=system_lib)
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=system_lib)
         relax.build(
             mod,
             target=args.target,

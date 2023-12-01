@@ -27,7 +27,7 @@ def main(argv):
             raise argparse.ArgumentTypeError(f"Directory does not exist: {parent}")
         return path
 
-    def _check_prefix_symbols(prefix: str) -> str:
+    def _check_system_lib_prefix(prefix: str) -> str:
         pattern = r"^[a-zA-Z_][a-zA-Z0-9_]*$"
         if prefix == "" or re.match(pattern, prefix):
             return prefix
@@ -77,10 +77,10 @@ def main(argv):
         help=HELP["opt"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--prefix-symbols",
+        "--system-lib-prefix",
         type=str,
         default="",
-        help=HELP["prefix_symbols"] + ' (default: "%(default)s")',
+        help=HELP["system_lib_prefix"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--context-window-size",
@@ -117,7 +117,7 @@ def main(argv):
         target=target,
         opt=parsed.opt,
         build_func=build_func,
-        prefix_symbols=parsed.prefix_symbols,
+        system_lib_prefix=parsed.system_lib_prefix,
         output=parsed.output,
         context_window_size=parsed.context_window_size,
         sliding_window=parsed.sliding_window,
