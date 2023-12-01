@@ -14,7 +14,8 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 from tvm.tir.stmt_functor import post_order_visit
 
-# pylint: disable=too-many-arguments,too-many-locals
+# pylint: disable=too-many-arguments,too-many-locals,protected-access,too-many-statements
+
 
 def get_dynamic_split_rotary(dtype):
     """Implementation of R.split(rotary_embedding(fused_qkv))
@@ -85,7 +86,9 @@ def get_dynamic_split_rotary(dtype):
                 if head_num < num_query_heads:
                     embedded_query[batch_i, seq_i, head_num, head_i] = embedded_value
                 elif head_num < num_query_heads + num_kv_heads:
-                    embedded_key[batch_i, seq_i, head_num - num_query_heads, head_i] = embedded_value
+                    embedded_key[
+                        batch_i, seq_i, head_num - num_query_heads, head_i
+                    ] = embedded_value
                 else:
                     value[
                         batch_i, seq_i, head_num - num_query_heads - num_kv_heads, head_i
@@ -104,7 +107,7 @@ def get_dynamic_split_rotary(dtype):
 
 
 def collect_position_embedding_base(func: tir.PrimFunc):
-    """ Collect position embedding base from rotary embedding function"""
+    """Collect position embedding base from rotary embedding function"""
     position_embedding_base = None
 
     def visit(node):
