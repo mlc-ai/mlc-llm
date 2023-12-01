@@ -51,10 +51,10 @@ and O3 represents extreme optimization that could potentially break the system.
 Meanwhile, optimization flags could be explicitly specified via details knobs, e.g.
 --opt="cutlass_attn=1;cutlass_norm=0;cublas_gemm=0;cudagraph=0".
 """.strip(),
-    "prefix_symbols": """
+    "system_lib_prefix": """
 Adding a prefix to all symbols exported. Similar to "objcopy --prefix-symbols".
 This is useful when compiling multiple models into a single library to avoid symbol
-conflicts. Differet from objcopy, this takes no effect for shared library.
+conflicts. Different from objcopy, this takes no effect for shared library.
 """.strip(),
     "context_window_size": """
 Option to provide the maximum sequence length supported by the model.

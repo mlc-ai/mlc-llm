@@ -29,7 +29,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
     target: Target
     opt: OptimizationFlags
     build_func: Callable[[IRModule, "CompileArgs"], None]
-    prefix_symbols: str
+    system_lib_prefix: str
     output: Path
     overrides: ModelConfigOverride
 
@@ -42,7 +42,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
         print(f"  {bold('--model-type'):<25} {self.model.name}", file=out)
         print(f"  {bold('--target'):<25} {self.target.export()}", file=out)
         print(f"  {bold('--opt'):<25} {self.opt}", file=out)
-        print(f"  {bold('--prefix-symbols'):<25} \"{self.prefix_symbols}\"", file=out)
+        print(f"  {bold('--system-lib-prefix'):<25} \"{self.system_lib_prefix}\"", file=out)
         print(f"  {bold('--output'):<25} {self.output}", file=out)
         print(f"  {bold('--overrides'):<25} {dataclasses.asdict(self.overrides)}", file=out)
         print(out.getvalue().rstrip())
@@ -123,7 +123,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     target: Target,
     opt: OptimizationFlags,
     build_func: Callable[[IRModule, CompileArgs], None],
-    prefix_symbols: str,
+    system_lib_prefix: str,
     output: Path,
     context_window_size: Optional[int],
     sliding_window: Optional[int],
@@ -137,7 +137,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
         target,
         opt,
         build_func,
-        prefix_symbols,
+        system_lib_prefix,
         output,
         ModelConfigOverride(
             context_window_size=context_window_size,
