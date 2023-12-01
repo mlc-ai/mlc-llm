@@ -5,11 +5,12 @@ import asyncio
 import threading
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
+from ..streamer import StopStringHandler, TextStreamer
+from ..tokenizer import Tokenizer
 from . import data
 from .config import GenerationConfig, KVCacheConfig
 from .engine import Engine, ModelInfo, _create_tvm_module, _process_model_args
 from .request import Request
-from .tokenizer import Tokenizer
 
 
 class AsyncEngineDeadError(RuntimeError):
@@ -35,15 +36,19 @@ class AsyncRequestStream:
 
     Each request has its own unique stream.
     The stream exposes the method `push` for engine to push new generated
-    tokens to the stream, and the method `finish` for engine to mark
+    delta text to the stream, and the method `finish` for engine to mark
     the finish of generation.
 
     The stream implements `__aiter__` and `__anext__`, which the engine
     can use to iterates all the generated tokens in order asynchronously.
     """
 
-    # The asynchronous queue to hold generated tokens or exceptions.
-    _queue: asyncio.Queue[Union[Tuple[int, str], Exception]]
+    # The asynchronous queue to hold elements of
+    # - either a tuple of (str, int, Optional[str]), denoting the
+    #   delta output text, the number of delta tokens, the optional
+    #   finish reason respectively,
+    # - or an exception.
+    _queue: asyncio.Queue[Union[Tuple[str, int, Optional[str]], Exception]]
     # The finish flag.
     _finished: bool
 
@@ -51,7 +56,7 @@ class AsyncRequestStream:
         self._queue = asyncio.Queue()
         self._finished = False
 
-    def push(self, item_or_exception: Union[Tuple[int, str], Exception]) -> None:
+    def push(self, item_or_exception: Union[Tuple[str, int, Optional[str]], Exception]) -> None:
         """Push a new token to the stream."""
         if self._finished:
             # No new item is expected after finish.
@@ -72,7 +77,7 @@ class AsyncRequestStream:
     def __aiter__(self):
         return self
 
-    async def __anext__(self) -> Tuple[int, str]:
+    async def __anext__(self) -> Tuple[str, int, Optional[str]]:
         result = await self._queue.get()
         if isinstance(result, StopIteration):
             raise StopAsyncIteration
@@ -88,7 +93,7 @@ class AsyncRequestTracker:
     """
 
     # The mapping from request ids to request asynchronous stream.
-    _request_streams: Dict[str, AsyncRequestStream]
+    _request_tools: Dict[str, Tuple[AsyncRequestStream, TextStreamer, StopStringHandler]]
     # The queue of requests to add into the engine.
     _requests_to_add: asyncio.Queue[Request]
     # The queue of requests (identified by request id) to abort from the engine.
@@ -97,11 +102,12 @@ class AsyncRequestTracker:
     # from cyclically pull and waiting for new requests.
     _new_request_event: asyncio.Event
 
-    def __init__(self) -> None:
-        self._request_streams = {}
+    def __init__(self, tokenizer: Tokenizer) -> None:
+        self._request_tools = {}
         self._requests_to_add = asyncio.Queue()
         self._requests_to_abort = asyncio.Queue()
         self._new_request_event = asyncio.Event()
+        self._tokenizer = tokenizer
 
     def add_request(
         self, request_id: str, input_data: data.Data, generation_cfg: GenerationConfig
@@ -128,7 +134,7 @@ class AsyncRequestTracker:
         # Create the unique stream of the request.
         stream = AsyncRequestStream()
         # Report error if the request id already exists.
-        if request_id in self._request_streams:
+        if request_id in self._request_tools:
             stream.push(
                 RuntimeError(
                     f'The request id "{request_id} already exists. '
@@ -141,7 +147,11 @@ class AsyncRequestTracker:
         # config and the created callback.
         request = Request(request_id, input_data, generation_cfg)
         # Record the stream in the tracker
-        self._request_streams[request_id] = stream
+        self._request_tools[request_id] = (
+            stream,
+            TextStreamer(self._tokenizer),
+            StopStringHandler(generation_cfg.stop_strs),
+        )
         # Push the request to the `requests_to_add` queue for the engine
         # to pull in the next step.
         self._requests_to_add.put_nowait(request)
@@ -162,7 +172,7 @@ class AsyncRequestTracker:
 
     def finish_request(self, request_id: str) -> None:
         """The input request has finished. Remove its stream from the tracker."""
-        self._request_streams.pop(request_id)
+        self._request_tools.pop(request_id, None)
 
     def get_requests_to_add_and_abort(self) -> Tuple[List[Request], List[str]]:
         """Fetch the requests to add to or abort from the engine.
@@ -184,18 +194,20 @@ class AsyncRequestTracker:
             request_id = self._requests_to_abort.get_nowait()
             requests_to_abort.append(request_id)
             # Remove the request from the tracker.
-            self._request_streams.pop(request_id)
+            self._request_tools.pop(request_id, None)
 
         # Reset the event since all new requests are fetched in this method.
         self._new_request_event.clear()
 
         return requests_to_add, requests_to_abort
 
-    def get_request_stream(self, request_id: str) -> AsyncRequestStream:
-        """Fetch the stream of the input request.
-        The request is expected to have the stream in the tracker.
+    def get_request_tools(
+        self, request_id: str
+    ) -> Tuple[AsyncRequestStream, TextStreamer, StopStringHandler]:
+        """Fetch the stream, text streamer and stop handler of the input request.
+        The request is expected to have its tools in the tracker.
         """
-        return self._request_streams[request_id]
+        return self._request_tools[request_id]
 
     async def wait_for_new_requests(self):
         """Wait for new requests to add."""
@@ -204,7 +216,7 @@ class AsyncRequestTracker:
     @property
     def is_empty(self) -> bool:
         """Check if there is any request streams existing."""
-        return len(self._request_streams) == 0
+        return len(self._request_tools) == 0
 
 
 class AsyncEngine:
@@ -232,7 +244,7 @@ class AsyncEngine:
         self.tokenizer = self._background_engine.tokenizer
         self.max_single_sequence_length = self._background_engine.max_single_sequence_length
 
-        self._request_tracker = AsyncRequestTracker()
+        self._request_tracker = AsyncRequestTracker(self.tokenizer)
         self._background_loop_unshielded: Optional[asyncio.Task] = None
         self._background_loop: Optional[asyncio.Future] = None
         self._terminated: bool = False
@@ -245,10 +257,13 @@ class AsyncEngine:
 
     async def generate(
         self, prompt: Union[str, List[int]], generation_config: GenerationConfig, request_id: str
-    ) -> AsyncGenerator[Tuple[int, str], Any]:
+    ) -> AsyncGenerator[Tuple[str, int, str], Any]:
         """Asynchronous text generation interface.
-        The method is a coroutine that streams the generated tokens to
-        the caller side via yield.
+        The method is a coroutine that streams a tuple at a time via yield.
+        Each tuple is contained of
+        - the delta text in type str,
+        - the number of delta tokens in type int,
+        - the optional finish reason in type Optional[str].
 
         Parameters
         ----------
@@ -355,12 +370,24 @@ class AsyncEngine:
         self, request_id: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
     ) -> None:
         """The underlying implementation of request stream callback."""
-        stream = self._request_tracker.get_request_stream(request_id)
-
+        stream, text_streamer, stop_handler = self._request_tracker.get_request_tools(request_id)
         finish_reason = str(finish_reason) if finish_reason is not None else None
-        # Push new generated tokens to the stream.
-        for token_id in delta_tokens.token_ids:
-            stream.push((token_id, finish_reason))
+
+        delta_token_ids = delta_tokens.token_ids
+        delta_text = stop_handler.put(text_streamer.put(delta_token_ids))
+        if stop_handler.stop_triggered:
+            finish_reason = "stop"
+            self._abort(request_id)
+        elif finish_reason is not None:
+            delta_text += stop_handler.put(text_streamer.finish())
+            if stop_handler.stop_triggered:
+                finish_reason = "stop"
+                self._abort(request_id)
+            else:
+                delta_text += stop_handler.finish()
+
+        # Push new delta text to the stream.
+        stream.push((delta_text, len(delta_token_ids), finish_reason))
         if finish_reason is not None:
             stream.finish()
             # Remove the request from the tracker.
@@ -415,10 +442,12 @@ class AsyncThreadedEngine:
                 *model_args,
             ],
         )
-        self.tokenizer = Tokenizer.from_path(tokenizer_path)
+        self.tokenizer = Tokenizer(tokenizer_path)
 
         # The mapping from request ids to request asynchronous stream.
-        self._request_streams: Dict[str, AsyncRequestStream] = {}
+        self._request_tools: Dict[
+            str, Tuple[AsyncRequestStream, TextStreamer, StopStringHandler]
+        ] = {}
         # Create the background engine-driving thread and start the loop.
         self._background_loop_thread: threading.Thread = threading.Thread(
             target=self._ffi["run_background_loop"]
@@ -437,10 +466,13 @@ class AsyncThreadedEngine:
 
     async def generate(
         self, prompt: Union[str, List[int]], generation_config: GenerationConfig, request_id: str
-    ) -> AsyncGenerator[Tuple[int, str], Any]:
+    ) -> AsyncGenerator[Tuple[str, int, str], Any]:
         """Asynchronous text generation interface.
-        The method is a coroutine that streams the generated tokens to
-        the caller side via yield.
+        The method is a coroutine that streams a tuple at a time via yield.
+        Each tuple is contained of
+        - the delta text in type str,
+        - the number of delta tokens in type int,
+        - the optional finish reason in type Optional[str].
 
         Parameters
         ----------
@@ -467,7 +499,7 @@ class AsyncThreadedEngine:
 
         # Create the unique stream of the request.
         stream = AsyncRequestStream()
-        if request_id in self._request_streams:
+        if request_id in self._request_tools:
             # Report error in the stream if the request id already exists.
             stream.push(
                 RuntimeError(
@@ -477,7 +509,11 @@ class AsyncThreadedEngine:
             )
         else:
             # Record the stream in the tracker
-            self._request_streams[request_id] = stream
+            self._request_tools[request_id] = (
+                stream,
+                TextStreamer(self.tokenizer),
+                StopStringHandler(generation_config.stop_strs),
+            )
             self._ffi["add_request"](request)
 
         # Iterate the stream asynchronously and yield the token.
@@ -496,7 +532,11 @@ class AsyncThreadedEngine:
         request_id : str
             The id of the request to abort.
         """
-        self._request_streams.pop(request_id)
+        self._abort(request_id)
+
+    def _abort(self, request_id: str):
+        """Internal implementation of request abortion."""
+        self._request_tools.pop(request_id, None)
         self._ffi["abort_request"](request_id)
 
     def _request_stream_callback(
@@ -535,14 +575,27 @@ class AsyncThreadedEngine:
         self, request_id: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
     ) -> None:
         """The underlying implementation of request stream callback."""
-        stream = self._request_streams.get(request_id, None)
-        if stream is None:
+        tools = self._request_tools.get(request_id, None)
+        if tools is None:
             return
-
+        stream, text_streamer, stop_handler = tools
         finish_reason = str(finish_reason) if finish_reason is not None else None
-        # Push new generated tokens to the stream.
-        for token_id in delta_tokens.token_ids:
-            stream.push((token_id, finish_reason))
+
+        delta_token_ids = delta_tokens.token_ids
+        delta_text = stop_handler.put(text_streamer.put(delta_token_ids))
+        if stop_handler.stop_triggered:
+            finish_reason = "stop"
+            self._abort(request_id)
+        elif finish_reason is not None:
+            delta_text += stop_handler.put(text_streamer.finish())
+            if stop_handler.stop_triggered:
+                finish_reason = "stop"
+                self._abort(request_id)
+            else:
+                delta_text += stop_handler.finish()
+
+        # Push new delta text to the stream.
+        stream.push((delta_text, len(delta_token_ids), finish_reason))
         if finish_reason is not None:
             stream.finish()
-            self._request_streams.pop(request_id)
+            self._request_tools.pop(request_id, None)
