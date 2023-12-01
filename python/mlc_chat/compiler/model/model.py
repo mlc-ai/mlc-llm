@@ -6,6 +6,7 @@ from tvm.relax.frontend import nn
 
 from ..loader import ExternMapping, QuantizeMapping
 from ..quantization.quantization import Quantization
+from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 
@@ -78,6 +79,19 @@ MODELS: Dict[str, Model] = {
         },
         quantize={
             "group-quant": mistral_quantization.group_quant,
+        },
+    ),
+    "gpt2": Model(
+        name="gpt2",
+        model=gpt2_model.GPT2LMHeadModel,
+        config=gpt2_model.GPT2Config,
+        source={
+            "huggingface-torch": gpt2_loader.huggingface,
+            "huggingface-safetensor": gpt2_loader.huggingface,
+        },
+        quantize={
+            "no-quant": gpt2_quantization.no_quant,
+            "group-quant": gpt2_quantization.group_quant,
         },
     ),
 }
@@ -245,5 +259,21 @@ MODEL_PRESETS: Dict[str, Any] = {
         "transformers_version": "4.34.0.dev0",
         "use_cache": True,
         "vocab_size": 32000,
+    },
+    "gpt2": {
+        "architectures": ["GPT2LMHeadModel"],
+        "bos_token_id": 50256,
+        "eos_token_id": 50256,
+        "hidden_act": "gelu_new",
+        "n_embd": 768,
+        "initializer_range": 0.02,
+        "n_positions": 1024,
+        "model_type": "gpt2",
+        "n_head": 12,
+        "n_layer": 12,
+        "layer_norm_epsilon": 1e-05,
+        "transformers_version": "4.26.0.dev0",
+        "use_cache": True,
+        "vocab_size": 50257,
     },
 }

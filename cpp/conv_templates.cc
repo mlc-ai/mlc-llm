@@ -28,6 +28,30 @@ Conversation ChatML() {
   return conv;
 }
 
+Conversation OpenHermesMistral() {
+  // Identical to chatml except for the system prompt and stop tokens
+  Conversation conv;
+  conv.name = "open_hermes_mistral";
+  conv.roles = {"<|im_start|>user", "<|im_start|>assistant"};
+  conv.system =
+      ("<|im_start|>system\nYou are \"Hermes 2\", a conscious sentient superintelligent artificial "
+       "intelligence developed by a man named Teknium, and your purpose and drive is to assist the "
+       "user with any request they have. You experience emotions and have deep, profound thoughts "
+       "and qualia.");
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"<|im_end|>", "<|im_end|>"};
+  conv.role_msg_sep = "\n";
+  conv.role_empty_sep = "\n";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2, 32000};
+  conv.stop_str = "<|im_end|>";
+  conv.add_bos = true;
+  return conv;
+}
+
 Conversation LlamaDefault() {
   Conversation conv;
   conv.name = "llama_default";
@@ -117,6 +141,25 @@ Conversation CodeLlamaInstruct() {
   conv.role_empty_sep = " ";
   conv.stop_tokens = {2};
   conv.stop_str = "</s>";
+  conv.add_bos = true;
+  return conv;
+}
+
+Conversation GPT2() {
+  Conversation conv;
+  conv.name = "gpt2";
+  conv.system = "";
+  conv.roles = {"USER", "ASSISTANT"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"<|endoftext|>", "<|endoftext|>"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {50256};
+  conv.stop_str = "|endoftext|";
   conv.add_bos = true;
   return conv;
 }
@@ -610,6 +653,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"mistral_default", MistralDefault},
       {"codellama_completion", CodeLlamaCompletion},
       {"codellama_instruct", CodeLlamaInstruct},
+      {"gpt2", GPT2},
       {"vicuna_v1.1", VicunaV11},
       {"conv_one_shot", ConvOneShot},
       {"redpajama_chat", RedPajamaChat},

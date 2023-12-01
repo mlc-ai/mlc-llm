@@ -729,7 +729,7 @@ def get_model(args: argparse.Namespace, hf_config):
     model = args.model
     dtype = args.quantization.model_dtype
 
-    if model.startswith("chatglm2") or model.startswith("codegeex2"):
+    if model.startswith("chatglm2") or model.startswith("codegeex2") or model.startswith("chatglm3"):
         config = ChatGLMConfig(
             **hf_config,
             dtype=dtype,

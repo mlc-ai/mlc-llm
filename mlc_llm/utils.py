@@ -8,16 +8,25 @@ import shutil
 from typing import Any, Dict, List, Optional, Set
 
 import numpy as np
-
 import tvm
 from tvm import relax
 
 from .quantization import quantization_schemes
 from .relax_model import param_manager
 
-
 supported_model_types = set(
-    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv", "gptj", "chatglm", "mistral", "stablelm_epoch"]
+    [
+        "llama",
+        "gpt_neox",
+        "gpt_bigcode",
+        "minigpt",
+        "moss",
+        "rwkv",
+        "gptj",
+        "chatglm",
+        "mistral",
+        "stablelm_epoch",
+    ]
 )
 
 
@@ -84,6 +93,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "codellama-13b-instruct": "codellama_instruct",
         "codellama-34b-instruct": "codellama_instruct",
         "codellama": "codellama_completion",
+        "gpt2": "gpt2",
         "vicuna-": "vicuna_v1.1",
         "dolly-": "dolly",
         "stablelm-3b-": "stablelm-3b",
@@ -107,7 +117,10 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "stablecode-completion": "stablecode_completion",
         "stablecode-instruct": "stablecode_instruct",
         "chatglm2": "glm",
+        "chatglm3": "glm",
         "codegeex2": "glm",
+        "tinyllama": "chatml",
+        "openhermes-2.5-mistral": "open_hermes_mistral",
     }
 
     for prefix, conv_template in model_conv_templates.items():
@@ -300,8 +313,10 @@ def save_params(params: List[tvm.nd.NDArray], artifact_path: str, num_presharded
 
         param_dict[param_name] = nd
 
-    total_size_bytes = sum(math.prod(param.shape) * np.dtype(param.dtype).itemsize for param in params)
-    total_size_gb = total_size_bytes / (1024 ** 3)
+    total_size_bytes = sum(
+        math.prod(param.shape) * np.dtype(param.dtype).itemsize for param in params
+    )
+    total_size_gb = total_size_bytes / (1024**3)
     print(f"Total param size: {total_size_gb} GB")
     tvmjs.dump_ndarray_cache(
         param_dict, f"{artifact_path}/params", meta_data=meta_data, encode_format="raw"
@@ -332,6 +347,34 @@ def copy_tokenizer(args: argparse.Namespace) -> None:
             shutil.copy(
                 os.path.join(args.model_path, filename),
                 os.path.join(args.artifact_path, "model") if args.enable_batching else os.path.join(args.artifact_path, "params"),
+            )
+
+    # If we have `tokenizer.model` but not `tokenizer.json`, try convert it to
+    # `tokenizer.json` with `transformers`.
+    tokenizer_json_path = os.path.join(args.model_path, "tokenizer.json")
+    tokenizer_model_path = os.path.join(args.model_path, "tokenizer.model")
+    if os.path.exists(tokenizer_model_path) and (not os.path.exists(tokenizer_json_path)):
+        print("Attempting to convert `tokenizer.model` to `tokenizer.json`.")
+        try:
+            # pylint: disable=import-outside-toplevel
+            from transformers import AutoTokenizer
+
+            tokenizer_json_save_dest = os.path.join(args.artifact_path, "params/tokenizer.json")
+            fast_tokenizer = AutoTokenizer.from_pretrained(args.model_path, use_fast=True)
+            fast_tokenizer.backend_tokenizer.save(tokenizer_json_save_dest)
+            print(f"Succesfully converted `tokenizer.model` to: {tokenizer_json_save_dest}")
+        except ImportError:
+            print(
+                "WARNING: The model has `tokenizer.model` but not `tokenizer.json`. It is"
+                + "recommended to use `tokenizer.json`, so we try convert it with `transformers`.\n"
+                + "However, we were unable to import `transformers`, hence skipping this step."
+            )
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            print(
+                "WARNING: The model has `tokenizer.model` but not `tokenizer.json`. It is"
+                + "recommended to use `tokenizer.json`, so we try convert it with `transformers`.\n"
+                + "However, we are skipping this due to an error:\n",
+                error,
             )
 
 
@@ -630,11 +673,12 @@ def parse_target(args: argparse.Namespace) -> None:
         )
         args.target_kind = "android"
     elif args.target in ["mali"]:
-        from tvm.contrib import ndk
+        if "TVM_NDK_CC" in os.environ:
+            from tvm.contrib import ndk
 
-        args.export_kwargs = {
-            "fcompile": ndk.create_shared,
-        }
+            args.export_kwargs = {
+                "fcompile": ndk.create_shared,
+            }
         target = tvm.target.Target(
             "opencl -device=mali",
             host="llvm -mtriple=aarch64-linux-gnu",
@@ -649,7 +693,10 @@ def parse_target(args: argparse.Namespace) -> None:
         from tvm.contrib import nvcc
 
         assert args.target.arch[3:] != ""
-        if int(args.target.arch[3:]) >= 70:
+        arch_list = os.getenv("CUDA_ARCH_LIST") or os.getenv("TORCH_CUDA_ARCH_LIST")
+        if arch_list:
+            compute_versions = [int(v) for v in arch_list.replace(" ", ";").split(";")]
+        elif int(args.target.arch[3:]) >= 70:
             compute_versions = [70, 72, 75, 80, 86, 87, 89, 90]
         else:
             compute_versions = [60, 61, 62]

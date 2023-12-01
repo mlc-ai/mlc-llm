@@ -25,8 +25,17 @@ pub type Result<T> = result::Result<T, ChatModuleError>;
 
 #[derive(Debug, Clone)]
 pub struct ChatMessage {
-    pub role: String,
-    pub content: String,
+    role: String,
+    content: String,
+}
+
+impl ChatMessage {
+    pub fn new(role: &str, content: &str) -> Self {
+        ChatMessage {
+            role: role.to_owned(),
+            content: content.to_owned(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -67,9 +76,28 @@ impl PlaceInPrompt {
     }
 }
 
+macro_rules! tvm_func_invoke {
+    // Handle the case with return type
+    ($self:ident, $func_name:ident($($args:expr),*) -> $ret_type:ty) => {
+        {
+            let f = $self.chat_module.get_function(stringify!($func_name), false)?;
+            let res: $ret_type = f.invoke(vec![$($args.into()),*])?.try_into().expect("call should succeed");
+            Ok(res)
+        }
+    };
+    // Handle the case without return type
+    ($self:ident, $func_name:ident($($args:expr),*)) => {
+        {
+            let f = $self.chat_module.get_function(stringify!($func_name), false)?;
+            f.invoke(vec![$($args.into()),*])?;
+            Ok(())
+        }
+    };
+}
+
 /// Parse the input device identifier into device name and id.
 ///
-/// # Parameters
+/// # Arguments
 /// * `device` - The device identifier to parse. It can be in the format "device_name" (e.g., "cuda")
 /// or "device_name:device_id" (e.g., "cuda:1").
 ///
@@ -94,7 +122,7 @@ fn parse_device_str(device: &str) -> (&str, i32) {
 /// Use user-provided argument `model` to search for a valid model path.
 /// We define "valid" as having an `mlc-chat-config.json` right under the folder.
 ///
-/// # Parameters
+/// # Arguments
 /// * `model`: User's input; may be a compiled model's name, or a full path.
 ///
 /// # Returns
@@ -106,9 +134,9 @@ fn parse_device_str(device: &str) -> (&str, i32) {
 pub fn get_model_path(model: &str) -> (PathBuf, PathBuf) {
     // Note that the order of this list corresponds to our search priority
     let candidate_paths = vec![
-        PathBuf::from(model),                              // full path, or just the name
-        PathBuf::from(format!("{}/params", model)), // Default directory after mlc_llm.build_model()
-        PathBuf::from(format!("dist/prebuilt/{}", model)), // Using prebuilt workflow
+        PathBuf::from(model),                                       // full path, or just the name
+        PathBuf::from(format!("{}/params", model)),                 // Default directory after mlc_llm.build_model()
+        PathBuf::from(format!("dist/prebuilt/{}", model)),          // Using prebuilt workflow
         PathBuf::from(format!("dist/{}/params", model)), // Default directory after mlc_llm.build_model() in the current path
         PathBuf::from(format!("dist/prebuilt/mlc-chat-{}", model)), // Also prebuilt workflow, but missed prefix
     ];
@@ -117,14 +145,8 @@ pub fn get_model_path(model: &str) -> (PathBuf, PathBuf) {
     for candidate in &candidate_paths {
         let chat_file = candidate.join("mlc-chat-config.json");
         if chat_file.is_file() {
-            info!(
-                "Using model folder: {:?}",
-                candidate.canonicalize().unwrap()
-            );
-            info!(
-                "Using mlc chat config: {:?}",
-                chat_file.canonicalize().unwrap()
-            );
+            info!("Using model folder: {:?}", candidate.canonicalize().unwrap());
+            info!("Using mlc chat config: {:?}", chat_file.canonicalize().unwrap());
             return (candidate.clone(), chat_file);
         }
     }
@@ -171,24 +193,30 @@ pub fn get_model_path(model: &str) -> (PathBuf, PathBuf) {
 
 /// Read in the config file in model path, then potentially override with user input.
 ///
-/// # Parameters:
+/// # Arguments
 /// * `config_file_path`: &Path
 ///   `chat_file` returned by a function like `get_model_path()`.
-fn get_chat_config(
-    config_file_path: &Path,
-) -> result::Result<ChatConfig, Box<dyn std::error::Error>> {
+fn get_chat_config(config_file_path: &Path) -> result::Result<ChatConfig, Box<dyn std::error::Error>> {
     // Read the base configuration from the file
     let file_contents = fs::read_to_string(config_file_path)?;
     let final_chat_config = ChatConfig::from_json(&file_contents)?;
     Ok(final_chat_config)
 }
 
+/// Look up the model library and return a corresponding `tvm` runtime Module.
+///
+/// # Arguments
+/// * `model` - A string representing either the name of a compiled model or a full path to it.
+/// * `model_path` - The path to the model, as determined by `get_model_path`.
+/// * `chat_config` - The chat configuration, possibly with overrides, returned by `get_chat_config`.
+/// * `model_lib_path` - An optional string specifying the full path to the model library. This is prioritized if provided.
+/// * `device_name` - A string representing the device for which the library model file name will be constructed.
+/// * `config_file_path` - The path to the `mlc-chat-config.json` file, used for constructing error messages.
+///
+/// # Returns
+/// The path pointing to the model library we find.
 fn get_lib_module_path(
-    model: &str,
-    model_path: &Path,
-    chat_config: &ChatConfig,
-    model_lib_path: Option<&str>,
-    device_name: &str,
+    model: &str, model_path: &Path, chat_config: &ChatConfig, model_lib_path: Option<&str>, device_name: &str,
     config_file_path: &Path,
 ) -> PathBuf {
     // 1. Use user's model_lib_path if provided
@@ -198,10 +226,7 @@ fn get_lib_module_path(
             info!("Using library model: {:?}", path);
             return path.to_path_buf();
         } else {
-            panic!(
-                "The `model_lib_path` you passed in is not a file: {:?}.",
-                lib_path
-            );
+            panic!("The `model_lib_path` you passed in is not a file: {:?}.", lib_path);
         }
     }
 
@@ -233,10 +258,7 @@ fn get_lib_module_path(
                 format!("dist/prebuilt/lib/{}", lib_name),
                 format!("dist/{}/{}", model, lib_name),
                 model_path.join(lib_name).to_string_lossy().into_owned(),
-                pardir_model_path
-                    .join(lib_name)
-                    .to_string_lossy()
-                    .into_owned(),
+                pardir_model_path.join(lib_name).to_string_lossy().into_owned(),
             ];
 
             candidate_paths.extend(paths);
@@ -347,55 +369,39 @@ impl ChatModule {
         };
         let model_lib_str = model_lib_path.as_path().display().to_string();
         let model_path_str = model_path.as_path().display().to_string();
-        chat_mod
-            .reload(&model_lib_str, &model_path_str, "")
-            .unwrap();
+        chat_mod.reload(&model_lib_str, &model_path_str, "").unwrap();
         Ok(chat_mod)
     }
 
     /// Reload the chat module from the given library and model path.
     fn reload(&self, lib: &str, model_path: &str, app_config_json: &str) -> Result<()> {
-        let f = self.chat_module.get_function("reload", false)?;
-        f.invoke(vec![lib.into(), model_path.into(), app_config_json.into()])?;
-        Ok(())
+        tvm_func_invoke!(self, reload(lib, model_path, app_config_json))
     }
 
     /// Reset the chat session, clear all chat history, and potentially
     /// override the original `mlc-chat-config.json`.
     pub fn reset_chat(&self) -> Result<()> {
         // TODO: add optional user-specified ChatConfig
-        let f = self.chat_module.get_function("reset_chat", false)?;
-        f.invoke(vec![])?;
-        Ok(())
+        tvm_func_invoke!(self, reset_chat())
     }
 
     /// Get the runtime stats of the encoding step, decoding step (and embedding step if exists)
     /// of the chat module in text form.
     pub fn stats(&self, verbose: bool) -> Result<String> {
         if verbose {
-            let f = self
-                .chat_module
-                .get_function("verbose_runtime_stats_text", false)?;
-            let res: String = f.invoke(vec![])?.try_into().expect("call should succeed");
-            return Ok(res);
+            return tvm_func_invoke!(self, verbose_runtime_stats_text() -> String);
         }
-        let f = self.chat_module.get_function("runtime_stats_text", false)?;
-        let res: String = f.invoke(vec![])?.try_into().expect("call should succeed");
-        Ok(res)
+        tvm_func_invoke!(self, runtime_stats_text() -> String)
     }
 
     /// Check if the stop condition is met for the current round.
     fn stopped(&self) -> Result<bool> {
-        let f = self.chat_module.get_function("stopped", false)?;
-        let res: bool = f.invoke(vec![])?.try_into().expect("call should succeed");
-        Ok(res)
+        tvm_func_invoke!(self, stopped() -> bool)
     }
 
     /// Get the output message in the current round.
     fn get_message(&self) -> Result<String> {
-        let f = self.chat_module.get_function("get_message", false)?;
-        let res: String = f.invoke(vec![])?.try_into().expect("call should succeed");
-        Ok(res)
+        tvm_func_invoke!(self, get_message() -> String)
     }
 
     /// Decode the next token, the decoding result is stored in a buffer and
@@ -408,46 +414,57 @@ impl ChatModule {
                 serde_json::to_string(&config).unwrap()
             }
         };
-        let f = self.chat_module.get_function("decode", false)?;
-        f.invoke(vec![generation_config_str.into()])?;
-        Ok(())
+        tvm_func_invoke!(self, decode(generation_config_str))
     }
 
     /// Load JSON config and override existing configurations for the chat module.
     fn load_json_override(&self, config_str: &str, partial_update: bool) -> Result<()> {
-        let f = self.chat_module.get_function("load_json_override", false)?;
-        f.invoke(vec![config_str.into(), (&partial_update).into()])?;
-        Ok(())
+        tvm_func_invoke!(self, load_json_override(config_str, &partial_update))
     }
 
     /// Get the configuration of the chat module in a single json string.
     fn get_config_json(&self) -> Result<String> {
-        let f = self.chat_module.get_function("get_config_json", false)?;
-        let res: String = f.invoke(vec![])?.try_into().expect("call should succeed");
-        Ok(res)
+        tvm_func_invoke!(self, get_config_json() -> String)
     }
 
     /// Get the name of role 0 in the conversation.
     fn get_role_0(&self) -> Result<String> {
-        let f = self.chat_module.get_function("get_role0", false)?;
-        let res: String = f.invoke(vec![])?.try_into().expect("call should succeed");
-        Ok(res)
+        tvm_func_invoke!(self, get_role0() -> String)
     }
 
-    /// Get the name of role 0 in the conversation.
+    /// Get the name of role 1 in the conversation.
     fn get_role_1(&self) -> Result<String> {
-        let f = self.chat_module.get_function("get_role1", false)?;
-        let res: String = f.invoke(vec![])?.try_into().expect("call should succeed");
-        Ok(res)
+        tvm_func_invoke!(self, get_role1() -> String)
     }
 
     /// A high-level method that returns the full response from the chat module given a user
     /// prompt. User can optionally specify which callback method to use upon receiving the
     /// response.
+    ///
+    /// # Arguments
+    /// * `prompt` - The user input prompt, i.e. a question to ask the chat module.
+    ///    It can also be the whole conversation history (list of messages with role and content)
+    ///
+    ///    # Examples
+    ///    ```
+    ///    // Single prompt case, the `prompt` can be a &str
+    ///    let prompt = "what is the meaning of life?";
+    ///    
+    ///    // Multi-prompt case, the `prompt` can be Vec<ChatMessage>
+    ///    let message1 = ChatMessage::new("user", "suppose we already have projects llama, alpaca and vicuna, what do you think would be a great name for the next project?");
+    ///    let message2 = ChatMessage::new(
+    ///        "assistant",
+    ///        "based on the previous projects, a possible name for the next project could be \"cervidae\" which is the scientific name for deer family. this name reflects the collaboration and teamwork involved in the development of the project, and also nods to the previous projects that have been developed by the team.");
+    ///    let message3 = ChatMessage::new("user", "I like cervidae, but the name is too long!");
+    ///    let prompt = vec![message1, message2, message3];
+    ///    ```
+    ///
+    /// * `generation_config` - The generation config object to override the ChatConfig generation settings.
+    ///
+    /// # Returns
+    /// * `output` - The generated full output from the chat module.
     pub fn generate(
-        &self,
-        prompt: impl Into<Prompt>,
-        generation_config: Option<&GenerationConfig>,
+        &self, prompt: impl Into<Prompt>, generation_config: Option<&GenerationConfig>,
     ) -> Result<Vec<String>> {
         // TODO: add progress_callback
         let mut new_msgs: Vec<String> = vec![];
@@ -475,13 +492,42 @@ impl ChatModule {
         Ok(new_msgs)
     }
 
-    /// Run prefill stage for a given input and optionally decode the first output token.
-    /// User can decide where to place the input in the prompt.
+    /// Runs the prefill stage for a given input and optionally decodes the first output token.
+    /// The user can decide where to place the input in the prompt.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - A `String` or a `Vec<ChatMessage>`. The user input prompt, i.e., a question to ask the chat module.
+    ///   It can also be the whole conversation history (list of messages with role and content).
+    ///
+    ///   # Examples
+    ///   ```
+    ///   // Single prompt case, the `prompt` can be a &str
+    ///   "what is the meaning of life?";
+    ///
+    ///   // Multi-prompt case, the `prompt` can be Vec<ChatMessage>
+    ///   vec![
+    ///       ChatMessage::new("user", "Hello, how are you?"),
+    ///       ChatMessage::new("assistant", "I'm fine, thank you. How about you?"),
+    ///       ChatMessage::new("user", "I'm good too."),
+    ///   ]
+    ///   ```
+    /// * `decode_next_token` - A boolean indicating whether to decode the next token after prefilling.
+    /// * `place_in_prompt` - The place of the input message in the prompt, as defined by the `PlaceInPrompt` enum.
+    /// * `generation_config` - An optional `GenerationConfig` to override the ChatConfig generation settings.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let input = "Hello, how are you?";
+    /// let decode_next_token = true;
+    /// let place_in_prompt = PlaceInPrompt::All;
+    /// let generation_config = Some(GenerationConfig::new());
+    ///
+    /// prefill(input, decode_next_token, place_in_prompt, generation_config);
+    /// ```
     fn prefill(
-        &self,
-        input: &Prompt,
-        decode_next_token: bool,
-        place_in_promt: PlaceInPrompt,
+        &self, input: &Prompt, decode_next_token: bool, place_in_promt: PlaceInPrompt,
         generation_config: Option<&GenerationConfig>,
     ) -> Result<()> {
         let generation_config_str = match generation_config {
@@ -507,10 +553,7 @@ impl ChatModule {
                     let role0 = self.get_role_0()?;
                     let role1 = self.get_role_1()?;
 
-                    let last_msg = chat_msgs
-                        .last()
-                        .expect("No last message in the vector")
-                        .clone();
+                    let last_msg = chat_msgs.last().expect("No last message in the vector").clone();
                     if last_msg.role != "user" {
                         panic!("Last message should be from user.");
                     }
@@ -537,13 +580,14 @@ impl ChatModule {
             }
         };
 
-        let f = self.chat_module.get_function("prefill", false)?;
-        f.invoke(vec![
-            input_string.into(),
-            (&decode_next_token).into(),
-            place_in_promt.to_value().into(),
-            generation_config_str.into(),
-        ])?;
-        Ok(())
+        tvm_func_invoke!(
+            self,
+            prefill(
+                input_string,
+                &decode_next_token,
+                place_in_promt.to_value(),
+                generation_config_str
+            )
+        )
     }
 }

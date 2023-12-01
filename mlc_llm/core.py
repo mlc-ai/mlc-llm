@@ -395,6 +395,11 @@ class BuildArgs:
         """A backwards-compatibility helper"""
         return self.convert_weights_only
 
+    @property
+    def convert_weight_only(self):
+        """A backwards-compatibility helper"""
+        return self.convert_weights_only
+
 
 def convert_build_args_to_argparser() -> argparse.ArgumentParser:
     """Convert from BuildArgs to an equivalent ArgumentParser."""

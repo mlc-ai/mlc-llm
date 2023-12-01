@@ -45,11 +45,17 @@ std::unique_ptr<Tokenizer> TokenizerFromPath(const std::string& _path) {
     huggingface = path.parent_path() / "tokenizer.json";
     rwkvworld = path.parent_path() / "tokenizer_model";
   }
-  if (std::filesystem::exists(sentencepiece)) {
-    return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece.string()));
-  }
   if (std::filesystem::exists(huggingface)) {
     return Tokenizer::FromBlobJSON(LoadBytesFromFile(huggingface.string()));
+  }
+  if (std::filesystem::exists(sentencepiece)) {
+    LOG(WARNING)
+        << "Using `tokenizer.model` since we cannot locate `tokenizer.json`.\n"
+        << "It is recommended to use `tokenizer.json` to ensure all token mappings are included, "
+        << "since currently, files like `added_tokens.json`, `tokenizer_config.json` are ignored.\n"
+        << "Consider converting `tokenizer.model` to `tokenizer.json` by compiling the model "
+        << "with MLC again, or see if MLC's huggingface provides this file.";
+    return Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece.string()));
   }
   if (std::filesystem::exists(rwkvworld)) {
     return Tokenizer::FromBlobRWKVWorld(rwkvworld.string());

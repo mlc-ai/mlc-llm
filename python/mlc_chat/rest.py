@@ -236,6 +236,7 @@ async def request_chat_completion(request: ChatCompletionRequest):
                     )
                     prev_txt = valid_content
                     yield f"data: {chunk.json(exclude_unset=True)}\n\n"
+            yield "data: [DONE]\n\n"
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
     msg = session["chat_mod"].generate(prompt=request.messages, generation_config=generation_config)
@@ -269,6 +270,8 @@ async def request_completion(request: CompletionRequest):
         top_p=request.top_p,
         mean_gen_len=request.mean_gen_len,
         max_gen_len=request.max_gen_len,
+        n=request.n,
+        stop=request.stop,
     )
 
     session["chat_mod"].reset_chat()
@@ -306,11 +309,16 @@ async def request_completion(request: CompletionRequest):
                     )
                     prev_txt = content
                     yield f"data: {chunk.json(exclude_unset=True)}\n\n"
+            yield "data: [DONE]\n\n"
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
     msg = session["chat_mod"].generate(prompt=prompt, generation_config=generation_config)
+    if isinstance(msg, str):
+        msg = [msg]
     return CompletionResponse(
-        choices=[CompletionResponseChoice(index=0, text=msg)],
+        choices=[
+            CompletionResponseChoice(index=index, text=msg[index]) for index in range(len(msg))
+        ],
         # TODO: Fill in correct usage info
         usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
     )

@@ -8,7 +8,7 @@ from tvm._ffi import get_global_func, register_func
 from tvm.contrib import tar, xcode
 from tvm.target import Target
 
-from .auto_device import AUTO_DETECT_DEVICES
+from .auto_device import AUTO_DETECT_DEVICES, _device_to_str, detect_device
 from .style import bold, green, red
 
 if TYPE_CHECKING:
@@ -47,20 +47,23 @@ def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[T
 def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
     if hint in ["iphone", "android", "webgpu", "mali", "opencl"]:
         hint += ":generic"
-    if hint == "auto":
-        logger.info("Detecting potential target devices: %s", ", ".join(AUTO_DETECT_DEVICES))
+    if hint == "auto" or hint in AUTO_DETECT_DEVICES:
         target: Optional[Target] = None
-        for device in AUTO_DETECT_DEVICES:
-            device_target = _detect_target_from_device(device + ":0")
-            if device_target is not None and target is None:
-                target = device_target
+        device = detect_device(hint)
+        if device is not None:
+            device_str = _device_to_str(device)
+            try:
+                target = Target.from_device(device)
+            except ValueError:
+                logger.info("%s: Cannot detect target from device: %s", NOT_FOUND, device_str)
         if target is None:
-            raise ValueError("No GPU target detected. Please specify explicitly")
-        return target, _build_default()
-    if hint in AUTO_DETECT_DEVICES:
-        target = _detect_target_from_device(hint + ":0")
-        if target is None:
-            raise ValueError(f"No GPU target detected from device: {hint}")
+            raise ValueError(f"No target detected from device: {hint}. Please specify explicitly")
+        logger.info(
+            '%s configuration of target device "%s": %s',
+            FOUND,
+            bold(device_str),
+            target.export(),
+        )
         return target, _build_default()
     if hint in PRESET:
         preset = PRESET[hint]
@@ -115,21 +118,6 @@ def _add_prefix_symbol(mod: IRModule, prefix: str, is_system_lib: bool) -> IRMod
             "when building the shared library"
         )
     return mod
-
-
-def _detect_target_from_device(device: str) -> Optional[Target]:
-    try:
-        target = Target.from_device(device)
-    except ValueError:
-        logger.info("%s: target device: %s", NOT_FOUND, device)
-        return None
-    logger.info(
-        '%s configuration of target device "%s": %s',
-        FOUND,
-        bold(device),
-        target.export(),
-    )
-    return target
 
 
 def _build_metal_x86_64():
