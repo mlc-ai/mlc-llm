@@ -11,6 +11,7 @@ from .estimate_memory_usage import EstimateMemoryUsage
 from .fuse_dequantize_matmul_ewise import FuseDequantizeMatmulEwise
 from .fuse_dequantize_take import FuseDequantizeTake
 from .fuse_dequantize_transpose import FuseDequantizeTranspose
+from .fuse_split_rotary_embedding import FuseSplitRotaryEmbedding
 from .fuse_transpose_matmul import FuseTransposeMatmul
 from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
 
@@ -40,6 +41,7 @@ def _mlc_llm_pipeline():
                 _LogProgress("Running TVM Relax graph-level optimizations"),
                 FuseDequantizeTranspose(skip_gemm=False),
                 FuseTransposeMatmul(),
+                FuseSplitRotaryEmbedding(),
                 # Phase 2. Lowering to TIR, inherited TVM Relax's official "zero" pipeline
                 _LogProgress("Lowering to TVM TIR kernels"),
                 tvm.relax.transform.LegalizeOps(),
