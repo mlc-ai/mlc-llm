@@ -1,18 +1,20 @@
+"""A compiler pass that fuses split + rotary embedding."""
 import tvm
 from tvm import relax, tir
-from tvm.tir.stmt_functor import post_order_visit
 from tvm.relax.dpl import (
+    GlobalVarPattern,
     PatternContext,
+    TuplePattern,
     is_op,
+    is_tuple_get_item,
     rewrite_bindings,
     wildcard,
-    is_tuple_get_item,
-    GlobalVarPattern,
-    TuplePattern,
-    is_shape,
 )
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R
+from tvm.script import tir as T
+from tvm.tir.stmt_functor import post_order_visit
 
+# pylint: disable=too-many-arguments,too-many-locals
 
 def get_dynamic_split_rotary(dtype):
     """Implementation of R.split(rotary_embedding(fused_qkv))
@@ -37,22 +39,22 @@ def get_dynamic_split_rotary(dtype):
         head_dim: T.int64,
         position_embedding_base: T.float32,
     ):
-        Fused_QKV = T.match_buffer(
+        fused_qkv = T.match_buffer(
             fused_qkv_handle,
             [batch_size, seq_len, num_query_heads + num_kv_heads * 2, head_dim],
             dtype=dtype,
         )
-        EmbeddedQuery = T.match_buffer(
+        embedded_query = T.match_buffer(
             embedded_query_handle,
             [batch_size, seq_len, num_query_heads, head_dim],
             dtype=dtype,
         )
-        EmbeddedKey = T.match_buffer(
+        embedded_key = T.match_buffer(
             embedded_key_handle,
             [batch_size, seq_len, num_kv_heads, head_dim],
             dtype=dtype,
         )
-        Value = T.match_buffer(
+        value = T.match_buffer(
             value_handle,
             [batch_size, seq_len, num_kv_heads, head_dim],
             dtype=dtype,
@@ -73,19 +75,19 @@ def get_dynamic_split_rotary(dtype):
                 cos_value = T.Cast("float16", T.cos(freq)) if dtype == "float16" else T.cos(freq)
                 sin_value = T.Cast("float16", T.sin(freq)) if dtype == "float16" else T.sin(freq)
 
-                input_value = Fused_QKV[batch_i, seq_i, head_num, head_i]
+                input_value = fused_qkv[batch_i, seq_i, head_num, head_i]
                 embedded_value = cos_value * input_value + sin_value * T.Select(
                     head_i < T.int64(head_dim // 2),
-                    Fused_QKV[batch_i, seq_i, head_num, head_i + T.int64(head_dim // 2)]
+                    fused_qkv[batch_i, seq_i, head_num, head_i + T.int64(head_dim // 2)]
                     * T.FloatImm(dtype, -1),
-                    Fused_QKV[batch_i, seq_i, head_num, head_i - T.int64(head_dim // 2)],
+                    fused_qkv[batch_i, seq_i, head_num, head_i - T.int64(head_dim // 2)],
                 )
                 if head_num < num_query_heads:
-                    EmbeddedQuery[batch_i, seq_i, head_num, head_i] = embedded_value
+                    embedded_query[batch_i, seq_i, head_num, head_i] = embedded_value
                 elif head_num < num_query_heads + num_kv_heads:
-                    EmbeddedKey[batch_i, seq_i, head_num - num_query_heads, head_i] = embedded_value
+                    embedded_key[batch_i, seq_i, head_num - num_query_heads, head_i] = embedded_value
                 else:
-                    Value[
+                    value[
                         batch_i, seq_i, head_num - num_query_heads - num_kv_heads, head_i
                     ] = input_value
 
@@ -98,19 +100,11 @@ def get_dynamic_split_rotary(dtype):
             sinfo = relax.PrimStructInfo(param.dtype)
         param_sinfo.append(sinfo)
 
-    relax.expr._update_struct_info(
-        split_rotary,
-        tvm.relax.FuncStructInfo(
-            params=param_sinfo,
-            ret=relax.TupleStructInfo([]),
-            purity=False,
-        ),
-    )
-
     return split_rotary
 
 
 def collect_position_embedding_base(func: tir.PrimFunc):
+    """ Collect position embedding base from rotary embedding function"""
     position_embedding_base = None
 
     def visit(node):
@@ -134,6 +128,7 @@ class FuseSplitRotaryEmbedding:  # pylint: disable=too-few-public-methods
         mod: tvm.IRModule,
         _ctx: tvm.transform.PassContext,
     ) -> tvm.IRModule:
+        """IRModule-level transformation"""
         with PatternContext() as ctx:
             pat_rotary_embedding_gvar = GlobalVarPattern()
 
@@ -180,7 +175,6 @@ class FuseSplitRotaryEmbedding:  # pylint: disable=too-few-public-methods
             rotary_embedding_gvar = bindings[embedded_query].args[0]
             position_embedding_base = collect_position_embedding_base(mod[rotary_embedding_gvar])
 
-            # rotary_embedding_offset = bindings[query].args[-1][1]
             rotary_embedding_offset = bindings[embedded_query].args[-1][0]
 
             batch_size, seq_len, num_query_heads, head_dim = query.struct_info.shape
@@ -219,7 +213,7 @@ class FuseSplitRotaryEmbedding:  # pylint: disable=too-few-public-methods
                 )
                 mod["split_rotary"] = split_rotary
                 split_rotary_gvar = mod.get_global_var("split_rotary")
-                relax.expr._update_struct_info(split_rotary_gvar, mod["split_rotary"].struct_info)
+                relax.expr._update_struct_info(split_rotary_gvar, relax.ObjectStructInfo())
             else:
                 split_rotary_gvar = mod.get_global_var("split_rotary")
 

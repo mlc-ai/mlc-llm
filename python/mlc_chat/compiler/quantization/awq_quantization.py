@@ -1,9 +1,8 @@
 """AWQ Quantization"""
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional
 
-import numpy as np
 from tvm import DataType, DataTypeCode, te, tir
 from tvm.relax.frontend import nn
 from tvm.runtime import NDArray

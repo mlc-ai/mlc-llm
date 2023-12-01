@@ -58,7 +58,7 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = self.context_window_size
 
 
-# pylint: disable=invalid-name,missing-docstring
+# pylint: disable=invalid-name,missing-docstring,too-many-locals
 
 
 class GPT2Attention(nn.Module):
