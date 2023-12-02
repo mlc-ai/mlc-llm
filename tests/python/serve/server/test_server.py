@@ -38,6 +38,7 @@ def check_openai_nonstream_response(
     completion_tokens: Optional[int] = None,
     echo_prompt: Optional[str] = None,
     suffix: Optional[str] = None,
+    stop: Optional[List[str]] = None,
 ):
     assert response["model"] == model
     assert response["object"] == object_str
@@ -53,6 +54,9 @@ def check_openai_nonstream_response(
             assert choice["text"].startswith(echo_prompt)
         if suffix is not None:
             assert choice["text"].endswith(suffix)
+        if stop is not None:
+            for stop_str in stop:
+                assert stop_str not in choice["text"]
 
     usage = response["usage"]
     assert isinstance(usage, dict)
@@ -72,6 +76,7 @@ def check_openai_stream_response(
     completion_tokens: Optional[int] = None,
     echo_prompt: Optional[str] = None,
     suffix: Optional[str] = None,
+    stop: Optional[List[str]] = None,
 ):
     assert len(responses) > 0
 
@@ -109,6 +114,9 @@ def check_openai_stream_response(
             assert output.startswith(echo_prompt)
         if suffix is not None:
             assert output.endswith(suffix)
+        if stop is not None:
+            for stop_str in stop:
+                assert stop_str not in output
 
 
 def expect_error(response_str: str, msg_prefix: Optional[str] = None):
@@ -276,6 +284,53 @@ def test_openai_v1_completions_suffix(
 
 
 @pytest.mark.parametrize("stream", [False, True])
+def test_openai_v1_completions_stop_str(
+    served_model: str,
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    # Choose "in" as the stop string since it is very unlikely that
+    # "in" does not appear in the generated output.
+    prompt = "What is the meaning of life?"
+    stop = ["in"]
+    max_tokens = 256
+    payload = {
+        "model": served_model,
+        "prompt": prompt,
+        "max_tokens": max_tokens,
+        "stop": stop,
+        "stream": stream,
+    }
+
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    if not stream:
+        check_openai_nonstream_response(
+            response.json(),
+            model=served_model,
+            object_str="text_completion",
+            num_choices=1,
+            finish_reason="stop",
+            stop=stop,
+        )
+    else:
+        responses = []
+        for chunk in response.iter_lines(chunk_size=512):
+            if not chunk or chunk == b"data: [Done]":
+                continue
+            responses.append(json.loads(chunk.decode("utf-8")[6:]))
+        check_openai_stream_response(
+            responses,
+            model=served_model,
+            object_str="text_completion",
+            num_choices=1,
+            finish_reason="stop",
+        )
+
+
+@pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_prompt_overlong(
     served_model: str,
     launch_server,  # pylint: disable=unused-argument
@@ -330,6 +385,39 @@ def test_openai_v1_completions_unsupported_args(
     expect_error(response.json(), msg_prefix=error_msg_prefix)
 
 
+def test_openai_v1_completions_request_cancellation(
+    served_model: str,
+    launch_server,  # pylint: disable=unused-argument
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    # Use a large max_tokens and small timeout to force timeouts.
+    payload = {
+        "model": served_model,
+        "prompt": "What is the meaning of life?",
+        "max_tokens": 2048,
+        "stream": False,
+    }
+    with pytest.raises(requests.exceptions.Timeout):
+        requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=1)
+
+    # The server should still be alive after a request cancelled.
+    # We query `v1/models` to validate the server liveness.
+    response = requests.get(OPENAI_V1_MODELS_URL, timeout=60).json()
+
+    assert response["object"] == "list"
+    models = response["data"]
+    assert isinstance(models, list)
+    assert len(models) == 1
+
+    model_card = models[0]
+    assert isinstance(model_card, dict)
+    assert model_card["id"] == served_model
+    assert model_card["object"] == "model"
+    assert model_card["owned_by"] == "MLC-LLM"
+
+
 def test_openai_v1_models(
     served_model,
     launch_server,  # pylint: disable=unused-argument
@@ -367,7 +455,10 @@ if __name__ == "__main__":
     test_openai_v1_completions_echo(MODEL, None, stream=True)
     test_openai_v1_completions_suffix(MODEL, None, stream=False)
     test_openai_v1_completions_suffix(MODEL, None, stream=True)
+    test_openai_v1_completions_stop_str(MODEL, None, stream=False)
+    test_openai_v1_completions_stop_str(MODEL, None, stream=True)
     test_openai_v1_completions_prompt_overlong(MODEL, None, stream=False)
     test_openai_v1_completions_prompt_overlong(MODEL, None, stream=True)
     test_openai_v1_completions_unsupported_args(MODEL, None)
+    test_openai_v1_completions_request_cancellation(MODEL, None)
     test_openai_v1_models(MODEL, None)
