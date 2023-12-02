@@ -31,7 +31,6 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
     build_func: Callable[[IRModule, "CompileArgs"], None]
     system_lib_prefix: str
     output: Path
-    overrides: ModelConfigOverride
 
     def display(self) -> None:
         """Display the arguments to stdout."""
@@ -44,7 +43,6 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
         print(f"  {bold('--opt'):<25} {self.opt}", file=out)
         print(f"  {bold('--system-lib-prefix'):<25} \"{self.system_lib_prefix}\"", file=out)
         print(f"  {bold('--output'):<25} {self.output}", file=out)
-        print(f"  {bold('--overrides'):<25} {dataclasses.asdict(self.overrides)}", file=out)
         print(out.getvalue().rstrip())
 
 
@@ -100,7 +98,6 @@ def _attach_variable_bounds(mod, model_config):
 def _compile(args: CompileArgs):
     logger.info("Creating model from: %s", args.config)
     model_config = args.model.config.from_file(args.config)
-    args.overrides.apply(model_config)
     model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
     logger.info("Exporting the model to TVM Unity compiler")
     mod, named_params = model.export_tvm(
@@ -125,9 +122,6 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     build_func: Callable[[IRModule, CompileArgs], None],
     system_lib_prefix: str,
     output: Path,
-    context_window_size: Optional[int],
-    sliding_window: Optional[int],
-    prefill_chunk_size: Optional[int],
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
     args = CompileArgs(
@@ -139,11 +133,6 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
         build_func,
         system_lib_prefix,
         output,
-        ModelConfigOverride(
-            context_window_size=context_window_size,
-            sliding_window=sliding_window,
-            prefill_chunk_size=prefill_chunk_size,
-        ),
     )
     args.display()
     _compile(args)

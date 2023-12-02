@@ -83,29 +83,11 @@ def main(argv):
         help=HELP["system_lib_prefix"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--context-window-size",
-        type=int,
-        default=None,
-        help=HELP["context_window_size"] + ' (default: "%(default)s")',
-    )
-    parser.add_argument(
         "--output",
         "-o",
         type=_parse_output,
         required=True,
         help=HELP["output_compile"] + " (required)",
-    )
-    parser.add_argument(
-        "--sliding-window",
-        type=int,
-        default=None,
-        help=HELP["sliding_window"] + ' (default: "%(default)s")',
-    )
-    parser.add_argument(
-        "--prefill-chunk-size",
-        type=int,
-        default=None,
-        help=HELP["prefill_chunk_size"] + ' (default: "%(default)s")',
     )
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
@@ -119,7 +101,4 @@ def main(argv):
         build_func=build_func,
         system_lib_prefix=parsed.system_lib_prefix,
         output=parsed.output,
-        context_window_size=parsed.context_window_size,
-        sliding_window=parsed.sliding_window,
-        prefill_chunk_size=parsed.prefill_chunk_size,
     )
