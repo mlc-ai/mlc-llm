@@ -10,10 +10,11 @@ from mlc_chat.serve import data
 from mlc_chat.support.auto_device import detect_device
 
 from ..chat_module import _get_chat_config, _get_lib_module_path, _get_model_path
+from ..streamer import StopStringHandler, TextStreamer
+from ..tokenizer import Tokenizer
 from . import data
 from .config import GenerationConfig, KVCacheConfig
 from .request import Request
-from .tokenizer import Tokenizer
 
 
 @dataclass
@@ -168,7 +169,7 @@ class Engine:
             request_stream_callback,
             *model_args,
         )
-        self.tokenizer = Tokenizer.from_path(tokenizer_path)
+        self.tokenizer = Tokenizer(tokenizer_path)
 
     def generate(
         self,
@@ -221,7 +222,13 @@ class Engine:
         ), "Number of generation config and number of prompts mismatch"
 
         num_finished_requests = 0
-        outputs: List[List[int]] = [[] for _ in range(num_requests)]
+        outputs: List[str] = []
+        text_streamers: List[TextStreamer] = []
+        stop_handlers: List[StopStringHandler] = []
+        for i in range(num_requests):
+            outputs.append("")
+            text_streamers.append(TextStreamer(self.tokenizer))
+            stop_handlers.append(StopStringHandler(generation_config[i].stop_strs))
 
         # Save a copy of the original function callback since `generate`
         # overrides the callback function.
@@ -231,11 +238,25 @@ class Engine:
         # Define the callback function for request generation results
         def request_stream_callback(
             request_id: str,
-            token_data: data.TokenData,
+            delta_tokens: data.TokenData,
             finish_reason: Optional[str],  # pylint: disable=unused-argument
         ):
             nonlocal num_finished_requests
-            outputs[int(request_id)] += token_data.token_ids
+            rid = int(request_id)
+            text_streamer = text_streamers[rid]
+            stop_handler = stop_handlers[rid]
+
+            delta_text = stop_handler.put(text_streamer.put(delta_tokens.token_ids))
+            if stop_handler.stop_triggered:
+                finish_reason = "stop"
+            elif finish_reason is not None:
+                delta_text += stop_handler.put(text_streamer.finish())
+                if stop_handler.stop_triggered:
+                    finish_reason = "stop"
+                else:
+                    delta_text += stop_handler.finish()
+
+            outputs[rid] += delta_text
             if finish_reason is not None:
                 num_finished_requests += 1
 
@@ -260,13 +281,9 @@ class Engine:
         while num_finished_requests != num_requests:
             self.step()
 
-        output_strs = []
-        for output in outputs:
-            output_strs.append(self.tokenizer.decode(output))
-
         # Restore the callback function in engine.
         self._ffi["set_request_stream_callback"](original_callback)
-        return output_strs
+        return outputs
 
     def add_request(self, request: Request) -> None:
         """Add a new request to the engine.
