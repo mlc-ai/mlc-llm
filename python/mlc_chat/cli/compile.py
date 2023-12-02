@@ -13,7 +13,7 @@ from mlc_chat.compiler import (  # pylint: disable=redefined-builtin
 )
 
 from ..support.argparse import ArgumentParser
-from ..support.auto_config import detect_config, detect_model_type
+from ..support.auto_config import detect_mlc_chat_config, detect_model_type
 from ..support.auto_target import detect_target_and_host
 
 
@@ -39,7 +39,7 @@ def main(argv):
     parser = ArgumentParser("MLC LLM Compiler")
     parser.add_argument(
         "--model",
-        type=detect_config,
+        type=detect_mlc_chat_config,
         required=True,
         dest="config",
         help=HELP["model"] + " (required)",
