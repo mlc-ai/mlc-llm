@@ -113,7 +113,6 @@ def openai_api_get_unsupported_fields(request: OpenAIRequestProtocol) -> List[st
         ("logprobs", None),
         ("n", 1),
         ("seed", None),
-        ("stop", None),
     ]
 
     unsupported_fields: List[str] = []
