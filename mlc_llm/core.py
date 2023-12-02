@@ -655,6 +655,13 @@ def mod_transform_before_build(
             os.makedirs("./tmp", exist_ok=True)
 
             sm = get_cuda_sm_version()
+
+            # Some kernels are only supported for sm80 or lower. H100 can run a kernel compiled for older arches,
+            # but in this particular case compilation fails due to architecture mismatch. This param is only used
+            # for compiling sm 80 specific kernels. So for hopper sm_90 we set the parameter to sm_80.
+            if sm == 90:
+                sm = 80
+
             options = {"cutlass": {"sm": sm, "find_first_valid": False}}
 
             if hasattr(config, "rms_norm_eps"):
