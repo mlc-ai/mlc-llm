@@ -79,10 +79,12 @@ def _attach_auxiliary_methods(
         "model_type": args.model.name,
         "memory_usage": _get_memory_usage(),
         "params": _get_param_info(),
-        "max_window_size": model_config.context_window_size,
-        "prefill_chunk_size": model_config.prefill_chunk_size,
     }
 
+    if hasattr(model_config, "context_window_size"):
+        metadata["max_window_size"] = model_config.context_window_size
+    if hasattr(model_config, "prefill_chunk_size"):
+        metadata["prefill_chunk_size"] = model_config.prefill_chunk_size
     if hasattr(model_config, "sliding_window"):
         metadata["sliding_window"] = model_config.sliding_window
 
