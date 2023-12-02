@@ -57,20 +57,20 @@ Optional<String> RequestStateNode::GenerationFinished(int max_single_sequence_le
   // - Decode committed tokens.
   const std::vector<int32_t>& committed_tokens = mstates[0]->committed_tokens;
 
-  // Case 1. Any of the stop strings appears in output ==> Finished
-  // Todo: handle stop_str by tokenizing. So that we don't detokenize during check
+  // NOTE: the handling of stop strings are not part of engine logic,
+  //       since we don't do detokenization in engine.
 
-  // Case 2. Any of the stop tokens appears in the committed tokens ===> Finished
+  // Case 1. Any of the stop tokens appears in the committed tokens ===> Finished
   if (std::any_of(
           request->generation_cfg->stop_tokens.begin(), request->generation_cfg->stop_tokens.end(),
           [&committed_tokens](int32_t token) { return token == committed_tokens.back(); })) {
     return String("stop");
   }
-  // Case 3. Generation reaches the specified max generation length ==> Finished
+  // Case 2. Generation reaches the specified max generation length ==> Finished
   if (static_cast<int>(committed_tokens.size()) >= request->generation_cfg->max_new_tokens) {
     return String("length");
   }
-  // Case 4. Total length of the request reaches the maximum single sequence length ==> Finished
+  // Case 3. Total length of the request reaches the maximum single sequence length ==> Finished
   if (request->input_total_length + static_cast<int>(committed_tokens.size()) >=
       max_single_sequence_length) {
     return String("length");
