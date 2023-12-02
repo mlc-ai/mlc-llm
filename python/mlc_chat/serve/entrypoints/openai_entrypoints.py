@@ -70,12 +70,10 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
 
         async def completion_stream_generator() -> AsyncGenerator[str, None]:
             assert request.n == 1
-            prev_text_len = 0
 
             # - Echo back the prompt.
             if request.echo:
                 text = async_engine.tokenizer.decode(prompt)
-                prev_text_len = len(text)
                 response = CompletionResponse(
                     id=request_id,
                     choices=[CompletionResponseChoice(text=text)],
@@ -88,16 +86,12 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
                 yield f"data: {response.model_dump_json()}\n\n"
 
             # - Generate new tokens.
-            tokens = list(prompt)
+            num_completion_tokens = 0
             finish_reason = None
-            async for output_token, finish_reason in async_engine.generate(
+            async for delta_text, num_delta_tokens, finish_reason in async_engine.generate(
                 prompt, generation_cfg, request_id
             ):
-                tokens.append(output_token)
-                text = async_engine.tokenizer.decode(tokens)
-                delta_text = text[prev_text_len:]
-                prev_text_len = len(text)
-
+                num_completion_tokens += num_delta_tokens
                 response = CompletionResponse(
                     id=request_id,
                     choices=[
@@ -109,7 +103,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
                     model=request.model,
                     usage=UsageInfo(
                         prompt_tokens=len(prompt),
-                        completion_tokens=len(tokens) - len(prompt),
+                        completion_tokens=num_completion_tokens,
                     ),
                 )
                 yield f"data: {response.model_dump_json()}\n\n"
@@ -128,7 +122,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
                     model=request.model,
                     usage=UsageInfo(
                         prompt_tokens=len(prompt),
-                        completion_tokens=len(tokens) - len(prompt),
+                        completion_tokens=num_completion_tokens,
                     ),
                 )
                 yield f"data: {response.model_dump_json()}\n\n"
@@ -140,9 +134,10 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         )
 
     # Normal response.
-    output_tokens = []
+    output_text = "" if not request.echo else async_engine.tokenizer.decode(prompt)
+    num_completion_tokens = 0
     finish_reason: Optional[str] = None
-    async for output_token, finish_reason in async_engine.generate(
+    async for delta_text, num_delta_tokens, finish_reason in async_engine.generate(
         prompt, generation_cfg, request_id
     ):
         if await raw_request.is_disconnected():
@@ -154,22 +149,22 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             return entrypoint_utils.create_error_response(
                 HTTPStatus.BAD_REQUEST, message="The request has disconnected"
             )
-        output_tokens.append(output_token)
+        output_text += delta_text
+        num_completion_tokens += num_delta_tokens
     assert finish_reason is not None
-    text = async_engine.tokenizer.decode(prompt + output_tokens if request.echo else output_tokens)
     suffix = request.suffix if request.suffix is not None else ""
     response = CompletionResponse(
         id=request_id,
         choices=[
             CompletionResponseChoice(
                 finish_reason=finish_reason,
-                text=text + suffix,
+                text=output_text + suffix,
             )
         ],
         model=request.model,
         usage=UsageInfo(
             prompt_tokens=len(prompt),
-            completion_tokens=len(output_tokens),
+            completion_tokens=num_completion_tokens,
         ),
     )
     return response

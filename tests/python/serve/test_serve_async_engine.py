@@ -32,7 +32,7 @@ async def test_engine_generate(async_engine_cls: Type[Union[AsyncEngine, AsyncTh
     max_new_tokens = 256
     generation_cfg = GenerationConfig(max_new_tokens=max_new_tokens)
 
-    outputs: List[List[int]] = [[] for _ in range(num_requests)]
+    outputs: List[str] = ["" for _ in range(num_requests)]
 
     async def generate_task(
         async_engine: Union[AsyncEngine, AsyncThreadedEngine],
@@ -42,10 +42,10 @@ async def test_engine_generate(async_engine_cls: Type[Union[AsyncEngine, AsyncTh
     ):
         print(f"generate task for request {request_id}")
         rid = int(request_id)
-        async for token, finish_reason in async_engine.generate(
+        async for delta_text, num_delta_tokens, finish_reason in async_engine.generate(
             prompt, generation_cfg, request_id=request_id
         ):
-            outputs[rid].append(token)
+            outputs[rid] += delta_text
 
     tasks = [
         asyncio.create_task(
@@ -60,7 +60,7 @@ async def test_engine_generate(async_engine_cls: Type[Union[AsyncEngine, AsyncTh
     print("All finished")
     for req_id, output in enumerate(outputs):
         print(f"Prompt {req_id}: {prompts[req_id]}")
-        print(f"Output {req_id}:{async_engine.tokenizer.decode(output)}\n")
+        print(f"Output {req_id}:{output}\n")
 
     async_engine.terminate()
     del async_engine
