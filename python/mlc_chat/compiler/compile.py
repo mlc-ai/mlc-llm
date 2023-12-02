@@ -11,10 +11,10 @@ from tvm.relax.frontend import nn
 from tvm.target import Target
 
 from ..support.style import bold
-from .flags_model_config_override import ModelConfigOverride
+from ..support.config import ConfigBase
 from .flags_optimization import OptimizationFlags
 from .model import Model
-from .quantization import Quantization
+from .quantization import Quantization, QUANTIZATION
 
 logger = logging.getLogger(__name__)
 
@@ -95,9 +95,8 @@ def _attach_variable_bounds(mod, model_config):
             mod[g_var] = func.with_attr("tir_var_upper_bound", tir_bound_map)
 
 
-def _compile(args: CompileArgs):
+def _compile(args: CompileArgs, model_config: ConfigBase):
     logger.info("Creating model from: %s", args.config)
-    model_config = args.model.config.from_file(args.config)
     model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
     logger.info("Exporting the model to TVM Unity compiler")
     mod, named_params = model.export_tvm(
@@ -115,7 +114,6 @@ def _compile(args: CompileArgs):
 
 def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     config: Path,
-    quantization: Quantization,
     model_type: Model,
     target: Target,
     opt: OptimizationFlags,
@@ -124,6 +122,8 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     output: Path,
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
+    model_config = model_type.config.from_file(config)
+    quantization = QUANTIZATION[model_config.kwargs["quantization"]]
     args = CompileArgs(
         config,
         quantization,
@@ -135,4 +135,4 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
         output,
     )
     args.display()
-    _compile(args)
+    _compile(args, model_config)

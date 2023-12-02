@@ -45,13 +45,6 @@ def main(argv):
         help=HELP["model"] + " (required)",
     )
     parser.add_argument(
-        "--quantization",
-        type=str,
-        required=True,
-        choices=list(QUANTIZATION.keys()),
-        help=HELP["quantization"] + " (required, choices: %(choices)s)",
-    )
-    parser.add_argument(
         "--model-type",
         type=str,
         default="auto",
@@ -94,7 +87,6 @@ def main(argv):
     parsed.model_type = detect_model_type(parsed.model_type, parsed.config)
     compile(
         config=parsed.config,
-        quantization=QUANTIZATION[parsed.quantization],
         model_type=parsed.model_type,
         target=target,
         opt=parsed.opt,
