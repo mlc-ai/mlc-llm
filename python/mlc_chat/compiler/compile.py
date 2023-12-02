@@ -10,6 +10,7 @@ from tvm import IRModule, relax
 from tvm.relax.frontend import nn
 from tvm.target import Target
 
+from ..support.config import ConfigBase
 from ..support.style import bold
 from .flags_model_config_override import ModelConfigOverride
 from .flags_optimization import OptimizationFlags
@@ -52,6 +53,7 @@ def _attach_auxiliary_methods(
     mod: IRModule,
     named_params: List[Tuple[str, nn.Parameter]],
     args: CompileArgs,
+    model_config: ConfigBase,
 ) -> None:
     def _get_memory_usage():
         return {str(k): int(v) for k, v in mod.attrs["mlc_llm.memory_usage"].items()}
@@ -72,14 +74,21 @@ def _attach_auxiliary_methods(
             bb.emit_func_output(relax.StringImm(json.dumps(metadata)))
         return bb.get()["main"]
 
-    mod["_metadata"] = _emit_metadata(
-        metadata={
-            "quantization": args.quantization.name,
-            "model_type": args.model.name,
-            "memory_usage": _get_memory_usage(),
-            "params": _get_param_info(),
-        }
-    )
+    metadata = {
+        "quantization": args.quantization.name,
+        "model_type": args.model.name,
+        "memory_usage": _get_memory_usage(),
+        "params": _get_param_info(),
+    }
+
+    if hasattr(model_config, "context_window_size"):
+        metadata["max_window_size"] = model_config.context_window_size
+    if hasattr(model_config, "prefill_chunk_size"):
+        metadata["prefill_chunk_size"] = model_config.prefill_chunk_size
+    if hasattr(model_config, "sliding_window"):
+        metadata["sliding_window"] = model_config.sliding_window
+
+    mod["_metadata"] = _emit_metadata(metadata)
 
 
 def _attach_variable_bounds(mod, model_config):
@@ -110,7 +119,7 @@ def _compile(args: CompileArgs):
     _attach_variable_bounds(mod, model_config)
     with args.target:
         mod = relax.get_pipeline("mlc_llm")(mod)
-    _attach_auxiliary_methods(mod, named_params, args)
+    _attach_auxiliary_methods(mod, named_params, args, model_config)
     logger.info("Generating code using TVM Unity")
     args.build_func(mod, args)
     logger.info("Generated: %s", bold(str(args.output)))

@@ -322,9 +322,12 @@ class LLMChat {
       return;
     }
 
-    PackedFunc fget_metadata = ft_.mod_get_func("get_metadata");
+    PackedFunc fget_metadata = ft_.mod_get_func("_metadata");  // name in SLIM
     if (fget_metadata == nullptr) {
-      return;
+      fget_metadata = ft_.mod_get_func("get_metadata");  // backward-compatible name
+      if (fget_metadata == nullptr) {
+        return;  // Skip if neither exists
+      }
     }
     ObjectRef ret = fget_metadata();
     std::string metadata_str = std::string(Downcast<String>(ret));
