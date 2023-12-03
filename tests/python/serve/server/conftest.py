@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from mlc_chat.serve.popen_server import PopenServer
+from mlc_chat.serve import PopenServer
 
 
 @pytest.fixture(scope="session")
