@@ -80,7 +80,7 @@ def sample_requests(
     # Construct generation config.
     prompts = [prompt for prompt, _, _ in sampled_requests]
     generation_config_list = [
-        GenerationConfig(temperature=1.0, top_p=1.0, max_new_tokens=output_len)
+        GenerationConfig(temperature=1.0, top_p=1.0, max_tokens=output_len)
         for _, _, output_len in sampled_requests
     ]
     return prompts, generation_config_list

@@ -1,7 +1,7 @@
 """Configuration dataclasses used in MLC LLM serving"""
 import json
 from dataclasses import asdict, dataclass, field
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
@@ -20,23 +20,25 @@ class GenerationConfig:
     repetition_penalty : float
         The penalty term that applies to logits to control token repetition in generation.
 
-    max_new_tokens : int
-        The maximum number of generated tokens.
+    max_tokens : Optional[int]
+        The maximum number of generated tokens,
+        or None, in which case the generation will not stop
+        until exceeding model capability or hit any stop criteria.
 
     stop_strs : List[str]
         The list of strings that mark the end of generation.
 
-    stop_tokens : List[int]
-        The list of tokens that mark the end of generation.
+    stop_token_ids : List[int]
+        The list of token ids that mark the end of generation.
     """
 
     temperature: float = 0.8
     top_p: float = 0.95
     repetition_penalty: float = 1.0
 
-    max_new_tokens: int = 128
+    max_tokens: Optional[int] = 128
     stop_strs: List[str] = field(default_factory=list)
-    stop_tokens: List[int] = field(default_factory=list)
+    stop_token_ids: List[int] = field(default_factory=list)
 
     def asjson(self) -> str:
         """Return the config in string of JSON format."""
