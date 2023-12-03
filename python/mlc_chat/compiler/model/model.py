@@ -7,6 +7,7 @@ from tvm.relax.frontend import nn
 from ..loader import ExternMapping, QuantizeMapping
 from ..quantization.quantization import Quantization
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
+from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 
@@ -92,6 +93,19 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": gpt2_quantization.no_quant,
             "group-quant": gpt2_quantization.group_quant,
+        },
+    ),
+    "red-pajama": Model(
+        name="red-pajama",
+        model=gpt_neox_model.GPTNeoXForCausalLM,
+        config=gpt_neox_model.GPTNeoXConfig,
+        source={
+            "huggingface-torch": gpt_neox_loader.huggingface,
+            "huggingface-safetensor": gpt_neox_loader.huggingface,
+        },
+        quantize={
+            "no-quant": gpt_neox_quantization.no_quant,
+            "group-quant": gpt_neox_quantization.group_quant,
         },
     ),
 }
