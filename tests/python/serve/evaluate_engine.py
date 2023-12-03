@@ -3,8 +3,8 @@ import argparse
 import random
 from typing import List, Tuple
 
-from mlc_chat.serve import GenerationConfig, KVCacheConfig
-from mlc_chat.serve.engine import Engine, ModelInfo
+from mlc_chat.serve import Engine, GenerationConfig, KVCacheConfig
+from mlc_chat.serve.engine import ModelInfo
 
 
 def _parse_args():
