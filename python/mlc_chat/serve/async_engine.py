@@ -219,7 +219,7 @@ class AsyncRequestTracker:
         return len(self._request_tools) == 0
 
 
-class AsyncEngine:
+class AsyncEngine:  # pylint: disable=too-many-instance-attributes
     """The asynchronous engine for generate text asynchronously.
 
     This class wraps a synchronous engine inside and exports the
@@ -243,6 +243,7 @@ class AsyncEngine:
         self._background_engine = Engine(models, kv_cache_config, self._request_stream_callback)
         self.tokenizer = self._background_engine.tokenizer
         self.max_single_sequence_length = self._background_engine.max_single_sequence_length
+        self.conv_template_name = self._background_engine.conv_template_name
 
         self._request_tracker = AsyncRequestTracker(self.tokenizer)
         self._background_loop_unshielded: Optional[asyncio.Task] = None
@@ -412,7 +413,7 @@ class AsyncEngine:
         self._request_tracker.abort_request(request_id)
 
 
-class AsyncThreadedEngine:
+class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
     """
     The asynchronous engine backed by ThreadedEngine: the only
     difference between AsyncEngine and AsyncThreadedEngine is that
@@ -425,7 +426,12 @@ class AsyncThreadedEngine:
     def __init__(
         self, models: Union[ModelInfo, List[ModelInfo]], kv_cache_config: KVCacheConfig
     ) -> None:
-        model_args, tokenizer_path, self.max_single_sequence_length = _process_model_args(models)
+        (
+            model_args,
+            tokenizer_path,
+            self.max_single_sequence_length,
+            self.conv_template_name,
+        ) = _process_model_args(models)
         self._ffi = _create_tvm_module(
             "mlc.serve.create_threaded_engine",
             ffi_funcs=[
