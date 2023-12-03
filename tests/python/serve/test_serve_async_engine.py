@@ -29,8 +29,8 @@ async def test_engine_generate(async_engine_cls: Type[Union[AsyncEngine, AsyncTh
     async_engine = async_engine_cls(model, kv_cache_config)
 
     num_requests = 10
-    max_new_tokens = 256
-    generation_cfg = GenerationConfig(max_new_tokens=max_new_tokens)
+    max_tokens = 256
+    generation_cfg = GenerationConfig(max_tokens=max_tokens)
 
     outputs: List[str] = ["" for _ in range(num_requests)]
 
