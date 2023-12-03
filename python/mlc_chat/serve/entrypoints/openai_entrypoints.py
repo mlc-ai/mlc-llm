@@ -20,7 +20,7 @@ from ...protocol.openai_api_protocol import (
     ModelResponse,
     UsageInfo,
 )
-from ..server_context import ServerContext
+from ..server import ServerContext
 from . import entrypoint_utils
 
 app = fastapi.APIRouter()
