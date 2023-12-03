@@ -23,18 +23,18 @@ prompts = [
 
 def create_requests(
     num_requests: int,
-    stop_token: Optional[int] = None,
+    stop_token_id: Optional[int] = None,
     temperature: float = 0.8,
     repetition_penalty: float = 1.0,
-    max_new_tokens_low: int = 256,
-    max_new_tokens_high: int = 257,
+    max_tokens_low: int = 256,
+    max_tokens_high: int = 257,
 ) -> List[Request]:
     assert num_requests >= 0 and num_requests <= len(prompts)
 
-    stop_tokens = [stop_token] if stop_token is not None else []
+    stop_token_ids = [stop_token_id] if stop_token_id is not None else []
     requests = []
     for req_id, prompt in zip(range(num_requests), prompts):
-        max_new_tokens = np.random.randint(max_new_tokens_low, max_new_tokens_high)
+        max_tokens = np.random.randint(max_tokens_low, max_tokens_high)
         requests.append(
             Request(
                 request_id=str(req_id),
@@ -42,8 +42,8 @@ def create_requests(
                 generation_config=GenerationConfig(
                     temperature=temperature,
                     repetition_penalty=repetition_penalty,
-                    max_new_tokens=max_new_tokens,
-                    stop_tokens=stop_tokens,
+                    max_tokens=max_tokens,
+                    stop_token_ids=stop_token_ids,
                 ),
             )
         )
@@ -54,10 +54,10 @@ def test_engine_basic():
     """Test engine **without continuous batching**.
 
     - Add all requests to the engine altogether in the beginning.
-    - All requests have the same max_new_tokens. This means all requests
+    - All requests have the same max_tokens. This means all requests
     will end together.
     - Engine keeps running `step` for estimated number of steps (number of
-    requests + max_new_tokens - 1). Then check the output of each request.
+    requests + max_tokens - 1). Then check the output of each request.
     """
 
     # Initialize model loading info and KV cache config
@@ -68,7 +68,7 @@ def test_engine_basic():
     num_requests = 10  # [4, 8, 10]
     temperature = 0.9  # [0, 0.8, 0.9, 1.0, 1.1]
     repetition_penalty = 1.0  # [1.0, 1.01]
-    max_new_tokens: int = 256  # [32, 128, 256]
+    max_tokens: int = 256  # [32, 128, 256]
     np.random.seed(0)
 
     # Output list
@@ -86,15 +86,15 @@ def test_engine_basic():
         num_requests,
         temperature=temperature,
         repetition_penalty=repetition_penalty,
-        max_new_tokens_low=max_new_tokens,
-        max_new_tokens_high=max_new_tokens + 1,
+        max_tokens_low=max_tokens,
+        max_tokens_high=max_tokens + 1,
     )
 
     # Add all requests to engine
     for request in requests:
         engine.add_request(request)
 
-    num_steps = num_requests + max_new_tokens - 1
+    num_steps = num_requests + max_tokens - 1
     # Run steps
     for step in range(num_steps):
         engine.step()
@@ -111,7 +111,7 @@ def test_engine_continuous_batching_1():
     - All requests have a random maximum generation length. So each
     request keeps generating until reaching the maximum length.
     - Engine keeps running `step` for estimated number of steps (number of
-    requests + the maximum max_new_tokens - 1). Then check the output
+    requests + the maximum max_tokens - 1). Then check the output
     of each request.
     """
 
@@ -123,8 +123,8 @@ def test_engine_continuous_batching_1():
     num_requests = 10  # [4, 8, 10]
     temperature = 0.9  # [0.8, 0.9, 1.0, 1.1]
     repetition_penalty = 1.00  # [1.0, 1.01]
-    max_new_tokens_low = 128
-    max_new_tokens_high = 384
+    max_tokens_low = 128
+    max_tokens_high = 384
     np.random.seed(0)
 
     # Output list
@@ -158,17 +158,15 @@ def test_engine_continuous_batching_1():
         num_requests,
         temperature=temperature,
         repetition_penalty=repetition_penalty,
-        max_new_tokens_low=max_new_tokens_low,
-        max_new_tokens_high=max_new_tokens_high,
+        max_tokens_low=max_tokens_low,
+        max_tokens_high=max_tokens_high,
     )
 
     # Add all requests to engine
     for request in requests:
         engine.add_request(request)
 
-    num_steps = (
-        num_requests + max(request.generation_config.max_new_tokens for request in requests) - 1
-    )
+    num_steps = num_requests + max(request.generation_config.max_tokens for request in requests) - 1
     # Run steps
     for step in range(num_steps):
         timer.step()
@@ -178,7 +176,7 @@ def test_engine_continuous_batching_1():
     for req_id, (request, output, fin_time) in enumerate(zip(requests, outputs, finish_time)):
         print(f"Prompt {req_id}: {request.inputs[0]}")
         print(f"Output {req_id}:{engine.tokenizer.decode(output)}\n")
-        assert fin_time == request.generation_config.max_new_tokens - 1
+        assert fin_time == request.generation_config.max_tokens - 1
 
 
 def test_engine_continuous_batching_2():
@@ -188,7 +186,7 @@ def test_engine_continuous_batching_2():
     - All requests have the stop token. So each request keeps generating
     until having the stop token or reaching the maximum length.
     - Engine keeps running `step` for estimated number of steps (number of
-    requests + the maximum max_new_tokens - 1). Then check the output
+    requests + the maximum max_tokens - 1). Then check the output
     of each request.
     """
 
@@ -200,8 +198,8 @@ def test_engine_continuous_batching_2():
     num_requests = 10  # [4, 8, 10]
     temperature = 0.9  # [0.8, 0.9, 1.0, 1.1]
     repetition_penalty = 1.00  # [1.0, 1.01]
-    stop_token = 2
-    max_new_tokens = 512
+    stop_token_id = 2
+    max_tokens = 512
     np.random.seed(0)
 
     # Output list
@@ -233,18 +231,18 @@ def test_engine_continuous_batching_2():
     # Create requests
     requests = create_requests(
         num_requests,
-        stop_token=stop_token,
+        stop_token_id=stop_token_id,
         temperature=temperature,
         repetition_penalty=repetition_penalty,
-        max_new_tokens_low=max_new_tokens,
-        max_new_tokens_high=max_new_tokens + 1,
+        max_tokens_low=max_tokens,
+        max_tokens_high=max_tokens + 1,
     )
 
     # Add all requests to engine
     for request in requests:
         engine.add_request(request)
 
-    num_steps = num_requests + max_new_tokens - 1
+    num_steps = num_requests + max_tokens - 1
     # Run steps
     for step in range(num_steps):
         timer.step()
@@ -253,7 +251,7 @@ def test_engine_continuous_batching_2():
 
     for req_id, (request, output, fin_time) in enumerate(zip(requests, outputs, finish_time)):
         print(f"Prompt {req_id}: {request.inputs[0]}")
-        if fin_time < num_requests + max_new_tokens - 2:
+        if fin_time < num_requests + max_tokens - 2:
             print(f"Request {req_id} ends early on the stop token")
         print(f"Output {req_id}:{engine.tokenizer.decode(output)}\n")
 
@@ -276,9 +274,9 @@ def test_engine_continuous_batching_3():
     num_requests = 10  # [4, 8, 10]
     temperature = 0.9  # [0.8, 0.9, 1.0, 1.1]
     repetition_penalty = 1.00  # [1.0, 1.01]
-    stop_token = 2
-    max_new_tokens_low = 64
-    max_new_tokens_high = 192
+    stop_token_id = 2
+    max_tokens_low = 64
+    max_tokens_high = 192
     np.random.seed(0)
 
     # Output list
@@ -315,11 +313,11 @@ def test_engine_continuous_batching_3():
     # Create requests
     requests = create_requests(
         num_requests,
-        stop_token=stop_token,
+        stop_token_id=stop_token_id,
         temperature=temperature,
         repetition_penalty=repetition_penalty,
-        max_new_tokens_low=max_new_tokens_low,
-        max_new_tokens_high=max_new_tokens_high,
+        max_tokens_low=max_tokens_low,
+        max_tokens_high=max_tokens_high,
     )
 
     # Assign the time to add requests to engine
@@ -351,12 +349,10 @@ def test_engine_generate():
     engine = Engine(model, kv_cache_config)
 
     num_requests = 10
-    max_new_tokens = 256
+    max_tokens = 256
 
     # Generate output.
-    outputs = engine.generate(
-        prompts[:num_requests], GenerationConfig(max_new_tokens=max_new_tokens)
-    )
+    outputs = engine.generate(prompts[:num_requests], GenerationConfig(max_tokens=max_tokens))
     for req_id, output in enumerate(outputs):
         print(f"Prompt {req_id}: {prompts[req_id]}")
         print(f"Output {req_id}:{output}\n")
