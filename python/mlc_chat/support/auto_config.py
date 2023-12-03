@@ -15,6 +15,38 @@ logger = logging.getLogger(__name__)
 FOUND = green("Found")
 
 
+def detect_mlc_chat_config(mlc_chat_config: Union[str, Path]) -> Path:
+    """Detect and return the path that points to mlc-chat-config.json.
+    If `mlc_chat_config` is a directory, it looks for mlc-chat-config.json below it.
+
+    Parameters
+    ---------
+    mlc_chat_config : Union[str, pathlib.Path]
+        The path to `mlc-chat-config.json`, or the directory containing
+        `mlc-chat-config.json`.
+
+    Returns
+    -------
+    mlc_chat_config_json_path : pathlib.Path
+        The path points to mlc_chat_config.json.
+    """
+
+    mlc_chat_config_path = Path(mlc_chat_config)
+    if not mlc_chat_config_path.exists():
+        raise ValueError(f"{mlc_chat_config_path} does not exist.")
+
+    if mlc_chat_config_path.is_dir():
+        # search config.json under config path
+        mlc_chat_config_json_path = mlc_chat_config_path / "mlc-chat-config.json"
+        if not mlc_chat_config_json_path.exists():
+            raise ValueError(f"Fail to find mlc_chat_config.json under {mlc_chat_config_path}.")
+    else:
+        mlc_chat_config_json_path = mlc_chat_config_path
+
+    logger.info("%s model configuration: %s", FOUND, mlc_chat_config_json_path)
+    return mlc_chat_config_json_path
+
+
 def detect_config(config: Union[str, Path]) -> Path:
     """Detect and return the path that points to config.json. If `config` is a directory,
     it looks for config.json below it.

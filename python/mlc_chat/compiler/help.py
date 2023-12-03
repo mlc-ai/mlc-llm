@@ -100,4 +100,10 @@ This flag subjects to future refactoring.
 the chunk size is the same as sliding window or max sequence length.
 This flag subjects to future refactoring.
 """.strip(),
+    "overrides": """
+Model configuration override. Configurations to override `mlc-chat-config.json`.
+Supports `context_window_size`, `prefill_chunk_size`, `sliding_window`, `max_batch_size`
+and `num_shards`. Meanwhile, model config could be explicitly specified via details
+knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
+""".strip(),
 }

@@ -28,7 +28,7 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     quantization: str = None
     model_config: Dict[str, Any] = None
     vocab_size: int = None
-    max_window_size: int = None
+    context_window_size: int = None
 
     temperature: float = None
     repetition_penalty: float = None
@@ -74,7 +74,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         model_config=model_config_json,
         vocab_size=model_config.vocab_size,
         conv_template=conv_template,
-        max_window_size=model_config.context_window_size,
+        context_window_size=model_config.context_window_size,
     )
     # Step 1. Load `config.json`
     for key, value in model_config.__dict__.items():
@@ -140,8 +140,8 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
 
     mlc_chat_config_dict = dataclasses.asdict(mlc_chat_config)
     if mlc_chat_config_dict["sliding_window"] is not None:
-        del mlc_chat_config_dict["max_window_size"]
-        logger.info("[CleanUp] Deleting %s", bold("max_window_size"))
+        del mlc_chat_config_dict["context_window_size"]
+        logger.info("[CleanUp] Deleting %s", bold("context_window_size"))
     for key, value in list(mlc_chat_config_dict.items()):
         if value is None:
             del mlc_chat_config_dict[key]

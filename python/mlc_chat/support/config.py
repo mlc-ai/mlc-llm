@@ -40,6 +40,17 @@ class ConfigBase:
         field_names = [field.name for field in dataclasses.fields(cls)]  # type: ignore[arg-type]
         fields = {k: v for k, v in source.items() if k in field_names}
         kwargs = {k: v for k, v in source.items() if k not in field_names}
+        if "model_config" in source:
+            fields |= {
+                k: v
+                for k, v in source["model_config"].items()
+                if (k in field_names) and (k not in fields)
+            }
+            kwargs |= {
+                k: v
+                for k, v in source["model_config"].items()
+                if (k not in field_names) and (k not in fields)
+            }
         return cls(**fields, kwargs=kwargs)  # type: ignore[call-arg]
 
     @classmethod

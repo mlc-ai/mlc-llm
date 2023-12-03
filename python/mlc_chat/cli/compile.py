@@ -7,13 +7,13 @@ from typing import Union
 from mlc_chat.compiler import (  # pylint: disable=redefined-builtin
     HELP,
     MODELS,
-    QUANTIZATION,
+    ModelConfigOverride,
     OptimizationFlags,
     compile,
 )
 
 from ..support.argparse import ArgumentParser
-from ..support.auto_config import detect_config, detect_model_type
+from ..support.auto_config import detect_mlc_chat_config, detect_model_type
 from ..support.auto_target import detect_target_and_host
 
 
@@ -39,17 +39,10 @@ def main(argv):
     parser = ArgumentParser("MLC LLM Compiler")
     parser.add_argument(
         "--model",
-        type=detect_config,
+        type=detect_mlc_chat_config,
         required=True,
         dest="config",
         help=HELP["model"] + " (required)",
-    )
-    parser.add_argument(
-        "--quantization",
-        type=str,
-        required=True,
-        choices=list(QUANTIZATION.keys()),
-        help=HELP["quantization"] + " (required, choices: %(choices)s)",
     )
     parser.add_argument(
         "--model-type",
@@ -83,12 +76,6 @@ def main(argv):
         help=HELP["system_lib_prefix"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--context-window-size",
-        type=int,
-        default=None,
-        help=HELP["context_window_size"] + ' (default: "%(default)s")',
-    )
-    parser.add_argument(
         "--output",
         "-o",
         type=_parse_output,
@@ -96,30 +83,21 @@ def main(argv):
         help=HELP["output_compile"] + " (required)",
     )
     parser.add_argument(
-        "--sliding-window",
-        type=int,
-        default=None,
-        help=HELP["sliding_window"] + ' (default: "%(default)s")',
-    )
-    parser.add_argument(
-        "--prefill-chunk-size",
-        type=int,
-        default=None,
-        help=HELP["prefill_chunk_size"] + ' (default: "%(default)s")',
+        "--overrides",
+        type=ModelConfigOverride.from_str,
+        default="",
+        help=HELP["overrides"] + ' (default: "%(default)s")',
     )
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
     parsed.model_type = detect_model_type(parsed.model_type, parsed.config)
     compile(
         config=parsed.config,
-        quantization=QUANTIZATION[parsed.quantization],
         model_type=parsed.model_type,
         target=target,
         opt=parsed.opt,
         build_func=build_func,
         system_lib_prefix=parsed.system_lib_prefix,
         output=parsed.output,
-        context_window_size=parsed.context_window_size,
-        sliding_window=parsed.sliding_window,
-        prefill_chunk_size=parsed.prefill_chunk_size,
+        overrides=parsed.overrides,
     )

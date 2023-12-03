@@ -4,7 +4,7 @@ import json
 import logging
 from io import StringIO
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Tuple
 
 from tvm import IRModule, relax
 from tvm.relax.frontend import nn
@@ -15,7 +15,7 @@ from ..support.style import bold
 from .flags_model_config_override import ModelConfigOverride
 from .flags_optimization import OptimizationFlags
 from .model import Model
-from .quantization import Quantization
+from .quantization import QUANTIZATION, Quantization
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
         print(f"  {bold('--opt'):<25} {self.opt}", file=out)
         print(f"  {bold('--system-lib-prefix'):<25} \"{self.system_lib_prefix}\"", file=out)
         print(f"  {bold('--output'):<25} {self.output}", file=out)
-        print(f"  {bold('--overrides'):<25} {dataclasses.asdict(self.overrides)}", file=out)
+        print(f"  {bold('--overrides'):<25} {self.overrides}", file=out)
         print(out.getvalue().rstrip())
 
 
@@ -106,9 +106,8 @@ def _attach_variable_bounds(mod, model_config):
             mod[g_var] = func.with_attr("tir_var_upper_bound", tir_bound_map)
 
 
-def _compile(args: CompileArgs):
+def _compile(args: CompileArgs, model_config: ConfigBase):
     logger.info("Creating model from: %s", args.config)
-    model_config = args.model.config.from_file(args.config)
     args.overrides.apply(model_config)
     model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
     logger.info("Exporting the model to TVM Unity compiler")
@@ -127,18 +126,17 @@ def _compile(args: CompileArgs):
 
 def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     config: Path,
-    quantization: Quantization,
     model_type: Model,
     target: Target,
     opt: OptimizationFlags,
     build_func: Callable[[IRModule, CompileArgs], None],
     system_lib_prefix: str,
     output: Path,
-    context_window_size: Optional[int],
-    sliding_window: Optional[int],
-    prefill_chunk_size: Optional[int],
+    overrides: ModelConfigOverride,
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
+    model_config = model_type.config.from_file(config)
+    quantization = QUANTIZATION[model_config.kwargs["quantization"]]
     args = CompileArgs(
         config,
         quantization,
@@ -148,11 +146,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
         build_func,
         system_lib_prefix,
         output,
-        ModelConfigOverride(
-            context_window_size=context_window_size,
-            sliding_window=sliding_window,
-            prefill_chunk_size=prefill_chunk_size,
-        ),
+        overrides,
     )
     args.display()
-    _compile(args)
+    _compile(args, model_config)
