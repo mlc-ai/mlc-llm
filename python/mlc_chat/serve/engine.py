@@ -60,13 +60,16 @@ def _create_tvm_module(
     return {key: module[key] for key in ffi_funcs}
 
 
-def _process_model_args(models: Union[ModelInfo, List[ModelInfo]]) -> Tuple[List[Any], str, int]:
+def _process_model_args(
+    models: Union[ModelInfo, List[ModelInfo]]
+) -> Tuple[List[Any], str, int, Optional[str]]:
     """Process the input ModelInfo to get the engine initialization arguments."""
     max_single_sequence_length = int(1e9)
     tokenizer_path: Optional[str] = None
+    conv_template_name: Optional[str] = None
 
     def _convert_model_info(model: ModelInfo) -> List[Any]:
-        nonlocal max_single_sequence_length, tokenizer_path
+        nonlocal max_single_sequence_length, tokenizer_path, conv_template_name
 
         device = model.device
         model_path, config_file_path = _get_model_path(model.model)
@@ -78,6 +81,8 @@ def _process_model_args(models: Union[ModelInfo, List[ModelInfo]]) -> Tuple[List
             )
         if tokenizer_path is None:
             tokenizer_path = model_path
+        if conv_template_name is None:
+            conv_template_name = chat_config.conv_template
         model_lib_path = _get_lib_module_path(
             model=model.model,
             model_path=model_path,
@@ -96,7 +101,7 @@ def _process_model_args(models: Union[ModelInfo, List[ModelInfo]]) -> Tuple[List
     else:
         model_args = _convert_model_info(models)
 
-    return model_args, tokenizer_path, max_single_sequence_length
+    return model_args, tokenizer_path, max_single_sequence_length, conv_template_name
 
 
 class Engine:
@@ -148,7 +153,12 @@ class Engine:
             Callable[[str, data.TokenData, Optional[str]], None]
         ] = None,
     ):
-        model_args, tokenizer_path, self.max_single_sequence_length = _process_model_args(models)
+        (
+            model_args,
+            tokenizer_path,
+            self.max_single_sequence_length,
+            self.conv_template_name,
+        ) = _process_model_args(models)
         self._ffi = _create_tvm_module(
             "mlc.serve.create_engine",
             ffi_funcs=[

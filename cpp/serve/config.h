@@ -24,9 +24,9 @@ class GenerationConfigNode : public Object {
   double top_p = 0.95;
   double repetition_penalty = 1.0;
 
-  int max_new_tokens = 128;
+  int max_tokens = 128;
   Array<String> stop_strs;
-  std::vector<int> stop_tokens;
+  std::vector<int> stop_token_ids;
 
   String AsJSONString() const;
 
