@@ -33,7 +33,7 @@ def generate_requests(
             token_ids.append(random.randint(0, 30000))
         prompt_ids.append(token_ids)
     generation_config_list = [
-        GenerationConfig(temperature=1.0, top_p=1.0, max_new_tokens=output_length)
+        GenerationConfig(temperature=1.0, top_p=1.0, max_tokens=output_length)
     ] * num_requests
     return prompt_ids, generation_config_list
 
