@@ -62,12 +62,15 @@ Optional<String> RequestStateNode::GenerationFinished(int max_single_sequence_le
 
   // Case 1. Any of the stop tokens appears in the committed tokens ===> Finished
   if (std::any_of(
-          request->generation_cfg->stop_tokens.begin(), request->generation_cfg->stop_tokens.end(),
+          request->generation_cfg->stop_token_ids.begin(),
+          request->generation_cfg->stop_token_ids.end(),
           [&committed_tokens](int32_t token) { return token == committed_tokens.back(); })) {
     return String("stop");
   }
   // Case 2. Generation reaches the specified max generation length ==> Finished
-  if (static_cast<int>(committed_tokens.size()) >= request->generation_cfg->max_new_tokens) {
+  // `max_tokens` means the generation length is limited by model capacity.
+  if (request->generation_cfg->max_tokens >= 0 &&
+      static_cast<int>(committed_tokens.size()) >= request->generation_cfg->max_tokens) {
     return String("length");
   }
   // Case 3. Total length of the request reaches the maximum single sequence length ==> Finished

@@ -42,9 +42,17 @@ GenerationConfig::GenerationConfig(String config_json_str) {
     n->repetition_penalty = config["repetition_penalty"].get<double>();
     CHECK(n->repetition_penalty > 0) << "Repetition penalty must be a positive number!";
   }
-  if (config.count("max_new_tokens")) {
-    CHECK(config["max_new_tokens"].is<int64_t>());
-    n->max_new_tokens = config["max_new_tokens"].get<int64_t>();
+  if (config.count("max_tokens")) {
+    if (config["max_tokens"].is<int64_t>()) {
+      n->max_tokens = config["max_tokens"].get<int64_t>();
+    } else {
+      CHECK(config["max_tokens"].is<picojson::null>()) << "Unrecognized max_tokens";
+      // "-1" means the generation will not stop until exceeding
+      // model capability or hit any stop criteria.
+      n->max_tokens = -1;
+    }
+    CHECK(config["max_tokens"].is<int64_t>());
+    n->max_tokens = config["max_tokens"].get<int64_t>();
   }
   if (config.count("stop_strs")) {
     CHECK(config["stop_strs"].is<picojson::array>())
@@ -58,17 +66,17 @@ GenerationConfig::GenerationConfig(String config_json_str) {
     }
     n->stop_strs = std::move(stop_strs);
   }
-  if (config.count("stop_tokens")) {
-    CHECK(config["stop_tokens"].is<picojson::array>())
-        << "Invalid stop_tokens. Stop tokens should be an array of integers";
-    picojson::array stop_tokens_arr = config["stop_tokens"].get<picojson::array>();
-    std::vector<int> stop_tokens;
-    stop_tokens.reserve(stop_tokens_arr.size());
-    for (const picojson::value& v : stop_tokens_arr) {
-      CHECK(v.is<int64_t>()) << "Invalid stop token in stop_tokens";
-      stop_tokens.push_back(v.get<int64_t>());
+  if (config.count("stop_token_ids")) {
+    CHECK(config["stop_token_ids"].is<picojson::array>())
+        << "Invalid stop_token_ids. Stop tokens should be an array of integers";
+    picojson::array stop_token_ids_arr = config["stop_token_ids"].get<picojson::array>();
+    std::vector<int> stop_token_ids;
+    stop_token_ids.reserve(stop_token_ids_arr.size());
+    for (const picojson::value& v : stop_token_ids_arr) {
+      CHECK(v.is<int64_t>()) << "Invalid stop token in stop_token_ids";
+      stop_token_ids.push_back(v.get<int64_t>());
     }
-    n->stop_tokens = std::move(stop_tokens);
+    n->stop_token_ids = std::move(stop_token_ids);
   }
 
   data_ = std::move(n);
@@ -79,7 +87,7 @@ String GenerationConfigNode::AsJSONString() const {
   config["temperature"] = picojson::value(this->temperature);
   config["top_p"] = picojson::value(this->top_p);
   config["repetition_penalty"] = picojson::value(this->repetition_penalty);
-  config["max_new_tokens"] = picojson::value(static_cast<int64_t>(this->max_new_tokens));
+  config["max_tokens"] = picojson::value(static_cast<int64_t>(this->max_tokens));
 
   picojson::array stop_strs_arr;
   for (String stop_str : this->stop_strs) {
@@ -87,11 +95,11 @@ String GenerationConfigNode::AsJSONString() const {
   }
   config["stop_strs"] = picojson::value(stop_strs_arr);
 
-  picojson::array stop_tokens_arr;
-  for (int stop_token : this->stop_tokens) {
-    stop_tokens_arr.push_back(picojson::value(static_cast<int64_t>(stop_token)));
+  picojson::array stop_token_ids_arr;
+  for (int stop_token_id : this->stop_token_ids) {
+    stop_token_ids_arr.push_back(picojson::value(static_cast<int64_t>(stop_token_id)));
   }
-  config["stop_tokens"] = picojson::value(stop_tokens_arr);
+  config["stop_token_ids"] = picojson::value(stop_token_ids_arr);
 
   return picojson::value(config).serialize(true);
 }
