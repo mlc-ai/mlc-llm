@@ -45,7 +45,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
         print(f"  {bold('--opt'):<25} {self.opt}", file=out)
         print(f"  {bold('--system-lib-prefix'):<25} \"{self.system_lib_prefix}\"", file=out)
         print(f"  {bold('--output'):<25} {self.output}", file=out)
-        print(f"  {bold('--overrides'):<25} {dataclasses.asdict(self.overrides)}", file=out)
+        print(f"  {bold('--overrides'):<25} {self.overrides}", file=out)
         print(out.getvalue().rstrip())
 
 

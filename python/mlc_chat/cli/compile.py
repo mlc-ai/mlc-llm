@@ -87,7 +87,7 @@ def main(argv):
         "--overrides",
         type=ModelConfigOverride.from_str,
         default="",
-        # help=HELP["overrides"] + ' (default: "%(default)s")',
+        help=HELP["overrides"] + ' (default: "%(default)s")',
     )
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
