@@ -4,18 +4,18 @@ import json
 import logging
 from io import StringIO
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Tuple
 
 from tvm import IRModule, relax
 from tvm.relax.frontend import nn
 from tvm.target import Target
 
-from ..support.style import bold
 from ..support.config import ConfigBase
+from ..support.style import bold
 from .flags_model_config_override import ModelConfigOverride
 from .flags_optimization import OptimizationFlags
 from .model import Model
-from .quantization import Quantization, QUANTIZATION
+from .quantization import QUANTIZATION, Quantization
 
 logger = logging.getLogger(__name__)
 

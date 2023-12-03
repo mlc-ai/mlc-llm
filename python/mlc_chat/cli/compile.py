@@ -7,9 +7,8 @@ from typing import Union
 from mlc_chat.compiler import (  # pylint: disable=redefined-builtin
     HELP,
     MODELS,
-    QUANTIZATION,
-    OptimizationFlags,
     ModelConfigOverride,
+    OptimizationFlags,
     compile,
 )
 

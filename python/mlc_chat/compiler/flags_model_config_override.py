@@ -1,9 +1,9 @@
 """Flags for overriding model config."""
+import argparse
 import dataclasses
 import logging
-import argparse
-from typing import Optional
 from io import StringIO
+from typing import Optional
 
 from ..support.style import bold
 
