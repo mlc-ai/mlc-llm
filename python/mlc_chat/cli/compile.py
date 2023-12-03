@@ -9,6 +9,7 @@ from mlc_chat.compiler import (  # pylint: disable=redefined-builtin
     MODELS,
     QUANTIZATION,
     OptimizationFlags,
+    ModelConfigOverride,
     compile,
 )
 
@@ -82,6 +83,12 @@ def main(argv):
         required=True,
         help=HELP["output_compile"] + " (required)",
     )
+    parser.add_argument(
+        "--overrides",
+        type=ModelConfigOverride.from_str,
+        default="",
+        # help=HELP["overrides"] + ' (default: "%(default)s")',
+    )
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
     parsed.model_type = detect_model_type(parsed.model_type, parsed.config)
@@ -93,4 +100,5 @@ def main(argv):
         build_func=build_func,
         system_lib_prefix=parsed.system_lib_prefix,
         output=parsed.output,
+        overrides=parsed.overrides,
     )

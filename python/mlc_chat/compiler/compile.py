@@ -12,6 +12,7 @@ from tvm.target import Target
 
 from ..support.style import bold
 from ..support.config import ConfigBase
+from .flags_model_config_override import ModelConfigOverride
 from .flags_optimization import OptimizationFlags
 from .model import Model
 from .quantization import Quantization, QUANTIZATION
@@ -31,6 +32,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
     build_func: Callable[[IRModule, "CompileArgs"], None]
     system_lib_prefix: str
     output: Path
+    overrides: ModelConfigOverride
 
     def display(self) -> None:
         """Display the arguments to stdout."""
@@ -43,6 +45,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
         print(f"  {bold('--opt'):<25} {self.opt}", file=out)
         print(f"  {bold('--system-lib-prefix'):<25} \"{self.system_lib_prefix}\"", file=out)
         print(f"  {bold('--output'):<25} {self.output}", file=out)
+        print(f"  {bold('--overrides'):<25} {dataclasses.asdict(self.overrides)}", file=out)
         print(out.getvalue().rstrip())
 
 
@@ -97,6 +100,7 @@ def _attach_variable_bounds(mod, model_config):
 
 def _compile(args: CompileArgs, model_config: ConfigBase):
     logger.info("Creating model from: %s", args.config)
+    args.overrides.apply(model_config)
     model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
     logger.info("Exporting the model to TVM Unity compiler")
     mod, named_params = model.export_tvm(
@@ -120,6 +124,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     build_func: Callable[[IRModule, CompileArgs], None],
     system_lib_prefix: str,
     output: Path,
+    overrides: ModelConfigOverride,
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
     model_config = model_type.config.from_file(config)
@@ -133,6 +138,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
         build_func,
         system_lib_prefix,
         output,
+        overrides,
     )
     args.display()
     _compile(args, model_config)

@@ -6,7 +6,7 @@ from io import StringIO
 
 @dataclasses.dataclass
 class OptimizationFlags:
-    """Optiization flags"""
+    """Optimization flags"""
 
     cutlass_attn: bool = True
     cutlass_norm: bool = True
