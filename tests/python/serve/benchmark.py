@@ -10,8 +10,8 @@ import numpy as np
 from transformers import AutoTokenizer
 
 from mlc_chat.chat_module import _get_model_path
-from mlc_chat.serve import GenerationConfig, KVCacheConfig
-from mlc_chat.serve.engine import Engine, ModelInfo
+from mlc_chat.serve import Engine, GenerationConfig, KVCacheConfig
+from mlc_chat.serve.engine import ModelInfo
 
 
 def _parse_args():
