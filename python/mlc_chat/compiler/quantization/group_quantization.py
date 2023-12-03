@@ -1,9 +1,8 @@
 """The group quantization config"""
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
-import numpy as np
 from tvm import DataType, DataTypeCode, IRModule
 from tvm import dlight as dl
 from tvm import relax, te, tir
@@ -104,11 +103,6 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     return GroupQuantizeLinear.from_linear(node, self.config)
-                if isinstance(node, nn.MultiLinear):
-                    weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
-                    self.quant_map.map_func[weight_name] = self.config.quantize_weight
-                    return GroupQuantizeMultiLinear.from_multilinear(node, self.config)
                 if isinstance(node, nn.Embedding):
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
@@ -347,102 +341,6 @@ class GroupQuantizeLinear(nn.Module):
         if self.bias is not None:
             x = x + self.bias
         return x
-
-
-class GroupQuantizeMultiLinear(nn.Module):  # pylint: disable=too-many-instance-attributes
-    """An nn.MultiLinear module with group quantization"""
-
-    def __init__(  # pylint: disable=too-many-arguments
-        self,
-        in_features: int,
-        out_features: nn.Sequence[int],
-        config: GroupQuantize,
-        bias: bool = True,
-        out_dtype: Optional[str] = None,
-    ):
-        assert len(out_features) > 0
-        self.total_out_features = sum(out_features)
-
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.out_dtype = out_dtype
-        self.config = config
-        num_group = tir.ceildiv(in_features, config.group_size)
-        self.q_weight = nn.Parameter(
-            (self.total_out_features, config.num_storage_per_group * num_group),
-            config.storage_dtype,
-        )
-        self.q_scale = nn.Parameter((self.total_out_features, num_group), config.model_dtype)
-        if bias:
-            self.bias = nn.Parameter((self.total_out_features,), config.model_dtype)
-        else:
-            self.bias = None
-
-    @staticmethod
-    def from_multilinear(
-        multi_linear: nn.MultiLinear, config: GroupQuantize
-    ) -> "GroupQuantizeMultiLinear":
-        """
-        Converts a non-quantized nn.MultiLinear to a group quantized GroupQuantizeLinear
-
-        Parameters
-        ----------
-        linear : nn.Linear
-            The non-quantized nn.Linear.
-
-        config : GroupQuantize
-            The group quantization config.
-
-        Returns
-        -------
-        ret : GroupQuantizeMultiLinear
-            The group quantized GroupQuantizeMultiLinear layer.
-        """
-        return GroupQuantizeMultiLinear(
-            in_features=multi_linear.in_features,
-            out_features=multi_linear.out_features,
-            config=config,
-            bias=getattr(multi_linear, "bias", None) is not None,
-            out_dtype=multi_linear.out_dtype,
-        )
-
-    def forward(self, x: nn.Tensor) -> Sequence[nn.Tensor]:  # pylint: disable=invalid-name
-        """
-        Forward method for multi linear layer.
-
-        Parameters
-        ----------
-        x : Tensor
-            The input tensor.
-
-        Returns
-        -------
-        ret : Tensor
-            The output tensor for the multi linear layer.
-        """
-        sections = list(np.cumsum(self.out_features)[:-1])
-        w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
-                weight,
-                scale,
-                [
-                    tir.IntImm("int64", self.total_out_features),
-                    tir.IntImm("int64", self.in_features),
-                ],
-            ),
-            name_hint="dequantize",
-            args=[self.q_weight, self.q_scale],
-        )
-        # x: [*B, in_features]
-        # w: [in_features, out_features]
-        w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
-        # x: [*B, out_features]
-        x = nn.op.matmul(x, w, out_dtype=self.out_dtype)
-        if self.bias is not None:
-            x = x + self.bias
-        results = nn.op.split(x, sections, axis=-1)
-        return results
 
 
 class GroupQuantizeEmbedding(nn.Module):

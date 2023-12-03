@@ -108,15 +108,16 @@ class RotaryEmbedding(nn.Module):
 class LlamaFFN(nn.Module):
     def __init__(self, config: LlamaConfig):
         super().__init__()
-        self.gate_up_proj = nn.MultiLinear(
+        self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
-            out_features=[config.intermediate_size, config.intermediate_size],
+            out_features=2 * config.intermediate_size,
             bias=False,
         )
         self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
 
     def forward(self, x: Tensor):
-        x1, x2 = self.gate_up_proj(x)
+        concat_x1_x2 = self.gate_up_proj(x)
+        x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
         return self.down_proj(op.silu(x1) * x2)
 
 
@@ -127,13 +128,9 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads
         self.num_kv_heads = config.num_key_value_heads
-        self.qkv_proj = nn.MultiLinear(
+        self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
-            out_features=[
-                self.num_q_heads * self.head_dim,
-                self.num_kv_heads * self.head_dim,
-                self.num_kv_heads * self.head_dim,
-            ],
+            out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
             bias=False,
         )
         self.o_proj = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
@@ -150,10 +147,9 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         b, s, _ = hidden_states.shape
         assert b == 1, "Only support batch size 1 at this moment."
 
-        q, k, v = self.qkv_proj(hidden_states)
-        q = op.reshape(q, (b, s, h_q, d))
-        k = op.reshape(k, (b, s, h_kv, d))
-        v = op.reshape(v, (b, s, h_kv, d))
+        qkv = self.qkv_proj(hidden_states)
+        qkv = op.reshape(qkv, (b, s, h_q + 2 * h_kv, d))
+        q, k, v = op.split(qkv, indices_or_sections=[h_q, h_q + h_kv], axis=2)
         q, k = self.rotary_embedding(q, k, t - s)
 
         self.k_cache.append(op.squeeze(k, axis=0))

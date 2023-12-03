@@ -118,15 +118,16 @@ class MistralMLP(nn.Module):
 
     def __init__(self, config: MistralConfig):
         super().__init__()
-        self.gate_up_proj = nn.MultiLinear(
+        self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
-            out_features=[config.intermediate_size, config.intermediate_size],
+            out_features=2 * config.intermediate_size,
             bias=False,
         )
         self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
 
     def forward(self, x: Tensor):
-        x1, x2 = self.gate_up_proj(x)
+        concat_x1_x2 = self.gate_up_proj(x)
+        x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
         return self.down_proj(op.silu(x1) * x2)
 
 
@@ -140,13 +141,9 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.num_q_heads = config.num_attention_heads
         self.num_kv_heads = config.num_key_value_heads
         self.sliding_window = config.sliding_window
-        self.qkv_proj = nn.MultiLinear(
+        self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
-            out_features=[
-                self.num_q_heads * self.head_dim,
-                self.num_kv_heads * self.head_dim,
-                self.num_kv_heads * self.head_dim,
-            ],
+            out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
             bias=False,
         )
         self.o_proj = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
@@ -214,10 +211,9 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         b, s, _ = hidden_states.shape
         assert b == 1, "Only support batch size 1 at this moment."
 
-        q, k_cur, v_cur = self.qkv_proj(hidden_states)
-        q = op.reshape(q, (b, s, h_q, d))
-        k_cur = op.reshape(k_cur, (b, s, h_kv, d))
-        v_cur = op.reshape(v_cur, (b, s, h_kv, d))
+        qkv_cur = self.qkv_proj(hidden_states)
+        qkv_cur = op.reshape(qkv_cur, (b, s, h_q + 2 * h_kv, d))
+        q, k_cur, v_cur = op.split(qkv_cur, [h_q, h_q + h_kv], axis=2)
         q, k_cur = self.rotary_embedding(q, k_cur, t - s)
 
         k, v = self.interleave_kv(k_cur, v_cur, total_seq_len, kv_seq_len, rolling_cache_len)

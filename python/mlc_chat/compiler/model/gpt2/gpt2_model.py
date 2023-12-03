@@ -58,7 +58,7 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = self.context_window_size
 
 
-# pylint: disable=invalid-name,missing-docstring
+# pylint: disable=invalid-name,missing-docstring,too-many-locals
 
 
 class GPT2Attention(nn.Module):
@@ -67,13 +67,9 @@ class GPT2Attention(nn.Module):
         self.num_heads = config.n_head
         self.head_dim = self.embed_dim // self.num_heads
 
-        self.c_attn = nn.MultiLinear(
+        self.c_attn = nn.Linear(
             in_features=self.embed_dim,
-            out_features=[
-                self.num_heads * self.head_dim,
-                self.num_heads * self.head_dim,
-                self.num_heads * self.head_dim,
-            ],
+            out_features=3 * self.num_heads * self.head_dim,
             bias=True,
         )
         self.c_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=True)
@@ -91,10 +87,9 @@ class GPT2Attention(nn.Module):
         b, s, _ = hidden_states.shape
         assert b == 1, "Only support batch size 1 at this moment."
 
-        q, k, v = self.c_attn(hidden_states)
-        q = op.reshape(q, (b, s, h, d))
-        k = op.reshape(k, (b, s, h, d))
-        v = op.reshape(v, (b, s, h, d))
+        qkv = self.c_attn(hidden_states)
+        qkv = op.reshape(qkv, (b, s, 3 * h, d))
+        q, k, v = op.split(qkv, 3, axis=2)
 
         self.k_cache.append(op.squeeze(k, axis=0))
         self.v_cache.append(op.squeeze(v, axis=0))

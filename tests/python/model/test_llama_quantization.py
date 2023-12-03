@@ -5,7 +5,6 @@ from mlc_chat.compiler import MODEL_PRESETS, MODELS, QUANTIZATION
 from mlc_chat.compiler.quantization.group_quantization import (
     GroupQuantizeEmbedding,
     GroupQuantizeLinear,
-    GroupQuantizeMultiLinear,
 )
 
 
@@ -32,7 +31,7 @@ def test_llama2_group_quantization(model_name: str, quant_name: str):
         assert f"model.layers.{i}.self_attn.qkv_proj.weight" in quant_map.param_map
         assert isinstance(
             model.model.layers[i].self_attn.qkv_proj,  # type: ignore[attr-defined]
-            GroupQuantizeMultiLinear,
+            GroupQuantizeLinear,
         )
         assert f"model.layers.{i}.self_attn.o_proj.weight" in quant_map.param_map
         assert isinstance(
@@ -42,7 +41,7 @@ def test_llama2_group_quantization(model_name: str, quant_name: str):
         assert f"model.layers.{i}.mlp.gate_up_proj.weight" in quant_map.param_map
         assert isinstance(
             model.model.layers[i].mlp.gate_up_proj,  # type: ignore[attr-defined]
-            GroupQuantizeMultiLinear,
+            GroupQuantizeLinear,
         )
         assert f"model.layers.{i}.mlp.down_proj.weight" in quant_map.param_map
         assert isinstance(

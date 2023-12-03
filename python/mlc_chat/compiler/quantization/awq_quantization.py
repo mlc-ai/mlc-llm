@@ -1,9 +1,8 @@
 """AWQ Quantization"""
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional
 
-import numpy as np
 from tvm import DataType, DataTypeCode, te, tir
 from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
@@ -119,8 +118,6 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
 
                 if isinstance(node, nn.Linear) and name != "lm_head":
                     return AWQQuantizeLinear.from_linear(node, self.config)
-                if isinstance(node, nn.MultiLinear):
-                    return AWQQuantizeMultiLinear.from_multilinear(node, self.config)
                 return self.visit(name, node)
 
         model.to(dtype=self.model_dtype)
@@ -258,110 +255,3 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
         if self.bias is not None:
             x = x + self.bias
         return x
-
-
-class AWQQuantizeMultiLinear(nn.Module):  # pylint: disable=too-many-instance-attributes
-    """An nn.MultiLinear module with awq quantization."""
-
-    def __init__(  # pylint: disable=too-many-arguments
-        self,
-        in_features: int,
-        out_features: nn.Sequence[int],
-        config: AWQQuantize,
-        bias: bool = True,
-        out_dtype: Optional[str] = None,
-    ):
-        assert len(out_features) > 0
-        self.total_out_features = sum(out_features)
-
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.out_dtype = out_dtype
-        self.config = config
-        self.qweight = nn.Parameter(
-            (self.total_out_features, tir.ceildiv(in_features, config.num_elem_per_storage)),
-            config.storage_dtype,
-        )
-        self.qzeros = nn.Parameter(
-            (
-                self.total_out_features,
-                _calculate_zeros_width(in_features, config.group_size, config.num_elem_per_storage),
-            ),
-            dtype=config.storage_dtype,
-        )
-        self.scales = nn.Parameter(
-            (
-                self.total_out_features,
-                _calculate_zeros_width(in_features, config.group_size, config.num_elem_per_storage)
-                * config.num_elem_per_storage,
-            ),
-            config.model_dtype,
-        )
-        if bias:
-            self.bias = nn.Parameter((self.total_out_features,), config.model_dtype)
-        else:
-            self.bias = None
-
-    @staticmethod
-    def from_multilinear(
-        multi_linear: nn.MultiLinear, config: AWQQuantize
-    ) -> "AWQQuantizeMultiLinear":
-        """
-        Converts a non-quantized nn.MultiLinear to a awq quantized AWQQuantizeLinear.
-
-        Parameters
-        ----------
-        linear : nn.MultiLinear
-            The non-quantized nn.MultiLinear
-
-        config : AWQQuantize
-            The awq quantization config.
-
-        Returns
-        -------
-        ret : AWQQuantizeMultiLinear
-            The awq quantized AWQQuantizeMultiLinear layer.
-        """
-        return AWQQuantizeMultiLinear(
-            in_features=multi_linear.in_features,
-            out_features=multi_linear.out_features,
-            config=config,
-            bias=getattr(multi_linear, "bias", None) is not None,
-            out_dtype=multi_linear.out_dtype,
-        )
-
-    def forward(self, x: nn.Tensor) -> Sequence[nn.Tensor]:  # pylint: disable=invalid-name
-        """
-        Forward method for multi linear layer.
-
-        Parameters
-        ----------
-        x : Tensor
-            The input tensor.
-
-        Returns
-        -------
-        ret : Tensor
-            The output tensor for the multi linear layer.
-        """
-        sections = list(np.cumsum(self.out_features)[:-1])
-        w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, zeros, scale: self.config._dequantize(  # pylint: disable=protected-access
-                weight,
-                zeros,
-                scale,
-                [
-                    tir.IntImm("int64", self.total_out_features),
-                    tir.IntImm("int64", self.in_features),
-                ],
-            ),
-            name_hint="dequantize",
-            args=[self.qweight, self.qzeros, self.scales],
-        )
-        w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
-        x = nn.op.matmul(x, w, out_dtype=self.out_dtype)
-        if self.bias is not None:
-            x = x + self.bias
-        results = nn.op.split(x, sections, axis=-1)
-        return results
