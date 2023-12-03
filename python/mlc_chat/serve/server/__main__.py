@@ -1,4 +1,4 @@
-"""RESTful HTTP request server in MLC LLM"""
+"""Entrypoint of RESTful HTTP request server in MLC LLM"""
 import argparse
 import json
 import os
@@ -7,7 +7,7 @@ import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import async_engine, config
+from .. import async_engine, config
 from .server_context import EngineClass, ServerContext
 
 
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     )
 
     # Include the routers from subdirectories.
-    from .entrypoints import openai_entrypoints
+    from ..entrypoints import openai_entrypoints
 
     app.include_router(openai_entrypoints.app)
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")

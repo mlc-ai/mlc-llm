@@ -4,8 +4,8 @@ from typing import Callable, List, Optional
 
 import numpy as np
 
-from mlc_chat.serve import GenerationConfig, KVCacheConfig, Request, data
-from mlc_chat.serve.engine import Engine, ModelInfo
+from mlc_chat.serve import Engine, GenerationConfig, KVCacheConfig, Request, data
+from mlc_chat.serve.engine import ModelInfo
 
 prompts = [
     "What is the meaning of life?",

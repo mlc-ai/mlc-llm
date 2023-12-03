@@ -24,7 +24,8 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         host: str = "127.0.0.1",
         port: int = 8000,
     ) -> None:
-        """Please check out `server.py` for the server arguments."""
+        """Please check out `python/mlc_chat/serve/server/__main__.py`
+        for the server arguments."""
         self.model = model
         self.device = device
         self.model_lib_path = model_lib_path
@@ -51,7 +52,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
 
         cmd += ["--host", self.host]
         cmd += ["--port", str(self.port)]
-        process_path = str(Path(__file__).resolve().parents[3])
+        process_path = str(Path(__file__).resolve().parents[4])
         self._proc = subprocess.Popen(cmd, cwd=process_path)  # pylint: disable=consider-using-with
         # NOTE: DO NOT USE `stdout=subprocess.PIPE, stderr=subprocess.PIPE`
         # in subprocess.Popen here. PIPE has a fixed-size buffer with may block
