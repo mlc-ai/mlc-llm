@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Union
 
 from . import logging
 from .style import bold, green
+from .download import download_mlc_weights
 
 if TYPE_CHECKING:
     from mlc_chat.compiler import Model  # pylint: disable=unused-import
@@ -30,6 +31,9 @@ def detect_mlc_chat_config(mlc_chat_config: Union[str, Path]) -> Path:
     mlc_chat_config_json_path : pathlib.Path
         The path points to mlc_chat_config.json.
     """
+
+    if mlc_chat_config.startswith("HF://") or mlc_chat_config.startswith("http"):
+        mlc_chat_config = download_mlc_weights(model_url=mlc_chat_config)
 
     mlc_chat_config_path = Path(mlc_chat_config)
     if not mlc_chat_config_path.exists():

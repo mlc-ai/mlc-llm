@@ -129,22 +129,24 @@ def download_mlc_weights(  # pylint: disable=too-many-locals
     model_url: str,
     num_processes: int = 4,
     force_redo: bool = False,
-) -> None:
+) -> Path:
     """Download weights for a model from the HuggingFace Git LFS repo."""
-    mlc_prefix = "HF://"
+    prefixes, mlc_prefix = ["HF://", "https://huggingface.co/"], ""
+    mlc_prefix = next(p for p in prefixes if model_url.startswith(p))
+    assert mlc_prefix
+
     git_url_template = "https://huggingface.co/{user}/{repo}.git"
     bin_url_template = "https://huggingface.co/{user}/{repo}/resolve/main/{record_name}"
 
     if model_url.count("/") != 1 + mlc_prefix.count("/") or not model_url.startswith(mlc_prefix):
         raise ValueError(f"Invalid model URL: {model_url}")
-    assert model_url.startswith(mlc_prefix)
     user, repo = model_url[len(mlc_prefix) :].split("/")
     git_dir = get_cache_dir() / "model_weights" / repo
     try:
         _ensure_directory_not_exist(git_dir, force_redo=force_redo)
     except ValueError:
         logger.info("Weights already downloaded: %s", git_dir)
-        return
+        return git_dir
     with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir_prefix:
         tmp_dir = Path(tmp_dir_prefix) / "tmp"
         git_url = git_url_template.format(user=user, repo=repo)
@@ -166,4 +168,4 @@ def download_mlc_weights(  # pylint: disable=too-many-locals
                     logger.info("Downloaded %s to %s", file_url, file_dest)
         logger.info("Moving %s to %s", tmp_dir, git_dir)
         shutil.move(str(tmp_dir), str(git_dir))
-        shutil.move(str(tmp_dir), str(git_dir))
+    return git_dir
