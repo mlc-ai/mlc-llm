@@ -1,21 +1,21 @@
 """Python entrypoint of compilation."""
 import dataclasses
 import json
-import logging
 from io import StringIO
 from pathlib import Path
-from typing import Callable, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 from tvm import IRModule, relax
 from tvm.relax.frontend import nn
 from tvm.target import Target
 
+from ..support import logging
 from ..support.config import ConfigBase
 from ..support.style import bold
 from .flags_model_config_override import ModelConfigOverride
 from .flags_optimization import OptimizationFlags
 from .model import Model
-from .quantization import QUANTIZATION, Quantization
+from .quantization import Quantization
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def _attach_auxiliary_methods(
     mod: IRModule,
     named_params: List[Tuple[str, nn.Parameter]],
     args: CompileArgs,
-    model_config: ConfigBase,
+    model_config,
 ) -> None:
     def _get_memory_usage():
         return {str(k): int(v) for k, v in mod.attrs["mlc_llm.memory_usage"].items()}
@@ -72,35 +72,32 @@ def _attach_auxiliary_methods(
         bb = relax.BlockBuilder()  # pylint: disable=invalid-name
         with bb.function("main", params=[]):
             bb.emit_func_output(relax.StringImm(json.dumps(metadata)))
-        return bb.get()["main"]
+        return bb.finalize()["main"]
 
     metadata = {
         "quantization": args.quantization.name,
         "model_type": args.model.name,
         "memory_usage": _get_memory_usage(),
         "params": _get_param_info(),
+        "context_window_size": model_config.context_window_size,
+        "prefill_chunk_size": model_config.prefill_chunk_size,
+        "sliding_window": getattr(model_config, "sliding_window", -1),
     }
-
-    if hasattr(model_config, "context_window_size"):
-        metadata["max_window_size"] = model_config.context_window_size
-    if hasattr(model_config, "prefill_chunk_size"):
-        metadata["prefill_chunk_size"] = model_config.prefill_chunk_size
-    if hasattr(model_config, "sliding_window"):
-        metadata["sliding_window"] = model_config.sliding_window
-
     mod["_metadata"] = _emit_metadata(metadata)
 
 
 def _attach_variable_bounds(mod, model_config):
-    tir_bound_map = {}
-    tir_bound_map["seq_len"] = model_config.prefill_chunk_size
-
     if hasattr(model_config, "sliding_window"):
-        tir_bound_map["rolling_cache_len"] = model_config.sliding_window
-        tir_bound_map["kv_seq_len"] = model_config.sliding_window + model_config.prefill_chunk_size
+        tir_bound_map = {
+            "seq_len": model_config.prefill_chunk_size,
+            "rolling_cache_len": model_config.sliding_window,
+            "kv_seq_len": model_config.sliding_window + model_config.prefill_chunk_size,
+        }
     else:
-        tir_bound_map["total_seq_len"] = model_config.context_window_size
-
+        tir_bound_map = {
+            "seq_len": model_config.prefill_chunk_size,
+            "total_seq_len": model_config.context_window_size,
+        }
     for g_var, func in mod.functions_items():
         if isinstance(func, relax.Function):
             mod[g_var] = func.with_attr("tir_var_upper_bound", tir_bound_map)
@@ -125,7 +122,8 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
 
 
 def compile(  # pylint: disable=too-many-arguments,redefined-builtin
-    config: Path,
+    config: Dict[str, Any],
+    quantization: str,
     model_type: Model,
     target: Target,
     opt: OptimizationFlags,
@@ -135,10 +133,9 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     overrides: ModelConfigOverride,
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
-    model_config = model_type.config.from_file(config)
-    quantization = QUANTIZATION[model_config.kwargs["quantization"]]
+    model_config = model_type.config.from_dict(config)
     args = CompileArgs(
-        config,
+        model_config,
         quantization,
         model_type,
         target,

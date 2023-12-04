@@ -1,9 +1,9 @@
 """Statistics of the loading process of parameter loaders"""
 import dataclasses
-import logging
 import time
 from contextlib import contextmanager
 
+from mlc_chat.support import logging
 from mlc_chat.support.style import green
 
 logger = logging.getLogger(__name__)

@@ -1,9 +1,9 @@
 """Help functions for detecting weight paths and weight formats."""
 import json
-import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from . import logging
 from .style import bold, green, red
 
 logger = logging.getLogger(__name__)

@@ -2,7 +2,6 @@
 import concurrent.futures as cf
 import hashlib
 import json
-import logging
 import os
 import shutil
 import subprocess
@@ -13,7 +12,7 @@ from typing import Optional, Tuple
 
 import requests  # pylint: disable=import-error
 
-from . import tqdm
+from . import logging, tqdm
 
 logger = logging.getLogger(__name__)
 

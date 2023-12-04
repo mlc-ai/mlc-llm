@@ -1,5 +1,6 @@
 """Command line entrypoint of compilation."""
 import argparse
+import json
 import re
 from pathlib import Path
 from typing import Union
@@ -7,6 +8,7 @@ from typing import Union
 from mlc_chat.compiler import (  # pylint: disable=redefined-builtin
     HELP,
     MODELS,
+    QUANTIZATION,
     ModelConfigOverride,
     OptimizationFlags,
     compile,
@@ -22,6 +24,8 @@ def main(argv):
 
     def _parse_output(path: Union[str, Path]) -> Path:
         path = Path(path)
+        if path.is_dir():
+            raise argparse.ArgumentTypeError(f"Output cannot be a directory: {path}")
         parent = path.parent
         if not parent.is_dir():
             raise argparse.ArgumentTypeError(f"Directory does not exist: {parent}")
@@ -41,7 +45,6 @@ def main(argv):
         "--model",
         type=detect_mlc_chat_config,
         required=True,
-        dest="config",
         help=HELP["model"] + " (required)",
     )
     parser.add_argument(
@@ -90,9 +93,12 @@ def main(argv):
     )
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
-    parsed.model_type = detect_model_type(parsed.model_type, parsed.config)
+    parsed.model_type = detect_model_type(parsed.model_type, parsed.model)
+    with open(parsed.model, "r", encoding="utf-8") as config_file:
+        config = json.load(config_file)
     compile(
-        config=parsed.config,
+        config=config["model_config"],
+        quantization=QUANTIZATION[config["quantization"]],
         model_type=parsed.model_type,
         target=target,
         opt=parsed.opt,

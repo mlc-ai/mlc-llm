@@ -1,5 +1,4 @@
 """Automatic detection of the device available on the local machine."""
-import logging
 import subprocess
 import sys
 from typing import Dict, Optional
@@ -7,6 +6,7 @@ from typing import Dict, Optional
 import tvm
 from tvm.runtime import Device
 
+from . import logging
 from .style import bold, green, red
 
 FOUND = green("Found")

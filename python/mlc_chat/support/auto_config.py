@@ -1,10 +1,10 @@
 """Help function for detecting the model configuration file `config.json`"""
 import json
-import logging
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Union
 
+from . import logging
 from .style import bold, green
 
 if TYPE_CHECKING:

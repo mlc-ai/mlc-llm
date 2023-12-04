@@ -2,7 +2,6 @@
 
 import gc
 import json
-import logging
 from collections import OrderedDict, defaultdict
 from pathlib import Path
 from typing import Dict, Iterator, List, Optional, Tuple
@@ -12,6 +11,7 @@ from tqdm import tqdm
 from tvm.runtime import Device, NDArray
 from tvm.runtime.ndarray import array as as_ndarray
 
+from ...support import logging
 from ...support.style import bold
 from .mapping import ExternMapping, QuantizeMapping
 from .stats import Stats

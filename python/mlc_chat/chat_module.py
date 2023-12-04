@@ -2,7 +2,6 @@
 #! pylint: disable=too-many-lines
 import inspect
 import json
-import logging
 import os
 import sys
 import warnings
@@ -13,6 +12,7 @@ from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 import tvm
 from tvm.runtime import disco  # pylint: disable=unused-import
 
+from mlc_chat.support import logging
 from mlc_chat.support.auto_device import detect_device
 
 from . import base  # pylint: disable=unused-import
@@ -23,6 +23,9 @@ if TYPE_CHECKING:
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
 # pylint: enable=line-too-long
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -325,8 +328,8 @@ def _get_model_path(model: str) -> Tuple[str, str]:
     for candidate in candidate_paths:
         chat_file = os.path.join(candidate, "mlc-chat-config.json")
         if os.path.isfile(chat_file):
-            logging.info("Using model folder: %s", os.path.abspath(candidate))
-            logging.info("Using mlc chat config: %s", os.path.abspath(chat_file))
+            logger.info("Using model folder: %s", os.path.abspath(candidate))
+            logger.info("Using mlc chat config: %s", os.path.abspath(chat_file))
             return candidate, chat_file
 
     # Failed to find a valid model_path, analyzing error for user
@@ -468,7 +471,7 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
     # 1. Use user's model_lib_path if provided
     if model_lib_path is not None:
         if os.path.isfile(model_lib_path):
-            logging.info("Using library model: %s", model_lib_path)
+            logger.info("Using library model: %s", model_lib_path)
             return model_lib_path
         raise FileNotFoundError(
             f"The `model_lib_path` you passed in is not a file: {model_lib_path}.\n"
@@ -512,7 +515,7 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
     # 4. Search for model library
     for candidate in candidate_paths:
         if os.path.isfile(candidate):
-            logging.info("Using library model: %s", os.path.abspath(candidate))
+            logger.info("Using library model: %s", os.path.abspath(candidate))
             return candidate
 
     # 5. Error

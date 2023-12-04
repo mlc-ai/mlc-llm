@@ -1,5 +1,4 @@
 """Helper functioms for target auto-detection."""
-import logging
 import os
 from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
@@ -8,6 +7,7 @@ from tvm._ffi import get_global_func, register_func
 from tvm.contrib import tar, xcode
 from tvm.target import Target
 
+from . import logging
 from .auto_device import AUTO_DETECT_DEVICES, _device_to_str, detect_device
 from .style import bold, green, red
 

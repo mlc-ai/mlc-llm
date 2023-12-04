@@ -1,5 +1,4 @@
 # pylint: disable=missing-docstring
-import logging
 from pathlib import Path
 from typing import Union
 
@@ -8,14 +7,9 @@ import tvm
 
 from mlc_chat.compiler import MODELS
 from mlc_chat.compiler.loader import HuggingFaceLoader
-from mlc_chat.support import tqdm
+from mlc_chat.support import logging, tqdm
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    style="{",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    format="[{asctime}] {levelname} {filename}:{lineno}: {message}",
-)
+logging.enable_logging()
 
 
 @pytest.mark.parametrize(
