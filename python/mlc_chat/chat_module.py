@@ -159,7 +159,7 @@ class ChatConfig:  # pylint: disable=too-many-instance-attributes
         The category of the model's architecture (e.g. ``llama``, ``gpt_neox``, ``rwkv``).
     model_name : Optional[str]
         Name of the model (e.g. ``Llama-2-7b-chat-hf``).
-    num_shards: Optional[str]
+    tensor_parallel_shards: Optional[str]
         Tensor parallel degree.
     use_presharded_weights: Optional[bool]
         If True, the weights were saved with sharding already applied.
@@ -180,7 +180,7 @@ class ChatConfig:  # pylint: disable=too-many-instance-attributes
     conv_config: Optional[ConvConfig] = None
     model_category: Optional[str] = None
     model_name: Optional[str] = None
-    num_shards: Optional[int] = None
+    tensor_parallel_shards: Optional[int] = None
     use_presharded_weights: Optional[bool] = None
     max_window_size: Optional[int] = None
 

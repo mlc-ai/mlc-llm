@@ -42,9 +42,8 @@ def main(argv):
 
     parser = ArgumentParser("MLC LLM Compiler")
     parser.add_argument(
-        "--model",
+        "model",
         type=detect_mlc_chat_config,
-        required=True,
         help=HELP["model"] + " (required)",
     )
     parser.add_argument(

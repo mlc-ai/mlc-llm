@@ -5,7 +5,7 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
 
-from tvm import IRModule, relax
+from tvm import IRModule, relax, tir
 from tvm.relax.frontend import nn
 from tvm.target import Target
 
@@ -49,43 +49,6 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
         print(out.getvalue().rstrip())
 
 
-def _attach_auxiliary_methods(
-    mod: IRModule,
-    named_params: List[Tuple[str, nn.Parameter]],
-    args: CompileArgs,
-    model_config,
-) -> None:
-    def _get_memory_usage():
-        return {str(k): int(v) for k, v in mod.attrs["mlc_llm.memory_usage"].items()}
-
-    def _get_param_info():
-        return [
-            {
-                "name": name,
-                "shape": list(param.shape),
-                "dtype": param.dtype,
-            }
-            for name, param in named_params
-        ]
-
-    def _emit_metadata(metadata):
-        bb = relax.BlockBuilder()  # pylint: disable=invalid-name
-        with bb.function("main", params=[]):
-            bb.emit_func_output(relax.StringImm(json.dumps(metadata)))
-        return bb.finalize()["main"]
-
-    metadata = {
-        "quantization": args.quantization.name,
-        "model_type": args.model.name,
-        "memory_usage": _get_memory_usage(),
-        "params": _get_param_info(),
-        "context_window_size": model_config.context_window_size,
-        "prefill_chunk_size": model_config.prefill_chunk_size,
-        "sliding_window": getattr(model_config, "sliding_window", -1),
-    }
-    mod["_metadata"] = _emit_metadata(metadata)
-
-
 def _attach_variable_bounds(mod, model_config):
     if hasattr(model_config, "sliding_window"):
         tir_bound_map = {
@@ -103,21 +66,88 @@ def _attach_variable_bounds(mod, model_config):
             mod[g_var] = func.with_attr("tir_var_upper_bound", tir_bound_map)
 
 
+def _attach_preproc(
+    mod: IRModule,
+    named_params: List[Tuple[str, nn.Parameter]],
+    args: CompileArgs,  # pylint: disable=unused-argument
+    model_config,
+):
+    extra_tirs: Dict[str, tir.PrimFunc] = {}
+    for _, param in named_params:
+        preprocs = param.attrs.get("preprocs", [])
+        shard_strategy = param.attrs.get("shard_strategy", None)
+        if shard_strategy is not None and model_config.tensor_parallel_shards > 1:
+            preprocs.append(
+                shard_strategy.gen_shard_info(
+                    shards=model_config.tensor_parallel_shards,
+                    weight=param,
+                )
+            )
+            if shard_strategy.name not in extra_tirs:
+                extra_tirs[shard_strategy.name] = shard_strategy.gen_tir(
+                    shards=model_config.tensor_parallel_shards,
+                    weight=param,
+                )
+        param.attrs["preprocs"] = preprocs
+    for func_name, func in extra_tirs.items():
+        mod[func_name] = func.with_attr("global_symbol", func_name)
+
+
+def _attach_metadata(
+    mod: IRModule,
+    named_params: List[Tuple[str, nn.Parameter]],
+    args: CompileArgs,
+    model_config,
+) -> None:
+    def _emit_metadata(metadata):
+        bb = relax.BlockBuilder()  # pylint: disable=invalid-name
+        with bb.function("main", params=[]):
+            bb.emit_func_output(relax.StringImm(json.dumps(metadata)))
+        return bb.finalize()["main"]
+
+    mod["_metadata"] = _emit_metadata(
+        {
+            "model_type": args.model.name,
+            "quantization": args.quantization.name,
+            "params": [
+                {
+                    "name": name,
+                    "shape": list(param.shape),
+                    "dtype": param.dtype,
+                    "preprocs": param.attrs["preprocs"],
+                }
+                for name, param in named_params
+            ],
+            "context_window_size": model_config.context_window_size,
+            "prefill_chunk_size": model_config.prefill_chunk_size,
+            "sliding_window": getattr(model_config, "sliding_window", -1),
+            "tensor_parallel_shards": model_config.tensor_parallel_shards,
+            "memory_usage": {str(k): int(v) for k, v in mod.attrs["mlc_llm.memory_usage"].items()},
+        }
+    )
+
+
 def _compile(args: CompileArgs, model_config: ConfigBase):
     logger.info("Creating model from: %s", args.config)
     args.overrides.apply(model_config)
-    model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
-    logger.info("Exporting the model to TVM Unity compiler")
-    mod, named_params = model.export_tvm(
-        spec=model.get_default_spec(),  # type: ignore
-    )
-    logger.info("Running optimizations using TVM Unity")
-    _attach_variable_bounds(mod, model_config)
     with args.target:
+        # Step 1. Create the quantized model
+        model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
+        # Step 2. Exporting the model to TVM Unity
+        logger.info("Exporting the model to TVM Unity compiler")
+        mod, named_params = model.export_tvm(
+            spec=model.get_default_spec(),  # type: ignore
+        )
+        _attach_variable_bounds(mod, model_config)
+        _attach_preproc(mod, named_params, args, model_config)
+        # Step 3. Running relax compilation pipeline
+        logger.info("Running optimizations using TVM Unity")
         mod = relax.get_pipeline("mlc_llm")(mod)
-    _attach_auxiliary_methods(mod, named_params, args, model_config)
-    logger.info("Generating code using TVM Unity")
-    args.build_func(mod, args)
+        # Step 4. Attach metadata for the runtime to read
+        _attach_metadata(mod, named_params, args, model_config)
+        logger.info("Generating code using TVM Unity")
+        # Step 5. Build and export the library
+        args.build_func(mod, args)
     logger.info("Generated: %s", bold(str(args.output)))
 
 
