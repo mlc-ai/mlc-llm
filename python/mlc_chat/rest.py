@@ -208,15 +208,15 @@ def function_call_util(request: ChatCompletionRequest):
 
     if isinstance(request.tool_choice, ToolChoice):
         # force the model to use a specific function provided by tool_choice
-        if request.tool_choice.type == "function":
-            for tool in request.tools:
-                if tool.function["name"] == request.tool_choice.function["name"]:
-                    add_function_call(request.messages, json.dumps(tool.function))
-                    return True
-            raise ValueError("ToolChoice.function.name not found in tools")
-        else:
+        if request.tool_choice.type != "function":
             raise ValueError("Only 'function' tool choice is supported")
-    elif isinstance(request.tool_choice, str):
+        for tool in request.tools:
+            if tool.function["name"] == request.tool_choice.function["name"]:
+                add_function_call(request.messages, json.dumps(tool.function))
+                return True
+        raise ValueError("ToolChoice.function.name not found in tools")
+
+    if isinstance(request.tool_choice, str):
         # Add all the functions to the input prompt
         function_list = []
         for tool in request.tools:
@@ -314,7 +314,7 @@ async def request_chat_completion(request: ChatCompletionRequest):
         msg = [msg]
 
     choices = []
-    for index in range(len(msg)):
+    for index, msg_i in enumerate(msg):
         if use_function_call:
             choices.append(
                 ChatCompletionResponseChoice(
@@ -326,7 +326,7 @@ async def request_chat_completion(request: ChatCompletionRequest):
                             ToolCalls(
                                 function=fn_json_obj,
                             )
-                            for fn_json_obj in convert_function_str_to_json(msg[index])
+                            for fn_json_obj in convert_function_str_to_json(msg_i)
                         ],
                     ),
                     finish_reason="tool_calls",
@@ -338,7 +338,7 @@ async def request_chat_completion(request: ChatCompletionRequest):
                     index=index,
                     message=ChatMessage(
                         role="assistant",
-                        content=msg[index],
+                        content=msg_i,
                     ),
                     finish_reason="stop",
                 )

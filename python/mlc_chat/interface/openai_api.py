@@ -32,12 +32,12 @@ class Function(BaseModel):
 
 class Tools(BaseModel):
     type: Literal["function"]
-    function: object
+    function: Dict[str, Any]
 
 
 class ToolChoice(BaseModel):
     type: Literal["function"]
-    function: object
+    function: Dict[str, Any]
 
 
 class ChatCompletionRequest(BaseModel):
