@@ -118,8 +118,6 @@ class CompletionRequest(BaseModel):
     n: int = None
     stop: Union[str, List[str]] = None
     # TODO: Implement support for the OpenAI API parameters
-    # tool []
-    # tool_choice
     # suffix
     # logprobs
     # echo

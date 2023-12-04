@@ -276,7 +276,6 @@ async def request_chat_completion(request: ChatCompletionRequest):
     session["chat_mod"].reset_chat()  # Reset previous history, KV cache, etc.
 
     use_function_call = function_call_util(request)
-    print("Request message after function call util", request.messages)
 
     if request.stream:
         session["chat_mod"]._prefill(  # pylint: disable=protected-access
