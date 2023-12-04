@@ -2,7 +2,7 @@ import time
 import uuid
 import json
 from http import HTTPStatus
-from typing import Annotated, AsyncIterator
+from typing import Annotated, AsyncIterator, List
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -90,16 +90,19 @@ async def request_completion(
     # The behavior in case of bigger number of stop sequences is unknown - need to shrink
     # or return error
     # To figure out how to handle properly and add verification
-    stop_sequences = None
-    if request.stop:
-        stop_sequences = request.stop if type(request.stop) == list else [request.stop]
+    if isinstance(request.stop, list):
+        stop_sequences = request.stop
+    else:
+        stop_sequences = [request.stop]
+
+    ignore_eos = False if request.ignore_eos is None else request.ignore_eos
     text_generation_request = Request(
         request_id=request_id,
         messages=request.messages,
         num_sequences=request.n,
         sampling_params=sampling_params,
         stopping_criteria=StoppingCriteria(max_tokens=request.max_tokens, stop_sequences=stop_sequences),
-        debug_options=DebugOptions(ignore_eos=request.ignore_eos),
+        debug_options=DebugOptions(ignore_eos=ignore_eos),
     )
     if isinstance(request.messages, str):
         text_generation_request.debug_options.prompt = request.messages
@@ -180,7 +183,7 @@ async def collect_result_stream(
     result_generator: AsyncIterator[RequestOutput],
 ) -> ChatCompletionResponse:
     created_time = int(time.time())
-    sequences = [[] for _ in range(num_sequences)]
+    sequences: List[List[str]] = [[] for _ in range(num_sequences)]
     finish_reasons = [None] * num_sequences
     num_prompt_tokens = 0
     num_generated_tokens = [0 for _ in range(num_sequences)]
@@ -195,8 +198,10 @@ async def collect_result_stream(
                 raise RuntimeError(f"Unexpected sequence index: {seq.index}.")
             num_generated_tokens[seq.index] = seq.num_generated_tokens
             if seq.is_finished:
-                finish_reasons[seq.index] = seq.finish_reason.value
+                assert seq.finish_reason is not None
+                finish_reasons[seq.index] = seq.finish_reason.value  # type: ignore
             else:
+                assert seq.delta is not None
                 sequences[seq.index].append(seq.delta)
 
     choices = [

@@ -3,6 +3,7 @@ The worker for StagingInferenceEngine
 """
 import os
 import multiprocessing
+import multiprocessing.synchronize
 from collections import deque
 from dataclasses import dataclass
 from threading import Condition, Lock, Thread
@@ -10,7 +11,7 @@ from typing import Callable, Optional, Union, Any, Dict, Deque, List
 
 import structlog
 
-from .base import FinishReason, RequestId, RequestState
+from .base import FinishReason, RequestId, RequestState, ValidationError
 from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId, TextGenerator, Tokenizer as TokenizerP
 from ..model.base import ModelArtifactConfig
 from ..logging_utils import configure_logging
@@ -47,7 +48,7 @@ class SequenceGenerationOutput:
     id: SequenceId
     new_tokens: list[int]
     finish_reason: Optional[FinishReason] = None
-    error: Optional[str] = None
+    error: Optional[Union[str, ValidationError]] = None
 
 
 @dataclass
@@ -117,7 +118,7 @@ class GenerationLoopWorker:
                 ):
                     self.cancelled_requests.append(request_state)
                     if request_state.validation_err is None:
-                        request_state.validation_err = "The prompt is too long for the given set of engine parameters."
+                        request_state.validation_err = ValidationError("The prompt is too long for the given set of engine parameters.")
                 else:
                     valid_states.append(request_state)
 
@@ -148,14 +149,14 @@ class GenerationLoopWorker:
     def stop_request(self, request_id: RequestId):
         self._cacnel_or_stop_request(request_id, self.stopped_requests)
 
-    def wait_for_request(self, timeout_seconds=None) -> bool:
+    def wait_for_request(self, timeout_seconds=None):
         with self.queue_lock:
             self.has_new_requests.wait_for(
                 self.has_pending_requests, timeout=timeout_seconds
             )
 
     def has_pending_requests(self) -> bool:
-        return self.queue or self.current_batch or self.cancelled_requests
+        return len(self.queue) != 0 or len(self.current_batch) != 0 or len(self.cancelled_requests) != 0
 
     def step(self) -> GenerationLoopWorkerOutput:
         LOG.debug("Starting new inference step.")
@@ -376,13 +377,14 @@ class GenerationLoopWorker:
         return requests
 
     def _has_request_to_process(self) -> bool:
-        return self.queue or self.current_batch
+        return len(self.queue) != 0 or len(self.current_batch) != 0
 
     def _should_stop_by_length(self, state: RequestState) -> bool:
         # TODO: currently, we simply return true for both stopping reasons.
         #       in the future, we can differentiate these two.
         # this include prompt tokens and gen tokens so far
         num_context_tokens = len(state.token_ids)
+        assert self.model_artifact_config.max_context_length is not None
         if num_context_tokens >= self.model_artifact_config.max_context_length:
             return True
         num_gen_tokens = num_context_tokens - state.prompt_len
@@ -399,8 +401,8 @@ def run_generation_loop_worker(
     model_module_loader_kwargs: dict,
     command_queue: multiprocessing.Queue,
     result_queue: multiprocessing.Queue,
-    ready_event: multiprocessing.Event,
-    contextvars: Dict[str, Any] = None,
+    ready_event: multiprocessing.synchronize.Event,
+    contextvars: Optional[Dict[str, Any]] = None,
     enable_json_logs = False,
     log_level="INFO",
 ):

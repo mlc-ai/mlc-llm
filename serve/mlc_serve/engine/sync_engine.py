@@ -10,7 +10,6 @@ from threading import Condition, Lock
 from uuid import uuid4
 
 from .base import (
-    DebugOptions,
     FinishReason,
     InferenceEngine,
     InferenceStepResult,
@@ -18,10 +17,9 @@ from .base import (
     RequestId,
     RequestOutput,
     RequestState,
-    SamplingParams,
     SequenceOutput,
-    StoppingCriteria,
     check_stopping_sequences,
+    ValidationError
 )
 from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId, TextGenerator, Tokenizer as TokenizerP
 from ..model.base import ModelArtifactConfig
@@ -105,7 +103,7 @@ class SynchronousInferenceEngine(InferenceEngine):
             ):
                 self.cancel(req.request_id)
                 if state.validation_err is None:
-                    state.validation_err = "The prompt is too long for the given set of engine parameters."
+                    state.validation_err = ValidationError("The prompt is too long for the given set of engine parameters.")
 
         with self.queue_lock:
             self.queue.extend(new_request_states)
@@ -159,7 +157,7 @@ class SynchronousInferenceEngine(InferenceEngine):
 
         previous_requests_to_be_cancelled = set(self.requests_to_be_cancelled)
         self._adjust_batch()
-        
+
         if not self.current_batch:
             if len(self.queue) > 0:
                 logger.warning(

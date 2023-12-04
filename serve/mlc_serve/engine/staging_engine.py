@@ -46,7 +46,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
     def __init__(
         self,
         tokenizer_module: TokenizerModule,
-        model_module_loader: Callable[..., ModelModule],
+        model_module_loader: ModelModule,
         model_module_loader_kwargs: dict,
         # maybe find a better way to do this
         json_log_output: bool = False,

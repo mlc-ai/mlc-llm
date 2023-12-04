@@ -1,5 +1,4 @@
 import argparse
-import logging
 import logging.config
 import os
 import uvicorn
@@ -65,10 +64,11 @@ def create_engine(
         "max_decode_steps": args.max_decode_steps,
     })
 
+    # TODO(yelite, masahi): Protocol subtyping is not working
     if args.use_staging_engine:
         return StagingInferenceEngine(
             tokenizer_module=HfTokenizerModule(model_artifact_path),
-            model_module_loader=PagedCacheModelModule,
+            model_module_loader=PagedCacheModelModule,  # type: ignore
             model_module_loader_kwargs={
                 "model_artifact_path": model_artifact_path,
                 "engine_config": engine_config,
@@ -79,7 +79,7 @@ def create_engine(
             PagedCacheModelModule(
                 model_artifact_path = model_artifact_path,
                 engine_config = engine_config,
-            )
+            )  # type: ignore
         )
 
 

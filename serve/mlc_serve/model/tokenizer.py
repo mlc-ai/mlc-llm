@@ -1,8 +1,8 @@
 from typing import List
 from transformers import AutoTokenizer
-import os
 from ..engine import ChatMessage
 from pathlib import Path
+
 
 class Tokenizer:
     def __init__(self, hf_tokenizer):

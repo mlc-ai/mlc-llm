@@ -17,7 +17,7 @@ class DummyInferenceEngine:
         self.has_new_requests = Condition(self.queue_lock)
         self.request_queue: Dict[RequestId, int] = {}
 
-    def add(self, requests: list[Request]) -> list[RequestId]:
+    def add(self, requests: list[Request]):
         ids = []
         requests_to_add = {}
 

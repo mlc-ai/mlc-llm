@@ -1,10 +1,8 @@
-import json
 import math
 import os
 from collections import defaultdict
 from typing import List, Union, Optional
-from dataclasses import dataclass
-import inspect
+from pathlib import Path
 
 import structlog
 import numpy as np
@@ -16,7 +14,7 @@ from tvm.runtime import disco as di
 from mlc_llm import utils
 
 from .base import get_model_artifact_config
-from .tokenizer import HfTokenizerModule, ConversationTemplate
+from .tokenizer import HfTokenizerModule, ConversationTemplate, Tokenizer
 from ..engine import RequestId, SamplingType, MLCServeEngineConfig, SamplingParams
 from ..engine.model_module import (
     DecodeRequest,
@@ -83,7 +81,7 @@ class CacheManager:
         else:
             self.block_sliding_window = None
 
-    def set_size(self, request_ids: List[int], target_sizes: List[int]):
+    def set_size(self, request_ids: List[str], target_sizes: List[int]):
         for id, size in zip(request_ids, target_sizes):
             num_needed_block = math.ceil(size / self.block_size)
 
@@ -614,6 +612,7 @@ class Model:
 
         try:
             next_tokens = sample(logits, sampling_params, self.vocab_size)
+            assert next_tokens is not None
 
             return [
                 TextGenerationResult(
@@ -706,12 +705,12 @@ class PagedCacheModelModule:
     engine_config: MLCServeEngineConfig
     text_generator: PagedCacheModelTextGenerator
     cache_manager: CacheManager
-    tokenizer: HfTokenizerModule
+    tokenizer: Tokenizer
     conversation_template: ConversationTemplate
 
     def __init__(
         self,
-        model_artifact_path: str,
+        model_artifact_path: Path,
         engine_config: MLCServeEngineConfig,
     ):
         model_artifact_config = get_model_artifact_config(model_artifact_path)
@@ -774,4 +773,4 @@ class PagedCacheModelModule:
         self.conversation_template = tokenizer_module.conversation_template
 
     def _check_implements_model_module(self) -> ModelModule:
-        return self
+        return self  # type: ignore

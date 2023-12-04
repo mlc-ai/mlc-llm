@@ -18,3 +18,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 root = ".."
+
+[tool.mypy]
+ignore_missing_imports = true

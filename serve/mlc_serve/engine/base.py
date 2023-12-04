@@ -89,7 +89,7 @@ class FinishReason(Enum):
     Cancelled = "cancelled"
 
 # A single token.
-Token = List[int]
+Token = int
 
 @dataclass
 class ValidationError:

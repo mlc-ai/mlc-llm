@@ -1,0 +1,17 @@
+name: Lint
+
+on:
+  pull_request:
+
+jobs:
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v3
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install mypy
+        run: pip install mypy
+      - name: Check types
+        run: python -m mypy --install-types --ignore-missing-imports serve/mlc_serve

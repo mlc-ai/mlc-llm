@@ -59,6 +59,7 @@ class DummyCacheManager:
         self.cache.cached_requests[request_id] = num_tokens
         if self.get_free_space() < 0:
             raise RuntimeError("Cache out of space")
+        return True
 
     def extend(self, sequence_id: SequenceId, new_tokens: int) -> bool:
         if sequence_id.sequence_index > 0:
@@ -66,6 +67,7 @@ class DummyCacheManager:
         self.cache.cached_requests[sequence_id.request_id] += new_tokens
         if self.get_free_space() < 0:
             raise RuntimeError("Cache out of space")
+        return True
 
     def free(self, sequence_id: SequenceId):
         if sequence_id.sequence_index > 0:
@@ -88,7 +90,7 @@ class DummyTextGenerator:
     def generate(
         self,
         requests: list[Union[PrefillRequest, DecodeRequest]],
-        kv_cache: KVCache,
+        kv_cache: DummyCache,
     ) -> list[TextGenerationResult]:
         result = []
         for req in requests:
@@ -100,7 +102,8 @@ class DummyTextGenerator:
                 request_id = req.request_id
 
             if len(req.token_ids) > kv_cache.cached_requests[request_id]:
-                raise RuntimeError(f"Cache out of space for request {req.request_id}")
+                raise RuntimeError(f"Cache out of space for request {request_id}")
+
             result.append(
                 TextGenerationResult(
                     sequence_id=SequenceId(
