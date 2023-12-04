@@ -1,5 +1,4 @@
 """The group quantization config"""
-import logging
 from dataclasses import dataclass
 from typing import Any, Callable, List, Optional, Tuple
 
@@ -10,6 +9,7 @@ from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
 from tvm.target import Target
 
+from ...support import logging
 from ..loader import QuantizeMapping
 from .utils import convert_uint_to_float
 
@@ -170,7 +170,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     lv = bb.emit_te(self._quantize, weight_var)  # pylint: disable=invalid-name
                     gv = bb.emit_output(lv)  # pylint: disable=invalid-name
                 bb.emit_func_output(gv)
-            return bb.get()
+            return bb.finalize()
 
         def _compile_quantize_func(mod: IRModule) -> Callable:
             if device_type in ["cuda", "rocm", "metal", "vulkan"]:

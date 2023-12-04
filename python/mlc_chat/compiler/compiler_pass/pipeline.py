@@ -1,11 +1,10 @@
 """The compilation pipeline for LLM applications."""
-import logging
-
 import tvm
 from tvm import IRModule
 from tvm import dlight as dl
 from tvm.relax import register_pipeline  # pylint: disable=no-name-in-module
 
+from ...support import logging
 from .clean_up_tir_attrs import CleanUpTIRAttrs
 from .estimate_memory_usage import EstimateMemoryUsage
 from .fuse_dequantize_matmul_ewise import FuseDequantizeMatmulEwise

@@ -1,10 +1,11 @@
 """Common utilities for loading parameters"""
 # pylint: disable=too-few-public-methods
-import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, Set, Tuple
 
 import numpy as np
+
+from mlc_chat.support import logging
 
 if TYPE_CHECKING:
     from tvm.runtime import NDArray

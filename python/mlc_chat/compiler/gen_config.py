@@ -1,11 +1,11 @@
 """Generator of mlc-chat-config.json and tokenizer configuration."""
 import dataclasses
 import json
-import logging
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ..support import logging
 from ..support.style import bold, green, red
 from .flags_model_config_override import ModelConfigOverride
 from .model import Model
@@ -15,37 +15,55 @@ logger = logging.getLogger(__name__)
 
 FOUND = green("Found")
 NOT_FOUND = red("Not found")
+FAILED = red("Failed")
 VERSION = "0.1.0"
 
 
 @dataclasses.dataclass
 class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
-    """Arguments for `mlc_chat.compiler.gen_config`."""
+    """Fields in the dumped `mlc-chat-config.json` file."""
 
-    version: str = VERSION
-
-    model_type: str = None
-    quantization: str = None
-    model_config: Dict[str, Any] = None
-    vocab_size: int = None
-    context_window_size: int = None
-
-    temperature: float = None
-    repetition_penalty: float = None
-    top_p: float = None
-
+    model_type: str
+    quantization: str
+    model_config: Dict[str, Any]
+    vocab_size: int
+    context_window_size: int
+    sliding_window: int
+    prefill_chunk_size: int
+    # Control the behavior of the runtime
     mean_gen_len: int = None
     max_gen_len: int = None
     shift_fill_factor: float = None
-    sliding_window: int = None
-    prefill_chunk_size: int = None
-
+    # Configuration of text generation
+    temperature: float = None
+    repetition_penalty: float = None
+    top_p: float = None
     # Conversation template
     conv_template: str = None
     pad_token_id: int = None
     bos_token_id: int = None
     eos_token_id: int = None
     tokenizer_files: List[str] = dataclasses.field(default_factory=list)
+    # Version control
+    version: str = VERSION
+
+    def apply_defaults(self) -> None:
+        """Apply system default value."""
+        defaults = {
+            "pad_token_id": 0,
+            "bos_token_id": 1,
+            "eos_token_id": 2,
+            "temperature": 0.7,
+            "repetition_penalty": 1.0,
+            "top_p": 0.95,
+            "mean_gen_len": 128,
+            "max_gen_len": 512,
+            "shift_fill_factor": 0.3,
+        }
+        for key, value in defaults.items():
+            if getattr(self, key) is None:
+                setattr(self, key, value)
+                logger.info("[System default] Setting %s: %s", bold(key), value)
 
 
 def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-branches,too-many-statements
@@ -59,28 +77,23 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     output: Path,
 ):
     """Entrypoint of MLC Chat configuration generation."""
-    with config.open("r", encoding="utf-8") as in_file:
-        model_config_json = json.load(in_file)
-    model_config = model.config.from_dict(model_config_json)
+    # Step 1. Initialize `mlc-chat-config.json` using `config.json`
+    model_config = model.config.from_file(config)
     ModelConfigOverride(
         context_window_size=context_window_size,
         sliding_window=sliding_window,
         prefill_chunk_size=prefill_chunk_size,
     ).apply(model_config)
-
     mlc_chat_config = MLCChatConfig(
         model_type=model.name,
         quantization=quantization.name,
-        model_config=model_config_json,
+        model_config=model_config.asdict(),
         vocab_size=model_config.vocab_size,
-        conv_template=conv_template,
         context_window_size=model_config.context_window_size,
+        sliding_window=getattr(model_config, "sliding_window", -1),
+        prefill_chunk_size=model_config.prefill_chunk_size,
+        conv_template=conv_template,
     )
-    # Step 1. Load `config.json`
-    for key, value in model_config.__dict__.items():
-        if hasattr(mlc_chat_config, key) and getattr(mlc_chat_config, key) is None:
-            setattr(mlc_chat_config, key, value)
-            logger.info("[config.json] Setting %s: %s", bold(key), value)
     # Step 2. Load `generation_config.json`
     generation_config = config.parent / "generation_config.json"
     if generation_config.exists():
@@ -93,6 +106,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
                 logger.info("[generation_config.json] Setting %s: %s", bold(key), value)
     else:
         logger.info("%s generation_config.json: %s", NOT_FOUND, generation_config)
+
     # Step 3. Copy tokenizer configuration
     # 3.1. Copy over the files and populate mlc_chat_config
     for filename in TOKENIZER_FILES:
@@ -109,65 +123,30 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     tokenizer_json_file = config.parent / "tokenizer.json"
     tokenizer_model_file = config.parent / "tokenizer.model"
     if tokenizer_model_file.exists() and (not tokenizer_json_file.exists()):
-        logger.info("Attempting to convert `tokenizer.model` to `tokenizer.json`.")
+        logger.info(
+            "The model has `tokenizer.model` but not `tokenizer.json`. "
+            "It is always recommended to prefer JSON instead. "
+            "Attempting to convert using HuggingFace transformers library"
+        )
         try:
-            # pylint: disable=import-outside-toplevel
-            from transformers import AutoTokenizer
+            from transformers import (  # pylint: disable=import-error,import-outside-toplevel
+                AutoTokenizer,
+            )
 
             tokenizer_json_save_dest = output / "tokenizer.json"
             fast_tokenizer = AutoTokenizer.from_pretrained(str(config.parent), use_fast=True)
             fast_tokenizer.backend_tokenizer.save(str(tokenizer_json_save_dest))
             mlc_chat_config.tokenizer_files.append("tokenizer.json")
             logger.info("Succesfully converted `tokenizer.model` to: %s", tokenizer_json_save_dest)
-        except ImportError:
-            logger.warning(
-                "The model has `tokenizer.model` but not `tokenizer.json`. It is"
-                + "recommended to use `tokenizer.json`, so we try convert it with `transformers`.\n"
-                + "However, we were unable to import `transformers`, hence skipping this step."
-            )
-        except Exception as error:  # pylint: disable=broad-exception-caught
-            logger.warning(
-                "The model has `tokenizer.model` but not `tokenizer.json`. It is"
-                + "recommended to use `tokenizer.json`, so we try convert it with `transformers`.\n"
-                + "However, we are skipping this due to an error:\n",
-                error,
-            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("%s with the exception below. Skipping", FAILED)
     # Step 4. Load system default value
-    for key, value in DEFAULT_CONFIGS.items():
-        if getattr(mlc_chat_config, key) is None:
-            setattr(mlc_chat_config, key, value)
-            logger.info("[System default] Setting %s: %s", bold(key), value)
+    mlc_chat_config.apply_defaults()
+    # Step 5. Dump the configuration file to output directory
+    with (output / "mlc-chat-config.json").open("w", encoding="utf-8") as out_file:
+        json.dump(dataclasses.asdict(mlc_chat_config), out_file, indent=2)
+        logger.info("Dumping configuration file to: %s", bold(out_file.name))
 
-    mlc_chat_config_dict = dataclasses.asdict(mlc_chat_config)
-    if mlc_chat_config_dict["sliding_window"] is not None:
-        del mlc_chat_config_dict["context_window_size"]
-        logger.info("[CleanUp] Deleting %s", bold("context_window_size"))
-    for key, value in list(mlc_chat_config_dict.items()):
-        if value is None:
-            del mlc_chat_config_dict[key]
-            logger.info("[CleanUp] Deleting %s", bold(key))
-
-    # Dump the configuration file to output directory
-    out = output / "mlc-chat-config.json"
-    with out.open("w", encoding="utf-8") as out_file:
-        json.dump(mlc_chat_config_dict, out_file, indent=2)
-    logger.info("Dumping configuration file to: %s", bold(str(out)))
-
-
-DEFAULT_CONFIGS = {
-    # Conversation
-    "pad_token_id": 0,
-    "bos_token_id": 1,
-    "eos_token_id": 2,
-    # Configuration of text generation
-    "temperature": 0.7,
-    "repetition_penalty": 1.0,
-    "top_p": 0.95,
-    # Control the behavior of the runtime
-    "mean_gen_len": 128,
-    "max_gen_len": 512,
-    "shift_fill_factor": 0.3,
-}
 
 TOKENIZER_FILES = [
     "tokenizer.model",

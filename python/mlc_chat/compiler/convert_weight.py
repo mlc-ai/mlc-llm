@@ -1,6 +1,5 @@
 """Python entrypoint of weight conversion."""
 import dataclasses
-import logging
 import math
 from io import StringIO
 from pathlib import Path
@@ -14,6 +13,7 @@ from tvm.target import Target
 
 from mlc_chat.support import tqdm
 
+from ..support import logging
 from ..support.style import bold, green
 from .loader import LOADER
 from .model import Model

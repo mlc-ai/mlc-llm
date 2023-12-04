@@ -335,8 +335,14 @@ class LLMChat {
     picojson::parse(metadata_info, std::string(metadata_str));
     auto metadata = metadata_info.get<picojson::object>();
 
-    ICHECK(metadata["max_window_size"].is<int64_t>());
-    max_window_size_ = std::min(max_window_size_, metadata["max_window_size"].get<int64_t>());
+    std::string key = "max_window_size";
+    if (!metadata.count(key)) {
+      key = "context_window_size";
+      ICHECK(metadata.count(key))
+          << "Key \"max_window_size\" or \"context_window_size\" not found.";
+    }
+    ICHECK(metadata[key].is<int64_t>());
+    max_window_size_ = std::min(max_window_size_, metadata[key].get<int64_t>());
 
     if (metadata.count("prefill_chunk_size")) {
       ICHECK(metadata["prefill_chunk_size"].is<int64_t>());
@@ -420,7 +426,8 @@ class LLMChat {
       CHECK(!config.count("max_window_size"))
           << "Cannot specify both sliding_window and max_window_size.";
       this->sliding_window_ = config["sliding_window"].get<int64_t>();
-      CHECK(this->sliding_window_ > 0) << "Sliding window size needs to be positive";
+      CHECK(this->sliding_window_ > 0 || this->sliding_window_ == -1)
+          << "Sliding window size needs to be -1 or positive";
       CHECK(config.count("prefill_chunk_size"))
           << "Need to specify chunk size if using sliding window attention.";
     }

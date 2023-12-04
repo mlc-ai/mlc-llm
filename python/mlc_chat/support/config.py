@@ -40,23 +40,6 @@ class ConfigBase:
         field_names = [field.name for field in dataclasses.fields(cls)]  # type: ignore[arg-type]
         fields = {k: v for k, v in source.items() if k in field_names}
         kwargs = {k: v for k, v in source.items() if k not in field_names}
-        if "model_config" in source:
-            fields = {
-                **fields,
-                **{
-                    k: v
-                    for k, v in source["model_config"].items()
-                    if k in field_names and k not in fields
-                },
-            }
-            kwargs = {
-                **kwargs,
-                **{
-                    k: v
-                    for k, v in source["model_config"].items()
-                    if k not in field_names and k not in fields
-                },
-            }
         return cls(**fields, kwargs=kwargs)  # type: ignore[call-arg]
 
     @classmethod
@@ -78,6 +61,18 @@ class ConfigBase:
         """
         with source.open("r", encoding="utf-8") as in_file:
             return cls.from_dict(json.load(in_file))
+
+    def asdict(self):
+        """Convert the config object to a dictionary.
+
+        Returns
+        -------
+        Dict[str, Any]
+            A dictionary representation of the config object.
+        """
+        result = dataclasses.asdict(self)
+        result.pop("kwargs")
+        return result
 
 
 __all__ = ["ConfigBase"]

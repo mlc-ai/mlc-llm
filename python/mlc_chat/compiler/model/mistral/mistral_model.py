@@ -2,7 +2,6 @@
 Implementation for Mistral architecture.
 """
 import dataclasses
-import logging
 import math
 from typing import Any, Dict, Optional
 
@@ -11,6 +10,7 @@ from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
+from ....support import logging
 from ....support.config import ConfigBase
 from ....support.style import bold
 

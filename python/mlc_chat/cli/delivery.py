@@ -2,7 +2,6 @@
 import argparse
 import dataclasses
 import json
-import logging
 import os
 import shutil
 import subprocess
@@ -13,17 +12,12 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 from huggingface_hub import HfApi  # pylint: disable=import-error
 from huggingface_hub.utils import HfHubHTTPError  # pylint: disable=import-error
 
+from ..support import logging
 from ..support.argparse import ArgumentParser
 from ..support.download import git_clone
 from ..support.style import bold, green, red
 
-logging.basicConfig(
-    level=logging.INFO,
-    style="{",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    format="[{asctime}] {levelname} {filename}:{lineno}: {message}",
-)
-
+logging.enable_logging()
 logger = logging.getLogger(__name__)
 MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
 

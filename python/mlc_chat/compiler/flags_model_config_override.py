@@ -1,11 +1,11 @@
 """Flags for overriding model config."""
 import argparse
 import dataclasses
-import logging
 from io import StringIO
-from typing import Optional
+from typing import Any, Optional
 
-from ..support.style import bold
+from ..support import logging
+from ..support.style import bold, red
 
 logger = logging.getLogger(__name__)
 
@@ -29,56 +29,38 @@ class ModelConfigOverride:
         print(f";num_shards={self.num_shards}", file=out, end="")
         return out.getvalue().rstrip()
 
+    def __post_init__(self):
+        # If `sliding_window` is set
+        # - 1) Disable `context_window_size`
+        # - 2) Require `prefill_chunk_size` to present
+        if self.sliding_window is not None:
+            self.context_window_size = -1
+            logger.info(
+                "Setting %s to -1 (disabled), because %s is already set",
+                bold("context_window_size"),
+                bold("sliding_window"),
+            )
+            if self.prefill_chunk_size is None:
+                logger.info(
+                    "Default %s to %s (%d) because it is not provided",
+                    bold("prefill_chunk_size"),
+                    bold("sliding_window"),
+                    self.sliding_window,
+                )
+                self.prefill_chunk_size = self.sliding_window
+
     def apply(self, model_config):
         """Apply the overrides to the given model config."""
         if self.context_window_size is not None:
-            logger.info(
-                "Overriding %s from %d to %d",
-                bold("context_window_size"),
-                model_config.context_window_size,
-                self.context_window_size,
-            )
-            model_config.context_window_size = self.context_window_size
+            _model_config_override(model_config, "context_window_size", self.context_window_size)
         if self.prefill_chunk_size is not None:
-            logger.info(
-                "Overriding %s from %d to %d",
-                bold("prefill_chunk_size"),
-                model_config.prefill_chunk_size,
-                self.prefill_chunk_size,
-            )
-            model_config.prefill_chunk_size = self.prefill_chunk_size
+            _model_config_override(model_config, "prefill_chunk_size", self.prefill_chunk_size)
         if self.sliding_window is not None:
-            logger.info(
-                "Overriding %s from %d to %d",
-                bold("sliding_window"),
-                model_config.sliding_window,
-                self.sliding_window,
-            )
-            model_config.sliding_window = self.sliding_window
-            if self.prefill_chunk_size is None:
-                logger.info(
-                    "Provided %s but did not provide %s, setting both to %d",
-                    bold("sliding_window"),
-                    bold("prefill_chunk_size"),
-                    model_config.sliding_window,
-                )
-                model_config.prefill_chunk_size = self.sliding_window
+            _model_config_override(model_config, "sliding_window", self.sliding_window)
         if self.max_batch_size is not None:
-            logger.info(
-                "Overriding %s from %d to %d",
-                bold("max_batch_size"),
-                model_config.max_batch_size,
-                self.max_batch_size,
-            )
-            model_config.max_batch_size = self.max_batch_size
+            _model_config_override(model_config, "max_batch_size", self.max_batch_size)
         if self.num_shards is not None:
-            logger.info(
-                "Overriding %s from %d to %d",
-                bold("num_shards"),
-                model_config.num_shards,
-                self.num_shards,
-            )
-            model_config.num_shards = self.num_shards
+            _model_config_override(model_config, "num_shards", self.num_shards)
 
     @staticmethod
     def from_str(source: str) -> "ModelConfigOverride":
@@ -97,4 +79,22 @@ class ModelConfigOverride:
             sliding_window=results.sliding_window,
             max_batch_size=results.max_batch_size,
             num_shards=results.num_shards,
+        )
+
+
+def _model_config_override(model_config, field: str, value: Any) -> None:
+    if hasattr(model_config, field):
+        logger.info(
+            "Overriding %s from %d to %d",
+            bold(field),
+            getattr(model_config, field),
+            value,
+        )
+        setattr(model_config, field, value)
+    else:
+        logger.warning(
+            "%s: %s does not have %s",
+            red("Warning"),
+            bold(type(model_config).__name__),
+            bold("sliding_window"),
         )
