@@ -6,13 +6,13 @@ from tvm.relax.frontend import nn
 
 from ..loader import ExternMapping, QuantizeMapping
 from ..quantization.quantization import Quantization
-<<<<<<< HEAD
+
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
-=======
-from . import llama_loader, llama_model, llama_quantization,llava_model
->>>>>>> b141da3 (feat: update model registration for .so generation)
+from.llava import llava_loader, llava_model, llava_quantization
+
+
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -73,16 +73,15 @@ MODELS: Dict[str, Model] = {
     ),
     "llava":Model(
         name='llava',
-        model=llava_model.LLavaModel,
+        model=llava_model.LlavaForCasualLM,
         config=llava_model.LlavaConfig,
-        # TODO: update the source for llava
         source={
-            "huggingface-torch": llama_loader.huggingface,
-            "huggingface-safetensor": llama_loader.huggingface,
-            "awq": llama_loader.awq,
+            "huggingface-torch": llava_loader.huggingface,
+            "huggingface-safetensor": llava_loader.huggingface,
+            "awq": llava_loader.awq,
         },
         quantize={
-            "group-quant": llava_model.group_quant,
+            "group-quant": llava_quantization.group_quant,
         },
     ),
     "mistral": Model(
@@ -115,8 +114,29 @@ MODELS: Dict[str, Model] = {
 
 MODEL_PRESETS: Dict[str, Any] = {
     "llava":{
-        "architectures": ["LLavaModel"],
+        "architectures": ["LlavaForCasualLM"],
         "model_type":"llava",
+        "bos_token_id": 1,
+        "eos_token_id": 2,
+        "hidden_act": "silu",
+        "hidden_size": 5120,
+        "initializer_range": 0.02,
+        "intermediate_size": 13824,
+        "max_position_embeddings": 2048,
+        "context_window_size": 4096,
+        "model_type": "llama",
+        "num_attention_heads": 40,
+        "num_hidden_layers": 40,
+        "num_key_value_heads": 40,
+        "pad_token_id": 0,
+        "pretraining_tp": 2,
+        "rms_norm_eps": 1e-05,
+        "rope_scaling": None,
+        "tie_word_embeddings": False,
+        "torch_dtype": "float16",
+        "transformers_version": "4.31.0.dev0",
+        "use_cache": True,
+        "vocab_size": 32000,
     },
 
     "llama2_7b": {
