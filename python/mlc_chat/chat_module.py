@@ -680,6 +680,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         self._reset_chat_func = chat_mod["reset_chat"]
         self._load_json_override_func = chat_mod["load_json_override"]
         self._stopped_func = chat_mod["stopped"]
+        self._final_token_func = chat_mod["final_token"]
         self._get_message_func = chat_mod["get_message"]
         self._runtime_stats_text_func = chat_mod["runtime_stats_text"]
         self._verbose_runtime_stats_text_func = chat_mod["verbose_runtime_stats_text"]
@@ -1068,6 +1069,15 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         stopped : bool
         """
         return self._stopped_func() != 0
+    
+    def final_token(self):
+        r"""Returns the final token
+
+        Returns
+        -------
+        final_token : int
+        """
+        return self._final_token_func()
 
     def _get_message(self) -> str:
         r"""Get the output message in the current round.

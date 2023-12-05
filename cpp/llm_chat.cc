@@ -715,6 +715,7 @@ class LLMChat {
     output_ids_.clear();
     appeared_token_freq_.clear();
     output_message_.clear();
+    final_token = -1;
     stop_triggered_ = false;
     if (append_conversation) {
       conversation_.AppendMessage(conversation_.roles[0], inp);
@@ -897,6 +898,8 @@ class LLMChat {
   }
 
   bool Stopped() { return stop_triggered_; }
+
+  int32_t FinalToken() { return final_token; }
 
   std::string GetMessage() {
     // remove non-utf8 characters
@@ -1161,6 +1164,8 @@ class LLMChat {
       } else {
         appeared_token_freq_[next_token] = 1;
       }
+    } else {
+      final_token = next_token;
     }
 
     output_message_ = tokenizer_->Decode(output_ids_);
@@ -1179,6 +1184,7 @@ class LLMChat {
         // than the length
         size_t backoff = 0;
         for (; (output_ids_.size() > 0) && (output_message_.length() > stop_pos); ++backoff) {
+          final_token = output_ids_.back();
           output_ids_.pop_back();
           output_message_ = tokenizer_->Decode(output_ids_);
         }
@@ -1189,6 +1195,7 @@ class LLMChat {
     }
 
     if (static_cast<int64_t>(output_ids_.size()) >= gen_max_gen_len) {
+      final_token = next_token;
       stop_triggered_ = true;
     }
     // max_window_size_ != -1 to handle
@@ -1196,6 +1203,7 @@ class LLMChat {
     // sliding_window_ == -1 to make sure we do not stop when using sliding window
     else if (max_window_size_ != -1 && sliding_window_ == -1 &&
              total_seq_len_ >= max_window_size_) {
+      final_token = next_token;
       stop_triggered_ = true;
     }
     if (stop_triggered_) {
@@ -1399,6 +1407,8 @@ class LLMChat {
   std::unordered_map<int32_t, int64_t> appeared_token_freq_;
   // output message till now (refresh after encoding step)
   std::string output_message_;
+  // final token of the generation (refresh after encoding step)
+  int32_t final_token{-1};
   // Whether encounter stop str
   bool stop_triggered_{false};
   //----------------------------
@@ -1565,6 +1575,9 @@ class LLMChatModule : public ModuleNode {
     } else if (name == "stopped") {
       return PackedFunc(
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = GetChat()->Stopped(); });
+    } else if (name == "final_token") {
+      return PackedFunc(
+          [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = GetChat()->FinalToken(); });
     } else if (name == "get_message") {
       return PackedFunc(
           [this, sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = GetChat()->GetMessage(); });
