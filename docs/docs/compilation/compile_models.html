@@ -372,11 +372,10 @@ your personal computer.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-0-aU9TL2lQYWRPUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tabpanel" tabindex="0"><p>You need a Mac to compile models for it.
-.. code:: shell</p>
-<blockquote>
-<div><p>python3 -m mlc_llm.build –hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 –target iphone –max-seq-len 768 –quantization q4f16_1</p>
-</div></blockquote>
+</div><div aria-labelledby="tab-0-aU9TL2lQYWRPUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tabpanel" tabindex="0"><p>You need a Mac to compile models for it.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</pre></div>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>If it runs into error</p>

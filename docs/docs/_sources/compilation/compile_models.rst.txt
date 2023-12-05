@@ -91,7 +91,9 @@ your personal computer.
             python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_1 --llvm-mingw path/to/llvm-mingw
 
     .. group-tab:: iOS/iPadOS
+
         You need a Mac to compile models for it.
+
         .. code:: shell
 
             python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q4f16_1
