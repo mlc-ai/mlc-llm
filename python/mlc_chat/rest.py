@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 from typing import Dict
 import numpy as np
 
-import numpy as np
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
