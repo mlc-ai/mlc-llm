@@ -251,6 +251,7 @@ class RequestState:
     sampling_params: SamplingParams
     stopping_criteria: StoppingCriteria
     debug_options: DebugOptions
+    arrival_timestamp: float
     is_ended: bool = False
     validation_err: Optional[ValidationError] = None
 

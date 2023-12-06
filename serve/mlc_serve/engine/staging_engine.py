@@ -1,6 +1,7 @@
 """
 An implementation of InferenceEngine that offloads the text generation loop to another worker process.
 """
+import time
 import logging
 import multiprocessing
 import queue
@@ -259,6 +260,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
             debug_options=request.debug_options,
             output_text="",
             validation_err=validation_err,
+            arrival_timestamp=time.time(),
         )
 
     def _decode_last_output(self, state: RequestState) -> str:

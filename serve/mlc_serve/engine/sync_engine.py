@@ -2,12 +2,11 @@
 A implementation of InferenceEngine that executes in the current process.
 """
 
+import time
 import logging
 from typing import Deque, Set, Dict
 from collections import deque
-from sre_parse import Tokenizer
 from threading import Condition, Lock
-from uuid import uuid4
 
 from .base import (
     FinishReason,
@@ -384,6 +383,7 @@ class SynchronousInferenceEngine(InferenceEngine):
             stopping_criteria=request.stopping_criteria,
             debug_options=request.debug_options,
             output_text="",
+            arrival_timestamp=time.time(),
         )
 
     def _decode_last_output(self, state: RequestState) -> str:

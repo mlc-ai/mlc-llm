@@ -1,7 +1,7 @@
 """
 The worker for StagingInferenceEngine
 """
-import os
+import time
 import multiprocessing
 import multiprocessing.synchronize
 from collections import deque
@@ -12,11 +12,21 @@ from typing import Callable, Optional, Union, Any, Dict, Deque, List
 import structlog
 
 from .base import FinishReason, RequestId, RequestState, ValidationError
-from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId, TextGenerator, Tokenizer as TokenizerP
+from .metrics import PrometheusMetrics
+from .metrics_labels import *
+from .model_module import (
+    DecodeRequest,
+    ModelModule,
+    PrefillRequest,
+    SequenceId,
+    TextGenerator,
+    Tokenizer as TokenizerP,
+)
 from ..model.base import ModelArtifactConfig
 from ..logging_utils import configure_logging
 
 LOG = structlog.stdlib.get_logger(__name__)
+
 
 @dataclass
 class ShutdownCommand:
@@ -73,7 +83,6 @@ class GenerationLoopWorker:
     stopped_requests: List[RequestState]
     current_batch: Dict[RequestId, RequestState]
 
-
     def __init__(
         self,
         model_module: ModelModule,
@@ -102,6 +111,9 @@ class GenerationLoopWorker:
 
         self.current_batch = dict[RequestId, RequestState]()
 
+        self.prom_metrics = PrometheusMetrics()
+        self.inv_kv_cache_size = 1.0 / self.cache_manager.get_kv_cache_size()
+
     def add(self, request_states: list[RequestState]):
         LOG.debug("GenerationLoopWorker", requests_states=request_states)
         with self.queue_lock:
@@ -124,7 +136,6 @@ class GenerationLoopWorker:
 
             self.queue.extend(valid_states)
             self.has_new_requests.notify_all()
-
 
     def _cacnel_or_stop_request(
         self, request_id: RequestId, requests: list[RequestState]
@@ -182,6 +193,8 @@ class GenerationLoopWorker:
                     )
                 )
                 self._remove_request_from_batch(state.request_id)
+                duration = time.time() - state.arrival_timestamp
+                self.prom_metrics.histogram(E2E_LATENCY).observe(duration)
 
         for state in self.stopped_requests:
             outputs.append(
@@ -226,7 +239,7 @@ class GenerationLoopWorker:
                 )
             return result
 
-        requests = self._get_requests_to_process()
+        requests, is_prompt_batch = self._get_requests_to_process()
         results = self.text_generator.generate(requests, self.cache_manager.get_cache())
         LOG.debug("Finished text generation.")
 
@@ -264,6 +277,14 @@ class GenerationLoopWorker:
                 SequenceGenerationOutput(id=res.sequence_id, new_tokens=new_tokens)
             )
 
+            if is_prompt_batch:
+                ttft = time.time() - state.arrival_timestamp
+                self.prom_metrics.histogram(FIRST_TOKEN_LATENCY).observe(ttft)
+
+        self.prom_metrics.gauge(KV_CACHE_UTILIZATION).set(
+            1.0 - self.cache_manager.get_free_space() * self.inv_kv_cache_size
+        )
+
         LOG.debug("Finished state update and stopping criteria check.")
 
         return result
@@ -271,6 +292,7 @@ class GenerationLoopWorker:
     def _adjust_batch(self):
         with self.queue_lock:
             while self.cache_manager.get_max_new_tokens() < 1:
+                self.prom_metrics.counter(NUM_CACHE_EVICTONS).inc()
                 request_to_remove = min(
                     self.current_batch.values(), key=lambda s: len(s.token_ids)
                 )
@@ -344,6 +366,8 @@ class GenerationLoopWorker:
         )
 
         if is_prompt_batch:
+            prefill_token_counts = 0
+
             for state in self.current_batch.values():
                 if state.next_start_position == 0:
                     requests.append(
@@ -354,10 +378,14 @@ class GenerationLoopWorker:
                             sampling_params=state.sampling_params,
                         )
                     )
+                    prefill_token_counts += len(state.token_ids)
+
+            self.prom_metrics.histogram(BATCHED_PREFILL_TOKENS).observe(prefill_token_counts)
+
             LOG.debug(
                 "Creating prompt batch.",
                 num_requests=len(requests),
-                total_tokens=sum(len(r.token_ids) for r in requests),
+                total_tokens=prefill_token_counts,
             )
         else:
             for state in self.current_batch.values():
@@ -372,9 +400,13 @@ class GenerationLoopWorker:
                 self.cache_manager.extend(
                     seq_id, len(state.token_ids) - state.next_start_position
                 )
-            LOG.debug("Creating decode batch with %s requests.", len(requests))
 
-        return requests
+            decode_token_counts = len(requests)
+            self.prom_metrics.histogram(BATCHED_DECODE_TOKENS).observe(decode_token_counts)
+
+            LOG.debug("Creating decode batch with %s requests.", decode_token_counts)
+
+        return requests, is_prompt_batch
 
     def _has_request_to_process(self) -> bool:
         return len(self.queue) != 0 or len(self.current_batch) != 0
@@ -406,7 +438,6 @@ def run_generation_loop_worker(
     enable_json_logs = False,
     log_level="INFO",
 ):
-
     configure_logging(enable_json_logs, log_level)
     structlog.contextvars.bind_contextvars(**contextvars)
 
