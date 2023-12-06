@@ -83,7 +83,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
         LOG.info("StagingInferenceEngine.start")
         try:
             self.worker_process.start()
-            if not self.ready_event.wait(timeout=90):
+            if not self.ready_event.wait(timeout=120):
                 raise RuntimeError(
                     "StagingInferenceEngine worker is not ready before timeout."
                 )

@@ -18,7 +18,7 @@ from .base import (
     RequestState,
     SequenceOutput,
     check_stopping_sequences,
-    ValidationError
+    ValidationError,
 )
 from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId, TextGenerator, Tokenizer as TokenizerP
 from ..model.base import ModelArtifactConfig
@@ -96,8 +96,8 @@ class SynchronousInferenceEngine(InferenceEngine):
             if (
                 state.validation_err is not None
                 or state.prompt_len > min(self.max_context_length, self.max_num_batched_tokens)
-                # Need to exclude requests which cannot fit into the kv_cache and can be processed
-                # at least max_decode_steps steps
+                # We make sure that the KV cache will have enough free space for this request to proceed
+                # decoding for at least self.max_decode_steps steps.
                 or self.cache_manager.get_kv_cache_size() - state.prompt_len < self.max_decode_steps
             ):
                 self.cancel(req.request_id)
@@ -296,7 +296,8 @@ class SynchronousInferenceEngine(InferenceEngine):
                         num_new_batched_tokens,
                     )
                     break
-                # Make sure to leave some free space in the KV cache after a request is added or batched
+                # We make sure that the KV cache will have enough free space for this request to proceed
+                # decoding for at least self.max_decode_steps steps.
                 if (
                     (self.cache_manager.get_free_space() - num_tokens) / (len(self.current_batch) + 1)
                         < self.max_decode_steps
