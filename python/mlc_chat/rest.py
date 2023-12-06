@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from mlc_chat.chat_module import GenerationConfig
+
 from .base import set_global_random_seed
 from .chat_module import (
     ChatModule,
