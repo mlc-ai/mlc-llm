@@ -14,7 +14,10 @@ from fastapi.responses import StreamingResponse
 from mlc_chat.chat_module import GenerationConfig
 
 from .base import set_global_random_seed
-from .chat_module import ChatModule, ChatConfig
+from .chat_module import (
+    ChatModule,
+    ChatConfig,
+)
 from .interface.openai_api import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -83,8 +86,8 @@ class RestAPIArgs:
         metadata={
             "help": (
                 """
-                The number of devices to use for inference. Currently only compatible with RoCM and CUDA. 
-                See: http://blog.mlc.ai/2023/10/19/Scalable-Language-Model-Inference-on-Multiple-NVDIA-AMD-GPUs
+                The number of devices to use for inference.
+                Currently only compatible with RoCM and CUDA. 
                 """
             )
         },
