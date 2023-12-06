@@ -4,6 +4,7 @@ import asyncio
 import dataclasses
 from contextlib import asynccontextmanager
 from typing import Dict
+import numpy as np
 
 import numpy as np
 import uvicorn
@@ -14,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from mlc_chat.chat_module import GenerationConfig
 
 from .base import set_global_random_seed
-from .chat_module import ChatModule
+from .chat_module import ChatModule, ChatConfig
 from .interface.openai_api import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -78,6 +79,16 @@ class RestAPIArgs:
             )
         },
     )
+    num_devices: int = dataclasses.field(
+        default=1,
+        metadata={
+            "help": (
+                """
+                The number of devices to use. Currently only compatible with RoCM and CUDA. See: http://blog.mlc.ai/2023/10/19/Scalable-Language-Model-Inference-on-Multiple-NVDIA-AMD-GPUs
+                """
+            )
+        },
+    )
     host: str = dataclasses.field(
         default="127.0.0.1",
         metadata={
@@ -137,7 +148,7 @@ async def lifespan(_app: FastAPI):
     chat_mod = ChatModule(
         model=ARGS.model,
         device=ARGS.device,
-        model_lib_path=ARGS.lib_path,
+        chat_config=ChatConfig(num_shards=ARGS.num_devices)
     )
     session["chat_mod"] = chat_mod
     yield
