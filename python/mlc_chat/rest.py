@@ -4,8 +4,8 @@ import asyncio
 import dataclasses
 from contextlib import asynccontextmanager
 from typing import Dict
-import numpy as np
 
+import numpy as np
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -83,7 +83,8 @@ class RestAPIArgs:
         metadata={
             "help": (
                 """
-                The number of devices to use. Currently only compatible with RoCM and CUDA. See: http://blog.mlc.ai/2023/10/19/Scalable-Language-Model-Inference-on-Multiple-NVDIA-AMD-GPUs
+                The number of devices to use for inference. Currently only compatible with RoCM and CUDA. 
+                See: http://blog.mlc.ai/2023/10/19/Scalable-Language-Model-Inference-on-Multiple-NVDIA-AMD-GPUs
                 """
             )
         },
