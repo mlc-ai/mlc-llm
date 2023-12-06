@@ -27,6 +27,7 @@ class MLCServeEngineConfig:
     max_num_batched_tokens: int = -1
     min_decode_steps: int = 32
     max_decode_steps: int = 48
+    init_timeout: int = 120
 
     @classmethod
     def _from_json(config_cls, json_obj: Dict[Any, Any]):

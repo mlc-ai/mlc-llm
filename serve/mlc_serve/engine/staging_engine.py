@@ -51,6 +51,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
         model_module_loader_kwargs: dict,
         # maybe find a better way to do this
         json_log_output: bool = False,
+        init_timeout: int = 120,
     ):
         self.next_generation_output = None
         self.requests_lock = Lock()
@@ -63,6 +64,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
         self.command_queue = self.mp_context.Queue()
         self.result_queue = self.mp_context.Queue(maxsize=1)
         self.ready_event = self.mp_context.Event()
+        self.init_timeout = init_timeout
 
         self.worker_process = self.mp_context.Process(
             target=run_generation_loop_worker,
@@ -83,7 +85,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
         LOG.info("StagingInferenceEngine.start")
         try:
             self.worker_process.start()
-            if not self.ready_event.wait(timeout=120):
+            if not self.ready_event.wait(timeout=self.init_timeout):
                 raise RuntimeError(
                     "StagingInferenceEngine worker is not ready before timeout."
                 )
