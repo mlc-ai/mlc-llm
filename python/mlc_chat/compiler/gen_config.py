@@ -98,7 +98,6 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     for generation_config_filename in ["generation_config.json", "config.json"]:
         generation_config = config.parent / generation_config_filename
         if generation_config.exists():
-            logger.info("%s %s: %s", FOUND, generation_config_filename, generation_config)
             with generation_config.open("r", encoding="utf-8") as in_file:
                 generation_config_json = json.load(in_file)
             for key, value in generation_config_json.items():
