@@ -14,7 +14,7 @@ from ..streamer import StopStringHandler, TextStreamer
 from ..tokenizer import Tokenizer
 from . import data
 from .config import GenerationConfig, KVCacheConfig
-from .request import Request
+from .request import Request, RequestStreamOutput
 
 
 @dataclass
@@ -149,9 +149,7 @@ class Engine:
         self,
         models: Union[ModelInfo, List[ModelInfo]],
         kv_cache_config: KVCacheConfig,
-        request_stream_callback: Optional[
-            Callable[[str, data.TokenData, Optional[str]], None]
-        ] = None,
+        request_stream_callback: Optional[Callable[[List[RequestStreamOutput]], None]] = None,
     ):
         (
             model_args,
@@ -246,29 +244,27 @@ class Engine:
         original_callback = self._ffi["get_request_stream_callback"]()
 
         # Define the callback function for request generation results
-        def request_stream_callback(
-            request_id: str,
-            delta_tokens: data.TokenData,
-            finish_reason: Optional[str],  # pylint: disable=unused-argument
-        ):
+        def request_stream_callback(delta_outputs: List[RequestStreamOutput]):
             nonlocal num_finished_requests
-            rid = int(request_id)
-            text_streamer = text_streamers[rid]
-            stop_handler = stop_handlers[rid]
+            for delta_output in delta_outputs:
+                request_id, delta_tokens, finish_reason = delta_output.unpack()
+                rid = int(request_id)
+                text_streamer = text_streamers[rid]
+                stop_handler = stop_handlers[rid]
 
-            delta_text = stop_handler.put(text_streamer.put(delta_tokens.token_ids))
-            if stop_handler.stop_triggered:
-                finish_reason = "stop"
-            elif finish_reason is not None:
-                delta_text += stop_handler.put(text_streamer.finish())
+                delta_text = stop_handler.put(text_streamer.put(delta_tokens.token_ids))
                 if stop_handler.stop_triggered:
                     finish_reason = "stop"
-                else:
-                    delta_text += stop_handler.finish()
+                elif finish_reason is not None:
+                    delta_text += stop_handler.put(text_streamer.finish())
+                    if stop_handler.stop_triggered:
+                        finish_reason = "stop"
+                    else:
+                        delta_text += stop_handler.finish()
 
-            outputs[rid] += delta_text
-            if finish_reason is not None:
-                num_finished_requests += 1
+                outputs[rid] += delta_text
+                if finish_reason is not None:
+                    num_finished_requests += 1
 
         # Override the callback function in engine.
         self._ffi["set_request_stream_callback"](request_stream_callback)

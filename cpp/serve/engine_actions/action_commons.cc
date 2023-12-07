@@ -65,14 +65,17 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
   Array<Request> finished_requests;
   finished_requests.reserve(requests.size());
 
-  // - Invoke the function callback for requests with new generated tokens.
+  Array<RequestStreamOutput> callback_delta_outputs;
+  callback_delta_outputs.reserve(requests.size());
+
+  // - Collect new generated tokens and finish reasons for requests.
   for (Request request : requests) {
     RequestState rstate = estate->GetRequestState(request);
     Optional<String> finish_reason = rstate->GenerationFinished(max_single_sequence_length);
     int num_committed_tokens = rstate->mstates[0]->committed_tokens.size();
 
     // Check if there are new committed tokens.
-    // If so, we invoke the callback function.
+    // If so, we will invoke the callback function for it.
     // Otherwise, we do not invoke, and the request must have not been finished yet.
     ICHECK_LE(rstate->next_callback_token_pos, num_committed_tokens);
     if (rstate->next_callback_token_pos == num_committed_tokens) {
@@ -80,17 +83,21 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
       continue;
     }
 
-    request_stream_callback(request->id,
-                            TokenData(IntTuple(rstate->mstates[0]->committed_tokens.begin() +
-                                                   rstate->next_callback_token_pos,
-                                               rstate->mstates[0]->committed_tokens.end())),
-                            finish_reason);
+    callback_delta_outputs.push_back(RequestStreamOutput(
+        request->id,
+        TokenData(
+            IntTuple(rstate->mstates[0]->committed_tokens.begin() + rstate->next_callback_token_pos,
+                     rstate->mstates[0]->committed_tokens.end())),
+        finish_reason));
     rstate->next_callback_token_pos = num_committed_tokens;
 
     if (finish_reason.defined()) {
       finished_requests.push_back(request);
     }
   }
+
+  // - Invoke the stream callback function once for all collected requests.
+  request_stream_callback(callback_delta_outputs);
 
   ProcessFinishedRequest(std::move(finished_requests), std::move(estate), std::move(models),
                          max_single_sequence_length);
