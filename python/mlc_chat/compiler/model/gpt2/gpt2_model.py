@@ -29,6 +29,7 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     n_inner: int = -1
     context_window_size: int = 0
     prefill_chunk_size: int = 0
+    scale_attn_by_inverse_layer_idx: bool = False
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -61,11 +62,13 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
 # pylint: disable=invalid-name,missing-docstring,too-many-locals
 
 
-class GPT2Attention(nn.Module):
-    def __init__(self, config: GPT2Config):
+class GPT2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
+    def __init__(self, config: GPT2Config, layer_idx: int = None):
         self.embed_dim = config.n_embd
         self.num_heads = config.n_head
         self.head_dim = self.embed_dim // self.num_heads
+        self.scale_attn_by_inverse_layer_idx = config.scale_attn_by_inverse_layer_idx
+        self.layer_idx = layer_idx
 
         self.c_attn = nn.Linear(
             in_features=self.embed_dim,
@@ -104,6 +107,9 @@ class GPT2Attention(nn.Module):
             q, k.permute_dims([0, 1, 3, 2])  # [b, h, s, d] x [b, h, d, t] = [b, h, s, t]
         ) / math.sqrt(d)
 
+        if self.scale_attn_by_inverse_layer_idx:
+            attn_weights = attn_weights / float(self.layer_idx + 1)
+
         dtype = attn_weights.dtype
         attn_weights = attn_weights.maximum(tir.min_value(dtype)).minimum(attention_mask)
         if dtype == "float32":
@@ -124,16 +130,16 @@ class GPT2MLP(nn.Module):
 
     def forward(self, hidden_states: Tensor):
         hidden_states = self.c_fc(hidden_states)
-        hidden_states = op.gelu(hidden_states)
+        hidden_states = op.gelu(hidden_states, approximate="tanh")
         hidden_states = self.c_proj(hidden_states)
         return hidden_states
 
 
 class GPT2Block(nn.Module):
-    def __init__(self, config: GPT2Config):
+    def __init__(self, config: GPT2Config, layer_idx: int = None):
         hidden_size = config.n_embd
         self.ln_1 = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
-        self.attn = GPT2Attention(config)
+        self.attn = GPT2Attention(config, layer_idx=layer_idx)
         self.ln_2 = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
         self.mlp = GPT2MLP(config)
 
@@ -151,7 +157,7 @@ class GPT2Model(nn.Module):
         assert config.n_embd % config.n_head == 0
         self.wte = nn.Embedding(config.vocab_size, config.n_embd)
         self.wpe = nn.Embedding(config.context_window_size, config.n_embd)
-        self.h = nn.ModuleList([GPT2Block(config) for _ in range(config.n_layer)])
+        self.h = nn.ModuleList([GPT2Block(config, layer_idx=i) for i in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
 
     def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
