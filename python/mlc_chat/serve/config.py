@@ -45,6 +45,10 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
 
     stop_token_ids : List[int]
         The list of token ids that mark the end of generation.
+
+    ignore_eos: bool
+        When it is true, ignore the eos token and generate tokens until `max_tokens`.
+        Default is set to False.
     """
 
     temperature: float = 0.8
@@ -57,6 +61,7 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     seed: Optional[int] = None
     stop_strs: List[str] = field(default_factory=list)
     stop_token_ids: List[int] = field(default_factory=list)
+    ignore_eos: bool = False
 
     def asjson(self) -> str:
         """Return the config in string of JSON format."""

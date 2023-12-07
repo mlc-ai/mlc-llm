@@ -99,6 +99,11 @@ GenerationConfig::GenerationConfig(String config_json_str) {
     n->stop_token_ids = std::move(stop_token_ids);
   }
 
+  // Params for benchmarking. Not the part of openai spec.
+  if (config.count("ignore_eos")) {
+    CHECK(config["ignore_eos"].is<bool>());
+    n->ignore_eos = config["ignore_eos"].get<bool>();
+  }
   data_ = std::move(n);
 }
 
@@ -123,6 +128,9 @@ String GenerationConfigNode::AsJSONString() const {
     stop_token_ids_arr.push_back(picojson::value(static_cast<int64_t>(stop_token_id)));
   }
   config["stop_token_ids"] = picojson::value(stop_token_ids_arr);
+
+  // Params for benchmarking. Not the part of openai spec.
+  config["ignore_eos"] = picojson::value(this->ignore_eos);
 
   return picojson::value(config).serialize(true);
 }
