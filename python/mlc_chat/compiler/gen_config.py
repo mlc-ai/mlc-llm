@@ -47,7 +47,7 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     # Version control
     version: str = VERSION
 
-    def apply_defaults(self, config_json: Dict[str, Any]) -> None:
+    def apply_defaults(self) -> None:
         """Apply system default value."""
         defaults = {
             "pad_token_id": 0,
@@ -62,11 +62,8 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
         }
         for key, value in defaults.items():
             if getattr(self, key) is None:
-                if key in config_json:
-                    setattr(self, key, config_json[key])
-                else:
-                    setattr(self, key, value)
-                    logger.info("[System default] Setting %s: %s", bold(key), value)
+                setattr(self, key, value)
+                logger.info("[System default] Setting %s: %s", bold(key), value)
 
 
 def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-branches,too-many-statements
@@ -97,18 +94,19 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         prefill_chunk_size=model_config.prefill_chunk_size,
         conv_template=conv_template,
     )
-    # Step 2. Load `generation_config.json`
-    generation_config = config.parent / "generation_config.json"
-    if generation_config.exists():
-        logger.info("%s generation_config.json: %s", FOUND, generation_config)
-        with generation_config.open("r", encoding="utf-8") as in_file:
-            generation_config_json = json.load(in_file)
-        for key, value in generation_config_json.items():
-            if hasattr(mlc_chat_config, key) and getattr(mlc_chat_config, key) is None:
-                setattr(mlc_chat_config, key, value)
-                logger.info("[generation_config.json] Setting %s: %s", bold(key), value)
-    else:
-        logger.info("%s generation_config.json: %s", NOT_FOUND, generation_config)
+    # Step 2. Load `generation_config.json` and `config.json` for text-generation related configs
+    for generation_config_filename in ["generation_config.json", "config.json"]:
+        generation_config = config.parent / generation_config_filename
+        if generation_config.exists():
+            logger.info("%s %s: %s", FOUND, generation_config_filename, generation_config)
+            with generation_config.open("r", encoding="utf-8") as in_file:
+                generation_config_json = json.load(in_file)
+            for key, value in generation_config_json.items():
+                if hasattr(mlc_chat_config, key) and getattr(mlc_chat_config, key) is None:
+                    setattr(mlc_chat_config, key, value)
+                    logger.info("[%s] Setting %s: %s", generation_config_filename, bold(key), value)
+        else:
+            logger.info("%s %s: %s", NOT_FOUND, generation_config_filename, generation_config)
 
     # Step 3. Copy tokenizer configuration
     # 3.1. Copy over the files and populate mlc_chat_config
@@ -144,9 +142,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("%s with the exception below. Skipping", FAILED)
     # Step 4. Load system default value
-    with config.open("r", encoding="utf-8") as in_file:
-        config_json = json.load(in_file)
-    mlc_chat_config.apply_defaults(config_json)
+    mlc_chat_config.apply_defaults()
     # Step 5. Dump the configuration file to output directory
     with (output / "mlc-chat-config.json").open("w", encoding="utf-8") as out_file:
         json.dump(dataclasses.asdict(mlc_chat_config), out_file, indent=2)
