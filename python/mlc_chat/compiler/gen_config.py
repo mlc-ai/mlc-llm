@@ -94,18 +94,18 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         prefill_chunk_size=model_config.prefill_chunk_size,
         conv_template=conv_template,
     )
-    # Step 2. Load `generation_config.json`
-    generation_config = config.parent / "generation_config.json"
-    if generation_config.exists():
-        logger.info("%s generation_config.json: %s", FOUND, generation_config)
-        with generation_config.open("r", encoding="utf-8") as in_file:
-            generation_config_json = json.load(in_file)
-        for key, value in generation_config_json.items():
-            if hasattr(mlc_chat_config, key) and getattr(mlc_chat_config, key) is None:
-                setattr(mlc_chat_config, key, value)
-                logger.info("[generation_config.json] Setting %s: %s", bold(key), value)
-    else:
-        logger.info("%s generation_config.json: %s", NOT_FOUND, generation_config)
+    # Step 2. Load `generation_config.json` and `config.json` for text-generation related configs
+    for generation_config_filename in ["generation_config.json", "config.json"]:
+        generation_config = config.parent / generation_config_filename
+        if generation_config.exists():
+            with generation_config.open("r", encoding="utf-8") as in_file:
+                generation_config_json = json.load(in_file)
+            for key, value in generation_config_json.items():
+                if hasattr(mlc_chat_config, key) and getattr(mlc_chat_config, key) is None:
+                    setattr(mlc_chat_config, key, value)
+                    logger.info("[%s] Setting %s: %s", generation_config_filename, bold(key), value)
+        else:
+            logger.info("%s %s: %s", NOT_FOUND, generation_config_filename, generation_config)
 
     # Step 3. Copy tokenizer configuration
     # 3.1. Copy over the files and populate mlc_chat_config
