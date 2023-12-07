@@ -207,7 +207,7 @@ class SmoothQuantStatCollector:
             def visit_seq_expr_(self, op: relax.SeqExpr) -> relax.Expr:
                 op = super().visit_seq_expr_(op)
                 if len(self.profile_points) != 0:
-                    new_body = relax.Tuple([op.body, relax.Tuple(self.profile_points)])
+                    new_body = relax.Tuple([op.body, *self.profile_points])
                     return relax.SeqExpr(op.blocks, new_body, op.span)
                 return op
 
@@ -215,8 +215,9 @@ class SmoothQuantStatCollector:
                 self.builder_._begin_dataflow_block()
                 for binding in block.bindings:
                     self.visit_binding(binding)
+                # Mark all profile points as new outputs in the block.
                 if len(self.profile_points) != 0:
-                    self.builder_.emit_output(self.profile_points)
+                    self.profile_points = [self.builder_.emit_output(self.profile_points)]
                 return self.builder_._end_block()
 
             def visit_call_(self, call: relax.Call) -> relax.Expr:
