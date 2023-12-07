@@ -17,11 +17,6 @@ from .modules import ModuleList, RotaryEmbedding
 from .param_manager import ParamManager
 
 
-import tvm
-
-tvm.relax.expr
-
-
 @dataclass
 class StableLM3bConfig:
     def __init__(
