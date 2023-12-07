@@ -96,7 +96,7 @@ your personal computer.
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q4f16_1
+            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q3f16_1
 
         .. note::
             If it runs into error
