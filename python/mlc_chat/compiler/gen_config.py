@@ -47,7 +47,7 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     # Version control
     version: str = VERSION
 
-    def apply_defaults(self) -> None:
+    def apply_defaults(self, config_json: Dict[str, Any]) -> None:
         """Apply system default value."""
         defaults = {
             "pad_token_id": 0,
@@ -62,8 +62,11 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
         }
         for key, value in defaults.items():
             if getattr(self, key) is None:
-                setattr(self, key, value)
-                logger.info("[System default] Setting %s: %s", bold(key), value)
+                if key in config_json:
+                    setattr(self, key, config_json[key])
+                else:
+                    setattr(self, key, value)
+                    logger.info("[System default] Setting %s: %s", bold(key), value)
 
 
 def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-branches,too-many-statements
@@ -141,7 +144,9 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("%s with the exception below. Skipping", FAILED)
     # Step 4. Load system default value
-    mlc_chat_config.apply_defaults()
+    with config.open("r", encoding="utf-8") as in_file:
+        config_json = json.load(in_file)
+    mlc_chat_config.apply_defaults(config_json)
     # Step 5. Dump the configuration file to output directory
     with (output / "mlc-chat-config.json").open("w", encoding="utf-8") as out_file:
         json.dump(dataclasses.asdict(mlc_chat_config), out_file, indent=2)
