@@ -113,6 +113,13 @@ class BuildArgs:
         The chunk size during prefilling. By default, the chunk size is the same as
         max sequence length. Currently only useful when compiling Mistral.
 
+    num_attention_sinks: int
+        Number of Attention Sinks to use (https://arxiv.org/abs/2309.17453). 0 means disabled.
+
+    attention_sink_cache_size: int
+        When attention sinks is enabled, start trimming cache when it reaches this size.
+        By default, we will use max_window_size.
+
     cc_path: str
         ``/path/to/cross_compiler_path``; currently only used for cross-compile
         for nvidia/jetson device.
@@ -358,6 +365,23 @@ class BuildArgs:
                 "The chunk size during prefilling. By default, the chunk size is "
                 "the same as the sliding window size or the max sequence length. "
                 "Currently only useful when compiling Mistral."
+            ),
+        },
+    )
+    num_attention_sinks: int = field(
+        default=0,
+        metadata={
+            "help": (
+                "The number of Attention Sinks to use in cache. 0 means disabled."
+            ),
+        },
+    )
+    attention_sink_cache_size: int = field(
+        default=0,
+        metadata={
+            "help": (
+                "When attention sinks is enabled, start trimming cache when it reaches this size. "
+                "By default, we will use max_window_size."
             ),
         },
     )
@@ -701,6 +725,9 @@ def dump_mlc_chat_config(
         config["sliding_window"] = args.sliding_window
     else:
         config["max_window_size"] = max_window_size
+    if args.num_attention_sinks > 0:
+        config["num_attention_sinks"] = args.num_attention_sinks
+        config["attention_sink_cache_size"] = args.attention_sink_cache_size
 
     args.chat_config_path = os.path.join(args.params_path, "mlc-chat-config.json")
     with open(args.chat_config_path, "w", encoding="utf-8") as outfile:
