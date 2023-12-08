@@ -76,6 +76,45 @@ class Request : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(Request, ObjectRef, RequestNode);
 };
 
+/****************** RequestStreamOutput ******************/
+
+/*!
+ * \brief The generated delta request output that is streamed back
+ * through callback stream function.
+ */
+class RequestStreamOutputObj : public Object {
+ public:
+  /*! \brief The id of the request that the function is invoked for. */
+  String request_id;
+  /*!
+   * \brief The new generated tokens since the last callback invocation
+   * for the input request.
+   */
+  TokenData delta_tokens;
+  /*!
+   * \brief The finish reason of the request when it is finished,
+   * of None if the request has not finished yet.
+   */
+  Optional<String> finish_reason;
+
+  static constexpr const char* _type_key = "mlc.serve.RequestStreamOutput";
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  TVM_DECLARE_FINAL_OBJECT_INFO(RequestStreamOutputObj, Object);
+};
+
+/*!
+ * \brief Managed reference to RequestStreamOutputObj.
+ * \sa RequestStreamOutputObj
+ */
+class RequestStreamOutput : public ObjectRef {
+ public:
+  explicit RequestStreamOutput(String request_id, TokenData delta_tokens,
+                               Optional<String> finish_reason);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(RequestStreamOutput, ObjectRef, RequestStreamOutputObj);
+};
+
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc
