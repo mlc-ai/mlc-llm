@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace 'ai.mlc.mlcchat'
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "ai.mlc.mlcchat"
@@ -24,12 +24,6 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-    sourceSets {
-        main {
-            jni.srcDirs = []
-            jniLibs.srcDirs = ['src/main/libs']
         }
     }
     compileOptions {
@@ -53,7 +47,7 @@ android {
 }
 
 dependencies {
-
+    implementation project(":library")
     implementation 'androidx.core:core-ktx:1.10.1'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.1'
     implementation 'androidx.activity:activity-compose:1.7.1'

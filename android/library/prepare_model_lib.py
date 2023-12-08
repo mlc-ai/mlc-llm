@@ -3,9 +3,9 @@ import os
 from tvm.contrib import ndk
 
 def main():
-    app_config = json.load(open("MLCChat/app/src/main/assets/app-config.json", "r"))
+    app_config = json.load(open("src/main/assets/app-config.json", "r"))
     target = "android"
-    artifact_path = os.path.abspath(os.path.join("..", "dist"))
+    artifact_path = os.path.abspath(os.path.join("../..", "dist"))
 
     tar_list = []
 
