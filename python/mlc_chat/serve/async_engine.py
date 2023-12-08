@@ -10,7 +10,7 @@ from ..tokenizer import Tokenizer
 from . import data
 from .config import GenerationConfig, KVCacheConfig
 from .engine import Engine, ModelInfo, _create_tvm_module, _process_model_args
-from .request import Request
+from .request import Request, RequestStreamOutput
 
 
 class AsyncEngineDeadError(RuntimeError):
@@ -248,6 +248,9 @@ class AsyncEngine:  # pylint: disable=too-many-instance-attributes
         self._request_tracker = AsyncRequestTracker(self.tokenizer)
         self._background_loop_unshielded: Optional[asyncio.Task] = None
         self._background_loop: Optional[asyncio.Future] = None
+        # The main thread request handling asyncio event loop, which will
+        # be lazily initialized.
+        self._async_event_loop: Optional[asyncio.AbstractEventLoop] = None
         self._terminated: bool = False
 
     def terminate(self) -> None:
@@ -283,6 +286,10 @@ class AsyncEngine:  # pylint: disable=too-many-instance-attributes
             # Lazily start the background loop so that the engine loop is
             # handled the correct async event loop.
             self.start_background_loop()
+        if self._async_event_loop is None:
+            # Lazily set the asyncio event loop so that the event
+            # loop is the main driving event loop of the process.
+            self._async_event_loop = asyncio.get_event_loop()
 
         input_data = data.TextData(prompt) if isinstance(prompt, str) else data.TokenData(prompt)
         # Add the request to the tracker and get the stream.
@@ -336,24 +343,15 @@ class AsyncEngine:  # pylint: disable=too-many-instance-attributes
             self._engine_step()
             await asyncio.sleep(0)
 
-    def _request_stream_callback(
-        self, request_id: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
-    ) -> None:
+    def _request_stream_callback(self, delta_outputs: List[RequestStreamOutput]) -> None:
         """The request stream callback function for engine to stream back
         the request generation results.
 
         Parameters
         ----------
-        request_id : str
-            The id of the request that the function is invoked for.
-
-        delta_tokens : data.TokenData
-            The new generated tokens since the last callback invocation
-            for the input request.
-
-        finish_reason : Optional[str]
-            The finish reason of the request when it is finished,
-            of None if the request has not finished yet.
+        delta_outputs : List[RequestStreamOutput]
+            The delta output of each requests.
+            Check out RequestStreamOutput for the fields of the outputs.
 
         Note
         ----
@@ -363,36 +361,37 @@ class AsyncEngine:  # pylint: disable=too-many-instance-attributes
         than right now.
         """
         # Schedule a callback run in the event loop without executing right now.
-        asyncio.get_event_loop().call_soon_threadsafe(
-            self._request_stream_callback_impl, request_id, delta_tokens, finish_reason
+        self._async_event_loop.call_soon_threadsafe(
+            self._request_stream_callback_impl, delta_outputs
         )
 
-    def _request_stream_callback_impl(
-        self, request_id: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
-    ) -> None:
+    def _request_stream_callback_impl(self, delta_outputs: List[RequestStreamOutput]) -> None:
         """The underlying implementation of request stream callback."""
-        stream, text_streamer, stop_handler = self._request_tracker.get_request_tools(request_id)
-        finish_reason = str(finish_reason) if finish_reason is not None else None
+        for delta_output in delta_outputs:
+            request_id, delta_tokens, finish_reason = delta_output.unpack()
+            stream, text_streamer, stop_handler = self._request_tracker.get_request_tools(
+                request_id
+            )
 
-        delta_token_ids = delta_tokens.token_ids
-        delta_text = stop_handler.put(text_streamer.put(delta_token_ids))
-        if stop_handler.stop_triggered:
-            finish_reason = "stop"
-            self._abort(request_id)
-        elif finish_reason is not None:
-            delta_text += stop_handler.put(text_streamer.finish())
+            delta_token_ids = delta_tokens.token_ids
+            delta_text = stop_handler.put(text_streamer.put(delta_token_ids))
             if stop_handler.stop_triggered:
                 finish_reason = "stop"
                 self._abort(request_id)
-            else:
-                delta_text += stop_handler.finish()
+            elif finish_reason is not None:
+                delta_text += stop_handler.put(text_streamer.finish())
+                if stop_handler.stop_triggered:
+                    finish_reason = "stop"
+                    self._abort(request_id)
+                else:
+                    delta_text += stop_handler.finish()
 
-        # Push new delta text to the stream.
-        stream.push((delta_text, len(delta_token_ids), finish_reason))
-        if finish_reason is not None:
-            stream.finish()
-            # Remove the request from the tracker.
-            self._request_tracker.finish_request(request_id)
+            # Push new delta text to the stream.
+            stream.push((delta_text, len(delta_token_ids), finish_reason))
+            if finish_reason is not None:
+                stream.finish()
+                # Remove the request from the tracker.
+                self._request_tracker.finish_request(request_id)
 
     def _engine_step(self) -> None:
         """Internal implementation of asynchronous engine behavior at each time step."""
@@ -545,24 +544,15 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
         self._request_tools.pop(request_id, None)
         self._ffi["abort_request"](request_id)
 
-    def _request_stream_callback(
-        self, request_id: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
-    ) -> None:
+    def _request_stream_callback(self, delta_outputs: List[RequestStreamOutput]) -> None:
         """The request stream callback function for engine to stream back
         the request generation results.
 
         Parameters
         ----------
-        request_id : str
-            The id of the request that the function is invoked for.
-
-        delta_tokens : data.TokenData
-            The new generated tokens since the last callback invocation
-            for the input request.
-
-        finish_reason : Optional[str]
-            The finish reason of the request when it is finished,
-            of None if the request has not finished yet.
+        delta_outputs : List[RequestStreamOutput]
+            The delta output of each requests.
+            Check out RequestStreamOutput for the fields of the outputs.
 
         Note
         ----
@@ -574,34 +564,34 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
         # Schedule a callback run in the event loop without executing right now.
         # NOTE: This function causes GIL during execution.
         self._async_event_loop.call_soon_threadsafe(
-            self._request_stream_callback_impl, request_id, delta_tokens, finish_reason
+            self._request_stream_callback_impl, delta_outputs
         )
 
-    def _request_stream_callback_impl(
-        self, request_id: str, delta_tokens: data.TokenData, finish_reason: Optional[str]
-    ) -> None:
+    def _request_stream_callback_impl(self, delta_outputs: List[RequestStreamOutput]) -> None:
         """The underlying implementation of request stream callback."""
-        tools = self._request_tools.get(request_id, None)
-        if tools is None:
-            return
-        stream, text_streamer, stop_handler = tools
-        finish_reason = str(finish_reason) if finish_reason is not None else None
+        for delta_output in delta_outputs:
+            request_id, delta_tokens, finish_reason = delta_output.unpack()
+            tools = self._request_tools.get(request_id, None)
+            if tools is None:
+                continue
 
-        delta_token_ids = delta_tokens.token_ids
-        delta_text = stop_handler.put(text_streamer.put(delta_token_ids))
-        if stop_handler.stop_triggered:
-            finish_reason = "stop"
-            self._abort(request_id)
-        elif finish_reason is not None:
-            delta_text += stop_handler.put(text_streamer.finish())
+            stream, text_streamer, stop_handler = tools
+
+            delta_token_ids = delta_tokens.token_ids
+            delta_text = stop_handler.put(text_streamer.put(delta_token_ids))
             if stop_handler.stop_triggered:
                 finish_reason = "stop"
                 self._abort(request_id)
-            else:
-                delta_text += stop_handler.finish()
+            elif finish_reason is not None:
+                delta_text += stop_handler.put(text_streamer.finish())
+                if stop_handler.stop_triggered:
+                    finish_reason = "stop"
+                    self._abort(request_id)
+                else:
+                    delta_text += stop_handler.finish()
 
-        # Push new delta text to the stream.
-        stream.push((delta_text, len(delta_token_ids), finish_reason))
-        if finish_reason is not None:
-            stream.finish()
-            self._request_tools.pop(request_id, None)
+            # Push new delta text to the stream.
+            stream.push((delta_text, len(delta_token_ids), finish_reason))
+            if finish_reason is not None:
+                stream.finish()
+                self._request_tools.pop(request_id, None)

@@ -78,6 +78,24 @@ TVM_REGISTER_GLOBAL("mlc.serve.RequestGetGenerationConfigJSON").set_body_typed([
   return request->generation_cfg->AsJSONString();
 });
 
+/****************** RequestStreamOutput ******************/
+
+TVM_REGISTER_OBJECT_TYPE(RequestStreamOutputObj);
+
+RequestStreamOutput::RequestStreamOutput(String request_id, TokenData delta_tokens,
+                                         Optional<String> finish_reason) {
+  ObjectPtr<RequestStreamOutputObj> n = make_object<RequestStreamOutputObj>();
+  n->request_id = std::move(request_id);
+  n->delta_tokens = std::move(delta_tokens);
+  n->finish_reason = std::move(finish_reason);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_GLOBAL("mlc.serve.RequestStreamOutputUnpack")
+    .set_body_typed([](RequestStreamOutput output) {
+      return Array<ObjectRef>{output->request_id, output->delta_tokens, output->finish_reason};
+    });
+
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc

@@ -4,7 +4,14 @@ from typing import Callable, List, Optional
 
 import numpy as np
 
-from mlc_chat.serve import Engine, GenerationConfig, KVCacheConfig, Request, data
+from mlc_chat.serve import (
+    Engine,
+    GenerationConfig,
+    KVCacheConfig,
+    Request,
+    RequestStreamOutput,
+    data,
+)
 from mlc_chat.serve.engine import ModelInfo
 
 prompts = [
@@ -75,8 +82,10 @@ def test_engine_basic():
     outputs = [[] for _ in range(num_requests)]
 
     # Define the callback function for request generation results
-    def fcallback(request_id: str, token_data: data.TokenData, finish_reason: Optional[str]):
-        outputs[int(request_id)] += token_data.token_ids
+    def fcallback(delta_outputs: List[RequestStreamOutput]):
+        for delta_output in delta_outputs:
+            request_id, delta_tokens, _ = delta_output.unpack()
+            outputs[int(request_id)] += delta_tokens.token_ids
 
     # Create engine
     engine = Engine(model, kv_cache_config, fcallback)
@@ -135,14 +144,14 @@ def test_engine_continuous_batching_1():
     class CallbackTimer:
         timer: int = -1
 
-        def callback_getter(self) -> Callable[[str, data.TokenData, Optional[str]], None]:
-            def fcallback(
-                request_id: str, token_data: data.TokenData, finish_reason: Optional[str]
-            ):
-                if finish_reason is not None:
-                    print(f"Request {request_id} finished at step {self.timer}.")
-                outputs[int(request_id)] += token_data.token_ids
-                finish_time[int(request_id)] = self.timer
+        def callback_getter(self) -> Callable[[List[RequestStreamOutput]], None]:
+            def fcallback(delta_outputs: List[RequestStreamOutput]):
+                for delta_output in delta_outputs:
+                    request_id, delta_tokens, finish_reason = delta_output.unpack()
+                    if finish_reason is not None:
+                        print(f"Request {request_id} finished at step {self.timer}.")
+                    outputs[int(request_id)] += delta_tokens.token_ids
+                    finish_time[int(request_id)] = self.timer
 
             return fcallback
 
@@ -210,14 +219,14 @@ def test_engine_continuous_batching_2():
     class CallbackTimer:
         timer: int = -1
 
-        def callback_getter(self) -> Callable[[str, data.TokenData, Optional[str]], None]:
-            def fcallback(
-                request_id: str, token_data: data.TokenData, finish_reason: Optional[str]
-            ):
-                if finish_reason is not None:
-                    print(f"Request {request_id} finished at step {self.timer}.")
-                outputs[int(request_id)] += token_data.token_ids
-                finish_time[int(request_id)] = self.timer
+        def callback_getter(self) -> Callable[[List[RequestStreamOutput]], None]:
+            def fcallback(delta_outputs: List[RequestStreamOutput]):
+                for delta_output in delta_outputs:
+                    request_id, delta_tokens, finish_reason = delta_output.unpack()
+                    if finish_reason is not None:
+                        print(f"Request {request_id} finished at step {self.timer}.")
+                    outputs[int(request_id)] += delta_tokens.token_ids
+                    finish_time[int(request_id)] = self.timer
 
             return fcallback
 
@@ -288,15 +297,15 @@ def test_engine_continuous_batching_3():
         timer: int = -1
         finished_requests: int = 0
 
-        def callback_getter(self) -> Callable[[str, data.TokenData, Optional[str]], None]:
-            def fcallback(
-                request_id: str, token_data: data.TokenData, finish_reason: Optional[str]
-            ):
-                if finish_reason is not None:
-                    print(f"Request {request_id} finished at step {self.timer}.")
-                    self.finished_requests += 1
-                outputs[int(request_id)] += token_data.token_ids
-                finish_time[int(request_id)] = self.timer
+        def callback_getter(self) -> Callable[[List[RequestStreamOutput]], None]:
+            def fcallback(delta_outputs: List[RequestStreamOutput]):
+                for delta_output in delta_outputs:
+                    request_id, delta_tokens, finish_reason = delta_output.unpack()
+                    if finish_reason is not None:
+                        print(f"Request {request_id} finished at step {self.timer}.")
+                        self.finished_requests += 1
+                    outputs[int(request_id)] += delta_tokens.token_ids
+                    finish_time[int(request_id)] = self.timer
 
             return fcallback
 
