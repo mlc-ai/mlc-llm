@@ -9,6 +9,7 @@ from datasets import load_dataset
 
 import tvm
 from tvm import relax
+from tvm import dlight as dl
 
 import mlc_llm
 from mlc_llm import utils
@@ -21,13 +22,23 @@ dataset_list = ["dummy", "piqa"]
 
 
 def get_runtime_func(funcs: List[str], mod: tvm.IRModule):
-    lowered_mod = relax.transform.LegalizeOps()(mod)
     target = tvm.target.Target.current(allow_none=False)
     target_kind = target.kind.default_keys[0]
     vm_device = tvm.device(target_kind)
+
+    # This code is used to speedup calibration process.
+    lowered_mod = tvm.relax.pipeline.get_pipeline()(mod)
+    lowered_mod = tvm.relax.transform.DeadCodeElimination(funcs)(lowered_mod)
     if target_kind != "cpu":
         with target:
-            lowered_mod = tvm.tir.transform.DefaultGPUSchedule()(lowered_mod)
+            lowered_mod = dl.ApplyDefaultSchedule(
+                dl.gpu.Matmul(),
+                dl.gpu.GEMV(),
+                dl.gpu.Reduction(),
+                dl.gpu.GeneralReduction(),
+                dl.gpu.Fallback(),
+            )(lowered_mod)
+
     exe = relax.build(lowered_mod, target)
     vm = relax.VirtualMachine(exe, vm_device)
     runtime_funcs = [vm[fname] for fname in funcs]
@@ -246,7 +257,6 @@ def _smooth(
             a_stat = _accumulate_act_outlier_stat(a_stat, outputs)
             w_stat = _accumulate_weight_outlier_stat(w_stat, outputs)
 
-    #debug_save_stat(a_stat, "max_activations.npy")
     # Use the same statistics for "prefill"/"decode"
     stat = dict.fromkeys(funcs)
     stat["prefill"] = (a_stat, w_stat)
@@ -304,7 +314,6 @@ def _calibrate(
                 a_max_stat, a_min_stat, w_max_stat, w_min_stat, outputs
             )
 
-    #debug_save_stat(w_stat, "max_weights.npy")
     # Use the same statistics for "prefill"/"decode"
     stat = dict.fromkeys(funcs)
     stat["prefill"] = (a_max_stat, a_min_stat, w_max_stat, w_min_stat)
@@ -440,10 +449,16 @@ def _get_dataset(name: str, artifact_path: str, device: tvm.runtime.Device):
     return calibration_dataset, stop_tokens
 
 
-def debug_save_stat(stat: List[np.ndarray], name: str):
+def debug_save_stat(stat: Union[Dict[str, tvm.nd.NDArray], List[tvm.nd.NDArray]], name: str):
     folder_name = "dump_npy"
     if not os.path.exists(folder_name):
         os.mkdir(folder_name)
-    for idx, element in enumerate(stat):
-        with open(os.path.join(folder_name, f"f_{idx}_{name}"), "wb") as f:
-            np.save(f, element)
+    if isinstance(stat, dict):
+        for key, value in stat.items():
+            with open(os.path.join(folder_name, f"{name}_{key}.npy"), "wb") as f:
+                np.save(f, value.numpy())
+    else:
+        assert isinstance(stat, list)
+        for idx, element in enumerate(stat):
+            with open(os.path.join(folder_name, f"{name}_{idx}.npy"), "wb") as f:
+                np.save(f, element)
