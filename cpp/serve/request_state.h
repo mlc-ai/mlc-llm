@@ -29,6 +29,8 @@ using namespace tvm::runtime;
  */
 class RequestModelStateNode : public Object {
  public:
+  /*! \brief The request that this state corresponds to. */
+  Request request;
   /*!
    * \brief The internal request id of this state.
    * It is the **physical index** of the request in the running request queue.
@@ -84,7 +86,7 @@ class RequestModelStateNode : public Object {
 
 class RequestModelState : public ObjectRef {
  public:
-  explicit RequestModelState(int model_id, Array<Data> inputs);
+  explicit RequestModelState(Request request, int model_id, Array<Data> inputs);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestModelState, ObjectRef, RequestModelStateNode);
 };

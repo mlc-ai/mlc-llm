@@ -19,11 +19,13 @@ namespace serve {
 class NewRequestPrefillActionObj : public EngineActionObj {
  public:
   explicit NewRequestPrefillActionObj(Array<Model> models, Sampler sampler,
-                                      KVCacheConfig kv_cache_config, int max_single_sequence_length)
+                                      KVCacheConfig kv_cache_config, int max_single_sequence_length,
+                                      Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         sampler_(std::move(sampler)),
         kv_cache_config_(std::move(kv_cache_config)),
-        max_single_sequence_length_(max_single_sequence_length) {}
+        max_single_sequence_length_(max_single_sequence_length),
+        trace_recorder_(std::move(trace_recorder)) {}
 
   Array<Request> Step(EngineState estate) final {
     // - Find the requests in `waiting_queue` that can prefill in this step.
@@ -35,12 +37,13 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     }
 
     int num_requests = requests.size();
+    Array<String> request_ids = requests.Map([](const Request& request) { return request->id; });
     auto tstart = std::chrono::high_resolution_clock::now();
 
     // - Move requests from waiting queue to running queue.
     //   And assign internal ID for the requests.
-    std::vector<int> request_ids;
-    request_ids.reserve(num_requests);
+    std::vector<int> request_internal_ids;
+    request_internal_ids.reserve(num_requests);
     for (int i = 0; i < num_requests; ++i) {
       int req_id = estate->running_queue.size();
       auto it = std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), requests[i]);
@@ -51,7 +54,7 @@ class NewRequestPrefillActionObj : public EngineActionObj {
       estate->running_queue.push_back(requests[i]);
       // - Assign internal request id for the requests.
       AssignInternalIDForRequest(rstates[i], requests[i], req_id);
-      request_ids.push_back(req_id);
+      request_internal_ids.push_back(req_id);
     }
 
     // - Get embedding and run prefill for each model.
@@ -66,14 +69,19 @@ class NewRequestPrefillActionObj : public EngineActionObj {
         ICHECK(mstate->draft_output_token_prob.empty());
         ICHECK(mstate->draft_output_prob_dist.empty());
         ICHECK(!mstate->inputs.empty());
+        RECORD_EVENT(trace_recorder_, requests[i]->id, "start embedding");
         for (int i = 0; i < static_cast<int>(mstate->inputs.size()); ++i) {
           embeddings.push_back(mstate->inputs[i]->GetEmbedding(models_[model_id]));
         }
+        RECORD_EVENT(trace_recorder_, requests[i]->id, "finish embedding");
         // Clean up `inputs` after prefill
         mstate->inputs.clear();
       }
 
-      NDArray logits = models_[model_id]->BatchPrefill(embeddings, request_ids, prefill_lengths);
+      RECORD_EVENT(trace_recorder_, request_ids, "start prefill");
+      NDArray logits =
+          models_[model_id]->BatchPrefill(embeddings, request_internal_ids, prefill_lengths);
+      RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
       ICHECK_EQ(logits->ndim, 3);
       ICHECK_EQ(logits->shape[0], 1);
       ICHECK_EQ(logits->shape[1], num_requests);
@@ -90,9 +98,11 @@ class NewRequestPrefillActionObj : public EngineActionObj {
                                                      logits_for_sample->dtype);
     Array<RequestModelState> mstates_for_sample =
         rstates.Map([](RequestState rstate) { return rstate->mstates[0]; });
+    RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
     std::vector<int32_t> next_tokens = sampler_->SampleTokens(
         logits_for_sample, models_[0], mstates_for_sample,
         requests.Map([](Request request) { return request->generation_cfg; }));
+    RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
     ICHECK_EQ(next_tokens.size(), num_requests);
 
     // - Update the committed tokens of states.
@@ -205,14 +215,17 @@ class NewRequestPrefillActionObj : public EngineActionObj {
   KVCacheConfig kv_cache_config_;
   /*! \brief The max single sequence length to help decide if prefill is doable. */
   int max_single_sequence_length_;
+  /*! \brief Event trace recorder. */
+  Optional<EventTraceRecorder> trace_recorder_;
 };
 
 EngineAction EngineAction::NewRequestPrefill(Array<Model> models, Sampler sampler,
                                              KVCacheConfig kv_cache_config,
-                                             int max_single_sequence_length) {
-  return EngineAction(make_object<NewRequestPrefillActionObj>(std::move(models), std::move(sampler),
-                                                              std::move(kv_cache_config),
-                                                              max_single_sequence_length));
+                                             int max_single_sequence_length,
+                                             Optional<EventTraceRecorder> trace_recorder) {
+  return EngineAction(make_object<NewRequestPrefillActionObj>(
+      std::move(models), std::move(sampler), std::move(kv_cache_config), max_single_sequence_length,
+      std::move(trace_recorder)));
 }
 
 }  // namespace serve

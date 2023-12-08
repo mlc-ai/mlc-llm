@@ -23,8 +23,11 @@ namespace serve {
  */
 class BatchDecodeActionObj : public EngineActionObj {
  public:
-  explicit BatchDecodeActionObj(Array<Model> models, Sampler sampler)
-      : models_(std::move(models)), sampler_(std::move(sampler)) {}
+  explicit BatchDecodeActionObj(Array<Model> models, Sampler sampler,
+                                Optional<EventTraceRecorder> trace_recorder)
+      : models_(std::move(models)),
+        sampler_(std::move(sampler)),
+        trace_recorder_(std::move(trace_recorder)) {}
 
   Array<Request> Step(EngineState estate) final {
     // - Do not run decode when there are multiple models or no running requests.
@@ -55,35 +58,44 @@ class BatchDecodeActionObj : public EngineActionObj {
     // - the sampling parameters,
     // of each request.
     std::vector<int> input_tokens;
+    Array<String> request_ids;
     Array<RequestModelState> mstates;
     Array<GenerationConfig> generation_cfg;
     input_tokens.reserve(num_requests);
+    request_ids.reserve(num_requests);
     mstates.reserve(num_requests);
     generation_cfg.reserve(num_requests);
     for (Request request : estate->running_queue) {
       RequestState rstate = estate->GetRequestState(request);
       input_tokens.push_back(rstate->mstates[0]->committed_tokens.back());
+      request_ids.push_back(request->id);
       mstates.push_back(rstate->mstates[0]);
       generation_cfg.push_back(request->generation_cfg);
     }
 
     // - Compute embeddings.
+    RECORD_EVENT(trace_recorder_, request_ids, "start embedding");
     NDArray embeddings =
         models_[0]->TokenEmbed({IntTuple{input_tokens.begin(), input_tokens.end()}});
+    RECORD_EVENT(trace_recorder_, request_ids, "finish embedding");
     ICHECK_EQ(embeddings->ndim, 3);
     ICHECK_EQ(embeddings->shape[0], 1);
     ICHECK_EQ(embeddings->shape[1], num_requests);
     embeddings = embeddings.CreateView({num_requests, 1, embeddings->shape[2]}, embeddings->dtype);
 
     // - Invoke model decode.
+    RECORD_EVENT(trace_recorder_, request_ids, "start decode");
     NDArray logits = models_[0]->BatchDecode(embeddings);
+    RECORD_EVENT(trace_recorder_, request_ids, "finish decode");
     ICHECK_EQ(logits->ndim, 3);
     ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
     ICHECK_EQ(logits->shape[1], 1);
 
     // - Sample tokens.
+    RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
     std::vector<int32_t> next_tokens =
         sampler_->SampleTokens(logits, models_[0], mstates, generation_cfg);
+    RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
     ICHECK_EQ(next_tokens.size(), num_requests);
 
     // - Update the committed tokens of states.
@@ -117,6 +129,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     // - Clear model speculation draft.
     // - Update `inputs` for future prefill.
     RequestState rstate = estate->GetRequestState(request);
+    RECORD_EVENT(trace_recorder_, rstate->request->id, "preempt");
     int req_id = rstate->mstates[0]->request_id;
     estate->stats.current_total_seq_len -=
         request->input_total_length + rstate->mstates[0]->committed_tokens.size() - 1;
@@ -155,10 +168,14 @@ class BatchDecodeActionObj : public EngineActionObj {
   Array<Model> models_;
   /*! \brief The sampler to sample new tokens. */
   Sampler sampler_;
+  /*! \brief Event trace recorder. */
+  Optional<EventTraceRecorder> trace_recorder_;
 };
 
-EngineAction EngineAction::BatchDecode(Array<Model> models, Sampler sampler) {
-  return EngineAction(make_object<BatchDecodeActionObj>(std::move(models), std::move(sampler)));
+EngineAction EngineAction::BatchDecode(Array<Model> models, Sampler sampler,
+                                       Optional<EventTraceRecorder> trace_recorder) {
+  return EngineAction(make_object<BatchDecodeActionObj>(std::move(models), std::move(sampler),
+                                                        std::move(trace_recorder)));
 }
 
 }  // namespace serve
