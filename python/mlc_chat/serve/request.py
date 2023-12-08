@@ -1,12 +1,12 @@
 """The request class in MLC LLM serving"""
-from typing import List, Union
+from typing import List, Optional, Tuple, Union
 
 import tvm._ffi
 from tvm.runtime import Object
 
 from . import _ffi_api
 from .config import GenerationConfig
-from .data import Data
+from .data import Data, TokenData
 
 
 @tvm._ffi.register_object("mlc.serve.Request")  # pylint: disable=protected-access
@@ -55,3 +55,46 @@ class Request(Object):
         return GenerationConfig.from_json(
             _ffi_api.RequestGetGenerationConfigJSON(self)  # type: ignore  # pylint: disable=no-member
         )
+
+
+@tvm._ffi.register_object("mlc.serve.RequestStreamOutput")  # pylint: disable=protected-access
+class RequestStreamOutput(Object):
+    """The generated delta request output that is streamed back
+    through callback stream function.
+    It contains three fields (in order):
+
+    request_id : str
+        The id of the request that the function is invoked for.
+
+    delta_tokens : data.TokenData
+        The new generated tokens since the last callback invocation
+        for the input request.
+
+    finish_reason : Optional[str]
+        The finish reason of the request when it is finished,
+        of None if the request has not finished yet.
+
+    Note
+    ----
+    We do not provide constructor, since in practice only C++ side
+    instantiates this class.
+    """
+
+    def unpack(self) -> Tuple[str, TokenData, Optional[str]]:
+        """Return the fields of the delta output in a tuple.
+
+        Returns
+        -------
+        request_id : str
+            The id of the request that the function is invoked for.
+
+        delta_tokens : data.TokenData
+            The new generated tokens since the last callback invocation
+            for the input request.
+
+        finish_reason : Optional[str]
+            The finish reason of the request when it is finished,
+            of None if the request has not finished yet.
+        """
+        fields = _ffi_api.RequestStreamOutputUnpack(self)  # type: ignore  # pylint: disable=no-member
+        return str(fields[0]), fields[1], str(fields[2]) if fields[2] is not None else None
