@@ -275,7 +275,8 @@ NDArray CopyLogitsOrProbsToCPU(NDArray arr_on_device, NDArray* arr_on_cpu) {
 
 class CPUSampler : public SamplerObj {
  public:
-  explicit CPUSampler() : rng_(RandomGenerator::GetInstance()) {
+  explicit CPUSampler(Optional<EventTraceRecorder> trace_recorder)
+      : trace_recorder_(std::move(trace_recorder)), rng_(RandomGenerator::GetInstance()) {
     // Set customized "logits -> prob" function.
     const PackedFunc* f_logits_to_probs =
         Registry::Get("mlc.llm.compute_probs_from_logits_inplace");
@@ -294,16 +295,27 @@ class CPUSampler : public SamplerObj {
     ICHECK_EQ(logits_on_device->shape[0], generation_cfg.size());
     ICHECK_EQ(request_mstates.size(), generation_cfg.size());
 
+    Array<String> request_ids =
+        request_mstates.Map([](const RequestModelState& mstate) { return mstate->request->id; });
+
     int num_sequence = logits_on_device->shape[0];
+    RECORD_EVENT(trace_recorder_, request_ids, "start query need GPU softmax");
     bool require_gpu_softmax = RequireGPUSoftmax(generation_cfg);
+    RECORD_EVENT(trace_recorder_, request_ids, "finish query need GPU softmax");
 
     // - Compute probabilities from logits.
     NDArray logits_or_probs_on_cpu{nullptr};
     if (require_gpu_softmax) {
+      RECORD_EVENT(trace_recorder_, request_ids, "start GPU softmax");
       NDArray probs_on_device = model->SoftmaxWithTemperature(logits_on_device, generation_cfg);
+      RECORD_EVENT(trace_recorder_, request_ids, "finish GPU softmax");
+      RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
       logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(probs_on_device, &logits_or_probs_on_cpu_);
+      RECORD_EVENT(trace_recorder_, request_ids, "finish copy probs to CPU");
     } else {
+      RECORD_EVENT(trace_recorder_, request_ids, "start copy logits to CPU");
       logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(logits_on_device, &logits_or_probs_on_cpu_);
+      RECORD_EVENT(trace_recorder_, request_ids, "finish copy logits to CPU");
       // The "ComputeProbsFromLogitsInplace" function updates
       // `logits_or_probs_on_cpu` in place.
       ComputeProbsFromLogitsInplace(logits_or_probs_on_cpu, std::move(request_mstates),
@@ -316,7 +328,7 @@ class CPUSampler : public SamplerObj {
     // NOTE: Though we have the probability field in RequestModelState,
     //       we do not save the probabilities right now.
     //       We will handle this in the future when we work on speculation.
-    return SampleTokenFromProbs(logits_or_probs_on_cpu, generation_cfg);
+    return SampleTokenFromProbs(logits_or_probs_on_cpu, generation_cfg, request_ids);
   }
 
  private:
@@ -365,16 +377,22 @@ class CPUSampler : public SamplerObj {
         [this, &logits, &states, &generation_cfg](int i) {
           // - Apply repetition penalty (inplace).
           if (generation_cfg[i]->repetition_penalty != 1.0) {
+            RECORD_EVENT(trace_recorder_, states[i]->request->id, "start repetition penalty");
             ApplyRepetitionPenaltyOnCPU(logits, i, states[i],
                                         generation_cfg[i]->repetition_penalty);
+            RECORD_EVENT(trace_recorder_, states[i]->request->id, "finish repetition penalty");
           }
           // - Compute probability (inplace) from logits.
           //   Using softmax if temperature is non-zero.
           //   Or set probability of the max-logit position to 1.
           if (generation_cfg[i]->temperature >= 1e-6) {
+            RECORD_EVENT(trace_recorder_, states[i]->request->id, "start CPU softmax");
             ApplySoftmaxWithTemperatureOnCPU(logits, i, generation_cfg[i]->temperature);
+            RECORD_EVENT(trace_recorder_, states[i]->request->id, "finish CPU softmax");
           } else {
+            RECORD_EVENT(trace_recorder_, states[i]->request->id, "start argmax");
             SetProbWithArgmaxOnCPU(logits, i);
+            RECORD_EVENT(trace_recorder_, states[i]->request->id, "finish argmax");
           }
         },
         0, logits->shape[0]);
@@ -386,7 +404,8 @@ class CPUSampler : public SamplerObj {
    * \param generation_cfg The generation config.
    * \return The sampled tokens, one for each instance of the batch.
    */
-  std::vector<int32_t> SampleTokenFromProbs(NDArray probs, Array<GenerationConfig> generation_cfg) {
+  std::vector<int32_t> SampleTokenFromProbs(NDArray probs, Array<GenerationConfig> generation_cfg,
+                                            const Array<String>& request_ids) {
     // probs: (n, v)
     CHECK_EQ(probs->ndim, 2);
     CHECK_EQ(probs->device.device_type, kDLCPU);
@@ -401,15 +420,19 @@ class CPUSampler : public SamplerObj {
     }
 
     tvm::runtime::parallel_for_with_threading_backend(
-        [&sampled_tokens, &probs, &generation_cfg, &random_numbers](int i) {
+        [this, &sampled_tokens, &probs, &generation_cfg, &random_numbers, &request_ids](int i) {
+          RECORD_EVENT(this->trace_recorder_, request_ids[i], "start sample token");
           // Sample top p from probability.
           sampled_tokens[i] =
               SampleTopPFromProb(probs, i, generation_cfg[i]->top_p, random_numbers[i]);
+          RECORD_EVENT(this->trace_recorder_, request_ids[i], "finish sample token");
         },
         0, n);
     return sampled_tokens;
   }
 
+  /*! \brief The event trace recorder for requests. */
+  Optional<EventTraceRecorder> trace_recorder_;
   /*! \brief The random generator. */
   RandomGenerator& rng_;
   /*! \brief Customized function which computes prob distribution from logits */
@@ -422,9 +445,9 @@ class CPUSampler : public SamplerObj {
 
 TVM_REGISTER_OBJECT_TYPE(SamplerObj);
 
-Sampler Sampler::Create(std::string sampler_kind) {
+Sampler Sampler::Create(std::string sampler_kind, Optional<EventTraceRecorder> trace_recorder) {
   if (sampler_kind == "cpu") {
-    return Sampler(make_object<CPUSampler>());
+    return Sampler(make_object<CPUSampler>(std::move(trace_recorder)));
   } else {
     LOG(FATAL) << "Unsupported sampler_kind \"" << sampler_kind << "\"";
     throw;
