@@ -10,6 +10,7 @@ from ..tokenizer import Tokenizer
 from . import data
 from .config import GenerationConfig, KVCacheConfig
 from .engine import Engine, ModelInfo, _create_tvm_module, _process_model_args
+from .event_trace_recorder import EventTraceRecorder
 from .request import Request, RequestStreamOutput
 
 
@@ -235,13 +236,22 @@ class AsyncEngine:  # pylint: disable=too-many-instance-attributes
 
     kv_cache_config : KVCacheConfig
         The configuration of the paged KV cache.
+
+    enable_tracing : bool
+        A boolean indicating if to enable event logging for requests.
     """
 
     def __init__(
-        self, models: Union[ModelInfo, List[ModelInfo]], kv_cache_config: KVCacheConfig
+        self,
+        models: Union[ModelInfo, List[ModelInfo]],
+        kv_cache_config: KVCacheConfig,
+        enable_tracing: bool = False,
     ) -> None:
-        self._background_engine = Engine(models, kv_cache_config, self._request_stream_callback)
+        self._background_engine = Engine(
+            models, kv_cache_config, self._request_stream_callback, enable_tracing
+        )
         self.tokenizer = self._background_engine.tokenizer
+        self.trace_recorder = self._background_engine.trace_recorder
         self.max_single_sequence_length = self._background_engine.max_single_sequence_length
         self.conv_template_name = self._background_engine.conv_template_name
 
@@ -373,7 +383,9 @@ class AsyncEngine:  # pylint: disable=too-many-instance-attributes
                 request_id
             )
 
+            self.record_event(request_id, event="start callback")
             delta_token_ids = delta_tokens.token_ids
+            self.record_event(request_id, event="start detokenization")
             delta_text = stop_handler.put(text_streamer.put(delta_token_ids))
             if stop_handler.stop_triggered:
                 finish_reason = "stop"
@@ -385,6 +397,7 @@ class AsyncEngine:  # pylint: disable=too-many-instance-attributes
                     self._abort(request_id)
                 else:
                     delta_text += stop_handler.finish()
+            self.record_event(request_id, event="finish detokenization")
 
             # Push new delta text to the stream.
             stream.push((delta_text, len(delta_token_ids), finish_reason))
@@ -392,6 +405,7 @@ class AsyncEngine:  # pylint: disable=too-many-instance-attributes
                 stream.finish()
                 # Remove the request from the tracker.
                 self._request_tracker.finish_request(request_id)
+            self.record_event(request_id, event="finish callback")
 
     def _engine_step(self) -> None:
         """Internal implementation of asynchronous engine behavior at each time step."""
@@ -411,6 +425,27 @@ class AsyncEngine:  # pylint: disable=too-many-instance-attributes
         # Notify the request tracker about the abortion.
         self._request_tracker.abort_request(request_id)
 
+    def record_event(self, request_id: str, event: str) -> None:
+        """Record a event for the the input request in the trace
+        recorder when the recorder exists.
+
+        Parameters
+        ----------
+        request_id : str
+            The subject request of the event.
+
+        event : str
+            The event in a string name.
+            It can have one of the following patterns:
+            - "start xxx", which marks the start of event "xxx",
+            - "finish xxx", which marks the finish of event "xxx",
+            - "yyy", which marks the instant event "yyy".
+            The "starts" and "finishes" will be automatically paired in the trace recorder.
+        """
+        if self.trace_recorder is None:
+            return
+        self.trace_recorder.add_event(request_id, event)
+
 
 class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
     """
@@ -423,7 +458,10 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
     """
 
     def __init__(
-        self, models: Union[ModelInfo, List[ModelInfo]], kv_cache_config: KVCacheConfig
+        self,
+        models: Union[ModelInfo, List[ModelInfo]],
+        kv_cache_config: KVCacheConfig,
+        enable_tracing: bool = False,
     ) -> None:
         (
             model_args,
@@ -431,6 +469,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             self.max_single_sequence_length,
             self.conv_template_name,
         ) = _process_model_args(models)
+        self.trace_recorder = EventTraceRecorder() if enable_tracing else None
         self._ffi = _create_tvm_module(
             "mlc.serve.create_threaded_engine",
             ffi_funcs=[
@@ -444,6 +483,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
                 tokenizer_path,
                 kv_cache_config.asjson(),
                 self._request_stream_callback,
+                self.trace_recorder,
                 *model_args,
             ],
         )
@@ -575,8 +615,10 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             if tools is None:
                 continue
 
+            self.record_event(request_id, event="start callback")
             stream, text_streamer, stop_handler = tools
 
+            self.record_event(request_id, event="start detokenization")
             delta_token_ids = delta_tokens.token_ids
             delta_text = stop_handler.put(text_streamer.put(delta_token_ids))
             if stop_handler.stop_triggered:
@@ -589,9 +631,32 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
                     self._abort(request_id)
                 else:
                     delta_text += stop_handler.finish()
+            self.record_event(request_id, event="finish detokenization")
 
             # Push new delta text to the stream.
             stream.push((delta_text, len(delta_token_ids), finish_reason))
             if finish_reason is not None:
                 stream.finish()
                 self._request_tools.pop(request_id, None)
+            self.record_event(request_id, event="finish callback")
+
+    def record_event(self, request_id: str, event: str) -> None:
+        """Record a event for the the input request in the trace
+        recorder when the recorder exists.
+
+        Parameters
+        ----------
+        request_id : str
+            The subject request of the event.
+
+        event : str
+            The event in a string name.
+            It can have one of the following patterns:
+            - "start xxx", which marks the start of event "xxx",
+            - "finish xxx", which marks the finish of event "xxx",
+            - "yyy", which marks the instant event "yyy".
+            The "starts" and "finishes" will be automatically paired in the trace recorder.
+        """
+        if self.trace_recorder is None:
+            return
+        self.trace_recorder.add_event(request_id, event)

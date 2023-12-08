@@ -14,6 +14,7 @@ from ..streamer import StopStringHandler, TextStreamer
 from ..tokenizer import Tokenizer
 from . import data
 from .config import GenerationConfig, KVCacheConfig
+from .event_trace_recorder import EventTraceRecorder
 from .request import Request, RequestStreamOutput
 
 
@@ -143,6 +144,9 @@ class Engine:
         be set before the engine executing requests. This can be done via
         the `set_request_stream_callback` method. Otherwise, the engine will raise
         exception.
+
+    enable_tracing : bool
+        A boolean indicating if to enable event logging for requests.
     """
 
     def __init__(
@@ -150,6 +154,7 @@ class Engine:
         models: Union[ModelInfo, List[ModelInfo]],
         kv_cache_config: KVCacheConfig,
         request_stream_callback: Optional[Callable[[List[RequestStreamOutput]], None]] = None,
+        enable_tracing: bool = False,
     ):
         (
             model_args,
@@ -170,11 +175,13 @@ class Engine:
                 "set_request_stream_callback",
             ],
         )
+        self.trace_recorder = EventTraceRecorder() if enable_tracing else None
         self._ffi["init"](
             self.max_single_sequence_length,
             tokenizer_path,
             kv_cache_config.asjson(),
             request_stream_callback,
+            self.trace_recorder,
             *model_args,
         )
         self.tokenizer = Tokenizer(tokenizer_path)
