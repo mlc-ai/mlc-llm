@@ -1,2 +1,2 @@
 """The entrypoints for MLC LLM server."""
-from . import openai_entrypoints
+from . import debug_entrypoints, openai_entrypoints

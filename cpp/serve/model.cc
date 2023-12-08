@@ -226,6 +226,7 @@ class ModelImpl : public ModelObj {
     } else {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
+    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     ICHECK_EQ(logits->ndim, 3);
     ICHECK_EQ(logits->shape[0], 1);
     ICHECK_EQ(logits->shape[1], num_sequences);
@@ -264,6 +265,7 @@ class ModelImpl : public ModelObj {
     } else {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
+    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     // logits: (b, 1, v)
     ICHECK_EQ(logits->ndim, 3);
     ICHECK_EQ(logits->shape[0], embeddings->shape[0]);

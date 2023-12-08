@@ -11,6 +11,7 @@
 #include <tvm/runtime/module.h>
 
 #include "../base.h"
+#include "event_trace_recorder.h"
 #include "model.h"
 #include "request_state.h"
 
@@ -55,9 +56,11 @@ class Sampler : public ObjectRef {
   /*!
    * \brief Create the runtime sampler module.
    * \param sampler_kind The sampler name denoting which sampler to create.
+   * \param trace_recorder The event trace recorder for requests.
    * \return The created runtime module.
    */
-  TVM_DLL static Sampler Create(std::string sampler_kind);
+  TVM_DLL static Sampler Create(std::string sampler_kind,
+                                Optional<EventTraceRecorder> trace_recorder);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Sampler, ObjectRef, SamplerObj);
 };
