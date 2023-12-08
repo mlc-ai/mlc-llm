@@ -31,46 +31,87 @@ std::string TextStreamerObj::Put(const std::vector<int32_t>& delta_tokens) {
     return "";
   }
 
-  // pending_tokens_ += delta_tokens
-  std::vector<int32_t> validated_tokens;
-  validated_tokens.reserve(pending_tokens_.size() + delta_tokens.size());
-  validated_tokens.insert(validated_tokens.end(), pending_tokens_.begin(), pending_tokens_.end());
-  validated_tokens.insert(validated_tokens.end(), delta_tokens.begin(), delta_tokens.end());
+  std::string ret;
+  // We process delta tokens one by one.
+  for (int32_t delta_token : delta_tokens) {
+    // push to pending tokens.
+    pending_tokens_.push_back(delta_token);
 
-  // all_tokens = prefix_tokens_ + pending_tokens_
-  std::vector<int32_t> all_tokens;
-  all_tokens.reserve(prefix_tokens_.size() + validated_tokens.size());
-  all_tokens.insert(all_tokens.end(), prefix_tokens_.begin(), prefix_tokens_.end());
-  all_tokens.insert(all_tokens.end(), validated_tokens.begin(), validated_tokens.end());
+    // all_tokens = prefix_tokens_ + pending_tokens_
+    std::vector<int32_t> all_tokens;
+    all_tokens.reserve(prefix_tokens_.size() + pending_tokens_.size());
+    all_tokens.insert(all_tokens.end(), prefix_tokens_.begin(), prefix_tokens_.end());
+    all_tokens.insert(all_tokens.end(), pending_tokens_.begin(), pending_tokens_.end());
 
-  // Decode prefix_tokens_ and all_tokens.
-  std::string prefix_str = prefix_tokens_.empty() ? "" : tokenizer_->Decode(prefix_tokens_);
-  std::string full_str = tokenizer_->Decode(all_tokens);
-  // prefix_str is expected to be a prefix of `full_str`.
-  ICHECK_EQ(full_str.compare(0, prefix_str.length(), prefix_str), 0);
+    // Decode prefix_tokens_ and all_tokens.
+    std::string prefix_str = prefix_tokens_.empty() ? "" : tokenizer_->Decode(prefix_tokens_);
+    std::string full_str = tokenizer_->Decode(all_tokens);
 
-  // validated_str = full_str[len(prefix_str):]
-  std::string validated_str = full_str.substr(prefix_str.length());
-  // Pop UTF-8 replacement character from the back.
-  // - The UTF-8 replacement character take 3 chars.
-  // - A valid UTF-8 has 4 chars at most.
-  //   So there will be at most 3 tokens popped.
-  pending_tokens_.clear();
-  while (!validated_tokens.empty() &&                     //
-         static_cast<int>(pending_tokens_.size()) < 3 &&  //
-         validated_str.length() >= 3 &&                   //
-         validated_str.compare(validated_str.length() - 3, /*n=*/3, kReplacementCharacter) == 0) {
-    pending_tokens_.push_back(validated_tokens.back());
-    validated_tokens.pop_back();
-    validated_str = validated_str.substr(0, validated_str.length() - 3);
+    std::string validated_str;
+    std::vector<int32_t> new_pending_tokens;
+    if (full_str.compare(0, prefix_str.length(), prefix_str) == 0) {
+      // Case 1. prefix_str is a prefix of `full_str`.
+      // validated_str = full_str[len(prefix_str):]
+      validated_str = full_str.substr(prefix_str.length());
+      // Pop UTF-8 replacement character from the back of pending tokens.
+      // - The UTF-8 replacement character take 3 chars.
+      // - A valid UTF-8 has 4 chars at most.
+      //   So there will be at most 3 tokens popped.
+      while (!pending_tokens_.empty() &&                         //
+             static_cast<int>(new_pending_tokens.size()) < 3 &&  //
+             validated_str.length() >= 3 &&                      //
+             validated_str.compare(validated_str.length() - 3, /*n=*/3, kReplacementCharacter) ==
+                 0) {
+        new_pending_tokens.push_back(pending_tokens_.back());
+        pending_tokens_.pop_back();
+        validated_str = validated_str.substr(0, validated_str.length() - 3);
+      }
+    } else {
+      // Case 2. prefix_str is not a prefix of `full_str`.
+      // Pop pending tokens from the back.
+      // - Pop until prefix_str is indeed a prefix of full_str.
+      // - A valid UTF-8 has 4 chars at most.
+      //   So there will be at most 3 tokens popped.
+      // - If there are no more than 3 pending tokens, skip popping.
+      //   This is because it is impossible to make full_str contain
+      //   prefix_str without popping all the pending tokens.
+      if (static_cast<int>(pending_tokens_.size()) < 3) {
+        continue;
+      }
+      bool get_valid_full_str = false;
+      while (!pending_tokens_.empty() && static_cast<int>(new_pending_tokens.size()) < 3) {
+        new_pending_tokens.push_back(pending_tokens_.back());
+        pending_tokens_.pop_back();
+        all_tokens.pop_back();
+        full_str = tokenizer_->Decode(all_tokens);
+        if (full_str.compare(0, prefix_str.length(), prefix_str) == 0) {
+          get_valid_full_str = true;
+          break;
+        }
+      }
+
+      if (get_valid_full_str) {
+        // We find a full_str which starts from prefix_str.
+        // So we return the sliced full string without the prefix.
+        validated_str = full_str.substr(prefix_str.length());
+      } else {
+        // We cannot find a full_str which starts from prefix_str by
+        // popping 3 tokens.
+        // In this case, the remaining pending tokens are invalid UTF-8
+        // characters already, so we return the decoded pending tokens.
+        validated_str = tokenizer_->Decode(pending_tokens_);
+      }
+    }
+
+    if (!pending_tokens_.empty()) {
+      // Set the new prefix.
+      prefix_tokens_ = pending_tokens_;
+    }
+    std::reverse(new_pending_tokens.begin(), new_pending_tokens.end());
+    pending_tokens_ = new_pending_tokens;
+    ret += validated_str;
   }
-  std::reverse(pending_tokens_.begin(), pending_tokens_.end());
-
-  if (!validated_tokens.empty()) {
-    // Set the new prefix.
-    prefix_tokens_ = {validated_tokens.back()};
-  }
-  return validated_str;
+  return ret;
 }
 
 std::string TextStreamerObj::Finish() {
@@ -83,12 +124,17 @@ std::string TextStreamerObj::Finish() {
   // Decode prefix_tokens_ and all_tokens.
   std::string prefix_str = prefix_tokens_.empty() ? "" : tokenizer_->Decode(prefix_tokens_);
   std::string full_str = all_tokens.empty() ? "" : tokenizer_->Decode(all_tokens);
-  // prefix_str is expected to be a prefix of `full_str`.
-  ICHECK_EQ(full_str.compare(0, prefix_str.length(), prefix_str), 0);
 
-  // validated_str = full_str[len(prefix_str):]
   finished_ = true;
-  return full_str.substr(prefix_str.length());
+  if (full_str.compare(0, prefix_str.length(), prefix_str) == 0) {
+    // Case 1. prefix_str is a prefix of `full_str`.
+    return full_str.substr(prefix_str.length());
+  } else {
+    // Case 2. prefix_str is not a prefix of `full_str`.
+    // In this case, the remaining pending tokens are invalid UTF-8
+    // characters already, so we return the decoded pending tokens.
+    return tokenizer_->Decode(pending_tokens_);
+  }
 }
 
 TVM_REGISTER_GLOBAL("mlc.TextStreamer").set_body_typed([](Tokenizer tokenizer) {
