@@ -13,8 +13,9 @@ namespace serve {
 
 TVM_REGISTER_OBJECT_TYPE(RequestModelStateNode);
 
-RequestModelState::RequestModelState(int model_id, Array<Data> inputs) {
+RequestModelState::RequestModelState(Request request, int model_id, Array<Data> inputs) {
   ObjectPtr<RequestModelStateNode> n = make_object<RequestModelStateNode>();
+  n->request = std::move(request);
   n->model_id = model_id;
   n->request_id = -1;
   n->inputs = std::move(inputs);
@@ -36,7 +37,7 @@ RequestState::RequestState(Request request, int num_models) {
   Array<RequestModelState> mstates;
   mstates.reserve(num_models);
   for (int i = 0; i < num_models; ++i) {
-    mstates.push_back(RequestModelState(i, request->inputs));
+    mstates.push_back(RequestModelState(request, i, request->inputs));
   }
   n->request = std::move(request);
   n->mstates = std::move(mstates);

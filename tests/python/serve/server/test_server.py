@@ -19,6 +19,7 @@ two steps:
 # pylint: disable=missing-function-docstring,too-many-arguments,too-many-locals,too-many-branches
 import json
 import os
+from http import HTTPStatus
 from typing import Dict, List, Optional
 
 import pytest
@@ -29,6 +30,7 @@ OPENAI_BASE_URL = "http://127.0.0.1:8000/v1"
 OPENAI_V1_MODELS_URL = "http://127.0.0.1:8000/v1/models"
 OPENAI_V1_COMPLETION_URL = "http://127.0.0.1:8000/v1/completions"
 OPENAI_V1_CHAT_COMPLETION_URL = "http://127.0.0.1:8000/v1/chat/completions"
+DEBUG_DUMP_EVENT_TRACE_URL = "http://127.0.0.1:8000/debug/dump_event_trace"
 
 
 def check_openai_nonstream_response(
@@ -776,6 +778,16 @@ def test_openai_v1_chat_completions_unsupported_args(
     expect_error(response.json(), msg_prefix=error_msg_prefix)
 
 
+def test_debug_dump_event_trace(
+    served_model: str,
+    launch_server,  # pylint: disable=unused-argument
+):
+    # We only check that the request does not fail.
+    payload = {"model": served_model}
+    response = requests.post(DEBUG_DUMP_EVENT_TRACE_URL, json=payload, timeout=60)
+    assert response.status_code == HTTPStatus.OK
+
+
 if __name__ == "__main__":
     MODEL = os.environ.get("MLC_SERVE_MODEL")
     if MODEL is None:
@@ -816,3 +828,5 @@ if __name__ == "__main__":
     test_openai_v1_chat_completions_system_prompt_wrong_pos(MODEL, None, stream=False)
     test_openai_v1_chat_completions_system_prompt_wrong_pos(MODEL, None, stream=True)
     test_openai_v1_chat_completions_unsupported_args(MODEL, None)
+
+    test_debug_dump_event_trace(MODEL, None)
