@@ -17,7 +17,7 @@ namespace serve {
 
 using namespace tvm::runtime;
 
-typedef TypedPackedFunc<void(String, TokenData, Optional<String>)> FRequestStreamCallback;
+typedef TypedPackedFunc<void(Array<RequestStreamOutput>)> FRequestStreamCallback;
 
 /*!
  * \brief The engine interface for request serving in MLC LLM.
@@ -52,6 +52,8 @@ class Engine {
    * sequence length supported by the engine.
    * \param tokenizer_path The tokenizer path on disk.
    * \param kv_cache_config_json_str The KV cache config in JSON string.
+   * \param request_stream_callback The request stream callback function to
+   * stream back generated output for requests.
    * \param model_infos The model info tuples. Each tuple contains
    * - the model library, which might be a path to the binary file or
    * an executable module that is pre-loaded,
