@@ -52,6 +52,26 @@ Conversation OpenHermesMistral() {
   return conv;
 }
 
+Conversation NeuralHermesMistral() {
+  // Identical to chatml except for the system prompt and stop tokens
+  Conversation conv;
+  conv.name = "neural_hermes_mistral";
+  conv.roles = {"<|im_start|>user", "<|im_start|>assistant"};
+  conv.system = ("<|im_start|>system\nYou are a helpful assistant chatbot.");
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"<|im_end|>", "<|im_end|>"};
+  conv.role_msg_sep = "\n";
+  conv.role_empty_sep = "\n";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2, 32000};
+  conv.stop_str = "<|im_end|>";
+  conv.add_bos = true;
+  return conv;
+}
+
 Conversation LlamaDefault() {
   Conversation conv;
   conv.name = "llama_default";
@@ -652,6 +672,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"llama-2", Llama2},
       {"mistral_default", MistralDefault},
       {"open_hermes_mistral", OpenHermesMistral},
+      {"neural_hermes_mistral", NeuralHermesMistral},
       {"codellama_completion", CodeLlamaCompletion},
       {"codellama_instruct", CodeLlamaInstruct},
       {"gpt2", GPT2},
