@@ -77,7 +77,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                 # Log state
                 structlog.contextvars.get_contextvars(),
                 json_log_output,
-                logging.getLevelName(logging.getLogger().level)
+                logging.getLevelName(logging.getLogger().level),
             ),
         )
 
@@ -90,7 +90,9 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                     "StagingInferenceEngine worker is not ready before timeout."
                 )
         except:
-            raise RuntimeError("Failed to start StagingInferenceEngine worker process.")
+            raise RuntimeError(
+                f"Failed to start StagingInferenceEngine worker process with timeout {self.init_timeout}."
+            )
 
     def stop(self):
         self.command_queue.put(ShutdownCommand())
@@ -154,9 +156,14 @@ class StagingInferenceEngine(ScopedInferenceEngine):
             return False
 
     def step(self) -> InferenceStepResult:
-        log_every(self, 1000, LOG.debug, "StagingInferenceEngine.step",
+        log_every(
+            self,
+            1000,
+            LOG.debug,
+            "StagingInferenceEngine.step",
             _is_ready_to_serve=self._is_ready_to_serve(),
-            has_pending_requests=self.has_pending_requests())
+            has_pending_requests=self.has_pending_requests(),
+        )
 
         if not self._is_ready_to_serve():
             raise RuntimeError("GenerationLoopWorker process is not running")
@@ -177,7 +184,10 @@ class StagingInferenceEngine(ScopedInferenceEngine):
 
         outputs = list[RequestOutput]()
         with self.requests_lock:
-            LOG.debug("StagingInferenceEngine.step obtained requests_lock", generation_output=generation_output)
+            LOG.debug(
+                "StagingInferenceEngine.step obtained requests_lock",
+                generation_output=generation_output,
+            )
             for seq_output in generation_output.sequences:
                 # TODO: support multi-sequence per request
                 request_id = seq_output.id.request_id
