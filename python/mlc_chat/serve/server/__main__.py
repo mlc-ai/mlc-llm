@@ -21,6 +21,7 @@ def parse_args_and_initialize() -> argparse.Namespace:
     args.add_argument("--max-batch-size", type=int, default=80)
     args.add_argument("--max-total-seq-length", type=int, default=16800)
     args.add_argument("--use-threaded-engine", action="store_true")
+    args.add_argument("--enable-tracing", action="store_true")
 
     args.add_argument("--host", type=str, default="127.0.0.1", help="host name")
     args.add_argument("--port", type=int, default=8000, help="port")
@@ -52,9 +53,13 @@ def parse_args_and_initialize() -> argparse.Namespace:
     # Create engine and start the background loop
     engine: EngineClass
     if parsed.use_threaded_engine:
-        engine = async_engine.AsyncThreadedEngine(model_info, kv_cache_config)
+        engine = async_engine.AsyncThreadedEngine(
+            model_info, kv_cache_config, enable_tracing=parsed.enable_tracing
+        )
     else:
-        engine = async_engine.AsyncEngine(model_info, kv_cache_config)
+        engine = async_engine.AsyncEngine(
+            model_info, kv_cache_config, enable_tracing=parsed.enable_tracing
+        )
 
     ServerContext.add_model(hosted_model, engine)
     return parsed
@@ -73,7 +78,8 @@ if __name__ == "__main__":
     )
 
     # Include the routers from subdirectories.
-    from ..entrypoints import openai_entrypoints
+    from ..entrypoints import debug_entrypoints, openai_entrypoints
 
     app.include_router(openai_entrypoints.app)
+    app.include_router(debug_entrypoints.app)
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
