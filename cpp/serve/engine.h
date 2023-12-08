@@ -9,6 +9,7 @@
 #include <tvm/runtime/packed_func.h>
 
 #include "data.h"
+#include "event_trace_recorder.h"
 #include "request.h"
 
 namespace mlc {
@@ -54,6 +55,7 @@ class Engine {
    * \param kv_cache_config_json_str The KV cache config in JSON string.
    * \param request_stream_callback The request stream callback function to
    * stream back generated output for requests.
+   * \param trace_recorder Event trace recorder for requests.
    * \param model_infos The model info tuples. Each tuple contains
    * - the model library, which might be a path to the binary file or
    * an executable module that is pre-loaded,
@@ -64,6 +66,7 @@ class Engine {
   static std::unique_ptr<Engine> Create(
       int max_single_sequence_length, const String& tokenizer_path,
       const String& kv_cache_config_json_str, Optional<PackedFunc> request_stream_callback,
+      Optional<EventTraceRecorder> trace_recorder,
       const std::vector<std::tuple<TVMArgValue, String, DLDevice>>& model_infos);
 
   /*! \brief Reset the engine, clean up all running data and statistics. */

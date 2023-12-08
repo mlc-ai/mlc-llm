@@ -1,5 +1,5 @@
 """OpenAI API-compatible server entrypoints in MLC LLM"""
-# pylint: disable=too-many-locals,too-many-return-statements
+# pylint: disable=too-many-locals,too-many-return-statements,too-many-statements
 from http import HTTPStatus
 from typing import AsyncGenerator, List, Optional
 
@@ -50,6 +50,8 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         return entrypoint_utils.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
         )
+    request_id = f"cmpl-{entrypoint_utils.random_uuid()}"
+    async_engine.record_event(request_id, event="receive request")
 
     # - Check if unsupported arguments are specified.
     error = entrypoint_utils.check_unsupported_fields(request)
@@ -57,7 +59,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         return error
 
     # - Process prompt and check validity.
+    async_engine.record_event(request_id, event="start tokenization")
     prompts = entrypoint_utils.process_prompts(request.prompt, async_engine.tokenizer.encode)
+    async_engine.record_event(request_id, event="finish tokenization")
     if isinstance(prompts, fastapi.responses.JSONResponse):
         # Errored when processing the prompts
         return prompts
@@ -74,7 +78,6 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
 
     # Process generation config. Create request id.
     generation_cfg = protocol_utils.get_generation_config(request)
-    request_id = f"cmpl-{entrypoint_utils.random_uuid()}"
 
     # Streaming response.
     if request.stream:
@@ -99,6 +102,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             # - Generate new tokens.
             num_completion_tokens = 0
             finish_reason = None
+            async_engine.record_event(request_id, event="invoke generate")
             async for delta_text, num_delta_tokens, finish_reason in async_engine.generate(
                 prompt, generation_cfg, request_id
             ):
@@ -122,6 +126,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
                     ),
                 )
                 yield f"data: {response.model_dump_json()}\n\n"
+            async_engine.record_event(request_id, event="finish")
 
             # - Echo the suffix.
             if request.suffix is not None:
@@ -152,6 +157,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     output_text = "" if not request.echo else async_engine.tokenizer.decode(prompt)
     num_completion_tokens = 0
     finish_reason: Optional[str] = None
+    async_engine.record_event(request_id, event="invoke generate")
     async for delta_text, num_delta_tokens, finish_reason in async_engine.generate(
         prompt, generation_cfg, request_id
     ):
@@ -168,6 +174,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         num_completion_tokens += num_delta_tokens
     assert finish_reason is not None
     suffix = request.suffix if request.suffix is not None else ""
+    async_engine.record_event(request_id, event="finish")
     response = CompletionResponse(
         id=request_id,
         choices=[
@@ -222,6 +229,8 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
         return entrypoint_utils.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
         )
+    request_id = f"chatcmpl-{entrypoint_utils.random_uuid()}"
+    async_engine.record_event(request_id, event="receive request")
     # - Check if the model supports chat conversation.
     conv_template = ServerContext.get_conv_template(request.model)
     if conv_template is None:
@@ -256,9 +265,11 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
 
     # - Get the prompt from template, and encode to token ids.
     # - Check prompt length
+    async_engine.record_event(request_id, event="start tokenization")
     prompts = entrypoint_utils.process_prompts(
         conv_template.as_prompt(), async_engine.tokenizer.encode
     )
+    async_engine.record_event(request_id, event="finish tokenization")
     assert isinstance(prompts, list) and len(prompts) == 1, "Internal error"
     if conv_template.system_prefix_token_ids is not None:
         prompts[0] = conv_template.system_prefix_token_ids + prompts[0]
@@ -273,13 +284,13 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
         extra_stop_token_ids=conv_template.stop_token_ids,
         extra_stop_str=conv_template.stop_str,
     )
-    request_id = f"chatcmpl-{entrypoint_utils.random_uuid()}"
 
     # Streaming response.
     if request.stream:
 
         async def completion_stream_generator() -> AsyncGenerator[str, None]:
             assert request.n == 1
+            async_engine.record_event(request_id, event="invoke generate")
             async for delta_text, _, finish_reason in async_engine.generate(
                 prompt, generation_cfg, request_id
             ):
@@ -299,6 +310,7 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
                     system_fingerprint="",
                 )
                 yield f"data: {response.model_dump_json()}\n\n"
+            async_engine.record_event(request_id, event="finish")
             yield "data: [DONE]\n\n"
 
         return fastapi.responses.StreamingResponse(
@@ -309,6 +321,7 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
     output_text = ""
     num_completion_tokens = 0
     finish_reason: Optional[str] = None
+    async_engine.record_event(request_id, event="invoke generate")
     async for delta_text, num_delta_tokens, finish_reason in async_engine.generate(
         prompt, generation_cfg, request_id
     ):
@@ -325,6 +338,7 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
         num_completion_tokens += num_delta_tokens
     assert finish_reason is not None
 
+    async_engine.record_event(request_id, event="finish")
     return ChatCompletionResponse(
         id=request_id,
         choices=[

@@ -21,6 +21,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         use_threaded_engine: bool = True,
         max_batch_size: int = 80,
         max_total_sequence_length: int = 16800,
+        enable_tracing: bool = False,
         host: str = "127.0.0.1",
         port: int = 8000,
     ) -> None:
@@ -32,6 +33,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         self.use_threaded_engine = use_threaded_engine
         self.max_batch_size = max_batch_size
         self.max_total_sequence_length = max_total_sequence_length
+        self.enable_tracing = enable_tracing
         self.host = host
         self.port = port
         self._proc: Optional[subprocess.Popen] = None
@@ -49,6 +51,8 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         cmd += ["--max-total-seq-length", str(self.max_total_sequence_length)]
         if self.use_threaded_engine:
             cmd += ["--use-threaded-engine"]
+        if self.enable_tracing:
+            cmd += ["--enable-tracing"]
 
         cmd += ["--host", self.host]
         cmd += ["--port", str(self.port)]

@@ -9,6 +9,7 @@
 
 #include "../config.h"
 #include "../engine_state.h"
+#include "../event_trace_recorder.h"
 #include "../model.h"
 #include "../sampler.h"
 
@@ -56,11 +57,13 @@ class EngineAction : public ObjectRef {
    * \param kv_cache_config The KV cache config to help decide prefill is doable.
    * \param max_single_sequence_length The max single sequence length to help
    * decide if prefill is doable.
+   * \param trace_recorder The event trace recorder for requests.
    * \return The created action object.
    */
   static EngineAction NewRequestPrefill(Array<Model> models, Sampler sampler,
                                         KVCacheConfig kv_cache_config,
-                                        int max_single_sequence_length);
+                                        int max_single_sequence_length,
+                                        Optional<EventTraceRecorder> trace_recorder);
   /*!
    * \brief Create the action that runs one-step decode for requests in the
    * `running_queue` of engine state. Preempt low-priority requests
@@ -71,9 +74,11 @@ class EngineAction : public ObjectRef {
    * \param models The model to run decode in. When there are multiple
    * models, the `Step` function of the created action will not take effect.
    * \param sampler The sampler to sample new tokens.
+   * \param trace_recorder The event trace recorder for requests.
    * \return The created action object.
    */
-  static EngineAction BatchDecode(Array<Model> models, Sampler sampler);
+  static EngineAction BatchDecode(Array<Model> models, Sampler sampler,
+                                  Optional<EventTraceRecorder> trace_recorder);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineAction, ObjectRef, EngineActionObj);
 };
