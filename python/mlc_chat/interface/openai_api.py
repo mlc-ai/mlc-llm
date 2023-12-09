@@ -11,10 +11,33 @@ import shortuuid
 from pydantic import BaseModel, Field
 
 
+class ToolCalls(BaseModel):
+    id: str = Field(default_factory=lambda: f"call_{shortuuid.random()}")
+    type: str = "function"
+    function: object
+
+
 class ChatMessage(BaseModel):
     role: str
-    content: str
+    content: Union[str, None]
     name: Optional[str] = None
+    tool_calls: Optional[List[ToolCalls]] = None
+
+
+class Function(BaseModel):
+    description: Optional[str] = None
+    name: str
+    parameters: object
+
+
+class Tools(BaseModel):
+    type: Literal["function"]
+    function: Dict[str, Any]
+
+
+class ToolChoice(BaseModel):
+    type: Literal["function"]
+    function: Dict[str, Any]
 
 
 class ChatCompletionRequest(BaseModel):
@@ -32,9 +55,9 @@ class ChatCompletionRequest(BaseModel):
     frequency_penalty: float = None
     n: int = None
     stop: Union[str, List[str]] = None
+    tools: Optional[List[Tools]] = None
+    tool_choice: Union[Literal["none", "auto"], ToolChoice] = "auto"
     # TODO: Implement support for the OpenAI API parameters
-    # function []
-    # function_call
     # stop: Optional[Union[str, List[str]]] = None
     # max_tokens: Optional[int]
     # logit_bias
@@ -50,7 +73,7 @@ class UsageInfo(BaseModel):
 class ChatCompletionResponseChoice(BaseModel):
     index: int
     message: ChatMessage
-    finish_reason: Optional[Literal["stop", "length"]] = None
+    finish_reason: Optional[Literal["stop", "length", "tool_calls"]] = None
 
 
 class ChatCompletionResponse(BaseModel):
