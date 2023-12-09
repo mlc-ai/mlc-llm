@@ -1,15 +1,9 @@
 # pylint: disable=chained-comparison,line-too-long,missing-docstring,
 # pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
-import argparse
 import asyncio
-from typing import List, Type, Union
+from typing import List
 
-from mlc_chat.serve import (
-    AsyncEngine,
-    AsyncThreadedEngine,
-    GenerationConfig,
-    KVCacheConfig,
-)
+from mlc_chat.serve import AsyncThreadedEngine, GenerationConfig, KVCacheConfig
 from mlc_chat.serve.engine import ModelInfo
 
 prompts = [
@@ -26,12 +20,12 @@ prompts = [
 ]
 
 
-async def test_engine_generate(async_engine_cls: Type[Union[AsyncEngine, AsyncThreadedEngine]]):
+async def test_engine_generate():
     # Initialize model loading info and KV cache config
     model = ModelInfo("Llama-2-7b-chat-hf-q4f16_1")
     kv_cache_config = KVCacheConfig(page_size=16)
     # Create engine
-    async_engine = async_engine_cls(model, kv_cache_config)
+    async_engine = AsyncThreadedEngine(model, kv_cache_config)
 
     num_requests = 10
     max_tokens = 256
@@ -40,7 +34,7 @@ async def test_engine_generate(async_engine_cls: Type[Union[AsyncEngine, AsyncTh
     outputs: List[str] = ["" for _ in range(num_requests)]
 
     async def generate_task(
-        async_engine: Union[AsyncEngine, AsyncThreadedEngine],
+        async_engine: AsyncThreadedEngine,
         prompt: str,
         generation_cfg: GenerationConfig,
         request_id: str,
@@ -72,11 +66,4 @@ async def test_engine_generate(async_engine_cls: Type[Union[AsyncEngine, AsyncTh
 
 
 if __name__ == "__main__":
-    args = argparse.ArgumentParser()
-    args.add_argument("--threaded", action="store_true")
-    parsed = args.parse_args()
-
-    if not parsed.threaded:
-        asyncio.run(test_engine_generate(AsyncEngine))
-    else:
-        asyncio.run(test_engine_generate(AsyncThreadedEngine))
+    asyncio.run(test_engine_generate())
