@@ -17,14 +17,14 @@ Conversation ChatML() {
   conv.messages = {};
   conv.offset = 0;
   conv.separator_style = SeparatorStyle::kSepRoleMsg;
-  conv.seps = {"<|im_end|>", "<|im_end|>"};
+  conv.seps = {"<|im_end|>\n"};
   conv.role_msg_sep = "\n";
   conv.role_empty_sep = "\n";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
   conv.stop_tokens = {2};
   conv.stop_str = "<|im_end|>";
-  conv.add_bos = true;
+  conv.add_bos = false;
   return conv;
 }
 
@@ -41,14 +41,14 @@ Conversation OpenHermesMistral() {
   conv.messages = {};
   conv.offset = 0;
   conv.separator_style = SeparatorStyle::kSepRoleMsg;
-  conv.seps = {"<|im_end|>", "<|im_end|>"};
+  conv.seps = {"<|im_end|>\n"};
   conv.role_msg_sep = "\n";
   conv.role_empty_sep = "\n";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
   conv.stop_tokens = {2, 32000};
   conv.stop_str = "<|im_end|>";
-  conv.add_bos = true;
+  conv.add_bos = false;
   return conv;
 }
 
@@ -61,14 +61,14 @@ Conversation NeuralHermesMistral() {
   conv.messages = {};
   conv.offset = 0;
   conv.separator_style = SeparatorStyle::kSepRoleMsg;
-  conv.seps = {"<|im_end|>", "<|im_end|>"};
+  conv.seps = {"<|im_end|>\n"};
   conv.role_msg_sep = "\n";
   conv.role_empty_sep = "\n";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
   conv.stop_tokens = {2, 32000};
   conv.stop_str = "<|im_end|>";
-  conv.add_bos = true;
+  conv.add_bos = false;
   return conv;
 }
 
@@ -124,7 +124,7 @@ Conversation MistralDefault() {
   conv.separator_style = SeparatorStyle::kSepRoleMsg;
   conv.seps = {" "};
   conv.role_msg_sep = " ";
-  conv.role_empty_sep = " ";
+  conv.role_empty_sep = "";
   conv.stop_tokens = {2};
   conv.stop_str = "</s>";
   conv.add_bos = true;
