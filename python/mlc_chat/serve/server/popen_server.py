@@ -18,7 +18,6 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         device: str = "auto",
         *,
         model_lib_path: str = "",
-        use_threaded_engine: bool = True,
         max_batch_size: int = 80,
         max_total_sequence_length: int = 16800,
         enable_tracing: bool = False,
@@ -30,7 +29,6 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         self.model = model
         self.device = device
         self.model_lib_path = model_lib_path
-        self.use_threaded_engine = use_threaded_engine
         self.max_batch_size = max_batch_size
         self.max_total_sequence_length = max_total_sequence_length
         self.enable_tracing = enable_tracing
@@ -49,8 +47,6 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         cmd += ["--model-lib-path", self.model_lib_path]
         cmd += ["--max-batch-size", str(self.max_batch_size)]
         cmd += ["--max-total-seq-length", str(self.max_total_sequence_length)]
-        if self.use_threaded_engine:
-            cmd += ["--use-threaded-engine"]
         if self.enable_tracing:
             cmd += ["--enable-tracing"]
 
