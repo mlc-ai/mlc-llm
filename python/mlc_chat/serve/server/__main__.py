@@ -8,7 +8,7 @@ import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
 from .. import async_engine, config
-from .server_context import EngineClass, ServerContext
+from .server_context import ServerContext
 
 
 def parse_args_and_initialize() -> argparse.Namespace:
@@ -20,7 +20,6 @@ def parse_args_and_initialize() -> argparse.Namespace:
     args.add_argument("--model-lib-path", type=str, default="")
     args.add_argument("--max-batch-size", type=int, default=80)
     args.add_argument("--max-total-seq-length", type=int, default=16800)
-    args.add_argument("--use-threaded-engine", action="store_true")
     args.add_argument("--enable-tracing", action="store_true")
 
     args.add_argument("--host", type=str, default="127.0.0.1", help="host name")
@@ -51,15 +50,9 @@ def parse_args_and_initialize() -> argparse.Namespace:
         max_total_sequence_length=parsed.max_total_seq_length,
     )
     # Create engine and start the background loop
-    engine: EngineClass
-    if parsed.use_threaded_engine:
-        engine = async_engine.AsyncThreadedEngine(
-            model_info, kv_cache_config, enable_tracing=parsed.enable_tracing
-        )
-    else:
-        engine = async_engine.AsyncEngine(
-            model_info, kv_cache_config, enable_tracing=parsed.enable_tracing
-        )
+    engine = async_engine.AsyncThreadedEngine(
+        model_info, kv_cache_config, enable_tracing=parsed.enable_tracing
+    )
 
     ServerContext.add_model(hosted_model, engine)
     return parsed
