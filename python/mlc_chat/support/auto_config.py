@@ -159,13 +159,14 @@ def detect_model_type(model_type: str, config: Path) -> "Model":
 
 
 def detect_quantization(quantization_arg: str, config: Path) -> Quantization:
-    """Detect the model qunatization scheme from the configuration file or `--qunatization` argument.
-    If `--quantization` is provided, it will override the value on the configuration file.
+    """Detect the model quantization scheme from the configuration file or `--quantization`
+    argument. If `--quantization` is provided, it will override the value on the configuration
+    file.
 
     Parameters
     ----------
     quantization_arg : str
-        The qunatization scheme, for example, "q4f16_1".
+        The quantization scheme, for example, "q4f16_1".
 
     config : pathlib.Path
         The path to mlc-chat-config.json.
