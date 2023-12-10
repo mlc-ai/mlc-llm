@@ -3,20 +3,24 @@ import argparse
 import dataclasses
 from io import StringIO
 
+from tvm.target import Target
+
+from mlc_chat.support.logging import getLogger
+
+logger = getLogger(__name__)
+
 
 @dataclasses.dataclass
 class OptimizationFlags:
     """Optimization flags"""
 
-    cutlass_attn: bool = True
-    cutlass_norm: bool = True
+    flashinfer: bool = False
     cublas_gemm: bool = False
     cudagraph: bool = False
 
     def __repr__(self) -> str:
         out = StringIO()
-        print(f"cutlass_attn={int(self.cutlass_attn)}", file=out, end="")
-        print(f";cutlass_norm={int(self.cutlass_norm)}", file=out, end="")
+        print(f"flashinfer={int(self.flashinfer)}", file=out, end="")
         print(f";cublas_gemm={int(self.cublas_gemm)}", file=out, end="")
         print(f";cudagraph={int(self.cudagraph)}", file=out, end="")
         return out.getvalue().rstrip()
@@ -36,42 +40,57 @@ class OptimizationFlags:
             raise ValueError(f"Invalid boolean value: {value}")
 
         parser = argparse.ArgumentParser(description="optimization flags")
-        parser.add_argument("--cutlass_attn", type=boolean, default=True)
-        parser.add_argument("--cutlass_norm", type=boolean, default=True)
+        parser.add_argument("--flashinfer", type=boolean, default=True)
         parser.add_argument("--cublas_gemm", type=boolean, default=False)
         parser.add_argument("--cudagraph", type=boolean, default=False)
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
         return OptimizationFlags(
-            cutlass_attn=results.cutlass_attn,
-            cutlass_norm=results.cutlass_norm,
+            flashinfer=results.flashinfer,
             cublas_gemm=results.cublas_gemm,
             cudagraph=results.cudagraph,
         )
 
+    def update(self, target: Target) -> None:
+        """Update optimization flags based on additional information."""
+
+        def _flashinfer(target) -> bool:
+            from mlc_chat.support.auto_target import (  # pylint: disable=import-outside-toplevel
+                detect_cuda_arch_list,
+            )
+
+            if not self.flashinfer:
+                return False
+            if target.kind.name != "cuda":
+                return False
+            arch_list = detect_cuda_arch_list(target)
+            for arch in arch_list:
+                if arch < 80:
+                    logger.warning("flashinfer is not supported on CUDA arch < 80")
+                    return False
+            return True
+
+        self.flashinfer = _flashinfer(target)
+
 
 OPT_FLAG_PRESET = {
     "O0": OptimizationFlags(
-        cutlass_attn=False,
-        cutlass_norm=False,
+        flashinfer=False,
         cublas_gemm=False,
         cudagraph=False,
     ),
     "O1": OptimizationFlags(
-        cutlass_attn=False,
-        cutlass_norm=True,
-        cublas_gemm=False,
+        flashinfer=False,
+        cublas_gemm=True,
         cudagraph=False,
     ),
     "O2": OptimizationFlags(
-        cutlass_attn=True,
-        cutlass_norm=True,
-        cublas_gemm=False,
+        flashinfer=False,
+        cublas_gemm=True,
         cudagraph=False,
     ),
     "O3": OptimizationFlags(
-        cutlass_attn=True,
-        cutlass_norm=True,
-        cublas_gemm=False,
+        flashinfer=True,
+        cublas_gemm=True,
         cudagraph=True,
     ),
 }

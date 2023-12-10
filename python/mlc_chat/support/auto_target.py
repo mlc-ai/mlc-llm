@@ -1,6 +1,6 @@
 """Helper functioms for target auto-detection."""
 import os
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
 from tvm import IRModule, relax
 from tvm._ffi import get_global_func, register_func
@@ -89,10 +89,12 @@ def _detect_target_host(hint: str) -> Target:
     """Detect the host CPU architecture."""
     if hint == "auto":
         target_triple = get_global_func("tvm.codegen.llvm.GetDefaultTargetTriple")()
-        logger.info("%s host LLVM triple: %s", FOUND, bold(target_triple))
-    else:
-        target_triple = hint
-        logger.info("Using LLVM triple specified by --host: %s", bold(target_triple))
+        target = Target.from_device("cpu")
+        logger.info("%s host LLVM triple: %s", FOUND, bold(target.attrs["mtriple"]))
+        logger.info("%s host LLVM CPU: %s", FOUND, bold(target.attrs["mcpu"]))
+        return target
+    target_triple = hint
+    logger.info("Using LLVM triple specified by --host: %s", bold(target_triple))
     return Target({"kind": "llvm", "mtriple": target_triple})
 
 
@@ -219,6 +221,19 @@ def _build_default():
         )
 
     return build
+
+
+def detect_cuda_arch_list(target: Target) -> List[int]:
+    """Detect the CUDA architecture list from the target."""
+    assert target.kind.name == "cuda", f"Expect target to be CUDA, but got {target}"
+    env_multi_arch = os.environ.get("MLC_MULTI_ARCH", None)
+    if env_multi_arch is not None:
+        multi_arch = [int(x.strip()) for x in env_multi_arch.split(",")]
+    else:
+        assert target.arch.startswith("sm_")
+        multi_arch = [int(target.arch[3:])]
+    multi_arch = list(set(multi_arch))
+    return multi_arch
 
 
 def _register_cuda_hook(target: Target):

@@ -3,7 +3,6 @@ Implementation for Llama2 architecture.
 TODO: add docstring
 """
 import dataclasses
-import math
 from typing import Any, Dict, Optional
 
 from tvm import te, tir
@@ -14,6 +13,8 @@ from ....support import logging
 from ....support.config import ConfigBase
 from ....support.style import bold
 from ... import tensor_parallel as tp
+from ...extern.flashinfer import FlashInfer
+from .. import extern_op
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,8 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.k_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
         self.v_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
 
+        self.flashinfer = FlashInfer
+
     def forward(  # pylint: disable=too-many-locals
         self,
         hidden_states: Tensor,
@@ -149,32 +152,22 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         assert b == 1, "Only support batch size 1 at this moment."
 
         qkv = self.qkv_proj(hidden_states)
-        qkv = op.reshape(qkv, (b, s, h_q + 2 * h_kv, d))
+        qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         q, k, v = op.split(qkv, indices_or_sections=[h_q, h_q + h_kv], axis=2)
-        q, k = self.rotary_embedding(q, k, t - s)
 
         self.k_cache.append(op.squeeze(k, axis=0))
         self.v_cache.append(op.squeeze(v, axis=0))
-        k = op.reshape(self.k_cache.view(t), (b, t, h_kv, d))
-        v = op.reshape(self.v_cache.view(t), (b, t, h_kv, d))
-        if h_kv != h_q:
-            k = k.repeat(h_q // h_kv, axis=2)
-            v = v.repeat(h_q // h_kv, axis=2)
-        q = q.permute_dims([0, 2, 1, 3])  # [b, h, s, d]
-        k = k.permute_dims([0, 2, 1, 3])  # [b, h, t, d]
-        v = v.permute_dims([0, 2, 1, 3])  # [b, h, t, d]
-        attn_weights = op.matmul(
-            q, k.permute_dims([0, 1, 3, 2])  # [b, h, s, d] x [b, h, d, t] = [b, h, s, t]
-        ) / math.sqrt(d)
-        dtype = attn_weights.dtype
-        attn_weights = attn_weights.maximum(tir.min_value(dtype)).minimum(attention_mask)
-        if dtype == "float32":
-            attn_weights = op.softmax(attn_weights, axis=-1)
-        else:
-            attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
-        # [b, h, s, t] x [b, h, t, d] => [b, h, s, d] => [b, s, h, d]
-        output = op.matmul(attn_weights, v)
-        return self.o_proj(output.permute_dims([0, 2, 1, 3]).reshape((b, s, h_q * d)))
+        k = self.k_cache.view(t)
+        v = self.v_cache.view(t)
+
+        output = extern_op.attention(
+            q,
+            k,
+            v,
+            casual_mask=attention_mask,
+            apply_rotary=lambda q, k: self.rotary_embedding(q, k, t - s),
+        )
+        return self.o_proj(output)
 
 
 class LlamaDecoderLayer(nn.Module):
@@ -246,6 +239,7 @@ class LlamaForCasualLM(nn.Module):
         self.model = LlamaModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.vocab_size = config.vocab_size
+        self.rope_theta = config.position_embedding_base
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):
@@ -254,6 +248,11 @@ class LlamaForCasualLM(nn.Module):
             self.dtype = dtype
 
     def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
+        extern_op.configure(
+            rope_theta=self.rope_theta,
+            rope_scale=1.0,
+        )
+
         def _index(x: te.Tensor):  # x[:-1,:]
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
