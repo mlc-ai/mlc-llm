@@ -2,7 +2,7 @@
 from .model import MODEL_PRESETS
 
 HELP = {
-    "model": (
+    "config": (
         """
 1) Path to a HuggingFace model directory that contains a `config.json` or
 2) Path to `config.json` in HuggingFace format, or
@@ -24,6 +24,9 @@ Pre-defined model architectures include """
     ).strip(),
     "quantization": """
 Quantization format.
+""".strip(),
+    "model": """
+An MLC model directory that contains `mlc-chat-config.json`
 """.strip(),
     "model_type": """
 Model architecture such as "llama". If not set, it is inferred from `config.json`.
@@ -100,10 +103,13 @@ This flag subjects to future refactoring.
 the chunk size is the same as sliding window or max sequence length.
 This flag subjects to future refactoring.
 """.strip(),
+    """tensor_parallel_shards""": """
+Number of shards to split the model into in tensor parallelism multi-gpu inference.
+""".strip(),
     "overrides": """
-Model configuration override. Configurations to override `mlc-chat-config.json`.
-Supports `context_window_size`, `prefill_chunk_size`, `sliding_window`, `max_batch_size`
-and `num_shards`. Meanwhile, model config could be explicitly specified via details
+Model configuration override. Configurations to override `mlc-chat-config.json`. Supports
+`context_window_size`, `prefill_chunk_size`, `sliding_window`, `max_batch_size` and
+`tensor_parallel_shards`. Meanwhile, model config could be explicitly specified via details
 knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
 """.strip(),
 }

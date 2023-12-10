@@ -33,6 +33,7 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     head_dim: int = 0
     sliding_window: int = 4096
     prefill_chunk_size: int = 0
+    tensor_parallel_shards: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -118,12 +119,13 @@ class MistralMLP(nn.Module):
 
     def __init__(self, config: MistralConfig):
         super().__init__()
+        intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
-            out_features=2 * config.intermediate_size,
+            out_features=2 * intermediate_size,
             bias=False,
         )
-        self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
+        self.down_proj = nn.Linear(intermediate_size, config.hidden_size, bias=False)
 
     def forward(self, x: Tensor):
         concat_x1_x2 = self.gate_up_proj(x)
@@ -138,15 +140,15 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.rotary_embedding = rotary_embedding
         self.hidden_size = config.hidden_size
         self.head_dim = config.head_dim
-        self.num_q_heads = config.num_attention_heads
-        self.num_kv_heads = config.num_key_value_heads
+        self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
+        self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.sliding_window = config.sliding_window
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
             bias=False,
         )
-        self.o_proj = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
+        self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
         self.k_cache = RollingKVCache(self.sliding_window, [self.num_kv_heads, self.head_dim])
         self.v_cache = RollingKVCache(self.sliding_window, [self.num_kv_heads, self.head_dim])
 
@@ -285,6 +287,8 @@ class MistralDecoderLayer(nn.Module):
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
 
+        self.tensor_parallel_shards = config.tensor_parallel_shards
+
     def forward(  # pylint: disable=too-many-arguments
         self,
         hidden_states: Tensor,
@@ -294,17 +298,24 @@ class MistralDecoderLayer(nn.Module):
         kv_seq_len: tir.Var,
     ):
         """Forward pass of a decoder layer; calculate attention, and add an residual connection."""
-        hidden_states = (
-            self.self_attn(
-                self.input_layernorm(hidden_states),
-                attention_mask,
-                total_seq_len,
-                rolling_cache_len,
-                kv_seq_len,
-            )
-            + hidden_states
+
+        def _apply_residual(out, residual):
+            # pylint: disable=no-member
+            if self.tensor_parallel_shards > 1:
+                return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum")
+            # pylint: enable=no-member
+            return out + residual
+
+        out = self.self_attn(
+            self.input_layernorm(hidden_states),
+            attention_mask,
+            total_seq_len,
+            rolling_cache_len,
+            kv_seq_len,
         )
-        hidden_states = self.mlp(self.post_attention_layernorm(hidden_states)) + hidden_states
+        hidden_states = _apply_residual(out, residual=hidden_states)
+        out = self.mlp(self.post_attention_layernorm(hidden_states))
+        hidden_states = _apply_residual(out, residual=hidden_states)
         return hidden_states
 
 
@@ -319,6 +330,7 @@ class MistralModel(nn.Module):
             [MistralDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
         )
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.tensor_parallel_shards = config.tensor_parallel_shards > 1
 
     def forward(  # pylint: disable=too-many-arguments
         self,
@@ -329,6 +341,10 @@ class MistralModel(nn.Module):
         attention_mask: Tensor,
     ):
         """Forward pass of the model, passing through all decoder layers."""
+        # pylint: disable=no-member
+        if self.tensor_parallel_shards > 1:
+            inputs = op.ccl_broadcast_from_worker0(inputs)
+        # pylint: enable=no-member
         hidden_states = self.embed_tokens(inputs)
         for layer in self.layers:
             hidden_states = layer(

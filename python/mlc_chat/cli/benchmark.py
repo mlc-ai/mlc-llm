@@ -26,6 +26,7 @@ parser.add_argument(
     "--num-shards",
     type=int,
     help="Number of GPUs to be used.",
+    dest="tensor_parallel_shards",
     required=False,
 )
 parser.add_argument(
@@ -58,9 +59,7 @@ def main():
     chat_module = ChatModule(
         model=args.model,
         device=args.device,
-        chat_config=ChatConfig(
-            num_shards=args.num_shards,
-        ),
+        chat_config=ChatConfig(tensor_parallel_shards=args.tensor_parallel_shards),
         model_lib_path=args.model_lib,
     )
     output = chat_module.benchmark_generate(args.prompt, generate_length=args.generate_length)

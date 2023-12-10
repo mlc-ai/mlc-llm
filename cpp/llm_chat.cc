@@ -17,6 +17,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/relax_vm/ndarray_cache_support.h>
 
 #include <cctype>
 #include <chrono>
@@ -31,8 +32,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "./metadata/model.h"
 #include "conversation.h"
-#include "model_metadata.h"
 #include "random.h"
 #include "support.h"
 #include "tokenizers.h"
@@ -123,7 +124,8 @@ struct FunctionTable {
         device_ids[i] = i;
       }
       this->use_disco = true;
-      this->sess = Session::ProcessSession(num_shards, f_create_process_pool);
+      this->sess =
+          Session::ProcessSession(num_shards, f_create_process_pool, "mlc_chat.cli.worker");
       this->sess->InitCCL(ccl, ShapeTuple(device_ids));
       this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
                                          lib_path, null_device);
@@ -144,6 +146,7 @@ struct FunctionTable {
       {
         Module mod = this->disco_mod->DebugGetFromRemote(0);
         this->softmax_func_ = mod->GetFunction("softmax_with_temperature");
+        this->model_metadata_ = ModelMetadata::FromModule(mod);
       }
     } else {
       Module executable{nullptr};
@@ -177,19 +180,8 @@ struct FunctionTable {
 
   ObjectRef LoadParams(const std::string& model_path, Device device, bool use_presharded_weights) {
     if (this->use_disco) {
-      std::filesystem::path fs_model_path = model_path;
-      std::string metadata_path = (fs_model_path / "ndarray-cache.json").string();
-      std::string ndarray_cache_metadata = LoadBytesFromFile(metadata_path);
-      PackedFunc loader_create = this->get_global_func("runtime.disco.ShardLoader");
-
-      auto load_all_func_name = use_presharded_weights
-                                    ? "runtime.disco.ShardLoaderLoadAllPresharded"
-                                    : "runtime.disco.ShardLoaderLoadAll";
-      PackedFunc loader_load_all = this->get_global_func(load_all_func_name);
-      CHECK(loader_create != nullptr);
-      CHECK(loader_load_all != nullptr);
-      DRef loader = loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod);
-      DRef params = loader_load_all(loader);
+      PackedFunc loader = this->get_global_func("mlc.loader.LoadMultiGPU");
+      DRef params = loader(model_path, this->disco_mod);
       return params;
     } else {
       CHECK(!use_presharded_weights) << "Use of pre-sharded weights requires more than one GPU";
@@ -361,13 +353,13 @@ class LLMChat {
   std::string VerboseRuntimeStatsText() {
     std::ostringstream os;
     os << "----------- prefill -----------\n"
-       << "throughput: " << std::setprecision(1) << std::fixed
+       << "throughput: " << std::setprecision(3) << std::fixed
        << this->prefill_total_tokens / (this->prefill_total_time + this->embed_total_time)
        << " tok/s\n"
        << "total tokens: " << this->prefill_total_tokens << " tok\n"
        << "total time: " << this->prefill_total_time << " s\n"
        << "------------ decode ------------\n"
-       << "throughput: " << std::setprecision(1) << std::fixed
+       << "throughput: " << std::setprecision(3) << std::fixed
        << this->decode_total_tokens / this->decode_total_time << " tok/s\n"
        << "total tokens: " << this->decode_total_tokens << " tok\n"
        << "total time: " << this->decode_total_time << " s\n";
@@ -404,9 +396,9 @@ class LLMChat {
     } else {
       CHECK(partial_update) << "Key \"vocab_size\" not found.";
     }
-    if (config.count("num_shards")) {
-      CHECK(config["num_shards"].is<int64_t>());
-      this->num_shards_ = config["num_shards"].get<int64_t>();
+    if (config.count("tensor_parallel_shards")) {
+      CHECK(config["tensor_parallel_shards"].is<int64_t>());
+      this->num_shards_ = config["tensor_parallel_shards"].get<int64_t>();
     } else {
       this->num_shards_ = 1;
     }
@@ -420,6 +412,11 @@ class LLMChat {
       CHECK(config["max_window_size"].is<int64_t>());
       this->max_window_size_ =
           std::min(this->max_window_size_, config["max_window_size"].get<int64_t>());
+    }
+    if (config.count("context_window_size")) {
+      CHECK(config["context_window_size"].is<int64_t>());
+      this->max_window_size_ =
+          std::min(this->max_window_size_, config["context_window_size"].get<int64_t>());
     }
     if (config.count("sliding_window")) {
       CHECK(config["sliding_window"].is<int64_t>());

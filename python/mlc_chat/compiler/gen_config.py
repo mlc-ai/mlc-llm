@@ -30,6 +30,7 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     context_window_size: int
     sliding_window: int
     prefill_chunk_size: int
+    tensor_parallel_shards: int
     # Control the behavior of the runtime
     mean_gen_len: int = None
     max_gen_len: int = None
@@ -74,6 +75,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     context_window_size: Optional[int],
     sliding_window: Optional[int],
     prefill_chunk_size: Optional[int],
+    tensor_parallel_shards: Optional[int],
     output: Path,
 ):
     """Entrypoint of MLC Chat configuration generation."""
@@ -83,6 +85,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         context_window_size=context_window_size,
         sliding_window=sliding_window,
         prefill_chunk_size=prefill_chunk_size,
+        tensor_parallel_shards=tensor_parallel_shards,
     ).apply(model_config)
     mlc_chat_config = MLCChatConfig(
         model_type=model.name,
@@ -92,6 +95,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         context_window_size=model_config.context_window_size,
         sliding_window=getattr(model_config, "sliding_window", -1),
         prefill_chunk_size=model_config.prefill_chunk_size,
+        tensor_parallel_shards=model_config.tensor_parallel_shards,
         conv_template=conv_template,
     )
     # Step 2. Load `generation_config.json` and `config.json` for text-generation related configs

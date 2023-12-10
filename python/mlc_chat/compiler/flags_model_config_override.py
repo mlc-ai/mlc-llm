@@ -18,7 +18,7 @@ class ModelConfigOverride:
     prefill_chunk_size: Optional[int] = None
     sliding_window: Optional[int] = None
     max_batch_size: Optional[int] = None
-    num_shards: Optional[int] = None
+    tensor_parallel_shards: Optional[int] = None
 
     def __repr__(self) -> str:
         out = StringIO()
@@ -26,7 +26,7 @@ class ModelConfigOverride:
         print(f";prefill_chunk_size={self.prefill_chunk_size}", file=out, end="")
         print(f";sliding_window={self.sliding_window}", file=out, end="")
         print(f";max_batch_size={self.max_batch_size}", file=out, end="")
-        print(f";num_shards={self.num_shards}", file=out, end="")
+        print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
         return out.getvalue().rstrip()
 
     def __post_init__(self):
@@ -59,8 +59,10 @@ class ModelConfigOverride:
             _model_config_override(model_config, "sliding_window", self.sliding_window)
         if self.max_batch_size is not None:
             _model_config_override(model_config, "max_batch_size", self.max_batch_size)
-        if self.num_shards is not None:
-            _model_config_override(model_config, "num_shards", self.num_shards)
+        if self.tensor_parallel_shards is not None:
+            _model_config_override(
+                model_config, "tensor_parallel_shards", self.tensor_parallel_shards
+            )
 
     @staticmethod
     def from_str(source: str) -> "ModelConfigOverride":
@@ -71,14 +73,14 @@ class ModelConfigOverride:
         parser.add_argument("--prefill_chunk_size", type=int, default=None)
         parser.add_argument("--sliding_window", type=int, default=None)
         parser.add_argument("--max_batch_size", type=int, default=None)
-        parser.add_argument("--num_shards", type=int, default=None)
+        parser.add_argument("--tensor_parallel_shards", type=int, default=None)
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
         return ModelConfigOverride(
             context_window_size=results.context_window_size,
             prefill_chunk_size=results.prefill_chunk_size,
             sliding_window=results.sliding_window,
             max_batch_size=results.max_batch_size,
-            num_shards=results.num_shards,
+            tensor_parallel_shards=results.tensor_parallel_shards,
         )
 
 

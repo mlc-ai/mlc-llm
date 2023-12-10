@@ -13,6 +13,7 @@ from tvm.relax.frontend.nn import Tensor, op
 from ....support import logging
 from ....support.config import ConfigBase
 from ....support.style import bold
+from ... import tensor_parallel as tp
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +30,18 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     vocab_size: int
     position_embedding_base: int = 0
     context_window_size: int = 0
+    prefill_chunk_size: int = 0
     num_key_value_heads: int = 0
     head_dim: int = 0
-    prefill_chunk_size: int = 0
+    tensor_parallel_shards: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
+        if self.position_embedding_base == 0:
+            if "rope_theta" in self.kwargs:
+                self.position_embedding_base = self.kwargs.pop("rope_theta")
+            else:
+                self.position_embedding_base = 10000
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
                 if name in self.kwargs:
@@ -52,21 +59,14 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                     "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
-        if self.position_embedding_base == 0:
-            if "rope_theta" in self.kwargs:
-                self.position_embedding_base = self.kwargs.pop("rope_theta")
-            else:
-                self.position_embedding_base = 10000
+        if self.prefill_chunk_size == 0:  # chunk size same as context window size by default
+            self.prefill_chunk_size = self.context_window_size
         if self.num_key_value_heads == 0:
             self.num_key_value_heads = self.num_attention_heads
         if self.head_dim == 0:
             self.head_dim = self.hidden_size // self.num_attention_heads
-        assert self.num_attention_heads % self.num_key_value_heads == 0
         assert self.head_dim * self.num_attention_heads == self.hidden_size
-
-        if self.prefill_chunk_size == 0:
-            # chunk size same as context window size by default
-            self.prefill_chunk_size = self.context_window_size
+        assert self.num_attention_heads % self.num_key_value_heads == 0
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -108,12 +108,13 @@ class RotaryEmbedding(nn.Module):
 class LlamaFFN(nn.Module):
     def __init__(self, config: LlamaConfig):
         super().__init__()
+        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
-            out_features=2 * config.intermediate_size,
+            out_features=2 * self.intermediate_size,
             bias=False,
         )
-        self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
+        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
 
     def forward(self, x: Tensor):
         concat_x1_x2 = self.gate_up_proj(x)
@@ -126,14 +127,14 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.rotary_embedding = rotary_embedding
         self.hidden_size = config.hidden_size
         self.head_dim = config.head_dim
-        self.num_q_heads = config.num_attention_heads
-        self.num_kv_heads = config.num_key_value_heads
+        self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
+        self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
             bias=False,
         )
-        self.o_proj = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
+        self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
         self.k_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
         self.v_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
 
@@ -184,12 +185,36 @@ class LlamaDecoderLayer(nn.Module):
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
 
+        def _set_tp():
+            def _set(layer, hint):
+                layer.weight.attrs["shard_strategy"] = hint
+
+            h = config.hidden_size
+            hd = config.head_dim
+            q = self.self_attn.num_q_heads * hd
+            k = self.self_attn.num_kv_heads * hd
+            v = self.self_attn.num_kv_heads * hd
+            i = self.mlp.intermediate_size
+            _set(self.self_attn.qkv_proj, tp.RowSeg("_shard_qkv", rows=[q, k, v], col=h, groups=hd))
+            _set(self.self_attn.o_proj, tp.Col("_shard_o", row=h, col=q))
+            _set(self.mlp.gate_up_proj, tp.RowSeg("_shard_mlp_up", rows=[i, i], col=h, groups=1))
+            _set(self.mlp.down_proj, tp.Col("_shard_mlp_down", row=h, col=i))
+
+        self.tensor_parallel_shards = config.tensor_parallel_shards
+        _set_tp()
+
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
-        hidden_states = (
-            self.self_attn(self.input_layernorm(hidden_states), attention_mask, total_seq_len)
-            + hidden_states
-        )
-        hidden_states = self.mlp(self.post_attention_layernorm(hidden_states)) + hidden_states
+        def _apply_residual(out, residual):
+            # pylint: disable=no-member
+            if self.tensor_parallel_shards > 1:
+                return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum")
+            # pylint: enable=no-member
+            return out + residual
+
+        out = self.self_attn(self.input_layernorm(hidden_states), attention_mask, total_seq_len)
+        hidden_states = _apply_residual(out, residual=hidden_states)
+        out = self.mlp(self.post_attention_layernorm(hidden_states))
+        hidden_states = _apply_residual(out, residual=hidden_states)
         return hidden_states
 
 
@@ -202,8 +227,13 @@ class LlamaModel(nn.Module):
             [LlamaDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
         )
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.tensor_parallel_shards = config.tensor_parallel_shards
 
     def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
+        # pylint: disable=no-member
+        if self.tensor_parallel_shards > 1:
+            inputs = op.ccl_broadcast_from_worker0(inputs)
+        # pylint: enable=no-member
         hidden_states = self.embed_tokens(inputs)
         for layer in self.layers:
             hidden_states = layer(hidden_states, attention_mask, total_seq_len)
