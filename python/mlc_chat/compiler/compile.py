@@ -153,7 +153,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
 
 def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     config: Dict[str, Any],
-    quantization: str,
+    quantization: Quantization,
     model_type: Model,
     target: Target,
     opt: OptimizationFlags,
@@ -163,7 +163,11 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     overrides: ModelConfigOverride,
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
-    model_config = model_type.config.from_dict(config)
+    if "model_config" in config:
+        model_config = model_type.config.from_dict({**config["model_config"], **config})
+    else:
+        model_config = model_type.config.from_dict(config)
+
     args = CompileArgs(
         model_config,
         quantization,

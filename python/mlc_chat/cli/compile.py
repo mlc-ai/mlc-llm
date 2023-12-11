@@ -15,7 +15,11 @@ from mlc_chat.compiler import (  # pylint: disable=redefined-builtin
 )
 
 from ..support.argparse import ArgumentParser
-from ..support.auto_config import detect_mlc_chat_config, detect_model_type
+from ..support.auto_config import (
+    detect_mlc_chat_config,
+    detect_model_type,
+    detect_quantization,
+)
 from ..support.auto_target import detect_target_and_host
 
 
@@ -45,6 +49,13 @@ def main(argv):
         "model",
         type=detect_mlc_chat_config,
         help=HELP["model"] + " (required)",
+    )
+    parser.add_argument(
+        "--quantization",
+        type=str,
+        required=False,
+        choices=list(QUANTIZATION.keys()),
+        help=HELP["quantization"] + " (required, choices: %(choices)s)",
     )
     parser.add_argument(
         "--model-type",
@@ -93,11 +104,13 @@ def main(argv):
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
     parsed.model_type = detect_model_type(parsed.model_type, parsed.model)
+    parsed.quantization = detect_quantization(parsed.quantization, parsed.model)
     with open(parsed.model, "r", encoding="utf-8") as config_file:
         config = json.load(config_file)
+
     compile(
-        config=config["model_config"],
-        quantization=QUANTIZATION[config["quantization"]],
+        config=config,
+        quantization=parsed.quantization,
         model_type=parsed.model_type,
         target=target,
         opt=parsed.opt,

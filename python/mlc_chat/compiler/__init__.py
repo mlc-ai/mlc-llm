@@ -11,4 +11,4 @@ from .gen_config import CONV_TEMPLATES, gen_config
 from .help import HELP
 from .loader import LOADER, ExternMapping, HuggingFaceLoader, QuantizeMapping
 from .model import MODEL_PRESETS, MODELS, Model
-from .quantization import QUANTIZATION
+from .quantization import QUANTIZATION, Quantization
