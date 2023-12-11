@@ -196,7 +196,9 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
             config.model_dtype,
         )
         if bias:
-            self.bias = nn.Parameter((out_features,), config.model_dtype)
+            self.bias = nn.Parameter(
+                (out_features,), config.model_dtype if out_dtype is None else out_dtype
+            )
         else:
             self.bias = None
 
@@ -255,3 +257,16 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
         if self.bias is not None:
             x = x + self.bias
         return x
+
+    def to(self, dtype: Optional[str] = None) -> None:
+        """
+        Override to() such that we do not convert bias if there is an out_dtype.
+        Otherwise, we might run into dtype mismatch when computing x + self.bias.
+        """
+        self.qweight.to(dtype=dtype)
+        self.qzeros.to(dtype=dtype)
+        self.scales.to(dtype=dtype)
+        if self.bias is not None and self.out_dtype is None:
+            self.bias.to(dtype=dtype)
+        if dtype is not None and isinstance(getattr(self, "dtype", None), str):
+            self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
