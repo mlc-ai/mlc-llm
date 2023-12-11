@@ -33,6 +33,7 @@ class GPTNeoXConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     context_window_size: int = 0
     head_dim: int = 0
     prefill_chunk_size: int = 0
+    tensor_parallel_shards: int = 1
     ffn_out_dtype: str = "float32"
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -66,6 +67,8 @@ class GPTNeoXConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         if self.prefill_chunk_size == 0:
             # chunk size same as context window size by default
             self.prefill_chunk_size = self.context_window_size
+
+        assert self.tensor_parallel_shards == 1, "GPTNeoX currently does not support sharding."
 
 
 # pylint: disable=invalid-name,missing-docstring

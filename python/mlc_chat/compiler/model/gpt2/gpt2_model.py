@@ -30,6 +30,7 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     scale_attn_by_inverse_layer_idx: bool = False
+    tensor_parallel_shards: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -57,6 +58,7 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
         if self.prefill_chunk_size == 0:
             # chunk size same as context window size by default
             self.prefill_chunk_size = self.context_window_size
+        assert self.tensor_parallel_shards == 1, "GPT2 currently does not support sharding."
 
 
 # pylint: disable=invalid-name,missing-docstring,too-many-locals
