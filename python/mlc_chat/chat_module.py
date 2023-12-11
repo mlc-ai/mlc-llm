@@ -717,6 +717,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         prompt: Union[str, List["ChatMessage"]],
         generation_config: Optional[GenerationConfig] = None,
         progress_callback=None,
+        stateless=False,
     ) -> Union[str, List[str]]:
         r"""A high-level method that returns the full response from the chat module given a user
         prompt. User can optionally specify which callback method to use upon receiving the
@@ -774,7 +775,8 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
             return_str = False
 
         for _ in range(num_return_sequences):
-            self.reset_chat()
+            if stateless:
+                self.reset_chat()
             self._prefill(prompt, generation_config=generation_config)
 
             if not progress_callback:
