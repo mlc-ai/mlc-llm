@@ -1,13 +1,9 @@
 #!/bin/bash
-set -eo pipefail
-
-source ~/.bashrc
-micromamba activate ci-lint
 export NUM_THREADS=$(nproc)
 export PYTHONPATH="./python:$PYTHONPATH"
 
+set -eo pipefail
 set -x
-git config --global --add safe.directory '*'
 
 INPLACE_FORMAT=${INPLACE_FORMAT:=false}
 LINT_ALL_FILES=true
