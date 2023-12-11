@@ -18,7 +18,7 @@ from ..transform.smoothquant import SCALE_PREFIX_NAME, ZP_PREFIX_NAME
 
 
 # List of supported calibration datasets.
-dataset_list = ["dummy", "piqa"]
+dataset_list = ["dummy", "piqa", "gsm8k"]
 
 
 def get_runtime_func(funcs: List[str], mod: tvm.IRModule):
@@ -431,15 +431,22 @@ def _get_dataset(name: str, artifact_path: str, device: tvm.runtime.Device):
 
     if name not in dataset_list:
         raise ValueError(f"Dataset {name} is not supported")
+    config_name = None
+    split = "train"
     if name == "piqa":
         data_files = None
         text_name = "goal"
+    elif name == "gsm8k":
+        data_files = None
+        text_name = "question"
+        config_name = "main"
+        split = "test[:10%]"
     else:
         # Dummy dataset consisting of 4 simple questions.
         name = text_name = "text"
         data_files = _prepare_dummy_dataset(artifact_path)
-
-    dataset = load_dataset(name, data_files=data_files, split="validation")
+        config_name = None
+    dataset = load_dataset(name, name=config_name, data_files=data_files, split=split)
     calibration_dataset = []
     for record in dataset:
         data = tokenizer(record[text_name], return_tensors="np")
