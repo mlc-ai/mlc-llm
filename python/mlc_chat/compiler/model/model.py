@@ -7,6 +7,7 @@ from tvm.relax.frontend import nn
 from ..loader import ExternMapping, QuantizeMapping
 from ..quantization.quantization import Quantization
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
+from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 
@@ -92,6 +93,19 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": gpt2_quantization.no_quant,
             "group-quant": gpt2_quantization.group_quant,
+        },
+    ),
+    "gpt_neox": Model(
+        name="gpt_neox",
+        model=gpt_neox_model.GPTNeoXForCausalLM,
+        config=gpt_neox_model.GPTNeoXConfig,
+        source={
+            "huggingface-torch": gpt_neox_loader.huggingface,
+            "huggingface-safetensor": gpt_neox_loader.huggingface,
+        },
+        quantize={
+            "no-quant": gpt_neox_quantization.no_quant,
+            "group-quant": gpt_neox_quantization.group_quant,
         },
     ),
 }
@@ -275,5 +289,28 @@ MODEL_PRESETS: Dict[str, Any] = {
         "transformers_version": "4.26.0.dev0",
         "use_cache": True,
         "vocab_size": 50257,
+    },
+    "redpajama_3b_v1": {
+        "_name_or_path": "/root/fm/models/rp_3b_800b_real_fp16",
+        "architectures": ["GPTNeoXForCausalLM"],
+        "bos_token_id": 0,
+        "eos_token_id": 0,
+        "hidden_act": "gelu",
+        "hidden_size": 2560,
+        "initializer_range": 0.02,
+        "intermediate_size": 10240,
+        "layer_norm_eps": 1e-05,
+        "max_position_embeddings": 2048,
+        "model_type": "gpt_neox",
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "rotary_emb_base": 10000,
+        "rotary_pct": 1.0,
+        "tie_word_embeddings": False,
+        "torch_dtype": "float16",
+        "transformers_version": "4.28.1",
+        "use_cache": True,
+        "use_parallel_residual": False,
+        "vocab_size": 50432,
     },
 }
