@@ -6,11 +6,10 @@ from abc import ABC, abstractmethod
 
 from typing import List, Callable, Any, Optional, Dict
 import inspect
-from .streamer import TextStreamer
+
 from .sampling_params import SamplingParams, SamplingType
 
 RequestId = str
-
 
 # TODO(@sunggg): consider transition to something like Pydantic
 @dataclass
@@ -40,7 +39,6 @@ class MLCServeEngineConfig:
             }
         )
 
-
 def get_engine_config(dict_config):
     engine_config = MLCServeEngineConfig._from_json(dict_config)
     # Checks to make sure engine configs are set correctly
@@ -53,31 +51,25 @@ def get_engine_config(dict_config):
     assert isinstance(engine_config.min_decode_steps, int)
 
     # TODO(@sunggg): engine allows -1 for these params. figure out the behavior and enable checks properly
-    assert (
-        engine_config.max_num_batched_tokens == -1
-    ), "`max_num_batched_tokens` is not supposed to be configured directly. \
+    assert engine_config.max_num_batched_tokens == -1, \
+        "`max_num_batched_tokens` is not supposed to be configured directly. \
             Use `max_num_sequences` and `max_input_len` instead."
     assert engine_config.max_input_len > 0
     assert engine_config.max_num_sequences > 0
-    engine_config.max_num_batched_tokens = (
-        engine_config.max_num_sequences * engine_config.max_input_len
-    )
+    engine_config.max_num_batched_tokens = engine_config.max_num_sequences * engine_config.max_input_len
 
     assert (engine_config.min_decode_steps > 0) and (engine_config.max_decode_steps > 0)
     assert engine_config.max_decode_steps > engine_config.min_decode_steps
 
     return engine_config
 
-
 @dataclass
 class StoppingCriteria:
     """
     Parameters about when to stop text generation.
     """
-
     max_tokens: Optional[int] = None
     stop_sequences: Optional[list[str]] = None
-
 
 @dataclass
 class ChatMessage:
@@ -97,19 +89,15 @@ class FinishReason(Enum):
     Length = "length"
     Cancelled = "cancelled"
 
-
 # A single token.
 Token = int
-
 
 @dataclass
 class ValidationError:
     msg: str
 
-
 # The type signature of the token validation callback.
 ValidateTokensCallback = Callable[["Request", List[Token]], ValidationError]
-
 
 @dataclass
 class Request:
@@ -122,9 +110,7 @@ class Request:
     # Options for sampling.
     sampling_params: SamplingParams = field(default_factory=SamplingParams)
     # Options for stopping.
-    stopping_criteria: StoppingCriteria = field(
-        default_factory=lambda: StoppingCriteria()
-    )
+    stopping_criteria: StoppingCriteria = field(default_factory=lambda: StoppingCriteria())
     # Options for debugging.
     debug_options: DebugOptions = field(default_factory=DebugOptions)
     # Perform request validation post-tokenization, used by the HTTP layer to control validation.
@@ -268,9 +254,7 @@ class RequestState:
     debug_options: DebugOptions
     arrival_timestamp: float
     is_ended: bool = False
-    text_streamer: Optional[TextStreamer] = None
     validation_err: Optional[ValidationError] = None
-
 
 def check_stopping_sequences(stopping_criteria, output_text, delta, is_ended):
     if stopping_criteria.stop_sequences:
@@ -284,8 +268,8 @@ def check_stopping_sequences(stopping_criteria, output_text, delta, is_ended):
                 # While eventually we need to return "I "
                 if not output_text.endswith(t):
                     sub_index = output_text.find(t)
-                    delta = delta[: -(len(output_text) - sub_index - len(t))]
-                    output_text = output_text[: output_text.find(t) + len(t)]
+                    delta = delta[:-(len(output_text) - sub_index - len(t))]
+                    output_text = output_text[:output_text.find(t) + len(t)]
                 is_ended = True
                 break
     return output_text, delta, is_ended

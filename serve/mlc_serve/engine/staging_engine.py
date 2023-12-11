@@ -6,6 +6,10 @@ import logging
 import multiprocessing
 import queue
 from threading import Lock
+from typing import Callable, Optional
+
+import os
+
 import structlog
 
 from .base import (
@@ -26,7 +30,7 @@ from .staging_engine_worker import (
     ShutdownCommand,
     run_generation_loop_worker,
 )
-from .streamer import TextStreamer
+
 from ..logging_utils import log_every
 
 LOG = structlog.stdlib.get_logger(__name__)
@@ -211,13 +215,12 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                 state.token_ids.extend(seq_output.new_tokens)
 
                 # detokenize
-                delta = state.text_streamer.put([state.token_ids[-1]])
+                delta = self._decode_last_output(state)
                 state.output_text += delta
 
                 state.output_text, delta, state.is_ended = check_stopping_sequences(
                     state.stopping_criteria, state.output_text, delta, state.is_ended
                 )
-
                 # signal workers to stop generation
                 if state.is_ended:
                     self.stop_request(state.request_id)
@@ -269,6 +272,21 @@ class StagingInferenceEngine(ScopedInferenceEngine):
             debug_options=request.debug_options,
             output_text="",
             validation_err=validation_err,
-            text_streamer=TextStreamer(self.tokenizer),
             arrival_timestamp=time.time(),
         )
+
+    def _decode_last_output(self, state: RequestState) -> str:
+        if len(state.output_text):
+            prefix_idx = max(0, state.next_start_position - 6)
+        else:
+            prefix_idx = state.next_start_position
+
+        if prefix_idx == 0:
+            return self.tokenizer.decode(state.token_ids)
+
+        prefix = self.tokenizer.decode(
+            state.token_ids[prefix_idx : state.next_start_position]
+        )
+        full = self.tokenizer.decode(state.token_ids[prefix_idx:])
+
+        return full[len(prefix) :]

@@ -20,15 +20,7 @@ from .base import (
     check_stopping_sequences,
     ValidationError,
 )
-from .streamer import TextStreamer
-from .model_module import (
-    DecodeRequest,
-    ModelModule,
-    PrefillRequest,
-    SequenceId,
-    TextGenerator,
-    Tokenizer as TokenizerP,
-)
+from .model_module import DecodeRequest, ModelModule, PrefillRequest, SequenceId, TextGenerator, Tokenizer as TokenizerP
 from ..model.base import ModelArtifactConfig
 
 logger = logging.getLogger(__name__)
@@ -39,7 +31,6 @@ class SynchronousInferenceEngine(InferenceEngine):
     A implementation of InferenceEngine that does inference synchronously in the current thread
     when `step` is called.
     """
-
     text_generator: TextGenerator
     tokenizer: TokenizerP
     model_artifact_config: ModelArtifactConfig
@@ -62,14 +53,10 @@ class SynchronousInferenceEngine(InferenceEngine):
         self.conversation_template = model_module.conversation_template
         self.cache_manager = model_module.cache_manager
         self.model_artifact_config = model_module.model_artifact_config
-        assert (
-            self.model_artifact_config.max_context_length
-        ), "max_context_length must not be zero"
+        assert self.model_artifact_config.max_context_length, "max_context_length must not be zero"
         self.max_context_length = self.model_artifact_config.max_context_length
         self.max_num_batched_tokens = model_module.engine_config.max_num_batched_tokens
-        assert (
-            self.max_num_batched_tokens > 0
-        ), "max_num_batched_tokens must be positive"
+        assert self.max_num_batched_tokens > 0, "max_num_batched_tokens must be positive"
         self.max_decode_steps = min(
             self.cache_manager.get_kv_cache_size(),
             model_module.engine_config.max_decode_steps,
@@ -108,18 +95,14 @@ class SynchronousInferenceEngine(InferenceEngine):
 
             if (
                 state.validation_err is not None
-                or state.prompt_len
-                > min(self.max_context_length, self.max_num_batched_tokens)
+                or state.prompt_len > min(self.max_context_length, self.max_num_batched_tokens)
                 # We make sure that the KV cache will have enough free space for this request to proceed
                 # decoding for at least self.max_decode_steps steps.
-                or self.cache_manager.get_kv_cache_size() - state.prompt_len
-                < self.max_decode_steps
+                or self.cache_manager.get_kv_cache_size() - state.prompt_len < self.max_decode_steps
             ):
                 self.cancel(req.request_id)
                 if state.validation_err is None:
-                    state.validation_err = ValidationError(
-                        "The prompt is too long for the given set of engine parameters."
-                    )
+                    state.validation_err = ValidationError("The prompt is too long for the given set of engine parameters.")
 
         with self.queue_lock:
             self.queue.extend(new_request_states)
@@ -234,7 +217,7 @@ class SynchronousInferenceEngine(InferenceEngine):
 
             state.token_ids.extend(new_token_ids)
 
-            delta = state.text_streamer.put([state.token_ids[-1]])
+            delta = self._decode_last_output(state)
             state.output_text += delta
 
             state.output_text, delta, state.is_ended = check_stopping_sequences(
@@ -304,14 +287,9 @@ class SynchronousInferenceEngine(InferenceEngine):
                 # self.max_num_batched_tokens. In such cases, we need to discard the recent decode
                 # tokens that cannot fit into a batch, and recompute them after we fill the cache
                 # entries for the older tokens.
-                if (
-                    not len(self.current_batch)
-                    and num_new_batched_tokens > self.max_num_batched_tokens
-                ):
-                    state.token_ids = state.token_ids[: self.max_num_batched_tokens]
-                    state.next_start_position = (
-                        num_new_batched_tokens
-                    ) = num_tokens = self.max_num_batched_tokens
+                if not len(self.current_batch) and num_new_batched_tokens > self.max_num_batched_tokens:
+                    state.token_ids = state.token_ids[:self.max_num_batched_tokens]
+                    state.next_start_position = num_new_batched_tokens = num_tokens = self.max_num_batched_tokens
                 if num_new_batched_tokens > self.max_num_batched_tokens > 0:
                     logger.debug(
                         "Stop growing the batch due to max_num_batched_tokens. Batched tokens: %s",
@@ -320,9 +298,10 @@ class SynchronousInferenceEngine(InferenceEngine):
                     break
                 # We make sure that the KV cache will have enough free space for this request to proceed
                 # decoding for at least self.max_decode_steps steps.
-                if (self.cache_manager.get_free_space() - num_tokens) / (
-                    len(self.current_batch) + 1
-                ) < self.max_decode_steps:
+                if (
+                    (self.cache_manager.get_free_space() - num_tokens) / (len(self.current_batch) + 1)
+                        < self.max_decode_steps
+                ):
                     logger.debug(
                         "Stop growing the batch due to not enough free space. Free: %s, Num tokens: %s",
                         self.cache_manager.get_free_space(),
@@ -405,9 +384,24 @@ class SynchronousInferenceEngine(InferenceEngine):
             stopping_criteria=request.stopping_criteria,
             debug_options=request.debug_options,
             output_text="",
-            text_streamer=TextStreamer(self.tokenizer),
             arrival_timestamp=time.time(),
         )
+
+    def _decode_last_output(self, state: RequestState) -> str:
+        if len(state.output_text):
+            prefix_idx = max(0, state.next_start_position - 6)
+        else:
+            prefix_idx = state.next_start_position
+
+        if prefix_idx == 0:
+            return self.tokenizer.decode(state.token_ids)
+
+        prefix = self.tokenizer.decode(
+            state.token_ids[prefix_idx : state.next_start_position]
+        )
+        full = self.tokenizer.decode(state.token_ids[prefix_idx:])
+
+        return full[len(prefix) :]
 
     def _should_stop_by_length(self, state: RequestState) -> bool:
         # TODO: currently, we simply return true for both stopping reasons.
