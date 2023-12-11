@@ -1,5 +1,5 @@
 """
-Implementation for Llama2 architecture.
+Implementation for GPTNeoX architecture.
 TODO: add docstring
 """
 import dataclasses
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class GPTNeoXConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
-    """Configuration of the Llama model."""
+    """Configuration of the GPTNeoX model."""
 
     use_parallel_residual: bool
     hidden_size: int
@@ -220,14 +220,14 @@ class GPTNeoXMLP(nn.Module):
         # dtype = "float16"
         dtype = hidden_states.dtype
         if hidden_states.dtype != dtype:
-            hidden_states.astype(dtype)
+            hidden_states = hidden_states.astype(dtype)
         hidden_states = self.dense_h_to_4h(hidden_states)
         hidden_states = op.gelu(hidden_states)
         if hidden_states.dtype != dtype:
-            hidden_states.astype(dtype)
+            hidden_states = hidden_states.astype(dtype)
         hidden_states = self.dense_4h_to_h(hidden_states)
         if hidden_states.dtype != dtype:
-            hidden_states.astype(dtype)
+            hidden_states = hidden_states.astype(dtype)
         return hidden_states
 
 
@@ -295,7 +295,7 @@ class GPTNeoXForCausalLM(nn.Module):
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):
-        self.gpt_neox.to(dtype=dtype)
+        super().to(dtype=dtype)
         if dtype is not None:
             self.dtype = dtype
 
@@ -306,8 +306,9 @@ class GPTNeoXForCausalLM(nn.Module):
 
         hidden_states = self.gpt_neox(inputs, total_seq_len, attention_mask)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        hidden_states = hidden_states.astype("float32")
         logits = self.embed_out(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
         return logits
 
     def prefill(self, inputs: Tensor, total_seq_len: tir.Var):

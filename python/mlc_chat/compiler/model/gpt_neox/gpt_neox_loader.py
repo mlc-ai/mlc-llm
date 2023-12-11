@@ -1,5 +1,5 @@
 """
-This file specifies how MLC's GPT parameter maps from other formats, for example HuggingFace
+This file specifies how MLC's GPTNeoX parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
 import functools
