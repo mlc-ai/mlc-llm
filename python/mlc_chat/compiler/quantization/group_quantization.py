@@ -262,7 +262,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         return quantized_weight, scale
 
 
-class GroupQuantizeLinear(nn.Module):
+class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attributes
     """An nn.Linear module with group quantization"""
 
     def __init__(  # pylint: disable=too-many-arguments
