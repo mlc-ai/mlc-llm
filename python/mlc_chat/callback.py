@@ -93,7 +93,7 @@ class StreamIterator(DeltaCallback):
             Timeout for put and get from the delta messages queue
         """
         super().__init__()
-        self.delta_messages: Queue[str] = Queue()
+        self.delta_messages: Queue = Queue()
         self.callback_interval = callback_interval
         self.timeout = timeout
 
