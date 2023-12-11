@@ -137,6 +137,24 @@ class GPTBigCodeBlock(nn.Module):
         self.ln_2 = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
         self.mlp = GPTBigCodeMLP(config)
 
+        def _set_tp():
+            def _set(layer, hint):
+                layer.weight.attrs["shard_strategy"] = hint
+
+            h = config.n_embd
+            hd = config.n_embd // config.n_head
+            q = config.n_head * hd
+            k = 1 * hd
+            v = 1 * hd
+            i = config.n_inner
+            _set(self.attn.c_attn, tp.RowSeg("_shard_c_attn", rows=[q, k, v], col=h, groups=hd))
+            _set(self.attn.c_proj, tp.Col("_shard_c_proj", row=h, col=q))
+            _set(self.mlp.c_fc, tp.RowSeg("_shard_mlp_c_fc", rows=[i, i], col=h, groups=1))
+            _set(self.mlp.c_proj, tp.Col("_shard_mlp_c_proj", row=h, col=i))
+
+        self.tensor_parallel_shards = config.tensor_parallel_shards
+        _set_tp()
+
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
         hidden_states = (
             self.attn(self.ln_1(hidden_states), attention_mask, total_seq_len) + hidden_states

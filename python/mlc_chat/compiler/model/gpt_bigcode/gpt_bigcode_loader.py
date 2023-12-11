@@ -4,8 +4,6 @@ PyTorch, HuggingFace safetensors.
 """
 import functools
 
-import numpy as np
-
 from ...loader import ExternMapping
 from ...quantization import Quantization
 from .gpt_bigcode_model import GPTBigCodeConfig, GPTBigCodeForCausalLM
