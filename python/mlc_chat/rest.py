@@ -308,7 +308,9 @@ async def request_chat_completion(request: ChatCompletionRequest):
             yield "data: [DONE]\n\n"
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
-    msg = session["chat_mod"].generate(prompt=request.messages, generation_config=generation_config)
+    msg = session["chat_mod"].generate(
+        prompt=request.messages, generation_config=generation_config, stateless=True
+    )
     if isinstance(msg, str):
         msg = [msg]
 
