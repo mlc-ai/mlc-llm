@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional
 
 from mlc_serve.engine import (
     ChatMessage,
@@ -8,17 +8,7 @@ from mlc_serve.engine import (
     RequestOutput,
     SamplingParams,
     StoppingCriteria,
-    get_engine_config
 )
-from mlc_serve.model.base import ModelArtifactConfig
-from mlc_serve.engine.model_module import (
-    DecodeRequest,
-    KVCache,
-    PrefillRequest,
-    SequenceId,
-    TextGenerationResult,
-)
-from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
 from mlc_serve.engine.staging_engine import StagingInferenceEngine
 
 from mlc_serve.model.dummy_model import (

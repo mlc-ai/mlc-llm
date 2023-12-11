@@ -4,22 +4,9 @@ Required interfaces for the actual inference capability in InferenceEngine.
 from dataclasses import dataclass
 from typing import Optional, Protocol, Union
 
-from .base import ChatMessage, RequestId, MLCServeEngineConfig
+from .base import ChatMessage, RequestId, MLCServeEngineConfig, RequestState, SequenceId
 from ..model.base import ModelArtifactConfig
 from .sampling_params import SamplingParams
-
-
-@dataclass
-class SequenceId:
-    """
-    SequenceId identified a unique sequence to be generated.
-
-    Each request will have `n` unique SequenceIds, where `n` is
-    the `n` from SamplingParams.
-    """
-
-    request_id: RequestId
-    sequence_index: int
 
 
 @dataclass
@@ -86,7 +73,12 @@ class KVCacheManager(Protocol):
 
     def free(self, sequence_id: SequenceId):
         """
-        Free cache space for a sequence or all sequences of a request.
+        Free cache space for a sequence in a request.
+        """
+
+    def free_request(self, state: RequestState):
+        """
+        Free cache space for all sequences in a request.
         """
 
     def get_kv_cache_size(self) -> int:

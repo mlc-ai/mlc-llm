@@ -4,6 +4,7 @@ import argparse
 import json
 import random
 import os
+from pathlib import Path
 
 from mlc_llm import utils
 from mlc_serve.engine import (
@@ -225,7 +226,7 @@ if __name__ == "__main__":
     parser.add_argument("--local-id", type=str, required=True)
     parser.add_argument("--artifact-path", type=str, default="dist")
     args = parser.parse_args()
-    model_artifact_path = os.path.join(args.artifact_path, args.local_id)
+    model_artifact_path = Path(os.path.join(args.artifact_path, args.local_id))
 
     _test_max_tokens(model_artifact_path, use_staging_engine=True)
     _test_max_tokens(model_artifact_path, use_staging_engine=False)

@@ -1,28 +1,18 @@
-from typing import Optional, Union
+from typing import Union
 
 from mlc_serve.engine import (
     ChatMessage,
-    DebugOptions,
-    FinishReason,
-    Request,
+    RequestState,
     RequestId,
-    RequestOutput,
-    SamplingParams,
-    StoppingCriteria,
     get_engine_config
 )
 from mlc_serve.model.base import ModelArtifactConfig
 from mlc_serve.engine.model_module import (
-    ConversationTemplate,
     DecodeRequest,
     KVCache,
-    KVCacheManager,
-    ModelModule,
     PrefillRequest,
     SequenceId,
     TextGenerationResult,
-    TextGenerator,
-    Tokenizer,
 )
 
 class DummyTokenizer:
@@ -45,7 +35,7 @@ class DummyConversationTemplate:
 class DummyCache:
     def __init__(self, max_cached_tokens: int):
         self.max_cached_tokens = max_cached_tokens
-        self.cached_requests = dict[RequestId, int]()
+        self.cached_requests = dict[SequenceId, int]()
 
 
 class DummyCacheManager:
@@ -56,7 +46,8 @@ class DummyCacheManager:
         return self.cache
 
     def allocate(self, request_id: RequestId, num_tokens: int) -> bool:
-        self.cache.cached_requests[request_id] = num_tokens
+        seq_id = SequenceId(request_id, 0)
+        self.cache.cached_requests[seq_id] = num_tokens
         if self.get_free_space() < 0:
             raise RuntimeError("Cache out of space")
         return True
@@ -64,7 +55,7 @@ class DummyCacheManager:
     def extend(self, sequence_id: SequenceId, new_tokens: int) -> bool:
         if sequence_id.sequence_index > 0:
             raise RuntimeError("Multiple generated sequences not supported")
-        self.cache.cached_requests[sequence_id.request_id] += new_tokens
+        self.cache.cached_requests[sequence_id] += new_tokens
         if self.get_free_space() < 0:
             raise RuntimeError("Cache out of space")
         return True
@@ -72,7 +63,11 @@ class DummyCacheManager:
     def free(self, sequence_id: SequenceId):
         if sequence_id.sequence_index > 0:
             raise RuntimeError("Multiple generated sequences not supported")
-        del self.cache.cached_requests[sequence_id.request_id]
+        del self.cache.cached_requests[sequence_id]
+
+    def free_request(self, state: RequestState):
+        for gen_seq in state.generation_sequences:
+            self.free(gen_seq.seq_id)
 
     def get_kv_cache_size(self) -> int:
         return self.cache.max_cached_tokens
@@ -95,13 +90,15 @@ class DummyTextGenerator:
         result = []
         for req in requests:
             if isinstance(req, DecodeRequest):
+                seq_id = req.sequence_id
                 request_id = req.sequence_id.request_id
                 if req.sequence_id.sequence_index > 0:
                     raise RuntimeError("Multiple generated sequences not supported")
             else:
+                seq_id = SequenceId(req.request_id, 0)
                 request_id = req.request_id
 
-            if len(req.token_ids) > kv_cache.cached_requests[request_id]:
+            if len(req.token_ids) > kv_cache.cached_requests[seq_id]:
                 raise RuntimeError(f"Cache out of space for request {request_id}")
 
             result.append(

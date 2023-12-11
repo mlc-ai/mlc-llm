@@ -15,11 +15,17 @@ from mlc_llm import utils
 
 from .base import get_model_artifact_config
 from .tokenizer import HfTokenizerModule, ConversationTemplate, Tokenizer
-from ..engine import RequestId, SamplingType, MLCServeEngineConfig, SamplingParams
+from ..engine import (
+    RequestId,
+    SamplingType,
+    MLCServeEngineConfig,
+    SamplingParams,
+    SequenceId,
+    RequestState,
+)
 from ..engine.model_module import (
     DecodeRequest,
     PrefillRequest,
-    SequenceId,
     TextGenerationResult,
 )
 from ..engine.model_module import ModelModule
@@ -42,9 +48,11 @@ class KVCache:
             head_size, num_layers, num_heads, block_size, num_blocks
         )
 
+        self.block_size = block_size
+
+        # SequenceId -> list[int]
         self.block_tables = defaultdict(list)
         self.slot_mappings = defaultdict(list)
-        self.block_size = block_size
 
 
 class CacheManager:
@@ -73,7 +81,7 @@ class CacheManager:
         self.kv_cache = KVCache(
             num_blocks, self.block_size, num_layers, num_heads, head_size, disco_session
         )
-        self.allocated_tokens = dict[RequestId, int]()
+        self.allocated_tokens = dict[SequenceId, int]()
 
         if sliding_window:
             assert sliding_window % self.kv_cache.block_size == 0
@@ -81,8 +89,8 @@ class CacheManager:
         else:
             self.block_sliding_window = None
 
-    def set_size(self, request_ids: List[str], target_sizes: List[int]):
-        for id, size in zip(request_ids, target_sizes):
+    def set_size(self, sequence_ids: List[SequenceId], target_sizes: List[int]):
+        for id, size in zip(sequence_ids, target_sizes):
             num_needed_block = math.ceil(size / self.block_size)
 
             if self.block_sliding_window:
@@ -149,29 +157,39 @@ class CacheManager:
 
     def allocate(self, request_id: RequestId, num_tokens: int):
         """
-        Allocate cache space for request, raise error if there is no space.
+        Allocate cache space for a prefill request, raise error if there is no space.
         """
-        self.set_size([request_id], [num_tokens])
-        self.allocated_tokens[request_id] = num_tokens
+        prompt_seq_id = SequenceId(request_id, 0)
+        self.set_size([prompt_seq_id], [num_tokens])
+        self.allocated_tokens[prompt_seq_id] = num_tokens
 
     def extend(self, sequence_id: SequenceId, new_tokens: int):
         """
         Extend cache space for a sequence, raise error if there is no space.
         """
         assert sequence_id.sequence_index == 0, "multiple sequences not supported"
-        request_id = sequence_id.request_id
-        allocated = self.allocated_tokens[request_id]
-        self.set_size([request_id], [allocated + new_tokens])
-        self.allocated_tokens[request_id] += new_tokens
+        # TODO parallel sampling: How to accomodate shared prompt tokens
+        allocated = self.allocated_tokens[sequence_id]
+        self.set_size([sequence_id], [allocated + new_tokens])
+        self.allocated_tokens[sequence_id] += new_tokens
 
     def free(self, sequence_id: SequenceId):
         """
-        Free cache space for a sequence or all sequences of a request.
+        Free cache space for a sequence in a request.
         """
         assert sequence_id.sequence_index == 0, "multiple sequences not supported"
-        request_id = sequence_id.request_id
-        del self.allocated_tokens[request_id]
-        self.set_size([request_id], [0])
+        if sequence_id in self.allocated_tokens:
+            # TODO parallel sampling: Prompt tokens should not be freed until all
+            # generation sequences in the same sample are freed.
+            del self.allocated_tokens[sequence_id]
+            self.set_size([sequence_id], [0])
+
+    def free_request(self, state: RequestState):
+        """
+        Free cache space for all sequences in a request.
+        """
+        for gen_seq in state.generation_sequences:
+            self.free(gen_seq.seq_id)
 
     def get_kv_cache_size(self) -> int:
         """
@@ -204,17 +222,19 @@ class CacheManager:
         if not self.allocated_tokens:
             return len(self.free_blocks) * self.block_size
 
-        free_blocks_per_request = len(self.free_blocks) // len(self.allocated_tokens)
-        remaining_blocks = len(self.free_blocks) - free_blocks_per_request * len(
+        free_blocks_per_sequence = len(self.free_blocks) // len(self.allocated_tokens)
+        remaining_blocks = len(self.free_blocks) - free_blocks_per_sequence * len(
             self.allocated_tokens
         )
+        # The number of shared prompt tokens in parallel sampling is divisible by block_size,
+        # so this calculation should be valid for parallel sampling as well.
         remaining_tokens_in_last_block = [
             self.block_size - (tokens - 1) % self.block_size - 1
-            for _, tokens in self.allocated_tokens.items()
+            for tokens in self.allocated_tokens.values()
         ]
 
         return (
-            free_blocks_per_request * self.block_size
+            free_blocks_per_sequence * self.block_size
             + sorted(remaining_tokens_in_last_block)[remaining_blocks]
         )
 
@@ -379,7 +399,7 @@ def _prepare_inputs(
             prompt_len = len(token_ids)
             seq_lens.append(prompt_len)
             positions += range(prompt_len)
-            slot_mapping += all_slot_mappings[sequence_id.request_id]
+            slot_mapping += all_slot_mappings[sequence_id]
 
             if sliding_window:
                 indices_within_window += range(
@@ -392,10 +412,10 @@ def _prepare_inputs(
             input_ids.append(token_ids[-1])
             pos = len(token_ids) - 1
             positions.append(pos)
-            block_table = all_block_tables[sequence_id.request_id]
+            block_table = all_block_tables[sequence_id]
             max_num_blocks_per_seq = max(max_num_blocks_per_seq, len(block_table))
             block_tables.append(block_table)
-            slot_mapping.append(all_slot_mappings[sequence_id.request_id][-1])
+            slot_mapping.append(all_slot_mappings[sequence_id][-1])
 
             if sliding_window:
                 seq_lens.append(min(len(token_ids), sliding_window))
@@ -521,11 +541,8 @@ class Model:
 
         for request in requests:
             if isinstance(request, PrefillRequest):
-                assert request.num_sequence == 1, "Multiple sequences not supported yet"
-                sequence_id = SequenceId(request.request_id, 0)
-                sequence_ids.append(sequence_id)
+                sequence_ids.append(SequenceId(request.request_id, 0))
             else:
-                sequence_id = request.sequence_id
                 sequence_ids.append(request.sequence_id)
 
             all_token_ids.append(request.token_ids)
@@ -645,7 +662,7 @@ class Model:
                     outputs.append(
                         TextGenerationResult(
                             sequence_id=sequence_id,
-                            generated_tokens=[maybe_new_token[0]],
+                            generated_tokens=[maybe_new_token[0]],  # type: ignore
                             error=None,
                         )
                     )

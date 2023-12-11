@@ -11,6 +11,7 @@ from .sampling_params import SamplingParams, SamplingType
 
 RequestId = str
 
+
 # TODO(@sunggg): consider transition to something like Pydantic
 @dataclass
 class MLCServeEngineConfig:
@@ -39,6 +40,7 @@ class MLCServeEngineConfig:
             }
         )
 
+
 def get_engine_config(dict_config):
     engine_config = MLCServeEngineConfig._from_json(dict_config)
     # Checks to make sure engine configs are set correctly
@@ -51,25 +53,31 @@ def get_engine_config(dict_config):
     assert isinstance(engine_config.min_decode_steps, int)
 
     # TODO(@sunggg): engine allows -1 for these params. figure out the behavior and enable checks properly
-    assert engine_config.max_num_batched_tokens == -1, \
-        "`max_num_batched_tokens` is not supposed to be configured directly. \
+    assert (
+        engine_config.max_num_batched_tokens == -1
+    ), "`max_num_batched_tokens` is not supposed to be configured directly. \
             Use `max_num_sequences` and `max_input_len` instead."
     assert engine_config.max_input_len > 0
     assert engine_config.max_num_sequences > 0
-    engine_config.max_num_batched_tokens = engine_config.max_num_sequences * engine_config.max_input_len
+    engine_config.max_num_batched_tokens = (
+        engine_config.max_num_sequences * engine_config.max_input_len
+    )
 
     assert (engine_config.min_decode_steps > 0) and (engine_config.max_decode_steps > 0)
     assert engine_config.max_decode_steps > engine_config.min_decode_steps
 
     return engine_config
 
+
 @dataclass
 class StoppingCriteria:
     """
     Parameters about when to stop text generation.
     """
+
     max_tokens: Optional[int] = None
     stop_sequences: Optional[list[str]] = None
+
 
 @dataclass
 class ChatMessage:
@@ -89,15 +97,19 @@ class FinishReason(Enum):
     Length = "length"
     Cancelled = "cancelled"
 
+
 # A single token.
 Token = int
+
 
 @dataclass
 class ValidationError:
     msg: str
 
+
 # The type signature of the token validation callback.
 ValidateTokensCallback = Callable[["Request", List[Token]], ValidationError]
+
 
 @dataclass
 class Request:
@@ -110,7 +122,9 @@ class Request:
     # Options for sampling.
     sampling_params: SamplingParams = field(default_factory=SamplingParams)
     # Options for stopping.
-    stopping_criteria: StoppingCriteria = field(default_factory=lambda: StoppingCriteria())
+    stopping_criteria: StoppingCriteria = field(
+        default_factory=lambda: StoppingCriteria()
+    )
     # Options for debugging.
     debug_options: DebugOptions = field(default_factory=DebugOptions)
     # Perform request validation post-tokenization, used by the HTTP layer to control validation.
@@ -238,6 +252,28 @@ class ScopedInferenceEngine(InferenceEngine):
         ...
 
 
+@dataclass(frozen=True)
+class SequenceId:
+    """
+    SequenceId identified a unique sequence to be generated.
+
+    Each request will have `n` unique SequenceIds, where `n` is
+    the `n` from SamplingParams.
+    """
+
+    request_id: RequestId
+    sequence_index: int
+
+
+@dataclass
+class GenerationSequence:
+    seq_id: SequenceId
+    generated_token_ids: list[int]
+    next_start_position: int
+    output_text: str
+    is_finished: bool = False
+
+
 @dataclass
 class RequestState:
     """
@@ -245,31 +281,28 @@ class RequestState:
     """
 
     request_id: RequestId
-    token_ids: list[int]
-    output_text: str
-    prompt_len: int
-    next_start_position: int
+    prompt_token_ids: list[int]
     sampling_params: SamplingParams
+    generation_sequences: list[GenerationSequence]
     stopping_criteria: StoppingCriteria
     debug_options: DebugOptions
     arrival_timestamp: float
-    is_ended: bool = False
     validation_err: Optional[ValidationError] = None
 
-def check_stopping_sequences(stopping_criteria, output_text, delta, is_ended):
-    if stopping_criteria.stop_sequences:
-        for t in stopping_criteria.stop_sequences:
-            if t in output_text:
-                # since search pattern can include only part of the new generated token,
-                # we need to trim generated string
-                # for example, we have "I " in the stopping criteria, previously existed
-                # output_text had "I" and new coming token "am" would add space before the word
-                # thus final output_text would have "I am" before verification on stop sequence
-                # While eventually we need to return "I "
-                if not output_text.endswith(t):
-                    sub_index = output_text.find(t)
-                    delta = delta[:-(len(output_text) - sub_index - len(t))]
-                    output_text = output_text[:output_text.find(t) + len(t)]
-                is_ended = True
-                break
-    return output_text, delta, is_ended
+    @property
+    def is_finished(self) -> bool:
+        return all(seq.is_finished for seq in self.generation_sequences)
+
+    @property
+    def prompt_len(self) -> int:
+        return len(self.prompt_token_ids)
+
+    @property
+    def num_sequences(self) -> int:
+        return len(self.generation_sequences)
+
+    @property
+    def num_total_tokens(self) -> int:
+        return self.prompt_len + sum(
+            len(gen_seq.generated_token_ids) for gen_seq in self.generation_sequences
+        )

@@ -11,6 +11,8 @@ from .base import (
     RequestOutput,
     StoppingCriteria,
     MLCServeEngineConfig,
-    get_engine_config
+    get_engine_config,
+    SequenceId,
+    RequestState,
 )
 from .sampling_params import SamplingParams, SamplingType

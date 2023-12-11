@@ -4,25 +4,23 @@ The worker for StagingInferenceEngine
 import time
 import multiprocessing
 import multiprocessing.synchronize
-from collections import deque
 from dataclasses import dataclass
-from threading import Condition, Lock, Thread
-from typing import Callable, Optional, Union, Any, Dict, Deque, List
+from threading import Thread
+from typing import Callable, Optional, Union, Any, Dict, List
 
 import structlog
 
-from .base import FinishReason, RequestId, RequestState, ValidationError
+from .base import FinishReason, RequestId, RequestState, ValidationError, SequenceId
 from .metrics import PrometheusMetrics
 from .metrics_labels import *
 from .model_module import (
-    DecodeRequest,
     ModelModule,
-    PrefillRequest,
-    SequenceId,
-    TextGenerator,
-    Tokenizer as TokenizerP,
 )
-from ..model.base import ModelArtifactConfig
+from .engine_common import (
+    should_stop_by_length,
+    get_requests_to_process,
+    EngineBase,
+)
 from ..logging_utils import configure_logging
 
 LOG = structlog.stdlib.get_logger(__name__)
@@ -67,49 +65,20 @@ class GenerationLoopWorkerOutput:
     error: Optional[str] = None
 
 
-class GenerationLoopWorker:
-    text_generator: TextGenerator
-    cache_manager: Any
-    tokenizer: TokenizerP
-    model_artifact_config: ModelArtifactConfig
-    max_context_length: int
-    max_num_batched_tokens: int
-    max_decode_steps: int
-    min_decode_steps: int
-    queue_lock: Lock
-    queue: Deque[RequestState]
-    has_new_requests: Condition
+class GenerationLoopWorker(EngineBase):
     cancelled_requests: List[RequestState]
     stopped_requests: List[RequestState]
-    current_batch: Dict[RequestId, RequestState]
+    prom_metrics: PrometheusMetrics
+    inv_kv_cache_size: float
 
     def __init__(
         self,
         model_module: ModelModule,
     ):
-        self.text_generator = model_module.text_generator
-        self.cache_manager = model_module.cache_manager
-        self.tokenizer = model_module.tokenizer
-        self.model_artifact_config = model_module.model_artifact_config
-        assert self.model_artifact_config.max_context_length, "must not be None"
-        self.max_context_length = self.model_artifact_config.max_context_length
-        self.max_num_batched_tokens = model_module.engine_config.max_num_batched_tokens
-        self.max_decode_steps = min(
-            self.cache_manager.get_kv_cache_size(),
-            model_module.engine_config.max_decode_steps,
-        )
-        self.min_decode_steps = min(
-            self.max_decode_steps - 1, model_module.engine_config.min_decode_steps
-        )
-
-        self.queue_lock = Lock()
-        self.queue = deque[RequestState]()
-        self.has_new_requests = Condition(lock=self.queue_lock)
+        EngineBase.__init__(self, model_module)
 
         self.cancelled_requests = list[RequestState]()
         self.stopped_requests = list[RequestState]()
-
-        self.current_batch = dict[RequestId, RequestState]()
 
         self.prom_metrics = PrometheusMetrics()
         self.inv_kv_cache_size = 1.0 / self.cache_manager.get_kv_cache_size()
@@ -120,20 +89,15 @@ class GenerationLoopWorker:
             # States which have been invalidated should never be added, directly
             # cancel them instead.
             valid_states = []
-            kv_cache_size = self.cache_manager.get_kv_cache_size()
-            max_prompt_len = min(self.max_context_length, self.max_num_batched_tokens)
             for state in request_states:
-                if (
-                    state.validation_err is not None
-                    or state.prompt_len > max_prompt_len
-                    # We make sure that the KV cache will have enough free space for this request to proceed
-                    # decoding for at least self.max_decode_steps steps.
-                    or (kv_cache_size - state.prompt_len) < self.max_decode_steps
+                if state.validation_err is not None or self.check_prompt_too_long(
+                    state.prompt_len, state.num_sequences
                 ):
                     self.cancelled_requests.append(state)
                     if state.validation_err is None:
                         state.validation_err = ValidationError(
-                            "The prompt is too long for the given set of engine parameters."
+                            "The prompt is too long for the given set of engine"
+                            " parameters."
                         )
                 else:
                     valid_states.append(state)
@@ -171,7 +135,7 @@ class GenerationLoopWorker:
             )
 
     def has_pending_requests(self) -> bool:
-        return len(self.queue) != 0 or len(self.current_batch) != 0 or len(self.cancelled_requests) != 0
+        return bool(self.queue or self.current_batch or self.cancelled_requests)
 
     def step(self) -> GenerationLoopWorkerOutput:
         LOG.debug("Starting new inference step.")
@@ -182,35 +146,38 @@ class GenerationLoopWorker:
         # TODO: consolidate into a single function
         for state in list(self.current_batch.values()):
             finish_reason = None
-            if state.is_ended:
+            if state.is_finished:
                 finish_reason = FinishReason.Stop
-            if self._should_stop_by_length(state):
+            if should_stop_by_length(state, self.max_context_length):
                 finish_reason = FinishReason.Length
 
             if finish_reason is not None:
-                outputs.append(
-                    SequenceGenerationOutput(
-                        # TODO: support multi-sequence
-                        id=SequenceId(state.request_id, 0),
-                        new_tokens=[],
-                        finish_reason=finish_reason,
+                for gen_seq in state.generation_sequences:
+                    outputs.append(
+                        SequenceGenerationOutput(
+                            id=gen_seq.seq_id,
+                            new_tokens=[],
+                            finish_reason=finish_reason,
+                        )
                     )
-                )
-                self._remove_request_from_batch(state.request_id)
+
+                self.remove_request_from_batch(state.request_id)
+
                 duration = time.time() - state.arrival_timestamp
                 self.prom_metrics.histogram(E2E_LATENCY).observe(duration)
 
         for state in self.stopped_requests:
-            outputs.append(
-                SequenceGenerationOutput(
-                    # TODO: support multi-sequence
-                    id=SequenceId(state.request_id, 0),
-                    new_tokens=[],
-                    finish_reason=FinishReason.Stop,
+            for gen_seq in state.generation_sequences:
+                outputs.append(
+                    SequenceGenerationOutput(
+                        id=gen_seq.seq_id,
+                        new_tokens=[],
+                        finish_reason=FinishReason.Stop,
+                    )
                 )
-            )
+
             if state.request_id in self.current_batch:
-                self._remove_request_from_batch(state.request_id)
+                self.remove_request_from_batch(state.request_id)
 
         self.stopped_requests.clear()
 
@@ -221,17 +188,18 @@ class GenerationLoopWorker:
                 if state.validation_err:
                     err = state.validation_err
 
-                outputs.append(
-                    SequenceGenerationOutput(
-                        # TODO: support multi-sequence
-                        id=SequenceId(state.request_id, 0),
-                        new_tokens=[],
-                        finish_reason=FinishReason.Cancelled,
-                        error=err,
+                for gen_seq in state.generation_sequences:
+                    outputs.append(
+                        SequenceGenerationOutput(
+                            id=gen_seq.seq_id,
+                            new_tokens=[],
+                            finish_reason=FinishReason.Cancelled,
+                            error=err,
+                        )
                     )
-                )
+
                 if state.request_id in self.current_batch:
-                    self._remove_request_from_batch(state.request_id)
+                    self.remove_request_from_batch(state.request_id)
 
             self.cancelled_requests.clear()
 
@@ -240,7 +208,9 @@ class GenerationLoopWorker:
         if not self.current_batch:
             if len(self.queue) > 0:
                 LOG.warn(
-                     f"The engine has {len(self.queue)} requests to be processed in the queue, but none of them were added to the current batch during the execution of StagingEngine._adjust_batch"
+                    f"The engine has {len(self.queue)} requests to be processed in the"
+                    " queue, but none of them were added to the current batch during"
+                    " the execution of StagingEngine._adjust_batch"
                 )
             return result
 
@@ -248,14 +218,18 @@ class GenerationLoopWorker:
         results = self.text_generator.generate(requests, self.cache_manager.get_cache())
         LOG.debug("Finished text generation.")
 
+        failed_requests = set()
+
         for res in results:
-            # For now we only support single sequence per request
             request_id = res.sequence_id.request_id
+
             if res.error is not None:
-                self._remove_request_from_batch(request_id)
+                if request_id not in failed_requests:
+                    failed_requests.add(request_id)
+                    self.remove_request_from_batch(request_id)
+
                 outputs.append(
                     SequenceGenerationOutput(
-                        # TODO: support multi-sequence
                         id=res.sequence_id,
                         new_tokens=[],
                         error=res.error,
@@ -264,8 +238,13 @@ class GenerationLoopWorker:
                 continue
 
             state = self.current_batch[request_id]
-            state.next_start_position = len(state.token_ids)
+            seq_index = res.sequence_id.sequence_index
+            gen_seq = state.generation_sequences[seq_index]
             new_tokens = res.generated_tokens
+
+            gen_seq.next_start_position = state.prompt_len + len(
+                gen_seq.generated_token_ids
+            )
 
             # Need to match at the token-id level
             for i, token_id in enumerate(new_tokens):
@@ -274,10 +253,10 @@ class GenerationLoopWorker:
                     and not state.debug_options.ignore_eos
                 ):
                     new_tokens = new_tokens[:i]
-                    state.is_ended = True
+                    gen_seq.is_finished = True
                     break
 
-            state.token_ids.extend(new_tokens)
+            gen_seq.generated_token_ids.extend(new_tokens)
             outputs.append(
                 SequenceGenerationOutput(id=res.sequence_id, new_tokens=new_tokens)
             )
@@ -296,17 +275,8 @@ class GenerationLoopWorker:
 
     def _adjust_batch(self):
         with self.queue_lock:
-            while self.cache_manager.get_max_new_tokens() < 1:
-                self.prom_metrics.counter(NUM_CACHE_EVICTONS).inc()
-                request_to_remove = min(
-                    self.current_batch.values(), key=lambda s: len(s.token_ids)
-                )
-                self._remove_request_from_batch(request_to_remove.request_id)
-                self.queue.appendleft(request_to_remove)
-                LOG.debug(
-                    "Preempt request to free %s tokens",
-                    len(request_to_remove.token_ids),
-                )
+            num_eviction = self.evict_request()
+            self.prom_metrics.counter(NUM_CACHE_EVICTONS).inc(num_eviction)
 
             if self.cache_manager.get_max_new_tokens() <= self.max_decode_steps:
                 LOG.debug(
@@ -316,126 +286,24 @@ class GenerationLoopWorker:
                 return
 
             num_new_batched_tokens = len(self.current_batch)
-            while self.queue:
-                max_new_tokens = self.cache_manager.get_max_new_tokens()
-                if max_new_tokens < self.min_decode_steps:
-                    LOG.debug(
-                        "Stop growing the batch due to min_decode_steps. Decode steps: %s",
-                        max_new_tokens,
-                    )
-                    # stop adding request if there isn't enough space to do a certain steps of decoding.
-                    break
-                state = self.queue[0]
-                num_tokens = len(state.token_ids)
-                num_new_batched_tokens += num_tokens
-                # This can happen when we are recovering from cache eviction and the sum of prompt
-                # and intermediate decode tokens is bigger than the biggest allowable batch size,
-                # self.max_num_batched_tokens. In such cases, we need to discard the recent decode
-                # tokens that cannot fit into a batch, and recompute them after we fill the cache
-                # entries for the older tokens.
-                if (
-                    len(self.current_batch) == 0
-                    and num_new_batched_tokens > self.max_num_batched_tokens
-                ):
-                    state.token_ids = state.token_ids[: self.max_num_batched_tokens]
-                    state.next_start_position = (
-                        num_new_batched_tokens
-                    ) = num_tokens = self.max_num_batched_tokens
-                if num_new_batched_tokens > self.max_num_batched_tokens:
-                    LOG.debug(
-                        "Stop growing the batch due to max_num_batched_tokens. Batched tokens: %s",
-                        num_new_batched_tokens,
-                    )
-                    break
-                # We make sure that the KV cache will have enough free space for all sequences in the batch
-                # to proceed decoding for at least self.max_decode_steps steps.
-                if (self.cache_manager.get_free_space() - num_tokens) / (
-                    len(self.current_batch) + 1
-                ) < self.max_decode_steps:
-                    LOG.debug(
-                        "Stop growing the batch due to not enough free space. Free: %s, Num tokens: %s",
-                        self.cache_manager.get_free_space(),
-                        num_tokens,
-                    )
-                    break
 
-                self.queue.popleft()
-                self.cache_manager.allocate(state.request_id, num_tokens)
-                self.current_batch[state.request_id] = state
-
-    def _remove_request_from_batch(self, request_id: RequestId):
-        del self.current_batch[request_id]
-        self.cache_manager.free(SequenceId(request_id, 0))
+            while self.queue and num_new_batched_tokens is not None:
+                num_new_batched_tokens = self.try_grow_batch(num_new_batched_tokens)
 
     def _get_requests_to_process(self):
-        requests = []
-        # TODO: consider having hybrid batch if the underlying attention kernel supports
-        # mixing prefill and decode.
-        is_prompt_batch = any(
-            state.next_start_position == 0 for state in self.current_batch.values()
+        requests, is_prompt_batch, token_counts = get_requests_to_process(
+            self.current_batch.values(), self.cache_manager
         )
 
         if is_prompt_batch:
-            prefill_token_counts = 0
-
-            for state in self.current_batch.values():
-                if state.next_start_position == 0:
-                    requests.append(
-                        PrefillRequest(
-                            request_id=state.request_id,
-                            token_ids=state.token_ids,
-                            num_sequence=1,
-                            sampling_params=state.sampling_params,
-                        )
-                    )
-                    prefill_token_counts += len(state.token_ids)
-
-            self.prom_metrics.histogram(BATCHED_PREFILL_TOKENS).observe(prefill_token_counts)
-
-            LOG.debug(
-                "Creating prompt batch.",
-                num_requests=len(requests),
-                total_tokens=prefill_token_counts,
-            )
+            self.prom_metrics.histogram(BATCHED_PREFILL_TOKENS).observe(token_counts)
         else:
-            for state in self.current_batch.values():
-                seq_id = SequenceId(state.request_id, 0)
-                requests.append(
-                    DecodeRequest(
-                        sequence_id=seq_id,
-                        token_ids=state.token_ids,
-                        sampling_params=state.sampling_params,
-                    )
-                )
-                self.cache_manager.extend(
-                    seq_id, len(state.token_ids) - state.next_start_position
-                )
-
-            decode_token_counts = len(requests)
-            self.prom_metrics.histogram(BATCHED_DECODE_TOKENS).observe(decode_token_counts)
-
-            LOG.debug("Creating decode batch with %s requests.", decode_token_counts)
+            self.prom_metrics.histogram(BATCHED_DECODE_TOKENS).observe(token_counts)
 
         return requests, is_prompt_batch
 
     def _has_request_to_process(self) -> bool:
-        return len(self.queue) != 0 or len(self.current_batch) != 0
-
-    def _should_stop_by_length(self, state: RequestState) -> bool:
-        # TODO: currently, we simply return true for both stopping reasons.
-        #       in the future, we can differentiate these two.
-        # this include prompt tokens and gen tokens so far
-        num_context_tokens = len(state.token_ids)
-        assert self.model_artifact_config.max_context_length is not None
-        if num_context_tokens >= self.model_artifact_config.max_context_length:
-            return True
-        num_gen_tokens = num_context_tokens - state.prompt_len
-        if (
-            state.stopping_criteria.max_tokens is not None
-            and num_gen_tokens >= state.stopping_criteria.max_tokens
-        ):
-            return True
-        return False
+        return bool(self.queue or self.current_batch)
 
 
 def run_generation_loop_worker(
@@ -445,8 +313,8 @@ def run_generation_loop_worker(
     result_queue: multiprocessing.Queue,
     ready_event: multiprocessing.synchronize.Event,
     contextvars: Optional[Dict[str, Any]] = None,
-    enable_json_logs = False,
-    log_level="INFO",
+    enable_json_logs: bool = False,
+    log_level: str = "INFO",
 ):
     configure_logging(enable_json_logs, log_level)
     structlog.contextvars.bind_contextvars(**contextvars)

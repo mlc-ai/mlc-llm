@@ -1,14 +1,12 @@
 """
 An implementation of InferenceEngine that offloads the text generation loop to another worker process.
 """
-import time
 import logging
 import multiprocessing
 import queue
 from threading import Lock
-from typing import Callable, Optional
-
-import os
+from typing import Callable
+from collections import defaultdict
 
 import structlog
 
@@ -20,7 +18,10 @@ from .base import (
     RequestState,
     ScopedInferenceEngine,
     SequenceOutput,
-    check_stopping_sequences,
+)
+from .engine_common import (
+    get_new_request_state,
+    update_sequence,
 )
 from .model_module import ModelModule, TokenizerModule
 from .staging_engine_worker import (
@@ -47,7 +48,7 @@ class StagingInferenceEngine(ScopedInferenceEngine):
     def __init__(
         self,
         tokenizer_module: TokenizerModule,
-        model_module_loader: ModelModule,
+        model_module_loader: Callable[..., ModelModule],
         model_module_loader_kwargs: dict,
         # maybe find a better way to do this
         json_log_output: bool = False,
@@ -118,7 +119,9 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                 assert isinstance(req.stopping_criteria.stop_sequences, list)
 
             # If the request violates the tokenization, this returns None, so skip.
-            state = self._get_new_request_state(req)
+            state = get_new_request_state(
+                req, self.conversation_template, self.tokenizer
+            )
             new_request_states.append(state)
 
         self.command_queue.put(AddRequestsCommand(request_states=new_request_states))
@@ -183,13 +186,17 @@ class StagingInferenceEngine(ScopedInferenceEngine):
             )
 
         outputs = list[RequestOutput]()
+
         with self.requests_lock:
             LOG.debug(
                 "StagingInferenceEngine.step obtained requests_lock",
                 generation_output=generation_output,
             )
+
+            seq_outputs = defaultdict(list)
+            prompt_len = {}
+
             for seq_output in generation_output.sequences:
-                # TODO: support multi-sequence per request
                 request_id = seq_output.id.request_id
                 if request_id not in self.requests:
                     LOG.warn(
@@ -211,82 +218,46 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                     del self.requests[request_id]
                     continue
 
-                state.next_start_position = len(state.token_ids)
-                state.token_ids.extend(seq_output.new_tokens)
+                gen_seq = state.generation_sequences[seq_output.id.sequence_index]
+                new_token_ids = seq_output.new_tokens
 
-                # detokenize
-                delta = self._decode_last_output(state)
-                state.output_text += delta
-
-                state.output_text, delta, state.is_ended = check_stopping_sequences(
-                    state.stopping_criteria, state.output_text, delta, state.is_ended
+                delta = update_sequence(
+                    gen_seq,
+                    new_token_ids,
+                    state.prompt_token_ids,
+                    self.tokenizer,
+                    state.stopping_criteria,
                 )
+
                 # signal workers to stop generation
-                if state.is_ended:
+                if state.is_finished:
                     self.stop_request(state.request_id)
 
+                output = SequenceOutput(
+                    seq_output.id.sequence_index,
+                    delta,
+                    finish_reason=seq_output.finish_reason,
+                    num_generated_tokens=len(gen_seq.generated_token_ids),
+                )
+
+                seq_outputs[request_id].append(output)
+                prompt_len[request_id] = state.prompt_len
+
+                if seq_output.finish_reason is not None:
+                    gen_seq.is_finished = True
+
+            for request_id, out_seqs in seq_outputs.items():
                 outputs.append(
                     RequestOutput(
                         request_id,
-                        sequences=[
-                            SequenceOutput(
-                                0,
-                                delta=delta,
-                                num_generated_tokens=(
-                                    len(state.token_ids) - state.prompt_len
-                                ),
-                                finish_reason=seq_output.finish_reason,
-                            ),
-                        ],
-                        num_prompt_tokens=state.prompt_len,
+                        sequences=out_seqs,
+                        num_prompt_tokens=prompt_len[request_id],
                     )
                 )
-
-                if seq_output.finish_reason is not None:
+                if self.requests[request_id].is_finished:
                     del self.requests[request_id]
 
         return InferenceStepResult(outputs=outputs)
 
     def _is_ready_to_serve(self) -> bool:
         return self.worker_process is not None and self.worker_process.is_alive()
-
-    def _get_new_request_state(self, request: Request) -> RequestState:
-        if request.debug_options.prompt is not None:
-            prompt = request.debug_options.prompt
-        else:
-            prompt = self.conversation_template.apply(request.messages)
-
-        prompt_tokens = self.tokenizer.encode(prompt)
-
-        validation_err = None
-        if request.validate_tokens is not None:
-            validation_err = request.validate_tokens(request, prompt_tokens)
-
-        return RequestState(
-            request_id=request.request_id,
-            token_ids=prompt_tokens,
-            prompt_len=len(prompt_tokens),
-            next_start_position=0,
-            sampling_params=request.sampling_params,
-            stopping_criteria=request.stopping_criteria,
-            debug_options=request.debug_options,
-            output_text="",
-            validation_err=validation_err,
-            arrival_timestamp=time.time(),
-        )
-
-    def _decode_last_output(self, state: RequestState) -> str:
-        if len(state.output_text):
-            prefix_idx = max(0, state.next_start_position - 6)
-        else:
-            prefix_idx = state.next_start_position
-
-        if prefix_idx == 0:
-            return self.tokenizer.decode(state.token_ids)
-
-        prefix = self.tokenizer.decode(
-            state.token_ids[prefix_idx : state.next_start_position]
-        )
-        full = self.tokenizer.decode(state.token_ids[prefix_idx:])
-
-        return full[len(prefix) :]
