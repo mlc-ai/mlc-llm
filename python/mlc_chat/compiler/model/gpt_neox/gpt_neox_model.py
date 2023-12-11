@@ -104,7 +104,7 @@ class RotaryEmbedding(nn.Module):
         return q_embed, k_embed
 
 
-class GPTNeoXAttention(nn.Module):
+class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
     def __init__(self, config: GPTNeoXConfig, rotary_embedding: RotaryEmbedding):
