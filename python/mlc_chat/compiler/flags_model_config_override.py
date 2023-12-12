@@ -16,7 +16,7 @@ class ModelConfigOverride:
 
     context_window_size: Optional[int] = None
     prefill_chunk_size: Optional[int] = None
-    sliding_window: Optional[int] = None
+    sliding_window_size: Optional[int] = None
     max_batch_size: Optional[int] = None
     tensor_parallel_shards: Optional[int] = None
 
@@ -24,30 +24,30 @@ class ModelConfigOverride:
         out = StringIO()
         print(f"context_window_size={self.context_window_size}", file=out, end="")
         print(f";prefill_chunk_size={self.prefill_chunk_size}", file=out, end="")
-        print(f";sliding_window={self.sliding_window}", file=out, end="")
+        print(f";sliding_window_size={self.sliding_window_size}", file=out, end="")
         print(f";max_batch_size={self.max_batch_size}", file=out, end="")
         print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
         return out.getvalue().rstrip()
 
     def __post_init__(self):
-        # If `sliding_window` is set
+        # If `sliding_window_size` is set
         # - 1) Disable `context_window_size`
         # - 2) Require `prefill_chunk_size` to present
-        if self.sliding_window is not None:
+        if self.sliding_window_size is not None:
             self.context_window_size = -1
             logger.info(
                 "Setting %s to -1 (disabled), because %s is already set",
                 bold("context_window_size"),
-                bold("sliding_window"),
+                bold("sliding_window_size"),
             )
             if self.prefill_chunk_size is None:
                 logger.info(
                     "Default %s to %s (%d) because it is not provided",
                     bold("prefill_chunk_size"),
-                    bold("sliding_window"),
-                    self.sliding_window,
+                    bold("sliding_window_size"),
+                    self.sliding_window_size,
                 )
-                self.prefill_chunk_size = self.sliding_window
+                self.prefill_chunk_size = self.sliding_window_size
         elif self.context_window_size is not None:
             if self.prefill_chunk_size is None:
                 logger.info(
@@ -64,8 +64,8 @@ class ModelConfigOverride:
             _model_config_override(model_config, "context_window_size", self.context_window_size)
         if self.prefill_chunk_size is not None:
             _model_config_override(model_config, "prefill_chunk_size", self.prefill_chunk_size)
-        if self.sliding_window is not None:
-            _model_config_override(model_config, "sliding_window", self.sliding_window)
+        if self.sliding_window_size is not None:
+            _model_config_override(model_config, "sliding_window_size", self.sliding_window_size)
         if self.max_batch_size is not None:
             _model_config_override(model_config, "max_batch_size", self.max_batch_size)
         if self.tensor_parallel_shards is not None:
@@ -80,14 +80,14 @@ class ModelConfigOverride:
         parser = argparse.ArgumentParser(description="model config override values")
         parser.add_argument("--context_window_size", type=int, default=None)
         parser.add_argument("--prefill_chunk_size", type=int, default=None)
-        parser.add_argument("--sliding_window", type=int, default=None)
+        parser.add_argument("--sliding_window_size", type=int, default=None)
         parser.add_argument("--max_batch_size", type=int, default=None)
         parser.add_argument("--tensor_parallel_shards", type=int, default=None)
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
         return ModelConfigOverride(
             context_window_size=results.context_window_size,
             prefill_chunk_size=results.prefill_chunk_size,
-            sliding_window=results.sliding_window,
+            sliding_window_size=results.sliding_window_size,
             max_batch_size=results.max_batch_size,
             tensor_parallel_shards=results.tensor_parallel_shards,
         )
@@ -107,5 +107,5 @@ def _model_config_override(model_config, field: str, value: Any) -> None:
             "%s: %s does not have %s",
             red("Warning"),
             bold(type(model_config).__name__),
-            bold("sliding_window"),
+            bold("sliding_window_size"),
         )

@@ -92,9 +92,9 @@ Conversation template. It depends on how the model is tuned. Use "LM" for vanill
 The output directory for generated configurations, including `mlc-chat-config.json` and tokenizer
 configuration.
 """.strip(),
-    "sliding_window": """
+    "sliding_window_size": """
 (Experimental) The sliding window size in sliding window attention (SWA).
-This optional field overrides the `sliding_window` in config.json for
+This optional field overrides the `sliding_window_size` in config.json for
 those models that use SWA. Currently only useful when compiling Mistral.
 This flag subjects to future refactoring.
 """.strip(),
@@ -108,7 +108,7 @@ Number of shards to split the model into in tensor parallelism multi-gpu inferen
 """.strip(),
     "overrides": """
 Model configuration override. Configurations to override `mlc-chat-config.json`. Supports
-`context_window_size`, `prefill_chunk_size`, `sliding_window`, `max_batch_size` and
+`context_window_size`, `prefill_chunk_size`, `sliding_window_size`, `max_batch_size` and
 `tensor_parallel_shards`. Meanwhile, model config could be explicitly specified via details
 knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
 """.strip(),

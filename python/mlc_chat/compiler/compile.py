@@ -50,11 +50,11 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
 
 
 def _attach_variable_bounds(mod, model_config):
-    if hasattr(model_config, "sliding_window"):
+    if hasattr(model_config, "sliding_window_size"):
         tir_bound_map = {
             "seq_len": model_config.prefill_chunk_size,
-            "rolling_cache_len": model_config.sliding_window,
-            "kv_seq_len": model_config.sliding_window + model_config.prefill_chunk_size,
+            "rolling_cache_len": model_config.sliding_window_size,
+            "kv_seq_len": model_config.sliding_window_size + model_config.prefill_chunk_size,
         }
     else:
         tir_bound_map = {
@@ -120,7 +120,7 @@ def _attach_metadata(
             ],
             "context_window_size": model_config.context_window_size,
             "prefill_chunk_size": model_config.prefill_chunk_size,
-            "sliding_window": getattr(model_config, "sliding_window", -1),
+            "sliding_window_size": getattr(model_config, "sliding_window_size", -1),
             "tensor_parallel_shards": model_config.tensor_parallel_shards,
             "memory_usage": {str(k): int(v) for k, v in mod.attrs["mlc_llm.memory_usage"].items()},
         }

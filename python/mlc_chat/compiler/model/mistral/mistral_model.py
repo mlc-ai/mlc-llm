@@ -31,7 +31,7 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     context_window_size: int = 0
     num_key_value_heads: int = 0
     head_dim: int = 0
-    sliding_window: int = 4096
+    sliding_window_size: int = 4096
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
@@ -68,7 +68,7 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
         if self.prefill_chunk_size == 0:
             # chunk size same as sliding window by default
-            self.prefill_chunk_size = self.sliding_window
+            self.prefill_chunk_size = self.sliding_window_size
         self.context_window_size = -1
         logger.info(
             "Using sliding window attention, setting %s to -1",
@@ -142,15 +142,15 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
-        self.sliding_window = config.sliding_window
+        self.sliding_window_size = config.sliding_window_size
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
             bias=False,
         )
         self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
-        self.k_cache = RollingKVCache(self.sliding_window, [self.num_kv_heads, self.head_dim])
-        self.v_cache = RollingKVCache(self.sliding_window, [self.num_kv_heads, self.head_dim])
+        self.k_cache = RollingKVCache(self.sliding_window_size, [self.num_kv_heads, self.head_dim])
+        self.v_cache = RollingKVCache(self.sliding_window_size, [self.num_kv_heads, self.head_dim])
 
     def interleave_kv(  # pylint: disable=too-many-arguments,too-many-locals
         self,
@@ -164,7 +164,7 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         d, _, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
         t, kv_s, c = total_seq_len, kv_seq_len, rolling_cache_len
         b, s, _, _ = k_cur.shape
-        cache_offset = (t - s) % self.sliding_window
+        cache_offset = (t - s) % self.sliding_window_size
 
         k_cached = op.reshape(self.k_cache.view(c), (b, c, h_kv, d))
         v_cached = op.reshape(self.v_cache.view(c), (b, c, h_kv, d))
@@ -195,8 +195,8 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
             args=[v_cur, v_cached, cache_offset, c],
         )
 
-        self.k_cache.override(op.squeeze(k_cur, axis=0), self.sliding_window)
-        self.v_cache.override(op.squeeze(v_cur, axis=0), self.sliding_window)
+        self.k_cache.override(op.squeeze(k_cur, axis=0), self.sliding_window_size)
+        self.v_cache.override(op.squeeze(v_cur, axis=0), self.sliding_window_size)
 
         return k, v
 
@@ -361,7 +361,7 @@ class MistralForCasualLM(nn.Module):
         self.model = MistralModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.vocab_size = config.vocab_size
-        self.sliding_window = config.sliding_window
+        self.sliding_window_size = config.sliding_window_size
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):
@@ -418,13 +418,15 @@ class MistralForCasualLM(nn.Module):
         """
 
         def _sliding_window_attention_mask(
-            batch_size, seq_len, rolling_cache_len, kv_seq_len, sliding_window
+            batch_size, seq_len, rolling_cache_len, kv_seq_len, sliding_window_size
         ):
             # See `tests/legacy-python/test_sliding_window_mask.py` for its behavior
             return te.compute(
                 (batch_size, 1, seq_len, kv_seq_len),
                 lambda b, _, i, j: tir.Select(
-                    tir.all(i + rolling_cache_len >= j, i + rolling_cache_len - j < sliding_window),
+                    tir.all(
+                        i + rolling_cache_len >= j, i + rolling_cache_len - j < sliding_window_size
+                    ),
                     tir.max_value(self.dtype),
                     tir.min_value(self.dtype),
                 ),
@@ -440,7 +442,7 @@ class MistralForCasualLM(nn.Module):
                 seq_len,
                 rolling_cache_len,
                 kv_seq_len,
-                self.sliding_window,
+                self.sliding_window_size,
             ],
         )
         return self.forward(inputs, total_seq_len, rolling_cache_len, kv_seq_len, attention_mask)

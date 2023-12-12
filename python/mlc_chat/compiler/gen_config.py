@@ -28,7 +28,7 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     model_config: Dict[str, Any]
     vocab_size: int
     context_window_size: int
-    sliding_window: int
+    sliding_window_size: int
     prefill_chunk_size: int
     tensor_parallel_shards: int
     # Control the behavior of the runtime
@@ -73,7 +73,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     quantization: Quantization,
     conv_template: str,
     context_window_size: Optional[int],
-    sliding_window: Optional[int],
+    sliding_window_size: Optional[int],
     prefill_chunk_size: Optional[int],
     tensor_parallel_shards: Optional[int],
     output: Path,
@@ -83,7 +83,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     model_config = model.config.from_file(config)
     ModelConfigOverride(
         context_window_size=context_window_size,
-        sliding_window=sliding_window,
+        sliding_window_size=sliding_window_size,
         prefill_chunk_size=prefill_chunk_size,
         tensor_parallel_shards=tensor_parallel_shards,
     ).apply(model_config)
@@ -93,7 +93,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         model_config=model_config.asdict(),
         vocab_size=model_config.vocab_size,
         context_window_size=model_config.context_window_size,
-        sliding_window=getattr(model_config, "sliding_window", -1),
+        sliding_window_size=getattr(model_config, "sliding_window_size", -1),
         prefill_chunk_size=model_config.prefill_chunk_size,
         tensor_parallel_shards=model_config.tensor_parallel_shards,
         conv_template=conv_template,
