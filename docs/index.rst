@@ -188,7 +188,6 @@ It is recommended to have at least 6GB free VRAM to run it.
 
    compilation/compile_models.rst
    compilation/distribute_compiled_models.rst
-   compilation/python.rst
    compilation/configure_quantization.rst
 
 .. toctree::

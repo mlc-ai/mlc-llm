@@ -23,13 +23,13 @@ Pre-defined model architectures include """
         + "."
     ).strip(),
     "quantization": """
-Quantization format.
+The quantization mode we use to compile. If unprovided, will infer from `model`.
 """.strip(),
     "model": """
-An MLC model directory that contains `mlc-chat-config.json`
+A path to ``mlc-chat-config.json``, or an MLC model directory that contains `mlc-chat-config.json`.
 """.strip(),
     "model_type": """
-Model architecture such as "llama". If not set, it is inferred from `config.json`.
+Model architecture such as "llama". If not set, it is inferred from `mlc-chat-config.json`.
 """.strip(),
     "device_compile": """
 The GPU device to compile the model to. If not set, it is inferred from GPUs available locally.
@@ -61,13 +61,13 @@ conflicts. Different from objcopy, this takes no effect for shared library.
 """.strip(),
     "context_window_size": """
 Option to provide the maximum sequence length supported by the model.
-This is usually explictly shown as context length or context window in the model card.
+This is usually explicitly shown as context length or context window in the model card.
 If this option is not set explicitly, by default, 
 it will be determined by `context_window_size` or `max_position_embeddings` in `config.json`,
 and the latter is usually inaccurate for some models.
 """.strip(),
     "output_compile": """
-The name of the output file. The suffix determines if the output file is a shared library or
+The path to the output file. The suffix determines if the output file is a shared library or
 objects. Available suffixes:
 1) Linux: .so (shared), .tar (objects);
 2) macOS: .dylib (shared), .tar (objects);
