@@ -81,6 +81,34 @@ def _get_shard_strategies(
         func = te.create_prim_func([a, w])
         return func
 
+    def moe_shard_k_weight_scale(weight: relax.TensorStructInfo):
+        (num_experts, red, spatial), dtype = weight.shape, weight.dtype
+        spatial, red = int(spatial), int(red)
+        if param_shape_is_already_sharded:
+            red *= num_shards
+        a = te.placeholder((num_experts, red, spatial), dtype=dtype)
+        w = topi.reshape(a, (num_experts, num_shards, red // num_shards, spatial))
+        w = topi.transpose(w, (1, 0, 2, 3))
+        func = te.create_prim_func([a, w])
+        return func
+
+    def moe_shard_gate_up_weight_scale(weight: relax.TensorStructInfo):
+        (num_experts, red, spatial), dtype = weight.shape, weight.dtype
+        spatial, red = int(spatial), int(red)
+        if param_shape_is_already_sharded:
+            spatial *= num_shards
+        a = te.placeholder((num_experts, red, spatial), dtype=dtype)
+        g = te.compute((num_experts, red, spatial // 2), lambda e, i, j: a[e, i, j])
+        u = te.compute((num_experts, red, spatial // 2), lambda e, i, j: a[e, i, spatial // 2 + j])
+        g = topi.reshape(g, (num_experts, red, num_shards, spatial // 2 // num_shards))
+        u = topi.reshape(u, (num_experts, red, num_shards, spatial // 2 // num_shards))
+        w = topi.concatenate((g, u), axis=3)
+        w = topi.reshape(w, (num_experts, red, num_shards, spatial // num_shards))
+        w = topi.transpose(w, (2, 0, 1, 3))
+        func = te.create_prim_func([a, w])
+        return func
+
+
     # pylint: enable=invalid-name
 
     return {
@@ -88,6 +116,8 @@ def _get_shard_strategies(
         "shard_mlp_k": shard_k_weight_scale,
         "shard_o_proj_k": shard_k_weight_scale,
         "shard_gate_up": shard_gate_up_weight_scale,
+        "moe_shard_mlp_k": moe_shard_k_weight_scale,
+        "moe_shard_gate_up": moe_shard_gate_up_weight_scale,
     }
 
 

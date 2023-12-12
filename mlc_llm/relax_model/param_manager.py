@@ -606,8 +606,8 @@ class ParamManager:
                     relax_pname,
                     [cached_torch_params[torch_pname] for torch_pname in torch_pnames],
                 )
-                for torch_pname in torch_pnames:
-                    del cached_torch_params[torch_pname]
+                # for torch_pname in torch_pnames:
+                    # del cached_torch_params[torch_pname]
 
             assert i in cached_relax_params
             assert i not in loaded_idx_set
@@ -901,6 +901,13 @@ def load_torch_pname2binname_map(
         # Single weight shard.
         torch_pname2binname = {
             torch_pname: single_shard_file_name
+            for relax_pname in relax_pnames
+            for torch_pname in f_convert_pname_fwd(relax_pname)
+        }
+    elif "mixtral" in model_path:
+        ckpt_path = os.path.join(model_path, "consolidated.00.pth")
+        torch_pname2binname = {
+            torch_pname: ckpt_path
             for relax_pname in relax_pnames
             for torch_pname in f_convert_pname_fwd(relax_pname)
         }

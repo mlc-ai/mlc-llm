@@ -25,6 +25,7 @@ supported_model_types = set(
         "gptj",
         "chatglm",
         "mistral",
+        "mixtral",
         "stablelm_epoch",
     ]
 )

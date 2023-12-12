@@ -674,6 +674,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"wizardlm_7b", WizardLM7B},
       {"wizard_coder_or_math", WizardCoderOrMATH},
       {"glm", GLM},
+      {"mixtral_default", MistralDefault}
   };
   auto it = factory.find(name);
   if (it == factory.end()) {

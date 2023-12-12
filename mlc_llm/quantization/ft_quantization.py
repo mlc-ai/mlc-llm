@@ -8,9 +8,10 @@ from tvm.script import tir as T
 from tvm.relax.expr_functor import visitor
 
 from . import tir_utils
-from .quantization import QuantizationSpec, QuantSpecUpdater
+from .quantization import QuantizationSpec, QuantSpecUpdater, NoQuantizationSpec
 from .quantization import FQuantize, convert_TE_func
 from .group_quantization import GroupQuantizationSpec
+
 
 
 @dataclass
@@ -203,7 +204,10 @@ class FTQuantizeUpdater(QuantSpecUpdater._cls):
 
         param = self.param_map[rhs.args[0]]
 
-        if call.struct_info.dtype == "float32" or rhs.struct_info.shape[-1] % 8 != 0:
+        if isinstance(rhs.struct_info.shape[-1], tvm.tir.IntImm) and int(rhs.struct_info.shape[-1]) <= 8:
+            # gate in MoE
+            param.quant_spec = NoQuantizationSpec("float16")
+        elif call.struct_info.dtype == "float32" or rhs.struct_info.shape[-1] % 8 != 0:
             # FT requires N to be a multiple of 8
             # FT does not support fp32 output dtype
             # TODO(masahi): If `matmul(..., out_dtype="float32")` is immediately followed

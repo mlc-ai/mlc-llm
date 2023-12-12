@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(mlc_llm C CXX)
+project(mlc_llm C CXX CUDA)
 
 include(CheckCXXCompilerFlag)
 if(NOT MSVC)

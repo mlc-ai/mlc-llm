@@ -14,7 +14,9 @@ from ..quantization import QuantizationScheme
 from .modules import ModuleList
 from .param_manager import ParamManager
 from .llama import (
+    get_scatter_func,
     LlamaConfig,
+    MixtralConfig,
     Linear,
     Embedding,
     LlamaRMSNorm,
@@ -613,7 +615,19 @@ def get_model(args, hf_config):
     # while Llama-1 variants use `max_sequence_length`.
     # Thus, use `max_sequence_length` if defined. Otherwise, use `max_position_embeddings`.
     # If none of them is defined, throw an error.
-    if "max_sequence_length" in hf_config:
+    if "mixtral" in args.model.lower():
+        # FIXME
+        config = MixtralConfig(
+            **hf_config,
+            dtype=dtype,
+            max_sequence_length=hf_config["max_position_embeddings"],
+            position_embedding_base=position_embedding_base,
+            combine_matmul=True,
+            num_shards=args.num_shards,
+            build_model_only=args.build_model_only,
+            quantization_scheme=args.quantization,
+        )
+    elif "max_sequence_length" in hf_config:
         config = LlamaConfig(
             **hf_config,
             dtype=dtype,
@@ -646,6 +660,8 @@ def get_model(args, hf_config):
 
     # The CPU device to copy the result of relax.op.max(seq_lens) to CPU.
     cpu_dev = VDevice("llvm", 0, "global")
+
+    bb.add_func(get_scatter_func(dtype), "scatter")
 
     create_evaluate_func(bb, param_manager, config, cpu_dev, args.quantization, sep_embed)
     create_encoding_func(bb, param_manager, config, cpu_dev, args.quantization, sep_embed)
