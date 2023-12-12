@@ -904,13 +904,6 @@ def load_torch_pname2binname_map(
             for relax_pname in relax_pnames
             for torch_pname in f_convert_pname_fwd(relax_pname)
         }
-    elif "mixtral" in model_path:
-        ckpt_path = os.path.join(model_path, "consolidated.00.pth")
-        torch_pname2binname = {
-            torch_pname: ckpt_path
-            for relax_pname in relax_pnames
-            for torch_pname in f_convert_pname_fwd(relax_pname)
-        }
     else:
         suffix = ".safetensors" if use_safetensors else ".bin"
         shard_names = []
