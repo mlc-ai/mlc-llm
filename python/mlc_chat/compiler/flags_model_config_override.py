@@ -48,6 +48,15 @@ class ModelConfigOverride:
                     self.sliding_window,
                 )
                 self.prefill_chunk_size = self.sliding_window
+        elif self.context_window_size is not None:
+            if self.prefill_chunk_size is None:
+                logger.info(
+                    "Default %s to %s (%d) because it is not provided",
+                    bold("prefill_chunk_size"),
+                    bold("context_window_size"),
+                    self.context_window_size,
+                )
+                self.prefill_chunk_size = self.context_window_size
 
     def apply(self, model_config):
         """Apply the overrides to the given model config."""
