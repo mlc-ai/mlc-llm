@@ -1,5 +1,7 @@
-Python API and Gradio Frontend
-==============================
+.. _deploy-python:
+
+Python API
+==========
 
 .. contents:: Table of Contents
    :local:

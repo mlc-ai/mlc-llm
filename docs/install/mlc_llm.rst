@@ -85,6 +85,13 @@ Select your operating system/compute platform and run the command in your termin
 
                 conda install -c conda-forge libgcc-ng
 
+            Besides, we would recommend using Python 3.11; so if you are creating a new environment,
+            you could use the following command:
+
+            .. code-block:: bash
+
+                conda create --name mlc-prebuilt  python=3.11
+
     .. tab:: macOS
 
         .. tabs::
@@ -131,6 +138,15 @@ Select your operating system/compute platform and run the command in your termin
                 conda install zstd
 
 
+Then you can verify installation in command line:
+
+.. code-block:: bash
+
+    python -c "import mlc_chat; print(mlc_chat)"
+    # Prints out: <module 'mlc_chat' from '/path-to-env/lib/python3.11/site-packages/mlc_chat/__init__.py'>
+
+|
+
 .. _mlcchat_build_from_source:
 
 Option 2. Build from Source
@@ -165,7 +181,8 @@ This step is useful when you want to make modification or obtain a specific vers
     conda activate mlc-chat-venv
 
 .. note::
-    :doc:`TVM Unity </install/tvm>` compiler is not a dependency on MLCChat CLI. Only its runtime is required, which is automatically included in `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`_.
+    For runtime, :doc:`TVM Unity </install/tvm>` compiler is not a dependency for MLCChat CLI or Python API. Only TVM's runtime is required, which is automatically included in `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`_.
+    However, if you would like to compile your own models, you need to follow :doc:`TVM Unity </install/tvm>`.
 
 **Step 2. Configure and build.** A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:
 

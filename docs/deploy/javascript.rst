@@ -1,3 +1,5 @@
+.. _webllm-runtime:
+
 WebLLM and Javascript API
 =========================
 
