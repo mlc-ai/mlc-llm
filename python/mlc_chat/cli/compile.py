@@ -20,7 +20,7 @@ from ..support.auto_config import (
     detect_model_type,
     detect_quantization,
 )
-from ..support.auto_target import detect_target_and_host, detect_system_lib_prefix
+from ..support.auto_target import detect_system_lib_prefix, detect_target_and_host
 
 
 def main(argv):
