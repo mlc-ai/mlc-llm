@@ -2,7 +2,7 @@
 Required interfaces for the actual inference capability in InferenceEngine.
 """
 from dataclasses import dataclass
-from typing import Optional, Protocol, Union
+from typing import Optional, Protocol, Union, List
 
 from .base import ChatMessage, RequestId, MLCServeEngineConfig, RequestState, SequenceId
 from ..model.base import ModelArtifactConfig
@@ -12,7 +12,7 @@ from .sampling_params import SamplingParams
 @dataclass
 class PrefillRequest:
     request_id: RequestId
-    token_ids: list[int]
+    token_ids: List[int]
     # Number of sequences to generate
     num_sequence: int
     sampling_params: SamplingParams
@@ -28,7 +28,7 @@ class PrefillRequest:
 class DecodeRequest:
     sequence_id: SequenceId
     # All tokens for this request, including prompt
-    token_ids: list[int]
+    token_ids: List[int]
     sampling_params: SamplingParams
 
 
@@ -41,7 +41,7 @@ class TextGenerationResult:
     sequence_id: SequenceId
     # for most cases, there should be only one token returned
     # making this a list of token ids to leave room for speculative decoding
-    generated_tokens: list[int]
+    generated_tokens: List[int]
     error: Optional[str]
 
 
@@ -116,9 +116,9 @@ class TextGenerator(Protocol):
 
     def generate(
         self,
-        requests: list[Union[PrefillRequest, DecodeRequest]],
+        requests: List[Union[PrefillRequest, DecodeRequest]],
         kv_cache: KVCache,
-    ) -> list[TextGenerationResult]:
+    ) -> List[TextGenerationResult]:
         """
         A unified entrypoint for text generation.
 
@@ -130,17 +130,25 @@ class TextGenerator(Protocol):
 
 class Tokenizer(Protocol):
     eos_token_id: int
+    skip_special_tokens: bool
+    all_special_ids: List[int]
+    is_fast: bool
 
-    def encode(self, text: str) -> list[int]:
-        pass
+    def encode(self, text: str) -> List[int]:
+        ...
 
-    # TODO: Incremental decoding
-    def decode(self, tokens: list[int]) -> str:
-        pass
+    def decode(self, tokens: List[int]) -> str:
+        ...
+
+    def convert_ids_to_tokens(self, token_ids: List[int]) -> List[str]:
+        ...
+
+    def convert_tokens_to_string(self, tokens: List[str]) -> str:
+        ...
 
 
 class ConversationTemplate(Protocol):
-    def apply(self, messages: list[ChatMessage]) -> str:
+    def apply(self, messages: List[ChatMessage]) -> str:
         pass
 
 
