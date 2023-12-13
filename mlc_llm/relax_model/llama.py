@@ -648,7 +648,7 @@ def _make_causal_mask(input_ids_shape, dtype, src_len):
 
 
 class LlamaEmbedTokens(nn.Module):
-    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var):
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.SizeVar):
         self.embed_tokens = Embedding(vocab_size_var, config.hidden_size, dtype=config.dtype)
 
     def forward(self, input_ids: relax.Expr):
@@ -657,7 +657,7 @@ class LlamaEmbedTokens(nn.Module):
 
 
 class LlamaEmbedTokensWrapper(nn.Module):
-    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var):
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.SizeVar):
         # build a wrapper to ensure that the naming of the embed_tokens parameter is consistent
         self.model = LlamaEmbedTokens(config, vocab_size_var)
 
@@ -670,7 +670,7 @@ class LlamaModelBase(nn.Module):
     def __init__(
         self,
         config: LlamaConfig,
-        vocab_size_var: tir.Var,
+        vocab_size_var: tir.SizeVar,
         sep_embed: bool = False,
         enable_batching: bool = False,
     ):
@@ -696,14 +696,14 @@ class LlamaModelBase(nn.Module):
 
 
 class LlamaModelForSingleSequence(LlamaModelBase):
-    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool = False):
         super().__init__(config, vocab_size_var, sep_embed, enable_batching=False)
 
     def _prepare_decoder_attention_mask(self, input_shape, src_len, dtype):
         # create causal mask
         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
         combined_attention_mask = None
-        if isinstance(input_shape[-1], tvm.tir.Var) or input_shape[-1] > 1:
+        if isinstance(input_shape[-1], tvm.tir.SizeVar) or input_shape[-1] > 1:
             combined_attention_mask = _make_causal_mask(input_shape, dtype, src_len)
         else:
             # Get src_len from input parameters
@@ -765,7 +765,7 @@ class LlamaModelForSingleSequence(LlamaModelBase):
 
 
 class LlamaModelForBatching(LlamaModelBase):
-    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool):
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool):
         assert sep_embed
         super().__init__(config, vocab_size_var, sep_embed=True, enable_batching=True)
 
@@ -803,7 +803,7 @@ class LlamaForCausalLM(nn.Module):
     def __init__(
         self,
         config: LlamaConfig,
-        vocab_size_var: tvm.tir.Var,
+        vocab_size_var: tvm.tir.SizeVar,
         sep_embed: bool = False,
         enable_batching: bool = False,
     ):
@@ -875,9 +875,9 @@ def create_embed_func(
 ) -> None:
     func_name = "embed"
 
-    seq_len = tvm.tir.Var("m", "int64")
+    seq_len = tvm.tir.SizeVar("m", "int64")
     with bb.function(func_name):
-        model = LlamaEmbedTokensWrapper(config, tvm.tir.Var("vocab_size", "int64"))
+        model = LlamaEmbedTokensWrapper(config, tvm.tir.SizeVar("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((1, seq_len), dtype="int32", name="input_ids")
@@ -902,12 +902,12 @@ def create_prefill_func_for_single_seq(
     func_name = "prefill_with_embed" if sep_embed else "prefill"
 
     bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")
-    all_seq_len = tvm.tir.Var("m", "int64")
+    seq_len = tvm.tir.SizeVar("n", "int64")
+    all_seq_len = tvm.tir.SizeVar("m", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = LlamaForCausalLM(
-            config, tvm.tir.Var("vocab_size", "int64"), sep_embed, enable_batching=False
+            config, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed, enable_batching=False
         )
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
@@ -948,12 +948,12 @@ def create_prefill_func_for_batching(
 ) -> None:
     func_name = "prefill_with_embed"
 
-    bsz = tir.Var("nseq", "int64")
-    total_seq_len = tvm.tir.Var("m", "int64")
+    bsz = tir.SizeVar("nseq", "int64")
+    total_seq_len = tvm.tir.SizeVar("m", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = LlamaForCausalLM(
-            config, tvm.tir.Var("vocab_size", "int64"), sep_embed=True, enable_batching=True
+            config, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed=True, enable_batching=True
         )
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
@@ -987,10 +987,10 @@ def create_decoding_func_for_single_seq(
     func_name = "decode"
 
     bsz = 1
-    all_seq_len = tvm.tir.Var("m", "int64")
+    all_seq_len = tvm.tir.SizeVar("m", "int64")
 
     with bb.function(func_name):
-        model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"))
+        model = LlamaForCausalLM(config, tvm.tir.SizeVar("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
@@ -1026,11 +1026,11 @@ def create_decoding_func_for_batching(
 ) -> None:
     func_name = "decode_with_embed"
 
-    bsz = tir.Var("nseq", "int64")
+    bsz = tir.SizeVar("nseq", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = LlamaForCausalLM(
-            config, tvm.tir.Var("vocab_size", "int64"), sep_embed=True, enable_batching=True
+            config, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed=True, enable_batching=True
         )
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
@@ -1081,9 +1081,9 @@ def create_paged_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> N
     head_dim = config.hidden_size // config.num_attention_heads
     num_key_value_heads = config.get_num_key_value_heads() // config.num_shards
 
-    page_size = tir.Var("page_size", "int64")
-    total_seq_len = tir.Var("total_seq_len", "int64")
-    reserved_nseq = tir.Var("reserved_nseq", "int64")
+    page_size = tir.SizeVar("page_size", "int64")
+    total_seq_len = tir.SizeVar("total_seq_len", "int64")
+    reserved_nseq = tir.SizeVar("reserved_nseq", "int64")
     cache_config = relax.Var(
         "cache_config",
         relax.ShapeStructInfo([reserved_nseq, total_seq_len, page_size]),
@@ -1113,7 +1113,7 @@ def create_paged_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> N
 def create_softmax_func_for_single_seq(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     with bb.function("softmax_with_temperature"):
         logits = nn.Placeholder(
-            (1, 1, tvm.tir.Var("vocab_size", "int64")), dtype="float32", name="logits"
+            (1, 1, tvm.tir.SizeVar("vocab_size", "int64")), dtype="float32", name="logits"
         )
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
@@ -1125,9 +1125,9 @@ def create_softmax_func_for_single_seq(bb: relax.BlockBuilder, config: LlamaConf
 
 def create_softmax_func_for_batching(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     with bb.function("softmax_with_temperature"):
-        bsz = tvm.tir.Var("nseq", "int64")
+        bsz = tvm.tir.SizeVar("nseq", "int64")
         logits = nn.Placeholder(
-            (bsz, 1, tvm.tir.Var("vocab_size", "int64")),
+            (bsz, 1, tvm.tir.SizeVar("vocab_size", "int64")),
             dtype="float32",
             name="logits",
         )
