@@ -655,7 +655,8 @@ def get_model(args, hf_config):
     if args.max_seq_len != -1:
         config.max_sequence_length = args.max_seq_len
 
-    param_manager = ParamManager()
+    keep_params_after_load = isinstance(config, MixtralConfig) and args.quantization.name == "q4f16_ft"
+    param_manager = ParamManager(keep_params_after_load)
     bb = relax.BlockBuilder()
 
     # The CPU device to copy the result of relax.op.max(seq_lens) to CPU.
