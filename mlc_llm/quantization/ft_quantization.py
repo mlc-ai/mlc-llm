@@ -30,6 +30,8 @@ class FTQuantizationSpec(QuantizationSpec):
                 self.sm = 80
             else:
                 self.sm = 10 * major + minor
+            if self.sm >= 90:
+                self.sm = 80
         else:
             self.sm = None
 
