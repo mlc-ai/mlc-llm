@@ -247,6 +247,34 @@ def _register_cuda_hook(target: Target):
         return ptx
 
 
+def detect_system_lib_prefix(
+    target_hint: str, prefix_hint: str, model_name: str, quantization: str
+) -> str:
+    """Detect the iOS / Android system lib prefix to identify the library needed to load the app.
+
+    Parameters
+    ----------
+    target_hint : str
+        The hint for the target device.
+
+    prefix_hint : str
+        The hint for the system lib prefix.
+    """
+    if prefix_hint == "auto" and target_hint in ["iphone", "android"]:
+        prefix = f"{model_name}_{quantization}_".replace("-", "_")
+        logger.warning(
+            "%s is automatically picked from the filename, %s, this allows us to use the filename "
+            "as the model_lib in android/iOS builds. Please avoid renaming the .tar file when "
+            "uploading the prebuilt.",
+            bold("--system-lib-prefix"),
+            bold(prefix),
+        )
+        return prefix
+    if not target_hint in ["iphone", "android"]:
+        return ""
+    return prefix_hint
+
+
 PRESET = {
     "iphone:generic": {
         "target": {
