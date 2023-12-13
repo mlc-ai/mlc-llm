@@ -203,7 +203,7 @@ class ParamManager:
     pidx2pname: Dict[int, str]
     torch_pname2binname: Dict[str, str]
 
-    def __init__(self) -> None:
+    def __init__(self, keep_params_after_load=False) -> None:
         self.params = {}
         self.param_names = []
         self.params_in_func = {}
@@ -218,6 +218,9 @@ class ParamManager:
         self.f_run_prequantize = None
 
         self.qspec_updater_classes = []
+
+        # this is a workaround only needed for mixtral q4f16_ft
+        self.keep_params_after_load = keep_params_after_load
 
     def register_params(
         self,
@@ -606,8 +609,9 @@ class ParamManager:
                     relax_pname,
                     [cached_torch_params[torch_pname] for torch_pname in torch_pnames],
                 )
-                # for torch_pname in torch_pnames:
-                    # del cached_torch_params[torch_pname]
+                if not self.keep_params_after_load:
+                    for torch_pname in torch_pnames:
+                        del cached_torch_params[torch_pname]
 
             assert i in cached_relax_params
             assert i not in loaded_idx_set
