@@ -27,67 +27,18 @@ After installation, activating ``mlc-chat-venv`` environment in Conda will give 
 .. note::
     The prebuilt package supports **Metal** on macOS and **Vulkan** on Linux and Windows. It is possible to use other GPU runtimes such as **CUDA** by compiling MLCChat CLI from the source.
 
-.. _mlcchat_build_from_source:
 
 Option 2. Build MLC Runtime from Source
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 We also provide options to build mlc runtime libraries and ``mlc_chat_cli`` from source.
-This step is useful when you want to directly obtain a version of mlc runtime library
-and the cli. Please click the details below to see the instructions.
+This step is useful if the prebuilt is unavailable on your platform, or if you would like to build a runtime
+that supports other GPU runtime than the prebuilt version. We can build a customized version
+of mlc chat runtime. You only need to do this if you choose not to use the prebuilt.
 
-.. collapse:: Details
-
-    **Step 1. Set up build dependency.** To build from source, you need to ensure that the following build dependencies are satisfied:
-
-    * CMake >= 3.24
-    * Git
-    * `Rust and Cargo <https://www.rust-lang.org/tools/install>`_, required by Hugging Face's tokenizer
-    * One of the GPU runtimes:
-
-      * CUDA >= 11.8 (NVIDIA GPUs)
-      * Metal (Apple GPUs)
-      * Vulkan (NVIDIA, AMD, Intel GPUs)
-
-    .. code-block:: bash
-        :caption: Set up build dependencies in Conda
-
-        # make sure to start with a fresh environment
-        conda env remove -n mlc-chat-venv
-        # create the conda environment with build dependency
-        conda create -n mlc-chat-venv -c conda-forge \
-            "cmake>=3.24" \
-            rust \
-            git
-        # enter the build environment
-        conda activate mlc-chat-venv
-
-    .. note::
-        :doc:`TVM Unity </install/tvm>` compiler is not a dependency on MLCChat CLI. Only its runtime is required, which is automatically included in `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`_.
-
-    **Step 2. Configure and build.** A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:
-
-    .. code-block:: bash
-        :caption: Configure and build
-
-        # clone from GitHub
-        git clone --recursive https://github.com/mlc-ai/mlc-llm.git && cd mlc-llm/
-        # create build directory
-        mkdir -p build && cd build
-        # generate build configuration
-        python3 ../cmake/gen_cmake_config.py
-        # build `mlc_chat_cli`
-        cmake .. && cmake --build . --parallel $(nproc) && cd ..
-
-    **Step 3. Validate installation.** You may validate if MLCChat CLI is compiled successfully using the following command:
-
-    .. code-block:: bash
-        :caption: Validate installation
-
-        # expected to see `mlc_chat_cli`, `libmlc_llm.so` and `libtvm_runtime.so`
-        ls -l ./build/
-        # expected to see help message
-        ./build/mlc_chat_cli --help
+First, make sure you install TVM unity (following the instruction in :ref:`install-tvm-unity`).
+You can choose to only pip install `mlc-ai-nightly` that comes with the tvm unity but skip `mlc-chat-nightly`.
+Then please follow the instructions in :ref:`mlcchat_build_from_source` to build the necessary libraries.
 
 .. `|` adds a blank line
 

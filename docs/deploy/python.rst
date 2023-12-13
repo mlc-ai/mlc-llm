@@ -1,5 +1,7 @@
-Python API and Gradio Frontend
-==============================
+.. _deploy-python:
+
+Python API
+==========
 
 .. contents:: Table of Contents
    :local:
@@ -23,7 +25,7 @@ Verify Installation
 You are expected to see the information about the :class:`mlc_chat.ChatModule` class.
 
 If the prebuilt is unavailable on your platform, or you would like to build a runtime
-that supports other GPU runtime than the prebuilt version. Please refer our :ref:`Build MLC-Chat Package From Source<mlcchat_package_build_from_source>` tutorial.
+that supports other GPU runtime than the prebuilt version, please refer to :ref:`mlcchat_build_from_source`.
 
 Get Started
 ^^^^^^^^^^^
@@ -364,8 +366,8 @@ The :class:`mlc_chat.ChatModule` class provides the following methods:
 .. autoclass:: GenerationConfig
    :members:
 
-Gradio Frontend
----------------
+Gradio Frontend (Deprecated)
+----------------------------
 
 The gradio frontend provides a web interface for the MLC-Chat model, which allows users to interact with the model in a more user-friendly way and switch between different models to compare performance.
 To use gradio frontend, you need to install gradio first:

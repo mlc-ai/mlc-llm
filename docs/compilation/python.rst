@@ -1,5 +1,5 @@
-Python API for Model Compilation
-================================
+(DEPRECATED) Python API for Model Compilation
+=============================================
 
 .. contents:: Table of Contents
    :local:

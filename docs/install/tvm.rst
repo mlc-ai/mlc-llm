@@ -246,8 +246,10 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
 
 |
 
-Validate Installation
----------------------
+.. _tvm-unity-validate:
+
+Validate TVM Installation
+-------------------------
 
 Using a compiler infrastructure with multiple language bindings could be error-prone.
 Therefore, it is highly recommended to validate TVM Unity installation before use.

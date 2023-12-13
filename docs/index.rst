@@ -188,15 +188,8 @@ It is recommended to have at least 6GB free VRAM to run it.
 
    compilation/compile_models.rst
    compilation/distribute_compiled_models.rst
-   compilation/python.rst
    compilation/configure_quantization.rst
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Define Model Architectures
-   :hidden:
-
-   tutorials/customize/define_new_models.rst
+   compilation/define_new_models.rst
 
 .. toctree::
    :maxdepth: 1
