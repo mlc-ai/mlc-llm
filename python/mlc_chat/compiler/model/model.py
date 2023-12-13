@@ -295,7 +295,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "transformers_version": "4.34.0.dev0",
         "use_cache": True,
         "vocab_size": 32000,
-        "sliding_window": 4096,
+        "sliding_window_size": 4096,
         "prefill_chunk_size": 128,
     },
     "gpt2": {
