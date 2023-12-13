@@ -9,7 +9,7 @@ The default quantization algorithm used in MLC-LLM is grouping quantization meth
 .. _quantization_mode:
 
 Quantization Mode
---------------------
+-----------------
 
 In MLC-LLM we use a short code that indicates the quantization mode to use.    
 
