@@ -40,7 +40,10 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata) {
   result.quantization = json::Lookup<std::string>(metadata, "quantization");
   result.context_window_size = json::Lookup<int64_t>(metadata, "context_window_size");
   result.prefill_chunk_size = json::Lookup<int64_t>(metadata, "prefill_chunk_size");
-  result.sliding_window = json::Lookup<int64_t>(metadata, "sliding_window");
+  if (metadata.count("sliding_window_size"))
+    result.sliding_window_size = json::Lookup<int64_t>(metadata, "sliding_window_size");
+  if (metadata.count("sliding_window"))  // to be removed after SLM migration
+    result.sliding_window_size = json::Lookup<int64_t>(metadata, "sliding_window");
   result.tensor_parallel_shards = json::Lookup<int64_t>(metadata, "tensor_parallel_shards");
   {
     std::vector<ModelMetadata::Param>& params = result.params;
