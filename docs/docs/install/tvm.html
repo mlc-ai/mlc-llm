@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy/javascript.html">WebLLM and Javascript API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">Rest API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI and C++ API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/python.html">Python API and Gradio Frontend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/python.html">Python API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS App and Swift API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
 </ul>
@@ -183,12 +183,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Models via MLC</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/python.html">Python API for Model Compilation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/customize/define_new_models.html">Define New Model Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">🚧 Define New Model Architectures</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
 <ul>
@@ -199,7 +195,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Install TVM Unity Compiler</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#option-1-prebuilt-package">Option 1. Prebuilt Package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#option-2-build-from-source">Option 2. Build from Source</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#validate-installation">Validate Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#validate-tvm-installation">Validate TVM Installation</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="mlc_llm.html">Install MLC LLM Python Package</a></li>
@@ -303,7 +299,7 @@
 <ul class="simple">
 <li><p><a class="reference internal" href="#option-1-prebuilt-package" id="id5">Option 1. Prebuilt Package</a></p></li>
 <li><p><a class="reference internal" href="#option-2-build-from-source" id="id6">Option 2. Build from Source</a></p></li>
-<li><p><a class="reference internal" href="#validate-installation" id="id7">Validate Installation</a></p></li>
+<li><p><a class="reference internal" href="#validate-tvm-installation" id="id7">Validate TVM Installation</a></p></li>
 </ul>
 </nav>
 <p><a class="reference external" href="https://discuss.tvm.apache.org/t/establish-tvm-unity-connection-a-technical-strategy/13344">TVM Unity</a>, the latest development in Apache TVM, is required to build MLC LLM. Its features include:</p>
@@ -499,8 +495,8 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 <div class="line"><br /></div>
 </div>
 </section>
-<section id="validate-installation">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Validate Installation</a><a class="headerlink" href="#validate-installation" title="Permalink to this heading">¶</a></h2>
+<section id="validate-tvm-installation">
+<span id="tvm-unity-validate"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Validate TVM Installation</a><a class="headerlink" href="#validate-tvm-installation" title="Permalink to this heading">¶</a></h2>
 <p>Using a compiler infrastructure with multiple language bindings could be error-prone.
 Therefore, it is highly recommended to validate TVM Unity installation before use.</p>
 <p><strong>Step 1. Locate TVM Python package.</strong> The following command can help confirm that TVM is properly installed as a python package and provide the location of the TVM python package:</p>

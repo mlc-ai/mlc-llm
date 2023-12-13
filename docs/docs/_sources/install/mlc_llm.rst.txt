@@ -85,6 +85,13 @@ Select your operating system/compute platform and run the command in your termin
 
                 conda install -c conda-forge libgcc-ng
 
+            Besides, we would recommend using Python 3.11; so if you are creating a new environment,
+            you could use the following command:
+
+            .. code-block:: bash
+
+                conda create --name mlc-prebuilt  python=3.11
+
     .. tab:: macOS
 
         .. tabs::
@@ -131,7 +138,95 @@ Select your operating system/compute platform and run the command in your termin
                 conda install zstd
 
 
+Then you can verify installation in command line:
+
+.. code-block:: bash
+
+    python -c "import mlc_chat; print(mlc_chat)"
+    # Prints out: <module 'mlc_chat' from '/path-to-env/lib/python3.11/site-packages/mlc_chat/__init__.py'>
+
+|
+
+.. _mlcchat_build_from_source:
+
 Option 2. Build from Source
 ---------------------------
 
-Upcoming.
+We also provide options to build mlc runtime libraries ``mlc_chat`` (Python) and ``mlc_chat_cli`` (CLI) from source.
+This step is useful when you want to make modification or obtain a specific version of mlc runtime.
+
+
+**Step 1. Set up build dependency.** To build from source, you need to ensure that the following build dependencies are satisfied:
+
+* CMake >= 3.24
+* Git
+* `Rust and Cargo <https://www.rust-lang.org/tools/install>`_, required by Hugging Face's tokenizer
+* One of the GPU runtimes:
+
+    * CUDA >= 11.8 (NVIDIA GPUs)
+    * Metal (Apple GPUs)
+    * Vulkan (NVIDIA, AMD, Intel GPUs)
+
+.. code-block:: bash
+    :caption: Set up build dependencies in Conda
+
+    # make sure to start with a fresh environment
+    conda env remove -n mlc-chat-venv
+    # create the conda environment with build dependency
+    conda create -n mlc-chat-venv -c conda-forge \
+        "cmake>=3.24" \
+        rust \
+        git
+    # enter the build environment
+    conda activate mlc-chat-venv
+
+.. note::
+    For runtime, :doc:`TVM Unity </install/tvm>` compiler is not a dependency for MLCChat CLI or Python API. Only TVM's runtime is required, which is automatically included in `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`_.
+    However, if you would like to compile your own models, you need to follow :doc:`TVM Unity </install/tvm>`.
+
+**Step 2. Configure and build.** A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:
+
+.. code-block:: bash
+    :caption: Configure and build
+
+    # clone from GitHub
+    git clone --recursive https://github.com/mlc-ai/mlc-llm.git && cd mlc-llm/
+    # create build directory
+    mkdir -p build && cd build
+    # generate build configuration
+    python3 ../cmake/gen_cmake_config.py
+    # build `mlc_chat_cli`
+    cmake .. && cmake --build . --parallel $(nproc) && cd ..
+
+**Step 3. Validate installation.** You may validate if MLCChat CLI is compiled successfully using the following command:
+
+.. code-block:: bash
+    :caption: Validate installation
+
+    # expected to see `mlc_chat_cli`, `libmlc_llm.so` and `libtvm_runtime.so`
+    ls -l ./build/
+    # expected to see help message
+    ./build/mlc_chat_cli --help
+
+**Step 4. Install via Python.** Besides the command line interface ``mlc_chat_cli``, you can also install ``mlc_chat`` as a Python package,
+giving you access to both ``mlc_chat.compile`` and ``mlc_chat.ChatModule``.
+There are two ways to do so:
+
+    .. tabs ::
+
+       .. code-tab :: bash Install via environment variable
+
+          export PYTHONPATH=/path-to-mlc-llm/python:$PYTHONPATH
+
+       .. code-tab :: bash Install via pip local project
+
+          conda activate your-own-env
+          conda install python # make sure python is installed
+          cd /path-to-mlc-llm/python
+          pip install -e .
+
+Finally, you can verify installation in command line. You should see the path you used to build from source with:
+
+.. code:: bash
+
+   python -c "import mlc_chat; print(mlc_chat)"

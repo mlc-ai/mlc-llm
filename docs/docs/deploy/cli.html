@@ -47,7 +47,7 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Python API and Gradio Frontend" href="python.html" />
+    <link rel="next" title="Python API" href="python.html" />
     <link rel="prev" title="Rest API" href="rest.html" /> 
 </head>
 
@@ -186,7 +186,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="python.html">Python API and Gradio Frontend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python.html">Python API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ios.html">iOS App and Swift API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="android.html">Android App</a></li>
 </ul>
@@ -194,12 +194,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Models via MLC</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/python.html">Python API for Model Compilation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/customize/define_new_models.html">Define New Model Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">🚧 Define New Model Architectures</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
 <ul>
@@ -308,23 +304,23 @@
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#option-1-conda-prebuilt" id="id4">Option 1. Conda Prebuilt</a></p></li>
-<li><p><a class="reference internal" href="#option-2-build-mlc-runtime-from-source" id="id5">Option 2. Build MLC Runtime from Source</a></p>
+<li><p><a class="reference internal" href="#option-1-conda-prebuilt" id="id1">Option 1. Conda Prebuilt</a></p></li>
+<li><p><a class="reference internal" href="#option-2-build-mlc-runtime-from-source" id="id2">Option 2. Build MLC Runtime from Source</a></p>
 <ul>
-<li><p><a class="reference internal" href="#run-models-through-mlcchat-cli" id="id6">Run Models through MLCChat CLI</a></p></li>
+<li><p><a class="reference internal" href="#run-models-through-mlcchat-cli" id="id3">Run Models through MLCChat CLI</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#advanced-build-apps-with-c-api" id="id7">Advanced: Build Apps with C++ API</a></p>
+<li><p><a class="reference internal" href="#advanced-build-apps-with-c-api" id="id4">Advanced: Build Apps with C++ API</a></p>
 <ul>
-<li><p><a class="reference internal" href="#using-mlcchat-apis-in-your-own-programs" id="id8">Using MLCChat APIs in Your Own Programs</a></p></li>
+<li><p><a class="reference internal" href="#using-mlcchat-apis-in-your-own-programs" id="id5">Using MLCChat APIs in Your Own Programs</a></p></li>
 </ul>
 </li>
 </ul>
 </nav>
 <section id="option-1-conda-prebuilt">
-<h2><a class="toc-backref" href="#id4" role="doc-backlink">Option 1. Conda Prebuilt</a><a class="headerlink" href="#option-1-conda-prebuilt" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Option 1. Conda Prebuilt</a><a class="headerlink" href="#option-1-conda-prebuilt" title="Permalink to this heading">¶</a></h2>
 <p>The prebuilt package supports Metal on macOS and Vulkan on Linux and Windows, and can be installed via Conda one-liner.</p>
-<p>To use other GPU runtimes, e.g. CUDA, please instead <a class="reference internal" href="#mlcchat-build-from-source"><span class="std std-ref">build it from source</span></a>.</p>
+<p>To use other GPU runtimes, e.g. CUDA, please instead <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">build it from source</span></a>.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-cli-nightly
 conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 mlc_chat_cli<span class="w"> </span>--help
@@ -337,71 +333,19 @@ mlc_chat_cli<span class="w"> </span>--help
 </div>
 </section>
 <section id="option-2-build-mlc-runtime-from-source">
-<span id="mlcchat-build-from-source"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Option 2. Build MLC Runtime from Source</a><a class="headerlink" href="#option-2-build-mlc-runtime-from-source" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Option 2. Build MLC Runtime from Source</a><a class="headerlink" href="#option-2-build-mlc-runtime-from-source" title="Permalink to this heading">¶</a></h2>
 <p>We also provide options to build mlc runtime libraries and <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> from source.
-This step is useful when you want to directly obtain a version of mlc runtime library
-and the cli. Please click the details below to see the instructions.</p>
-<details class="summary-details">
-<summary>Details</summary><p><strong>Step 1. Set up build dependency.</strong> To build from source, you need to ensure that the following build dependencies are satisfied:</p>
-<ul class="simple">
-<li><p>CMake &gt;= 3.24</p></li>
-<li><p>Git</p></li>
-<li><p><a class="reference external" href="https://www.rust-lang.org/tools/install">Rust and Cargo</a>, required by Hugging Face’s tokenizer</p></li>
-<li><p>One of the GPU runtimes:</p>
-<ul>
-<li><p>CUDA &gt;= 11.8 (NVIDIA GPUs)</p></li>
-<li><p>Metal (Apple GPUs)</p></li>
-<li><p>Vulkan (NVIDIA, AMD, Intel GPUs)</p></li>
-</ul>
-</li>
-</ul>
-<div class="literal-block-wrapper docutils container" id="id1">
-<div class="code-block-caption"><span class="caption-text">Set up build dependencies in Conda</span><a class="headerlink" href="#id1" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># make sure to start with a fresh environment</span>
-conda<span class="w"> </span>env<span class="w"> </span>remove<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv
-<span class="c1"># create the conda environment with build dependency</span>
-conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="s2">&quot;cmake&gt;=3.24&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>rust<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>git
-<span class="c1"># enter the build environment</span>
-conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
-</pre></div>
-</div>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p><a class="reference internal" href="../install/tvm.html"><span class="doc">TVM Unity</span></a> compiler is not a dependency on MLCChat CLI. Only its runtime is required, which is automatically included in <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a>.</p>
-</div>
-<p><strong>Step 2. Configure and build.</strong> A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:</p>
-<div class="literal-block-wrapper docutils container" id="id2">
-<div class="code-block-caption"><span class="caption-text">Configure and build</span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># clone from GitHub</span>
-git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/mlc-ai/mlc-llm.git<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>mlc-llm/
-<span class="c1"># create build directory</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>build
-<span class="c1"># generate build configuration</span>
-python3<span class="w"> </span>../cmake/gen_cmake_config.py
-<span class="c1"># build `mlc_chat_cli`</span>
-cmake<span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cmake<span class="w"> </span>--build<span class="w"> </span>.<span class="w"> </span>--parallel<span class="w"> </span><span class="k">$(</span>nproc<span class="k">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
-</pre></div>
-</div>
-</div>
-<p><strong>Step 3. Validate installation.</strong> You may validate if MLCChat CLI is compiled successfully using the following command:</p>
-<div class="literal-block-wrapper docutils container" id="id3">
-<div class="code-block-caption"><span class="caption-text">Validate installation</span><a class="headerlink" href="#id3" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># expected to see `mlc_chat_cli`, `libmlc_llm.so` and `libtvm_runtime.so`</span>
-ls<span class="w"> </span>-l<span class="w"> </span>./build/
-<span class="c1"># expected to see help message</span>
-./build/mlc_chat_cli<span class="w"> </span>--help
-</pre></div>
-</div>
-</div>
-</details><div class="line-block">
+This step is useful if the prebuilt is unavailable on your platform, or if you would like to build a runtime
+that supports other GPU runtime than the prebuilt version. We can build a customized version
+of mlc chat runtime. You only need to do this if you choose not to use the prebuilt.</p>
+<p>First, make sure you install TVM unity (following the instruction in <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a>).
+You can choose to only pip install <cite>mlc-ai-nightly</cite> that comes with the tvm unity but skip <cite>mlc-chat-nightly</cite>.
+Then please follow the instructions in <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a> to build the necessary libraries.</p>
+<div class="line-block">
 <div class="line"><br /></div>
 </div>
 <section id="run-models-through-mlcchat-cli">
-<h3><a class="toc-backref" href="#id6" role="doc-backlink">Run Models through MLCChat CLI</a><a class="headerlink" href="#run-models-through-mlcchat-cli" title="Permalink to this heading">¶</a></h3>
+<h3><a class="toc-backref" href="#id3" role="doc-backlink">Run Models through MLCChat CLI</a><a class="headerlink" href="#run-models-through-mlcchat-cli" title="Permalink to this heading">¶</a></h3>
 <p>Once <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> is installed, you are able to run any MLC-compiled model on the command line.</p>
 <p><strong>Ensure Model Exists.</strong> As the input to <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, it is always good to double check if the compiled model exists.</p>
 <details class="summary-details">
@@ -475,9 +419,9 @@ Use<span class="w"> </span>model<span class="w"> </span>library:<span class="w">
 </section>
 </section>
 <section id="advanced-build-apps-with-c-api">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Advanced: Build Apps with C++ API</a><a class="headerlink" href="#advanced-build-apps-with-c-api" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Advanced: Build Apps with C++ API</a><a class="headerlink" href="#advanced-build-apps-with-c-api" title="Permalink to this heading">¶</a></h2>
 <p>MLC-compiled models can be integrated into <strong>any C++ project</strong> using TVM’s C/C++ API without going through the command line.</p>
-<p><strong>Step 1. Create libmlc_llm.</strong> Both static and shared libraries are available via the <a class="reference internal" href="#mlcchat-build-from-source"><span class="std std-ref">CMake instructions</span></a>, and the downstream developer may include either one into the C++ project according to needs.</p>
+<p><strong>Step 1. Create libmlc_llm.</strong> Both static and shared libraries are available via the <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">CMake instructions</span></a>, and the downstream developer may include either one into the C++ project according to needs.</p>
 <p><strong>Step 2. Calling into the model in your C++ Project.</strong> Use <code class="docutils literal notranslate"><span class="pre">tvm::runtime::Module</span></code> API from TVM runtime to interact with MLC LLM without MLCChat.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -489,7 +433,7 @@ Use<span class="w"> </span>model<span class="w"> </span>library:<span class="w">
 etc.</p>
 </div>
 <section id="using-mlcchat-apis-in-your-own-programs">
-<h3><a class="toc-backref" href="#id8" role="doc-backlink">Using MLCChat APIs in Your Own Programs</a><a class="headerlink" href="#using-mlcchat-apis-in-your-own-programs" title="Permalink to this heading">¶</a></h3>
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">Using MLCChat APIs in Your Own Programs</a><a class="headerlink" href="#using-mlcchat-apis-in-your-own-programs" title="Permalink to this heading">¶</a></h3>
 <p>Below is a minimal example of using MLCChat C++ APIs.</p>
 <div class="highlight-c++ notranslate"><div class="highlight"><pre><span></span><span class="cp">#define TVM_USE_LIBBACKTRACE 0</span>
 <span class="cp">#define DMLC_USE_LOGGING_LIBRARY &lt;tvm/runtime/logging.h&gt;</span>
@@ -552,7 +496,7 @@ etc.</p>
 <li><p>Header-only DMLC core: <code class="docutils literal notranslate"><span class="pre">${TVM_HOME}/3rdparty/dmlc-core/include</span></code>.</p></li>
 </ul>
 </li>
-<li><p>Make sure to link either the static or the shared <code class="docutils literal notranslate"><span class="pre">libtvm_runtime</span></code> library, which is provided via <a class="reference internal" href="#mlcchat-build-from-source"><span class="std std-ref">CMake</span></a>.</p></li>
+<li><p>Make sure to link either the static or the shared <code class="docutils literal notranslate"><span class="pre">libtvm_runtime</span></code> library, which is provided via <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">CMake</span></a>.</p></li>
 </ul>
 </section>
 </section>
@@ -568,7 +512,7 @@ etc.</p>
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="python.html" class="btn btn-neutral float-right" title="Python API and Gradio Frontend" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="python.html" class="btn btn-neutral float-right" title="Python API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="rest.html" class="btn btn-neutral float-left" title="Rest API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

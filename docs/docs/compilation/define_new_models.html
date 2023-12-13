@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Project Overview &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>🚧 Define New Model Architectures &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -46,8 +46,8 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Configure MLCChat in JSON" href="mlc_chat_config.html" />
-    <link rel="prev" title="👋 Welcome to MLC LLM" href="../index.html" /> 
+    <link rel="next" title="Model Prebuilts" href="../prebuilt_models.html" />
+    <link rel="prev" title="🚧 Configure Quantization" href="configure_quantization.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -165,15 +165,9 @@
             
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Project Overview</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#terminologies">Terminologies</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#model-preparation">Model Preparation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#runtime-flow-overview">Runtime Flow Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#what-to-do-next">What to Do Next</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="mlc_chat_config.html">Configure MLCChat in JSON</a></li>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/project_overview.html">Project Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
 <ul>
@@ -185,11 +179,11 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Models via MLC</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">🚧 Define New Model Architectures</a></li>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Models via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distribute_compiled_models.html">Distribute Compiled Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configure_quantization.html">🚧 Configure Quantization</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">🚧 Define New Model Architectures</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
 <ul>
@@ -267,7 +261,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Project Overview</li>
+      <li>🚧 Define New Model Architectures</li>
     
     
       
@@ -278,7 +272,7 @@
         
             
             
-              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/get_started/project_overview.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/compilation/define_new_models.rst" class="fa fa-github"> Edit on GitHub</a>
             
           
         
@@ -292,79 +286,24 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="project-overview">
-<span id="id1"></span><h1>Project Overview<a class="headerlink" href="#project-overview" title="Permalink to this heading">¶</a></h1>
-<p>This page introduces high-level project concepts to help us use and customize MLC LLM.
-The MLC-LLM project consists of three distinct submodules: model definition, model compilation, and runtimes.</p>
-<figure class="align-center" id="id3">
-<a class="reference internal image-reference" href="../_images/project-structure.svg"><img alt="Project Structure" src="../_images/project-structure.svg" width="600" /></a>
-<figcaption>
-<p><span class="caption-text">Three independent submodules in MLC LLM</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
-</figcaption>
-</figure>
-<p><strong>➀ Model definition in Python.</strong> MLC offers a variety of pre-defined architectures, such as Llama (e.g., Llama2, Vicuna, OpenLlama, Wizard), GPT-NeoX (e.g., RedPajama, Dolly), RNNs (e.g., RWKV), and GPT-J (e.g., MOSS). Model developers could solely define the model in pure Python, without having to touch code generation and runtime.</p>
-<p><strong>➁ Model compilation in Python.</strong> Models are compiled by <a class="reference internal" href="../install/tvm.html"><span class="doc">TVM Unity</span></a> compiler, where the compilation is configured in pure Python. MLC LLM quantizes and exports the Python-based model to a model library and quantized model weights. Quantization and optimization algorithms can be developed in pure Python to compress and accelerate LLMs for specific usecases.</p>
-<p><strong>➂ Platform-native runtimes.</strong> Variants of MLCChat are provided on each platform: <strong>C++</strong> for command line, <strong>Javascript</strong> for web, <strong>Swift</strong> for iOS, and <strong>Java</strong> for Android, configurable with a JSON chat config. App developers only need to familiarize with the platform-naive runtimes to integrate MLC-compiled LLMs into their projects.</p>
-<section id="terminologies">
-<span id="id2"></span><h2>Terminologies<a class="headerlink" href="#terminologies" title="Permalink to this heading">¶</a></h2>
-<p>It is helpful for us to familiarize the basic terminologies used in the MLC chat applications.</p>
-<ul class="simple">
-<li><p><strong>model weights</strong>: The model weight is a folder that contains the quantized neural network weights
-of the language models as well as the tokenizer configurations.</p></li>
-<li><p><strong>model lib</strong>: The model library refers to the executable libraries that enable
-the execution of a specific model architecture.   On Linux, these libraries have the suffix
-<code class="docutils literal notranslate"><span class="pre">.so</span></code>, on macOS, the suffix is <code class="docutils literal notranslate"><span class="pre">.dylib</span></code>, and on Windows, the library file ends with <code class="docutils literal notranslate"><span class="pre">.dll</span></code>.
-On web browser, the library suffix is <code class="docutils literal notranslate"><span class="pre">.wasm</span></code></p></li>
-<li><p><strong>chat config</strong>: The chat configuration includes settings that allow customization of parameters such as temperature and system prompt.
-The default chat config usually resides in the same directory as model weights.
-A chat config also contains the following two meta-data fields that are used in multi-model support settings.</p>
-<ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">local_id</span></code>, which uniquely identifies the model within an app, and</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">model_lib</span></code>, which specifies which model library to use.</p></li>
-</ul>
-</li>
-</ul>
-</section>
-<section id="model-preparation">
-<h2>Model Preparation<a class="headerlink" href="#model-preparation" title="Permalink to this heading">¶</a></h2>
-<p>There are several ways to prepare the model weights and model lib.</p>
-<ul class="simple">
-<li><p><a class="reference internal" href="../prebuilt_models.html#model-prebuilts"><span class="std std-ref">Model Prebuilts</span></a> contains models that can be directly used.</p></li>
-<li><p>You can also <a class="reference internal" href="../compilation/compile_models.html"><span class="doc">run model compilation</span></a> for model weight variants for given supported architectures.</p></li>
-<li><p>Finally, we can enhance the overall model definition flow to incorporate new model architectures.</p></li>
-</ul>
-<p>A default chat config usually comes with the model weight directory. You can further customize
-the system prompt, temperature, and other options by modifying the JSON file.
-MLC chat runtimes also provide API to override these options during model reload.
-Please refer to <a class="reference internal" href="mlc_chat_config.html"><span class="doc">Configure MLCChat in JSON</span></a> for more details.</p>
-</section>
-<section id="runtime-flow-overview">
-<h2>Runtime Flow Overview<a class="headerlink" href="#runtime-flow-overview" title="Permalink to this heading">¶</a></h2>
-<p>Once the model weights, model library, and chat configuration are prepared, an MLC chat runtime can consume them as an engine to drive a chat application.
-The diagram below shows a typical workflow for a MLC chat application.</p>
-<a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg" class="align-center" src="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg" width="90%" /></a>
-<p>On the right side of the figure, you can see pseudo-code illustrating the structure of an MLC chat API during the execution of a chat app.
-Typically, there is a <code class="docutils literal notranslate"><span class="pre">ChatModule</span></code> that manages the model. The chat app includes a reload function that takes a <code class="docutils literal notranslate"><span class="pre">local_id</span></code>
-as well as an optional chat configuration override, which allows for overriding settings such as the system prompt and temperature.
-The runtime utilizes the <code class="docutils literal notranslate"><span class="pre">local_id</span></code> and <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> to locate the model weights and libraries.</p>
-<p>All MLC runtimes, including iOS, Web, CLI, and others, use these three elements.
-All the runtime can read the same model weight folder. The packaging of the model libraries may vary depending on the runtime.
-For the CLI, the model libraries are stored in a DLL directory.
-iOS and Android include pre-packaged model libraries within the app due to dynamic loading restrictions.
-WebLLM utilizes URLs of local or Internet-hosted WebAssembly (Wasm) files.</p>
-</section>
-<section id="what-to-do-next">
-<h2>What to Do Next<a class="headerlink" href="#what-to-do-next" title="Permalink to this heading">¶</a></h2>
-<p>Thank you for reading and learning the high-level concepts.
-Moving next, feel free to check out documents on the left navigation panel and
-learn about topics you are interested in.</p>
-<ul class="simple">
-<li><p><a class="reference internal" href="mlc_chat_config.html"><span class="doc">Configure MLCChat in JSON</span></a> shows how to configure specific chat behavior.</p></li>
-<li><p>Build and Deploy App section contains guides to build apps
-and platform-specific MLC chat runtimes.</p></li>
-<li><p>Compile models section provides guidelines to convert model weights and produce model libs.</p></li>
-</ul>
-</section>
+  <section id="define-new-model-architectures">
+<h1>🚧 Define New Model Architectures<a class="headerlink" href="#define-new-model-architectures" title="Permalink to this heading">¶</a></h1>
+<p>This page guides you how to add a new model architecture in MLC.</p>
+<p>Tutorial coming up soon. As of now, you can refer to
+the <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/pull/1408">GPTNeoX PR</a>,
+the <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/pull/1314">GPT-2 PR</a>,
+or the <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/pull/1230">Mistral PR</a>.</p>
+<p>Here is a tutorial for adding a model architecture in the previous workflow (similar concept but
+different workflow):
+<a class="reference external" href="https://github.com/mlc-ai/notebooks/blob/main/tutorial/How_to_add_model_architeture_in_MLC_LLM.ipynb">https://github.com/mlc-ai/notebooks/blob/main/tutorial/How_to_add_model_architeture_in_MLC_LLM.ipynb</a></p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As mentioned in <a class="reference internal" href="../prebuilt_models.html#model-prebuilts"><span class="std std-ref">Model Prebuilts</span></a>, when adding a model variant that has
+its architecture already supported in mlc-llm , you <strong>only need to convert weights</strong>
+(e.g. adding <code class="docutils literal notranslate"><span class="pre">CodeLlama</span></code> when MLC supports <code class="docutils literal notranslate"><span class="pre">llama-2</span></code>; adding <code class="docutils literal notranslate"><span class="pre">OpenHermes</span> <span class="pre">Mistral</span></code>
+when MLC supports <code class="docutils literal notranslate"><span class="pre">mistral</span></code>). On the other hand, a new model architecture
+(or inference logic) requires more work.</p>
+</div>
 </section>
 
 
@@ -377,10 +316,10 @@ and platform-specific MLC chat runtimes.</p></li>
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="mlc_chat_config.html" class="btn btn-neutral float-right" title="Configure MLCChat in JSON" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../prebuilt_models.html" class="btn btn-neutral float-right" title="Model Prebuilts" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="../index.html" class="btn btn-neutral float-left" title="👋 Welcome to MLC LLM" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="configure_quantization.html" class="btn btn-neutral float-left" title="🚧 Configure Quantization" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

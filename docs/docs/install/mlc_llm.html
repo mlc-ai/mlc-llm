@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy/javascript.html">WebLLM and Javascript API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">Rest API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI and C++ API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/python.html">Python API and Gradio Frontend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/python.html">Python API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS App and Swift API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
 </ul>
@@ -183,12 +183,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Models via MLC</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/python.html">Python API for Model Compilation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/customize/define_new_models.html">Define New Model Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">🚧 Define New Model Architectures</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
 <ul>
@@ -300,13 +296,13 @@
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#option-1-prebuilt-package" id="id1">Option 1. Prebuilt Package</a></p></li>
-<li><p><a class="reference internal" href="#option-2-build-from-source" id="id2">Option 2. Build from Source</a></p></li>
+<li><p><a class="reference internal" href="#option-1-prebuilt-package" id="id4">Option 1. Prebuilt Package</a></p></li>
+<li><p><a class="reference internal" href="#option-2-build-from-source" id="id5">Option 2. Build from Source</a></p></li>
 </ul>
 </nav>
 <p>MLC LLM Python Package can be installed directly from a prebuilt developer package, or built from source.</p>
 <section id="option-1-prebuilt-package">
-<h2><a class="toc-backref" href="#id1" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading">¶</a></h2>
 <p>We provide nightly built pip wheels for MLC-LLM via pip.
 Select your operating system/compute platform and run the command in your terminal:</p>
 <div class="admonition note">
@@ -351,6 +347,11 @@ python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </s
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>libgcc-ng
 </pre></div>
 </div>
+<p>Besides, we would recommend using Python 3.11; so if you are creating a new environment,
+you could use the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>--name<span class="w"> </span>mlc-prebuilt<span class="w">  </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.11
+</pre></div>
+</div>
 </div>
 </div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">CPU + Metal</button></div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
@@ -384,10 +385,97 @@ python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </s
 </div>
 </div>
 </div></div>
+<p>Then you can verify installation in command line:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import mlc_chat; print(mlc_chat)&quot;</span>
+<span class="c1"># Prints out: &lt;module &#39;mlc_chat&#39; from &#39;/path-to-env/lib/python3.11/site-packages/mlc_chat/__init__.py&#39;&gt;</span>
+</pre></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
 </section>
 <section id="option-2-build-from-source">
-<h2><a class="toc-backref" href="#id2" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
-<p>Upcoming.</p>
+<span id="mlcchat-build-from-source"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
+<p>We also provide options to build mlc runtime libraries <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code> (Python) and <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code> (CLI) from source.
+This step is useful when you want to make modification or obtain a specific version of mlc runtime.</p>
+<p><strong>Step 1. Set up build dependency.</strong> To build from source, you need to ensure that the following build dependencies are satisfied:</p>
+<ul>
+<li><p>CMake &gt;= 3.24</p></li>
+<li><p>Git</p></li>
+<li><p><a class="reference external" href="https://www.rust-lang.org/tools/install">Rust and Cargo</a>, required by Hugging Face’s tokenizer</p></li>
+<li><p>One of the GPU runtimes:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>CUDA &gt;= 11.8 (NVIDIA GPUs)</p></li>
+<li><p>Metal (Apple GPUs)</p></li>
+<li><p>Vulkan (NVIDIA, AMD, Intel GPUs)</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">Set up build dependencies in Conda</span><a class="headerlink" href="#id1" title="Permalink to this code">¶</a></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># make sure to start with a fresh environment</span>
+conda<span class="w"> </span>env<span class="w"> </span>remove<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv
+<span class="c1"># create the conda environment with build dependency</span>
+conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="s2">&quot;cmake&gt;=3.24&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>rust<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>git
+<span class="c1"># enter the build environment</span>
+conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
+</pre></div>
+</div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For runtime, <a class="reference internal" href="tvm.html"><span class="doc">TVM Unity</span></a> compiler is not a dependency for MLCChat CLI or Python API. Only TVM’s runtime is required, which is automatically included in <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a>.
+However, if you would like to compile your own models, you need to follow <a class="reference internal" href="tvm.html"><span class="doc">TVM Unity</span></a>.</p>
+</div>
+<p><strong>Step 2. Configure and build.</strong> A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:</p>
+<div class="literal-block-wrapper docutils container" id="id2">
+<div class="code-block-caption"><span class="caption-text">Configure and build</span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># clone from GitHub</span>
+git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/mlc-ai/mlc-llm.git<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>mlc-llm/
+<span class="c1"># create build directory</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>build
+<span class="c1"># generate build configuration</span>
+python3<span class="w"> </span>../cmake/gen_cmake_config.py
+<span class="c1"># build `mlc_chat_cli`</span>
+cmake<span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cmake<span class="w"> </span>--build<span class="w"> </span>.<span class="w"> </span>--parallel<span class="w"> </span><span class="k">$(</span>nproc<span class="k">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
+</pre></div>
+</div>
+</div>
+<p><strong>Step 3. Validate installation.</strong> You may validate if MLCChat CLI is compiled successfully using the following command:</p>
+<div class="literal-block-wrapper docutils container" id="id3">
+<div class="code-block-caption"><span class="caption-text">Validate installation</span><a class="headerlink" href="#id3" title="Permalink to this code">¶</a></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># expected to see `mlc_chat_cli`, `libmlc_llm.so` and `libtvm_runtime.so`</span>
+ls<span class="w"> </span>-l<span class="w"> </span>./build/
+<span class="c1"># expected to see help message</span>
+./build/mlc_chat_cli<span class="w"> </span>--help
+</pre></div>
+</div>
+</div>
+<p><strong>Step 4. Install via Python.</strong> Besides the command line interface <code class="docutils literal notranslate"><span class="pre">mlc_chat_cli</span></code>, you can also install <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code> as a Python package,
+giving you access to both <code class="docutils literal notranslate"><span class="pre">mlc_chat.compile</span></code> and <code class="docutils literal notranslate"><span class="pre">mlc_chat.ChatModule</span></code>.
+There are two ways to do so:</p>
+<blockquote>
+<div><div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-4-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" aria-selected="true" class="sphinx-tabs-tab code-tab group-tab" id="tab-4-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" name="SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" role="tab" tabindex="0">Install via environment variable</button><button aria-controls="panel-4-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-4-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" name="SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" role="tab" tabindex="-1">Install via pip local project</button></div><div aria-labelledby="tab-4-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" class="sphinx-tabs-panel code-tab group-tab" id="panel-4-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" name="SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/path-to-mlc-llm/python:<span class="nv">$PYTHONPATH</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-4-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-4-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" name="SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-own-env
+conda<span class="w"> </span>install<span class="w"> </span>python<span class="w"> </span><span class="c1"># make sure python is installed</span>
+<span class="nb">cd</span><span class="w"> </span>/path-to-mlc-llm/python
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+</div></div>
+</div></blockquote>
+<p>Finally, you can verify installation in command line. You should see the path you used to build from source with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import mlc_chat; print(mlc_chat)&quot;</span>
+</pre></div>
+</div>
 </section>
 </section>
 

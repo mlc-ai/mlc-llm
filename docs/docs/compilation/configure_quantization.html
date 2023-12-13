@@ -46,8 +46,8 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Define New Model Architectures" href="../tutorials/customize/define_new_models.html" />
-    <link rel="prev" title="Python API for Model Compilation" href="python.html" /> 
+    <link rel="next" title="🚧 Define New Model Architectures" href="define_new_models.html" />
+    <link rel="prev" title="Distribute Compiled Models" href="distribute_compiled_models.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -174,7 +174,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy/javascript.html">WebLLM and Javascript API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">Rest API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI and C++ API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/python.html">Python API and Gradio Frontend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/python.html">Python API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS App and Swift API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
 </ul>
@@ -182,16 +182,12 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Models via MLC</a></li>
 <li class="toctree-l1"><a class="reference internal" href="distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="python.html">Python API for Model Compilation</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">🚧 Configure Quantization</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#quantization-algorithm">Quantization Algorithm</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#quantization-mode-not-stable">🚧 Quantization Mode (Not Stable)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#quantization-mode">Quantization Mode</a></li>
 </ul>
 </li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/customize/define_new_models.html">Define New Model Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="define_new_models.html">🚧 Define New Model Architectures</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
 <ul>
@@ -300,12 +296,14 @@
 <h2>Quantization Algorithm<a class="headerlink" href="#quantization-algorithm" title="Permalink to this heading">¶</a></h2>
 <p>The default quantization algorithm used in MLC-LLM is grouping quantization method discussed in the papers <a class="reference external" href="https://arxiv.org/abs/2212.09720">The case for 4-bit precision: k-bit Inference Scaling Laws</a> and <a class="reference external" href="https://arxiv.org/abs/2206.09557">LUT-GEMM: Quantized Matrix Multiplication based on LUTs for Efficient Inference in Large-Scale Generative Language Models</a>.</p>
 </section>
-<section id="quantization-mode-not-stable">
-<span id="quantization-mode"></span><h2>🚧 Quantization Mode (Not Stable)<a class="headerlink" href="#quantization-mode-not-stable" title="Permalink to this heading">¶</a></h2>
+<section id="quantization-mode">
+<span id="id1"></span><h2>Quantization Mode<a class="headerlink" href="#quantization-mode" title="Permalink to this heading">¶</a></h2>
 <p>In MLC-LLM we use a short code that indicates the quantization mode to use.</p>
 <p>The format of the code is <code class="docutils literal notranslate"><span class="pre">qAfB(_id)</span></code>, where <code class="docutils literal notranslate"><span class="pre">A</span></code> represents the number
-of bits for storing weights and <code class="docutils literal notranslate"><span class="pre">B</span></code> represents the number of bits for storing activations. The <code class="docutils literal notranslate"><span class="pre">_id</span></code> is an integer identifier to distinguish different quantization algorithms (e.g. symmetric, non-symmetric, GPTQ, etc).</p>
-<p>Currently, the available options are: <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f16_2</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f32_0</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>, and <code class="docutils literal notranslate"><span class="pre">q0f16</span></code>.</p>
+of bits for storing weights and <code class="docutils literal notranslate"><span class="pre">B</span></code> represents the number of bits for storing activations.
+The <code class="docutils literal notranslate"><span class="pre">_id</span></code> is an integer identifier to distinguish different quantization algorithms (e.g. symmetric, non-symmetric, AWQ, etc).</p>
+<p>Currently, available options are: <code class="docutils literal notranslate"><span class="pre">q0f16</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>, <code class="docutils literal notranslate"><span class="pre">q3f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f32_1</span></code>, and <code class="docutils literal notranslate"><span class="pre">q4f16_awq</span></code> (not stable).</p>
+<p>More details to come.</p>
 </section>
 </section>
 
@@ -319,10 +317,10 @@ of bits for storing weights and <code class="docutils literal notranslate"><span
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../tutorials/customize/define_new_models.html" class="btn btn-neutral float-right" title="Define New Model Architectures" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="define_new_models.html" class="btn btn-neutral float-right" title="🚧 Define New Model Architectures" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="python.html" class="btn btn-neutral float-left" title="Python API for Model Compilation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="distribute_compiled_models.html" class="btn btn-neutral float-left" title="Distribute Compiled Models" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

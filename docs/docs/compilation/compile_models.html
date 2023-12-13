@@ -175,30 +175,27 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy/javascript.html">WebLLM and Javascript API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">Rest API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI and C++ API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/python.html">Python API and Gradio Frontend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/python.html">Python API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS App and Swift API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Compile Models via MLC</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#install-mlc-llm-package">Install MLC-LLM Package</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#work-with-source-code">Work with Source Code</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#verify-installation">Verify Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#verify-installation">Verify Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#get-started">Get Started</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#compile-commands-for-more-models">Compile Commands for More Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#compile-command-specification">Compile Command Specification</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#convert-weight">1. Convert Weight</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#generate-mlc-chat-config">2. Generate MLC Chat Config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#compile-model-library">3. Compile Model Library</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#get-started">Get Started</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#compile-command-specification">Compile Command Specification</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#more-model-compile-commands">More Model Compile Commands</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="python.html">Python API for Model Compilation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configure_quantization.html">🚧 Configure Quantization</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/customize/define_new_models.html">Define New Model Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="define_new_models.html">🚧 Define New Model Architectures</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
 <ul>
@@ -304,76 +301,108 @@
   <section id="compile-models-via-mlc">
 <span id="id1"></span><h1>Compile Models via MLC<a class="headerlink" href="#compile-models-via-mlc" title="Permalink to this heading">¶</a></h1>
 <p>This page describes how to compile a model with MLC LLM. Model compilation takes model inputs, produces quantized model weights,
-and optimizes model lib for a given platform. It enables users to bring their own new model weights, try different quantization modes,
+and optimizes the model library for a given platform. It enables users to bring their own new model weights, try different quantization modes,
 and customize the overall model optimization flow.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Before you proceed, please make sure that you have <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a> correctly installed on your machine.
-TVM-Unity is the necessary foundation for us to compile models with MLC LLM.
-If you want to build webgpu, please also complete <a class="reference internal" href="../install/emcc.html#install-web-build"><span class="std std-ref">Install Wasm Build Environment</span></a>.
-Please also follow the instructions in <a class="reference internal" href="../deploy/cli.html#deploy-cli"><span class="std std-ref">CLI and C++ API</span></a> to obtain the CLI app that can be used to chat with the compiled model.
-Finally, we strongly recommend you read <a class="reference internal" href="../get_started/project_overview.html#project-overview"><span class="std std-ref">Project Overview</span></a> first to get familiarized with the high-level terminologies.</p>
+<p>Before you proceed, please make sure that you have installed <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a>, a required
+backend to compile models with MLC LLM. If you want to build for webgpu, please also complete <a class="reference internal" href="../install/emcc.html#install-web-build"><span class="std std-ref">Install Wasm Build Environment</span></a>.</p>
+<p>Please also follow the instructions in <a class="reference internal" href="../deploy/cli.html#deploy-cli"><span class="std std-ref">CLI and C++ API</span></a> / <a class="reference internal" href="../deploy/python.html#deploy-python"><span class="std std-ref">Python API</span></a> to obtain the CLI app / Python API that can be used to chat with the compiled model.
+Finally, we strongly recommend you to read <a class="reference internal" href="../get_started/project_overview.html#project-overview"><span class="std std-ref">Project Overview</span></a> first to get familiarized with the high-level terminologies.</p>
 </div>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#install-mlc-llm-package" id="id8">Install MLC-LLM Package</a></p></li>
-<li><p><a class="reference internal" href="#get-started" id="id9">Get Started</a></p></li>
-<li><p><a class="reference internal" href="#compile-command-specification" id="id10">Compile Command Specification</a></p></li>
-<li><p><a class="reference internal" href="#more-model-compile-commands" id="id11">More Model Compile Commands</a></p></li>
+<li><p><a class="reference internal" href="#verify-installation" id="id5">Verify Installation</a></p></li>
+<li><p><a class="reference internal" href="#get-started" id="id6">Get Started</a></p></li>
+<li><p><a class="reference internal" href="#compile-commands-for-more-models" id="id7">Compile Commands for More Models</a></p></li>
+<li><p><a class="reference internal" href="#compile-command-specification" id="id8">Compile Command Specification</a></p></li>
 </ul>
 </nav>
-<section id="install-mlc-llm-package">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Install MLC-LLM Package</a><a class="headerlink" href="#install-mlc-llm-package" title="Permalink to this heading">¶</a></h2>
-<section id="work-with-source-code">
-<h3>Work with Source Code<a class="headerlink" href="#work-with-source-code" title="Permalink to this heading">¶</a></h3>
-<p>The easiest way to use MLC-LLM is to clone the repository, and compile models under the root directory of the repository.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># clone the repository</span>
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/mlc-llm.git<span class="w"> </span>--recursive
-<span class="c1"># enter to root directory of the repo</span>
-<span class="nb">cd</span><span class="w"> </span>mlc-llm
-<span class="c1"># install mlc-llm</span>
-pip<span class="w"> </span>install<span class="w"> </span>.
-</pre></div>
-</div>
-</section>
 <section id="verify-installation">
-<h3>Verify Installation<a class="headerlink" href="#verify-installation" title="Permalink to this heading">¶</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--help
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Verify Installation</a><a class="headerlink" href="#verify-installation" title="Permalink to this heading">¶</a></h2>
+<p><strong>Step 1. Verify mlc_chat</strong></p>
+<p>We use the python package <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code> to compile models. This can be installed by
+following <a class="reference internal" href="../install/mlc_llm.html#install-mlc-packages"><span class="std std-ref">Install MLC LLM Python Package</span></a>, either by building from source, or by
+installing the prebuilt package. Verify <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code> installation in command line via:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>mlc_chat<span class="w"> </span>--help
+<span class="c1"># You should see help information with this line</span>
+usage:<span class="w"> </span>MLC<span class="w"> </span>LLM<span class="w"> </span>Command<span class="w"> </span>Line<span class="w"> </span>Interface.<span class="w"> </span><span class="o">[</span>-h<span class="o">]</span><span class="w"> </span><span class="o">{</span>compile,convert_weight,gen_config<span class="o">}</span>
 </pre></div>
 </div>
-<p>You are expected to see the help information of the building script.</p>
-</section>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If it runs into error <code class="docutils literal notranslate"><span class="pre">command</span> <span class="pre">not</span> <span class="pre">found:</span> <span class="pre">mlc_chat</span></code>, try <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">mlc_chat</span> <span class="pre">--help</span></code>.</p>
+</div>
+<p><strong>Step 2. Verify TVM</strong></p>
+<p>To compile models, you also need to follow <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a>.
+Here we verify <code class="docutils literal notranslate"><span class="pre">tvm</span></code> quickly with command line (for full verification, see <a class="reference internal" href="../install/tvm.html#tvm-unity-validate"><span class="std std-ref">Validate TVM Installation</span></a>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.__file__)&quot;</span>
+/some-path/lib/python3.11/site-packages/tvm/__init__.py
+</pre></div>
+</div>
 </section>
 <section id="get-started">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Get Started</a><a class="headerlink" href="#get-started" title="Permalink to this heading">¶</a></h2>
-<p>This section provides a step by step instructions to guide you through the compilation process of one specific model.
-We take the RedPajama-v1-3B as an example.
-You can select the platform where you want to <strong>run</strong> your model from the tabs below and run the corresponding command.
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Get Started</a><a class="headerlink" href="#get-started" title="Permalink to this heading">¶</a></h2>
+<p>This section provides a step by step instructions to guide you through the compilation
+process of <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1</span></code> as an example. You can select the platform
+where you want to <strong>run</strong> your model from the tabs below and run the corresponding commands.
 We strongly recommend you <strong>start with Metal/CUDA/Vulkan</strong> as it is easier to validate the compilation result on
 your personal computer.</p>
+<p><strong>Step 1. Clone HF weights and convert to MLC weights</strong></p>
+<p>Regardless of the platform, we need to create directories and clone HF weights first.
+You can be under the mlc-llm repo, or your own working directory.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/rp_q4f16_1<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>dist/models<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>dist/models
+git<span class="w"> </span>lfs<span class="w"> </span>install
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/togethercomputer/RedPajama-INCITE-Chat-3B-v1
+<span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+<p>Then convert the HF weights into MLC-compatible weights. Note that all platforms can share the same compiled/quantized weights.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_chat<span class="w"> </span>convert_weight<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/params
+</pre></div>
+</div>
+<p><strong>Step 2. Generate mlc-chat-config and compile</strong></p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-TWV0YWw=" aria-selected="true" class="sphinx-tabs-tab group-tab" id="tab-0-TWV0YWw=" name="TWV0YWw=" role="tab" tabindex="0">Metal</button><button aria-controls="panel-0-TGludXggLSBDVURB" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tab" tabindex="-1">Linux - CUDA</button><button aria-controls="panel-0-VnVsa2Fu" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-VnVsa2Fu" name="VnVsa2Fu" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-0-aU9TL2lQYWRPUw==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tab" tabindex="-1">iOS/iPadOS</button><button aria-controls="panel-0-QW5kcm9pZA==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tab" tabindex="-1">Android</button><button aria-controls="panel-0-V2ViR1BV" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-V2ViR1BV" name="V2ViR1BV" role="tab" tabindex="-1">WebGPU</button></div><div aria-labelledby="tab-0-TWV0YWw=" class="sphinx-tabs-panel group-tab" id="panel-0-TWV0YWw=" name="TWV0YWw=" role="tabpanel" tabindex="0"><p>On Apple Silicon powered Mac, compile for Apple Silicon Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-TGludXggLSBDVURB" aria-selected="true" class="sphinx-tabs-tab group-tab" id="tab-0-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tab" tabindex="0">Linux - CUDA</button><button aria-controls="panel-0-TWV0YWw=" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-TWV0YWw=" name="TWV0YWw=" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-0-VnVsa2Fu" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-VnVsa2Fu" name="VnVsa2Fu" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-0-aU9TL2lQYWRPUw==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tab" tabindex="-1">iOS/iPadOS</button><button aria-controls="panel-0-QW5kcm9pZA==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tab" tabindex="-1">Android</button><button aria-controls="panel-0-V2ViR1BV" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-V2ViR1BV" name="V2ViR1BV" role="tab" tabindex="-1">WebGPU</button></div><div aria-labelledby="tab-0-TGludXggLSBDVURB" class="sphinx-tabs-panel group-tab" id="panel-0-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>redpajama_chat<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/rp_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>cuda<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/rp_q4f16_1.so
 </pre></div>
 </div>
-<p>On Apple Silicon powered Mac, compile for x86 Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div><div aria-labelledby="tab-0-TWV0YWw=" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-TWV0YWw=" name="TWV0YWw=" role="tabpanel" tabindex="0"><p>For M-chip Mac:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>redpajama_chat<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/rp_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>metal<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/rp_q4f16_1.so
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-0-TGludXggLSBDVURB" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+<p>For Intel Mac:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>redpajama_chat<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/rp_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>metal<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/rp_q4f16_1.dylib
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-0-VnVsa2Fu" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-VnVsa2Fu" name="VnVsa2Fu" role="tabpanel" tabindex="0"><p>On Linux, compile for Linux:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div><div aria-labelledby="tab-0-VnVsa2Fu" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-VnVsa2Fu" name="VnVsa2Fu" role="tabpanel" tabindex="0"><p>For Linux:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>redpajama_chat<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/rp_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>vulkan<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/rp_q4f16_1.so
 </pre></div>
 </div>
-<p>On Linux, compile for Windows: please first install the <a class="reference external" href="https://github.com/mstorsjo/llvm-mingw">LLVM-MinGW</a> toolchain, and substitute the <code class="docutils literal notranslate"><span class="pre">path/to/llvm-mingw</span></code> in the command with your LLVM-MinGW installation path.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
+<p>For Windows:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>redpajama_chat<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/rp_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>vulkan<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/rp_q4f16_1.dll
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-0-aU9TL2lQYWRPUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tabpanel" tabindex="0"><p>You need a Mac to compile models for it.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>redpajama_chat<span class="w"> </span>--context-window-size<span class="w"> </span><span class="m">768</span><span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/rp_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>iphone<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/rp_q4f16_1.tar
 </pre></div>
 </div>
 <div class="admonition note">
@@ -387,23 +416,45 @@ xcrun: error: unable to find utility &quot;metallib&quot;, not a developer tool 
 <p>, please check and make sure you have Command Line Tools for Xcode installed correctly.
 You can use <code class="docutils literal notranslate"><span class="pre">xcrun</span> <span class="pre">metal</span></code> to validate: when it prints <code class="docutils literal notranslate"><span class="pre">metal:</span> <span class="pre">error:</span> <span class="pre">no</span> <span class="pre">input</span> <span class="pre">files</span></code>, it means the Command Line Tools for Xcode is installed and can be found, and you can proceed with the model compiling.</p>
 </div>
-</div><div aria-labelledby="tab-0-QW5kcm9pZA==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div><div aria-labelledby="tab-0-QW5kcm9pZA==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>redpajama_chat<span class="w"> </span>--context-window-size<span class="w"> </span><span class="m">768</span><span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/rp_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>android<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/rp_q4f16_1.tar
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-0-V2ViR1BV" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-V2ViR1BV" name="V2ViR1BV" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="w"> </span>togethercomputer/RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>webgpu<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div><div aria-labelledby="tab-0-V2ViR1BV" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-V2ViR1BV" name="V2ViR1BV" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>redpajama_chat<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/rp_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>webgpu<span class="w"> </span>-o<span class="w"> </span>dist/rp_q4f16_1/rp_q4f16_1.wasm
 </pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To compile for webgpu, you need to build from source when installing <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code>. Besides, you also need to follow <a class="reference internal" href="../install/emcc.html#install-web-build"><span class="std std-ref">Install Wasm Build Environment</span></a>.
+Otherwise, it would run into error</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>RuntimeError: Cannot find libraries: wasm_runtime.bc
+</pre></div>
+</div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For webgpu, when compiling larger models like <code class="docutils literal notranslate"><span class="pre">Llama-2-7B</span></code>, you may want to add <code class="docutils literal notranslate"><span class="pre">--prefill_chunk_size</span> <span class="pre">1024</span></code> or lower <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code> to decrease memory usage.
+Otherwise, you may run into issues like:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>TypeError: Failed to execute &#39;createBuffer&#39; on &#39;GPUDevice&#39;: Failed to read the &#39;size&#39; property from
+&#39;GPUBufferDescriptor&#39;: Value is outside the &#39;unsigned long long&#39; value range.
+</pre></div>
+</div>
 </div>
 </div></div>
+<p><strong>Step 3. Verify output and chat</strong></p>
 <p>By executing the compile command above, we generate the model weights, model lib, and a chat config.
 We can check the output with the commands below:</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-TWV0YWw=" aria-selected="true" class="sphinx-tabs-tab group-tab" id="tab-1-TWV0YWw=" name="TWV0YWw=" role="tab" tabindex="0">Metal</button><button aria-controls="panel-1-TGludXggLSBDVURB" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tab" tabindex="-1">Linux - CUDA</button><button aria-controls="panel-1-VnVsa2Fu" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-VnVsa2Fu" name="VnVsa2Fu" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-1-aU9TL2lQYWRPUw==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tab" tabindex="-1">iOS/iPadOS</button><button aria-controls="panel-1-QW5kcm9pZA==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tab" tabindex="-1">Android</button><button aria-controls="panel-1-V2ViR1BV" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-V2ViR1BV" name="V2ViR1BV" role="tab" tabindex="-1">WebGPU</button></div><div aria-labelledby="tab-1-TWV0YWw=" class="sphinx-tabs-panel group-tab" id="panel-1-TWV0YWw=" name="TWV0YWw=" role="tabpanel" tabindex="0"><blockquote>
-<div><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
-<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so<span class="w">     </span><span class="c1"># ===&gt; the model library</span>
-<span class="w">  </span>mod_cache_before_build_metal.pkl<span class="w">                 </span><span class="c1"># ===&gt; a cached file for future builds</span>
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-TGludXggLSBDVURB" aria-selected="true" class="sphinx-tabs-tab group-tab" id="tab-1-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tab" tabindex="0">Linux - CUDA</button><button aria-controls="panel-1-TWV0YWw=" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-TWV0YWw=" name="TWV0YWw=" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-1-VnVsa2Fu" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-VnVsa2Fu" name="VnVsa2Fu" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-1-aU9TL2lQYWRPUw==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tab" tabindex="-1">iOS/iPadOS</button><button aria-controls="panel-1-QW5kcm9pZA==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tab" tabindex="-1">Android</button><button aria-controls="panel-1-V2ViR1BV" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-V2ViR1BV" name="V2ViR1BV" role="tab" tabindex="-1">WebGPU</button></div><div aria-labelledby="tab-1-TGludXggLSBDVURB" class="sphinx-tabs-panel group-tab" id="panel-1-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1
+<span class="w">  </span>rp_q4f16_1.so<span class="w">                                    </span><span class="c1"># ===&gt; the model library</span>
 <span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1/params
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
@@ -413,20 +464,19 @@ We can check the output with the commands below:</p>
 <span class="w">  </span>tokenizer_config.json
 </pre></div>
 </div>
-<p>We now chat with the model using the command line interface (CLI) app.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run CLI</span>
-mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1
+<p>We can now chat with the model using the command line interface (CLI) app or the Python API.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python
+&gt;&gt;&gt;<span class="w"> </span>from<span class="w"> </span>mlc_chat<span class="w"> </span>import<span class="w"> </span>ChatModule
+&gt;&gt;&gt;<span class="w"> </span><span class="nv">cm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>ChatModule<span class="o">(</span><span class="nv">model</span><span class="o">=</span><span class="s2">&quot;./dist/rp_q4f16_1/params&quot;</span>,<span class="w"> </span><span class="nv">model_lib_path</span><span class="o">=</span><span class="s2">&quot;./dist/rp_q4f16_1/rp_q4f16_1.so&quot;</span><span class="o">)</span>
+&gt;&gt;&gt;<span class="w"> </span>cm.generate<span class="o">(</span><span class="s2">&quot;hi&quot;</span><span class="o">)</span>
+<span class="s1">&#39;Hi! How can I assist you today?&#39;</span>
 </pre></div>
 </div>
-</div></blockquote>
-<p>The CLI will use the config file <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json</span></code>
-and model library <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so</span></code>.</p>
-</div><div aria-labelledby="tab-1-TGludXggLSBDVURB" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-TGludXggLSBDVURB" name="TGludXggLSBDVURB" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
-<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so<span class="w">      </span><span class="c1"># ===&gt; the model library</span>
-<span class="w">  </span>mod_cache_before_build_cuda.pkl<span class="w">                  </span><span class="c1"># ===&gt; a cached file for future builds</span>
+</div><div aria-labelledby="tab-1-TWV0YWw=" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-TWV0YWw=" name="TWV0YWw=" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1
+<span class="w">  </span>rp_q4f16_1.so<span class="w">                                    </span><span class="c1"># ===&gt; the model library (will be .dylib for Intel Mac)</span>
 <span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1/params
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
@@ -436,20 +486,19 @@ and model library <code class="docutils literal notranslate"><span class="pre">d
 <span class="w">  </span>tokenizer_config.json
 </pre></div>
 </div>
-<p>We now chat with the model using the command line interface (CLI) app.
-Follow the build from the source instruction</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run CLI</span>
-mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1
+<p>We can now chat with the model using the command line interface (CLI) app or the Python API.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python
+&gt;&gt;&gt;<span class="w"> </span>from<span class="w"> </span>mlc_chat<span class="w"> </span>import<span class="w"> </span>ChatModule
+&gt;&gt;&gt;<span class="w"> </span><span class="nv">cm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>ChatModule<span class="o">(</span><span class="nv">model</span><span class="o">=</span><span class="s2">&quot;./dist/rp_q4f16_1/params&quot;</span>,<span class="w"> </span><span class="nv">model_lib_path</span><span class="o">=</span><span class="s2">&quot;./dist/rp_q4f16_1/rp_q4f16_1.so&quot;</span><span class="o">)</span>
+&gt;&gt;&gt;<span class="w"> </span>cm.generate<span class="o">(</span><span class="s2">&quot;hi&quot;</span><span class="o">)</span>
+<span class="s1">&#39;Hi! How can I assist you today?&#39;</span>
 </pre></div>
 </div>
-<p>The CLI app using config file <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json</span></code>
-and model library <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so</span></code>.</p>
-</div><div aria-labelledby="tab-1-VnVsa2Fu" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-VnVsa2Fu" name="VnVsa2Fu" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
-<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so<span class="w">    </span><span class="c1"># ===&gt; the model library (will be .dll when built for Windows)</span>
-<span class="w">  </span>mod_cache_before_build_vulkan.pkl<span class="w">                </span><span class="c1"># ===&gt; a cached file for future builds</span>
+</div><div aria-labelledby="tab-1-VnVsa2Fu" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-VnVsa2Fu" name="VnVsa2Fu" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1
+<span class="w">  </span>rp_q4f16_1.so<span class="w">                                    </span><span class="c1"># ===&gt; the model library (will be .dll for Windows)</span>
 <span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1/params
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
@@ -459,19 +508,19 @@ and model library <code class="docutils literal notranslate"><span class="pre">d
 <span class="w">  </span>tokenizer_config.json
 </pre></div>
 </div>
-<p>We can further quickly run and validate the model compilation using the command line interface (CLI) app.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run CLI</span>
-mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1
+<p>We can now chat with the model using the command line interface (CLI) app or the Python API.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python
+&gt;&gt;&gt;<span class="w"> </span>from<span class="w"> </span>mlc_chat<span class="w"> </span>import<span class="w"> </span>ChatModule
+&gt;&gt;&gt;<span class="w"> </span><span class="nv">cm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>ChatModule<span class="o">(</span><span class="nv">model</span><span class="o">=</span><span class="s2">&quot;./dist/rp_q4f16_1/params&quot;</span>,<span class="w"> </span><span class="nv">model_lib_path</span><span class="o">=</span><span class="s2">&quot;./dist/rp_q4f16_1/rp_q4f16_1.so&quot;</span>,<span class="w"> </span><span class="nv">device</span><span class="o">=</span><span class="s2">&quot;vulkan&quot;</span><span class="o">)</span>
+&gt;&gt;&gt;<span class="w"> </span>cm.generate<span class="o">(</span><span class="s2">&quot;hi&quot;</span><span class="o">)</span>
+<span class="s1">&#39;Hi! How can I assist you today?&#39;</span>
 </pre></div>
 </div>
-<p>CLI app will use config file <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json</span></code>
-and model library <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so</span></code> (or <code class="docutils literal notranslate"><span class="pre">.dll</span></code>).</p>
-</div><div aria-labelledby="tab-1-aU9TL2lQYWRPUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
-<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar<span class="w">   </span><span class="c1"># ===&gt; the model library</span>
-<span class="w">  </span>mod_cache_before_build_iphone.pkl<span class="w">                </span><span class="c1"># ===&gt; a cached file for future builds</span>
+</div><div aria-labelledby="tab-1-aU9TL2lQYWRPUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1
+<span class="w">  </span>rp_q4f16_1.tar<span class="w">                                   </span><span class="c1"># ===&gt; the model library</span>
 <span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1/params
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
@@ -481,14 +530,13 @@ and model library <code class="docutils literal notranslate"><span class="pre">d
 <span class="w">  </span>tokenizer_config.json
 </pre></div>
 </div>
-<p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar</span></code>
+<p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/rp_q4f16_1/rp_q4f16_1.tar</span></code>
 will be packaged as a static library into the iOS app. Checkout <a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS App and Swift API</span></a> for more details.</p>
-</div><div aria-labelledby="tab-1-QW5kcm9pZA==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
-<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
-<span class="w">  </span>mod_cache_before_build_android.pkl<span class="w">               </span><span class="c1"># ===&gt; a cached file for future builds</span>
+</div><div aria-labelledby="tab-1-QW5kcm9pZA==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1
+<span class="w">  </span>rp_q4f16_1.tar<span class="w">                                   </span><span class="c1"># ===&gt; the model library</span>
 <span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1/params
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
@@ -498,14 +546,13 @@ will be packaged as a static library into the iOS app. Checkout <a class="refere
 <span class="w">  </span>tokenizer_config.json
 </pre></div>
 </div>
-<p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar</span></code>
+<p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/rp_q4f16_1/rp_q4f16_1.tar</span></code>
 will be packaged as a static library into the android app. Checkout <a class="reference internal" href="../deploy/android.html#deploy-android"><span class="std std-ref">Android App</span></a> for more details.</p>
-</div><div aria-labelledby="tab-1-V2ViR1BV" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-V2ViR1BV" name="V2ViR1BV" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
-<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
-<span class="w">  </span>mod_cache_before_build_webgpu.pkl<span class="w">                </span><span class="c1"># ===&gt; a cached file for future builds</span>
+</div><div aria-labelledby="tab-1-V2ViR1BV" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-V2ViR1BV" name="V2ViR1BV" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1
+<span class="w">  </span>rp_q4f16_1.wasm<span class="w">                                  </span><span class="c1"># ===&gt; the model library</span>
 <span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
 
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1/params
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
 <span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
@@ -515,290 +562,274 @@ will be packaged as a static library into the android app. Checkout <a class="re
 <span class="w">  </span>tokenizer_config.json
 </pre></div>
 </div>
-<p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm</span></code>
-can be uploaded to the internet. You can pass a <code class="docutils literal notranslate"><span class="pre">model_lib_map</span></code> field to WebLLM app config to use this library.</p>
+<p>To use this in WebGPU runtime, checkout <a class="reference internal" href="../deploy/javascript.html#webllm-runtime"><span class="std std-ref">WebLLM and Javascript API</span></a>.</p>
 </div></div>
 <p>Each compilation target produces a specific model library for the given platform. The model weight is shared across
 different targets. If you are interested in distributing the model besides local execution, please checkout <a class="reference internal" href="distribute_compiled_models.html#distribute-compiled-models"><span class="std std-ref">Distribute Compiled Models</span></a>.
 You are also more than welcome to read the following sections for more details about the compilation.</p>
 </section>
-<section id="compile-command-specification">
-<span id="id2"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">Compile Command Specification</a><a class="headerlink" href="#compile-command-specification" title="Permalink to this heading">¶</a></h2>
-<p>This section describes the list of options that can be used during compilation.
-Note that the arguments are generated by the dataclass <code class="xref py py-class docutils literal notranslate"><span class="pre">BuildArgs</span></code>, read
-more in <a class="reference internal" href="python.html#api-reference-compile-model"><span class="std std-ref">API Reference</span></a>.
-Generally, the model compile command is specified by a sequence of arguments and in the following pattern:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--model<span class="w"> </span>MODEL_NAME_OR_PATH<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="o">[</span>--hf-path<span class="w"> </span>HUGGINGFACE_NAME<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--target<span class="w"> </span>TARGET_NAME<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--quantization<span class="w"> </span>QUANTIZATION_MODE<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="o">[</span>--max-seq-len<span class="w"> </span>MAX_ALLOWED_SEQUENCE_LENGTH<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="o">[</span>--reuse-lib<span class="w"> </span>LIB_NAME<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="o">[</span>--use-cache<span class="o">=</span><span class="m">0</span><span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="o">[</span>--debug-dump<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="o">[</span>--use-safetensors<span class="o">]</span>
-</pre></div>
-</div>
-<p>This command first goes with <code class="docutils literal notranslate"><span class="pre">--model</span></code> or <code class="docutils literal notranslate"><span class="pre">--hf-path</span></code>.
-<strong>Only one of them needs to be specified</strong>: when the model is publicly available on Hugging Face, you can use <code class="docutils literal notranslate"><span class="pre">--hf-path</span></code> to specify the model.
-In other cases you need to specify the model via <code class="docutils literal notranslate"><span class="pre">--model</span></code>.</p>
-<dl class="option-list">
-<dt><kbd><span class="option">--model <var>MODEL_NAME_OR_PATH</var></span></kbd></dt>
-<dd><p>The name or local path of the model to compile.
-We will search for the model on your disk in the following two candidates:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">dist/models/MODEL_NAME_OR_PATH</span></code> (e.g., <code class="docutils literal notranslate"><span class="pre">--model</span> <span class="pre">Llama-2-7b-chat-hf</span></code>),</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">MODEL_NAME_OR_PATH</span></code> (e.g., <code class="docutils literal notranslate"><span class="pre">--model</span> <span class="pre">/my-model/Llama-2-7b-chat-hf</span></code>).</p></li>
-</ul>
-<p>When running the compile command using <code class="docutils literal notranslate"><span class="pre">--model</span></code>, please make sure you have placed the model to compile under <code class="docutils literal notranslate"><span class="pre">dist/models/</span></code> or another location on the disk.</p>
-</dd>
-<dt><kbd><span class="option">--hf-path <var>HUGGINGFACE_NAME</var></span></kbd></dt>
-<dd><p>The name of the model’s Hugging Face repository.
-We will download the model to <code class="docutils literal notranslate"><span class="pre">dist/models/HUGGINGFACE_NAME</span></code> and load the model from this directory.</p>
-<p>For example, by specifying <code class="docutils literal notranslate"><span class="pre">--hf-path</span> <span class="pre">togethercomputer/RedPajama-INCITE-Chat-3B-v1</span></code>, it will download the model from <code class="docutils literal notranslate"><span class="pre">https://huggingface.co/togethercomputer/RedPajama-INCITE-Chat-3B-v1</span></code> to <code class="docutils literal notranslate"><span class="pre">dist/models/</span></code>.</p>
-</dd>
-</dl>
-<p>Another two necessary arguments for the compile command are the target and the quantization mode:</p>
-<dl class="option-list">
-<dt><kbd><span class="option">--target <var>TARGET_NAME</var></span></kbd></dt>
-<dd><p>The target platform to compile the model for.
-The default target is <code class="docutils literal notranslate"><span class="pre">auto</span></code>, using which we will detect from <code class="docutils literal notranslate"><span class="pre">cuda</span></code>, <code class="docutils literal notranslate"><span class="pre">metal</span></code>, <code class="docutils literal notranslate"><span class="pre">vulkan</span></code> and <code class="docutils literal notranslate"><span class="pre">opencl</span></code>.
-Besides <code class="docutils literal notranslate"><span class="pre">auto</span></code>, other available options are: <code class="docutils literal notranslate"><span class="pre">metal</span></code> (for M1/M2), <code class="docutils literal notranslate"><span class="pre">metal_x86_64</span></code> (for Intel CPU), <code class="docutils literal notranslate"><span class="pre">iphone</span></code>,
-<code class="docutils literal notranslate"><span class="pre">vulkan</span></code>, <code class="docutils literal notranslate"><span class="pre">cuda</span></code>, <code class="docutils literal notranslate"><span class="pre">webgpu</span></code>, <code class="docutils literal notranslate"><span class="pre">android</span></code>, and <code class="docutils literal notranslate"><span class="pre">opencl</span></code>.</p>
-</dd>
-<dt><kbd><span class="option">--quantization <var>QUANTIZATION_MODE</var></span></kbd></dt>
-<dd><p>The quantization mode we use to compile.
-The format of the code is <code class="docutils literal notranslate"><span class="pre">qAfB(_0)</span></code>, where <code class="docutils literal notranslate"><span class="pre">A</span></code> represents the number of bits for storing weights and <code class="docutils literal notranslate"><span class="pre">B</span></code> represents the number of bits for storing activations.
-Available options are: <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f16_2</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f32_0</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>, and <code class="docutils literal notranslate"><span class="pre">q0f16</span></code>.
-We encourage you to use 4-bit quantization, as the text generated by 3-bit quantized models may have bad quality depending on the model.</p>
-</dd>
-</dl>
-<p>The following arguments are optional:</p>
-<dl class="option-list">
-<dt><kbd><span class="option">--max-seq-len <var>MAX_ALLOWED_SEQUENCE_LENGTH</var></span></kbd></dt>
-<dd><p>The maximum allowed sequence length for the model.
-When it is not specified,
-we will use the maximum sequence length from the <code class="docutils literal notranslate"><span class="pre">config.json</span></code> in the model directory.</p>
-</dd>
-<dt><kbd><span class="option">--reuse-lib <var>LIB_NAME</var></span></kbd></dt>
-<dd><p>Specifies the previously generated library to reuse.
-This is useful when building the same model architecture with different weights.
-You can refer to the <a class="reference internal" href="distribute_compiled_models.html#distribute-model-step3-specify-model-lib"><span class="std std-ref">model distribution</span></a> page for details of this argument.</p>
-</dd>
-<dt><kbd><span class="option">--use-cache</span></kbd></dt>
-<dd><p>When <code class="docutils literal notranslate"><span class="pre">--use-cache=0</span></code> is specified,
-the model compilation will not use cached file from previous builds,
-and will compile the model from the very start.
-Using a cache can help reduce the time needed to compile.</p>
-</dd>
-<dt><kbd><span class="option">--debug-dump</span></kbd></dt>
-<dd><p>Specifies whether to dump debugging files during compilation.</p>
-</dd>
-<dt><kbd><span class="option">--use-safetensors</span></kbd></dt>
-<dd><p>Specifies whether to use <code class="docutils literal notranslate"><span class="pre">.safetensors</span></code> instead of the default <code class="docutils literal notranslate"><span class="pre">.bin</span></code> when loading in model weights.</p>
-</dd>
-</dl>
-</section>
-<section id="more-model-compile-commands">
-<h2><a class="toc-backref" href="#id11" role="doc-backlink">More Model Compile Commands</a><a class="headerlink" href="#more-model-compile-commands" title="Permalink to this heading">¶</a></h2>
-<p>This section lists compile commands for more models that you can try out.</p>
+<section id="compile-commands-for-more-models">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Compile Commands for More Models</a><a class="headerlink" href="#compile-commands-for-more-models" title="Permalink to this heading">¶</a></h2>
+<p>This section lists compile commands for more models that you can try out. Note that this can be easily
+generalized to any model variant, as long as mlc-llm supports the architecture.</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">Model: Llama-2-7B</button><button aria-controls="panel-2-2-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-1" name="2-1" role="tab" tabindex="-1">Vicuna-v1-7B</button><button aria-controls="panel-2-2-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-2" name="2-2" role="tab" tabindex="-1">RedPajama-v1-3B</button><button aria-controls="panel-2-2-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-3" name="2-3" role="tab" tabindex="-1">rwkv-raven-1b5/3b/7b</button><button aria-controls="panel-2-2-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-4" name="2-4" role="tab" tabindex="-1">Other models</button></div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><p>Please <a class="reference external" href="https://huggingface.co/meta-llama">request for access</a> to the Llama-2 weights from Meta first.
-After granted access, please create directory <code class="docutils literal notranslate"><span class="pre">dist/models</span></code> and download the model to the directory.
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-2-2-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-2-2-0" name="2-0" role="tab" tabindex="0">Model: Llama-2-7B</button><button aria-controls="panel-2-2-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-1" name="2-1" role="tab" tabindex="-1">Mistral-7B-Instruct-v0.1</button><button aria-controls="panel-2-2-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-2-2-2" name="2-2" role="tab" tabindex="-1">Other models</button></div><div aria-labelledby="tab-2-2-0" class="sphinx-tabs-panel" id="panel-2-2-0" name="2-0" role="tabpanel" tabindex="0"><p>Please <a class="reference external" href="https://huggingface.co/meta-llama">request for access</a> to the Llama-2 weights from Meta first.
+After granted access, first create directory <code class="docutils literal notranslate"><span class="pre">dist/models</span></code> and download the model to the directory.
 For example, you can run the following code:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/models
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/llama_q4f16_1<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>dist/models<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>dist/models
 <span class="nb">cd</span><span class="w"> </span>dist/models
 git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
 <span class="nb">cd</span><span class="w"> </span>../..
 </pre></div>
 </div>
-<p>After downloading the model, run the following command to compile the model.</p>
+<p>Then convert the HF weights into MLC-compatible weights. Note that all platforms
+can share the same compiled/quantized weights.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_chat<span class="w"> </span>convert_weight<span class="w"> </span>./dist/models/Llama-2-7b-chat-hf/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/params
+</pre></div>
+</div>
+<p>Afterwards, run the following command to generate mlc config and compile the model.</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-3-3-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-3-3-0" name="3-0" role="tab" tabindex="0">Target: CUDA</button><button aria-controls="panel-3-3-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-1" name="3-1" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-3-3-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-2" name="3-2" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-3-3-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-3" name="3-3" role="tab" tabindex="-1">WebGPU</button><button aria-controls="panel-3-3-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-4" name="3-4" role="tab" tabindex="-1">iPhone/iPad</button><button aria-controls="panel-3-3-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-5" name="3-5" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-3-3-0" class="sphinx-tabs-panel" id="panel-3-3-0" name="3-0" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>Llama-2-7b-chat-hf<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-3-3-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-3-3-0" name="3-0" role="tab" tabindex="0">Target: CUDA</button><button aria-controls="panel-3-3-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-1" name="3-1" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-3-3-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-2" name="3-2" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-3-3-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-3" name="3-3" role="tab" tabindex="-1">WebGPU</button><button aria-controls="panel-3-3-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-4" name="3-4" role="tab" tabindex="-1">iPhone/iPad</button><button aria-controls="panel-3-3-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-3-3-5" name="3-5" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-3-3-0" class="sphinx-tabs-panel" id="panel-3-3-0" name="3-0" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Llama-2-7b-chat-hf/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>llama-2<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/llama_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>cuda<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/llama_q4f16_1.so
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-3-3-1" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-1" name="3-1" role="tabpanel" tabindex="0"><p>On Apple Silicon powered Mac, compile for Apple Silicon Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>Llama-2-7b-chat-hf<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div><div aria-labelledby="tab-3-3-1" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-1" name="3-1" role="tabpanel" tabindex="0"><p>For M-chip Mac:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Llama-2-7b-chat-hf/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>llama-2<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/llama_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>metal<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/llama_q4f16_1.so
 </pre></div>
 </div>
-<p>On Apple Silicon powered Mac, compile for x86 Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>Llama-2-7b-chat-hf<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+<p>For Intel Mac:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Llama-2-7b-chat-hf/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>llama-2<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/llama_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>metal<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/llama_q4f16_1.dylib
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-3-3-2" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-2" name="3-2" role="tabpanel" tabindex="0"><p>On Linux, compile for Linux:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>Llama-2-7b-chat-hf<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div><div aria-labelledby="tab-3-3-2" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-2" name="3-2" role="tabpanel" tabindex="0"><p>For Linux:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Llama-2-7b-chat-hf/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>llama-2<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/llama_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>vulkan<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/llama_q4f16_1.so
 </pre></div>
 </div>
-<p>On Linux, compile for Windows: please first install the <a class="reference external" href="https://github.com/mstorsjo/llvm-mingw">LLVM-MinGW</a> toolchain, and substitute the <code class="docutils literal notranslate"><span class="pre">path/to/llvm-mingw</span></code> in the command with your LLVM-MinGW installation path.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>Llama-2-7b-chat-hf<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
+<p>For Windows:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Llama-2-7b-chat-hf/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>llama-2<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/llama_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>vulkan<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/llama_q4f16_1.dll
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-3-3-3" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-3" name="3-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>Llama-2-7b-chat-hf<span class="w"> </span>--target<span class="w"> </span>webgpu<span class="w"> </span>--quantization<span class="w"> </span>q4f32_1
+</div><div aria-labelledby="tab-3-3-3" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-3" name="3-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Llama-2-7b-chat-hf/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--context-window-size<span class="w"> </span><span class="m">2048</span><span class="w"> </span>--conv-template<span class="w"> </span>llama-2<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/llama_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>webgpu<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/llama_q4f16_1.wasm
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-3-3-4" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-4" name="3-4" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>Llama-2-7b-chat-hf<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q3f16_1
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To compile for webgpu, you need to build from source when installing <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code>. Besides, you also need to follow <a class="reference internal" href="../install/emcc.html#install-web-build"><span class="std std-ref">Install Wasm Build Environment</span></a>.
+Otherwise, it would run into error</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>RuntimeError: Cannot find libraries: wasm_runtime.bc
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-3-3-5" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-5" name="3-5" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>Llama-2-7b-chat-hf<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div>
+</div><div aria-labelledby="tab-3-3-4" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-4" name="3-4" role="tabpanel" tabindex="0"><p>You need a Mac to compile models for it.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Llama-2-7b-chat-hf/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>llama-2<span class="w"> </span>--context-window-size<span class="w"> </span><span class="m">768</span><span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/llama_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>iphone<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/llama_q4f16_1.tar
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-3-3-5" class="sphinx-tabs-panel" hidden="true" id="panel-3-3-5" name="3-5" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Llama-2-7b-chat-hf/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>llama-2<span class="w"> </span>--context-window-size<span class="w"> </span><span class="m">768</span><span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/llama_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>android<span class="w"> </span>-o<span class="w"> </span>dist/llama_q4f16_1/llama_q4f16_1.tar
 </pre></div>
 </div>
 </div></div>
-</div><div aria-labelledby="tab-2-2-1" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-1" name="2-1" role="tabpanel" tabindex="0"><p>Please check this page on <a class="reference internal" href="get-vicuna-weight.html"><span class="doc">how to get the Vicuna model weights</span></a>.</p>
+</div><div aria-labelledby="tab-2-2-1" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-1" name="2-1" role="tabpanel" tabindex="0"><p>Note that Mistral uses sliding window attention (SWA). Thus, instead of specifying
+<code class="docutils literal notranslate"><span class="pre">context-window-size</span></code>, we specify <code class="docutils literal notranslate"><span class="pre">sliding-window-size</span></code>.</p>
+<p>First create directory <code class="docutils literal notranslate"><span class="pre">dist/models</span></code> and download the model to the directory.
+For example, you can run the following code:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/mistral_q4f16_1<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>dist/models<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>dist/models
+<span class="nb">cd</span><span class="w"> </span>dist/models
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1
+<span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+<p>Then convert the HF weights into MLC-compatible weights. Note that all platforms
+can share the same compiled/quantized weights.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_chat<span class="w"> </span>convert_weight<span class="w"> </span>./dist/models/Mistral-7B-Instruct-v0.1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/params
+</pre></div>
+</div>
+<p>Afterwards, run the following command to generate mlc config and compile the model.</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-4-4-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-4-4-0" name="4-0" role="tab" tabindex="0">Target: CUDA</button><button aria-controls="panel-4-4-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-1" name="4-1" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-4-4-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-2" name="4-2" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-4-4-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-3" name="4-3" role="tab" tabindex="-1">WebGPU</button><button aria-controls="panel-4-4-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-4" name="4-4" role="tab" tabindex="-1">iPhone/iPad</button><button aria-controls="panel-4-4-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-5" name="4-5" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-4-4-0" class="sphinx-tabs-panel" id="panel-4-4-0" name="4-0" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-4-4-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-4-4-0" name="4-0" role="tab" tabindex="0">Target: CUDA</button><button aria-controls="panel-4-4-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-1" name="4-1" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-4-4-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-2" name="4-2" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-4-4-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-3" name="4-3" role="tab" tabindex="-1">WebGPU</button><button aria-controls="panel-4-4-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-4" name="4-4" role="tab" tabindex="-1">iPhone/iPad</button><button aria-controls="panel-4-4-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-4-4-5" name="4-5" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-4-4-0" class="sphinx-tabs-panel" id="panel-4-4-0" name="4-0" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Mistral-7B-Instruct-v0.1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>mistral_default<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/mistral_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>cuda<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/mistral_q4f16_1.so
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-4-4-1" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-1" name="4-1" role="tabpanel" tabindex="0"><p>On Apple Silicon powered Mac, compile for Apple Silicon Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div><div aria-labelledby="tab-4-4-1" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-1" name="4-1" role="tabpanel" tabindex="0"><p>For M-chip Mac:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Mistral-7B-Instruct-v0.1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>mistral_default<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/mistral_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>metal<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/mistral_q4f16_1.so
 </pre></div>
 </div>
-<p>On Apple Silicon powered Mac, compile for x86 Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+<p>For Intel Mac:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Mistral-7B-Instruct-v0.1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>mistral_default<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/mistral_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>metal<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/mistral_q4f16_1.dylib
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-4-4-2" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-2" name="4-2" role="tabpanel" tabindex="0"><p>On Linux, compile for Linux:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div><div aria-labelledby="tab-4-4-2" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-2" name="4-2" role="tabpanel" tabindex="0"><p>For Linux:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Mistral-7B-Instruct-v0.1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>mistral_default<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/mistral_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>vulkan<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/mistral_q4f16_1.so
 </pre></div>
 </div>
-<p>On Linux, compile for Windows: please first install the <a class="reference external" href="https://github.com/mstorsjo/llvm-mingw">LLVM-MinGW</a> toolchain, and substitute the <code class="docutils literal notranslate"><span class="pre">path/to/llvm-mingw</span></code> in the command with your LLVM-MinGW installation path.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
+<p>For Windows:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Mistral-7B-Instruct-v0.1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>mistral_default<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/mistral_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>vulkan<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/mistral_q4f16_1.dll
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-4-4-3" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-3" name="4-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>webgpu<span class="w"> </span>--quantization<span class="w"> </span>q4f32_1
+</div><div aria-labelledby="tab-4-4-3" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-3" name="4-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Mistral-7B-Instruct-v0.1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--prefill-chunk-size<span class="w"> </span><span class="m">1024</span><span class="w"> </span>--conv-template<span class="w"> </span>mistral_default<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/mistral_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>webgpu<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/mistral_q4f16_1.wasm
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-4-4-4" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-4" name="4-4" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q3f16_1
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To compile for webgpu, you need to build from source when installing <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code>. Besides, you also need to follow <a class="reference internal" href="../install/emcc.html#install-web-build"><span class="std std-ref">Install Wasm Build Environment</span></a>.
+Otherwise, it would run into error</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>RuntimeError: Cannot find libraries: wasm_runtime.bc
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-4-4-5" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-5" name="4-5" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>vicuna-v1-7b<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For webgpu, when compiling larger models like <code class="docutils literal notranslate"><span class="pre">Llama-2-7B</span></code>, you may want to add <code class="docutils literal notranslate"><span class="pre">--prefill_chunk_size</span> <span class="pre">1024</span></code> or lower <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code> to decrease memory usage.
+Otherwise, you may run into issues like:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>TypeError: Failed to execute &#39;createBuffer&#39; on &#39;GPUDevice&#39;: Failed to read the &#39;size&#39; property from
+&#39;GPUBufferDescriptor&#39;: Value is outside the &#39;unsigned long long&#39; value range.
 </pre></div>
 </div>
-</div></div>
-</div><div aria-labelledby="tab-2-2-2" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-2" name="2-2" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-5-5-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-5-5-0" name="5-0" role="tab" tabindex="0">Target: CUDA</button><button aria-controls="panel-5-5-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-1" name="5-1" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-5-5-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-2" name="5-2" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-5-5-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-3" name="5-3" role="tab" tabindex="-1">WebGPU</button><button aria-controls="panel-5-5-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-4" name="5-4" role="tab" tabindex="-1">iPhone/iPad</button><button aria-controls="panel-5-5-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-5" name="5-5" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-5-5-0" class="sphinx-tabs-panel" id="panel-5-5-0" name="5-0" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div>
+</div><div aria-labelledby="tab-4-4-4" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-4" name="4-4" role="tabpanel" tabindex="0"><p>You need a Mac to compile models for it.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Mistral-7B-Instruct-v0.1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>mistral_default<span class="w"> </span>--sliding-window-size<span class="w"> </span><span class="m">1024</span><span class="w"> </span>--prefill-chunk-size<span class="w"> </span><span class="m">128</span><span class="w">  </span>-o<span class="w"> </span>dist/mistral_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/mistral_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>iphone<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/mistral_q4f16_1.tar
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-5-5-1" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-1" name="5-1" role="tabpanel" tabindex="0"><p>On Apple Silicon powered Mac, compile for Apple Silicon Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
-</pre></div>
-</div>
-<p>On Apple Silicon powered Mac, compile for x86 Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
-</pre></div>
-</div>
-</div><div aria-labelledby="tab-5-5-2" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-2" name="5-2" role="tabpanel" tabindex="0"><p>On Linux, compile for Linux:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
-</pre></div>
-</div>
-<p>On Linux, compile for Windows: please first install the <a class="reference external" href="https://github.com/mstorsjo/llvm-mingw">LLVM-MinGW</a> toolchain, and substitute the <code class="docutils literal notranslate"><span class="pre">path/to/llvm-mingw</span></code> in the command with your LLVM-MinGW installation path.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
-</pre></div>
-</div>
-</div><div aria-labelledby="tab-5-5-3" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-3" name="5-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>webgpu<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
-</pre></div>
-</div>
-</div><div aria-labelledby="tab-5-5-4" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-4" name="5-4" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
-</pre></div>
-</div>
-</div><div aria-labelledby="tab-5-5-5" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-5" name="5-5" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>RedPajama-INCITE-Chat-3B-v1<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
-</pre></div>
-</div>
-</div></div>
-</div><div aria-labelledby="tab-2-2-3" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-3" name="2-3" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-6-6-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-6-6-0" name="6-0" role="tab" tabindex="0">Target: CUDA</button><button aria-controls="panel-6-6-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-6-6-1" name="6-1" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-6-6-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-6-6-2" name="6-2" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-6-6-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-6-6-3" name="6-3" role="tab" tabindex="-1">iPhone/iPad</button></div><div aria-labelledby="tab-6-6-0" class="sphinx-tabs-panel" id="panel-6-6-0" name="6-0" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># For 1.5B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-1b5<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-<span class="c1"># For 3B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-3b<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-<span class="c1"># For 7B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-7b<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-</pre></div>
-</div>
-</div><div aria-labelledby="tab-6-6-1" class="sphinx-tabs-panel" hidden="true" id="panel-6-6-1" name="6-1" role="tabpanel" tabindex="0"><p>On Apple Silicon powered Mac, compile for Apple Silicon Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># For 1.5B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-1b5<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-<span class="c1"># For 3B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-3b<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-<span class="c1"># For 7B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-7b<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-</pre></div>
-</div>
-<p>On Apple Silicon powered Mac, compile for x86 Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># For 1.5B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-1b5<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-<span class="c1"># For 3B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-3b<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-<span class="c1"># For 7B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-7b<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-</pre></div>
-</div>
-</div><div aria-labelledby="tab-6-6-2" class="sphinx-tabs-panel" hidden="true" id="panel-6-6-2" name="6-2" role="tabpanel" tabindex="0"><p>On Linux, compile for Linux:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># For 1.5B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-1b5<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-<span class="c1"># For 3B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-3b<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-<span class="c1"># For 7B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-7b<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-</pre></div>
-</div>
-<p>On Linux, compile for Windows: please first install the <a class="reference external" href="https://github.com/mstorsjo/llvm-mingw">LLVM-MinGW</a> toolchain, and substitute the <code class="docutils literal notranslate"><span class="pre">path/to/llvm-mingw</span></code> in the command with your LLVM-MinGW installation path.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># For 1.5B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-1b5<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
-<span class="c1"># For 3B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-3b<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
-<span class="c1"># For 7B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-7b<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
-</pre></div>
-</div>
-</div><div aria-labelledby="tab-6-6-3" class="sphinx-tabs-panel" hidden="true" id="panel-6-6-3" name="6-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># For 1.5B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-1b5<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-<span class="c1"># For 3B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-3b<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
-<span class="c1"># For 7B model</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--hf-path<span class="o">=</span>RWKV/rwkv-raven-7b<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--quantization<span class="w"> </span>q4f16_2
+</div><div aria-labelledby="tab-4-4-5" class="sphinx-tabs-panel" hidden="true" id="panel-4-4-5" name="4-5" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/Mistral-7B-Instruct-v0.1/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>mistral_default<span class="w"> </span>--sliding-window-size<span class="w"> </span><span class="m">1024</span><span class="w"> </span>--prefill-chunk-size<span class="w"> </span><span class="m">128</span><span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/mistral_q4f16_1/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>android<span class="w"> </span>-o<span class="w"> </span>dist/mistral_q4f16_1/mistral_q4f16_1.tar
 </pre></div>
 </div>
 </div></div>
-</div><div aria-labelledby="tab-2-2-4" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-4" name="2-4" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-7-7-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-7-7-0" name="7-0" role="tab" tabindex="0">Target: CUDA</button><button aria-controls="panel-7-7-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-7-7-1" name="7-1" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-7-7-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-7-7-2" name="7-2" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-7-7-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-7-7-3" name="7-3" role="tab" tabindex="-1">WebGPU</button><button aria-controls="panel-7-7-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-7-7-4" name="7-4" role="tab" tabindex="-1">iPhone/iPad</button><button aria-controls="panel-7-7-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-7-7-5" name="7-5" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-7-7-0" class="sphinx-tabs-panel" id="panel-7-7-0" name="7-0" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>cuda<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div><div aria-labelledby="tab-2-2-2" class="sphinx-tabs-panel" hidden="true" id="panel-2-2-2" name="2-2" role="tabpanel" tabindex="0"><p>First create directory <code class="docutils literal notranslate"><span class="pre">dist/models</span></code> and download the model to the directory.
+For example, you can run the following code:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/OUTPUT<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>dist/models<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>dist/models
+<span class="nb">cd</span><span class="w"> </span>dist/models
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/DISTRIBUTOR/HF_MODEL
+<span class="nb">cd</span><span class="w"> </span>../..
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-7-7-1" class="sphinx-tabs-panel" hidden="true" id="panel-7-7-1" name="7-1" role="tabpanel" tabindex="0"><p>On Apple Silicon powered Mac, compile for Apple Silicon Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>metal<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+<p>Then convert the HF weights into MLC-compatible weights. Note that all platforms
+can share the same compiled/quantized weights.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_chat<span class="w"> </span>convert_weight<span class="w"> </span>./dist/models/HF_MODEL/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/params
 </pre></div>
 </div>
-<p>On Apple Silicon powered Mac, compile for x86 Mac:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>metal_x86_64<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+<p>Afterwards, run the following command to generate mlc config and compile the model.</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-5-5-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-5-5-0" name="5-0" role="tab" tabindex="0">Target: CUDA</button><button aria-controls="panel-5-5-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-1" name="5-1" role="tab" tabindex="-1">Metal</button><button aria-controls="panel-5-5-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-2" name="5-2" role="tab" tabindex="-1">Vulkan</button><button aria-controls="panel-5-5-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-3" name="5-3" role="tab" tabindex="-1">WebGPU</button><button aria-controls="panel-5-5-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-4" name="5-4" role="tab" tabindex="-1">iPhone/iPad</button><button aria-controls="panel-5-5-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-5-5-5" name="5-5" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-5-5-0" class="sphinx-tabs-panel" id="panel-5-5-0" name="5-0" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/HF_MODEL/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>CONV_TEMPLATE<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/OUTPUT/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>cuda<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/OUTPUT.so
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-7-7-2" class="sphinx-tabs-panel" hidden="true" id="panel-7-7-2" name="7-2" role="tabpanel" tabindex="0"><p>On Linux, compile for Linux:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div><div aria-labelledby="tab-5-5-1" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-1" name="5-1" role="tabpanel" tabindex="0"><p>For M-chip Mac:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/HF_MODEL/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>CONV_TEMPLATE<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/OUTPUT/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>metal<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/OUTPUT.so
 </pre></div>
 </div>
-<p>On Linux, compile for Windows: please first install the <a class="reference external" href="https://github.com/mstorsjo/llvm-mingw">LLVM-MinGW</a> toolchain, and substitute the <code class="docutils literal notranslate"><span class="pre">path/to/llvm-mingw</span></code> in the command with your LLVM-MinGW installation path.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>vulkan<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--llvm-mingw<span class="w"> </span>path/to/llvm-mingw
+<p>For Intel Mac:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/HF_MODEL/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>CONV_TEMPLATE<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/OUTPUT/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>metal<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/OUTPUT.dylib
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-7-7-3" class="sphinx-tabs-panel" hidden="true" id="panel-7-7-3" name="7-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>webgpu<span class="w"> </span>--quantization<span class="w"> </span>q4f32_0
+</div><div aria-labelledby="tab-5-5-2" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-2" name="5-2" role="tabpanel" tabindex="0"><p>For Linux:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/HF_MODEL/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>CONV_TEMPLATE<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/OUTPUT/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>vulkan<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/OUTPUT.so
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-7-7-4" class="sphinx-tabs-panel" hidden="true" id="panel-7-7-4" name="7-4" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>iphone<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+<p>For Windows:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/HF_MODEL/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>CONV_TEMPLATE<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/OUTPUT/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>vulkan<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/OUTPUT.dll
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-7-7-5" class="sphinx-tabs-panel" hidden="true" id="panel-7-7-5" name="7-5" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and put the model to `dist/models/MODEL_NAME`, and then run</span>
-python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span class="w"> </span>--model<span class="w"> </span>MODEL_NAME<span class="w"> </span>--target<span class="w"> </span>android<span class="w"> </span>--max-seq-len<span class="w"> </span><span class="m">768</span><span class="w"> </span>--quantization<span class="w"> </span>q4f16_1
+</div><div aria-labelledby="tab-5-5-3" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-3" name="5-3" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/HF_MODEL/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>CONV_TEMPLATE<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/OUTPUT/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>webgpu<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/OUTPUT.wasm
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To compile for webgpu, you need to build from source when installing <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code>. Besides, you also need to follow <a class="reference internal" href="../install/emcc.html#install-web-build"><span class="std std-ref">Install Wasm Build Environment</span></a>.
+Otherwise, it would run into error</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>RuntimeError: Cannot find libraries: wasm_runtime.bc
+</pre></div>
+</div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For webgpu, when compiling larger models like <code class="docutils literal notranslate"><span class="pre">Llama-2-7B</span></code>, you may want to add <code class="docutils literal notranslate"><span class="pre">--prefill_chunk_size</span> <span class="pre">1024</span></code> or lower <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code> to decrease memory usage.
+Otherwise, you may run into issues like:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>TypeError: Failed to execute &#39;createBuffer&#39; on &#39;GPUDevice&#39;: Failed to read the &#39;size&#39; property from
+&#39;GPUBufferDescriptor&#39;: Value is outside the &#39;unsigned long long&#39; value range.
+</pre></div>
+</div>
+</div>
+</div><div aria-labelledby="tab-5-5-4" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-4" name="5-4" role="tabpanel" tabindex="0"><p>You need a Mac to compile models for it.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/HF_MODEL/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>CONV_TEMPLATE<span class="w"> </span>--context-window-size<span class="w"> </span><span class="m">768</span><span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/OUTPUT/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>iphone<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/OUTPUT.tar
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-5-5-5" class="sphinx-tabs-panel" hidden="true" id="panel-5-5-5" name="5-5" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/HF_MODEL/<span class="w"> </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>CONV_TEMPLATE<span class="w"> </span>--context-window-size<span class="w"> </span><span class="m">768</span><span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/params/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/OUTPUT/params/mlc-chat-config.json<span class="w"> </span>--device<span class="w"> </span>android<span class="w"> </span>-o<span class="w"> </span>dist/OUTPUT/OUTPUT.tar
 </pre></div>
 </div>
 </div></div>
 </div></div>
-<p>For each model and each backend, the above only provides the most recommended build command (which is the most optimized). You can also try with different argument values (e.g., different quantization modes), whose build results may not run as fast and robustly as the provided one when running the model.</p>
+<p>For each model and each backend, the above only provides the most recommended build command (which is the most optimized).
+You can also try with different argument values (e.g., different quantization modes, context window size, etc.),
+whose build results affect runtime memory requirement, and it is possible that they may not run as
+fast and robustly as the provided one when running the model.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Uing 3-bit quantization usually can be overly aggressive and only works for limited settings.
@@ -806,6 +837,231 @@ If you encounter issues where the compiled model does not perform as expected,
 consider utilizing a higher number of bits for quantization (e.g., 4-bit quantization).</p>
 </div>
 <p>If you are interested in distributing the model besides local execution, please checkout <a class="reference internal" href="distribute_compiled_models.html#distribute-compiled-models"><span class="std std-ref">Distribute Compiled Models</span></a>.</p>
+</section>
+<section id="compile-command-specification">
+<span id="id2"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Compile Command Specification</a><a class="headerlink" href="#compile-command-specification" title="Permalink to this heading">¶</a></h2>
+<p>As you have seen in the section above, the model compilation is split into three steps: convert weights, generate
+<code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>, and compile the model. This section describes the list of options that can be used
+during compilation.</p>
+<section id="convert-weight">
+<h3>1. Convert Weight<a class="headerlink" href="#convert-weight" title="Permalink to this heading">¶</a></h3>
+<p>Weight conversion command follows the pattern below:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>mlc_chat convert_weight \
+    CONFIG \
+    --quantization QUANTIZATION_MODE \
+    [--model-type MODEL_TYPE] \
+    [--device DEVICE] \
+    [--source SOURCE] \
+    [--source-format SOURCE_FORMAT] \
+    --output OUTPUT
+</pre></div>
+</div>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">CONFIG</span></code> is a positional argument. Arguments wrapped with <code class="docutils literal notranslate"><span class="pre">[</span> <span class="pre">]</span></code> are optional.</p>
+<dl class="option-list">
+<dt><kbd><span class="option">--CONFIG</span></kbd></dt>
+<dd><p>It can be one of the following:</p>
+<ol class="arabic simple">
+<li><p>Path to a HuggingFace model directory that contains a <code class="docutils literal notranslate"><span class="pre">config.json</span></code> or</p></li>
+<li><p>Path to <code class="docutils literal notranslate"><span class="pre">config.json</span></code> in HuggingFace format, or</p></li>
+<li><p>The name of a pre-defined model architecture.</p></li>
+</ol>
+<p>A <code class="docutils literal notranslate"><span class="pre">config.json</span></code> file in HuggingFace format defines the model architecture, including the vocabulary
+size, the number of layers, the hidden size, number of attention heads, etc.
+Example: <a class="reference external" href="https://huggingface.co/codellama/CodeLlama-7b-hf/blob/main/config.json">https://huggingface.co/codellama/CodeLlama-7b-hf/blob/main/config.json</a>.</p>
+<p>A HuggingFace directory often contains a <code class="docutils literal notranslate"><span class="pre">config.json</span></code> which defines the model architecture,
+the non-quantized model weights in PyTorch or SafeTensor format, tokenizer configurations,
+as well as an optional <code class="docutils literal notranslate"><span class="pre">generation_config.json</span></code> provides additional default configuration for
+text generation.
+Example: <a class="reference external" href="https://huggingface.co/codellama/CodeLlama-7b-hf/tree/main">https://huggingface.co/codellama/CodeLlama-7b-hf/tree/main</a>.</p>
+<p>For existing pre-defined model architecture, see <code class="docutils literal notranslate"><span class="pre">MODEL_PRESETS</span></code>
+<a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_chat/compiler/model/model.py">here</a>.</p>
+</dd>
+<dt><kbd><span class="option">--quantization <var>QUANTIZATION_MODE</var></span></kbd></dt>
+<dd><p>The quantization mode we use to compile.</p>
+<p>See <a class="reference internal" href="configure_quantization.html#quantization-mode"><span class="std std-ref">Quantization Mode</span></a> for more information.
+Available options are: <code class="docutils literal notranslate"><span class="pre">q0f16</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>, <code class="docutils literal notranslate"><span class="pre">q3f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f32_1</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">q4f16_awq</span></code>.</p>
+<p>We encourage you to use 4-bit quantization, as the text generated by 3-bit
+quantized models may have bad quality depending on the model.</p>
+</dd>
+<dt><kbd><span class="option">--model-type <var>MODEL_TYPE</var></span></kbd></dt>
+<dd><p>Model architecture such as “llama”. If not set, it is inferred from <code class="docutils literal notranslate"><span class="pre">config.json</span></code>.</p>
+</dd>
+<dt><kbd><span class="option">--device <var>DEVICE</var></span></kbd></dt>
+<dd><p>The device used to do quantization such as “cuda” or “cuda:0”. Will detect from
+local available GPUs if not specified.</p>
+</dd>
+<dt><kbd><span class="option">--source <var>SOURCE</var></span></kbd></dt>
+<dd><p>The path to original model weight, infer from <code class="docutils literal notranslate"><span class="pre">config</span></code> if missing.</p>
+</dd>
+<dt><kbd><span class="option">--source-format <var>SOURCE_FORMAT</var></span></kbd></dt>
+<dd><p>The format of source model weight, infer from <code class="docutils literal notranslate"><span class="pre">config</span></code> if missing.</p>
+</dd>
+<dt><kbd><span class="option">--output <var>OUTPUT</var></span></kbd></dt>
+<dd><p>The output directory to save the quantized model weight.
+Will create <code class="docutils literal notranslate"><span class="pre">params_shard_*.bin</span></code> and <code class="docutils literal notranslate"><span class="pre">`ndarray-cache.json`</span></code> in this directory.</p>
+</dd>
+</dl>
+</section>
+<section id="generate-mlc-chat-config">
+<h3>2. Generate MLC Chat Config<a class="headerlink" href="#generate-mlc-chat-config" title="Permalink to this heading">¶</a></h3>
+<p>In order to compile a model, we first need to generate the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>. This file contains specifications
+like <code class="docutils literal notranslate"><span class="pre">context-window-size</span></code> and <code class="docutils literal notranslate"><span class="pre">sliding-window-size</span></code>, among others that can alter the model compiled. We also process
+tokenizers in this step.</p>
+<p>Config generation command follows the pattern below:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>mlc_chat gen_config \
+    CONFIG \
+    --quantization QUANTIZATION_MODE \
+    [--model-type MODEL_TYPE] \
+    --conv-template CONV_TEMPLATE \
+    [--context-window-size CONTEXT_WINDOW_SIZE] \
+    [--sliding-window-size SLIDING_WINDOW_SIZE] \
+    [--prefill-chunk-size PREFILL_CHUNK_SIZE] \
+    [--tensor-parallel-shard TENSOR_PARALLEL_SHARDS] \
+    --output OUTPUT
+</pre></div>
+</div>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">CONFIG</span></code> is a positional argument. Arguments wrapped with <code class="docutils literal notranslate"><span class="pre">[</span> <span class="pre">]</span></code> are optional.</p>
+<dl class="option-list">
+<dt><kbd><span class="option">--CONFIG</span></kbd></dt>
+<dd><p>It can be one of the following:</p>
+<ol class="arabic simple">
+<li><p>Path to a HuggingFace model directory that contains a <code class="docutils literal notranslate"><span class="pre">config.json</span></code> or</p></li>
+<li><p>Path to <code class="docutils literal notranslate"><span class="pre">config.json</span></code> in HuggingFace format, or</p></li>
+<li><p>The name of a pre-defined model architecture.</p></li>
+</ol>
+<p>A <code class="docutils literal notranslate"><span class="pre">config.json</span></code> file in HuggingFace format defines the model architecture, including the vocabulary
+size, the number of layers, the hidden size, number of attention heads, etc.
+Example: <a class="reference external" href="https://huggingface.co/codellama/CodeLlama-7b-hf/blob/main/config.json">https://huggingface.co/codellama/CodeLlama-7b-hf/blob/main/config.json</a>.</p>
+<p>A HuggingFace directory often contains a <code class="docutils literal notranslate"><span class="pre">config.json</span></code> which defines the model architecture,
+the non-quantized model weights in PyTorch or SafeTensor format, tokenizer configurations,
+as well as an optional <code class="docutils literal notranslate"><span class="pre">generation_config.json</span></code> provides additional default configuration for
+text generation.
+Example: <a class="reference external" href="https://huggingface.co/codellama/CodeLlama-7b-hf/tree/main">https://huggingface.co/codellama/CodeLlama-7b-hf/tree/main</a>.</p>
+<p>For existing pre-defined model architecture, see <code class="docutils literal notranslate"><span class="pre">MODEL_PRESETS</span></code>
+<a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_chat/compiler/model/model.py">here</a>.</p>
+</dd>
+<dt><kbd><span class="option">--quantization <var>QUANTIZATION_MODE</var></span></kbd></dt>
+<dd><p>The quantization mode we use to compile.</p>
+<p>See <a class="reference internal" href="configure_quantization.html#quantization-mode"><span class="std std-ref">Quantization Mode</span></a> for more information.
+Available options are: <code class="docutils literal notranslate"><span class="pre">q0f16</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>, <code class="docutils literal notranslate"><span class="pre">q3f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f32_1</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">q4f16_awq</span></code>.</p>
+<p>We encourage you to use 4-bit quantization, as the text generated by 3-bit
+quantized models may have bad quality depending on the model.</p>
+</dd>
+<dt><kbd><span class="option">--model-type <var>MODEL_TYPE</var></span></kbd></dt>
+<dd><p>Model architecture such as “llama”. If not set, it is inferred from <code class="docutils literal notranslate"><span class="pre">config.json</span></code>.</p>
+</dd>
+<dt><kbd><span class="option">--conv-template <var>CONV_TEMPLATE</var></span></kbd></dt>
+<dd><p>Conversation template. It depends on how the model is tuned. Use “LM” for vanilla base model
+For existing pre-defined templates, see <code class="docutils literal notranslate"><span class="pre">CONV_TEMPLATES</span></code>
+<a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_chat/compiler/model/model.py">here</a>.</p>
+</dd>
+<dt><kbd><span class="option">--context-window-size <var>CONTEXT_WINDOW_SIZE</var></span></kbd></dt>
+<dd><p>Option to provide the maximum sequence length supported by the model.
+This is usually explicitly shown as context length or context window in the model card.
+If this option is not set explicitly, by default,
+it will be determined by <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code> or <code class="docutils literal notranslate"><span class="pre">max_position_embeddings</span></code> in <code class="docutils literal notranslate"><span class="pre">config.json</span></code>,
+and the latter is usually inaccurate for some models.</p>
+</dd>
+<dt><kbd><span class="option">--sliding-window-size <var>SLIDING_WINDOW</var></span></kbd></dt>
+<dd><p>(Experimental) The sliding window size in sliding window attention (SWA).
+This optional field overrides the <code class="docutils literal notranslate"><span class="pre">sliding_window</span></code> in <code class="docutils literal notranslate"><span class="pre">config.json</span></code> for
+those models that use SWA. Currently only useful when compiling mistral-based models.
+This flag subjects to future refactoring.</p>
+</dd>
+<dt><kbd><span class="option">--prefill-chunk-size <var>PREFILL_CHUNK_SIZE</var></span></kbd></dt>
+<dd><p>(Experimental) The chunk size during prefilling. By default,
+the chunk size is the same as <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code> or <code class="docutils literal notranslate"><span class="pre">sliding_window_size</span></code>.
+This flag subjects to future refactoring.</p>
+</dd>
+<dt><kbd><span class="option">--tensor-parallel-shard <var>TENSOR_PARALLEL_SHARDS</var></span></kbd></dt>
+<dd><p>Number of shards to split the model into in tensor parallelism multi-gpu inference.</p>
+</dd>
+<dt><kbd><span class="option">--output <var>OUTPUT</var></span></kbd></dt>
+<dd><p>The output directory for generated configurations, including <cite>mlc-chat-config.json</cite> and tokenizer configuration.</p>
+</dd>
+</dl>
+</section>
+<section id="compile-model-library">
+<h3>3. Compile Model Library<a class="headerlink" href="#compile-model-library" title="Permalink to this heading">¶</a></h3>
+<p>After generating <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>, we can compile the model into a model library (files ending in <code class="docutils literal notranslate"><span class="pre">.so</span></code>, <code class="docutils literal notranslate"><span class="pre">.tar</span></code>, etc. that contains
+the inference logic of a model).</p>
+<p>Model compilation command follows the pattern below:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>mlc_chat compile \
+    MODEL \
+    [--quantization QUANTIZATION_MODE] \
+    [--model-type MODEL_TYPE] \
+    [--device DEVICE] \
+    [--host HOST] \
+    [--opt OPT] \
+    [--system-lib-prefix SYSTEM_LIB_PREFIX] \
+    --output OUTPUT \
+    [--overrides OVERRIDES]
+</pre></div>
+</div>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">MODEL</span></code> is a positional argument. Arguments wrapped with <code class="docutils literal notranslate"><span class="pre">[</span> <span class="pre">]</span></code> are optional.</p>
+<dl class="option-list">
+<dt><kbd><span class="option">--MODEL</span></kbd></dt>
+<dd><p>A path to <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>, or an MLC model directory that contains <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>.</p>
+</dd>
+<dt><kbd><span class="option">--quantization <var>QUANTIZATION_MODE</var></span></kbd></dt>
+<dd><p>The quantization mode we use to compile. If unprovided, will infer from <code class="docutils literal notranslate"><span class="pre">MODEL</span></code>.</p>
+<p>See <a class="reference internal" href="configure_quantization.html#quantization-mode"><span class="std std-ref">Quantization Mode</span></a> for more information.
+Available options are: <code class="docutils literal notranslate"><span class="pre">q0f16</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>, <code class="docutils literal notranslate"><span class="pre">q3f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f32_1</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">q4f16_awq</span></code>.</p>
+<p>We encourage you to use 4-bit quantization, as the text generated by 3-bit
+quantized models may have bad quality depending on the model.</p>
+</dd>
+<dt><kbd><span class="option">--model-type <var>MODEL_TYPE</var></span></kbd></dt>
+<dd><p>Model architecture such as “llama”. If not set, it is inferred from <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>.</p>
+</dd>
+<dt><kbd><span class="option">--device <var>DEVICE</var></span></kbd></dt>
+<dd><p>The GPU device to compile the model to. If not set, it is inferred from GPUs available locally.</p>
+</dd>
+<dt><kbd><span class="option">--host <var>HOST</var></span></kbd></dt>
+<dd><p>The host LLVM triple to compile the model to. If not set, it is inferred from the local CPU and OS.
+Examples of the LLVM triple:</p>
+<ol class="arabic simple">
+<li><p>iPhones: arm64-apple-ios;</p></li>
+<li><p>ARM64 Android phones: aarch64-linux-android;</p></li>
+<li><p>WebAssembly: wasm32-unknown-unknown-wasm;</p></li>
+<li><p>Windows: x86_64-pc-windows-msvc;</p></li>
+<li><p>ARM macOS: arm64-apple-darwin.</p></li>
+</ol>
+</dd>
+<dt><kbd><span class="option">--opt <var>OPT</var></span></kbd></dt>
+<dd><p>Optimization flags. MLC LLM maintains a predefined set of optimization flags,
+denoted as <code class="docutils literal notranslate"><span class="pre">O0</span></code>, <code class="docutils literal notranslate"><span class="pre">O1</span></code>, <code class="docutils literal notranslate"><span class="pre">O2</span></code>, <code class="docutils literal notranslate"><span class="pre">O3</span></code>, where <code class="docutils literal notranslate"><span class="pre">O0</span></code> means no optimization, <code class="docutils literal notranslate"><span class="pre">O2</span></code>
+means majority of them, and <code class="docutils literal notranslate"><span class="pre">O3</span></code> represents extreme optimization that could
+potentially break the system.</p>
+<p>Meanwhile, optimization flags could be explicitly specified via details knobs, e.g.
+<code class="docutils literal notranslate"><span class="pre">--opt=&quot;cutlass_attn=1;cutlass_norm=0;cublas_gemm=0;cudagraph=0&quot;</span></code>.</p>
+</dd>
+<dt><kbd><span class="option">--system-lib-prefix <var>SYSTEM_LIB_PREFIX</var></span></kbd></dt>
+<dd><p>Adding a prefix to all symbols exported. Similar to <code class="docutils literal notranslate"><span class="pre">objcopy</span> <span class="pre">--prefix-symbols</span></code>.
+This is useful when compiling multiple models into a single library to avoid symbol
+conflicts. Different from objcopy, this takes no effect for shared library.</p>
+</dd>
+<dt><kbd><span class="option">--output <var>OUTPUT</var></span></kbd></dt>
+<dd><p>The path to the output file. The suffix determines if the output file is a shared library or
+objects. Available suffixes:</p>
+<ol class="arabic simple">
+<li><p>Linux: .so (shared), .tar (objects);</p></li>
+<li><p>macOS: .dylib (shared), .tar (objects);</p></li>
+<li><p>Windows: .dll (shared), .tar (objects);</p></li>
+<li><p>Android, iOS: .tar (objects);</p></li>
+<li><p>Web: .wasm (web assembly).</p></li>
+</ol>
+</dd>
+<dt><kbd><span class="option">--overrides <var>OVERRIDES</var></span></kbd></dt>
+<dd><p>Model configuration override. Configurations to override <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>. Supports
+<code class="docutils literal notranslate"><span class="pre">context_window_size</span></code>, <code class="docutils literal notranslate"><span class="pre">prefill_chunk_size</span></code>, <code class="docutils literal notranslate"><span class="pre">sliding_window</span></code>, <code class="docutils literal notranslate"><span class="pre">max_batch_size</span></code> and
+<code class="docutils literal notranslate"><span class="pre">tensor_parallel_shards</span></code>. Meanwhile, model config could be explicitly specified via details
+knobs, e.g. <code class="docutils literal notranslate"><span class="pre">--overrides</span> <span class="pre">&quot;context_window_size=1024;prefill_chunk_size=128&quot;</span></code>.</p>
+</dd>
+</dl>
+</section>
 </section>
 </section>
 

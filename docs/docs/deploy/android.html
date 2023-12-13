@@ -174,7 +174,7 @@
 <li class="toctree-l1"><a class="reference internal" href="javascript.html">WebLLM and Javascript API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rest.html">Rest API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cli.html">CLI and C++ API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="python.html">Python API and Gradio Frontend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python.html">Python API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ios.html">iOS App and Swift API</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Android App</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#demo-app">Demo App</a></li>
@@ -189,12 +189,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Models via MLC</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/python.html">Python API for Model Compilation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Define Model Architectures</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../tutorials/customize/define_new_models.html">Define New Model Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">🚧 Define New Model Architectures</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
 <ul>
@@ -302,20 +298,20 @@
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#demo-app" id="id5">Demo App</a></p></li>
-<li><p><a class="reference internal" href="#prerequisite" id="id6">Prerequisite</a></p></li>
-<li><p><a class="reference internal" href="#compile-pytorch-models-from-huggingface" id="id7">Compile PyTorch Models from HuggingFace</a></p></li>
-<li><p><a class="reference internal" href="#create-android-project-using-compiled-models" id="id8">Create Android Project using Compiled Models</a></p></li>
-<li><p><a class="reference internal" href="#incorporate-model-weights" id="id9">Incorporate Model Weights</a></p></li>
+<li><p><a class="reference internal" href="#demo-app" id="id1">Demo App</a></p></li>
+<li><p><a class="reference internal" href="#prerequisite" id="id2">Prerequisite</a></p></li>
+<li><p><a class="reference internal" href="#compile-pytorch-models-from-huggingface" id="id3">Compile PyTorch Models from HuggingFace</a></p></li>
+<li><p><a class="reference internal" href="#create-android-project-using-compiled-models" id="id4">Create Android Project using Compiled Models</a></p></li>
+<li><p><a class="reference internal" href="#incorporate-model-weights" id="id5">Incorporate Model Weights</a></p></li>
 </ul>
 </nav>
 <section id="demo-app">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">Demo App</a><a class="headerlink" href="#demo-app" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Demo App</a><a class="headerlink" href="#demo-app" title="Permalink to this heading">¶</a></h2>
 <p>The demo APK below is built for Samsung S23 with Snapdragon 8 Gen 2 chip.</p>
 <a class="reference external image-reference" href="https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk"><img alt="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" src="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" style="width: 135px;" /></a>
 </section>
 <section id="prerequisite">
-<h2><a class="toc-backref" href="#id6" role="doc-backlink">Prerequisite</a><a class="headerlink" href="#prerequisite" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Prerequisite</a><a class="headerlink" href="#prerequisite" title="Permalink to this heading">¶</a></h2>
 <p><strong>Rust</strong> (<a class="reference external" href="https://www.rust-lang.org/tools/install">install</a>) is needed to cross-compile HuggingFace tokenizers to Android. Make sure rustc, cargo, and rustup are available in <code class="docutils literal notranslate"><span class="pre">$PATH</span></code>.</p>
 <p><strong>Android Studio</strong> (<a class="reference external" href="https://developer.android.com/studio">install</a>) with NDK and CMake. To install NDK and CMake, in the Android Studio welcome page, click “Projects → SDK Manager → SDK Tools”. Set up the following environment variables:</p>
 <ul class="simple">
@@ -353,7 +349,7 @@ TVM_NDK_CC:<span class="w"> </span><span class="nv">$ANDROID_NDK</span>/toolchai
 </div>
 </section>
 <section id="compile-pytorch-models-from-huggingface">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Compile PyTorch Models from HuggingFace</a><a class="headerlink" href="#compile-pytorch-models-from-huggingface" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Compile PyTorch Models from HuggingFace</a><a class="headerlink" href="#compile-pytorch-models-from-huggingface" title="Permalink to this heading">¶</a></h2>
 <p>To deploy models on Android with reasonable performance, one has to cross-compile to and fully utilize mobile GPUs using TVM Unity. MLC provides a few pre-compiled models, or one could compile the models on their own.</p>
 <p><strong>Cloning MLC LLM from GitHub</strong>. Download MLC LLM via the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/mlc-ai/mlc-llm/
@@ -388,13 +384,13 @@ python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span clas
 <p>This generates the directory <code class="docutils literal notranslate"><span class="pre">./dist/$MODEL_NAME-$QUANTIZATION</span></code> which contains the necessary components to run the model, as explained below.</p>
 <p><strong>Expected output format</strong>. By default models are placed under <code class="docutils literal notranslate"><span class="pre">./dist/${MODEL_NAME}-${QUANTIZATION}</span></code>, and the result consists of 3 major components:</p>
 <ul class="simple">
-<li><p>Runtime configuration: It configures conversation templates including system prompts, repetition repetition penalty, sampling including temperature and top-p probability, maximum sequence length, etc. It is usually named as <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> under <a href="#id1"><span class="problematic" id="id2">``</span></a>params/<a href="#id3"><span class="problematic" id="id4">``</span></a>alongside with tokenizer configurations.</p></li>
+<li><p>Runtime configuration: It configures conversation templates including system prompts, repetition repetition penalty, sampling including temperature and top-p probability, maximum sequence length, etc. It is usually named as <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> under <code class="docutils literal notranslate"><span class="pre">params/</span></code> alongside with tokenizer configurations.</p></li>
 <li><p>Model lib: The compiled library that uses mobile GPU. It is usually named as <code class="docutils literal notranslate"><span class="pre">${MODEL_NAME}-${QUANTIZATION}-android.tar</span></code>, for example, <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf-q4f16_0-android.tar</span></code>.</p></li>
 <li><p>Model weights: the model weights are sharded as <code class="docutils literal notranslate"><span class="pre">params_shard_*.bin</span></code> under <code class="docutils literal notranslate"><span class="pre">params/</span></code> and the metadata is stored in <code class="docutils literal notranslate"><span class="pre">ndarray-cache.json</span></code>.</p></li>
 </ul>
 </section>
 <section id="create-android-project-using-compiled-models">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Create Android Project using Compiled Models</a><a class="headerlink" href="#create-android-project-using-compiled-models" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Create Android Project using Compiled Models</a><a class="headerlink" href="#create-android-project-using-compiled-models" title="Permalink to this heading">¶</a></h2>
 <p>The source code for MLC LLM is available under <code class="docutils literal notranslate"><span class="pre">android/</span></code>, including scripts to build dependencies and the main app under <code class="docutils literal notranslate"><span class="pre">android/MLCChat/</span></code> that could be opened by Android studio. Enter the directory first:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>./android/
 </pre></div>
@@ -424,7 +420,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>mlc_llm.build<span clas
 </div>
 </section>
 <section id="incorporate-model-weights">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Incorporate Model Weights</a><a class="headerlink" href="#incorporate-model-weights" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Incorporate Model Weights</a><a class="headerlink" href="#incorporate-model-weights" title="Permalink to this heading">¶</a></h2>
 <p>Instructions have been provided to build an Android App with MLC LLM in previous sections, but it requires run-time weight downloading from HuggingFace, as configured in <cite>app-config.json</cite> in previous steps under <cite>model_url</cite>. However, it could be desirable to bundle weights together into the app to avoid downloading over the network. In this section, we provide a simple ADB-based walkthrough that hopefully helps with further development.</p>
 <p><strong>Generating APK</strong>. Enter Android Studio, and click “Build → Generate Signed Bundle/APK” to build an APK for release. If it is the first time you generate an APK, you will need to create a key according to <a class="reference external" href="https://developer.android.com/studio/publish/app-signing#generate-key">the official guide from Android</a>. This APK will be placed under <code class="docutils literal notranslate"><span class="pre">android/MLCChat/app/release/app-release.apk</span></code>.</p>
 <p><strong>Install ADB and USB debugging</strong>. Enable “USB debugging” in the developer mode in your phone settings. In SDK manager, install <a class="reference external" href="https://developer.android.com/studio/releases/platform-tools">Android SDK Platform-Tools</a>. Add the path to platform-tool path to the environment variable <code class="docutils literal notranslate"><span class="pre">PATH</span></code>. Run the following commands, and if ADB is installed correctly, your phone will appear as a device:</p>
