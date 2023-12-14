@@ -577,240 +577,14 @@ class LlamaAttention(LlamaAttentionBase):
         return attn_output, past_key_values
 
 
-class MoELinear(nn.Module):
-    def __init__(self, config: MixtralConfig, num_experts, in_features, out_features, bias=False):
-        assert not bias, "bias not supported"
-        self.num_experts = num_experts
-        self.in_features = in_features
-        self.out_features = out_features
-        self.quantization_scheme = config.quantization_scheme
-
-        if config.quantization_scheme.name == "q0f16":
-            # weight is row major
-            self.weight = nn.Parameter(
-                (num_experts, in_features, out_features),
-                dtype="float16",
-            )
-        elif config.quantization_scheme.name == "q4f16_ft":
-            assert out_features % 8 == 0
-            self.weight = nn.Parameter(
-                (num_experts, in_features, out_features // 2),
-                dtype="int8",
-            )
-            self.scales = nn.Parameter(
-                (num_experts, out_features),
-                dtype="float16",
-            )
-        else:
-            assert False, "unsupported quantization scheme"
-
-    def forward(self, x, rows_before):
-        assert len(x.struct_info.shape) == 2
-        total_rows = x.struct_info.shape[0]
-        if self.quantization_scheme.name == "q0f16":
-            return nn.emit(
-                relax.call_dps_packed(
-                    "cutlass.moe_gemm_f16f16",
-                    [
-                        x,
-                        self.weight,
-                        rows_before,
-                        total_rows,
-                        self.out_features,  # gemm_n
-                        self.in_features,  # gemm_k
-                        self.num_experts,
-                    ],
-                    out_sinfo=relax.TensorStructInfo(
-                        (total_rows, self.out_features),
-                        x.struct_info.dtype,
-                    ),
-                )
-            )
-        else:
-            return nn.emit(
-                relax.call_dps_packed(
-                    "cutlass.moe_gemm_s4f16",
-                    [
-                        x,
-                        self.weight,
-                        self.scales,
-                        rows_before,
-                        total_rows,
-                        self.out_features,  # gemm_n
-                        self.in_features,  # gemm_k
-                        self.num_experts,
-                    ],
-                    out_sinfo=relax.TensorStructInfo(
-                        (total_rows, self.out_features),
-                        x.struct_info.dtype,
-                    ),
-                )
-            )
-
-
-class MoEMLP(nn.Module):
-    def __init__(self, config: MixtralConfig):
-        self.num_experts_per_tok = config.num_experts_per_tok
-        self.num_experts = config.num_local_experts
-        self.combine_matmul = config.combine_matmul
-
-        self.num_shards = config.num_shards
-        hidden_size = config.hidden_size
-        intermediate_size = config.intermediate_size // self.num_shards
-
-        self.down_proj = MoELinear(
-            config, self.num_experts, intermediate_size, hidden_size, bias=False
-        )
-        if config.combine_matmul:
-            self.gate_up_combined_proj = MoELinear(
-                config,
-                self.num_experts,
-                hidden_size,
-                2 * intermediate_size,
-                bias=False,
-            )
-            # FIXME: rename to 'gate_up_proj' that's consistent with llama. using this name for now to avoid conflicting pname str replacing rules
-            # TODO: check sharding is correct, note that the weight is row major
-            self.gate_up_combined_proj.weight.shard_dim = 2
-            self.gate_up_combined_proj.weight.shard_strategy = "moe_shard_gate_up"
-            self.down_proj.weight.shard_dim = 1
-            self.down_proj.weight.shard_strategy = "moe_shard_mlp_k"
-        else:
-            self.gate_proj = MoELinear(
-                config, self.num_experts, config.hidden_size, config.intermediate_size, bias=False
-            )
-            self.up_proj = MoELinear(
-                config, self.num_experts, config.hidden_size, config.intermediate_size, bias=False
-            )
-
-    def forward(self, hidden_states: relax.Expr, rows_before: relax.Expr):
-        # TODO: disco
-        if self.combine_matmul:
-            gate_up_results = nn.emit(
-                relax.op.split(
-                    self.gate_up_combined_proj(hidden_states, rows_before),
-                    indices_or_sections=2,
-                    axis=-1,
-                )
-            )
-            gate_result = relax.TupleGetItem(gate_up_results, 0)
-            up_result = relax.TupleGetItem(gate_up_results, 1)
-        else:
-            gate_result = self.gate_proj(hidden_states, rows_before)
-            up_result = self.up_proj(hidden_states, rows_before)
-        result = self.down_proj(nn.emit(relax.op.nn.silu(gate_result) * up_result), rows_before)
-        return result
-
-
-class MoE(nn.Module):
-    def __init__(self, config: MixtralConfig):
-        self.experts = MoEMLP(config)
-        self.num_shards = config.num_shards
-        self.gate = Linear(
-            in_features=config.hidden_size,
-            out_features=config.num_local_experts,
-            bias=False,
-            dtype=config.dtype,
-        )
-        self.num_experts_per_tok = config.num_experts_per_tok
-        self.num_experts = config.num_local_experts
-
-    def topk(self, x, is_ascend, index_dtype, k=-1):
-        # topk along axis -1
-        result = nn.emit(
-            relax.call_dps_packed(
-                "tvm.contrib.thrust.sort_dps",
-                [x, is_ascend],
-                out_sinfo=[
-                    x.struct_info,
-                    relax.TensorStructInfo(x.struct_info.shape, index_dtype),
-                ],
-            )
-        )
-        sorted_x = relax.TupleGetItem(result, 0)
-        indices = relax.TupleGetItem(result, 1)
-        if k != -1:
-            ndim = len(x.struct_info.shape)
-            beg = [0] * ndim
-            end = [x.struct_info.shape[i] for i in range(ndim - 1)] + [k]
-            axes = list(range(ndim))
-            sorted_x = nn.emit(
-                relax.op.strided_slice(sorted_x, axes, beg, end, assume_inbound=True)
-            )
-            indices = nn.emit(relax.op.strided_slice(indices, axes, beg, end, assume_inbound=True))
-        return sorted_x, indices
-
-    def compute_rows_before(self, sorted_expert_ids):
-        return nn.emit(
-            relax.call_dps_packed(
-                "moe_compute_rows_before",
-                [sorted_expert_ids],
-                out_sinfo=relax.TensorStructInfo([self.num_experts], "int64"),
-            )
-        )
-
-    def scatter(self, linear_out, indices):
-        return nn.emit(
-            relax.call_dps_packed(
-                "scatter",
-                [linear_out, indices],
-                out_sinfo=linear_out.struct_info,
-            )
-        )
-
-    def get_token_indices(self, indices):
-        def te_compute(x):
-            return tvm.te.compute(
-                x.shape,
-                lambda *idx: tvm.tir.indexdiv(
-                    x(*idx), tvm.runtime.const(self.num_experts_per_tok, dtype="int32")
-                ).astype("int32"),
-            )
-
-        return nn.emit_te(te_compute, indices)
-
-    def forward(self, hidden_states):
-        hidden_states_shape = hidden_states.struct_info.shape
-        hidden_size = hidden_states_shape[-1]
-        # reshape to 2D
-        hidden_states = nn.emit(relax.op.reshape(hidden_states, (-1, hidden_size)))
-
-        gate = self.gate(hidden_states)
-        scores = nn.emit(relax.op.nn.softmax(gate, axis=-1))
-
-        expert_weights, expert_indices = self.topk(
-            scores, is_ascend=False, k=self.num_experts_per_tok, index_dtype="int32"
-        )  # (num_tokens, top_k), (num_tokens, top_k)
-        expert_weights = nn.emit(expert_weights / R.sum(expert_weights, axis=-1, keepdims=True))
-        flattened_indices = nn.emit(relax.op.flatten(expert_indices))
-        sorted_expert_ids, indices = self.topk(
-            flattened_indices, is_ascend=True, index_dtype="int32"
-        )
-
-        rows_before = self.compute_rows_before(sorted_expert_ids)
-        token_indices = self.get_token_indices(indices)
-        gathered_x = nn.emit(relax.op.take(hidden_states, token_indices, axis=0))
-        linear_out = self.experts(gathered_x, rows_before)
-        unpermuted = self.scatter(linear_out, indices)
-        unflattened = nn.emit(
-            relax.op.reshape(unpermuted, (-1, self.num_experts_per_tok, hidden_size))
-        )
-        expert_weights = nn.emit(
-            relax.op.reshape(expert_weights, (-1, self.num_experts_per_tok, 1))
-        )
-        weighted_sum = nn.emit(relax.op.sum(unflattened * expert_weights, axis=1))
-
-        # reshape back to 3D
-        weighted_sum = nn.emit(relax.op.reshape(weighted_sum, hidden_states_shape))
-        return weighted_sum
-
-
 class LlamaDecoderLayer(nn.Module):
     def __init__(self, config: LlamaConfig, enable_batching: bool):
         attn_class = LlamaPagedAttention if enable_batching else LlamaAttention
         self.hidden_size = config.hidden_size
         self.self_attn = attn_class(config)
         if isinstance(config, MixtralConfig):
+            from .mixtral import MoE
+
             self.use_moe = True
             self.block_sparse_moe = MoE(config)
         else:
@@ -904,7 +678,7 @@ def _make_causal_mask(input_ids_shape, dtype, src_len):
 
 
 class LlamaEmbedTokens(nn.Module):
-    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var):
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.SizeVar):
         self.embed_tokens = Embedding(vocab_size_var, config.hidden_size, dtype=config.dtype)
 
     def forward(self, input_ids: relax.Expr):
@@ -913,7 +687,7 @@ class LlamaEmbedTokens(nn.Module):
 
 
 class LlamaEmbedTokensWrapper(nn.Module):
-    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var):
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.SizeVar):
         # build a wrapper to ensure that the naming of the embed_tokens parameter is consistent
         self.model = LlamaEmbedTokens(config, vocab_size_var)
 
@@ -926,7 +700,7 @@ class LlamaModelBase(nn.Module):
     def __init__(
         self,
         config: LlamaConfig,
-        vocab_size_var: tir.Var,
+        vocab_size_var: tir.SizeVar,
         sep_embed: bool = False,
         enable_batching: bool = False,
     ):
@@ -952,14 +726,16 @@ class LlamaModelBase(nn.Module):
 
 
 class LlamaModelForSingleSequence(LlamaModelBase):
-    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
+    def __init__(
+        self, config: LlamaConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool = False
+    ):
         super().__init__(config, vocab_size_var, sep_embed, enable_batching=False)
 
     def _prepare_decoder_attention_mask(self, input_shape, src_len, dtype):
         # create causal mask
         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
         combined_attention_mask = None
-        if isinstance(input_shape[-1], tvm.tir.Var) or input_shape[-1] > 1:
+        if isinstance(input_shape[-1], tvm.tir.SizeVar) or input_shape[-1] > 1:
             combined_attention_mask = _make_causal_mask(input_shape, dtype, src_len)
         else:
             # Get src_len from input parameters
@@ -1021,7 +797,7 @@ class LlamaModelForSingleSequence(LlamaModelBase):
 
 
 class LlamaModelForBatching(LlamaModelBase):
-    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool):
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool):
         assert sep_embed
         super().__init__(config, vocab_size_var, sep_embed=True, enable_batching=True)
 
@@ -1059,7 +835,7 @@ class LlamaForCausalLM(nn.Module):
     def __init__(
         self,
         config: LlamaConfig,
-        vocab_size_var: tvm.tir.Var,
+        vocab_size_var: tvm.tir.SizeVar,
         sep_embed: bool = False,
         enable_batching: bool = False,
     ):
@@ -1131,9 +907,9 @@ def create_embed_func(
 ) -> None:
     func_name = "embed"
 
-    seq_len = tvm.tir.Var("m", "int64")
+    seq_len = tvm.tir.SizeVar("m", "int64")
     with bb.function(func_name):
-        model = LlamaEmbedTokensWrapper(config, tvm.tir.Var("vocab_size", "int64"))
+        model = LlamaEmbedTokensWrapper(config, tvm.tir.SizeVar("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((1, seq_len), dtype="int32", name="input_ids")
@@ -1158,12 +934,12 @@ def create_prefill_func_for_single_seq(
     func_name = "prefill_with_embed" if sep_embed else "prefill"
 
     bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")
-    all_seq_len = tvm.tir.Var("m", "int64")
+    seq_len = tvm.tir.SizeVar("n", "int64")
+    all_seq_len = tvm.tir.SizeVar("m", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = LlamaForCausalLM(
-            config, tvm.tir.Var("vocab_size", "int64"), sep_embed, enable_batching=False
+            config, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed, enable_batching=False
         )
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
@@ -1204,12 +980,12 @@ def create_prefill_func_for_batching(
 ) -> None:
     func_name = "prefill_with_embed"
 
-    bsz = tir.Var("nseq", "int64")
-    total_seq_len = tvm.tir.Var("m", "int64")
+    bsz = tir.SizeVar("nseq", "int64")
+    total_seq_len = tvm.tir.SizeVar("m", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = LlamaForCausalLM(
-            config, tvm.tir.Var("vocab_size", "int64"), sep_embed=True, enable_batching=True
+            config, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed=True, enable_batching=True
         )
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
@@ -1243,10 +1019,10 @@ def create_decoding_func_for_single_seq(
     func_name = "decode"
 
     bsz = 1
-    all_seq_len = tvm.tir.Var("m", "int64")
+    all_seq_len = tvm.tir.SizeVar("m", "int64")
 
     with bb.function(func_name):
-        model = LlamaForCausalLM(config, tvm.tir.Var("vocab_size", "int64"))
+        model = LlamaForCausalLM(config, tvm.tir.SizeVar("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
@@ -1282,11 +1058,11 @@ def create_decoding_func_for_batching(
 ) -> None:
     func_name = "decode_with_embed"
 
-    bsz = tir.Var("nseq", "int64")
+    bsz = tir.SizeVar("nseq", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = LlamaForCausalLM(
-            config, tvm.tir.Var("vocab_size", "int64"), sep_embed=True, enable_batching=True
+            config, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed=True, enable_batching=True
         )
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
@@ -1337,9 +1113,9 @@ def create_paged_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> N
     head_dim = config.hidden_size // config.num_attention_heads
     num_key_value_heads = config.get_num_key_value_heads() // config.num_shards
 
-    page_size = tir.Var("page_size", "int64")
-    total_seq_len = tir.Var("total_seq_len", "int64")
-    reserved_nseq = tir.Var("reserved_nseq", "int64")
+    page_size = tir.SizeVar("page_size", "int64")
+    total_seq_len = tir.SizeVar("total_seq_len", "int64")
+    reserved_nseq = tir.SizeVar("reserved_nseq", "int64")
     cache_config = relax.Var(
         "cache_config",
         relax.ShapeStructInfo([reserved_nseq, total_seq_len, page_size]),
@@ -1369,7 +1145,7 @@ def create_paged_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> N
 def create_softmax_func_for_single_seq(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     with bb.function("softmax_with_temperature"):
         logits = nn.Placeholder(
-            (1, 1, tvm.tir.Var("vocab_size", "int64")), dtype="float32", name="logits"
+            (1, 1, tvm.tir.SizeVar("vocab_size", "int64")), dtype="float32", name="logits"
         )
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
@@ -1381,9 +1157,9 @@ def create_softmax_func_for_single_seq(bb: relax.BlockBuilder, config: LlamaConf
 
 def create_softmax_func_for_batching(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     with bb.function("softmax_with_temperature"):
-        bsz = tvm.tir.Var("nseq", "int64")
+        bsz = tvm.tir.SizeVar("nseq", "int64")
         logits = nn.Placeholder(
-            (bsz, 1, tvm.tir.Var("vocab_size", "int64")),
+            (bsz, 1, tvm.tir.SizeVar("vocab_size", "int64")),
             dtype="float32",
             name="logits",
         )
@@ -1465,11 +1241,10 @@ def emit_paged_kv_cache_op(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
 
 def setup_params(mod, param_manager, dtype, config, args):
     mappings = [
-            ("gate_proj", "w1"),
-            ("down_proj", "w2"),
-            ("up_proj", "w3"),
+        ("gate_proj", "w1"),
+        ("down_proj", "w2"),
+        ("up_proj", "w3"),
     ]
-
 
     def f_convert_pname_fwd(pname: str) -> List[str]:
         qkv_str = "query_key_value_proj"
@@ -1591,8 +1366,11 @@ def setup_params(mod, param_manager, dtype, config, args):
                 use_pytorch = True
                 if use_pytorch and dtype == "float16":
                     import torch
+
                     torch_params = [torch.from_numpy(param).cuda() for param in torch_params]
-                    experts = torch.stack([expert.type(torch.float16).transpose(1, 0) for expert in torch_params])
+                    experts = torch.stack(
+                        [expert.type(torch.float16).transpose(1, 0) for expert in torch_params]
+                    )
                     result = experts.cpu().numpy()
                 else:
                     experts = [expert.astype(dtype).transpose() for expert in torch_params]
@@ -1655,28 +1433,6 @@ def setup_params(mod, param_manager, dtype, config, args):
     return mod, param_manager, param_list, config
 
 
-def get_scatter_func(dtype):
-    @T.prim_func
-    def scatter_func(
-        x_handle: T.handle,
-        indices_handle: T.handle,
-        out_handle: T.handle,
-    ) -> None:
-        total_rows = T.int64()
-        hidden_size = T.int64()
-        x = T.match_buffer(x_handle, (total_rows, hidden_size), dtype)
-        indices = T.match_buffer(indices_handle, (total_rows,), "int32")
-        out = T.match_buffer(out_handle, (total_rows, hidden_size), dtype)
-        T.func_attr({"global_symbol": "scatter", "tir.noalias": True})
-        for i in range(total_rows):
-            for j in range(hidden_size):
-                with T.block("scatter"):
-                    vi, vj = T.axis.remap("SS", [i, j])
-                    out[indices[vi], vj] = x[vi, vj]
-
-    return scatter_func
-
-
 def get_model(args, hf_config):
     model_name = args.model
     dtype = args.quantization.model_dtype
@@ -1735,11 +1491,16 @@ def get_model(args, hf_config):
     if args.max_seq_len != -1:
         config.max_sequence_length = args.max_seq_len
 
-    keep_params_after_load = isinstance(config, MixtralConfig) and args.quantization.name == "q4f16_ft"
+    keep_params_after_load = (
+        isinstance(config, MixtralConfig) and args.quantization.name == "q4f16_ft"
+    )
     param_manager = ParamManager(keep_params_after_load)
     bb = relax.BlockBuilder()
 
-    bb.add_func(get_scatter_func(dtype), "scatter")
+    if isinstance(config, MixtralConfig):
+        from .mixtral import emit_tir_funcs
+
+        emit_tir_funcs(bb, config)
 
     if sep_embed:
         create_embed_func(bb, param_manager, config, args.quantization)

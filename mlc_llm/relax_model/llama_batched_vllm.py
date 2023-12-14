@@ -14,7 +14,6 @@ from ..quantization import QuantizationScheme
 from .modules import ModuleList
 from .param_manager import ParamManager
 from .llama import (
-    get_scatter_func,
     LlamaConfig,
     MixtralConfig,
     Linear,
@@ -655,14 +654,19 @@ def get_model(args, hf_config):
     if args.max_seq_len != -1:
         config.max_sequence_length = args.max_seq_len
 
-    keep_params_after_load = isinstance(config, MixtralConfig) and args.quantization.name == "q4f16_ft"
+    keep_params_after_load = (
+        isinstance(config, MixtralConfig) and args.quantization.name == "q4f16_ft"
+    )
     param_manager = ParamManager(keep_params_after_load)
     bb = relax.BlockBuilder()
 
     # The CPU device to copy the result of relax.op.max(seq_lens) to CPU.
     cpu_dev = VDevice("llvm", 0, "global")
 
-    bb.add_func(get_scatter_func(dtype), "scatter")
+    if isinstance(config, MixtralConfig):
+        from .mixtral import emit_tir_funcs
+
+        emit_tir_funcs(bb, config)
 
     create_evaluate_func(bb, param_manager, config, cpu_dev, args.quantization, sep_embed)
     create_encoding_func(bb, param_manager, config, cpu_dev, args.quantization, sep_embed)
