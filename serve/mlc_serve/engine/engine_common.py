@@ -309,9 +309,23 @@ class EngineBase:
 
         while self.cache_manager.get_max_new_tokens() < 1:
             num_eviction += 1
-            request_to_remove = min(
-                self.current_batch.values(), key=lambda s: s.num_total_tokens
-            )
+
+            single_sample_requests = []
+            parallel_sample_requests = []
+
+            for state in self.current_batch.values():
+                if state.num_sequences == 1:
+                    single_sample_requests.append(state)
+                else:
+                    parallel_sample_requests.append(state)
+
+            if len(single_sample_requests) > 0:
+                candidate_victims = single_sample_requests
+            else:
+                assert len(parallel_sample_requests) > 0
+                candidate_victims = parallel_sample_requests
+
+            request_to_remove = min(candidate_victims, key=lambda s: s.num_total_tokens)
 
             # TODO(masahi): Properly support evicting a multi-sequence request
             if self.current_batch[request_to_remove.request_id].num_sequences != 1:

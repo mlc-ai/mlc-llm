@@ -241,9 +241,6 @@ class CacheManager:
                         pos
                     ):
                         # This sequence is trying to overwrite a prompt block shared with other sequences.
-
-                        # TODO(masahi): The engine should take into account this additional
-                        # free block allocation requirment.
                         assert (
                             len(self.free_blocks) > 0
                         ), "No more free block in the cache."
