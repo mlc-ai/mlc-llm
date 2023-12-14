@@ -1,5 +1,6 @@
 """Memory usage estimation analysis function for Relax functions."""
-from typing import Dict
+import json
+from typing import Any, Dict
 
 import tvm
 from tvm import relax
@@ -7,29 +8,25 @@ from tvm.ir import IRModule, Op
 from tvm.relax.expr_functor import PyExprVisitor, visitor
 
 
-@tvm.transform.module_pass(opt_level=0, name="EstimateMemoryUsage")
-class EstimateMemoryUsage:  # pylint: disable=too-few-public-methods
-    """A pass that attaches the memory usage information as an IRModule attribute.
+@tvm.transform.module_pass(opt_level=0, name="AttachMetadata")
+class AttachMetadataWithMemoryUsage:  # pylint: disable=too-few-public-methods
+    """Attach a Relax function that returns metadata in a JSON string"""
 
-    This pass relies on static analysis on each TVM Relax function in the specific IRModule.
-    It simply accumulates all memory allocation calls in a function, and does not consider
-    more dynamic runtime features like control flo "if" or function calls.
-    """
+    def __init__(self, metadata: Dict[str, Any]):
+        self.metadata = metadata
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
-        """Entry point of the pass."""
-        lowered_mod = tvm.transform.Sequential(
-            [
-                relax.transform.RewriteDataflowReshape(),
-                relax.transform.ToNonDataflow(),
-                relax.transform.RemovePurityChecking(),
-                relax.transform.CallTIRRewrite(),
-                relax.transform.StaticPlanBlockMemory(),
-            ],
-            name="relax.lower",
-        )(mod)
-        usage = _MemoryEstimator().run(lowered_mod)
-        return mod.with_attr("mlc_llm.memory_usage", usage)
+        """Entrypoint"""
+
+        def _emit_metadata(metadata):
+            bb = relax.BlockBuilder()  # pylint: disable=invalid-name
+            with bb.function("main", params=[]):
+                bb.emit_func_output(relax.StringImm(json.dumps(metadata)))
+            return bb.finalize()["main"]
+
+        self.metadata["memory_usage"] = _MemoryEstimator().run(mod)
+        mod["_metadata"] = _emit_metadata(self.metadata)
+        return mod
 
 
 @visitor

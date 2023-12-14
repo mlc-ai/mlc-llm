@@ -1,11 +1,11 @@
 """Python entrypoint of compilation."""
 import dataclasses
-import json
 from io import StringIO
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
 
 from tvm import IRModule, relax, tir
+from tvm.ir.transform import Pass
 from tvm.relax.frontend import nn
 from tvm.target import Target
 
@@ -29,7 +29,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
     model: Model
     target: Target
     opt: OptimizationFlags
-    build_func: Callable[[IRModule, "CompileArgs"], None]
+    build_func: Callable[[IRModule, "CompileArgs", Pass], None]
     system_lib_prefix: str
     output: Path
     overrides: ModelConfigOverride
@@ -49,29 +49,10 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
         print(out.getvalue().rstrip())
 
 
-def _attach_variable_bounds(mod, model_config):
-    if hasattr(model_config, "sliding_window_size"):
-        tir_bound_map = {
-            "seq_len": model_config.prefill_chunk_size,
-            "rolling_cache_len": model_config.sliding_window_size,
-            "kv_seq_len": model_config.sliding_window_size + model_config.prefill_chunk_size,
-        }
-    else:
-        tir_bound_map = {
-            "seq_len": model_config.prefill_chunk_size,
-            "total_seq_len": model_config.context_window_size,
-        }
-    for g_var, func in mod.functions_items():
-        if isinstance(func, relax.Function):
-            mod[g_var] = func.with_attr("tir_var_upper_bound", tir_bound_map)
-
-
-def _attach_preproc(
-    mod: IRModule,
+def _apply_preproc_to_params(
     named_params: List[Tuple[str, nn.Parameter]],
-    args: CompileArgs,  # pylint: disable=unused-argument
     model_config,
-):
+) -> Dict[str, tir.PrimFunc]:
     extra_tirs: Dict[str, tir.PrimFunc] = {}
     for _, param in named_params:
         preprocs = param.attrs.get("preprocs", [])
@@ -89,45 +70,30 @@ def _attach_preproc(
                     weight=param,
                 )
         param.attrs["preprocs"] = preprocs
-    for func_name, func in extra_tirs.items():
-        mod[func_name] = func.with_attr("global_symbol", func_name)
-
-
-def _attach_metadata(
-    mod: IRModule,
-    named_params: List[Tuple[str, nn.Parameter]],
-    args: CompileArgs,
-    model_config,
-) -> None:
-    def _emit_metadata(metadata):
-        bb = relax.BlockBuilder()  # pylint: disable=invalid-name
-        with bb.function("main", params=[]):
-            bb.emit_func_output(relax.StringImm(json.dumps(metadata)))
-        return bb.finalize()["main"]
-
-    mod["_metadata"] = _emit_metadata(
-        {
-            "model_type": args.model.name,
-            "quantization": args.quantization.name,
-            "params": [
-                {
-                    "name": name,
-                    "shape": list(param.shape),
-                    "dtype": param.dtype,
-                    "preprocs": param.attrs["preprocs"],
-                }
-                for name, param in named_params
-            ],
-            "context_window_size": model_config.context_window_size,
-            "prefill_chunk_size": model_config.prefill_chunk_size,
-            "sliding_window_size": getattr(model_config, "sliding_window_size", -1),
-            "tensor_parallel_shards": model_config.tensor_parallel_shards,
-            "memory_usage": {str(k): int(v) for k, v in mod.attrs["mlc_llm.memory_usage"].items()},
-        }
-    )
+    return extra_tirs
 
 
 def _compile(args: CompileArgs, model_config: ConfigBase):
+    def _get_variable_bounds(model_config) -> Dict[str, int]:
+        if hasattr(model_config, "sliding_window_size"):
+            return {
+                "seq_len": model_config.prefill_chunk_size,
+                "rolling_cache_len": model_config.sliding_window_size,
+                "kv_seq_len": model_config.sliding_window_size + model_config.prefill_chunk_size,
+            }
+        return {
+            "seq_len": model_config.prefill_chunk_size,
+            "total_seq_len": model_config.context_window_size,
+        }
+
+    def _get_param_metadata(name: str, param: nn.Parameter) -> Dict[str, Any]:
+        return {
+            "name": name,
+            "shape": list(param.shape),
+            "dtype": param.dtype,
+            "preprocs": param.attrs["preprocs"],
+        }
+
     logger.info("Creating model from: %s", args.config)
     args.overrides.apply(model_config)
     with args.target:
@@ -135,19 +101,29 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
         # Step 2. Exporting the model to TVM Unity
         logger.info("Exporting the model to TVM Unity compiler")
-        mod, named_params = model.export_tvm(
-            spec=model.get_default_spec(),  # type: ignore
-        )
-        _attach_variable_bounds(mod, model_config)
-        _attach_preproc(mod, named_params, args, model_config)
+        mod, named_params = model.export_tvm(spec=model.get_default_spec())  # type: ignore
         # Step 3. Running relax compilation pipeline
         logger.info("Running optimizations using TVM Unity")
-        mod = relax.get_pipeline("mlc_llm")(mod)
-        # Step 4. Attach metadata for the runtime to read
-        _attach_metadata(mod, named_params, args, model_config)
-        logger.info("Generating code using TVM Unity")
-        # Step 5. Build and export the library
-        args.build_func(mod, args)
+        additional_tirs = _apply_preproc_to_params(named_params, model_config)
+        variable_bounds = _get_variable_bounds(model_config)
+        args.build_func(
+            mod,
+            args,
+            pipeline=relax.get_pipeline(
+                "mlc_llm",
+                variable_bounds=variable_bounds,
+                additional_tirs=additional_tirs,
+                metadata={
+                    "model_type": args.model.name,
+                    "quantization": args.quantization.name,
+                    "params": [_get_param_metadata(name, param) for name, param in named_params],
+                    "context_window_size": model_config.context_window_size,  # type: ignore
+                    "prefill_chunk_size": model_config.prefill_chunk_size,  # type: ignore
+                    "sliding_window_size": getattr(model_config, "sliding_window_size", -1),
+                    "tensor_parallel_shards": model_config.tensor_parallel_shards,  # type: ignore
+                },
+            ),
+        )
     logger.info("Generated: %s", bold(str(args.output)))
 
 
@@ -157,7 +133,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     model_type: Model,
     target: Target,
     opt: OptimizationFlags,
-    build_func: Callable[[IRModule, CompileArgs], None],
+    build_func: Callable[[IRModule, CompileArgs, Pass], None],
     system_lib_prefix: str,
     output: Path,
     overrides: ModelConfigOverride,
@@ -167,7 +143,6 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
         model_config = model_type.config.from_dict({**config["model_config"], **config})
     else:
         model_config = model_type.config.from_dict(config)
-
     args = CompileArgs(
         model_config,
         quantization,
