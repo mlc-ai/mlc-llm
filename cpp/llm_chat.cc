@@ -432,9 +432,9 @@ class LLMChat {
       CHECK(config["prefill_chunk_size"].is<int64_t>());
       this->prefill_chunk_size_ = config["prefill_chunk_size"].get<int64_t>();
     }
-    if (config.count("num_attention_sinks")) {
-      CHECK(config["num_attention_sinks"].is<int64_t>());
-      this->num_attention_sinks_ = config["num_attention_sinks"].get<int64_t>();
+    if (config.count("attention_sink_size")) {
+      CHECK(config["attention_sink_size"].is<int64_t>());
+      this->attention_sink_size_ = config["attention_sink_size"].get<int64_t>();
     }
     if (config.count("top_p")) {
       CHECK(config["top_p"].is<double>());
@@ -858,10 +858,10 @@ class LLMChat {
             sliding_window_cache_offset_ =
                 std::max((sliding_window_cache_offset_ + static_cast<int64_t>(chunk.size())) %
                              sliding_window_,
-                         num_attention_sinks_);
+                         attention_sink_size_);
           } else {
             sliding_window_cache_offset_ += static_cast<int64_t>(chunk.size());
-            sink_triggered_ = sliding_window_cache_offset_ >= num_attention_sinks_;
+            sink_triggered_ = sliding_window_cache_offset_ >= attention_sink_size_;
           }
         }
       }
@@ -907,10 +907,10 @@ class LLMChat {
     if (this->sliding_window_ != -1) {
       if (sink_triggered_) {
         sliding_window_cache_offset_ =
-            std::max((sliding_window_cache_offset_ + 1) % sliding_window_, num_attention_sinks_);
+            std::max((sliding_window_cache_offset_ + 1) % sliding_window_, attention_sink_size_);
       } else {
         sliding_window_cache_offset_ += 1;
-        sink_triggered_ = sliding_window_cache_offset_ >= num_attention_sinks_;
+        sink_triggered_ = sliding_window_cache_offset_ >= attention_sink_size_;
       }
     }
 
@@ -1401,7 +1401,7 @@ class LLMChat {
   // max window size, mean and max generation length, sliding window
   // If we use sliding window, max window size is its default max() value
   int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128},
-      max_gen_len_{512}, sliding_window_{-1}, prefill_chunk_size_{-1}, num_attention_sinks_{0};
+      max_gen_len_{512}, sliding_window_{-1}, prefill_chunk_size_{-1}, attention_sink_size_{0};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference

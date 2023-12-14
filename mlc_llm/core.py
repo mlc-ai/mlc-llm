@@ -113,7 +113,7 @@ class BuildArgs:
         The chunk size during prefilling. By default, the chunk size is the same as
         max sequence length. Currently only useful when compiling Mistral.
 
-    num_attention_sinks: int
+    attention_sink_size: int
         Number of attention sinks (https://arxiv.org/abs/2309.17453).
         Only supported on mistral yet.
 
@@ -365,7 +365,7 @@ class BuildArgs:
             ),
         },
     )
-    num_attention_sinks: int = field(
+    attention_sink_size: int = field(
         default=0,
         metadata={
             "help": (
@@ -714,8 +714,8 @@ def dump_mlc_chat_config(
         config["sliding_window"] = args.sliding_window
 
         # only use sinks if sliding window enabled
-        if args.num_attention_sinks > 0:
-            config["num_attention_sinks"] = args.num_attention_sinks
+        if args.attention_sink_size > 0:
+            config["attention_sink_size"] = args.attention_sink_size
     else:
         config["max_window_size"] = max_window_size
 
@@ -837,7 +837,7 @@ def build_model_from_args(args: argparse.Namespace):
 
         if args.model_category == "mistral":
             args.sliding_window = model_config.sliding_window
-            args.num_attention_sinks = model_config.num_attention_sinks
+            args.attention_sink_size = model_config.attention_sink_size
 
         for qspec_updater_class in param_manager.qspec_updater_classes:
             qspec_updater = qspec_updater_class(param_manager)

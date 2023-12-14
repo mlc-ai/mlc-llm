@@ -38,7 +38,7 @@ class MistralConfig:
         rms_norm_eps=1e-5,
         rope_theta=10000.0,
         sliding_window=4096,
-        num_attention_sinks=0,
+        attention_sink_size=0,
         tie_word_embeddings=False,
         vocab_size=32000,
         dtype="float32",
@@ -62,7 +62,7 @@ class MistralConfig:
         self.rms_norm_eps = rms_norm_eps
         self.rope_theta = rope_theta
         self.sliding_window = sliding_window
-        self.num_attention_sinks = num_attention_sinks
+        self.attention_sink_size = attention_sink_size
         self.tie_word_embeddings = tie_word_embeddings
         self.vocab_size = vocab_size
         self.dtype = dtype
@@ -243,7 +243,7 @@ class MistralAttention(nn.Module):
         self.head_dim = self.hidden_size // config.num_attention_heads
         self.rope_theta = config.rope_theta
         self.sliding_window = config.sliding_window
-        self.num_attention_sinks = config.num_attention_sinks
+        self.attention_sink_size = config.attention_sink_size
 
         self.combine_matmul = config.combine_matmul
         if self.combine_matmul:
@@ -291,7 +291,7 @@ class MistralAttention(nn.Module):
         kv_seq_len: int,
         rolling_cache_len: int,
         cache_offset: int,
-        num_attention_sinks: int,
+        attention_sink_size: int,
         past_key_value: Tuple[relax.Expr],
     ):
         from tvm.relax.op import reshape
@@ -300,11 +300,11 @@ class MistralAttention(nn.Module):
             return te.compute(
                 (kv_cur_shape[0], rolling_cache_len, kv_cur_shape[2], kv_cur_shape[3]),
                 lambda b, s, h, d: te.if_then_else(
-                    s < num_attention_sinks,
+                    s < attention_sink_size,
                     x_cached[b, s, h, d],
                     te.if_then_else(
-                        s < rolling_cache_len - cache_offset + num_attention_sinks,
-                        x_cached[b, s + cache_offset - num_attention_sinks, h, d],
+                        s < rolling_cache_len - cache_offset + attention_sink_size,
+                        x_cached[b, s + cache_offset - attention_sink_size, h, d],
                         x_cached[b, s + cache_offset - rolling_cache_len, h, d],
                     ),
                 ),
@@ -395,7 +395,7 @@ class MistralAttention(nn.Module):
         squeezed_key = nn.emit_te(te_squeeze, key_cur)
         squeezed_value = nn.emit_te(te_squeeze, value_cur)
 
-        assert num_attention_sinks >= 0
+        assert attention_sink_size >= 0
         f_kv_cache_override = relax.extern(
             "vm.builtin.attention_kv_cache_window_override_with_sinks"
         )
@@ -406,7 +406,7 @@ class MistralAttention(nn.Module):
                     k_cache,
                     squeezed_key,
                     relax.PrimValue(self.sliding_window),
-                    relax.PrimValue(num_attention_sinks),
+                    relax.PrimValue(attention_sink_size),
                 ],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
@@ -418,7 +418,7 @@ class MistralAttention(nn.Module):
                     v_cache,
                     squeezed_value,
                     relax.PrimValue(self.sliding_window),
-                    relax.PrimValue(num_attention_sinks),
+                    relax.PrimValue(attention_sink_size),
                 ],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
@@ -490,7 +490,7 @@ class MistralAttention(nn.Module):
             kv_seq_len,
             rolling_cache_len,
             cache_offset,
-            self.num_attention_sinks,
+            self.attention_sink_size,
             past_key_value,
         )
 
@@ -984,8 +984,8 @@ def get_model(args, hf_config):
 
     if args.sliding_window != -1:
         hf_config["sliding_window"] = args.sliding_window
-        if args.num_attention_sinks > 0:
-            hf_config["num_attention_sinks"] = args.num_attention_sinks
+        if args.attention_sink_size > 0:
+            hf_config["attention_sink_size"] = args.attention_sink_size
     if args.max_seq_len != -1:
         hf_config["max_sequence_length"] = args.max_seq_len
 
@@ -999,10 +999,10 @@ def get_model(args, hf_config):
 
     # prefill chunk size same as sliding window by default
     if args.prefill_chunk_size < 1:
-        args.prefill_chunk_size = config.sliding_window - config.num_attention_sinks
+        args.prefill_chunk_size = config.sliding_window - config.attention_sink_size
 
     assert config.sliding_window != -1
-    assert args.prefill_chunk_size <= config.sliding_window - config.num_attention_sinks
+    assert args.prefill_chunk_size <= config.sliding_window - config.attention_sink_size
 
     param_manager = ParamManager()
     bb = relax.BlockBuilder()
