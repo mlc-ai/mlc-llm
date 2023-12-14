@@ -570,7 +570,7 @@ def _make_sliding_window_mask(input_shape, kv_seq_len, sliding_window, dtype):
     bsz, tgt_len = input_shape  # TODO: only support batch size of 1 for now
     cache_len = kv_seq_len - tgt_len  # number of elements in cache
 
-    if isinstance(tgt_len, tvm.tir.Var) or tgt_len > 1:
+    if isinstance(tgt_len, tvm.tir.SizeVar) or tgt_len > 1:
         # Either 1. First prefill, or 2. Subsequent prefill
         from tvm.relax.op import broadcast_to  # pylint: disable=import-outside-toplevel
 
@@ -602,7 +602,7 @@ def _make_sliding_window_mask(input_shape, kv_seq_len, sliding_window, dtype):
 
 
 class MistralEmbedTokens(nn.Module):
-    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.Var):
+    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.SizeVar):
         self.embed_tokens = Embedding(vocab_size_var, config.hidden_size, dtype=config.dtype)
 
     def forward(self, input_ids: relax.Expr):
@@ -611,7 +611,7 @@ class MistralEmbedTokens(nn.Module):
 
 
 class MistralEmbedTokensWrapper(nn.Module):
-    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.Var):
+    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.SizeVar):
         # build a wrapper to ensure that the naming of the embed_tokens parameter is consistent
         self.model = MistralEmbedTokens(config, vocab_size_var)
 
@@ -621,7 +621,7 @@ class MistralEmbedTokensWrapper(nn.Module):
 
 
 class MistralModel(nn.Module):
-    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
+    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool = False):
         self.num_shards = config.num_shards
         self.padding_idx = config.pad_token_id
         self.embed_tokens = None
@@ -687,7 +687,7 @@ class MistralModel(nn.Module):
 
 
 class MistralForCausalLM(nn.Module):
-    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
+    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool = False):
         self.model = MistralModel(config, vocab_size_var, sep_embed)
         self.lm_head = Linear(config.hidden_size, vocab_size_var, dtype=config.dtype, bias=False)
 
@@ -756,9 +756,9 @@ def create_embed_func(
     func_name = "embed"
 
     bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")
+    seq_len = tvm.tir.SizeVar("n", "int64")
     with bb.function(func_name):
-        model = MistralEmbedTokensWrapper(config, tvm.tir.Var("vocab_size", "int64"))
+        model = MistralEmbedTokensWrapper(config, tvm.tir.SizeVar("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
@@ -783,16 +783,16 @@ def create_encoding_func(
     func_name = "prefill_with_embed" if sep_embed else "prefill"
 
     bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")  # number of tokens for the input
-    all_seq_len = tvm.tir.Var("m", "int64")  # total_seq_len in `llm_chat.cc` (including seq_len)
-    rolling_cache_len = tvm.tir.Var("c", "int64")  # rolling_cache_len captures number of elements in the cache
-    kv_seq_len = tvm.tir.Var(
+    seq_len = tvm.tir.SizeVar("n", "int64")  # number of tokens for the input
+    all_seq_len = tvm.tir.SizeVar("m", "int64")  # total_seq_len in `llm_chat.cc` (including seq_len)
+    rolling_cache_len = tvm.tir.SizeVar("c", "int64")  # rolling_cache_len captures number of elements in the cache
+    kv_seq_len = tvm.tir.SizeVar(
         "k", "int64"
     )  # kv_seq_len captures number of elements in cache + seq_len
 
     hidden_size = config.hidden_size
     with bb.function(func_name):
-        model = MistralForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), sep_embed)
+        model = MistralForCausalLM(config, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         inputs = (
@@ -841,14 +841,14 @@ def create_decoding_func(
     func_name = "decode"
 
     bsz = 1
-    all_seq_len = tvm.tir.Var("m", "int64")
-    rolling_cache_len = tvm.tir.Var("c", "int64")  # rolling_cache_len captures number of elements in the cache
-    kv_seq_len = tvm.tir.Var(
+    all_seq_len = tvm.tir.SizeVar("m", "int64")
+    rolling_cache_len = tvm.tir.SizeVar("c", "int64")  # rolling_cache_len captures number of elements in the cache
+    kv_seq_len = tvm.tir.SizeVar(
         "k", "int64"
     )  # kv_seq_len captures number of elements in cache + seq_len
 
     with bb.function(func_name):
-        model = MistralForCausalLM(config, tvm.tir.Var("vocab_size", "int64"))
+        model = MistralForCausalLM(config, tvm.tir.SizeVar("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
@@ -915,7 +915,7 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: MistralConfig) -> None:
 def create_softmax_func(bb: relax.BlockBuilder, config: MistralConfig) -> None:
     with bb.function("softmax_with_temperature"):
         logits = nn.Placeholder(
-            (1, 1, tvm.tir.Var("vocab_size", "int64")), dtype="float32", name="logits"
+            (1, 1, tvm.tir.SizeVar("vocab_size", "int64")), dtype="float32", name="logits"
         )
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():

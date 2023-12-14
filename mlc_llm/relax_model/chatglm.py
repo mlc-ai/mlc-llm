@@ -484,7 +484,7 @@ class ChatGLMModel(nn.Module):
     def _prepare_decoder_attention_mask(self, input_shape, kv_sl, dtype):
         # create causal mask
         # [bsz, sl] -> [bsz, 1, sl, kv_sl]
-        if isinstance(input_shape[-1], tvm.tir.Var) or input_shape[-1] > 1:
+        if isinstance(input_shape[-1], tvm.tir.SizeVar) or input_shape[-1] > 1:
             bsz, sl = input_shape
 
             def min_max_triu_te():
@@ -615,8 +615,8 @@ def create_encoding_func(
     func_name = "prefill"
 
     bsz = tvm.tir.IntImm("int64", 1)
-    sl = tvm.tir.Var("n", "int64")
-    all_seq_len = tvm.tir.Var("m", "int64")
+    sl = tvm.tir.SizeVar("n", "int64")
+    all_seq_len = tvm.tir.SizeVar("m", "int64")
     with bb.function(func_name):
         model = ChatGLMForCausalLM(config)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
@@ -656,7 +656,7 @@ def create_decoding_func(
     func_name = "decode"
 
     bsz = 1
-    all_seq_len = tvm.tir.Var("m", "int64")
+    all_seq_len = tvm.tir.SizeVar("m", "int64")
 
     with bb.function(func_name):
         model = ChatGLMForCausalLM(config)
