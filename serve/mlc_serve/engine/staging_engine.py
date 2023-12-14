@@ -107,9 +107,6 @@ class StagingInferenceEngine(ScopedInferenceEngine):
         new_request_states = []
         for req in requests:
             # TODO: verify that request id is unique
-            if req.num_sequences > 1:
-                raise RuntimeError("num_sequences > 1 is not supported for now")
-
             # wrap the stop sequence with list if necessary
             if req.stopping_criteria.stop_sequences:
                 if isinstance(req.stopping_criteria.stop_sequences, str):

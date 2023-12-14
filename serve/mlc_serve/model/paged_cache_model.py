@@ -1,7 +1,7 @@
 import math
 import os
 from collections import defaultdict
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Dict
 from pathlib import Path
 
 import structlog
@@ -22,6 +22,8 @@ from ..engine import (
     SamplingParams,
     SequenceId,
     RequestState,
+    PROMPT_SEQEUNCE_INDEX,
+    get_prompt_sequence_id,
 )
 from ..engine.model_module import (
     DecodeRequest,
@@ -33,6 +35,97 @@ from ..engine.model_module import ModelModule
 LOG = structlog.stdlib.get_logger(__name__)
 
 
+# The following implementation has become complicated mostly to support parallel sampling and
+# SWA. vLLM uses more redundant representaion of block tables (prompt blocks are duplicated
+# among all sequences, and circular buffering is realized by appending a block at index
+# (pos // block_size) % block_sliding_window to the end of the block table list), but thanks
+# to that parallel sampling with SWA was automatically supported when they introduced
+# Mistral / SWA support.
+#
+# TODO(masahi): Consider adopting their representation if ours turns out to be too buggy (hopefully not)
+
+
+class DecodeBlockTable:
+    def __init__(
+        self,
+        prompt_blocks: list[int],
+        num_prompt_tokens: int,
+        block_size: int,
+        block_sliding_window: Optional[int] = None,
+        prompt_shared: bool = False,
+    ):
+        self.num_prompt_blocks = len(prompt_blocks)
+        self.prompt_blocks = prompt_blocks  # immutable
+        self.block_sliding_window = block_sliding_window
+        self.prompt_shared = prompt_shared
+
+        # Prompt blocks between [prompt_cursor, prompt_cursor_tail) are shared
+        # with other sequences in a parallel-sampling request.
+
+        if (
+            self.block_sliding_window
+            and self.num_prompt_blocks >= self.block_sliding_window
+            and prompt_shared
+        ):
+            self.prompt_cursor = (
+                num_prompt_tokens // block_size
+            ) % block_sliding_window
+            self.prompt_cursor_tail = self.prompt_cursor
+        else:
+            self.prompt_cursor = 0
+            self.prompt_cursor_tail = self.num_prompt_blocks
+
+        self.decode_blocks: list[int] = []
+
+    def append(self, new_block_id: int):
+        self.decode_blocks.append(new_block_id)
+
+    def __len__(self):
+        return self.num_prompt_blocks + len(self.decode_blocks)
+
+    def __getitem__(self, index: int) -> int:
+        if index == -1:
+            if len(self.decode_blocks) == 0:
+                return self.prompt_blocks[-1]
+
+            return self.decode_blocks[-1]
+
+        assert index >= 0
+
+        if index < self.num_prompt_blocks:
+            return self.prompt_blocks[index]
+
+        return self.decode_blocks[index - self.num_prompt_blocks]
+
+    def get_blocks(self) -> list[int]:
+        if not self.block_sliding_window or not self.prompt_shared:
+            return self.prompt_blocks + self.decode_blocks
+
+        if self.prompt_cursor <= self.prompt_cursor_tail:
+            return (
+                self.prompt_blocks[self.prompt_cursor : self.prompt_cursor_tail]
+                + self.decode_blocks
+            )
+
+        return (
+            self.prompt_blocks[self.prompt_cursor :]
+            + self.prompt_blocks[: self.prompt_cursor_tail]
+            + self.decode_blocks
+        )
+
+    def replace_head_prompt_block_with(self, new_block):
+        assert self.prompt_shared
+
+        self.append(new_block)
+        self.prompt_cursor += 1
+        self.prompt_cursor %= self.num_prompt_blocks
+        self.num_prompt_blocks -= 1
+
+        if self.prompt_cursor == self.prompt_cursor_tail:
+            # No more prompt blocks to be shared
+            self.prompt_shared = False
+
+
 class KVCache:
     def __init__(
         self, num_blocks, block_size, num_layers, num_heads, head_size, disco_session
@@ -41,8 +134,14 @@ class KVCache:
             init_cache_func = disco_session.get_global_func(
                 "tvm.contrib.vllm.allocate_kv_cache"
             )
+            self.copy_cache_blocks_func = disco_session.get_global_func(
+                "tvm.contrib.vllm.copy_blocks"
+            )
         else:
             init_cache_func = tvm.get_global_func("tvm.contrib.vllm.allocate_kv_cache")
+            self.copy_cache_blocks_func = tvm.get_global_func(
+                "tvm.contrib.vllm.copy_blocks"
+            )
 
         self.cache = init_cache_func(
             head_size, num_layers, num_heads, block_size, num_blocks
@@ -51,8 +150,14 @@ class KVCache:
         self.block_size = block_size
 
         # SequenceId -> list[int]
-        self.block_tables = defaultdict(list)
+        self.prompt_block_tables = defaultdict(list)
         self.slot_mappings = defaultdict(list)
+
+        # The core data structure
+        self.decode_block_tables = dict[SequenceId, DecodeBlockTable]()
+
+        # Record indices of blocks to copy after prefill in the format [src1, dst1, src2, dst2, ...]
+        self.pending_copy_from_to: list[int] = []
 
 
 class CacheManager:
@@ -81,13 +186,16 @@ class CacheManager:
         self.kv_cache = KVCache(
             num_blocks, self.block_size, num_layers, num_heads, head_size, disco_session
         )
-        self.allocated_tokens = dict[SequenceId, int]()
+        self.allocated_prompt_tokens = dict[SequenceId, int]()
+        self.allocated_decode_tokens = dict[SequenceId, int]()
 
         if sliding_window:
             assert sliding_window % self.kv_cache.block_size == 0
             self.block_sliding_window = sliding_window // self.kv_cache.block_size
         else:
             self.block_sliding_window = None
+
+        self.sliding_window = sliding_window
 
     def set_size(self, sequence_ids: List[SequenceId], target_sizes: List[int]):
         for id, size in zip(sequence_ids, target_sizes):
@@ -96,45 +204,82 @@ class CacheManager:
             if self.block_sliding_window:
                 num_needed_block = min(num_needed_block, self.block_sliding_window)
 
-            if id in self.kv_cache.block_tables and size == 0:
-                self.free_blocks.extend(self.kv_cache.block_tables[id])
-                del self.kv_cache.block_tables[id]
-                del self.kv_cache.slot_mappings[id]
+            if size == 0:
+                if id in self.kv_cache.prompt_block_tables:
+                    self.free_blocks.extend(self.kv_cache.prompt_block_tables[id])
+                    del self.kv_cache.prompt_block_tables[id]
+                elif id in self.kv_cache.decode_block_tables:
+                    self.free_blocks.extend(
+                        self.kv_cache.decode_block_tables[id].decode_blocks
+                    )
+                    del self.kv_cache.decode_block_tables[id]
 
-            elif id in self.kv_cache.block_tables:
-                # Decoding
-                if len(self.kv_cache.block_tables[id]) < num_needed_block:
+                if id in self.kv_cache.slot_mappings:
+                    del self.kv_cache.slot_mappings[id]
+
+            elif id in self.kv_cache.decode_block_tables:
+                decode_block_table = self.kv_cache.decode_block_tables[id]
+
+                if len(decode_block_table) < num_needed_block:
                     # Need to allocate a new block for this request
-                    assert len(self.kv_cache.block_tables[id]) + 1 == num_needed_block
-                    self.kv_cache.block_tables[id].append(self.free_blocks.pop())
+                    assert len(decode_block_table) + 1 == num_needed_block
+                    decode_block_table.append(self.free_blocks.pop())
 
                 pos = size - 1
-                block_number = self.kv_cache.block_tables[id][-1]
 
-                if self.block_sliding_window:
-                    block_number = self.kv_cache.block_tables[id][
-                        (pos // self.block_size) % self.block_sliding_window
-                    ]
+                def get_block_circular_index(token_pos):
+                    assert self.block_sliding_window
+                    return (token_pos // self.block_size) % self.block_sliding_window
+
+                if (
+                    decode_block_table.prompt_shared
+                    and self.sliding_window
+                    and size >= self.sliding_window
+                ):
+                    # Parallel sampling + SWA case
+                    if decode_block_table.prompt_cursor == get_block_circular_index(
+                        pos
+                    ):
+                        # This sequence is trying to overwrite a prompt block shared with other sequences.
+
+                        # TODO(masahi): The engine should take into account this additional
+                        # free block allocation requirment.
+                        assert (
+                            len(self.free_blocks) > 0
+                        ), "No more free block in the cache."
+
+                        block_number = self.free_blocks.pop()
+                        # Add a new decode block and advance the prompt cursor
+                        decode_block_table.replace_head_prompt_block_with(block_number)
+                    else:
+                        # Write to the decode block allocated above
+                        block_number = decode_block_table[-1]
+
                 else:
-                    block_number = self.kv_cache.block_tables[id][-1]
+                    if self.block_sliding_window:
+                        index = get_block_circular_index(pos)
+                    else:
+                        index = -1
+
+                    block_number = decode_block_table[index]
 
                 block_offset = pos % self.block_size
                 slot = block_number * self.block_size + block_offset
                 self.kv_cache.slot_mappings[id].append(slot)
 
-            elif id not in self.kv_cache.block_tables:
+            elif id not in self.kv_cache.prompt_block_tables:
                 assert (
                     len(self.free_blocks) >= num_needed_block
                 ), "Not enough free blocks."
 
                 for _ in range(num_needed_block):
-                    self.kv_cache.block_tables[id].append(self.free_blocks.pop())
+                    self.kv_cache.prompt_block_tables[id].append(self.free_blocks.pop())
 
                 for block_idx in range(math.floor(size / self.block_size)):
                     if self.block_sliding_window:
                         block_idx %= self.block_sliding_window
 
-                    block_number = self.kv_cache.block_tables[id][block_idx]
+                    block_number = self.kv_cache.prompt_block_tables[id][block_idx]
                     slots = [
                         block_number * self.block_size + block_offset
                         for block_offset in range(self.block_size)
@@ -147,7 +292,7 @@ class CacheManager:
                     if self.block_sliding_window:
                         block_idx %= self.block_sliding_window
 
-                    block_number = self.kv_cache.block_tables[id][block_idx]
+                    block_number = self.kv_cache.prompt_block_tables[id][block_idx]
                     block_offset = i % self.block_size
                     slot = block_number * self.block_size + block_offset
                     self.kv_cache.slot_mappings[id].append(slot)
@@ -155,33 +300,92 @@ class CacheManager:
     def get_cache(self):
         return self.kv_cache
 
-    def allocate(self, request_id: RequestId, num_tokens: int):
+    def allocate(self, request_id: RequestId, num_tokens: int, num_sequences: int):
         """
         Allocate cache space for a prefill request, raise error if there is no space.
         """
-        prompt_seq_id = SequenceId(request_id, 0)
+        prompt_seq_id = get_prompt_sequence_id(request_id)
         self.set_size([prompt_seq_id], [num_tokens])
-        self.allocated_tokens[prompt_seq_id] = num_tokens
+        self.allocated_prompt_tokens[prompt_seq_id] = num_tokens
+
+        last_block_partially_shared = num_sequences > 1 and (
+            num_tokens % self.block_size != 0
+        )
+
+        if self.sliding_window:
+            last_block_partially_shared &= num_tokens < self.sliding_window
+
+        if last_block_partially_shared:
+            self.allocated_prompt_tokens[prompt_seq_id] -= num_tokens % self.block_size
+
+        prompt_blocks = self.kv_cache.prompt_block_tables[prompt_seq_id]
+        assert prompt_blocks
+
+        prompt_shared = num_sequences > 1
+
+        for i in range(num_sequences):
+            decode_seq_id = SequenceId(request_id, i)
+
+            if not last_block_partially_shared:
+                self.allocated_decode_tokens[decode_seq_id] = 0
+                self.kv_cache.decode_block_tables[decode_seq_id] = DecodeBlockTable(
+                    prompt_blocks,
+                    num_tokens,
+                    self.block_size,
+                    self.block_sliding_window,
+                    prompt_shared,
+                )
+            else:
+                # Tokens in the partially-shared prompt block are considered to be part of each decode sequence
+                self.allocated_decode_tokens[decode_seq_id] = (
+                    num_tokens % self.block_size
+                )
+
+                if i < num_sequences:
+                    # Need to copy the last block in self.kv_cache.block_tables[prompt_seq_id]
+                    self.kv_cache.decode_block_tables[decode_seq_id] = DecodeBlockTable(
+                        prompt_blocks[:-1],
+                        num_tokens,
+                        self.block_size,
+                        self.block_sliding_window,
+                        prompt_shared,
+                    )
+                    last_block_copy = self.free_blocks.pop()
+                    self.kv_cache.decode_block_tables[decode_seq_id].append(
+                        last_block_copy
+                    )
+                    self.kv_cache.pending_copy_from_to.extend(
+                        [prompt_blocks[-1], last_block_copy]
+                    )
+                else:
+                    # The last sequence can directly overwrite the last block without copying it,
+                    # since other sequences have its own copy of the last block.
+                    self.kv_cache.decode_block_tables[decode_seq_id] = DecodeBlockTable(
+                        prompt_blocks,
+                        num_tokens,
+                        self.block_size,
+                        self.block_sliding_window,
+                        prompt_shared,
+                    )
 
     def extend(self, sequence_id: SequenceId, new_tokens: int):
         """
         Extend cache space for a sequence, raise error if there is no space.
         """
-        assert sequence_id.sequence_index == 0, "multiple sequences not supported"
-        # TODO parallel sampling: How to accomodate shared prompt tokens
-        allocated = self.allocated_tokens[sequence_id]
+        prompt_seq_id = get_prompt_sequence_id(sequence_id.request_id)
+        allocated = (
+            self.allocated_prompt_tokens[prompt_seq_id]
+            + self.allocated_decode_tokens[sequence_id]
+        )
         self.set_size([sequence_id], [allocated + new_tokens])
-        self.allocated_tokens[sequence_id] += new_tokens
+        self.allocated_decode_tokens[sequence_id] += new_tokens
 
     def free(self, sequence_id: SequenceId):
         """
         Free cache space for a sequence in a request.
         """
-        assert sequence_id.sequence_index == 0, "multiple sequences not supported"
-        if sequence_id in self.allocated_tokens:
-            # TODO parallel sampling: Prompt tokens should not be freed until all
-            # generation sequences in the same sample are freed.
-            del self.allocated_tokens[sequence_id]
+        if sequence_id in self.allocated_decode_tokens:
+            del self.allocated_decode_tokens[sequence_id]
             self.set_size([sequence_id], [0])
 
     def free_request(self, state: RequestState):
@@ -190,6 +394,10 @@ class CacheManager:
         """
         for gen_seq in state.generation_sequences:
             self.free(gen_seq.seq_id)
+
+        prompt_seq_id = get_prompt_sequence_id(state.request_id)
+        del self.allocated_prompt_tokens[prompt_seq_id]
+        self.set_size([prompt_seq_id], [0])
 
     def get_kv_cache_size(self) -> int:
         """
@@ -219,18 +427,18 @@ class CacheManager:
         It should return the result of `get_kv_cache_size` if there is
         no requests in the cache.
         """
-        if not self.allocated_tokens:
+        if not self.allocated_decode_tokens:
             return len(self.free_blocks) * self.block_size
 
-        free_blocks_per_sequence = len(self.free_blocks) // len(self.allocated_tokens)
-        remaining_blocks = len(self.free_blocks) - free_blocks_per_sequence * len(
-            self.allocated_tokens
+        free_blocks_per_sequence = len(self.free_blocks) // len(
+            self.allocated_decode_tokens
         )
-        # The number of shared prompt tokens in parallel sampling is divisible by block_size,
-        # so this calculation should be valid for parallel sampling as well.
+        remaining_blocks = len(self.free_blocks) - free_blocks_per_sequence * len(
+            self.allocated_decode_tokens
+        )
         remaining_tokens_in_last_block = [
             self.block_size - (tokens - 1) % self.block_size - 1
-            for tokens in self.allocated_tokens.values()
+            for tokens in self.allocated_decode_tokens.values()
         ]
 
         return (
@@ -362,6 +570,12 @@ def copy_to_worker_0(sess: di.Session, host_array):
     return x_array
 
 
+def broadcast_from_worker_0(sess: di.Session, src, shape, dtype):
+    dst = sess.empty(shape, dtype)
+    sess.broadcast_from_worker0(src, dst)
+    return dst
+
+
 def get_tvm_model(config, dev):
     LOG.info(f"Loading parameters from {config.model_artifact_path}.")
     lib_path = os.path.join(config.model_artifact_path, config.library_name)
@@ -378,10 +592,10 @@ def get_tvm_model(config, dev):
 def _prepare_inputs(
     sequence_ids,
     all_token_ids,
+    prompt_lens,
     all_slot_mappings,
-    all_block_tables,
+    all_decode_block_tables,
     sliding_window,
-    dev,
     is_prefill,
 ):
     block_tables = []
@@ -393,7 +607,7 @@ def _prepare_inputs(
     indices_within_window = []
     start_idx = 0
 
-    for sequence_id, token_ids in zip(sequence_ids, all_token_ids):
+    for i, (sequence_id, token_ids) in enumerate(zip(sequence_ids, all_token_ids)):
         if is_prefill:
             input_ids += token_ids
             prompt_len = len(token_ids)
@@ -410,17 +624,17 @@ def _prepare_inputs(
 
         else:
             input_ids.append(token_ids[-1])
-            pos = len(token_ids) - 1
-            positions.append(pos)
-            block_table = all_block_tables[sequence_id]
+            seq_len = prompt_lens[i] + len(token_ids)
+            positions.append(seq_len - 1)
+            block_table = all_decode_block_tables[sequence_id]
             max_num_blocks_per_seq = max(max_num_blocks_per_seq, len(block_table))
-            block_tables.append(block_table)
+            block_tables.append(block_table.get_blocks())
             slot_mapping.append(all_slot_mappings[sequence_id][-1])
 
             if sliding_window:
-                seq_lens.append(min(len(token_ids), sliding_window))
+                seq_lens.append(min(seq_len, sliding_window))
             else:
-                seq_lens.append(len(token_ids))
+                seq_lens.append(seq_len)
 
     def to_ndarray_via_torch(arr, torch_dtype):
         return tvm.nd.from_dlpack(torch.tensor(arr, dtype=torch_dtype, device="cuda"))
@@ -444,7 +658,6 @@ def _prepare_inputs(
             _pad_to_max(block_table, max_num_blocks_per_seq)
             for block_table in block_tables
         ]
-
         block_tables = to_ndarray_via_torch(padded_block_tables, torch.int)
     else:
         block_tables = None
@@ -538,12 +751,16 @@ class Model:
         all_token_ids = []
         sampling_params = []
         sequence_ids = []
+        prompt_lens = []
+        num_sequences = []
 
         for request in requests:
             if isinstance(request, PrefillRequest):
-                sequence_ids.append(SequenceId(request.request_id, 0))
+                sequence_ids.append(get_prompt_sequence_id(request.request_id))
+                num_sequences.append(request.num_sequence)
             else:
                 sequence_ids.append(request.sequence_id)
+                prompt_lens.append(request.prompt_token_counts)
 
             all_token_ids.append(request.token_ids)
             sampling_params.append(request.sampling_params)
@@ -558,10 +775,10 @@ class Model:
         ) = _prepare_inputs(
             sequence_ids,
             all_token_ids,
+            prompt_lens,
             cache.slot_mappings,
-            cache.block_tables,
+            cache.decode_block_tables,
             self.sliding_window,
-            self.dev,
             is_prefill,
         )
 
@@ -628,18 +845,50 @@ class Model:
         torch.cuda.synchronize()
         torch.cuda.nvtx.range_pop()
 
+        if is_prefill and cache.pending_copy_from_to:
+            block_mapping = tvm.nd.array(
+                np.array(cache.pending_copy_from_to, dtype="int64")
+            )
+            assert cache.copy_cache_blocks_func
+
+            if self.disco_session:
+                block_mapping = broadcast_from_worker_0(
+                    self.disco_session,
+                    copy_to_worker_0(self.disco_session, block_mapping),
+                    block_mapping.shape,
+                    "int64",
+                )
+
+            cache.copy_cache_blocks_func(kv_cache, block_mapping)
+            cache.pending_copy_from_to = []
+
         try:
             next_tokens = sample(logits, sampling_params, self.vocab_size)
             assert next_tokens is not None
 
-            return [
-                TextGenerationResult(
-                    sequence_id=sequence_id,
-                    generated_tokens=[new_token],
-                    error=None,
-                )
-                for sequence_id, new_token in zip(sequence_ids, next_tokens)
-            ]
+            outputs = []
+            for i, (sequence_id, new_token) in enumerate(
+                zip(sequence_ids, next_tokens)
+            ):
+                if sequence_id.sequence_index == PROMPT_SEQEUNCE_INDEX:
+                    for seq_id in range(num_sequences[i]):
+                        outputs.append(
+                            TextGenerationResult(
+                                sequence_id=SequenceId(sequence_id.request_id, seq_id),
+                                generated_tokens=[new_token],
+                                error=None,
+                            )
+                        )
+                else:
+                    outputs.append(
+                        TextGenerationResult(
+                            sequence_id=sequence_id,
+                            generated_tokens=[new_token],
+                            error=None,
+                        )
+                    )
+
+            return outputs
         except RuntimeError:
             # Fallback to per-token sampling in case some logits values are corrupted.
             outputs = []
@@ -648,8 +897,8 @@ class Model:
                 " or element < 0"
             )
 
-            for sequence_id, logits_per_token, sampling_param in zip(
-                sequence_ids, torch.from_dlpack(logits), sampling_params
+            for i, (sequence_id, logits_per_token, sampling_param) in enumerate(
+                zip(sequence_ids, torch.from_dlpack(logits), sampling_params)
             ):
                 maybe_new_token = sample(
                     torch.unsqueeze(logits_per_token, 0),
@@ -659,21 +908,45 @@ class Model:
                 )
 
                 if maybe_new_token is not None:
-                    outputs.append(
-                        TextGenerationResult(
-                            sequence_id=sequence_id,
-                            generated_tokens=[maybe_new_token[0]],  # type: ignore
-                            error=None,
+                    if sequence_id.sequence_index == PROMPT_SEQEUNCE_INDEX:
+                        for seq_id in range(num_sequences[i]):
+                            outputs.append(
+                                TextGenerationResult(
+                                    sequence_id=SequenceId(
+                                        sequence_id.request_id, seq_id
+                                    ),
+                                    generated_tokens=[maybe_new_token[0]],  # type: ignore
+                                    error=None,
+                                )
+                            )
+                    else:
+                        outputs.append(
+                            TextGenerationResult(
+                                sequence_id=sequence_id,
+                                generated_tokens=[maybe_new_token[0]],  # type: ignore
+                                error=None,
+                            )
                         )
-                    )
                 else:
-                    outputs.append(
-                        TextGenerationResult(
-                            sequence_id=sequence_id,
-                            generated_tokens=[],
-                            error=err_msg,
+                    if sequence_id.sequence_index == PROMPT_SEQEUNCE_INDEX:
+                        for seq_id in range(num_sequences[i]):
+                            outputs.append(
+                                TextGenerationResult(
+                                    sequence_id=SequenceId(
+                                        sequence_id.request_id, seq_id
+                                    ),
+                                    generated_tokens=[],
+                                    error=err_msg,
+                                )
+                            )
+                    else:
+                        outputs.append(
+                            TextGenerationResult(
+                                sequence_id=sequence_id,
+                                generated_tokens=[],
+                                error=err_msg,
+                            )
                         )
-                    )
 
             return outputs
 

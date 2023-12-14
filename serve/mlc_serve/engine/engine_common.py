@@ -3,7 +3,7 @@ Common utilites for engine classes.
 """
 
 import time
-from typing import Tuple, Deque, Dict, Optional, Union
+from typing import Tuple, Deque, Dict, Optional, Union, Callable
 from collections import deque
 from threading import Condition, Lock
 
@@ -207,19 +207,20 @@ def get_requests_to_process(
         for state in current_states:
             for gen_seq in state.generation_sequences:
                 if not gen_seq.is_finished:
-                    # TODO(masahi): No need to add prompt_token_ids here if we send
-                    # the prompt len instead
-                    token_ids = state.prompt_token_ids + gen_seq.generated_token_ids
+                    prompt_counts = len(state.prompt_token_ids)
                     requests.append(
                         DecodeRequest(
                             sequence_id=gen_seq.seq_id,
-                            token_ids=token_ids,
+                            prompt_token_counts=prompt_counts,
+                            token_ids=gen_seq.generated_token_ids,
                             sampling_params=state.sampling_params,
                         )
                     )
                     cache_manager.extend(
                         gen_seq.seq_id,
-                        len(token_ids) - gen_seq.next_start_position,
+                        prompt_counts
+                        + len(gen_seq.generated_token_ids)
+                        - gen_seq.next_start_position,
                     )
 
         token_counts = len(requests)
@@ -302,7 +303,8 @@ class EngineBase:
             or (kv_cache_size - prompt_len) < self.max_decode_steps * num_sequences
         )
 
-    def evict_request(self) -> int:
+    def evict_request(self, cancell_callback: Callable[[RequestId], None]) -> int:
+        # Must be called with the queue lock held
         num_eviction = 0
 
         while self.cache_manager.get_max_new_tokens() < 1:
@@ -310,10 +312,16 @@ class EngineBase:
             request_to_remove = min(
                 self.current_batch.values(), key=lambda s: s.num_total_tokens
             )
-            # TODO parallel sampling: Properly support evicting a multi-sequence request
-            assert (
-                self.current_batch[request_to_remove.request_id].num_sequences == 1
-            ), "Evicting a multi-sequence request is not supported."
+
+            # TODO(masahi): Properly support evicting a multi-sequence request
+            if self.current_batch[request_to_remove.request_id].num_sequences != 1:
+                cancell_callback(request_to_remove.request_id)
+                self.remove_request_from_batch(request_to_remove.request_id)
+                LOG.warn(
+                    "Preempting a multi-sequence request is currently not supported,"
+                    f" cancelling request '{request_to_remove.request_id}'",
+                )
+                continue
 
             self.remove_request_from_batch(request_to_remove.request_id)
             self.queue.appendleft(request_to_remove)
@@ -326,6 +334,7 @@ class EngineBase:
         return num_eviction
 
     def try_grow_batch(self, num_new_batched_tokens) -> Optional[int]:
+        # Must be called with the queue lock held
         max_new_tokens = self.cache_manager.get_max_new_tokens()
         if max_new_tokens < self.min_decode_steps:
             LOG.debug(
@@ -386,7 +395,7 @@ class EngineBase:
 
         self.queue.popleft()
         # TODO parallel sampling: Need update here when evicting multi-sequence requests is supported.
-        self.cache_manager.allocate(state.request_id, num_tokens)
+        self.cache_manager.allocate(state.request_id, num_tokens, state.num_sequences)
         self.current_batch[state.request_id] = state
 
         return num_new_batched_tokens

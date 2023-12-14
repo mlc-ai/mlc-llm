@@ -27,6 +27,7 @@ class PrefillRequest:
 @dataclass
 class DecodeRequest:
     sequence_id: SequenceId
+    prompt_token_counts: int
     # All tokens for this request, including prompt
     token_ids: List[int]
     sampling_params: SamplingParams
@@ -61,7 +62,7 @@ class KVCacheManager(Protocol):
         The returned value should be passed to Executor.generate_text.
         """
 
-    def allocate(self, request_id: RequestId, num_tokens: int):
+    def allocate(self, request_id: RequestId, num_tokens: int, num_sequnces: int):
         """
         Allocate cache space for request, raise error if there is no space.
         """

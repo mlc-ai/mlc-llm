@@ -4,7 +4,7 @@ A implementation of InferenceEngine that executes in the current process.
 
 import logging
 from collections import defaultdict
-from typing import Set
+from typing import Set, Dict
 
 from .base import (
     FinishReason,
@@ -36,7 +36,9 @@ class SynchronousInferenceEngine(InferenceEngine, EngineBase):
     when `step` is called.
     """
 
+    # ID and num_sequences for canceled requests
     requests_to_be_cancelled: Set[RequestId]
+    num_sequences_per_requests: Dict[RequestId, int]
 
     def __init__(
         self,
@@ -44,6 +46,7 @@ class SynchronousInferenceEngine(InferenceEngine, EngineBase):
     ):
         EngineBase.__init__(self, model_module)
         self.requests_to_be_cancelled = set[RequestId]()
+        self.num_sequences_per_requests = dict[RequestId, int]()
 
     def add(self, requests: list[Request]):
         if not requests:
@@ -64,6 +67,7 @@ class SynchronousInferenceEngine(InferenceEngine, EngineBase):
                 req, self.conversation_template, self.tokenizer
             )
             new_request_states.append(state)
+            self.num_sequences_per_requests[state.request_id] = state.num_sequences
 
             if state.validation_err is not None or self.check_prompt_too_long(
                 state.prompt_len, state.num_sequences
@@ -121,6 +125,7 @@ class SynchronousInferenceEngine(InferenceEngine, EngineBase):
                 )
                 self.current_batch.pop(state.request_id)
                 self.cache_manager.free_request(state)
+                del self.num_sequences_per_requests[state.request_id]
 
         previous_requests_to_be_cancelled = set(self.requests_to_be_cancelled)
         self._adjust_batch()
@@ -135,19 +140,31 @@ class SynchronousInferenceEngine(InferenceEngine, EngineBase):
 
         for request_id in previous_requests_to_be_cancelled:
             if request_id not in self.requests_to_be_cancelled:
-                # TODO(masahi): Need a mapping from a request ID to num_sequences
-                # But for a cancelled request, it is probably enough to return only
-                # one empty sequence.
-                num_sequences = 1
                 outputs.append(
                     RequestOutput(
                         request_id=request_id,
                         sequences=[
                             SequenceOutput(i, finish_reason=FinishReason.Cancelled)
-                            for i in range(num_sequences)
+                            for i in range(self.num_sequences_per_requests[request_id])
                         ],
                     )
                 )
+                del self.num_sequences_per_requests[request_id]
+
+        for request_id in list(self.requests_to_be_cancelled):
+            if request_id not in previous_requests_to_be_cancelled:
+                # This is for requests canceled during _adjust_batch()
+                outputs.append(
+                    RequestOutput(
+                        request_id=request_id,
+                        sequences=[
+                            SequenceOutput(i, finish_reason=FinishReason.Cancelled)
+                            for i in range(self.num_sequences_per_requests[request_id])
+                        ],
+                    )
+                )
+                self.requests_to_be_cancelled.remove(request_id)
+                del self.num_sequences_per_requests[request_id]
 
         if not self.current_batch:
             return InferenceStepResult(outputs)
@@ -174,13 +191,18 @@ class SynchronousInferenceEngine(InferenceEngine, EngineBase):
                         error=res.error,
                     )
                 )
-            else:
+            elif res.error is None:
                 valid_results.append(res)
 
         seq_outputs = defaultdict(list)
 
         for res in valid_results:
             request_id = res.sequence_id.request_id
+
+            if request_id in failed_requests:
+                # Other sequence in the same request has errored.
+                continue
+
             seq_index = res.sequence_id.sequence_index
             state = self.current_batch[request_id]
             gen_seq = state.generation_sequences[seq_index]
@@ -233,7 +255,11 @@ class SynchronousInferenceEngine(InferenceEngine, EngineBase):
                     self.cache_manager.free_request(state)
                     self.requests_to_be_cancelled.remove(request_id)
 
-            self.evict_request()
+            self.evict_request(
+                cancell_callback=lambda request_id: self.requests_to_be_cancelled.add(
+                    request_id
+                )
+            )
 
             self._discard_cancelled_requests_from_queue()
 

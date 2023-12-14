@@ -265,6 +265,23 @@ class SequenceId:
     sequence_index: int
 
 
+# IMPORTANT!!!
+#
+# To support parallel sampling, we use the following convention to encode prompt
+# and decode sequences.
+#
+# Prompt sequences: SequenceID(request_id, PROMPT_SEQEUNCE_INDEX)
+# Decode sequences: SequenceID(request_id, idx) for idx in [0, num_sequences]
+#
+# This way, we can immediately get the corresponding prompt sequence from a decode sequence.
+
+PROMPT_SEQEUNCE_INDEX = -1
+
+
+def get_prompt_sequence_id(request_id: RequestId) -> SequenceId:
+    return SequenceId(request_id, PROMPT_SEQEUNCE_INDEX)
+
+
 @dataclass
 class GenerationSequence:
     seq_id: SequenceId

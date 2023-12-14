@@ -67,6 +67,7 @@ def sample_requests(
 def run_mlc(
     requests: List[Tuple[str, int, int]],
     engine,
+    num_sequences,
 ) -> float:
     for i, (prompt, _, output_len) in enumerate(requests):
         sampling_params = SamplingParams(
@@ -82,6 +83,7 @@ def run_mlc(
                     sampling_params=sampling_params,
                     stopping_criteria=StoppingCriteria(max_tokens=output_len, stop_sequences=None),
                     debug_options=DebugOptions(ignore_eos=True, prompt=prompt),
+                    num_sequences=num_sequences,
                 )
             ]
         )
@@ -142,13 +144,14 @@ def main(args: argparse.Namespace):
     elapsed_time = run_mlc(
         requests,
         engine,
+        args.num_sequences_to_sample,
     )
 
     if args.use_staging_engine:
         engine.stop()
 
     total_num_tokens = sum(
-        prompt_len + output_len for _, prompt_len, output_len in requests
+        prompt_len + output_len * args.num_sequences_to_sample for _, prompt_len, output_len in requests
     )
     req_per_sec = len(requests) / elapsed_time
     tok_per_sec = total_num_tokens / elapsed_time
@@ -178,6 +181,7 @@ if __name__ == "__main__":
     parser.add_argument("--artifact-path", type=str, default="dist")
     parser.add_argument("--use-staging-engine", action="store_true")
     parser.add_argument("--max-num-sequences", type=int, default=8)
+    parser.add_argument("--num-sequences-to-sample", type=int, default=1)
     parser.add_argument("--max-input-len", type=int, default=512)
     parser.add_argument("--min-decode-steps", type=int, default=32)
     parser.add_argument("--max-decode-steps", type=int, default=56)
