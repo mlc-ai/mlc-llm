@@ -68,9 +68,7 @@ class Embedding(nn.Module):
     def __init__(self, num_embeddings, embedding_dim, dtype):
         self.num_embeddings = num_embeddings
         self.embedding_dim = embedding_dim
-        self.weight = nn.Parameter(
-            (num_embeddings, embedding_dim), dtype=dtype, name="weight"
-        )
+        self.weight = nn.Parameter((num_embeddings, embedding_dim), dtype=dtype, name="weight")
 
     def forward(self, x: relax.Expr) -> relax.Var:
         ndim = x.struct_info.ndim
@@ -172,10 +170,9 @@ class RotaryEmbedding(nn.Module):
         else:
             raise KeyError("Unrecognized swizzle style: {}.".format(self.swizzle_style))
 
-    def forward(
+    def rotate_tensor(
         self,
-        q: relax.Expr,
-        k: relax.Expr,
+        input: relax.Expr,
         offset: relax.Expr,
     ) -> Tuple[relax.Expr, relax.Expr]:
         def rotary_embedding(x, cos, sin, offset):
@@ -196,32 +193,29 @@ class RotaryEmbedding(nn.Module):
                         offset + i_seq_len,
                         i_head_dim,
                     ]
-                    * self.get_x_swizzle(
-                        x, i_batch_size, i_seq_len, i_num_heads, i_head_dim
-                    ),
+                    * self.get_x_swizzle(x, i_batch_size, i_seq_len, i_num_heads, i_head_dim),
                     x(i_batch_size, i_seq_len, i_num_heads, i_head_dim),
                 )
 
             return te.compute(x.shape, compute, name="rotary")
 
         cos, sin = self.cos_cached, self.sin_cached
-        q_embed = nn.emit_te(
+        return nn.emit_te(
             rotary_embedding,
-            q,
+            input,
             cos,
             sin,
             offset,
             primfunc_name_hint="rotary_embedding",
         )
-        k_embed = nn.emit_te(
-            rotary_embedding,
-            k,
-            cos,
-            sin,
-            offset,
-            primfunc_name_hint="rotary_embedding",
-        )
-        return q_embed, k_embed
+
+    def forward(
+        self,
+        q: relax.Expr,
+        k: relax.Expr,
+        offset: relax.Expr,
+    ) -> Tuple[relax.Expr, relax.Expr]:
+        return self.rotate_tensor(q, offset), self.rotate_tensor(k, offset)
 
 
 class TransformImage(nn.Module):

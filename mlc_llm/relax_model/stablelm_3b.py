@@ -36,6 +36,7 @@ class StableLM3bConfig:
         bos_token_id=0,
         eos_token_id=1,
         tie_word_embeddings=False,
+        num_attention_sinks=0,
         position_embedding_base=10000,
         combine_matmul=True,
         num_shards=1,
@@ -58,6 +59,7 @@ class StableLM3bConfig:
         self.bos_token_id = bos_token_id
         self.eos_token_id = eos_token_id
         self.tie_word_embeddings = tie_word_embeddings
+        self.num_attention_sinks = num_attention_sinks
         self.position_embedding_base = position_embedding_base
         self.combine_matmul = combine_matmul
         if build_model_only and num_shards > 1:
@@ -152,6 +154,7 @@ class StableLM3bAttention(nn.Module):
         self.head_dim = self.hidden_size // config.num_attention_heads
         self.position_embedding_base = config.position_embedding_base
         self.rotary_embedding = rotary_embedding
+        self.num_attention_sinks = config.num_attention_sinks
 
         self.combine_matmul = config.combine_matmul
         if self.combine_matmul:
@@ -199,6 +202,7 @@ class StableLM3bAttention(nn.Module):
     ) -> Tuple[relax.Expr, Optional[relax.Expr], Optional[Tuple[relax.Expr]]]:
         from tvm.relax.op import (
             astype,
+            expand_dims,
             matmul,
             maximum,
             permute_dims,
@@ -251,53 +255,109 @@ class StableLM3bAttention(nn.Module):
 
         kv_seq_len = all_seq_len_shape.struct_info.values[0]
         offset = kv_seq_len - q_len
-        query_states, key_states = self.rotary_embedding(query_states, key_states, offset)
-        # [bsz, t, nh, hd]
+        if self.num_attention_sinks == 0:
+            query_states, key_states = self.rotary_embedding(query_states, key_states, offset)
+            # [bsz, t, nh, hd]
 
-        kv_states_shape = key_states.struct_info.shape
-        kv_states_dtype = key_states.struct_info.dtype
-        assert kv_states_shape[0] == 1  # bsz
-        kv_states_shape = R.shape(
-            [kv_states_shape[0], kv_seq_len, kv_states_shape[2], kv_states_shape[3]]
-        )
-        kv_cache_shape = R.shape([kv_seq_len, kv_states_shape[2], kv_states_shape[3]])
+            kv_states_shape = key_states.struct_info.shape
+            kv_states_dtype = key_states.struct_info.dtype
+            assert kv_states_shape[0] == 1  # bsz
+            kv_states_shape = R.shape(
+                [kv_states_shape[0], kv_seq_len, kv_states_shape[2], kv_states_shape[3]]
+            )
+            kv_cache_shape = R.shape([kv_seq_len, kv_states_shape[2], kv_states_shape[3]])
 
-        squeezed_key = nn.emit(squeeze(key_states, axis=0))
-        squeezed_value = nn.emit(squeeze(value_states, axis=0))
-        k_cache, v_cache = past_key_value
-        f_kv_cache_append = relax.extern("vm.builtin.attention_kv_cache_append")
-        k_cache = nn.emit(
-            relax.Call(
-                f_kv_cache_append,
-                args=[k_cache, squeezed_key],
-                sinfo_args=[relax.ObjectStructInfo()],
+            squeezed_key = nn.emit(squeeze(key_states, axis=0))
+            squeezed_value = nn.emit(squeeze(value_states, axis=0))
+            k_cache, v_cache = past_key_value
+            f_kv_cache_append = relax.extern("vm.builtin.attention_kv_cache_append")
+            k_cache = nn.emit(
+                relax.Call(
+                    f_kv_cache_append,
+                    args=[k_cache, squeezed_key],
+                    sinfo_args=[relax.ObjectStructInfo()],
+                )
             )
-        )
-        v_cache = nn.emit(
-            relax.Call(
-                f_kv_cache_append,
-                args=[v_cache, squeezed_value],
-                sinfo_args=[relax.ObjectStructInfo()],
+            v_cache = nn.emit(
+                relax.Call(
+                    f_kv_cache_append,
+                    args=[v_cache, squeezed_value],
+                    sinfo_args=[relax.ObjectStructInfo()],
+                )
             )
-        )
-        past_key_value = (k_cache, v_cache)
-        f_kv_cache_view = relax.extern("vm.builtin.attention_kv_cache_view")
-        k_cache = nn.emit(
-            relax.Call(
-                f_kv_cache_view,
-                args=[k_cache, kv_cache_shape],
-                sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
+            past_key_value = (k_cache, v_cache)
+            f_kv_cache_view = relax.extern("vm.builtin.attention_kv_cache_view")
+            k_cache = nn.emit(
+                relax.Call(
+                    f_kv_cache_view,
+                    args=[k_cache, kv_cache_shape],
+                    sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
+                )
             )
-        )
-        v_cache = nn.emit(
-            relax.Call(
-                f_kv_cache_view,
-                args=[v_cache, kv_cache_shape],
-                sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
+            v_cache = nn.emit(
+                relax.Call(
+                    f_kv_cache_view,
+                    args=[v_cache, kv_cache_shape],
+                    sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
+                )
             )
-        )
-        key_states = nn.emit(reshape(k_cache, kv_states_shape))
-        value_states = nn.emit(reshape(v_cache, kv_states_shape))
+            key_states = nn.emit(reshape(k_cache, kv_states_shape))
+            value_states = nn.emit(reshape(v_cache, kv_states_shape))
+        else:
+            # Main difference is to rotate keys *after* updating cache. Section 3.2 of the Attention
+            # Sinks paper (https://arxiv.org/pdf/2309.17453.pdf) explains the need to use positional
+            # information *within the cache*, versus *in the original text*.
+            query_states = self.rotary_embedding.rotate_tensor(query_states, offset)
+
+            kv_states_shape = key_states.struct_info.shape
+            kv_states_dtype = key_states.struct_info.dtype
+            assert kv_states_shape[0] == 1  # bsz
+            kv_states_shape = R.shape(
+                [kv_states_shape[0], kv_seq_len, kv_states_shape[2], kv_states_shape[3]]
+            )
+            kv_cache_shape = R.shape([kv_seq_len, kv_states_shape[2], kv_states_shape[3]])
+
+            squeezed_key = nn.emit(squeeze(key_states, axis=0))
+            squeezed_value = nn.emit(squeeze(value_states, axis=0))
+            k_cache, v_cache = past_key_value
+            f_kv_cache_append = relax.extern("vm.builtin.attention_kv_cache_append")
+            k_cache = nn.emit(
+                relax.Call(
+                    f_kv_cache_append,
+                    args=[k_cache, squeezed_key],
+                    sinfo_args=[relax.ObjectStructInfo()],
+                )
+            )
+            v_cache = nn.emit(
+                relax.Call(
+                    f_kv_cache_append,
+                    args=[v_cache, squeezed_value],
+                    sinfo_args=[relax.ObjectStructInfo()],
+                )
+            )
+            past_key_value = (k_cache, v_cache)
+
+            f_kv_cache_view = relax.extern("vm.builtin.attention_kv_cache_view")
+            k_cache = nn.emit(
+                relax.Call(
+                    f_kv_cache_view,
+                    args=[k_cache, kv_cache_shape],
+                    sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
+                )
+            )
+            k_cache = nn.emit(expand_dims(k_cache, 0))
+            key_states = self.rotary_embedding.rotate_tensor(
+                k_cache, tvm.tir.expr.IntImm("int64", 0)
+            )
+            v_cache = nn.emit(
+                relax.Call(
+                    f_kv_cache_view,
+                    args=[v_cache, kv_cache_shape],
+                    sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
+                )
+            )
+            value_states = nn.emit(reshape(v_cache, kv_states_shape))
+
         if self.num_key_value_heads != self.num_query_heads:
             n_rep = self.num_query_heads // self.num_key_value_heads
             key_states = nn.emit(relax.op.repeat(key_states, n_rep, axis=2))
@@ -791,6 +851,7 @@ def get_model(args, hf_config):
         num_shards=args.num_shards,
         build_model_only=args.build_model_only,
         convert_weights_only=args.convert_weights_only,
+        num_attention_sinks=args.num_attention_sinks,
     )
     if max_seq_len != -1:
         config.max_sequence_length = max_seq_len

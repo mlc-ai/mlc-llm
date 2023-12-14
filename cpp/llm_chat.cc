@@ -235,6 +235,8 @@ struct FunctionTable {
       support_backtracking_kv_ = false;
     }
     this->fkvcache_array_popn_ = get_global_func("vm.builtin.attention_kv_cache_array_popn");
+    this->kv_evict_with_sinks_ =
+        get_global_func("vm.builtin.attention_kv_cache_maybe_evict_with_sinks");
   }
 
   ObjectRef Empty(ShapeTuple shape, DataType dtype, Device device) const {
@@ -275,6 +277,7 @@ struct FunctionTable {
   PackedFunc softmax_func_;
   PackedFunc create_kv_cache_func_;
   PackedFunc reset_kv_cache_func_;
+  PackedFunc kv_evict_with_sinks_;
   bool support_backtracking_kv_;
   PackedFunc fkvcache_array_popn_;
   ModelMetadata model_metadata_;
@@ -344,6 +347,16 @@ class LLMChat {
     if (metadata.count("sliding_window")) {
       ICHECK(metadata["sliding_window"].is<int64_t>());
       sliding_window_ = std::min(sliding_window_, metadata["sliding_window"].get<int64_t>());
+    }
+    if (metadata.count("num_attention_sinks")) {
+      ICHECK(metadata["num_attention_sinks"].is<int64_t>());
+      num_attention_sinks_ =
+          std::min(num_attention_sinks_, metadata["num_attention_sinks"].get<int64_t>());
+      if (metadata.count("attention_sink_cache_size")) {
+        ICHECK(metadata["attention_sink_cache_size"].is<int64_t>());
+        attention_sink_cache_size_ = std::min(attention_sink_cache_size_,
+                                              metadata["attention_sink_cache_size"].get<int64_t>());
+      }
     }
   }
 
@@ -427,6 +440,15 @@ class LLMChat {
           << "Sliding window size needs to be -1 or positive";
       CHECK(config.count("prefill_chunk_size"))
           << "Need to specify chunk size if using sliding window attention.";
+    }
+    if (config.count("num_attention_sinks")) {
+      CHECK(config["num_attention_sinks"].is<int64_t>());
+      this->num_attention_sinks_ = config["num_attention_sinks"].get<int64_t>();
+      CHECK(this->num_attention_sinks_ > 0);
+      if (config.count("attention_sink_cache_size")) {
+        CHECK(config["attention_sink_cache_size"].is<int64_t>());
+        this->attention_sink_cache_size_ = config["attention_sink_cache_size"].get<int64_t>();
+      }
     }
     if (config.count("prefill_chunk_size")) {
       CHECK(config["prefill_chunk_size"].is<int64_t>());
@@ -621,6 +643,25 @@ class LLMChat {
     std::string all_prompt = GetConcatPrompt(prompts, 0, 0);
     std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
+
+    if (this->num_attention_sinks_ > 0) {
+      // Trim the cache if it exceeds `attention_sink_cache_size_` (or `max_window_size_`, if that's
+      // not set). We trim it arbitrarily to 1/2 the threshold, so that the trimming logic doesn't
+      // run too frequently.
+      int64_t trim_threshold = this->attention_sink_cache_size_ > 0
+                                   ? this->attention_sink_cache_size_
+                                   : this->max_window_size_;
+      if (this->total_seq_len_ > trim_threshold) {
+        this->total_seq_len_ = this->EvictWithSinks(
+            // If there's a system command, keep the full system command.
+            std::max(trim_threshold / 2, this->system_prompt_len_),
+            this->system_prompt_len_ > 0 ? this->system_prompt_len_ : this->num_attention_sinks_);
+      }
+      // TODO: The current logic may result in caching more than `max_window_size_` tokens. Perhaps
+      // reuse the code below to not allow that to happen.
+      return tokens;
+    }
+
     if (this->sliding_window_ != -1 ||  // There is no max window size if we use sliding window
         this->total_seq_len_ + tokens.size() + gen_mean_gen_len < this->max_window_size_) {
       return tokens;
@@ -1328,8 +1369,15 @@ class LLMChat {
   // Clear kv cache
   void ResetKVCache() { ft_.reset_kv_cache_func_(kv_cache_); }
 
+  int64_t EvictWithSinks(int64_t desired_cache_size, int32_t num_attention_sinks) {
+    return ft_.kv_evict_with_sinks_(kv_cache_, desired_cache_size, num_attention_sinks);
+  }
+
   void ProcessSystemPrompts() {
+    ICHECK_EQ(this->total_seq_len_, 0) << "Processing system prompt, should have no tokens prior.";
     this->PrefillStep(/*inp=*/"", /*append_conversation=*/false, /*decode_next_token=*/false);
+    this->system_prompt_len_ = this->total_seq_len_;
+    LOG(INFO) << "Sys prompt len:" << this->system_prompt_len_;
   }
 
   // Utils
@@ -1366,10 +1414,13 @@ class LLMChat {
   Conversation conversation_;
   // total sequence len,
   int64_t total_seq_len_{0};
+  // length of the system prompt.
+  int64_t system_prompt_len_{0};
   // max window size, mean and max generation length, sliding window
   // If we use sliding window, max window size is its default max() value
   int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128},
-      max_gen_len_{512}, sliding_window_{-1}, prefill_chunk_size_{-1};
+      max_gen_len_{512}, sliding_window_{-1}, prefill_chunk_size_{-1}, num_attention_sinks_{0},
+      attention_sink_cache_size_{0};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference
