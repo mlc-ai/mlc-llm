@@ -33,18 +33,6 @@ struct StartView: View {
                         }
                         .buttonStyle(.borderless)
                     }
-                    if !isAdding {
-                        Button("Add model variant") {
-                            isAdding = true
-                        }
-                        .buttonStyle(.borderless)
-                    } else {
-                        Button("Cancel add model variant") {
-                            isAdding = false
-                            inputModelUrl = ""
-                        }
-                        .buttonStyle(.borderless)
-                    }
                 }
                 if isAdding {
                     Section(header: Text("Click below to import sample model variants, these variants may contain same weights as builtin ones")) {

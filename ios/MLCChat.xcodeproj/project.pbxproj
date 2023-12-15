@@ -429,7 +429,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/build/lib",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				OTHER_LDFLAGS = (
 					"-Wl,-all_load",
 					"-lmodel_iphone",
@@ -482,7 +482,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/build/lib",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				OTHER_LDFLAGS = (
 					"-Wl,-all_load",
 					"-lmodel_iphone",

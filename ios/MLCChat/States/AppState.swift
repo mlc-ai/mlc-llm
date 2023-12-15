@@ -32,11 +32,9 @@ final class AppState: ObservableObject {
         guard let appConfig else {
             return
         }
-
+        loadPrebuiltModels()
         loadModelsConfig(modelList: appConfig.modelList)
         loadExampleModelsConfig(exampleModels: appConfig.exampleModels)
-
-        loadPrebuiltModels()
     }
 
     func requestAddModel(url: String, localID: String?) {
