@@ -121,13 +121,14 @@ def _add_system_lib_prefix(mod: IRModule, prefix: str, is_system_lib: bool) -> I
 
 
 def _build_metal_x86_64():
-    def build(mod: IRModule, args: "CompileArgs"):
+    def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
         mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=False)
         assert output.suffix == ".dylib"
         relax.build(
             mod,
             target=args.target,
+            pipeline=pipeline,
         ).export_library(
             str(output),
             fcompile=xcode.create_dylib,
@@ -145,13 +146,14 @@ def _build_iphone():
             return xcode.compile_metal(src, sdk=target.libs[0])
         return xcode.compile_metal(src)
 
-    def build(mod: IRModule, args: "CompileArgs"):
+    def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
         mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
         assert output.suffix == ".tar"
         relax.build(
             mod,
             target=args.target,
+            pipeline=pipeline,
             system_lib=True,
         ).export_library(
             str(output),
@@ -162,13 +164,14 @@ def _build_iphone():
 
 
 def _build_android():
-    def build(mod: IRModule, args: "CompileArgs"):
+    def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
         mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
         assert output.suffix == ".tar"
         relax.build(
             mod,
             target=args.target,
+            pipeline=pipeline,
             system_lib=True,
         ).export_library(
             str(output),
@@ -179,13 +182,14 @@ def _build_android():
 
 
 def _build_webgpu():
-    def build(mod: IRModule, args: "CompileArgs"):
+    def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
         mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
         assert output.suffix == ".wasm"
         relax.build(
             mod,
             target=args.target,
+            pipeline=pipeline,
             system_lib=True,
         ).export_library(
             str(output),
@@ -195,7 +199,7 @@ def _build_webgpu():
 
 
 def _build_default():
-    def build(mod: IRModule, args: "CompileArgs"):
+    def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
         if output.suffix in [".tar", ".lib"]:
             system_lib = True
@@ -208,6 +212,7 @@ def _build_default():
         relax.build(
             mod,
             target=args.target,
+            pipeline=pipeline,
             system_lib=system_lib,
         ).export_library(
             str(output),
