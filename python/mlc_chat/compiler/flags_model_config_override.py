@@ -15,16 +15,18 @@ class ModelConfigOverride:
     """Flags for overriding model config."""
 
     context_window_size: Optional[int] = None
-    prefill_chunk_size: Optional[int] = None
     sliding_window_size: Optional[int] = None
+    prefill_chunk_size: Optional[int] = None
+    attention_sink_size: Optional[int] = None
     max_batch_size: Optional[int] = None
     tensor_parallel_shards: Optional[int] = None
 
     def __repr__(self) -> str:
         out = StringIO()
         print(f"context_window_size={self.context_window_size}", file=out, end="")
-        print(f";prefill_chunk_size={self.prefill_chunk_size}", file=out, end="")
         print(f";sliding_window_size={self.sliding_window_size}", file=out, end="")
+        print(f";prefill_chunk_size={self.prefill_chunk_size}", file=out, end="")
+        print(f";attention_sink_size={self.attention_sink_size}", file=out, end="")
         print(f";max_batch_size={self.max_batch_size}", file=out, end="")
         print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
         return out.getvalue().rstrip()
@@ -33,6 +35,7 @@ class ModelConfigOverride:
         # If `sliding_window_size` is set
         # - 1) Disable `context_window_size`
         # - 2) Require `prefill_chunk_size` to present
+        # - 3) Set `attention_sink_size` to default (4)
         if self.sliding_window_size is not None:
             self.context_window_size = -1
             logger.info(
@@ -48,6 +51,13 @@ class ModelConfigOverride:
                     self.sliding_window_size,
                 )
                 self.prefill_chunk_size = self.sliding_window_size
+            if self.attention_sink_size is None:
+                logger.info(
+                    "Default %s to %d because it is not provided",
+                    bold("attention_sink_size"),
+                    4,
+                )
+                self.attention_sink_size = 4
         elif self.context_window_size is not None:
             if self.prefill_chunk_size is None:
                 logger.info(
@@ -62,10 +72,12 @@ class ModelConfigOverride:
         """Apply the overrides to the given model config."""
         if self.context_window_size is not None:
             _model_config_override(model_config, "context_window_size", self.context_window_size)
-        if self.prefill_chunk_size is not None:
-            _model_config_override(model_config, "prefill_chunk_size", self.prefill_chunk_size)
         if self.sliding_window_size is not None:
             _model_config_override(model_config, "sliding_window_size", self.sliding_window_size)
+        if self.prefill_chunk_size is not None:
+            _model_config_override(model_config, "prefill_chunk_size", self.prefill_chunk_size)
+        if self.attention_sink_size is not None:
+            _model_config_override(model_config, "attention_sink_size", self.attention_sink_size)
         if self.max_batch_size is not None:
             _model_config_override(model_config, "max_batch_size", self.max_batch_size)
         if self.tensor_parallel_shards is not None:
@@ -79,15 +91,17 @@ class ModelConfigOverride:
 
         parser = argparse.ArgumentParser(description="model config override values")
         parser.add_argument("--context_window_size", type=int, default=None)
-        parser.add_argument("--prefill_chunk_size", type=int, default=None)
         parser.add_argument("--sliding_window_size", type=int, default=None)
+        parser.add_argument("--prefill_chunk_size", type=int, default=None)
+        parser.add_argument("--attention_sink_size", type=int, default=None)
         parser.add_argument("--max_batch_size", type=int, default=None)
         parser.add_argument("--tensor_parallel_shards", type=int, default=None)
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
         return ModelConfigOverride(
             context_window_size=results.context_window_size,
-            prefill_chunk_size=results.prefill_chunk_size,
             sliding_window_size=results.sliding_window_size,
+            prefill_chunk_size=results.prefill_chunk_size,
+            attention_sink_size=results.attention_sink_size,
             max_batch_size=results.max_batch_size,
             tensor_parallel_shards=results.tensor_parallel_shards,
         )
@@ -107,5 +121,5 @@ def _model_config_override(model_config, field: str, value: Any) -> None:
             "%s: %s does not have %s",
             red("Warning"),
             bold(type(model_config).__name__),
-            bold("sliding_window_size"),
+            bold(field),
         )
