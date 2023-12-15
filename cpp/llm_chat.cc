@@ -924,8 +924,8 @@ class LLMChat {
     // update window cache offset (decoding)
     if (this->sliding_window_size_ != -1) {
       if (sink_triggered_) {
-        sliding_window_cache_offset_ =
-            std::max((sliding_window_cache_offset_ + 1) % sliding_window_size_, attention_sink_size_);
+        sliding_window_cache_offset_ = std::max(
+            (sliding_window_cache_offset_ + 1) % sliding_window_size_, attention_sink_size_);
       } else {
         sliding_window_cache_offset_ += 1;
         sink_triggered_ = sliding_window_cache_offset_ >= attention_sink_size_;
