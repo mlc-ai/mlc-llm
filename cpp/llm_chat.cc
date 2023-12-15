@@ -341,9 +341,16 @@ class LLMChat {
       prefill_chunk_size_ =
           std::min(prefill_chunk_size_, metadata["prefill_chunk_size"].get<int64_t>());
     }
+    if (metadata.count("sliding_window_size")) {
+      ICHECK(metadata["sliding_window_size"].is<int64_t>());
+      sliding_window_size_ =
+          std::min(sliding_window_size_, metadata["sliding_window_size"].get<int64_t>());
+    }
+    // to be removed after SLM migration
     if (metadata.count("sliding_window")) {
       ICHECK(metadata["sliding_window"].is<int64_t>());
-      sliding_window_ = std::min(sliding_window_, metadata["sliding_window"].get<int64_t>());
+      sliding_window_size_ =
+          std::min(sliding_window_size_, metadata["sliding_window"].get<int64_t>());
     }
   }
 
@@ -418,12 +425,23 @@ class LLMChat {
       this->max_window_size_ =
           std::min(this->max_window_size_, config["context_window_size"].get<int64_t>());
     }
+    if (config.count("sliding_window_size")) {
+      CHECK(config["sliding_window_size"].is<int64_t>());
+      CHECK(!config.count("max_window_size"))
+          << "Cannot specify both sliding_window and max_window_size.";
+      this->sliding_window_size_ = config["sliding_window_size"].get<int64_t>();
+      CHECK(this->sliding_window_size_ > 0 || this->sliding_window_size_ == -1)
+          << "Sliding window size needs to be -1 or positive";
+      CHECK(config.count("prefill_chunk_size"))
+          << "Need to specify chunk size if using sliding window attention.";
+    }
+    // to be removed after SLM migration
     if (config.count("sliding_window")) {
       CHECK(config["sliding_window"].is<int64_t>());
       CHECK(!config.count("max_window_size"))
           << "Cannot specify both sliding_window and max_window_size.";
-      this->sliding_window_ = config["sliding_window"].get<int64_t>();
-      CHECK(this->sliding_window_ > 0 || this->sliding_window_ == -1)
+      this->sliding_window_size_ = config["sliding_window"].get<int64_t>();
+      CHECK(this->sliding_window_size_ > 0 || this->sliding_window_size_ == -1)
           << "Sliding window size needs to be -1 or positive";
       CHECK(config.count("prefill_chunk_size"))
           << "Need to specify chunk size if using sliding window attention.";
@@ -524,7 +542,7 @@ class LLMChat {
     // classes other than basic tvm runtime.
     this->ft_.Init(reload_lib, device_, this->num_shards_);
     UpdateConfigFromMetadata();
-    if (this->sliding_window_ == -1) {
+    if (this->sliding_window_size_ == -1) {
       CHECK(max_window_size_ != std::numeric_limits<int64_t>::max())
           << "Key \"max_window_size\" not found.";
     }
@@ -627,7 +645,7 @@ class LLMChat {
     std::string all_prompt = GetConcatPrompt(prompts, 0, 0);
     std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
-    if (this->sliding_window_ != -1 ||  // There is no max window size if we use sliding window
+    if (this->sliding_window_size_ != -1 ||  // There is no max window size if we use sliding window
         this->total_seq_len_ + tokens.size() + gen_mean_gen_len < this->max_window_size_) {
       return tokens;
     }
@@ -853,11 +871,11 @@ class LLMChat {
         logits_on_device = this->ForwardTokens(chunk, new_seq_len);
 
         // update window cache offset (prefill)
-        if (this->sliding_window_ != -1) {
+        if (this->sliding_window_size_ != -1) {
           if (sink_triggered_) {
             sliding_window_cache_offset_ =
                 std::max((sliding_window_cache_offset_ + static_cast<int64_t>(chunk.size())) %
-                             sliding_window_,
+                             sliding_window_size_,
                          attention_sink_size_);
           } else {
             sliding_window_cache_offset_ += static_cast<int64_t>(chunk.size());
@@ -868,7 +886,7 @@ class LLMChat {
       ICHECK_EQ(new_seq_len, total_seq_len_ + token_len) << "Expect chunking process all tokens";
     } else {
       // Otherwise, prefill entire prompt at once.
-      CHECK(sliding_window_ == -1) << "Expect chunking with sliding window attention";
+      CHECK(sliding_window_size_ == -1) << "Expect chunking with sliding window attention";
       new_seq_len += token_len;
       logits_on_device = this->ForwardTokens(prompt_tokens, new_seq_len);
     }
@@ -904,10 +922,10 @@ class LLMChat {
     total_seq_len_ += 1;
 
     // update window cache offset (decoding)
-    if (this->sliding_window_ != -1) {
+    if (this->sliding_window_size_ != -1) {
       if (sink_triggered_) {
-        sliding_window_cache_offset_ =
-            std::max((sliding_window_cache_offset_ + 1) % sliding_window_, attention_sink_size_);
+        sliding_window_cache_offset_ = std::max(
+            (sliding_window_cache_offset_ + 1) % sliding_window_size_, attention_sink_size_);
       } else {
         sliding_window_cache_offset_ += 1;
         sink_triggered_ = sliding_window_cache_offset_ >= attention_sink_size_;
@@ -1220,8 +1238,8 @@ class LLMChat {
     }
     // max_window_size_ != -1 to handle
     // https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py#L588-L589
-    // sliding_window_ == -1 to make sure we do not stop when using sliding window
-    else if (max_window_size_ != -1 && sliding_window_ == -1 &&
+    // sliding_window_size_ == -1 to make sure we do not stop when using sliding window
+    else if (max_window_size_ != -1 && sliding_window_size_ == -1 &&
              total_seq_len_ >= max_window_size_) {
       stop_triggered_ = true;
     }
@@ -1236,13 +1254,13 @@ class LLMChat {
     if (input_tokens.size() > 1 && ft_.prefill_func_.defined()) {
       ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray(input_tokens));
       ShapeTuple cur_pos_shape = ShapeTuple({cur_pos});
-      if (sliding_window_ == -1) {
+      if (sliding_window_size_ == -1) {
         ret = ft_.prefill_func_(input_data, cur_pos_shape, kv_cache_, params_);
       } else {
         // Sliding window attention needs extra shape parameters
         int64_t seq_len = static_cast<int64_t>(input_tokens.size());
         // Number of elements in the cache
-        int64_t cache_len = std::min(this->sliding_window_, cur_pos - seq_len);
+        int64_t cache_len = std::min(this->sliding_window_size_, cur_pos - seq_len);
         ShapeTuple cache_len_shape = ShapeTuple({cache_len});
         ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
         ShapeTuple cache_offset_shape = ShapeTuple({sliding_window_cache_offset_});
@@ -1262,13 +1280,13 @@ class LLMChat {
         }
         int64_t pos = cur_pos + i + 1 - input_tokens.size();
         ShapeTuple pos_shape = ShapeTuple({pos});
-        if (sliding_window_ == -1) {
+        if (sliding_window_size_ == -1) {
           ret = ft_.decode_func_(input_data, pos_shape, kv_cache_, params_);
         } else {
           // Sliding window attention needs extra shape parameters
           int64_t seq_len = static_cast<int64_t>(input_tokens.size());
           // Number of elements in the cache
-          int64_t cache_len = std::min(this->sliding_window_, pos - seq_len);
+          int64_t cache_len = std::min(this->sliding_window_size_, pos - seq_len);
           ShapeTuple cache_len_shape = ShapeTuple({cache_len});
           ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
           ShapeTuple cache_offset_shape = ShapeTuple({sliding_window_cache_offset_});
@@ -1401,7 +1419,7 @@ class LLMChat {
   // max window size, mean and max generation length, sliding window
   // If we use sliding window, max window size is its default max() value
   int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128},
-      max_gen_len_{512}, sliding_window_{-1}, prefill_chunk_size_{-1}, attention_sink_size_{0};
+      max_gen_len_{512}, sliding_window_size_{-1}, prefill_chunk_size_{-1}, attention_sink_size_{0};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference
