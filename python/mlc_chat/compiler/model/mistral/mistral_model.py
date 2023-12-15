@@ -249,9 +249,10 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         qkv_cur = self.qkv_proj(hidden_states)
         qkv_cur = op.reshape(qkv_cur, (b, s, h_q + 2 * h_kv, d))
         q, k_cur, v_cur = op.split(qkv_cur, [h_q, h_q + h_kv], axis=2)
-        q, k_cur = self.rotary_embedding(q, k_cur, rolling_cache_len)
 
         k, v = self.interleave_kv(k_cur, v_cur, kv_seq_len, rolling_cache_len, cache_offset)
+
+        q, k = self.rotary_embedding(q, k, rolling_cache_len)
 
         if h_kv != h_q:
             k = k.repeat(h_q // h_kv, axis=2)
