@@ -297,6 +297,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "vocab_size": 32000,
         "sliding_window_size": 4096,
         "prefill_chunk_size": 128,
+        "attention_sink_size": 4,
     },
     "gpt2": {
         "architectures": ["GPT2LMHeadModel"],

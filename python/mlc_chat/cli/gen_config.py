@@ -63,6 +63,12 @@ def main(argv):
         help=HELP["prefill_chunk_size"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
+        "--attention-sink-size",
+        type=int,
+        default=None,
+        help=HELP["attention_sink_size"] + ' (default: "%(default)s")',
+    )
+    parser.add_argument(
         "--tensor-parallel-shards",
         type=int,
         default=None,
@@ -85,6 +91,7 @@ def main(argv):
         context_window_size=parsed.context_window_size,
         sliding_window_size=parsed.sliding_window_size,
         prefill_chunk_size=parsed.prefill_chunk_size,
+        attention_sink_size=parsed.attention_sink_size,
         tensor_parallel_shards=parsed.tensor_parallel_shards,
         output=parsed.output,
     )

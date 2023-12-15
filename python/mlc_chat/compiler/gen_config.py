@@ -30,6 +30,7 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     context_window_size: int
     sliding_window_size: int
     prefill_chunk_size: int
+    attention_sink_size: int
     tensor_parallel_shards: int
     # Control the behavior of the runtime
     mean_gen_len: int = None
@@ -75,6 +76,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     context_window_size: Optional[int],
     sliding_window_size: Optional[int],
     prefill_chunk_size: Optional[int],
+    attention_sink_size: Optional[int],
     tensor_parallel_shards: Optional[int],
     output: Path,
 ):
@@ -85,6 +87,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         context_window_size=context_window_size,
         sliding_window_size=sliding_window_size,
         prefill_chunk_size=prefill_chunk_size,
+        attention_sink_size=attention_sink_size,
         tensor_parallel_shards=tensor_parallel_shards,
     ).apply(model_config)
     mlc_chat_config = MLCChatConfig(
@@ -95,6 +98,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         context_window_size=model_config.context_window_size,
         sliding_window_size=getattr(model_config, "sliding_window_size", -1),
         prefill_chunk_size=model_config.prefill_chunk_size,
+        attention_sink_size=getattr(model_config, "attention_sink_size", -1),
         tensor_parallel_shards=model_config.tensor_parallel_shards,
         conv_template=conv_template,
     )

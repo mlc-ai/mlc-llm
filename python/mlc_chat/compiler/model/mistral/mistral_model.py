@@ -33,6 +33,7 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     head_dim: int = 0
     sliding_window_size: int = 4096
     prefill_chunk_size: int = 0
+    attention_sink_size: int = 4
     tensor_parallel_shards: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -66,6 +67,8 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         assert self.num_attention_heads % self.num_key_value_heads == 0
         assert self.head_dim * self.num_attention_heads == self.hidden_size
 
+        assert self.attention_sink_size >= 0
+
         if self.prefill_chunk_size == 0:
             # chunk size same as sliding window by default
             self.prefill_chunk_size = self.sliding_window_size
@@ -80,14 +83,14 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
 
 class RotaryEmbedding(nn.Module):
-    """Same as in Llama architecture."""
+    """Cache relative Rotary Embedding."""
 
     def __init__(self, config: MistralConfig):
         super().__init__()
         self.head_dim = config.head_dim
         self.position_embedding_base = config.position_embedding_base
 
-    def forward(self, q: Tensor, k: Tensor, offset: tir.Var):
+    def forward(self, q: Tensor, k: Tensor, q_offset: tir.Var):
         def te_op(x: te.Tensor, offset: tir.Var):
             dtype = x.dtype
 
@@ -109,8 +112,8 @@ class RotaryEmbedding(nn.Module):
 
             return te.compute(x.shape, compute, name="rotary")
 
-        q_embed = op.tensor_expr_op(te_op, "rotary_embedding", args=[q, offset])
-        k_embed = op.tensor_expr_op(te_op, "rotary_embedding", args=[k, offset])
+        q_embed = op.tensor_expr_op(te_op, "rotary_embedding", args=[q, q_offset])
+        k_embed = op.tensor_expr_op(te_op, "rotary_embedding", args=[k, 0])
         return q_embed, k_embed
 
 
@@ -143,60 +146,90 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.sliding_window_size = config.sliding_window_size
+        self.attention_sink_size = config.attention_sink_size
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
             bias=False,
         )
         self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
-        self.k_cache = RollingKVCache(self.sliding_window_size, [self.num_kv_heads, self.head_dim])
-        self.v_cache = RollingKVCache(self.sliding_window_size, [self.num_kv_heads, self.head_dim])
+        self.k_cache = RollingKVCacheWithSinks(
+            self.sliding_window_size, [self.num_kv_heads, self.head_dim]
+        )
+        self.v_cache = RollingKVCacheWithSinks(
+            self.sliding_window_size, [self.num_kv_heads, self.head_dim]
+        )
 
     def interleave_kv(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         k_cur: Tensor,
         v_cur: Tensor,
-        total_seq_len: tir.Var,
         kv_seq_len: tir.Var,
         rolling_cache_len: tir.Var,
+        cache_offset: tir.Var,
     ):
         """Unrotate and concatenate currunt and cached k and v"""
-        d, _, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
-        t, kv_s, c = total_seq_len, kv_seq_len, rolling_cache_len
-        b, s, _, _ = k_cur.shape
-        cache_offset = (t - s) % self.sliding_window_size
+        h_kv, d = self.num_kv_heads, self.head_dim
+        kv_s, c, o = kv_seq_len, rolling_cache_len, cache_offset
+        b = k_cur.shape[0]
 
         k_cached = op.reshape(self.k_cache.view(c), (b, c, h_kv, d))
         v_cached = op.reshape(self.v_cache.view(c), (b, c, h_kv, d))
 
-        def _unrotate_concat(x_cur, x_cached, cache_offset, rolling_cache_len):
+        def _cache_unrotate(x_cached, rolling_cache_len, cache_offset):
             return te.compute(
                 (b, kv_s, h_kv, d),
                 lambda xb, xs, xh, xd: te.if_then_else(
-                    xs < rolling_cache_len - cache_offset,
-                    x_cached[xb, cache_offset + xs, xh, xd],
+                    xs < self.attention_sink_size,
+                    x_cached[xb, xs, xh, xd],
                     te.if_then_else(
-                        xs < rolling_cache_len,
+                        xs < rolling_cache_len - cache_offset + self.attention_sink_size,
+                        x_cached[xb, xs + cache_offset - self.attention_sink_size, xh, xd],
                         x_cached[xb, xs + cache_offset - rolling_cache_len, xh, xd],
-                        x_cur[xb, xs - rolling_cache_len, xh, xd],
                     ),
                 ),
-                name="unrotate_concat_te",
+                name="cache_unrotate_te",
             )
 
-        k = op.tensor_expr_op(
-            _unrotate_concat,
-            name_hint="te_unrotate_concat_key",
-            args=[k_cur, k_cached, cache_offset, c],
+        def _cache_cur_concat(x_cached, x_cur, rolling_cache_len):
+            return te.compute(
+                (b, kv_s, h_kv, d),
+                lambda xb, xs, xh, xd: te.if_then_else(
+                    xs < rolling_cache_len,
+                    x_cached[xb, xs, xh, xd],
+                    x_cur[xb, xs - rolling_cache_len, xh, xd],
+                ),
+                name="cache_cur_concat_te",
+            )
+
+        k_cached = op.tensor_expr_op(
+            _cache_unrotate,
+            name_hint="te_cache_unrotate_key",
+            args=[k_cached, c, o],
         )
-        v = op.tensor_expr_op(
-            _unrotate_concat,
-            name_hint="te_unrotate_concat_value",
-            args=[v_cur, v_cached, cache_offset, c],
+        k = op.tensor_expr_op(
+            _cache_cur_concat,
+            name_hint="te_cache_cur_concat_key",
+            args=[k_cached, k_cur, c],
         )
 
-        self.k_cache.override(op.squeeze(k_cur, axis=0), self.sliding_window_size)
-        self.v_cache.override(op.squeeze(v_cur, axis=0), self.sliding_window_size)
+        v_cached = op.tensor_expr_op(
+            _cache_unrotate,
+            name_hint="te_cache_unrotate_value",
+            args=[v_cached, c, o],
+        )
+        v = op.tensor_expr_op(
+            _cache_cur_concat,
+            name_hint="te_cache_cur_concat_value",
+            args=[v_cached, v_cur, c],
+        )
+
+        self.k_cache.override(
+            op.squeeze(k_cur, axis=0), self.sliding_window_size, self.attention_sink_size
+        )
+        self.v_cache.override(
+            op.squeeze(v_cur, axis=0), self.sliding_window_size, self.attention_sink_size
+        )
 
         return k, v
 
@@ -204,21 +237,22 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         self,
         hidden_states: Tensor,
         attention_mask: Tensor,
-        total_seq_len: tir.Var,  # Number of already-processed tokens plus ``seq_len``.
         rolling_cache_len: tir.Var,  # Number of elements currently in the cache.
         kv_seq_len: tir.Var,  # Equals to ``seq_len + rolling_cache_len``.
+        cache_offset: tir.Var,
     ):
         """Forward pass of MistralAttention, performing QKV."""
-        d, h_q, h_kv, t = self.head_dim, self.num_q_heads, self.num_kv_heads, total_seq_len
+        d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
         b, s, _ = hidden_states.shape
         assert b == 1, "Only support batch size 1 at this moment."
 
         qkv_cur = self.qkv_proj(hidden_states)
         qkv_cur = op.reshape(qkv_cur, (b, s, h_q + 2 * h_kv, d))
         q, k_cur, v_cur = op.split(qkv_cur, [h_q, h_q + h_kv], axis=2)
-        q, k_cur = self.rotary_embedding(q, k_cur, t - s)
 
-        k, v = self.interleave_kv(k_cur, v_cur, total_seq_len, kv_seq_len, rolling_cache_len)
+        k, v = self.interleave_kv(k_cur, v_cur, kv_seq_len, rolling_cache_len, cache_offset)
+
+        q, k = self.rotary_embedding(q, k, rolling_cache_len)
 
         if h_kv != h_q:
             k = k.repeat(h_q // h_kv, axis=2)
@@ -240,16 +274,16 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         return self.o_proj(output.permute_dims([0, 2, 1, 3]).reshape((b, s, h_q * d)))
 
 
-class RollingKVCache(nn.KVCache):
+class RollingKVCacheWithSinks(nn.KVCache):
     """
     Rolling buffer cache implementation.
     """
 
     cache: Optional[rx.Var]
 
-    def override(self, new_element: Tensor, max_cache_size: int) -> None:
+    def override(self, new_element: Tensor, max_cache_size: int, attention_sink_size: int) -> None:
         """
-        Override cache elements in RollingKVCache.
+        Override cache elements in RollingKVCacheWithSinks.
 
         Parameters
         ----------
@@ -258,19 +292,23 @@ class RollingKVCache(nn.KVCache):
 
         max_cache_size : int
             Max size of the cache.
+
+        attention_sink_size : int
+            Number of stored attention sinks.
         """
         if new_element.dtype != self.dtype:
             raise TypeError(
-                f'RollingKVCache has been set to use dtype "{self.dtype}", '
+                f'RollingKVCacheWithSinks has been set to use dtype "{self.dtype}", '
                 f'but got "{new_element.dtype}"'
             )
         self.cache = rx.BlockBuilder.current().emit(
             rx.Call(
-                rx.extern("vm.builtin.attention_kv_cache_window_override"),
+                rx.extern("vm.builtin.attention_kv_cache_window_override_with_sinks"),
                 args=[
                     self.cache,
                     new_element._expr,  # pylint: disable=protected-access
                     rx.PrimValue(max_cache_size),
+                    rx.PrimValue(attention_sink_size),
                 ],
                 sinfo_args=[rx.ObjectStructInfo()],
             )
@@ -293,9 +331,9 @@ class MistralDecoderLayer(nn.Module):
         self,
         hidden_states: Tensor,
         attention_mask: Tensor,
-        total_seq_len: tir.Var,
         rolling_cache_len: tir.Var,
         kv_seq_len: tir.Var,
+        cache_offset: tir.Var,
     ):
         """Forward pass of a decoder layer; calculate attention, and add an residual connection."""
 
@@ -309,9 +347,9 @@ class MistralDecoderLayer(nn.Module):
         out = self.self_attn(
             self.input_layernorm(hidden_states),
             attention_mask,
-            total_seq_len,
             rolling_cache_len,
             kv_seq_len,
+            cache_offset,
         )
         hidden_states = _apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
@@ -335,9 +373,9 @@ class MistralModel(nn.Module):
     def forward(  # pylint: disable=too-many-arguments
         self,
         inputs: Tensor,
-        total_seq_len: tir.Var,
         rolling_cache_len: tir.Var,
         kv_seq_len: tir.Var,
+        cache_offset: tir.Var,
         attention_mask: Tensor,
     ):
         """Forward pass of the model, passing through all decoder layers."""
@@ -348,7 +386,7 @@ class MistralModel(nn.Module):
         hidden_states = self.embed_tokens(inputs)
         for layer in self.layers:
             hidden_states = layer(
-                hidden_states, attention_mask, total_seq_len, rolling_cache_len, kv_seq_len
+                hidden_states, attention_mask, rolling_cache_len, kv_seq_len, cache_offset
             )
         hidden_states = self.norm(hidden_states)
         return hidden_states
@@ -372,9 +410,9 @@ class MistralForCasualLM(nn.Module):
     def forward(  # pylint: disable=too-many-arguments
         self,
         inputs: Tensor,
-        total_seq_len: tir.Var,
         rolling_cache_len: tir.Var,
         kv_seq_len: tir.Var,
+        cache_offset: tir.Var,
         attention_mask: Tensor,
     ):
         """Forward pass."""
@@ -384,7 +422,7 @@ class MistralForCasualLM(nn.Module):
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(
-            inputs, total_seq_len, rolling_cache_len, kv_seq_len, attention_mask
+            inputs, rolling_cache_len, kv_seq_len, cache_offset, attention_mask
         )
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
@@ -395,9 +433,9 @@ class MistralForCasualLM(nn.Module):
     def prefill(
         self,
         inputs: Tensor,
-        total_seq_len: tir.Var,
         rolling_cache_len: tir.Var,
         kv_seq_len: tir.Var,
+        cache_offset: tir.Var,
     ):
         """
         Prefilling the prompt.
@@ -407,14 +445,14 @@ class MistralForCasualLM(nn.Module):
         inputs: Tensor
             Input tokens, having ``seq_len`` number of tokens.
 
-        total_seq_len: tir.Var
-            Number of already-processed tokens plus ``seq_len``.
-
         rolling_cache_len: tir.Var
             Number of elements currently in the cache.
 
         kv_seq_len: tir.Var
             Equals to ``seq_len + rolling_cache_len``.
+
+        cache_offset: tir.Var
+            Next position to be overrided on the rolling kv cache.
         """
 
         def _sliding_window_attention_mask(
@@ -445,14 +483,14 @@ class MistralForCasualLM(nn.Module):
                 self.sliding_window_size,
             ],
         )
-        return self.forward(inputs, total_seq_len, rolling_cache_len, kv_seq_len, attention_mask)
+        return self.forward(inputs, rolling_cache_len, kv_seq_len, cache_offset, attention_mask)
 
     def decode(
         self,
         inputs: Tensor,
-        total_seq_len: tir.Var,
         rolling_cache_len: tir.Var,
         kv_seq_len: tir.Var,
+        cache_offset: tir.Var,
     ):
         """Decoding step."""
         batch_size, seq_len = inputs.shape
@@ -461,7 +499,7 @@ class MistralForCasualLM(nn.Module):
             fill_value=tir.max_value(self.dtype),
             dtype=self.dtype,
         )
-        return self.forward(inputs, total_seq_len, rolling_cache_len, kv_seq_len, attention_mask)
+        return self.forward(inputs, rolling_cache_len, kv_seq_len, cache_offset, attention_mask)
 
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
         """Softmax."""
@@ -473,9 +511,9 @@ class MistralForCasualLM(nn.Module):
         mod_spec = {
             "prefill": {
                 "inputs": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
-                "total_seq_len": int,
                 "rolling_cache_len": int,
                 "kv_seq_len": int,
+                "cache_offset": int,
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "packed",
@@ -483,9 +521,9 @@ class MistralForCasualLM(nn.Module):
             },
             "decode": {
                 "inputs": nn.spec.Tensor([batch_size, 1], "int32"),
-                "total_seq_len": int,
                 "rolling_cache_len": int,
                 "kv_seq_len": int,
+                "cache_offset": int,
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "packed",

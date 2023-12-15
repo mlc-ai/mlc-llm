@@ -103,13 +103,17 @@ This flag subjects to future refactoring.
 the chunk size is the same as sliding window or max sequence length.
 This flag subjects to future refactoring.
 """.strip(),
+    "attention_sink_size": """
+(Experimental) The number of stored sinks. Only supported on Mistral yet. By default,
+the number of sinks is 4. This flag subjects to future refactoring.
+""".strip(),
     """tensor_parallel_shards""": """
 Number of shards to split the model into in tensor parallelism multi-gpu inference.
 """.strip(),
     "overrides": """
 Model configuration override. Configurations to override `mlc-chat-config.json`. Supports
-`context_window_size`, `prefill_chunk_size`, `sliding_window_size`, `max_batch_size` and
-`tensor_parallel_shards`. Meanwhile, model config could be explicitly specified via details
-knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
+`context_window_size`, `prefill_chunk_size`, `sliding_window_size`, `attention_sink_size`,
+`max_batch_size` and `tensor_parallel_shards`. Meanwhile, model config could be explicitly
+specified via details knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
 """.strip(),
 }

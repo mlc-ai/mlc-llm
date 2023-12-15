@@ -432,6 +432,10 @@ class LLMChat {
       CHECK(config["prefill_chunk_size"].is<int64_t>());
       this->prefill_chunk_size_ = config["prefill_chunk_size"].get<int64_t>();
     }
+    if (config.count("attention_sink_size")) {
+      CHECK(config["attention_sink_size"].is<int64_t>());
+      this->attention_sink_size_ = config["attention_sink_size"].get<int64_t>();
+    }
     if (config.count("top_p")) {
       CHECK(config["top_p"].is<double>());
       this->top_p_ = config["top_p"].get<double>();
@@ -560,6 +564,8 @@ class LLMChat {
     this->ResetRuntimeStats();
     this->ResetKVCache();
     this->total_seq_len_ = 0;
+    this->sliding_window_cache_offset_ = 0;
+    this->sink_triggered_ = false;
   }
 
   /*! \brief reset the runtime stats. */
@@ -845,6 +851,19 @@ class LLMChat {
             std::vector<int32_t>(prompt_tokens.begin() + begin, prompt_tokens.begin() + end);
         new_seq_len += static_cast<int64_t>(chunk.size());
         logits_on_device = this->ForwardTokens(chunk, new_seq_len);
+
+        // update window cache offset (prefill)
+        if (this->sliding_window_ != -1) {
+          if (sink_triggered_) {
+            sliding_window_cache_offset_ =
+                std::max((sliding_window_cache_offset_ + static_cast<int64_t>(chunk.size())) %
+                             sliding_window_,
+                         attention_sink_size_);
+          } else {
+            sliding_window_cache_offset_ += static_cast<int64_t>(chunk.size());
+            sink_triggered_ = sliding_window_cache_offset_ >= attention_sink_size_;
+          }
+        }
       }
       ICHECK_EQ(new_seq_len, total_seq_len_ + token_len) << "Expect chunking process all tokens";
     } else {
@@ -883,6 +902,17 @@ class LLMChat {
 
     NDArray logits_on_device = this->ForwardTokens({last_token}, total_seq_len_ + 1);
     total_seq_len_ += 1;
+
+    // update window cache offset (decoding)
+    if (this->sliding_window_ != -1) {
+      if (sink_triggered_) {
+        sliding_window_cache_offset_ =
+            std::max((sliding_window_cache_offset_ + 1) % sliding_window_, attention_sink_size_);
+      } else {
+        sliding_window_cache_offset_ += 1;
+        sink_triggered_ = sliding_window_cache_offset_ >= attention_sink_size_;
+      }
+    }
 
     int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config);
 
@@ -1215,7 +1245,8 @@ class LLMChat {
         int64_t cache_len = std::min(this->sliding_window_, cur_pos - seq_len);
         ShapeTuple cache_len_shape = ShapeTuple({cache_len});
         ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
-        ret = ft_.prefill_func_(input_data, cur_pos_shape, cache_len_shape, kv_seq_len_shape,
+        ShapeTuple cache_offset_shape = ShapeTuple({sliding_window_cache_offset_});
+        ret = ft_.prefill_func_(input_data, cache_len_shape, kv_seq_len_shape, cache_offset_shape,
                                 kv_cache_, params_);
       }
     } else {
@@ -1240,7 +1271,8 @@ class LLMChat {
           int64_t cache_len = std::min(this->sliding_window_, pos - seq_len);
           ShapeTuple cache_len_shape = ShapeTuple({cache_len});
           ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
-          ret = ft_.decode_func_(input_data, pos_shape, cache_len_shape, kv_seq_len_shape,
+          ShapeTuple cache_offset_shape = ShapeTuple({sliding_window_cache_offset_});
+          ret = ft_.decode_func_(input_data, cache_len_shape, kv_seq_len_shape, cache_offset_shape,
                                  kv_cache_, params_);
         }
       }
@@ -1369,7 +1401,7 @@ class LLMChat {
   // max window size, mean and max generation length, sliding window
   // If we use sliding window, max window size is its default max() value
   int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128},
-      max_gen_len_{512}, sliding_window_{-1}, prefill_chunk_size_{-1};
+      max_gen_len_{512}, sliding_window_{-1}, prefill_chunk_size_{-1}, attention_sink_size_{0};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference
@@ -1398,6 +1430,10 @@ class LLMChat {
   std::string output_message_;
   // Whether encounter stop str
   bool stop_triggered_{false};
+  // Whether sink is in action
+  bool sink_triggered_{false};
+  // sliding window cache offset
+  int64_t sliding_window_cache_offset_{0};
   //----------------------------
   // Tokenizer
   //----------------------------
