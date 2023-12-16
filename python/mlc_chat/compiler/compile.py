@@ -12,6 +12,7 @@ from tvm.target import Target
 from ..support import logging
 from ..support.config import ConfigBase
 from ..support.style import bold
+from . import extern
 from .flags_model_config_override import ModelConfigOverride
 from .flags_optimization import OptimizationFlags
 from .model import Model
@@ -33,6 +34,9 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
     system_lib_prefix: str
     output: Path
     overrides: ModelConfigOverride
+
+    def __post_init__(self) -> None:
+        self.opt.update(self.target)
 
     def display(self) -> None:
         """Display the arguments to stdout."""
@@ -94,14 +98,21 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "preprocs": param.attrs["preprocs"],
         }
 
-    logger.info("Creating model from: %s", args.config)
     args.overrides.apply(model_config)
     with args.target:
+        extern.enable(
+            target=args.target,
+            flashinfer=args.opt.flashinfer,
+        )
         # Step 1. Create the quantized model
+        logger.info("Creating model from: %s", args.config)
         model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
         # Step 2. Exporting the model to TVM Unity
         logger.info("Exporting the model to TVM Unity compiler")
-        mod, named_params = model.export_tvm(spec=model.get_default_spec())  # type: ignore
+        mod, named_params, ext_mods = model.export_tvm(
+            spec=model.get_default_spec(),  # type: ignore
+            allow_extern=True,
+        )
         # Step 3. Running relax compilation pipeline
         logger.info("Running optimizations using TVM Unity")
         additional_tirs = _apply_preproc_to_params(named_params, model_config)
@@ -113,6 +124,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
                 "mlc_llm",
                 variable_bounds=variable_bounds,
                 additional_tirs=additional_tirs,
+                ext_mods=ext_mods,
                 metadata={
                     "model_type": args.model.name,
                     "quantization": args.quantization.name,

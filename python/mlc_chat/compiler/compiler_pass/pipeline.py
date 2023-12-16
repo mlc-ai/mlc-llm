@@ -1,10 +1,11 @@
 """The compilation pipeline for LLM applications."""
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import tvm
 from tvm import IRModule
 from tvm import dlight as dl
 from tvm.relax import register_pipeline  # pylint: disable=no-name-in-module
+from tvm.relax.frontend import nn
 
 from ...support import logging
 from .attach_to_ir_module import AttachAdditionalPrimFuncs, AttachVariableBounds
@@ -35,11 +36,17 @@ class _LogProgress:  # pylint: disable=too-few-public-methods
 
 @register_pipeline("mlc_llm")
 def _mlc_llm_pipeline(
-    variable_bounds: Dict[str, int],
-    additional_tirs: Dict[str, tvm.tir.PrimFunc],
-    metadata: Dict[str, Any],
+    variable_bounds: Dict[str, int] = None,
+    additional_tirs: Dict[str, tvm.tir.PrimFunc] = None,
+    metadata: Dict[str, Any] = None,
+    ext_mods: List[nn.ExternModule] = None,
     skip_gemm: bool = False,
 ):
+    variable_bounds = variable_bounds or {}
+    additional_tirs = additional_tirs or {}
+    metadata = metadata or {}
+    ext_mods = ext_mods or []
+
     @tvm.transform.module_pass(opt_level=0)
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
         seq = tvm.transform.Sequential(
@@ -89,9 +96,12 @@ def _mlc_llm_pipeline(
                 tvm.relax.transform.VMBuiltinLower(),
                 tvm.relax.transform.VMShapeLower(),
                 tvm.relax.transform.AttachGlobalSymbol(),
+                _LogProgress("Compiling external modules"),
+                tvm.relax.transform.AttachExternModules(ext_mods),  # pylint: disable=no-member
+                _LogProgress("Compilation complete! Exporting to disk"),
             ]
         )
-        mod = seq(mod._move())  # pylint: disable=protected-access
+        mod = seq(mod)
         return mod
 
     return _pipeline
