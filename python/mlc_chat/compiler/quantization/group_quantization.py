@@ -25,25 +25,40 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
     kind: str
     group_size: int
     quantize_dtype: str  # "int3", "int4", "int8"
-    storage_dtype: str  # "uint32"
+    weight_storage_dtype: str  # "uint32"
+    scale_storage_dtype: str  # "float16", "uint32"
     model_dtype: str  # "float16", "float32"
 
     num_elem_per_storage: int = 0
     num_storage_per_group: int = 0
     max_int_value: int = 0
 
+    quantize_te_func: Callable = None
+    dequantize_te_func: Callable = None
+
     def __post_init__(self):
         assert self.kind == "group-quant"
         quantize_dtype = DataType(self.quantize_dtype)
-        storage_dtype = DataType(self.storage_dtype)
+        weight_storage_dtype = DataType(self.weight_storage_dtype)
+        scale_storage_dtype = DataType(self.scale_storage_dtype)
         model_dtype = DataType(self.model_dtype)
         assert quantize_dtype.type_code == DataTypeCode.INT
-        assert storage_dtype.type_code == DataTypeCode.UINT
+        assert weight_storage_dtype.type_code == DataTypeCode.UINT
         assert model_dtype.type_code == DataTypeCode.FLOAT
-        if storage_dtype.bits < quantize_dtype.bits:
+        if self.model_dtype == "float16":
+            self.quantize_te_func = self._sym_quantize
+            self.dequantize_te_func = self._sym_dequantize
+            assert scale_storage_dtype.type_code == DataTypeCode.FLOAT
+        elif self.model_dtype == "float32":
+            self.quantize_te_func = self._asym_quantize
+            self.dequantize_te_func = self._asym_dequantize
+            assert scale_storage_dtype.type_code == DataTypeCode.UINT
+        else:
+            raise NotImplementedError
+        if weight_storage_dtype.bits < quantize_dtype.bits:
             raise ValueError("Storage unit should be greater or equal to quantized element")
 
-        self.num_elem_per_storage = storage_dtype.bits // quantize_dtype.bits
+        self.num_elem_per_storage = weight_storage_dtype.bits // quantize_dtype.bits
         if self.group_size % self.num_elem_per_storage != 0:
             raise ValueError("Group size should be divisible by numbers of elements per storage")
         self.num_storage_per_group = self.group_size // self.num_elem_per_storage
@@ -116,7 +131,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         model = mutator.visit(name_prefix, model)
         return model
 
-    def _dequantize(
+    def _sym_dequantize(
         self,
         weight: te.Tensor,
         scale: te.Tensor,
@@ -127,7 +142,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             weight,
             DataType(self.quantize_dtype).bits,
             self.num_elem_per_storage,
-            self.storage_dtype,
+            self.weight_storage_dtype,
             self.model_dtype,
             out_shape,
         )
@@ -135,13 +150,41 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             shape=[weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
             if out_shape is None
             else out_shape,
-            fcompute=lambda i, j: tir.multiply(
-                tir.subtract(
-                    float_weight[i, j],
-                    tir_max_int,
-                ),
-                scale[i, j // self.group_size],
-            ),
+            fcompute=lambda i, j: (float_weight[i, j] - tir_max_int)
+            * scale[i, j // self.group_size],
+            name="dequantize",
+        )
+
+    def _asym_dequantize(
+        self,
+        weight: te.Tensor,
+        scale_min: te.Tensor,
+        out_shape: Optional[List[tir.PrimExpr]] = None,
+    ):
+        tir_weight_bin_mask = tir.const(
+            (1 << DataType(self.quantize_dtype).bits) - 1, self.weight_storage_dtype
+        )
+        tir_scale_min_bin_mask = tir.const((1 << 16) - 1, self.scale_storage_dtype)
+
+        def _compute_weight(i, j):
+            weight_value = (
+                weight[i, j // self.num_elem_per_storage]
+                >> tir.Cast(
+                    self.weight_storage_dtype,
+                    (j % self.num_elem_per_storage) * DataType(self.quantize_dtype).bits,
+                )
+            ) & tir_weight_bin_mask
+            scale_uint32 = scale_min[i, j // self.group_size] & tir_scale_min_bin_mask
+            min_unit32 = (scale_min[i, j // self.group_size] >> 16) & tir_scale_min_bin_mask
+            scale_fp32 = tir.reinterpret(self.model_dtype, scale_uint32 << tir.const(16, "uint32"))
+            min_fp32 = tir.reinterpret(self.model_dtype, min_unit32 << tir.const(16, "uint32"))
+            return weight_value * scale_fp32 + min_fp32
+
+        return te.compute(
+            shape=[weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
+            if out_shape is None
+            else out_shape,
+            fcompute=_compute_weight,
             name="dequantize",
         )
 
@@ -168,7 +211,9 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             weight_var = relax.Var("weight", relax.TensorStructInfo(weight.shape, weight.dtype))
             with bb.function(name="main", params=[weight_var]):
                 with bb.dataflow():
-                    lv = bb.emit_te(self._quantize, weight_var)  # pylint: disable=invalid-name
+                    lv = bb.emit_te(
+                        self.quantize_te_func, weight_var
+                    )  # pylint: disable=invalid-name
                     gv = bb.emit_output(lv)  # pylint: disable=invalid-name
                 bb.emit_func_output(gv)
             return bb.finalize()
@@ -181,7 +226,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 with target:
                     mod = dl.ApplyDefaultSchedule(  # type: ignore   # pylint: disable=not-callable
                         dl.gpu.Reduction(),
-                        dl.gpu.GeneralReduction(),
+                        # dl.gpu.GeneralReduction(),
                         dl.gpu.Fallback(),
                     )(mod)
             elif device_type == "cpu":
@@ -201,7 +246,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             self._quantize_func_cache[key] = quantize_func
         return quantize_func(weight)
 
-    def _quantize(  # pylint: disable=too-many-locals
+    def _sym_quantize(  # pylint: disable=too-many-locals
         self,
         weight: te.Tensor,
     ) -> Tuple[te.Tensor, te.Tensor]:
@@ -240,7 +285,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     tir.const(0, self.model_dtype),
                 ),
                 max_int * 2,
-            ).astype(self.storage_dtype),
+            ).astype(self.weight_storage_dtype),
         )
         # compute quantized weight per storage
         r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
@@ -261,6 +306,105 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         )
         return quantized_weight, scale
 
+    def _asym_quantize(  # pylint: disable=too-many-locals
+        self,
+        weight: te.Tensor,
+    ) -> Tuple[te.Tensor, te.Tensor]:
+        """Group quantization for weight tensor, defined in tensor expression."""
+        assert len(weight.shape) == 2
+        max_int = tir.const(self.max_int_value, self.model_dtype)
+        n, k = weight.shape  # pylint: disable=invalid-name
+        quantize_dtype = DataType(self.quantize_dtype)
+        # compute scale per group
+        r = te.reduce_axis((0, self.group_size), name="r")  # pylint: disable=invalid-name
+        num_group = tir.ceildiv(k, self.group_size)
+        scale_shape = (n, num_group)
+        min_value = te.compute(
+            shape=scale_shape,
+            fcompute=lambda i, j: te.min(
+                tir.if_then_else(
+                    j * self.group_size + r < k,
+                    weight[i, j * self.group_size + r],
+                    te.max_value(self.model_dtype),
+                ),
+                axis=r,
+            ),
+            name="min_value",
+        )
+        max_value = te.compute(
+            shape=scale_shape,
+            fcompute=lambda i, j: te.max(
+                tir.if_then_else(
+                    j * self.group_size + r < k,
+                    weight[i, j * self.group_size + r],
+                    te.min_value(self.model_dtype),
+                ),
+                axis=r,
+            ),
+            name="max_value",
+        )
+        scale = te.compute(
+            scale_shape,
+            lambda i, j: (max_value[i, j] - min_value[i, j]).astype(self.model_dtype) / max_int,
+            name="scale",
+        )
+        # compute scaled weight
+        scaled_weight = te.compute(
+            shape=weight.shape,
+            fcompute=lambda i, j: tir.min(
+                tir.max(
+                    tir.round(
+                        (weight[i, j] - min_value[i, j // self.group_size])
+                        / scale[i, j // self.group_size]
+                    ),
+                    tir.const(0, self.model_dtype),
+                ),
+                max_int * 2,
+            ).astype(self.weight_storage_dtype),
+        )
+        # compute quantized weight per storage
+        r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
+        num_storage = self.num_storage_per_group * num_group
+        quantized_weight_shape = (n, num_storage)
+        quantized_weight = te.compute(
+            shape=quantized_weight_shape,
+            fcompute=lambda i, j: tir.sum(
+                tir.if_then_else(
+                    j * self.num_elem_per_storage + r < k,
+                    scaled_weight[i, j * self.num_elem_per_storage + r]
+                    << (r * quantize_dtype.bits),
+                    0,
+                ),
+                axis=r,
+            ),
+            name="weight",
+        )
+
+        def _compute_scale_min(scale_fp32: tir.PrimExpr, min_fp32: tir.PrimExpr):
+            mask = tir.const((1 << 16) - 1, "uint32")
+            scale_u32 = tir.reinterpret("uint32", scale_fp32)
+            rounded_scale_u32 = (
+                scale_u32
+                + ((scale_u32 >> tir.const(16, "uint32")) & tir.const(1, "uint32"))
+                + tir.const(0x7FFF, "uint32")
+            )
+            scale_u16 = (rounded_scale_u32 >> tir.const(16, "uint32")) & mask
+            min_u32 = tir.reinterpret("uint32", min_fp32)
+            rounded_min_u32 = (
+                min_u32
+                + ((min_u32 >> tir.const(16, "uint32")) & tir.const(1, "uint32"))
+                + tir.const(0x7FFF, "uint32")
+            )
+            min_u16 = (rounded_min_u32 >> tir.const(16, "uint32")) & mask
+            return scale_u16 | (min_u16 << tir.const(16, "uint32"))
+
+        scale_min = te.compute(
+            shape=scale_shape,
+            fcompute=lambda i, j: _compute_scale_min(scale[i, j], min_value[i, j]),
+            name="scale_min",
+        )
+        return quantized_weight, scale_min
+
 
 class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attributes
     """An nn.Linear module with group quantization"""
@@ -280,9 +424,9 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         self.config = config
         num_group = tir.ceildiv(in_features, config.group_size)
         self.q_weight = nn.Parameter(
-            (out_features, config.num_storage_per_group * num_group), config.storage_dtype
+            (out_features, config.num_storage_per_group * num_group), config.weight_storage_dtype
         )
-        self.q_scale = nn.Parameter((out_features, num_group), config.model_dtype)
+        self.q_scale = nn.Parameter((out_features, num_group), config.scale_storage_dtype)
         if bias:
             self.bias = nn.Parameter(
                 (out_features,), config.model_dtype if out_dtype is None else out_dtype
@@ -338,7 +482,7 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
             The output tensor for the group quantized linear layer.
         """
         w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
+            lambda weight, scale: self.config.dequantize_te_func(  # pylint: disable=protected-access
                 weight,
                 scale,
                 [tir.IntImm("int64", self.out_features), tir.IntImm("int64", self.in_features)],
@@ -374,9 +518,9 @@ class GroupQuantizeEmbedding(nn.Module):
         self.config = config
         num_group = tir.ceildiv(dim, config.group_size)
         self.q_weight = nn.Parameter(
-            (num, config.num_storage_per_group * num_group), config.storage_dtype
+            (num, config.num_storage_per_group * num_group), config.weight_storage_dtype
         )
-        self.q_scale = nn.Parameter((num, num_group), config.model_dtype)
+        self.q_scale = nn.Parameter((num, num_group), config.scale_storage_dtype)
 
     @staticmethod
     def from_embedding(embedding: nn.Embedding, config: GroupQuantize) -> "GroupQuantizeEmbedding":
@@ -414,7 +558,7 @@ class GroupQuantizeEmbedding(nn.Module):
             The output tensor for the embedding layer.
         """
         w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
+            lambda weight, scale: self.config.dequantize_te_func(  # pylint: disable=protected-access
                 weight,
                 scale,
                 [tir.IntImm("int64", self.num), tir.IntImm("int64", self.dim)],
