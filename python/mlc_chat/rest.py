@@ -272,7 +272,15 @@ async def request_chat_completion(request: ChatCompletionRequest):
         n=request.n,
         stop=request.stop,
     )
-
+    chat_mod = session.get("chat_mod")
+    if chat_mod is None:
+        # Initialize 'chat_mod' if it doesn't exist
+        chat_mod = ChatModule(
+            model=ARGS.model,
+            device=ARGS.device,
+            model_lib_path=ARGS.lib_path,
+        )
+        session["chat_mod"] = chat_mod
     session["chat_mod"].reset_chat()  # Reset previous history, KV cache, etc.
 
     use_function_call = function_call_util(request)
