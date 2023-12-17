@@ -30,7 +30,7 @@ GEN_CONFIG_OPTIONAL_ARGS = [
 
 
 @dataclasses.dataclass
-class ModelInfo:
+class ModelInfo:  # pylint: disable=too-many-instance-attributes
     """Necessary information for the model delivery"""
 
     model_id: str
