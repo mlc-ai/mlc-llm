@@ -31,7 +31,9 @@ class AsyncRequestStream:
     #   delta output text, the number of delta tokens, the optional
     #   finish reason respectively,
     # - or an exception.
-    _queue: asyncio.Queue[Union[Tuple[str, int, Optional[str]], Exception]]
+    _queue: asyncio.Queue[  # pylint: disable=unsubscriptable-object
+        Union[Tuple[str, int, Optional[str]], Exception]
+    ]
     # The finish flag.
     _finished: bool
 
