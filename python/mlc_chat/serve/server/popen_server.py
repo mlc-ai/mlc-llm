@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+import psutil
 import requests
 
 
@@ -86,6 +87,22 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         """Terminate the server subprocess."""
         if self._proc is None:
             return
+
+        # Kill all the child processes.
+        def kill_child_processes():
+            try:
+                parent = psutil.Process(self._proc.pid)
+                children = parent.children(recursive=True)
+            except psutil.NoSuchProcess:
+                return
+
+            for process in children:
+                try:
+                    process.kill()
+                except psutil.NoSuchProcess:
+                    pass
+
+        kill_child_processes()
 
         # Kill the process.
         try:
