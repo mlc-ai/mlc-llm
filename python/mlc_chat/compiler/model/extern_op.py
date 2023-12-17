@@ -1,6 +1,5 @@
 """Operators enabled by external modules."""
 import math
-from typing import Callable, Tuple
 
 from tvm import tir
 from tvm.relax.frontend import nn
@@ -20,7 +19,6 @@ def attention(  # pylint: disable=invalid-name
     k: nn.Tensor,
     v: nn.Tensor,
     casual_mask: nn.Tensor,
-    apply_rotary: Callable[[nn.Tensor, nn.Tensor], Tuple[nn.Tensor, nn.Tensor]],
 ) -> nn.Tensor:
     """Attention with casual mask.
 
@@ -70,7 +68,9 @@ def attention(  # pylint: disable=invalid-name
     # Fallback Implementation
     k = op.reshape(k, [b, t, h_kv, d])
     v = op.reshape(v, [b, t, h_kv, d])
-    q, k = apply_rotary(q, k)
+    if h_kv != h_q:
+        k = k.repeat(h_q // h_kv, axis=2)
+        v = v.repeat(h_q // h_kv, axis=2)
     q = q.permute_dims([0, 2, 1, 3])
     k = k.permute_dims([0, 2, 1, 3])
     v = v.permute_dims([0, 2, 1, 3])
