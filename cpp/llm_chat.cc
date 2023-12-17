@@ -180,8 +180,25 @@ struct FunctionTable {
 
   ObjectRef LoadParams(const std::string& model_path, Device device, bool use_presharded_weights) {
     if (this->use_disco) {
-      PackedFunc loader = this->get_global_func("mlc.loader.LoadMultiGPU");
-      DRef params = loader(model_path, this->disco_mod);
+      DRef params{nullptr};
+      if (this->model_metadata_.params.empty()) {
+        std::filesystem::path fs_model_path = model_path;
+        std::string metadata_path = (fs_model_path / "ndarray-cache.json").string();
+        std::string ndarray_cache_metadata = LoadBytesFromFile(metadata_path);
+        PackedFunc loader_create = this->get_global_func("runtime.disco.ShardLoader");
+
+        auto load_all_func_name = use_presharded_weights
+                                      ? "runtime.disco.ShardLoaderLoadAllPresharded"
+                                      : "runtime.disco.ShardLoaderLoadAll";
+        PackedFunc loader_load_all = this->get_global_func(load_all_func_name);
+        CHECK(loader_create != nullptr);
+        CHECK(loader_load_all != nullptr);
+        DRef loader = loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod);
+        params = loader_load_all(loader);
+      } else {
+        PackedFunc loader = this->get_global_func("mlc.loader.LoadMultiGPU");
+        params = loader(model_path, this->disco_mod);
+      }
       return params;
     } else {
       CHECK(!use_presharded_weights) << "Use of pre-sharded weights requires more than one GPU";
