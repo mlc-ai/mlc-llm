@@ -147,6 +147,8 @@ def benchmark(args: argparse.Namespace):
     print(f"Average end-to-end latency: {e2e_latency.mean():.4f} seconds for the entire batch")
     print(f"Single token prefill latency: {single_token_prefill_latency.mean() * 1e3:.4f} ms/tok")
     print(f"Single token decode latency: {single_token_decode_latency.mean() * 1e3:.4f} ms/tok")
+    print(f"Engine prefill time: {engine_total_prefill_time.mean():.4f} s")
+    print(f"Engine decode time: {engine_total_decode_time.mean():.4f} s")
     print(f"Request throughput: {args.num_prompts / e2e_latency.mean():.4f} req/s")
     print(f"Prefill token throughput: {prefill_throughput.mean():.4f} tok/s")
     print(f"Decode token throughput: {decode_throughput.mean():.4f} tok/s")

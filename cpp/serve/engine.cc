@@ -102,7 +102,8 @@ class EngineImpl : public Engine {
     ICHECK_NE(request->input_total_length, -1);
     // Append to the waiting queue and create the request state.
     estate_->waiting_queue.push_back(request);
-    estate_->request_states.emplace(request->id, RequestState(request, models_.size()));
+    estate_->request_states.emplace(
+        request->id, RequestState(request, models_.size(), estate_->id_manager.GetNewId()));
   }
 
   void AbortRequest(const String& request_id) final {
@@ -123,14 +124,15 @@ class EngineImpl : public Engine {
     ICHECK(it_running != estate_->running_queue.end() ||
            it_waiting != estate_->waiting_queue.end());
 
+    int64_t req_internal_id = rstate->mstates[0]->internal_id;
+    estate_->id_manager.RecycleId(req_internal_id);
     estate_->request_states.erase(request->id);
     if (it_running != estate_->running_queue.end()) {
       // The request to abort is in running queue
-      int internal_req_id = it_running - estate_->running_queue.begin();
       estate_->running_queue.erase(it_running);
       estate_->stats.current_total_seq_len -=
           request->input_total_length + rstate->mstates[0]->committed_tokens.size() - 1;
-      RemoveRequestFromModel(estate_, internal_req_id, models_);
+      RemoveRequestFromModel(estate_, req_internal_id, models_);
     } else {
       // The request to abort is in waiting queue
       estate_->waiting_queue.erase(it_waiting);

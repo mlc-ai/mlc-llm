@@ -49,6 +49,32 @@ struct EngineStats {
   void Reset();
 };
 
+/*! \brief The manager of internal id for requests in engine. */
+struct EngineInternalIDManager {
+  std::vector<int64_t> available_ids;
+  int64_t id_cnt = 0;
+
+  /*! \brief Return an unused id. */
+  int64_t GetNewId() {
+    if (!available_ids.empty()) {
+      int64_t id = available_ids.back();
+      available_ids.pop_back();
+      return id;
+    } else {
+      return id_cnt++;
+    }
+  }
+
+  /*! \brief Recycle an id. */
+  void RecycleId(int64_t id) { available_ids.push_back(id); }
+
+  /*! \brief Reset the manager. */
+  void Reset() {
+    available_ids.clear();
+    id_cnt = 0;
+  }
+};
+
 /*!
  * \brief The state of the running engine.
  * It contains the requests and their states submitted to the Engine.
@@ -61,6 +87,8 @@ class EngineStateObj : public Object {
   std::vector<Request> waiting_queue;
   /*! \brief The states of all requests. */
   std::unordered_map<String, RequestState> request_states;
+  /*! \brief The internal id manager. */
+  EngineInternalIDManager id_manager;
   /*! \brief Runtime statistics. */
   EngineStats stats;
 
