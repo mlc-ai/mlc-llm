@@ -37,14 +37,14 @@ class ModelInfo:
     model: Path
     conv_template: str
     quantization: str
-    # If unspecified in CLI, `arg` remains to be None and will not be
+    source_format: str = "auto"
+    # If unspecified in CLI, remains to be None and will not be
     # passed to `gen_config` or `convert_weight`
     context_window_size: int = None
     sliding_window_size: int = None
     prefill_chunk_size: int = None
     attention_sink_size: int = None
     tensor_parallel_shards: int = None
-    source_format: str = "auto"
 
 
 class DeferredScope:
