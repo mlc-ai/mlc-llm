@@ -1,11 +1,12 @@
 /*!
- *  Copyright (c) 2023 by Contributors
- * \file support.h
- * \brief Header of utilities.
+ * Copyright (c) 2023 by Contributors
+ * \file load_bytes_from_file.h
+ * \brief Utility methods to load from files.
  */
+#ifndef MLC_LLM_SUPPORT_LOAD_BYTES_FROM_FILE_H_
+#define MLC_LLM_SUPPORT_LOAD_BYTES_FROM_FILE_H_
 
-#ifndef MLC_LLM_COMMON_H_
-#define MLC_LLM_COMMON_H_
+#include <tvm/runtime/logging.h>
 
 #include <fstream>
 #include <string>
@@ -28,4 +29,4 @@ inline std::string LoadBytesFromFile(const std::string& path) {
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_COMMON_H_
+#endif  // MLC_LLM_SUPPORT_LOAD_BYTES_FROM_FILE_H_
