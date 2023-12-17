@@ -974,9 +974,10 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
                 for _, msg in enumerate(input[:-1]):
                     role = msg.role
                     content = msg.content
+                    print(f"role:{role}")
                     if role == "user":
                         messages.append([role0, content])
-                    elif role == "assistant":
+                    elif role == "assistant" or role == "system":
                         messages.append([role1, content])
                     else:
                         raise ValueError("Only user and assistant roles are supported.")
