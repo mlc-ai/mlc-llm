@@ -13,7 +13,6 @@ from ....support import logging
 from ....support.config import ConfigBase
 from ....support.style import bold
 from ... import tensor_parallel as tp
-from ...extern.flashinfer import FlashInfer
 from .. import extern_op
 
 logger = logging.getLogger(__name__)
@@ -139,8 +138,6 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.k_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
         self.v_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
 
-        self.flashinfer = FlashInfer
-
     def forward(  # pylint: disable=too-many-locals
         self,
         hidden_states: Tensor,
@@ -150,23 +147,20 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         d, h_q, h_kv, t = self.head_dim, self.num_q_heads, self.num_kv_heads, total_seq_len
         b, s, _ = hidden_states.shape
         assert b == 1, "Only support batch size 1 at this moment."
-
+        # Step 1. QKV Projection
         qkv = self.qkv_proj(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         q, k, v = op.split(qkv, indices_or_sections=[h_q, h_q + h_kv], axis=2)
-
+        # Step 2. Apply QK rotary embedding
+        q, k = self.rotary_embedding(q, k, t - s)
+        # Step 3. Query and update KVCache
         self.k_cache.append(op.squeeze(k, axis=0))
         self.v_cache.append(op.squeeze(v, axis=0))
         k = self.k_cache.view(t)
         v = self.v_cache.view(t)
-
-        output = extern_op.attention(
-            q,
-            k,
-            v,
-            casual_mask=attention_mask,
-            apply_rotary=lambda q, k: self.rotary_embedding(q, k, t - s),
-        )
+        # Step 4. Compute softmax(Q @ K^T / sqrt(d)) @ V
+        output = extern_op.attention(q, k, v, casual_mask=attention_mask)
+        # Step 5. Apply output projection
         return self.o_proj(output)
 
 

@@ -90,7 +90,7 @@ class FlashInfer:
         _, s, _, _ = q.shape
         casual = 1  # True
         qkv_layout = 0  # "NHD", N for seq_len, H for num_heads, D for head_dim
-        rotary_mode = 1  # "kLlama"
+        rotary_mode = 0  # "kNone"
         allow_fp16_qk_reduction = 1  # True
         # Decoding
         if isinstance(s, int) and s == 1:
