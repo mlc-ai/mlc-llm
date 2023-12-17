@@ -33,9 +33,9 @@
 #include <vector>
 
 #include "./metadata/model.h"
+#include "./support/load_bytes_from_file.h"
 #include "conversation.h"
 #include "random.h"
-#include "support.h"
 #include "tokenizers.h"
 
 namespace mlc {
