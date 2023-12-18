@@ -24,6 +24,7 @@ parser.add_argument(
     required=False,
 )
 parser.add_argument(
+    "--tensor-parallel-shards",
     "--num-shards",
     type=int,
     help="Number of GPUs to be used.",

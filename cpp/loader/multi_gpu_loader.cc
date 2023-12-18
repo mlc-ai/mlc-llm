@@ -127,6 +127,12 @@ Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_modul
   // Step 0. Initialize metadata and paths
   NDArrayCacheMetadata ndarray_cache_metadata = NDArrayCacheMetadata::Load(model_path);
   ModelMetadata model_metadata = ModelMetadata::FromModule(relax_vm_module);
+  CHECK_EQ(model_metadata.tensor_parallel_shards, num_shards)
+      << "ValueError: The model is compiled using `--tensor-parallel-shards="
+      << model_metadata.tensor_parallel_shards << "`, but ChatModule is configured to use "
+      << num_shards << " GPUs. "
+      << "Please use `ChatConfig(tensor_parallel_shards=" << model_metadata.tensor_parallel_shards
+      << ", ...)` to initialize ChatModule.";
   // Step 1. Extract auxiliary information
   PreprocessorPool preprocs(model_metadata, relax_vm_module);
   std::unordered_map<std::string, ModelMetadata::Param> param_name2info;
