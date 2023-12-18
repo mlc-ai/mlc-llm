@@ -663,11 +663,6 @@ def get_model(args, hf_config):
     # The CPU device to copy the result of relax.op.max(seq_lens) to CPU.
     cpu_dev = VDevice("llvm", 0, "global")
 
-    if isinstance(config, MixtralConfig):
-        from .mixtral import emit_tir_funcs
-
-        emit_tir_funcs(bb, config)
-
     create_evaluate_func(bb, param_manager, config, cpu_dev, args.quantization, sep_embed)
     create_encoding_func(bb, param_manager, config, cpu_dev, args.quantization, sep_embed)
     create_decoding_func(bb, param_manager, config, cpu_dev, args.quantization)

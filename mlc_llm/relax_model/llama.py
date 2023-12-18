@@ -1497,11 +1497,6 @@ def get_model(args, hf_config):
     param_manager = ParamManager(keep_params_after_load)
     bb = relax.BlockBuilder()
 
-    if isinstance(config, MixtralConfig):
-        from .mixtral import emit_tir_funcs
-
-        emit_tir_funcs(bb, config)
-
     if sep_embed:
         create_embed_func(bb, param_manager, config, args.quantization)
 

@@ -784,7 +784,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
                     mod_deploy
                 )
             )
-        if not args.enable_batching:
+        if not args.enable_batching and target_kind != "cuda":
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 
     if args.debug_load_script:
