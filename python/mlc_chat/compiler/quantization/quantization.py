@@ -59,8 +59,8 @@ QUANTIZATION: Dict[str, Quantization] = {
         storage_dtype="uint32",
         model_dtype="float32",
     ),
-    "q4f16_awq": AWQQuantize(
-        name="q4f16_awq",
+    "q4f16_autoawq": AWQQuantize(
+        name="q4f16_autoawq",
         kind="awq",
         group_size=128,
         quantize_dtype="int4",

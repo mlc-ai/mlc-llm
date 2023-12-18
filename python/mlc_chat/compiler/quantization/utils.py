@@ -11,6 +11,7 @@ def convert_uint_to_float(  # pylint: disable=too-many-arguments
     storage_dtype: str,
     model_dtype: str,
     out_shape: Optional[List[tir.PrimExpr]] = None,
+    ft_reorder: Optional[bool] = False,
 ) -> te.Tensor:
     """Convert a quantized uint weight to an unquantized float weight."""
     tir_bin_mask = tir.const((1 << bits) - 1, storage_dtype)
@@ -21,7 +22,11 @@ def convert_uint_to_float(  # pylint: disable=too-many-arguments
         fcompute=lambda i, j: tir.bitwise_and(
             tir.shift_right(
                 weight[i, j // num_elem_per_storage],
-                ((j % num_elem_per_storage) * bits).astype(storage_dtype),
+                (
+                    ((j % num_elem_per_storage) % 2 * 4 + (j % num_elem_per_storage) // 2) * bits
+                    if ft_reorder
+                    else (j % num_elem_per_storage) * bits
+                ).astype(storage_dtype),
             ),
             tir_bin_mask,
         ).astype(model_dtype),

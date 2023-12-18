@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
-from tvm import DataType, DataTypeCode, te, tir
+from tvm import DataType, DataTypeCode, te, tir, topi
 from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
 
@@ -138,7 +138,8 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
             self.num_elem_per_storage,
             self.storage_dtype,
             self.model_dtype,
-            out_shape,
+            [weight.shape[0], weight.shape[1] * self.num_elem_per_storage],
+            ft_reorder=True,
         )
         float_zeros = convert_uint_to_float(
             zeros,
@@ -146,8 +147,12 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
             self.num_elem_per_storage,
             self.storage_dtype,
             self.model_dtype,
-            out_shape,
+            [zeros.shape[0], zeros.shape[1] * self.num_elem_per_storage],
+            ft_reorder=True,
         )
+        float_weight = topi.transpose(float_weight)
+        float_zeros = topi.transpose(float_zeros)
+        scale = topi.transpose(scale)
         return te.compute(
             shape=[weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
             if out_shape is None
@@ -177,23 +182,14 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
         self.out_dtype = out_dtype
         self.config = config
         self.qweight = nn.Parameter(
-            (out_features, tir.ceildiv(in_features, config.num_elem_per_storage)),
-            config.storage_dtype,
+            (in_features, out_features // config.num_elem_per_storage), config.storage_dtype
         )
         self.qzeros = nn.Parameter(
-            (
-                out_features,
-                _calculate_zeros_width(in_features, config.group_size, config.num_elem_per_storage),
-            ),
-            dtype=config.storage_dtype,
+            (in_features // config.group_size, out_features // config.num_elem_per_storage),
+            config.storage_dtype,
         )
         self.scales = nn.Parameter(
-            (
-                out_features,
-                _calculate_zeros_width(in_features, config.group_size, config.num_elem_per_storage)
-                * config.num_elem_per_storage,
-            ),
-            config.model_dtype,
+            (in_features // config.group_size, out_features), config.model_dtype
         )
         if bias:
             self.bias = nn.Parameter(
