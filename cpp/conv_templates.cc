@@ -635,7 +635,7 @@ Conversation WizardCoderOrMATH() {
   conv.role_empty_sep = ":\n";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
-  conv.stop_tokens = {0};
+  conv.stop_tokens = {2};
   conv.stop_str = "</s>";
   conv.add_bos = true;
   return conv;
