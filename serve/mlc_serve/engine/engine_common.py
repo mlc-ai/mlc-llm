@@ -229,26 +229,42 @@ def get_requests_to_process(
     return requests, is_prompt_batch, token_counts
 
 
+def should_stop_seq_by_length(
+    gen_seq: GenerationSequence,
+    prompt_len: int,
+    max_context_length: int,
+    max_tokens: Optional[int],
+) -> bool:
+    # If max_tokens is None, we do not put any length restriction.
+    if gen_seq.is_finished or max_tokens is None:
+        return False
+
+    num_context_tokens = prompt_len + len(gen_seq.generated_token_ids)
+
+    if num_context_tokens >= max_context_length:
+        return True
+
+    num_gen_tokens = num_context_tokens - prompt_len
+
+    if max_tokens and num_gen_tokens >= max_tokens:
+        return True
+
+    return False
+
+
 def should_stop_by_length(state: RequestState, max_context_length: int) -> bool:
-    # TODO: currently, we simply return true for both stopping reasons.
-    #       in the future, we can differentiate these two.
-    # this include prompt tokens and gen tokens so far
-    if state.is_finished or state.stopping_criteria.max_tokens is None:
+    # If all sequences have already finished, return False
+    if state.is_finished:
         return False
 
     for gen_seq in state.generation_sequences:
-        if gen_seq.is_finished:
-            continue
-
-        num_context_tokens = state.prompt_len + len(gen_seq.generated_token_ids)
-
-        if num_context_tokens >= max_context_length:
-            gen_seq.is_finished = True
-            continue
-
-        num_gen_tokens = num_context_tokens - state.prompt_len
-
-        if num_gen_tokens < state.stopping_criteria.max_tokens:
+        # If at least one of unfinished sequences shouldn't stop, the request shouldn't stop as well.
+        if not gen_seq.is_finished and not should_stop_seq_by_length(
+            gen_seq,
+            state.prompt_len,
+            max_context_length,
+            state.stopping_criteria.max_tokens,
+        ):
             return False
 
     return True
