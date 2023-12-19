@@ -179,6 +179,7 @@ class CacheManager:
                 if len(decode_block_table) < num_needed_block:
                     # Need to allocate a new block for this request
                     assert len(decode_block_table) + 1 == num_needed_block
+                    assert len(self.free_blocks) > 0
                     decode_block_table.append(self.free_blocks.pop())
 
                 pos = size - 1
@@ -389,9 +390,17 @@ class CacheManager:
         remaining_blocks = len(self.free_blocks) - free_blocks_per_sequence * len(
             self.allocated_decode_tokens
         )
+
+        total_tokens = []
+
+        for seq_id, tokens in self.allocated_decode_tokens.items():
+            prompt_seq_id = get_prompt_sequence_id(seq_id.request_id)
+            prompt_tokens = self.allocated_prompt_tokens[prompt_seq_id]
+            total_tokens.append(prompt_tokens + tokens)
+
         remaining_tokens_in_last_block = [
             self.block_size - (tokens - 1) % self.block_size - 1
-            for tokens in self.allocated_decode_tokens.values()
+            for tokens in total_tokens
         ]
 
         return (
