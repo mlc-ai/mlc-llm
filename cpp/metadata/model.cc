@@ -44,6 +44,8 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata) {
     result.sliding_window_size = json::Lookup<int64_t>(metadata, "sliding_window_size");
   if (metadata.count("sliding_window"))  // to be removed after SLM migration
     result.sliding_window_size = json::Lookup<int64_t>(metadata, "sliding_window");
+  if (metadata.count("attention_sink_size"))  // remove after sink is decoupled from model lib
+    result.attention_sink_size = json::Lookup<int64_t>(metadata, "attention_sink_size");
   result.tensor_parallel_shards = json::Lookup<int64_t>(metadata, "tensor_parallel_shards");
   {
     std::vector<ModelMetadata::Param>& params = result.params;
