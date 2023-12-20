@@ -205,7 +205,9 @@ def _test_stop(
             assert len(res.sequences) == 1
             seq = res.sequences[0]
             req_id = int(res.request_id)
-            generated[int(res.request_id)] += seq.delta
+
+            if seq.delta:
+                generated[int(res.request_id)] += seq.delta
 
             if seq.is_finished:
                 assert seq.finish_reason == FinishReason.Stop, f"{seq.finish_reason.name}"
@@ -214,7 +216,6 @@ def _test_stop(
                 # stop token should appear only once in the gen text.
                 found = sum([gen_txt.count(str_stop) for str_stop in requests[req_id].stopping_criteria.stop_sequences])
                 assert found == 1, f"{gen_txt!r}, matches: {found}"
-
 
     if use_staging_engine:
         engine.stop()

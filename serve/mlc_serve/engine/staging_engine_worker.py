@@ -5,12 +5,19 @@ import time
 import multiprocessing
 import multiprocessing.synchronize
 from dataclasses import dataclass
-from threading import Thread
+from threading import Thread, Lock
 from typing import Callable, Optional, Union, Any, Dict, List
 
 import structlog
 
-from .base import FinishReason, RequestId, RequestState, ValidationError, SequenceId
+from .base import (
+    FinishReason,
+    RequestId,
+    RequestState,
+    ValidationError,
+    SequenceId,
+    GenerationSequence,
+)
 from .metrics import PrometheusMetrics
 from .metrics_labels import *
 from .model_module import (
@@ -42,8 +49,8 @@ class CancelRequestCommand:
 
 
 @dataclass
-class StopRequestCommand:
-    request_id: RequestId
+class StopSequenceCommand:
+    sequence_id: SequenceId
 
 
 GenerationLoopWorkerCommand = Union[
@@ -67,7 +74,9 @@ class GenerationLoopWorkerOutput:
 
 class GenerationLoopWorker(EngineBase):
     cancelled_requests: List[RequestState]
-    stopped_requests: List[RequestState]
+    stopped_sequences: List[SequenceId]
+    stopped_sequences_lock: Lock
+    sequence_map: Dict[SequenceId, GenerationSequence]
     prom_metrics: PrometheusMetrics
     inv_kv_cache_size: float
 
@@ -78,7 +87,9 @@ class GenerationLoopWorker(EngineBase):
         EngineBase.__init__(self, model_module)
 
         self.cancelled_requests = list[RequestState]()
-        self.stopped_requests = list[RequestState]()
+        self.stopped_sequences = list[SequenceId]()
+        self.stopped_sequences_lock = Lock()
+        self.sequence_map = dict[SequenceId, GenerationSequence]()
 
         self.prom_metrics = PrometheusMetrics()
         self.inv_kv_cache_size = 1.0 / self.cache_manager.get_kv_cache_size()
@@ -102,31 +113,30 @@ class GenerationLoopWorker(EngineBase):
                 else:
                     valid_states.append(state)
 
+                for seq in state.generation_sequences:
+                    self.sequence_map[seq.seq_id] = seq
+
             self.queue.extend(valid_states)
             self.has_new_requests.notify_all()
 
-    def _cacnel_or_stop_request(
-        self, request_id: RequestId, requests: list[RequestState]
-    ):
+    def cancel_request(self, request_id: RequestId):
         with self.queue_lock:
             queue_index_to_delete = None
             for i, state in enumerate(self.queue):
                 if state.request_id == request_id:
                     queue_index_to_delete = i
-                    requests.append(state)
+                    self.cancelled_requests.append(state)
                     break
 
             if queue_index_to_delete is not None:
                 del self.queue[queue_index_to_delete]
 
             if request_id in self.current_batch:
-                requests.append(self.current_batch[request_id])
+                self.cancelled_requests.append(self.current_batch[request_id])
 
-    def cancel_request(self, request_id: RequestId):
-        self._cacnel_or_stop_request(request_id, self.cancelled_requests)
-
-    def stop_request(self, request_id: RequestId):
-        self._cacnel_or_stop_request(request_id, self.stopped_requests)
+    def stop_sequence(self, sequence_id: SequenceId):
+        with self.stopped_sequences_lock:
+            self.stopped_sequences.append(sequence_id)
 
     def create_aborted_outputs(
         self,
@@ -148,6 +158,7 @@ class GenerationLoopWorker(EngineBase):
                         error=err,
                     )
                 )
+                del self.sequence_map[gen_seq.seq_id]
 
             if state.request_id in self.current_batch:
                 self.remove_request_from_batch(state.request_id)
@@ -170,32 +181,23 @@ class GenerationLoopWorker(EngineBase):
         outputs = list[SequenceGenerationOutput]()
         result = GenerationLoopWorkerOutput(sequences=outputs)
 
-        # TODO: consolidate into a single function
-        for state in list(self.current_batch.values()):
-            finish_reason = None
-            if state.is_finished:
-                finish_reason = FinishReason.Stop
-            if should_stop_by_length(state, self.max_context_length):
-                finish_reason = FinishReason.Length
+        with self.stopped_sequences_lock:
+            for seq_id in self.stopped_sequences:
+                gen_seq = self.sequence_map[seq_id]
+                if not gen_seq.is_finished:
+                    gen_seq.is_finished = True
 
-            if finish_reason is not None:
+            self.stopped_sequences.clear()
+
+        for state in list(self.current_batch.values()):
+            if state.is_finished:
                 for gen_seq in state.generation_sequences:
-                    outputs.append(
-                        SequenceGenerationOutput(
-                            id=gen_seq.seq_id,
-                            new_tokens=[],
-                            finish_reason=finish_reason,
-                        )
-                    )
+                    del self.sequence_map[gen_seq.seq_id]
 
                 self.remove_request_from_batch(state.request_id)
 
                 duration = time.time() - state.arrival_timestamp
                 self.prom_metrics.histogram(E2E_LATENCY).observe(duration)
-
-        outputs += self.create_aborted_outputs(
-            self.stopped_requests, finish_reason=FinishReason.Stop
-        )
 
         with self.queue_lock:
             # Hold the lock here since self.cancelled_requests is modified in add(...) as well.
@@ -251,6 +253,8 @@ class GenerationLoopWorker(EngineBase):
                 gen_seq.generated_token_ids
             )
 
+            finish_reason = None
+
             # Need to match at the token-id level
             for i, token_id in enumerate(new_tokens):
                 if (
@@ -259,11 +263,26 @@ class GenerationLoopWorker(EngineBase):
                 ):
                     new_tokens = new_tokens[:i]
                     gen_seq.is_finished = True
+                    finish_reason = FinishReason.Stop
                     break
 
             gen_seq.generated_token_ids.extend(new_tokens)
+
+            if should_stop_by_length(
+                gen_seq,
+                state.prompt_len,
+                self.max_context_length,
+                state.stopping_criteria.max_tokens,
+            ):
+                gen_seq.is_finished = True
+                finish_reason = FinishReason.Length
+
             outputs.append(
-                SequenceGenerationOutput(id=res.sequence_id, new_tokens=new_tokens)
+                SequenceGenerationOutput(
+                    id=res.sequence_id,
+                    new_tokens=new_tokens,
+                    finish_reason=finish_reason,
+                )
             )
 
             if is_prompt_batch:
@@ -347,8 +366,8 @@ def run_generation_loop_worker(
                 worker.add(cmd.request_states)
             elif isinstance(cmd, CancelRequestCommand):
                 worker.cancel_request(cmd.request_id)
-            elif isinstance(cmd, StopRequestCommand):
-                worker.stop_request(cmd.request_id)
+            elif isinstance(cmd, StopSequenceCommand):
+                worker.stop_sequence(cmd.sequence_id)
             else:
                 LOG.error("Unknown command type %s", type(cmd))
                 break

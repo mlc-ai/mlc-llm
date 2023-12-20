@@ -218,12 +218,13 @@ async def collect_result_stream(
             if seq.index >= len(sequences):
                 raise RuntimeError(f"Unexpected sequence index: {seq.index}.")
             num_generated_tokens[seq.index] = seq.num_generated_tokens
+
+            if seq.delta:
+                sequences[seq.index].append(seq.delta)
+
             if seq.is_finished:
                 assert seq.finish_reason is not None
                 finish_reasons[seq.index] = seq.finish_reason.value  # type: ignore
-            else:
-                assert seq.delta is not None
-                sequences[seq.index].append(seq.delta)
 
     choices = [
         ChatCompletionResponseChoice(

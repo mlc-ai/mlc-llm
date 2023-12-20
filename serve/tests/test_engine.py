@@ -109,7 +109,7 @@ def _test(args: argparse.Namespace):
                 assert len(res.sequences) == num_sequences, res
 
             for i, seq in enumerate(res.sequences):
-                if not seq.is_finished:
+                if seq.delta:
                     generated[int(res.request_id)][i] += seq.delta
 
     if args.long_prompt:

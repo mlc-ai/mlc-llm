@@ -11,9 +11,11 @@ from collections import defaultdict
 import structlog
 
 from .base import (
+    FinishReason,
     InferenceStepResult,
     Request,
     RequestId,
+    SequenceId,
     RequestOutput,
     RequestState,
     ScopedInferenceEngine,
@@ -27,7 +29,7 @@ from .model_module import ModelModule, TokenizerModule
 from .staging_engine_worker import (
     AddRequestsCommand,
     CancelRequestCommand,
-    StopRequestCommand,
+    StopSequenceCommand,
     ShutdownCommand,
     run_generation_loop_worker,
 )
@@ -132,11 +134,11 @@ class StagingInferenceEngine(ScopedInferenceEngine):
             raise RuntimeError("GenerationLoopWorker process is not running")
         self.command_queue.put(CancelRequestCommand(request_id))
 
-    def stop_request(self, request_id: RequestId):
-        LOG.info("StagingInferenceEngine.stop_request", request_id=request_id)
+    def stop_sequence(self, sequence_id: SequenceId):
+        LOG.info("StagingInferenceEngine.stop_sequence", sequence_id=sequence_id)
         if not self._is_ready_to_serve():
             raise RuntimeError("GenerationLoopWorker process is not running")
-        self.command_queue.put(StopRequestCommand(request_id))
+        self.command_queue.put(StopSequenceCommand(sequence_id))
 
     def has_pending_requests(self) -> bool:
         with self.requests_lock:
@@ -197,7 +199,8 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                 request_id = seq_output.id.request_id
                 if request_id not in self.requests:
                     LOG.warn(
-                        "Unknown request %s from GenerationLoopWorkerOutput", request_id
+                        "Unknown or already deleted request %s from GenerationLoopWorkerOutput",
+                        request_id,
                     )
                     continue
 
@@ -218,30 +221,35 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                 gen_seq = state.generation_sequences[seq_output.id.sequence_index]
                 new_token_ids = seq_output.new_tokens
 
-                delta = update_sequence(
-                    gen_seq,
-                    new_token_ids,
-                    state.prompt_token_ids,
-                    self.tokenizer,
-                    state.stopping_criteria,
-                )
+                if new_token_ids:
+                    delta = update_sequence(
+                        gen_seq,
+                        new_token_ids,
+                        state.prompt_token_ids,
+                        self.tokenizer,
+                        state.stopping_criteria,
+                    )
+                else:
+                    delta = None
 
-                # signal workers to stop generation
-                if state.is_finished:
-                    self.stop_request(state.request_id)
+                finish_reason = seq_output.finish_reason
+
+                if seq_output.finish_reason is not None:
+                    gen_seq.is_finished = True
+                elif gen_seq.is_finished:
+                    # update_sequence() has detected a stop word
+                    finish_reason = FinishReason.Stop
+                    self.stop_sequence(gen_seq.seq_id)
 
                 output = SequenceOutput(
                     seq_output.id.sequence_index,
                     delta,
-                    finish_reason=seq_output.finish_reason,
+                    finish_reason,
                     num_generated_tokens=len(gen_seq.generated_token_ids),
                 )
 
                 seq_outputs[request_id].append(output)
                 prompt_len[request_id] = state.prompt_len
-
-                if seq_output.finish_reason is not None:
-                    gen_seq.is_finished = True
 
             for request_id, out_seqs in seq_outputs.items():
                 outputs.append(
