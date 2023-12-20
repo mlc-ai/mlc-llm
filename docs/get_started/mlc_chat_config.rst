@@ -5,7 +5,7 @@ Configure MLCChat in JSON
 
 ``mlc-chat-config.json`` is required for both compile-time and runtime, hence serving two purposes:
 
-1. Specify how we compile a model (shown in :ref:`compile-models-via-MLC`), and
+1. Specify how we compile a model (shown in :ref:`compile-model-libraries`), and
 2. Specify conversation behavior in runtime.
 
 **This page focuses on the second purpose.** We explain the components of a chat

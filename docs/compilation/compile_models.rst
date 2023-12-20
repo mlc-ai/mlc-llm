@@ -1,26 +1,38 @@
-.. _compile-models-via-MLC:
+.. _compile-model-libraries:
 
-Compile Models via MLC
-======================
+Compile Model Libraries
+=======================
 
-This page describes how to compile a model with MLC LLM. Model compilation takes model inputs, produces quantized model weights,
-and optimizes the model library for a given platform. It enables users to bring their own new model weights, try different quantization modes,
-and customize the overall model optimization flow.
+To run a model with MLC LLM in any platform, you need:
+
+1. Model weights converted to MLC format (e.g. `RedPajama-INCITE-Chat-3B-v1-MLC 
+   <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-MLC/tree/main>`_.)
+2. Model library that comprises the inference logic (see repo binary-mlc-llm-libs).
+
+If you are simply adding a model variant, follow :ref:`convert-weights-via-MLC` suffices.
+
+This page describes how to compile a model library with MLC LLM. Model compilation optimizes
+the model inference for a given platform, allowing users bring their own new model
+archtiecture, use different quantization modes, and customize the overall model
+optimization flow.
+
+We compile ``RedPajama-INCITE-Instruct-3B-v1`` with ``q4f16_1`` as an example for all platforms.
 
 .. note::
-    Before you proceed, please make sure that you have installed :ref:`install-tvm-unity`, a required
-    backend to compile models with MLC LLM. If you want to build for webgpu, please also complete :ref:`install-web-build`.
+    Before you proceed, make sure you followed :ref:`install-tvm-unity`, a required
+    backend to compile models with MLC LLM.
     
-    Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python` to obtain the CLI app / Python API that can be used to chat with the compiled model.
-    Finally, we strongly recommend you to read :ref:`project-overview` first to get familiarized with the high-level terminologies.
-
+    Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python` to obtain
+    the CLI app / Python API that can be used to chat with the compiled model.
+    Finally, we strongly recommend you to read :ref:`project-overview` first to get
+    familiarized with the high-level terminologies.
 
 .. contents:: Table of Contents
     :depth: 1
     :local:
 
-Verify Installation
--------------------
+0. Verify Installation
+----------------------
 
 **Step 1. Verify mlc_chat**
 
@@ -47,35 +59,36 @@ Here we verify ``tvm`` quickly with command line (for full verification, see :re
     $ python -c "import tvm; print(tvm.__file__)"
     /some-path/lib/python3.11/site-packages/tvm/__init__.py
 
+1. Clone from HF and convert_weight
+-----------------------------------
 
-Get Started
------------
+This replicates :ref:`convert-weights-via-MLC`, see that page for more details.
 
-This section provides a step by step instructions to guide you through the compilation
-process of ``RedPajama-INCITE-Chat-3B-v1`` as an example. You can select the platform
-where you want to **run** your model from the tabs below and run the corresponding commands.
-We strongly recommend you **start with Metal/CUDA/Vulkan** as it is easier to validate the compilation result on
-your personal computer.
-
-**Step 1. Clone HF weights and convert to MLC weights**
-
-Regardless of the platform, we need to create directories and clone HF weights first.
-You can be under the mlc-llm repo, or your own working directory.
+You can be under the mlc-llm repo, or your own working directory. Note that all platforms
+can share the same compiled/quantized weights.
 
 .. code:: shell
 
+    # Create directory
     mkdir -p dist/rp_q4f16_1 && mkdir dist/models && cd dist/models
+    # Clone HF weights
     git lfs install
-    git clone https://huggingface.co/togethercomputer/RedPajama-INCITE-Chat-3B-v1
+    git clone https://huggingface.co/togethercomputer/RedPajama-INCITE-Instruct-3B-v1
     cd ../..
+    # Convert weight
+    mlc_chat convert_weight ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ --quantization q4f16_1 -o dist/rp_q4f16_1/params
 
-Then convert the HF weights into MLC-compatible weights. Note that all platforms can share the same compiled/quantized weights.
+2. Generate mlc-chat-config and compile
+---------------------------------------
 
-.. code:: shell
+A model library is specified by:
 
-    mlc_chat convert_weight ./dist/models/RedPajama-INCITE-Chat-3B-v1/ --quantization q4f16_1 -o dist/rp_q4f16_1/params
+ - The model architecture (e.g. ``llama-2``, ``gpt-neox``)
+ - Quantization (e.g. ``q4f16_1``, ``q0f32``)
+ - Metadata (e.g. ``context_window_size``, ``sliding_window_size``, ``prefill-chunk-size``), which effect memory planning
+ - Platform (e.g. ``cuda``, ``webgpu``, ``iOS``)
 
-**Step 2. Generate mlc-chat-config and compile**
+All these knobs are specified in `mlc-chat-config.json` generate by ``gen_config``.
 
 .. tabs::
 
@@ -84,7 +97,7 @@ Then convert the HF weights into MLC-compatible weights. Note that all platforms
         .. code:: shell
 
             # 1. gen_config: generate mlc-chat-config.json and process tokenizers
-            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
             # 2. compile: compile model library with specification in mlc-chat-config.json
             mlc_chat compile ./dist/rp_q4f16_1/params/mlc-chat-config.json --device cuda -o dist/rp_q4f16_1/rp_q4f16_1.so
 
@@ -96,7 +109,7 @@ Then convert the HF weights into MLC-compatible weights. Note that all platforms
         .. code:: shell
 
             # 1. gen_config: generate mlc-chat-config.json and process tokenizers
-            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
             # 2. compile: compile model library with specification in mlc-chat-config.json
             mlc_chat compile ./dist/rp_q4f16_1/params/mlc-chat-config.json --device metal -o dist/rp_q4f16_1/rp_q4f16_1.so
 
@@ -105,7 +118,7 @@ Then convert the HF weights into MLC-compatible weights. Note that all platforms
         .. code:: shell
 
             # 1. gen_config: generate mlc-chat-config.json and process tokenizers
-            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
             # 2. compile: compile model library with specification in mlc-chat-config.json
             mlc_chat compile ./dist/rp_q4f16_1/params/mlc-chat-config.json --device metal -o dist/rp_q4f16_1/rp_q4f16_1.dylib
 
@@ -117,7 +130,7 @@ Then convert the HF weights into MLC-compatible weights. Note that all platforms
         .. code:: shell
             
             # 1. gen_config: generate mlc-chat-config.json and process tokenizers
-            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
             # 2. compile: compile model library with specification in mlc-chat-config.json
             mlc_chat compile ./dist/rp_q4f16_1/params/mlc-chat-config.json --device vulkan -o dist/rp_q4f16_1/rp_q4f16_1.so
 
@@ -126,7 +139,7 @@ Then convert the HF weights into MLC-compatible weights. Note that all platforms
         .. code:: shell
             
             # 1. gen_config: generate mlc-chat-config.json and process tokenizers
-            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
             # 2. compile: compile model library with specification in mlc-chat-config.json
             mlc_chat compile ./dist/rp_q4f16_1/params/mlc-chat-config.json --device vulkan -o dist/rp_q4f16_1/rp_q4f16_1.dll
 
@@ -137,7 +150,7 @@ Then convert the HF weights into MLC-compatible weights. Note that all platforms
         .. code:: shell
 
             # 1. gen_config: generate mlc-chat-config.json and process tokenizers
-            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat --context-window-size 768 -o dist/rp_q4f16_1/params/
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat --context-window-size 768 -o dist/rp_q4f16_1/params/
             # 2. compile: compile model library with specification in mlc-chat-config.json
             mlc_chat compile ./dist/rp_q4f16_1/params/mlc-chat-config.json --device iphone -o dist/rp_q4f16_1/rp_q4f16_1.tar
 
@@ -158,7 +171,7 @@ Then convert the HF weights into MLC-compatible weights. Note that all platforms
         .. code:: shell
 
             # 1. gen_config: generate mlc-chat-config.json and process tokenizers
-            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat --context-window-size 768 -o dist/rp_q4f16_1/params/
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat --context-window-size 768 -o dist/rp_q4f16_1/params/
             # 2. compile: compile model library with specification in mlc-chat-config.json
             mlc_chat compile ./dist/rp_q4f16_1/params/mlc-chat-config.json --device android -o dist/rp_q4f16_1/rp_q4f16_1.tar
 
@@ -167,7 +180,7 @@ Then convert the HF weights into MLC-compatible weights. Note that all platforms
         .. code:: shell
 
             # 1. gen_config: generate mlc-chat-config.json and process tokenizers
-            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
             # 2. compile: compile model library with specification in mlc-chat-config.json
             mlc_chat compile ./dist/rp_q4f16_1/params/mlc-chat-config.json --device webgpu -o dist/rp_q4f16_1/rp_q4f16_1.wasm
 
@@ -188,7 +201,8 @@ Then convert the HF weights into MLC-compatible weights. Note that all platforms
                 TypeError: Failed to execute 'createBuffer' on 'GPUDevice': Failed to read the 'size' property from
                 'GPUBufferDescriptor': Value is outside the 'unsigned long long' value range.
 
-**Step 3. Verify output and chat**
+3. Verify output and chat
+-------------------------
 
 By executing the compile command above, we generate the model weights, model lib, and a chat config.
 We can check the output with the commands below:
@@ -335,11 +349,6 @@ We can check the output with the commands below:
               tokenizer_config.json
 
         To use this in WebGPU runtime, checkout :ref:`webllm-runtime`.
-
-
-Each compilation target produces a specific model library for the given platform. The model weight is shared across
-different targets. If you are interested in distributing the model besides local execution, please checkout :ref:`distribute-compiled-models`.
-You are also more than welcome to read the following sections for more details about the compilation.
 
 Compile Commands for More Models
 --------------------------------
@@ -700,7 +709,6 @@ generalized to any model variant, as long as mlc-llm supports the architecture.
                     mlc_chat gen_config ./dist/models/HF_MODEL/ --quantization q4f16_1 --conv-template CONV_TEMPLATE --context-window-size 768 -o dist/OUTPUT/params/
                     # 2. compile: compile model library with specification in mlc-chat-config.json
                     mlc_chat compile ./dist/OUTPUT/params/mlc-chat-config.json --device android -o dist/OUTPUT/OUTPUT.tar
-
 
 For each model and each backend, the above only provides the most recommended build command (which is the most optimized).
 You can also try with different argument values (e.g., different quantization modes, context window size, etc.),

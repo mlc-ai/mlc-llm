@@ -162,7 +162,15 @@ For more, please see :doc:`the iOS page </deploy/ios>`.
         * Symmetric quantization
       - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
   
-  To run a model variant you compiled on your own, you can directly reuse the above integrated prebuilt model libraries, as long as the model shares the architecture and is compiled with the same quantization mode. For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/open_llama>`_ with quantization mode ``q3f16_0``, then you can run the compiled OpenLLaMA model on iPhone without rebuilding the iOS app by reusing the `vicuna-v1-7b-q3f16_0` model library. Then you can upload the compiled weights to hugging face so that you can download the weights in the app as shown below (for more on uploading to hugging face, please check the :doc:`model distribution page </compilation/distribute_compiled_models>`).
+  To run a model variant you compiled on your own, you can directly reuse the above
+  integrated prebuilt model libraries, as long as the model shares the
+  architecture and is compiled with the same quantization mode.
+  For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/open_llama>`_
+  with quantization mode ``q3f16_0``, then you can run the compiled OpenLLaMA model on iPhone
+  without rebuilding the iOS app by reusing the `vicuna-v1-7b-q3f16_0` model library.
+  Then you can upload the compiled weights to hugging face so that you can download
+  the weights in the app as shown below (for more on uploading to hugging face,
+  please check :ref:`distribute-compiled-models`).
   
   To add a model to the iOS app, follow the steps below:
 
@@ -317,13 +325,18 @@ MLC-LLM supports the following model architectures:
     - 
     - * `StableLM <https://huggingface.co/collections/stabilityai/stable-lm-650852cfd55dd4e15cdcb30a>`__
 
-If the model variant you are interested in uses one of these model architectures we support (but we have not provided the prebuilt weights yet), you can check out :doc:`/compilation/compile_models` on how to compile your own models. Afterwards, you may follow :doc:`/compilation/distribute_compiled_models` to upload your prebuilt weights to hugging face, and submit a PR that adds an entry to this page, contributing to the community.
+If the model variant you are interested in uses one of these model architectures we support,
+(but we have not provided the prebuilt weights yet), you can check out 
+:doc:`/compilation/convert_weights` and :doc:`/compilation/compile_models` on how to compile your own models.
+Afterwards, you may follow :ref:`distribute-compiled-models` to upload your prebuilt
+weights to hugging face, and submit a PR that adds an entry to this page,
+contributing to the community.
 
 For models structured in an architecture we have not supported yet, you could:
 
 - Either `create a [Model Request] issue <https://github.com/mlc-ai/mlc-llm/issues/new?assignees=&labels=new-models&projects=&template=model-request.md&title=%5BModel+Request%5D+>`__ which automatically shows up on our `Model Request Tracking Board <https://github.com/orgs/mlc-ai/projects/2>`__.
 
-- Or follow our tutorial :doc:`Define New Models </tutorials/customize/define_new_models>`, which introduces how to bring a new model architecture to MLC-LLM.
+- Or follow our tutorial :doc:`Define New Models </compilation/define_new_models>`, which introduces how to bring a new model architecture to MLC-LLM.
 
 
 .. _model-library-tables:
