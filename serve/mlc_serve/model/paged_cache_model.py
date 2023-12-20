@@ -94,6 +94,7 @@ def sample(
 
     for i in range(num_seq):
         param = sampling_params[i]
+        freq = param.appeared_tokens_freq
 
         if param.sampling_type == SamplingType.RANDOM:
             temperatures.append(param.temperature)
@@ -103,6 +104,15 @@ def sample(
             divide_by_temperature |= temperatures[-1] != 1.0
             do_top_p |= top_ps[-1] < 1.0
             do_top_k |= top_ks[-1] != vocab_size
+
+            if not param.presence_penalty == 0.0 or not param.frequency_penalty == 0 and bool(freq):
+                index = torch.from_numpy(np.array(list(freq.keys()))).to(device=logits.device)
+                src = torch.from_numpy(np.array(list(freq.values()))).type_as(logits).to(device=logits.device)
+                logits[i][index] -= src * param.frequency_penalty + param.presence_penalty
+            
+            if param.logit_bias:
+                logits[i][param.logit_bias_index] += torch.Tensor(param.logit_bias_value).type_as(logits).to(device=logits.device)
+            
 
     logits_random = logits[mask_random]
 
@@ -462,11 +472,13 @@ class Model:
         try:
             next_tokens = sample(logits, sampling_params, self.vocab_size)
             assert next_tokens is not None
-
             outputs = []
             for i, (sequence_id, new_token) in enumerate(
                 zip(sequence_ids, next_tokens)
             ):
+                if not new_token in requests[i].sampling_params.appeared_tokens_freq:
+                    requests[i].sampling_params.appeared_tokens_freq[new_token] = 0
+                requests[i].sampling_params.appeared_tokens_freq[new_token] += 1
                 if sequence_id.sequence_index == PROMPT_SEQEUNCE_INDEX:
                     for seq_id in range(num_sequences[i]):
                         outputs.append(
@@ -505,6 +517,10 @@ class Model:
                 )
 
                 if maybe_new_token is not None:
+                    new_token = maybe_new_token[0]
+                    if not new_token in requests[i].sampling_params.appeared_tokens_freq:
+                        requests[i].sampling_params.appeared_tokens_freq[new_token] = 0
+                    requests[i].sampling_params.appeared_tokens_freq[new_token] += 1
                     if sequence_id.sequence_index == PROMPT_SEQEUNCE_INDEX:
                         for seq_id in range(num_sequences[i]):
                             outputs.append(
@@ -512,7 +528,7 @@ class Model:
                                     sequence_id=SequenceId(
                                         sequence_id.request_id, seq_id
                                     ),
-                                    generated_tokens=[maybe_new_token[0]],  # type: ignore
+                                    generated_tokens=[new_token],  # type: ignore
                                     error=None,
                                 )
                             )
@@ -520,7 +536,7 @@ class Model:
                         outputs.append(
                             TextGenerationResult(
                                 sequence_id=sequence_id,
-                                generated_tokens=[maybe_new_token[0]],  # type: ignore
+                                generated_tokens=[new_token],  # type: ignore
                                 error=None,
                             )
                         )

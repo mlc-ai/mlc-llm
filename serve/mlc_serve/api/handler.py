@@ -60,6 +60,8 @@ def _get_sampling_params(request: ChatCompletionRequest) -> SamplingParams:
         sampling_params.temperature = request.temperature
     if request.top_p is not None:
         sampling_params.top_p = request.top_p
+    if request.logit_bias is not None:
+        sampling_params.logit_bias = request.logit_bias
     return sampling_params
 
 

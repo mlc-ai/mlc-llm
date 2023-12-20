@@ -67,7 +67,7 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = False
     presence_penalty: float = 0.0
     frequency_penalty: float = 0.0
-    logit_bias: Optional[Dict[str, float]] = None
+    logit_bias: Optional[Dict[int, float]] = None
     user: Optional[str] = None
     ignore_eos: Optional[bool] = False
 
