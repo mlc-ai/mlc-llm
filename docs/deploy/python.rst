@@ -42,7 +42,7 @@ First, let us make sure that the MLC-compiled ``model`` we want to chat with alr
 If you do not have the MLC-compiled ``model`` ready:
 
 - Checkout :ref:`Try out MLC Chat<get_started>` to download prebuilt models for simplicity, or
-- Checkout :ref:`Compile Models via MLC<compile-models-via-MLC>` to compile models with ``mlc_llm`` (another package) yourself
+- Checkout :ref:`Compile Models via MLC<compile-model-libraries>` to compile models with ``mlc_llm`` (another package) yourself
 
 .. tabs ::
 

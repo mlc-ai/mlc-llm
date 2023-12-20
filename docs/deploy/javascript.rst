@@ -80,4 +80,4 @@ Build your Own Model/WASM
 -------------------------
 The above examples all utilize MLC's prebuilt model libraries (i.e. WASMs). For
 models that are included in the list of prebuilt, you can first follow :ref:`install-web-build`,
-and then follow :ref:`compile-models-via-MLC`.
+and then follow :ref:`compile-model-libraries`.
