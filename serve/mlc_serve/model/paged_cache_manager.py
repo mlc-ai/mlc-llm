@@ -142,8 +142,7 @@ class CacheManager:
         self.num_blocks = num_blocks
         self.free_blocks = list(range(num_blocks))
         self.kv_cache = KVCache(cache_blocks, self.block_size)
-        self.allocated_prompt_tokens = dict[SequenceId, int]()
-        self.allocated_decode_tokens = dict[SequenceId, int]()
+        self.token_counts = dict[SequenceId, int]()
 
         if sliding_window:
             assert sliding_window % self.kv_cache.block_size == 0
@@ -260,7 +259,6 @@ class CacheManager:
         """
         prompt_seq_id = get_prompt_sequence_id(request_id)
         self.set_size([prompt_seq_id], [num_tokens])
-        self.allocated_prompt_tokens[prompt_seq_id] = num_tokens
 
         last_block_partially_shared = num_sequences > 1 and (
             num_tokens % self.block_size != 0
@@ -269,9 +267,6 @@ class CacheManager:
         if self.sliding_window:
             last_block_partially_shared &= num_tokens < self.sliding_window
 
-        if last_block_partially_shared:
-            self.allocated_prompt_tokens[prompt_seq_id] -= num_tokens % self.block_size
-
         prompt_blocks = self.kv_cache.prompt_block_tables[prompt_seq_id]
         assert prompt_blocks
 
@@ -279,9 +274,9 @@ class CacheManager:
 
         for i in range(num_sequences):
             decode_seq_id = SequenceId(request_id, i)
+            self.token_counts[decode_seq_id] = num_tokens
 
             if not last_block_partially_shared:
-                self.allocated_decode_tokens[decode_seq_id] = 0
                 self.kv_cache.decode_block_tables[decode_seq_id] = DecodeBlockTable(
                     prompt_blocks,
                     num_tokens,
@@ -290,11 +285,6 @@ class CacheManager:
                     prompt_shared,
                 )
             else:
-                # Tokens in the partially-shared prompt block are considered to be part of each decode sequence
-                self.allocated_decode_tokens[decode_seq_id] = (
-                    num_tokens % self.block_size
-                )
-
                 if i < num_sequences:
                     # Need to copy the last block in self.kv_cache.block_tables[prompt_seq_id]
                     self.kv_cache.decode_block_tables[decode_seq_id] = DecodeBlockTable(
@@ -326,20 +316,16 @@ class CacheManager:
         """
         Extend cache space for a sequence, raise error if there is no space.
         """
-        prompt_seq_id = get_prompt_sequence_id(sequence_id.request_id)
-        allocated = (
-            self.allocated_prompt_tokens[prompt_seq_id]
-            + self.allocated_decode_tokens[sequence_id]
-        )
+        allocated = self.token_counts[sequence_id]
         self.set_size([sequence_id], [allocated + new_tokens])
-        self.allocated_decode_tokens[sequence_id] += new_tokens
+        self.token_counts[sequence_id] += new_tokens
 
     def free(self, sequence_id: SequenceId):
         """
         Free cache space for a sequence in a request.
         """
-        if sequence_id in self.allocated_decode_tokens:
-            del self.allocated_decode_tokens[sequence_id]
+        if sequence_id in self.token_counts:
+            del self.token_counts[sequence_id]
             self.set_size([sequence_id], [0])
 
     def free_request(self, state: RequestState):
@@ -350,7 +336,6 @@ class CacheManager:
             self.free(gen_seq.seq_id)
 
         prompt_seq_id = get_prompt_sequence_id(state.request_id)
-        del self.allocated_prompt_tokens[prompt_seq_id]
         self.set_size([prompt_seq_id], [0])
 
     def get_kv_cache_size(self) -> int:
@@ -381,26 +366,19 @@ class CacheManager:
         It should return the result of `get_kv_cache_size` if there is
         no requests in the cache.
         """
-        if not self.allocated_decode_tokens:
+        if not self.token_counts:
             return len(self.free_blocks) * self.block_size
 
-        free_blocks_per_sequence = len(self.free_blocks) // len(
-            self.allocated_decode_tokens
-        )
+        free_blocks_per_sequence = len(self.free_blocks) // len(self.token_counts)
         remaining_blocks = len(self.free_blocks) - free_blocks_per_sequence * len(
-            self.allocated_decode_tokens
+            self.token_counts
         )
-
-        total_tokens = []
-
-        for seq_id, tokens in self.allocated_decode_tokens.items():
-            prompt_seq_id = get_prompt_sequence_id(seq_id.request_id)
-            prompt_tokens = self.allocated_prompt_tokens[prompt_seq_id]
-            total_tokens.append(prompt_tokens + tokens)
-
+        # For parallel sampling, the number of shared prompt tokens is divisible
+        # by self.block_size (since the remainers are copied to each sequence).
+        # So the following calculation does not overcount shared prompt tokens.
         remaining_tokens_in_last_block = [
             self.block_size - (tokens - 1) % self.block_size - 1
-            for tokens in total_tokens
+            for tokens in self.token_counts.values()
         ]
 
         return (
