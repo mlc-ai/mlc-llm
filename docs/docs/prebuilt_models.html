@@ -181,8 +181,8 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="compilation/compile_models.html">Compile Models via MLC</a></li>
-<li class="toctree-l1"><a class="reference internal" href="compilation/distribute_compiled_models.html">Distribute Compiled Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="compilation/convert_weights.html">Convert Weights via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="compilation/compile_models.html">Compile Model Libraries</a></li>
 <li class="toctree-l1"><a class="reference internal" href="compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
 <li class="toctree-l1"><a class="reference internal" href="compilation/define_new_models.html">🚧 Define New Model Architectures</a></li>
 </ul>
@@ -536,7 +536,15 @@ mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>rwkv-raven-7b
 </tr>
 </tbody>
 </table>
-<p>To run a model variant you compiled on your own, you can directly reuse the above integrated prebuilt model libraries, as long as the model shares the architecture and is compiled with the same quantization mode. For example, if you compile <a class="reference external" href="https://github.com/openlm-research/open_llama">OpenLLaMA-7B</a> with quantization mode <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>, then you can run the compiled OpenLLaMA model on iPhone without rebuilding the iOS app by reusing the <cite>vicuna-v1-7b-q3f16_0</cite> model library. Then you can upload the compiled weights to hugging face so that you can download the weights in the app as shown below (for more on uploading to hugging face, please check the <a class="reference internal" href="compilation/distribute_compiled_models.html"><span class="doc">model distribution page</span></a>).</p>
+<p>To run a model variant you compiled on your own, you can directly reuse the above
+integrated prebuilt model libraries, as long as the model shares the
+architecture and is compiled with the same quantization mode.
+For example, if you compile <a class="reference external" href="https://github.com/openlm-research/open_llama">OpenLLaMA-7B</a>
+with quantization mode <code class="docutils literal notranslate"><span class="pre">q3f16_0</span></code>, then you can run the compiled OpenLLaMA model on iPhone
+without rebuilding the iOS app by reusing the <cite>vicuna-v1-7b-q3f16_0</cite> model library.
+Then you can upload the compiled weights to hugging face so that you can download
+the weights in the app as shown below (for more on uploading to hugging face,
+please check <a class="reference internal" href="compilation/convert_weights.html#distribute-compiled-models"><span class="std std-ref">(Optional) 3. Upload weights to HF</span></a>).</p>
 <p>To add a model to the iOS app, follow the steps below:</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Step 1</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Step 2</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Step 3</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">Step 4</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>Open “MLCChat” app, click “Add model variant”.</p>
@@ -745,11 +753,16 @@ mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>rwkv-raven-7b
 </tr>
 </tbody>
 </table>
-<p>If the model variant you are interested in uses one of these model architectures we support (but we have not provided the prebuilt weights yet), you can check out <a class="reference internal" href="compilation/compile_models.html"><span class="doc">Compile Models via MLC</span></a> on how to compile your own models. Afterwards, you may follow <a class="reference internal" href="compilation/distribute_compiled_models.html"><span class="doc">Distribute Compiled Models</span></a> to upload your prebuilt weights to hugging face, and submit a PR that adds an entry to this page, contributing to the community.</p>
+<p>If the model variant you are interested in uses one of these model architectures we support,
+(but we have not provided the prebuilt weights yet), you can check out
+<a class="reference internal" href="compilation/convert_weights.html"><span class="doc">Convert Weights via MLC</span></a> and <a class="reference internal" href="compilation/compile_models.html"><span class="doc">Compile Model Libraries</span></a> on how to compile your own models.
+Afterwards, you may follow <a class="reference internal" href="compilation/convert_weights.html#distribute-compiled-models"><span class="std std-ref">(Optional) 3. Upload weights to HF</span></a> to upload your prebuilt
+weights to hugging face, and submit a PR that adds an entry to this page,
+contributing to the community.</p>
 <p>For models structured in an architecture we have not supported yet, you could:</p>
 <ul class="simple">
 <li><p>Either <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/issues/new?assignees=&amp;labels=new-models&amp;projects=&amp;template=model-request.md&amp;title=%5BModel+Request%5D+">create a [Model Request] issue</a> which automatically shows up on our <a class="reference external" href="https://github.com/orgs/mlc-ai/projects/2">Model Request Tracking Board</a>.</p></li>
-<li><p>Or follow our tutorial <span class="xref std std-doc">Define New Models</span>, which introduces how to bring a new model architecture to MLC-LLM.</p></li>
+<li><p>Or follow our tutorial <a class="reference internal" href="compilation/define_new_models.html"><span class="doc">Define New Models</span></a>, which introduces how to bring a new model architecture to MLC-LLM.</p></li>
 </ul>
 </section>
 <section id="level-2-model-library-tables-precompiled-binary-files">
