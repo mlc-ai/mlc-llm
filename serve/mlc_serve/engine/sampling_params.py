@@ -32,6 +32,11 @@ class SamplingParams:
             frequency in the generated text so far. Values > 0 encourage the
             model to use new tokens, while values < 0 encourage the model to
             repeat tokens.
+        repetition_penalty: Positive float that penalizes new tokens based on
+            whether they appear in the generated text so far. Values > 1 encourage
+            the model to use new tokens, while values < 1 encourage the model
+            to repeat tokens. The penalty works as multiplication factor, it
+            multiplys on logprob or divides the probabilities.
         temperature: Float that controls the randomness of the sampling. Lower
             values make the model more deterministic, while higher values make
             the model more random. Zero means greedy sampling.
@@ -45,6 +50,7 @@ class SamplingParams:
 
     presence_penalty: float = 0.0
     frequency_penalty: float = 0.0
+    repetition_penalty: float = 1.0
     temperature: float = 1.0
     top_p: float = 1.0
     top_k: int = -1

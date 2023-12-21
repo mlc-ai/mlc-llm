@@ -56,6 +56,8 @@ def _get_sampling_params(request: ChatCompletionRequest) -> SamplingParams:
         sampling_params.presence_penalty = request.presence_penalty
     if request.frequency_penalty is not None:
         sampling_params.frequency_penalty = request.frequency_penalty
+    if request.repetition_penalty is not None:
+        sampling_params.repetition_penalty = request.repetition_penalty
     if request.temperature is not None:
         sampling_params.temperature = request.temperature
     if request.top_p is not None:

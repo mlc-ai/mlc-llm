@@ -103,11 +103,17 @@ def sample(
             do_top_p |= top_ps[-1] < 1.0
             do_top_k |= top_ks[-1] != vocab_size
 
+            # TODO(vvchernov): need to strictly define order of using penalties and logit bias or
+            # prohibit simultaneous using of them. At the latter case it can be LogitProcessor
             if (not param.presence_penalty == 0.0 or not param.frequency_penalty == 0) and bool(freq):
                 index = torch.from_numpy(np.array(list(freq.keys()))).to(device=logits.device)
                 src = torch.from_numpy(np.array(list(freq.values()))).type_as(logits).to(device=logits.device)
                 logits[i][index] -= src * param.frequency_penalty + param.presence_penalty
-            
+
+            if not param.repetition_penalty == 1.0 and bool(freq):
+                index = torch.from_numpy(np.array(list(freq.keys()))).to(device=logits.device)
+                logits[i][index] /= param.repetition_penalty
+
             if param.logit_bias:
                 logits[i][param.logit_bias_index] += torch.Tensor(param.logit_bias_value).type_as(logits).to(device=logits.device)
             
