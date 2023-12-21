@@ -103,7 +103,7 @@ def sample(
             do_top_p |= top_ps[-1] < 1.0
             do_top_k |= top_ks[-1] != vocab_size
 
-            if not param.presence_penalty == 0.0 or not param.frequency_penalty == 0 and bool(freq):
+            if (not param.presence_penalty == 0.0 or not param.frequency_penalty == 0) and bool(freq):
                 index = torch.from_numpy(np.array(list(freq.keys()))).to(device=logits.device)
                 src = torch.from_numpy(np.array(list(freq.values()))).type_as(logits).to(device=logits.device)
                 logits[i][index] -= src * param.frequency_penalty + param.presence_penalty
