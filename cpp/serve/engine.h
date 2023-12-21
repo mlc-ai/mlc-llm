@@ -53,6 +53,7 @@ class Engine {
    * sequence length supported by the engine.
    * \param tokenizer_path The tokenizer path on disk.
    * \param kv_cache_config_json_str The KV cache config in JSON string.
+   * \param engine_mode_json_str The Engine execution mode in JSON string.
    * \param request_stream_callback The request stream callback function to
    * stream back generated output for requests.
    * \param trace_recorder Event trace recorder for requests.
@@ -65,8 +66,8 @@ class Engine {
    */
   static std::unique_ptr<Engine> Create(
       int max_single_sequence_length, const String& tokenizer_path,
-      const String& kv_cache_config_json_str, Optional<PackedFunc> request_stream_callback,
-      Optional<EventTraceRecorder> trace_recorder,
+      const String& kv_cache_config_json_str, const String& engine_mode_json_str,
+      Optional<PackedFunc> request_stream_callback, Optional<EventTraceRecorder> trace_recorder,
       const std::vector<std::tuple<TVMArgValue, String, DLDevice>>& model_infos);
 
   /*! \brief Reset the engine, clean up all running data and statistics. */

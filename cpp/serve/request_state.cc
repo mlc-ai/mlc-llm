@@ -36,6 +36,24 @@ void RequestModelStateNode::CommitToken(int32_t token_id) {
   appeared_token_ids[token_id] += 1;
 }
 
+void RequestModelStateNode::AddDraftToken(int32_t token_id) {
+  draft_output_tokens.push_back(token_id);
+  appeared_token_ids[token_id] += 1;
+}
+
+void RequestModelStateNode::RemoveLastDraftToken() {
+  ICHECK(!draft_output_tokens.empty());
+  appeared_token_ids[draft_output_tokens.back()] -= 1;
+  draft_output_tokens.pop_back();
+}
+
+void RequestModelStateNode::RemoveAllDraftTokens() {
+  while (!draft_output_tokens.empty()) {
+    appeared_token_ids[draft_output_tokens.back()] -= 1;
+    draft_output_tokens.pop_back();
+  }
+}
+
 TVM_REGISTER_OBJECT_TYPE(RequestStateNode);
 
 RequestState::RequestState(Request request, int num_models, int64_t internal_id) {

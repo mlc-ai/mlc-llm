@@ -179,6 +179,51 @@ String KVCacheConfigNode::AsJSONString() const {
   return picojson::value(config).serialize(true);
 }
 
+/****************** EngineMode ******************/
+
+TVM_REGISTER_OBJECT_TYPE(EngineModeNode);
+
+EngineMode::EngineMode(bool enable_speculative, int spec_draft_length) {
+  ObjectPtr<EngineModeNode> n = make_object<EngineModeNode>();
+  n->enable_speculative = enable_speculative;
+  n->spec_draft_length = spec_draft_length;
+  data_ = std::move(n);
+}
+
+EngineMode::EngineMode(const std::string& config_str) {
+  bool enable_speculative = false;
+  int spec_draft_length = 4;
+
+  picojson::value config_json;
+  std::string err = picojson::parse(config_json, config_str);
+  if (!err.empty()) {
+    LOG(FATAL) << err;
+  }
+
+  // Get json fields.
+  picojson::object config = config_json.get<picojson::object>();
+  if (config.count("enable_speculative")) {
+    CHECK(config["enable_speculative"].is<bool>());
+    enable_speculative = config["enable_speculative"].get<bool>();
+  }
+  if (config.count("spec_draft_length")) {
+    CHECK(config["spec_draft_length"].is<int64_t>());
+    spec_draft_length = config["spec_draft_length"].get<int64_t>();
+  }
+
+  ObjectPtr<EngineModeNode> n = make_object<EngineModeNode>();
+  n->enable_speculative = enable_speculative;
+  n->spec_draft_length = spec_draft_length;
+  data_ = std::move(n);
+}
+
+String EngineModeNode::AsJSONString() const {
+  picojson::object config;
+  config["enable_speculative"] = picojson::value(static_cast<bool>(this->enable_speculative));
+  config["spec_draft_length"] = picojson::value(static_cast<int64_t>(this->spec_draft_length));
+  return picojson::value(config).serialize(true);
+}
+
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc

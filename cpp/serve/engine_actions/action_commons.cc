@@ -87,6 +87,44 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
                          max_single_sequence_length);
 }
 
+void PreemptLastRunningRequest(EngineState estate, const Array<Model>& models,
+                               Optional<EventTraceRecorder> trace_recorder) {
+  Request request = estate->running_queue.back();
+
+  // Remove from models.
+  // - Clear model speculation draft.
+  // - Update `inputs` for future prefill.
+  RequestState rstate = estate->GetRequestState(request);
+  RECORD_EVENT(trace_recorder, rstate->request->id, "preempt");
+  estate->stats.current_total_seq_len -=
+      request->input_total_length + rstate->mstates[0]->committed_tokens.size() - 1;
+  for (RequestModelState mstate : rstate->mstates) {
+    mstate->RemoveAllDraftTokens();
+    mstate->draft_output_token_prob.clear();
+    mstate->draft_output_prob_dist.clear();
+    ICHECK(mstate->inputs.empty());
+    ICHECK(!mstate->committed_tokens.empty());
+
+    Array<Data> inputs = request->inputs;
+    if (const auto* token_input = inputs.back().as<TokenDataNode>()) {
+      // Merge the TokenData so that a single time TokenEmbed is needed.
+      std::vector<int> token_ids{token_input->token_ids->data,
+                                 token_input->token_ids->data + token_input->token_ids.size()};
+      token_ids.insert(token_ids.end(), mstate->committed_tokens.begin(),
+                       mstate->committed_tokens.end());
+      inputs.Set(inputs.size() - 1, TokenData(token_ids));
+    } else {
+      inputs.push_back(TokenData(mstate->committed_tokens));
+    }
+    mstate->inputs = std::move(inputs);
+  }
+  RemoveRequestFromModel(estate, rstate->mstates[0]->internal_id, models);
+
+  // Move from running queue to the front of waiting queue.
+  estate->running_queue.erase(estate->running_queue.end() - 1);
+  estate->waiting_queue.insert(estate->waiting_queue.begin(), request);
+}
+
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc

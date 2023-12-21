@@ -71,6 +71,33 @@ class KVCacheConfig : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(KVCacheConfig, ObjectRef, KVCacheConfigNode);
 };
 
+/****************** Engine Mode ******************/
+
+/*! \brief The configuration of engine execution mode. */
+class EngineModeNode : public Object {
+ public:
+  /* Whether the speculative decoding mode is enabled */
+  bool enable_speculative;
+  /* The number of tokens to generate in speculative proposal (draft) */
+  int spec_draft_length;
+
+  String AsJSONString() const;
+
+  static constexpr const char* _type_key = "mlc.serve.EngineMode";
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  TVM_DECLARE_BASE_OBJECT_INFO(EngineModeNode, Object);
+};
+
+class EngineMode : public ObjectRef {
+ public:
+  explicit EngineMode(bool enable_speculative, int spec_draft_length);
+
+  explicit EngineMode(const std::string& config_str);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(EngineMode, ObjectRef, EngineModeNode);
+};
+
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc

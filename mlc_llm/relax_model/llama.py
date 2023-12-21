@@ -786,6 +786,7 @@ class LlamaForCausalLM(nn.Module):
         vocab_size_var: tvm.tir.SizeVar,
         sep_embed: bool = False,
         enable_batching: bool = False,
+        output_all_logits: bool = False,
     ):
         model_class = LlamaModelForBatching if enable_batching else LlamaModelForSingleSequence
         self.model = model_class(config, vocab_size_var, sep_embed)
@@ -800,6 +801,9 @@ class LlamaForCausalLM(nn.Module):
         cache_len = te.var("cache_len", "int64")
         self.cos_cached = nn.Parameter((cache_len, head_dim), dtype=config.dtype, name="cos_cached")
         self.sin_cached = nn.Parameter((cache_len, head_dim), dtype=config.dtype, name="sin_cached")
+        
+        # Mark if output_all_logits is True
+        self.output_all_logits = output_all_logits
         ############ End ############
 
     def forward(
@@ -823,7 +827,7 @@ class LlamaForCausalLM(nn.Module):
                 name="slice",
             )
 
-        if hidden_states.struct_info.shape[1] != 1:
+        if not self.output_all_logits and hidden_states.struct_info.shape[1] != 1:
             if logit_positions is None:
                 hidden_states = nn.emit_te(te_slicing, hidden_states, primfunc_name_hint="slice")
             else:
@@ -1019,6 +1023,41 @@ def create_decoding_func_for_batching(
         with bb.dataflow():
             logits, key_value_cache = model(
                 inputs, all_seq_len_shape=None, past_key_values=past_key_values
+            )
+            params = [inputs, past_key_values] + model.parameters()
+            gv = bb.emit_output((logits, key_value_cache))
+        bb.emit_func_output(gv, params)
+
+    mod = bb.get()
+    gv = mod.get_global_var(func_name)
+    bb.update_func(gv, mod[gv].with_attr("num_input", 2))
+    
+
+def create_verification_func_for_batching(
+    bb: relax.BlockBuilder,
+    param_manager: ParamManager,
+    config: LlamaConfig,
+    quant_scheme: QuantizationScheme,
+) -> None:
+    func_name = "verify_with_embed"
+    
+    total_seq_len = tvm.tir.SizeVar("m", "int64")
+    hidden_size = config.hidden_size
+    with bb.function(func_name):
+        model = LlamaForCausalLM(
+            config, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed=True, enable_batching=True, output_all_logits=True
+        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
+
+        inputs = nn.Placeholder(
+            (1, total_seq_len, hidden_size), dtype=config.dtype, name="inputs_embeds"
+        )
+        past_key_values = relax.Var("kv_cache", relax.ObjectStructInfo())
+        with bb.dataflow():
+            logits, key_value_cache = model(
+                inputs,
+                all_seq_len_shape=None,
+                past_key_values=past_key_values,
             )
             params = [inputs, past_key_values] + model.parameters()
             gv = bb.emit_output((logits, key_value_cache))
@@ -1391,6 +1430,7 @@ def get_model(args, hf_config):
         emit_paged_kv_cache_op(bb, config)
         create_prefill_func_for_batching(bb, param_manager, config, args.quantization)
         create_decoding_func_for_batching(bb, param_manager, config, args.quantization)
+        create_verification_func_for_batching(bb, param_manager, config, args.quantization)
         create_paged_kv_cache_func(bb, config)
         create_softmax_func_for_batching(bb, config)
     else:

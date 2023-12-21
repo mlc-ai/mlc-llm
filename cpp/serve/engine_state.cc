@@ -22,6 +22,8 @@ String EngineStats::AsJSON() const {
   config["engine_total_decode_time"] = picojson::value(engine_total_decode_time);
   config["total_prefill_tokens"] = picojson::value(total_prefill_length);
   config["total_decode_tokens"] = picojson::value(total_decode_length);
+  config["total_accepted_tokens"] = picojson::value(total_accepted_length);
+  config["total_draft_tokens"] = picojson::value(total_draft_length);
   return picojson::value(config).serialize(true);
 }
 
@@ -33,6 +35,8 @@ void EngineStats::Reset() {
   engine_total_decode_time = 0.0f;
   total_prefill_length = 0;
   total_decode_length = 0;
+  total_accepted_length = 0;
+  total_draft_length = 0;
 }
 
 TVM_REGISTER_OBJECT_TYPE(EngineStateObj);
