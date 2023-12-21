@@ -176,7 +176,14 @@ class FuseSplitRotaryEmbedding:  # pylint: disable=too-few-public-methods
             embedded_key = matchings[pat_embedded_key]
 
             rotary_embedding_gvar = bindings[embedded_query].args[0]
-            position_embedding_base = collect_position_embedding_base(mod[rotary_embedding_gvar])
+            rotary_embedding_func = mod[rotary_embedding_gvar]
+            if (
+                "mlc.rotary_embedding_to_all_dims" not in rotary_embedding_func.attrs
+                or not rotary_embedding_func.attrs["mlc.rotary_embedding_to_all_dims"]
+            ):
+                # manually skip split rotary fuse
+                return {}
+            position_embedding_base = collect_position_embedding_base(rotary_embedding_func)
 
             rotary_embedding_offset = bindings[embedded_query].args[-1][0]
 
