@@ -1,9 +1,7 @@
 """Setup structed logging."""
 import logging
 import sys
-from typing import List, Dict, Tuple, Any
-from psutil import Process
-
+from typing import List, Any
 import structlog
 from structlog.types import EventDict
 from structlog.typing import Processor, WrappedLogger, EventDict

@@ -1,10 +1,6 @@
-import torch
-
 import argparse
 import json
 import random
-import os
-from pathlib import Path
 
 from mlc_serve.engine import (
     Request,
@@ -17,7 +13,7 @@ from mlc_serve.engine import (
 from mlc_serve.engine.staging_engine import StagingInferenceEngine
 from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
 from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModelModule
-from mlc_serve.logging_utils import configure_logging
+from mlc_serve.utils import get_default_mlc_serve_argparser, postproc_mlc_serve_args
 
 
 def _test(args: argparse.Namespace):
@@ -130,25 +126,12 @@ def _test(args: argparse.Namespace):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--local-id", type=str, required=True)
-    parser.add_argument("--artifact-path", type=str, default="dist")
-    parser.add_argument("--max-input-len", type=int, default=512)
-    parser.add_argument("--max-num-sequences", type=int, default=8)
-    parser.add_argument("--max-output-len", type=int, default=20)
+    parser = get_default_mlc_serve_argparser("test engine")
     parser.add_argument("--long-prompt", action="store_true")
     parser.add_argument("--use-random-sampling", action="store_true")
-    parser.add_argument("--num-sequences-to-sample", type=int, default=1)
-    parser.add_argument("--use-staging-engine", action="store_true")
-    parser.add_argument("--min-decode-steps", type=int, default=12)
-    parser.add_argument("--max-decode-steps", type=int, default=16)
-    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--max-output-len", type=int, default=20)
     args = parser.parse_args()
-
-    args.model_artifact_path = Path(os.path.join(args.artifact_path, args.local_id))
-
-    if not os.path.exists(args.model_artifact_path):
-        raise Exception(f"Invalid local id: {args.local_id}")
+    args = postproc_mlc_serve_args(args)
 
     if args.long_prompt:
         args.max_input_len = 10000
@@ -156,11 +139,5 @@ if __name__ == "__main__":
 
     if args.num_sequences_to_sample > 1:
         args.use_random_sampling = True
-
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-
-
-    configure_logging(enable_json_logs=False, log_level="INFO")
 
     _test(args)

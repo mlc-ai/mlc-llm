@@ -25,6 +25,8 @@ def parse_args():
     # Profile the gpu memory usage, and use the maximum number of cache blocks possible:
     # /opt/bin/cuda-reserve.py  --num-gpus 2 python -m mlc_serve --local-id vicuna-v1-7b-q0f16 --num-shards 2 --max-num-batched-tokens 2560 --max-input-len 256
 
+    # TODO(@sunggg): replace this with `utils.get_default_mlc_serve_argparser`
+    # Since this will require the change in ollm side as well, revisit this after octocalm.
     args = argparse.ArgumentParser()
     args.add_argument("--host", type=str, default="127.0.0.1")
     args.add_argument("--port", type=int, default=8000)
@@ -44,25 +46,27 @@ def create_engine(
     args: argparse.Namespace,
 ):
     """
-      `model_artifact_path` has the following structure
-      |- compiled artifact (.so)
-      |- `build_config.json`: stores compile-time info, such as `num_shards` and `quantization`.
-      |- params/ : stores weights in mlc format and `ndarray-cache.json`.
-      |            `ndarray-cache.json` is especially important for Disco.
-      |- model/ : stores info from hf model cards such as max context length and tokenizer
+    `model_artifact_path` has the following structure
+    |- compiled artifact (.so)
+    |- `build_config.json`: stores compile-time info, such as `num_shards` and `quantization`.
+    |- params/ : stores weights in mlc format and `ndarray-cache.json`.
+    |            `ndarray-cache.json` is especially important for Disco.
+    |- model/ : stores info from hf model cards such as max context length and tokenizer
     """
     model_artifact_path = Path(os.path.join(args.artifact_path, args.local_id))
     if not os.path.exists(model_artifact_path):
         raise Exception(f"Invalid local id: {args.local_id}")
 
     # Set the engine config
-    engine_config = get_engine_config({
-        "use_staging_engine": args.use_staging_engine,
-        "max_num_sequences": args.max_num_sequences,
-        "max_input_len": args.max_input_len,
-        "min_decode_steps": args.min_decode_steps,
-        "max_decode_steps": args.max_decode_steps,
-    })
+    engine_config = get_engine_config(
+        {
+            "use_staging_engine": args.use_staging_engine,
+            "max_num_sequences": args.max_num_sequences,
+            "max_input_len": args.max_input_len,
+            "min_decode_steps": args.min_decode_steps,
+            "max_decode_steps": args.max_decode_steps,
+        }
+    )
 
     # TODO(yelite, masahi): Protocol subtyping is not working
     if args.use_staging_engine:
@@ -77,8 +81,8 @@ def create_engine(
     else:
         return SynchronousInferenceEngine(
             PagedCacheModelModule(
-                model_artifact_path = model_artifact_path,
-                engine_config = engine_config,
+                model_artifact_path=model_artifact_path,
+                engine_config=engine_config,
             )  # type: ignore
         )
 

@@ -10,8 +10,6 @@ import tvm
 from tvm import relax
 from tvm.runtime import disco as di
 
-from mlc_llm import utils
-
 from .base import get_model_artifact_config
 from .paged_cache_manager import KVCache, CacheManager
 from .tokenizer import HfTokenizerModule, ConversationTemplate, Tokenizer
@@ -179,7 +177,13 @@ def get_tvm_model(config, dev):
     if config.num_shards == 1:
         ex = tvm.runtime.load_module(lib_path)
         vm = relax.VirtualMachine(ex, dev)
-        params = utils.load_params(config.model_artifact_path, dev)
+
+        from tvm.contrib import tvmjs  # pylint: disable=import-outside-toplevel
+        _params, _meta = tvmjs.load_ndarray_cache(f"{config.model_artifact_path}/params", dev)
+        params = []
+        for i in range(_meta["ParamSize"]):
+            params.append(_params[f"param_{i}"])
+
         return vm.module, params, None
 
     return load_disco_module(config.model_artifact_path, lib_path, config.num_shards)

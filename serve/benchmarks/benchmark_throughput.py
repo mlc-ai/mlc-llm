@@ -1,10 +1,9 @@
 """Benchmark offline inference throughput."""
-import argparse
 import json
 import random
-import time, os
+import time
 from typing import List, Tuple
-
+import argparse
 import pandas as pd
 from mlc_serve.engine import (
     ChatMessage,
@@ -12,13 +11,12 @@ from mlc_serve.engine import (
     Request,
     SamplingParams,
     StoppingCriteria,
-    get_engine_config
+    get_engine_config,
 )
 from mlc_serve.engine.staging_engine import StagingInferenceEngine
 from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
 from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModelModule
-from mlc_serve.logging_utils import configure_logging
-from pathlib import Path
+from mlc_serve.utils import get_default_mlc_serve_argparser, postproc_mlc_serve_args
 
 
 def sample_requests(
@@ -74,7 +72,7 @@ def run_mlc(
             temperature=1.0,
             top_p=1.0,
             frequency_penalty=-1,
-            logit_bias={1: -1, 3: 1, 2: 2}
+            logit_bias={1: -1, 3: 1, 2: 2},
         )
 
         engine.add(
@@ -83,7 +81,9 @@ def run_mlc(
                     request_id=str(i),
                     messages=[ChatMessage(role="user", content=prompt)],
                     sampling_params=sampling_params,
-                    stopping_criteria=StoppingCriteria(max_tokens=output_len, stop_sequences=None),
+                    stopping_criteria=StoppingCriteria(
+                        max_tokens=output_len, stop_sequences=None
+                    ),
                     debug_options=DebugOptions(ignore_eos=True, prompt=prompt),
                     num_sequences=num_sequences,
                 )
@@ -102,13 +102,15 @@ def run_mlc(
 def create_engine_and_tokenizer_module(
     args: argparse.Namespace,
 ):
-    engine_config = get_engine_config({
-        "use_staging_engine": args.use_staging_engine,
-        "max_num_sequences": args.max_num_sequences,
-        "max_input_len": args.max_input_len,
-        "min_decode_steps": args.min_decode_steps,
-        "max_decode_steps": args.max_decode_steps,
-    })
+    engine_config = get_engine_config(
+        {
+            "use_staging_engine": args.use_staging_engine,
+            "max_num_sequences": args.max_num_sequences,
+            "max_input_len": args.max_input_len,
+            "min_decode_steps": args.min_decode_steps,
+            "max_decode_steps": args.max_decode_steps,
+        }
+    )
 
     if args.use_staging_engine:
         engine = StagingInferenceEngine(
@@ -124,9 +126,10 @@ def create_engine_and_tokenizer_module(
     else:
         engine = SynchronousInferenceEngine(
             PagedCacheModelModule(
-                model_artifact_path = args.model_artifact_path,
-                engine_config = engine_config,
-        ))
+                model_artifact_path=args.model_artifact_path,
+                engine_config=engine_config,
+            )
+        )
         tokenizer = engine.tokenizer
 
     return engine, tokenizer
@@ -134,14 +137,11 @@ def create_engine_and_tokenizer_module(
 
 def main(args: argparse.Namespace):
     print(args)
-    random.seed(args.seed)
 
     engine, tokenizer = create_engine_and_tokenizer_module(args)
 
     # Sample the requests.
-    requests = sample_requests(
-        args.dataset, args.num_prompts, tokenizer._tokenizer
-    )
+    requests = sample_requests(args.dataset, args.num_prompts, tokenizer._tokenizer)
 
     elapsed_time = run_mlc(
         requests,
@@ -153,7 +153,8 @@ def main(args: argparse.Namespace):
         engine.stop()
 
     total_num_tokens = sum(
-        prompt_len + output_len * args.num_sequences_to_sample for _, prompt_len, output_len in requests
+        prompt_len + output_len * args.num_sequences_to_sample
+        for _, prompt_len, output_len in requests
     )
     req_per_sec = len(requests) / elapsed_time
     tok_per_sec = total_num_tokens / elapsed_time
@@ -175,36 +176,20 @@ def main(args: argparse.Namespace):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Benchmark the throughput.")
+    parser = get_default_mlc_serve_argparser(description="Benchmark the throughput.")
     parser.add_argument(
         "--dataset", type=str, required=True, help="Path to the dataset."
     )
-    parser.add_argument("--local-id", type=str, required=True)
-    parser.add_argument("--artifact-path", type=str, default="dist")
-    parser.add_argument("--use-staging-engine", action="store_true")
-    parser.add_argument("--max-num-sequences", type=int, default=8)
-    parser.add_argument("--num-sequences-to-sample", type=int, default=1)
-    parser.add_argument("--max-input-len", type=int, default=512)
-    parser.add_argument("--min-decode-steps", type=int, default=32)
-    parser.add_argument("--max-decode-steps", type=int, default=56)
     parser.add_argument(
         "--num-prompts", type=int, default=1000, help="Number of prompts to process."
     )
-    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--report-path",
         type=str,
         default=None,
         help="Append the current result to the given path if provided.",
     )
-    parser.add_argument("--debug-logging", action="store_true")
     args = parser.parse_args()
-
-    log_level = "DEBUG" if args.debug_logging else "INFO"
-    configure_logging(enable_json_logs=False, log_level=log_level)
-
-    args.model_artifact_path = Path(os.path.join(args.artifact_path, args.local_id))
-    if not os.path.exists(args.model_artifact_path):
-        raise Exception(f"Invalid local id: {args.local_id}")
+    args = postproc_mlc_serve_args(args)
 
     main(args)
