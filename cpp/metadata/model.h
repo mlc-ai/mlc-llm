@@ -44,6 +44,7 @@ struct ModelMetadata {
   int64_t prefill_chunk_size;
   int64_t sliding_window_size;
   int64_t tensor_parallel_shards;
+  int64_t attention_sink_size;
   std::vector<Param> params;
   std::unordered_map<std::string, int64_t> memory_usage;
 

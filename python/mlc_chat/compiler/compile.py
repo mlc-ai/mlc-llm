@@ -117,23 +117,26 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         logger.info("Running optimizations using TVM Unity")
         additional_tirs = _apply_preproc_to_params(named_params, model_config)
         variable_bounds = _get_variable_bounds(model_config)
+        metadata = {
+            "model_type": args.model.name,
+            "quantization": args.quantization.name,
+            "context_window_size": model_config.context_window_size,  # type: ignore
+            "prefill_chunk_size": model_config.prefill_chunk_size,  # type: ignore
+            "sliding_window_size": getattr(model_config, "sliding_window_size", -1),
+            "attention_sink_size": getattr(model_config, "attention_sink_size", -1),
+            "tensor_parallel_shards": model_config.tensor_parallel_shards,  # type: ignore
+        }
+        logger.info("Registering metadata: %s", metadata)
+        metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
         args.build_func(
             mod,
             args,
-            pipeline=relax.get_pipeline(
+            pipeline=relax.get_pipeline(  # type: ignore
                 "mlc_llm",
                 variable_bounds=variable_bounds,
                 additional_tirs=additional_tirs,
                 ext_mods=ext_mods,
-                metadata={
-                    "model_type": args.model.name,
-                    "quantization": args.quantization.name,
-                    "params": [_get_param_metadata(name, param) for name, param in named_params],
-                    "context_window_size": model_config.context_window_size,  # type: ignore
-                    "prefill_chunk_size": model_config.prefill_chunk_size,  # type: ignore
-                    "sliding_window_size": getattr(model_config, "sliding_window_size", -1),
-                    "tensor_parallel_shards": model_config.tensor_parallel_shards,  # type: ignore
-                },
+                metadata=metadata,
             ),
         )
     logger.info("Generated: %s", bold(str(args.output)))
