@@ -29,7 +29,9 @@ def huggingface(model_config: GPTBigCodeConfig, quantization: Quantization) -> E
     model = GPTBigCodeForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
-    _, _named_params = model.export_tvm(spec=model.get_default_spec())
+    _, _named_params = model.export_tvm(  # pylint: disable=W0632:unbalanced-tuple-unpacking
+        spec=model.get_default_spec()
+    )
     named_parameters = dict(_named_params)
 
     mapping = ExternMapping()

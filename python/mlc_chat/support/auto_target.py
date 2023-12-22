@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 from tvm import IRModule, relax
 from tvm._ffi import get_global_func, register_func
 from tvm.contrib import tar, xcode
+from tvm.ir.transform import Pass
 from tvm.target import Target
 
 from . import logging
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 HELP_MSG = """TBD"""
 FOUND = green("Found")
 NOT_FOUND = red("Not found")
-BuildFunc = Callable[[IRModule, "CompileArgs"], None]
+BuildFunc = Callable[[IRModule, "CompileArgs", Pass], None]
 
 
 def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[Target, BuildFunc]:

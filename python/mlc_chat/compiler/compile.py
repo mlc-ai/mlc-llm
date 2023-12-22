@@ -131,7 +131,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         args.build_func(
             mod,
             args,
-            pipeline=relax.get_pipeline(
+            pipeline=relax.get_pipeline(  # type: ignore
                 "mlc_llm",
                 variable_bounds=variable_bounds,
                 additional_tirs=additional_tirs,
