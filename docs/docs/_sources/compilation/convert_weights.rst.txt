@@ -83,6 +83,8 @@ for specification of ``convert_weight``.
     # Convert weight
     mlc_chat convert_weight ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ --quantization q4f16_1 -o dist/rp_q4f16_1/params
 
+.. _generate_mlc_chat_config:
+
 2. Generate MLC Chat Config
 ---------------------------
 

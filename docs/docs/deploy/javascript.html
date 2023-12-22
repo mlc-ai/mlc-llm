@@ -174,7 +174,8 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">WebLLM and Javascript API</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#try-out-the-prebuilt-webpage">Try out the Prebuilt Webpage</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#use-webllm-npm-package">Use WebLLM NPM Package</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#build-your-own-model-wasm">Build your Own Model/WASM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#bring-your-own-model-variant">Bring Your Own Model Variant</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#bring-your-own-model-library">Bring Your Own Model Library</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="rest.html">Rest API</a></li>
@@ -298,7 +299,8 @@
 <ul class="simple">
 <li><p><a class="reference internal" href="#try-out-the-prebuilt-webpage" id="id1">Try out the Prebuilt Webpage</a></p></li>
 <li><p><a class="reference internal" href="#use-webllm-npm-package" id="id2">Use WebLLM NPM Package</a></p></li>
-<li><p><a class="reference internal" href="#build-your-own-model-wasm" id="id3">Build your Own Model/WASM</a></p></li>
+<li><p><a class="reference internal" href="#bring-your-own-model-variant" id="id3">Bring Your Own Model Variant</a></p></li>
+<li><p><a class="reference internal" href="#bring-your-own-model-library" id="id4">Bring Your Own Model Library</a></p></li>
 </ul>
 </nav>
 <p><a class="reference external" href="https://www.npmjs.com/package/&#64;mlc-ai/web-llm">WebLLM</a> is an MLC chat web runtime
@@ -319,54 +321,142 @@ where you can make your own modifications and build from source.</p>
 <p>Note that the <a class="reference external" href="https://webllm.mlc.ai/#chat-demo">WebLLM prebuilt webpage</a> above
 is powered by the WebLLM npm package, specifically with the code in
 the <a class="reference external" href="https://github.com/mlc-ai/web-llm/tree/main/examples/simple-chat">simple-chat</a> example.</p>
-<p>Below is a simple example to use WebLLM API in your own TypeScript program.
-You can follow the instructions in  <a class="reference external" href="https://github.com/mlc-ai/web-llm/tree/main/examples/get-started">get-started</a>
-to run the example.</p>
-<div class="highlight-typescript notranslate"><div class="highlight"><pre><span></span><span class="k">import</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="kr">as</span><span class="w"> </span><span class="nx">webllm</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">&quot;@mlc-ai/web-llm&quot;</span><span class="p">;</span>
-
-<span class="kd">function</span><span class="w"> </span><span class="nx">setLabel</span><span class="p">(</span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">text</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">label</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">getElementById</span><span class="p">(</span><span class="nx">id</span><span class="p">);</span>
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">label</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">throw</span><span class="w"> </span><span class="ne">Error</span><span class="p">(</span><span class="s2">&quot;Cannot find label &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">id</span><span class="p">);</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="w">  </span><span class="nx">label</span><span class="p">.</span><span class="nx">innerText</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">text</span><span class="p">;</span>
+<p>Each of the model in the  <a class="reference external" href="https://webllm.mlc.ai/#chat-demo">WebLLM prebuilt webpage</a>
+is registered as an instance of <code class="docutils literal notranslate"><span class="pre">ModelRecord</span></code>. Looking at the most straightforward example
+<a class="reference external" href="https://github.com/mlc-ai/web-llm/blob/main/examples/get-started/src/get_started.ts">get-started</a>,
+we see the code snippet:</p>
+<div class="highlight-typescript notranslate"><div class="highlight"><pre><span></span><span class="kd">const</span><span class="w"> </span><span class="nx">myAppConfig</span><span class="o">:</span><span class="w"> </span><span class="kt">AppConfig</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">model_list</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="s2">&quot;model_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://huggingface.co/mlc-ai/Llama-2-7b-hf-q4f32_1-MLC/resolve/main/&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;local_id&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f32_1&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;model_lib_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Llama-2-7b-chat-hf-q4f32_1-ctx4k_cs1k-MLC-webgpu.wasm&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="s2">&quot;model_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://huggingface.co/mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/resolve/main/&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;local_id&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;Mistral-7B-Instruct-v0.2-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;model_lib_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-MLC-webgpu.wasm&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;required_features&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;shader-f16&quot;</span><span class="p">],</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="c1">// Add your own models here...</span>
+<span class="w">  </span><span class="p">]</span>
 <span class="p">}</span>
-
-<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">chat</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">webllm</span><span class="p">.</span><span class="nx">ChatModule</span><span class="p">();</span>
-
-<span class="w">  </span><span class="nx">chat</span><span class="p">.</span><span class="nx">setInitProgressCallback</span><span class="p">((</span><span class="nx">report</span><span class="o">:</span><span class="w"> </span><span class="kt">webllm.InitProgressReport</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">setLabel</span><span class="p">(</span><span class="s2">&quot;init-label&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">report</span><span class="p">.</span><span class="nx">text</span><span class="p">);</span>
-<span class="w">  </span><span class="p">});</span>
-
-<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">chat</span><span class="p">.</span><span class="nx">reload</span><span class="p">(</span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f32_1&quot;</span><span class="p">);</span>
-
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">generateProgressCallback</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">_step</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="p">,</span><span class="w"> </span><span class="nx">message</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">setLabel</span><span class="p">(</span><span class="s2">&quot;generate-label&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">message</span><span class="p">);</span>
-<span class="w">  </span><span class="p">};</span>
-
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">prompt0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;What is the capital of Canada?&quot;</span><span class="p">;</span>
-<span class="w">  </span><span class="nx">setLabel</span><span class="p">(</span><span class="s2">&quot;prompt-label&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">prompt0</span><span class="p">);</span>
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">reply0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">chat</span><span class="p">.</span><span class="nx">generate</span><span class="p">(</span><span class="nx">prompt0</span><span class="p">,</span><span class="w"> </span><span class="nx">generateProgressCallback</span><span class="p">);</span>
-<span class="w">  </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">reply0</span><span class="p">);</span>
-
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">prompt1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Can you write a poem about it?&quot;</span><span class="p">;</span>
-<span class="w">  </span><span class="nx">setLabel</span><span class="p">(</span><span class="s2">&quot;prompt-label&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">prompt1</span><span class="p">);</span>
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">reply1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">chat</span><span class="p">.</span><span class="nx">generate</span><span class="p">(</span><span class="nx">prompt1</span><span class="p">,</span><span class="w"> </span><span class="nx">generateProgressCallback</span><span class="p">);</span>
-<span class="w">  </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">reply1</span><span class="p">);</span>
-
-<span class="w">  </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="k">await</span><span class="w"> </span><span class="nx">chat</span><span class="p">.</span><span class="nx">runtimeStatsText</span><span class="p">());</span>
-<span class="p">}</span>
-
-<span class="nx">main</span><span class="p">();</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">selectedModel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f32_1&quot;</span>
+<span class="c1">// const selectedModel = &quot;Mistral-7B-Instruct-v0.1-q4f16_1&quot;</span>
+<span class="k">await</span><span class="w"> </span><span class="nx">chat</span><span class="p">.</span><span class="nx">reload</span><span class="p">(</span><span class="nx">selectedModel</span><span class="p">,</span><span class="w"> </span><span class="kc">undefined</span><span class="p">,</span><span class="w"> </span><span class="nx">myAppConfig</span><span class="p">);</span>
 </pre></div>
 </div>
+<p>Just like any other platforms, to run a model with on WebLLM, you need:</p>
+<ol class="arabic simple">
+<li><p>Model weights converted to MLC format (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/Llama-2-7b-hf-q4f32_1-MLC/tree/main">Llama-2-7b-hf-q4f32_1-MLC</a>.): downloaded through <code class="docutils literal notranslate"><span class="pre">model_url</span></code></p></li>
+<li><p>Model library that comprises the inference logic (see repo <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a>): downloaded through <code class="docutils literal notranslate"><span class="pre">model_lib_url</span></code>.</p></li>
+</ol>
 </section>
-<section id="build-your-own-model-wasm">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">Build your Own Model/WASM</a><a class="headerlink" href="#build-your-own-model-wasm" title="Permalink to this heading">¶</a></h2>
-<p>The above examples all utilize MLC’s prebuilt model libraries (i.e. WASMs). For
-models that are included in the list of prebuilt, you can first follow <a class="reference internal" href="../install/emcc.html#install-web-build"><span class="std std-ref">Install Wasm Build Environment</span></a>,
-and then follow <a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a>.</p>
+<section id="bring-your-own-model-variant">
+<span id="webllm-add-model-variant"></span><h2><a class="toc-backref" href="#id3" role="doc-backlink">Bring Your Own Model Variant</a><a class="headerlink" href="#bring-your-own-model-variant" title="Permalink to this heading">¶</a></h2>
+<p>In cases where the model you are adding is simply a variant of an existing
+model, we only need to convert weights and reuse existing model library. For instance:</p>
+<ul class="simple">
+<li><p>Adding <code class="docutils literal notranslate"><span class="pre">OpenMistral</span></code> when MLC supports <code class="docutils literal notranslate"><span class="pre">Mistral</span></code></p></li>
+<li><p>Adding <code class="docutils literal notranslate"><span class="pre">Llama2-uncensored</span></code> when MLC supports <code class="docutils literal notranslate"><span class="pre">Llama2</span></code></p></li>
+</ul>
+<p>In this section, we walk you through adding <code class="docutils literal notranslate"><span class="pre">WizardMath-7B-V1.1-q4f16_1</span></code> to the
+<a class="reference external" href="https://github.com/mlc-ai/web-llm/tree/main/examples/get-started">get-started</a> example.
+According to the model’s <code class="docutils literal notranslate"><span class="pre">config.json</span></code> on <a class="reference external" href="https://huggingface.co/WizardLM/WizardMath-7B-V1.1/blob/main/config.json">its Huggingface repo</a>,
+it reuses the Mistral model architecture.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Before proceeding, make sure you have followed the instruction
+in <a class="reference external" href="https://github.com/mlc-ai/web-llm?tab=readme-ov-file#web-llm">the WebLLM README</a>
+so that your environment is ready. You do not need to build from source unless
+you added your own conversation template in step 2.</p>
+</div>
+<p><strong>Step 1 Convert weights</strong></p>
+<p>Please follow <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a> for the instruction.
+Note that the weights are shared across all platforms in MLC.</p>
+<p>After successfully following all steps in the page (including <a class="reference internal" href="../compilation/convert_weights.html#distribute-compiled-models"><span class="std std-ref">(Optional) 3. Upload weights to HF</span></a>),
+you should end up with a Huggingface repo similar to
+<a class="reference external" href="https://huggingface.co/mlc-ai/WizardMath-7B-V1.1-q4f16_1-MLC">WizardMath-7B-V1.1-q4f16_1-MLC</a>,
+which includes the converted/quantized weights, the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>, and tokenizer files.</p>
+<p><strong>Step 2 Conversation Template</strong></p>
+<p>Depending on whether the model variant you add needs a conversation template different
+from the ones MLC provides, you may need to add it to <code class="docutils literal notranslate"><span class="pre">/path/to/web-llm/src/conversation.ts</span></code>.
+We look up the template to use with the <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> field in <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>.</p>
+<p>For more details, please see <a class="reference internal" href="../get_started/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Configure MLCChat in JSON</span></a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you added your conversation template in <code class="docutils literal notranslate"><span class="pre">src/conversation.ts</span></code>, you need to build from source
+following the instruction in <a class="reference external" href="https://github.com/mlc-ai/web-llm?tab=readme-ov-file#build-webllm-package-from-source">the WebLLM repo’s README</a>.</p>
+<p>Alternatively, you could use the <code class="docutils literal notranslate"><span class="pre">&quot;custom&quot;</span></code> conversation template so that you can pass in
+your own <code class="docutils literal notranslate"><span class="pre">ConvTemplateConfig</span></code> in runtime without having to build the package from source.</p>
+</div>
+<p><strong>Step 3 Adding as ModelRecord</strong></p>
+<p>Finally, we modify the code snippet for
+<a class="reference external" href="https://github.com/mlc-ai/web-llm/blob/main/examples/get-started/src/get_started.ts">get-started</a>
+pasted above.</p>
+<p>We simply specify the Huggingface link as <code class="docutils literal notranslate"><span class="pre">model_url</span></code>, while reusing the <code class="docutils literal notranslate"><span class="pre">model_lib_url</span></code> for
+<code class="docutils literal notranslate"><span class="pre">Mistral-7B</span></code>. Note that we need the suffix to be <code class="docutils literal notranslate"><span class="pre">/resolve/main/</span></code>.</p>
+<div class="highlight-typescript notranslate"><div class="highlight"><pre><span></span><span class="kd">const</span><span class="w"> </span><span class="nx">myAppConfig</span><span class="o">:</span><span class="w"> </span><span class="kt">AppConfig</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">model_list</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="c1">// Other records here omitted...</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="s2">&quot;model_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://huggingface.co/mlc-ai/WizardMath-7B-V1.1-q4f16_1-MLC/resolve/main/&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;local_id&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;WizardMath-7B-V1.1-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;model_lib_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-MLC-webgpu.wasm&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;required_features&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;shader-f16&quot;</span><span class="p">],</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">selectedModel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;WizardMath-7B-V1.1-q4f16_1&quot;</span>
+<span class="k">await</span><span class="w"> </span><span class="nx">chat</span><span class="p">.</span><span class="nx">reload</span><span class="p">(</span><span class="nx">selectedModel</span><span class="p">,</span><span class="w"> </span><span class="kc">undefined</span><span class="p">,</span><span class="w"> </span><span class="nx">myAppConfig</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Now, running the <code class="docutils literal notranslate"><span class="pre">get-started</span></code> example will use the <code class="docutils literal notranslate"><span class="pre">WizardMath</span></code> model you just added.</p>
+</section>
+<section id="bring-your-own-model-library">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Bring Your Own Model Library</a><a class="headerlink" href="#bring-your-own-model-library" title="Permalink to this heading">¶</a></h2>
+<p>A model library is specified by:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>The model architecture (e.g. <code class="docutils literal notranslate"><span class="pre">llama-2</span></code>, <code class="docutils literal notranslate"><span class="pre">gpt-neox</span></code>)</p></li>
+<li><p>Quantization (e.g. <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>)</p></li>
+<li><p>Metadata (e.g. <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code>, <code class="docutils literal notranslate"><span class="pre">sliding_window_size</span></code>, <code class="docutils literal notranslate"><span class="pre">prefill-chunk-size</span></code>), which affects memory planning</p></li>
+<li><p>Platform (e.g. <code class="docutils literal notranslate"><span class="pre">cuda</span></code>, <code class="docutils literal notranslate"><span class="pre">webgpu</span></code>, <code class="docutils literal notranslate"><span class="pre">iOS</span></code>)</p></li>
+</ul>
+</div></blockquote>
+<p>In cases where the model you want to run is not compatible with the provided MLC
+prebuilt model libraries (e.g. having a different quantization, a different
+metadata spec, or even a different model architecture), you need to build your
+own model library.</p>
+<p>Follow the page <a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a>, specifically the <code class="docutils literal notranslate"><span class="pre">WebGPU</span></code> option. The page
+guides you through compiling <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Instruct-3B-v1</span></code> with <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>.
+After successfully following the page, you should end up with:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1
+<span class="w">  </span>rp_q4f16_1.wasm<span class="w">                                  </span><span class="c1"># ===&gt; the model library</span>
+<span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
+</pre></div>
+</div>
+<p>Upload the <code class="docutils literal notranslate"><span class="pre">rp_q4f16_1.wasm</span></code> to a github repository (for us,
+it is in <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a>). Then
+upload the <code class="docutils literal notranslate"><span class="pre">rp_q4f16_1/params</span></code> to a Huggingface repo just like we do in <a class="reference internal" href="../compilation/convert_weights.html#distribute-compiled-models"><span class="std std-ref">(Optional) 3. Upload weights to HF</span></a>.</p>
+<p>Finally, we are able to run the model we added in WebLLM’s <a class="reference external" href="https://github.com/mlc-ai/web-llm/tree/main/examples/get-started">get-started</a>:</p>
+<div class="highlight-typescript notranslate"><div class="highlight"><pre><span></span><span class="kd">const</span><span class="w"> </span><span class="nx">myAppConfig</span><span class="o">:</span><span class="w"> </span><span class="kt">AppConfig</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">model_list</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="c1">// Other records here omitted...</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="s2">&quot;model_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://huggingface.co/my-hf-account/my-rp_q4f16_1-weight-hf-repo/resolve/main/&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;local_id&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;RedPajama-INCITE-Instruct-3B-v1&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;model_lib_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/my-github-account/my-github-repo/main/rp_q4f16_1.wasm&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;required_features&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;shader-f16&quot;</span><span class="p">],</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">selectedModel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;RedPajama-INCITE-Instruct-3B-v1&quot;</span>
+<span class="k">await</span><span class="w"> </span><span class="nx">chat</span><span class="p">.</span><span class="nx">reload</span><span class="p">(</span><span class="nx">selectedModel</span><span class="p">,</span><span class="w"> </span><span class="kc">undefined</span><span class="p">,</span><span class="w"> </span><span class="nx">myAppConfig</span><span class="p">);</span>
+</pre></div>
+</div>
 </section>
 </section>
 

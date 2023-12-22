@@ -85,7 +85,7 @@ A model library is specified by:
 
  - The model architecture (e.g. ``llama-2``, ``gpt-neox``)
  - Quantization (e.g. ``q4f16_1``, ``q0f32``)
- - Metadata (e.g. ``context_window_size``, ``sliding_window_size``, ``prefill-chunk-size``), which effect memory planning
+ - Metadata (e.g. ``context_window_size``, ``sliding_window_size``, ``prefill-chunk-size``), which affects memory planning
  - Platform (e.g. ``cuda``, ``webgpu``, ``iOS``)
 
 All these knobs are specified in `mlc-chat-config.json` generate by ``gen_config``.
