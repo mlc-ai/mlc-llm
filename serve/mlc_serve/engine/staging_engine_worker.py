@@ -69,7 +69,7 @@ class SequenceGenerationOutput:
 @dataclass
 class GenerationLoopWorkerOutput:
     sequences: list[SequenceGenerationOutput]
-    error: Optional[str] = None
+    error: Optional[BaseException] = None
 
 
 class GenerationLoopWorker(EngineBase):
@@ -392,8 +392,8 @@ def run_generation_loop_worker(
         try:
             output = worker.step()
         except Exception as exc:
-            LOG.exception("Error when calling GenerationLoopWorker.step")
-            output = GenerationLoopWorkerOutput(sequences=[], error=str(exc))
+            LOG.exception("Error when calling GenerationLoopWorker.step", exc=exc)
+            output = GenerationLoopWorkerOutput(sequences=[], error=exc)
             result_queue.put(output)
             break
 

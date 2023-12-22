@@ -181,8 +181,8 @@ class StagingInferenceEngine(ScopedInferenceEngine):
 
         if generation_output.error is not None:
             raise RuntimeError(
-                f"Error when calling GenerationLoopWorker: {generation_output.error}"
-            )
+                f"Error from GenerationLoopWorker process: {generation_output.error}"
+            ) from generation_output.error
 
         outputs = list[RequestOutput]()
 
