@@ -172,7 +172,7 @@ class RequestOutput:
     request_id: RequestId
     sequences: list[SequenceOutput]
     # TODO: reconsider the place to put this number
-    # Only set for outputs with valid sequence otuputs
+    # Only set for outputs with valid sequence outputs
     num_prompt_tokens: Optional[int] = None
     # TODO(@jroesch): We should generalize the type here so we are allowed to return more structured information
     # for logging/user output.
@@ -180,6 +180,8 @@ class RequestOutput:
     # Right now I am abusing dynamic typing by putting the ValidationError in here.
     # I would prefer to unblock ourselves then figure this one out right now
     error: Optional[str] = None
+    # Context variables to attach to logging.
+    contextvars: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def is_finished(self) -> bool:
@@ -308,6 +310,8 @@ class RequestState:
     debug_options: DebugOptions
     arrival_timestamp: float
     validation_err: Optional[ValidationError] = None
+    # Context variables to attach to logging.
+    contextvars: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def is_finished(self) -> bool:

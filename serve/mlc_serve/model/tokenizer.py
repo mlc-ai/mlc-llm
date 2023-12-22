@@ -26,6 +26,7 @@ class Tokenizer:
         )
 
     def convert_tokens_to_string(self, tokens: List[str]) -> str:
+        assert tokens, f"tokens must be a valid List of tokens: {tokens}"
         return self._tokenizer.convert_tokens_to_string(tokens)
 
 

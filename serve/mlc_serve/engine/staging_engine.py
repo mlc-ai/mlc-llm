@@ -206,50 +206,51 @@ class StagingInferenceEngine(ScopedInferenceEngine):
 
                 state = self.requests[request_id]
 
-                if seq_output.error is not None:
-                    outputs.append(
-                        RequestOutput(
-                            request_id,
-                            sequences=[],
-                            error=seq_output.error,
-                            num_prompt_tokens=state.prompt_len,
+                with structlog.contextvars.bound_contextvars(**state.contextvars):
+                    if seq_output.error is not None:
+                        outputs.append(
+                            RequestOutput(
+                                request_id,
+                                sequences=[],
+                                error=seq_output.error,
+                                num_prompt_tokens=state.prompt_len,
+                            )
                         )
+                        del self.requests[request_id]
+                        continue
+
+                    gen_seq = state.generation_sequences[seq_output.id.sequence_index]
+                    new_token_ids = seq_output.new_tokens
+
+                    if new_token_ids:
+                        delta = update_sequence(
+                            gen_seq,
+                            new_token_ids,
+                            state.prompt_token_ids,
+                            self.tokenizer,
+                            state.stopping_criteria,
+                        )
+                    else:
+                        delta = None
+
+                    finish_reason = seq_output.finish_reason
+
+                    if seq_output.finish_reason is not None:
+                        gen_seq.is_finished = True
+                    elif gen_seq.is_finished:
+                        # update_sequence() has detected a stop word
+                        finish_reason = FinishReason.Stop
+                        self.stop_sequence(gen_seq.seq_id)
+
+                    output = SequenceOutput(
+                        seq_output.id.sequence_index,
+                        delta,
+                        finish_reason,
+                        num_generated_tokens=len(gen_seq.generated_token_ids),
                     )
-                    del self.requests[request_id]
-                    continue
 
-                gen_seq = state.generation_sequences[seq_output.id.sequence_index]
-                new_token_ids = seq_output.new_tokens
-
-                if new_token_ids:
-                    delta = update_sequence(
-                        gen_seq,
-                        new_token_ids,
-                        state.prompt_token_ids,
-                        self.tokenizer,
-                        state.stopping_criteria,
-                    )
-                else:
-                    delta = None
-
-                finish_reason = seq_output.finish_reason
-
-                if seq_output.finish_reason is not None:
-                    gen_seq.is_finished = True
-                elif gen_seq.is_finished:
-                    # update_sequence() has detected a stop word
-                    finish_reason = FinishReason.Stop
-                    self.stop_sequence(gen_seq.seq_id)
-
-                output = SequenceOutput(
-                    seq_output.id.sequence_index,
-                    delta,
-                    finish_reason,
-                    num_generated_tokens=len(gen_seq.generated_token_ids),
-                )
-
-                seq_outputs[request_id].append(output)
-                prompt_len[request_id] = state.prompt_len
+                    seq_outputs[request_id].append(output)
+                    prompt_len[request_id] = state.prompt_len
 
             for request_id, out_seqs in seq_outputs.items():
                 outputs.append(

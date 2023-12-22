@@ -178,7 +178,7 @@ class GenerationLoopWorker(EngineBase):
     def step(self) -> GenerationLoopWorkerOutput:
         LOG.debug("Starting new inference step.")
 
-        outputs = list[SequenceGenerationOutput]()
+        outputs: List[SequenceGenerationOutput] = []
         result = GenerationLoopWorkerOutput(sequences=outputs)
 
         with self.stopped_sequences_lock:
