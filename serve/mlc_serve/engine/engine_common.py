@@ -158,8 +158,13 @@ def update_sequence(
     tokenizer: TokenizerP,
     stopping_criteria: StoppingCriteria,
 ) -> str:
-    # TODO(@jroesch): convert to info
-    LOG.info("update_sequence", gen_seq=gen_seq, new_token_ids=new_token_ids, prompt_token_ids=prompt_token_ids, stopping_criteria=stopping_criteria)
+    LOG.debug(
+        "update_sequence",
+        gen_seq=gen_seq,
+        new_token_ids=new_token_ids,
+        prompt_token_ids=prompt_token_ids,
+        stopping_criteria=stopping_criteria,
+    )
     gen_seq.next_start_position = len(prompt_token_ids) + len(
         gen_seq.generated_token_ids
     )
@@ -191,9 +196,14 @@ def get_requests_to_process(
         for state in current_states:
             if state.generation_sequences[0].next_start_position == 0:
                 requests.append(
+                    # generated_token_ids is added for the case where the request is
+                    # recovering from cache eviction.
+                    # TODO(masahi): This needs an update when we support evicting
+                    # a parallel-sampling request.
                     PrefillRequest(
                         request_id=state.request_id,
-                        token_ids=state.prompt_token_ids + state.generation_sequences[0].generated_token_ids,
+                        token_ids=state.prompt_token_ids
+                        + state.generation_sequences[0].generated_token_ids,
                         num_sequence=state.num_sequences,
                         sampling_params=state.sampling_params,
                     )
