@@ -193,7 +193,7 @@ def get_requests_to_process(
                 requests.append(
                     PrefillRequest(
                         request_id=state.request_id,
-                        token_ids=state.prompt_token_ids,
+                        token_ids=state.prompt_token_ids + state.generation_sequences[0].generated_token_ids,
                         num_sequence=state.num_sequences,
                         sampling_params=state.sampling_params,
                     )
@@ -352,6 +352,7 @@ class EngineBase:
                 continue
 
             self.remove_request_from_batch(request_to_remove.request_id)
+            request_to_remove.generation_sequences[0].next_start_position = 0
             self.queue.appendleft(request_to_remove)
 
             LOG.debug(
