@@ -158,13 +158,6 @@ def update_sequence(
     tokenizer: TokenizerP,
     stopping_criteria: StoppingCriteria,
 ) -> str:
-    LOG.debug(
-        "update_sequence",
-        gen_seq=gen_seq,
-        new_token_ids=new_token_ids,
-        prompt_token_ids=prompt_token_ids,
-        stopping_criteria=stopping_criteria,
-    )
     gen_seq.next_start_position = len(prompt_token_ids) + len(
         gen_seq.generated_token_ids
     )
