@@ -174,6 +174,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">WebLLM and Javascript API</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#try-out-the-prebuilt-webpage">Try out the Prebuilt Webpage</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#use-webllm-npm-package">Use WebLLM NPM Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#verify-installation-for-adding-models">Verify Installation for Adding Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#bring-your-own-model-variant">Bring Your Own Model Variant</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#bring-your-own-model-library">Bring Your Own Model Library</a></li>
 </ul>
@@ -299,8 +300,9 @@
 <ul class="simple">
 <li><p><a class="reference internal" href="#try-out-the-prebuilt-webpage" id="id1">Try out the Prebuilt Webpage</a></p></li>
 <li><p><a class="reference internal" href="#use-webllm-npm-package" id="id2">Use WebLLM NPM Package</a></p></li>
-<li><p><a class="reference internal" href="#bring-your-own-model-variant" id="id3">Bring Your Own Model Variant</a></p></li>
-<li><p><a class="reference internal" href="#bring-your-own-model-library" id="id4">Bring Your Own Model Library</a></p></li>
+<li><p><a class="reference internal" href="#verify-installation-for-adding-models" id="id3">Verify Installation for Adding Models</a></p></li>
+<li><p><a class="reference internal" href="#bring-your-own-model-variant" id="id4">Bring Your Own Model Variant</a></p></li>
+<li><p><a class="reference internal" href="#bring-your-own-model-library" id="id5">Bring Your Own Model Library</a></p></li>
 </ul>
 </nav>
 <p><a class="reference external" href="https://www.npmjs.com/package/&#64;mlc-ai/web-llm">WebLLM</a> is an MLC chat web runtime
@@ -352,8 +354,33 @@ we see the code snippet:</p>
 <li><p>Model library that comprises the inference logic (see repo <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a>): downloaded through <code class="docutils literal notranslate"><span class="pre">model_lib_url</span></code>.</p></li>
 </ol>
 </section>
+<section id="verify-installation-for-adding-models">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Verify Installation for Adding Models</a><a class="headerlink" href="#verify-installation-for-adding-models" title="Permalink to this heading">¶</a></h2>
+<p>In sections below, we walk you through two examples of adding models to WebLLM. Before proceeding,
+please verify installation of <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code> and <code class="docutils literal notranslate"><span class="pre">tvm</span></code>:</p>
+<p><strong>Step 1. Verify mlc_chat</strong></p>
+<p>We use the python package <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code> to compile models. This can be installed by
+following <a class="reference internal" href="../install/mlc_llm.html#install-mlc-packages"><span class="std std-ref">Install MLC LLM Python Package</span></a>, either by building from source, or by
+installing the prebuilt package. Verify <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code> installation in command line via:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>mlc_chat<span class="w"> </span>--help
+<span class="c1"># You should see help information with this line</span>
+usage:<span class="w"> </span>MLC<span class="w"> </span>LLM<span class="w"> </span>Command<span class="w"> </span>Line<span class="w"> </span>Interface.<span class="w"> </span><span class="o">[</span>-h<span class="o">]</span><span class="w"> </span><span class="o">{</span>compile,convert_weight,gen_config<span class="o">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If it runs into error <code class="docutils literal notranslate"><span class="pre">command</span> <span class="pre">not</span> <span class="pre">found:</span> <span class="pre">mlc_chat</span></code>, try <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">mlc_chat</span> <span class="pre">--help</span></code>.</p>
+</div>
+<p><strong>Step 2. Verify TVM</strong></p>
+<p>To compile models, you also need to follow <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a>.
+Here we verify <code class="docutils literal notranslate"><span class="pre">tvm</span></code> quickly with command line (for full verification, see <a class="reference internal" href="../install/tvm.html#tvm-unity-validate"><span class="std std-ref">Validate TVM Installation</span></a>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.__file__)&quot;</span>
+/some-path/lib/python3.11/site-packages/tvm/__init__.py
+</pre></div>
+</div>
+</section>
 <section id="bring-your-own-model-variant">
-<span id="webllm-add-model-variant"></span><h2><a class="toc-backref" href="#id3" role="doc-backlink">Bring Your Own Model Variant</a><a class="headerlink" href="#bring-your-own-model-variant" title="Permalink to this heading">¶</a></h2>
+<span id="webllm-add-model-variant"></span><h2><a class="toc-backref" href="#id4" role="doc-backlink">Bring Your Own Model Variant</a><a class="headerlink" href="#bring-your-own-model-variant" title="Permalink to this heading">¶</a></h2>
 <p>In cases where the model you are adding is simply a variant of an existing
 model, we only need to convert weights and reuse existing model library. For instance:</p>
 <ul class="simple">
@@ -366,31 +393,63 @@ According to the model’s <code class="docutils literal notranslate"><span clas
 it reuses the Mistral model architecture.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Before proceeding, make sure you have followed the instruction
-in <a class="reference external" href="https://github.com/mlc-ai/web-llm?tab=readme-ov-file#web-llm">the WebLLM README</a>
-so that your environment is ready. You do not need to build from source unless
-you added your own conversation template in step 2.</p>
+<p>This section largely replicates <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a>.
+See that page for more details. Note that the weights are shared across
+all platforms in MLC.</p>
 </div>
-<p><strong>Step 1 Convert weights</strong></p>
-<p>Please follow <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a> for the instruction.
-Note that the weights are shared across all platforms in MLC.</p>
-<p>After successfully following all steps in the page (including <a class="reference internal" href="../compilation/convert_weights.html#distribute-compiled-models"><span class="std std-ref">(Optional) 3. Upload weights to HF</span></a>),
-you should end up with a Huggingface repo similar to
-<a class="reference external" href="https://huggingface.co/mlc-ai/WizardMath-7B-V1.1-q4f16_1-MLC">WizardMath-7B-V1.1-q4f16_1-MLC</a>,
-which includes the converted/quantized weights, the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>, and tokenizer files.</p>
-<p><strong>Step 2 Conversation Template</strong></p>
-<p>Depending on whether the model variant you add needs a conversation template different
-from the ones MLC provides, you may need to add it to <code class="docutils literal notranslate"><span class="pre">/path/to/web-llm/src/conversation.ts</span></code>.
+<p><strong>Step 1 Clone from HF and convert_weight</strong></p>
+<p>You can be under the mlc-llm repo, or your own working directory. Note that all platforms
+can share the same compiled/quantized weights. See <a class="reference internal" href="../compilation/compile_models.html#compile-command-specification"><span class="std std-ref">Compile Command Specification</span></a>
+for specification of <code class="docutils literal notranslate"><span class="pre">convert_weight</span></code>.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create directory</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>dist/models<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>dist/models
+<span class="c1"># Clone HF weights</span>
+git<span class="w"> </span>lfs<span class="w"> </span>install
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/WizardLM/WizardMath-7B-V1.1
+<span class="nb">cd</span><span class="w"> </span>../..
+<span class="c1"># Convert weight</span>
+mlc_chat<span class="w"> </span>convert_weight<span class="w"> </span>./dist/models/WizardMath-7B-V1.1/<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-o<span class="w"> </span>dist/WizardMath-7B-V1.1-q4f16_1-MLC
+</pre></div>
+</div>
+<p><strong>Step 2 Generate MLC Chat Config</strong></p>
+<p>Use <code class="docutils literal notranslate"><span class="pre">mlc_chat</span> <span class="pre">gen_config</span></code> to generate <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> and process tokenizers.
+See <a class="reference internal" href="../compilation/compile_models.html#compile-command-specification"><span class="std std-ref">Compile Command Specification</span></a> for specification of <code class="docutils literal notranslate"><span class="pre">gen_config</span></code>.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/WizardMath-7B-V1.1/<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>wizard_coder_or_math<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-o<span class="w"> </span>dist/WizardMath-7B-V1.1-q4f16_1-MLC/
+</pre></div>
+</div>
+<p>For the <code class="docutils literal notranslate"><span class="pre">conv-template</span></code>, <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/cpp/conv_templates.cc">conv_template.cc</a>
+contains a full list of conversation templates that MLC provides.</p>
+<p>If the model you are adding requires a new conversation template, you would need to add your own.
+Follow <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/pull/1402">this PR</a> as an example. Besides, you also need to add the new template to <code class="docutils literal notranslate"><span class="pre">/path/to/web-llm/src/conversation.ts</span></code>.
 We look up the template to use with the <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> field in <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>.</p>
 <p>For more details, please see <a class="reference internal" href="../get_started/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Configure MLCChat in JSON</span></a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>If you added your conversation template in <code class="docutils literal notranslate"><span class="pre">src/conversation.ts</span></code>, you need to build from source
-following the instruction in <a class="reference external" href="https://github.com/mlc-ai/web-llm?tab=readme-ov-file#build-webllm-package-from-source">the WebLLM repo’s README</a>.</p>
+<p>If you added your conversation template in <code class="docutils literal notranslate"><span class="pre">src/conversation.ts</span></code>, you need to build WebLLM
+from source following the instruction in
+<a class="reference external" href="https://github.com/mlc-ai/web-llm?tab=readme-ov-file#build-webllm-package-from-source">the WebLLM repo’s README</a>.</p>
 <p>Alternatively, you could use the <code class="docutils literal notranslate"><span class="pre">&quot;custom&quot;</span></code> conversation template so that you can pass in
 your own <code class="docutils literal notranslate"><span class="pre">ConvTemplateConfig</span></code> in runtime without having to build the package from source.</p>
 </div>
-<p><strong>Step 3 Adding as ModelRecord</strong></p>
+<p><strong>Step 3 Upload weights to HF</strong></p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># First, please create a repository on Hugging Face.</span>
+<span class="c1"># With the repository created, run</span>
+git<span class="w"> </span>lfs<span class="w"> </span>install
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/my-huggingface-account/my-wizardMath-weight-huggingface-repo
+<span class="nb">cd</span><span class="w"> </span>my-wizardMath-weight-huggingface-repo
+cp<span class="w"> </span>path/to/mlc-llm/dist/WizardMath-7B-V1.1-q4f16_1-MLC/*<span class="w"> </span>.
+git<span class="w"> </span>add<span class="w"> </span>.<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Add wizardMath model weights&quot;</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>main
+</pre></div>
+</div>
+<p>After successfully following all steps, you should end up with a Huggingface repo similar to
+<a class="reference external" href="https://huggingface.co/mlc-ai/WizardMath-7B-V1.1-q4f16_1-MLC">WizardMath-7B-V1.1-q4f16_1-MLC</a>,
+which includes the converted/quantized weights, the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>, and tokenizer files.</p>
+<p><strong>Step 4 Register as a ModelRecord</strong></p>
 <p>Finally, we modify the code snippet for
 <a class="reference external" href="https://github.com/mlc-ai/web-llm/blob/main/examples/get-started/src/get_started.ts">get-started</a>
 pasted above.</p>
@@ -400,6 +459,7 @@ pasted above.</p>
 <span class="w">  </span><span class="nx">model_list</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
 <span class="w">    </span><span class="c1">// Other records here omitted...</span>
 <span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="c1">// Substitute model_url with the one you created `my-huggingface-account/my-wizardMath-weight-huggingface-repo`</span>
 <span class="w">      </span><span class="s2">&quot;model_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://huggingface.co/mlc-ai/WizardMath-7B-V1.1-q4f16_1-MLC/resolve/main/&quot;</span><span class="p">,</span>
 <span class="w">      </span><span class="s2">&quot;local_id&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;WizardMath-7B-V1.1-q4f16_1&quot;</span><span class="p">,</span>
 <span class="w">      </span><span class="s2">&quot;model_lib_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-MLC-webgpu.wasm&quot;</span><span class="p">,</span>
@@ -412,10 +472,12 @@ pasted above.</p>
 <span class="k">await</span><span class="w"> </span><span class="nx">chat</span><span class="p">.</span><span class="nx">reload</span><span class="p">(</span><span class="nx">selectedModel</span><span class="p">,</span><span class="w"> </span><span class="kc">undefined</span><span class="p">,</span><span class="w"> </span><span class="nx">myAppConfig</span><span class="p">);</span>
 </pre></div>
 </div>
-<p>Now, running the <code class="docutils literal notranslate"><span class="pre">get-started</span></code> example will use the <code class="docutils literal notranslate"><span class="pre">WizardMath</span></code> model you just added.</p>
+<p>Now, running the <code class="docutils literal notranslate"><span class="pre">get-started</span></code> example will use the <code class="docutils literal notranslate"><span class="pre">WizardMath</span></code> model you just added.
+See <a class="reference external" href="https://github.com/mlc-ai/web-llm/tree/main/examples/get-started#webllm-get-started-app">get-started’s README</a>
+on how to run it.</p>
 </section>
 <section id="bring-your-own-model-library">
-<h2><a class="toc-backref" href="#id4" role="doc-backlink">Bring Your Own Model Library</a><a class="headerlink" href="#bring-your-own-model-library" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Bring Your Own Model Library</a><a class="headerlink" href="#bring-your-own-model-library" title="Permalink to this heading">¶</a></h2>
 <p>A model library is specified by:</p>
 <blockquote>
 <div><ul class="simple">
@@ -429,25 +491,99 @@ pasted above.</p>
 prebuilt model libraries (e.g. having a different quantization, a different
 metadata spec, or even a different model architecture), you need to build your
 own model library.</p>
-<p>Follow the page <a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a>, specifically the <code class="docutils literal notranslate"><span class="pre">WebGPU</span></code> option. The page
-guides you through compiling <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Instruct-3B-v1</span></code> with <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>.
-After successfully following the page, you should end up with:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/rp_q4f16_1
-<span class="w">  </span>rp_q4f16_1.wasm<span class="w">                                  </span><span class="c1"># ===&gt; the model library</span>
-<span class="w">  </span>params<span class="w">                                           </span><span class="c1"># ===&gt; containing the model weights, tokenizer and chat config</span>
+<p>In this section, we walk you through adding <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1</span></code> to the
+<a class="reference external" href="https://github.com/mlc-ai/web-llm/tree/main/examples/get-started">get-started</a> example.</p>
+<p>This section largely replicates <a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a>. See that page for
+more details, specifically the <code class="docutils literal notranslate"><span class="pre">WebGPU</span></code> option.</p>
+<p><strong>Step 0. Install dependencies</strong></p>
+<p>To compile model libraries for webgpu, you need to <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">build mlc_chat from source</span></a>.
+Besides, you also need to follow <a class="reference internal" href="../install/emcc.html#install-web-build"><span class="std std-ref">Install Wasm Build Environment</span></a>. Otherwise, it would run into error:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>RuntimeError: Cannot find libraries: wasm_runtime.bc
 </pre></div>
 </div>
-<p>Upload the <code class="docutils literal notranslate"><span class="pre">rp_q4f16_1.wasm</span></code> to a github repository (for us,
+<p><strong>Step 1. Clone from HF and convert_weight</strong></p>
+<p>You can be under the mlc-llm repo, or your own working directory. Note that all platforms
+can share the same compiled/quantized weights.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create directory</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>dist/models<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>dist/models
+<span class="c1"># Clone HF weights</span>
+git<span class="w"> </span>lfs<span class="w"> </span>install
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/togethercomputer/RedPajama-INCITE-Chat-3B-v1
+<span class="nb">cd</span><span class="w"> </span>../..
+<span class="c1"># Convert weight</span>
+mlc_chat<span class="w"> </span>convert_weight<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-o<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
+</pre></div>
+</div>
+<p><strong>Step 2. Generate mlc-chat-config and compile</strong></p>
+<p>A model library is specified by:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>The model architecture (e.g. <code class="docutils literal notranslate"><span class="pre">llama-2</span></code>, <code class="docutils literal notranslate"><span class="pre">gpt-neox</span></code>)</p></li>
+<li><p>Quantization (e.g. <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>)</p></li>
+<li><p>Metadata (e.g. <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code>, <code class="docutils literal notranslate"><span class="pre">sliding_window_size</span></code>, <code class="docutils literal notranslate"><span class="pre">prefill-chunk-size</span></code>), which affects memory planning</p></li>
+<li><p>Platform (e.g. <code class="docutils literal notranslate"><span class="pre">cuda</span></code>, <code class="docutils literal notranslate"><span class="pre">webgpu</span></code>, <code class="docutils literal notranslate"><span class="pre">iOS</span></code>)</p></li>
+</ul>
+</div></blockquote>
+<p>All these knobs are specified in <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> generated by <code class="docutils literal notranslate"><span class="pre">gen_config</span></code>.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>redpajama_chat<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-o<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--device<span class="w"> </span>webgpu<span class="w"> </span>-o<span class="w"> </span>dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When compiling larger models like <code class="docutils literal notranslate"><span class="pre">Llama-2-7B</span></code>, you may want to add <code class="docutils literal notranslate"><span class="pre">--prefill_chunk_size</span> <span class="pre">1024</span></code> or
+lower <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code> to decrease memory usage. Otherwise, during runtime,
+you may run into issues like:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>TypeError: Failed to execute &#39;createBuffer&#39; on &#39;GPUDevice&#39;: Failed to read the &#39;size&#39; property from
+&#39;GPUBufferDescriptor&#39;: Value is outside the &#39;unsigned long long&#39; value range.
+</pre></div>
+</div>
+</div>
+<p><strong>Step 3. Distribute model library and model weights</strong></p>
+<p>After following the steps above, you should end up with:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/libs
+<span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
+
+~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
+<span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
+<span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
+<span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
+<span class="w">  </span>params_shard_1.bin
+<span class="w">  </span>...
+<span class="w">  </span>tokenizer.json<span class="w">                                   </span><span class="c1"># ===&gt; the tokenizer files</span>
+<span class="w">  </span>tokenizer_config.json
+</pre></div>
+</div>
+<p>Upload the <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm</span></code> to a github repository (for us,
 it is in <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a>). Then
-upload the <code class="docutils literal notranslate"><span class="pre">rp_q4f16_1/params</span></code> to a Huggingface repo just like we do in <a class="reference internal" href="../compilation/convert_weights.html#distribute-compiled-models"><span class="std std-ref">(Optional) 3. Upload weights to HF</span></a>.</p>
+upload the <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC</span></code> to a Huggingface repo:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># First, please create a repository on Hugging Face.</span>
+<span class="c1"># With the repository created, run</span>
+git<span class="w"> </span>lfs<span class="w"> </span>install
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo
+<span class="nb">cd</span><span class="w"> </span>my-redpajama3b-weight-huggingface-repo
+cp<span class="w"> </span>path/to/mlc-llm/dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC/*<span class="w"> </span>.
+git<span class="w"> </span>add<span class="w"> </span>.<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Add redpajama-3b instruct model weights&quot;</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>main
+</pre></div>
+</div>
+<p>This would result in something like <a class="reference external" href="https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/tree/main">RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC</a>.</p>
+<p><strong>Step 4. Register as a ModelRecord</strong></p>
 <p>Finally, we are able to run the model we added in WebLLM’s <a class="reference external" href="https://github.com/mlc-ai/web-llm/tree/main/examples/get-started">get-started</a>:</p>
 <div class="highlight-typescript notranslate"><div class="highlight"><pre><span></span><span class="kd">const</span><span class="w"> </span><span class="nx">myAppConfig</span><span class="o">:</span><span class="w"> </span><span class="kt">AppConfig</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="nx">model_list</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
 <span class="w">    </span><span class="c1">// Other records here omitted...</span>
 <span class="w">    </span><span class="p">{</span>
-<span class="w">      </span><span class="s2">&quot;model_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://huggingface.co/my-hf-account/my-rp_q4f16_1-weight-hf-repo/resolve/main/&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;model_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://huggingface.co/my-hf-account/my-redpajama3b-weight-huggingface-repo/resolve/main/&quot;</span><span class="p">,</span>
 <span class="w">      </span><span class="s2">&quot;local_id&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;RedPajama-INCITE-Instruct-3B-v1&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="s2">&quot;model_lib_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/my-github-account/my-github-repo/main/rp_q4f16_1.wasm&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;model_lib_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/my-gh-account/my-repo/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm&quot;</span><span class="p">,</span>
 <span class="w">      </span><span class="s2">&quot;required_features&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;shader-f16&quot;</span><span class="p">],</span>
 <span class="w">    </span><span class="p">},</span>
 <span class="w">  </span><span class="p">]</span>
@@ -457,6 +593,9 @@ upload the <code class="docutils literal notranslate"><span class="pre">rp_q4f16
 <span class="k">await</span><span class="w"> </span><span class="nx">chat</span><span class="p">.</span><span class="nx">reload</span><span class="p">(</span><span class="nx">selectedModel</span><span class="p">,</span><span class="w"> </span><span class="kc">undefined</span><span class="p">,</span><span class="w"> </span><span class="nx">myAppConfig</span><span class="p">);</span>
 </pre></div>
 </div>
+<p>Now, running the <code class="docutils literal notranslate"><span class="pre">get-started</span></code> example will use the <code class="docutils literal notranslate"><span class="pre">RedPajama</span></code> model you just added.
+See <a class="reference external" href="https://github.com/mlc-ai/web-llm/tree/main/examples/get-started#webllm-get-started-app">get-started’s README</a>
+on how to run it.</p>
 </section>
 </section>
 

@@ -7,19 +7,19 @@ To run a model with MLC LLM in any platform, you need:
 
 1. Model weights converted to MLC format (e.g. `RedPajama-INCITE-Chat-3B-v1-MLC 
    <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-MLC/tree/main>`_.)
-2. Model library that comprises the inference logic (see repo binary-mlc-llm-libs).
+2. Model library that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__).
 
 In many cases, we only need to convert weights and reuse existing model library. 
 This page demonstrates adding a model variant with ``mlc_chat convert_weight``, which
 takes a hugginface model as input and converts/quantizes into MLC-compatible weights.
 
 Specifically, we add RedPjama-INCITE-**Instruct**-3B-v1, while MLC already
-provides a model library for RedPjama-INCITE-**Chat**-3B-v1.
+provides a model library for RedPjama-INCITE-**Chat**-3B-v1, which we can reuse.
 
 This can be extended to, e.g.:
 
 - Add ``OpenHermes-Mistral`` when MLC already supports Mistral
-- Add ``Llama-2-uncensored`` or ``WizardMath`` when MLC already supports Llama-2
+- Add ``Llama-2-uncensored`` when MLC already supports Llama-2
 
 .. note::
     Before you proceed, make sure you followed :ref:`install-tvm-unity`, a required
@@ -75,13 +75,15 @@ for specification of ``convert_weight``.
 .. code:: shell
 
     # Create directory
-    mkdir -p dist/rp_q4f16_1 && mkdir dist/models && cd dist/models
+    mkdir -p dist/models && cd dist/models
     # Clone HF weights
     git lfs install
     git clone https://huggingface.co/togethercomputer/RedPajama-INCITE-Instruct-3B-v1
     cd ../..
     # Convert weight
-    mlc_chat convert_weight ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ --quantization q4f16_1 -o dist/rp_q4f16_1/params
+    mlc_chat convert_weight ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ \
+        --quantization q4f16_1 \
+        -o dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC
 
 .. _generate_mlc_chat_config:
 
@@ -93,25 +95,31 @@ See :ref:`compile-command-specification` for specification of ``gen_config``.
 
 .. code:: shell
 
-    mlc_chat gen_config ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ --quantization q4f16_1 --conv-template redpajama_chat -o dist/rp_q4f16_1/params/
+    mlc_chat gen_config ./dist/models/RedPajama-INCITE-Instruct-3B-v1/ \
+        --quantization q4f16_1 --conv-template redpajama_chat \
+        -o dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC/
 
 
 .. note::
     The file ``mlc-chat-config.json`` is crucial in both model compilation
     and runtime chatting. Here we only care about the latter case.
     
-    You can **optionally** customize the chat config file
-    ``dist/rp_instruct_q4f16_1/params/mlc-chat-config.json`` (checkout :ref:`configure-mlc-chat-json` for more detailed instructions).
-    You can also simply use the default configuration and skip this step.
+    You can **optionally** customize
+    ``dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC/mlc-chat-config.json`` (checkout :ref:`configure-mlc-chat-json` for more detailed instructions).
+    You can also simply use the default configuration.
+
+    `conv_template.cc <https://github.com/mlc-ai/mlc-llm/blob/main/cpp/conv_templates.cc>`__
+    contains a full list of conversation templates that MLC provides. If the model you are adding
+    requires a new conversation template, you would need to add your own.
+    Follow `this PR <https://github.com/mlc-ai/mlc-llm/pull/1402>`__ as an example. However,
+    adding your own template would require you :ref:`build mlc_chat from source <mlcchat_build_from_source>` in order for it
+    to be recognized by the runtime.
 
 By now, you should have the following files.
 
 .. code:: shell
 
-    ~/mlc-llm > ls dist/rp_q4f16_1
-        params                                           # ===> containing the model weights, tokenizer and chat config
-
-    ~/mlc-llm > ls dist/rp_q4f16_1/params
+    ~/mlc-llm > ls dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC
         mlc-chat-config.json                             # ===> the chat config
         ndarray-cache.json                               # ===> the model weight info
         params_shard_0.bin                               # ===> the model weights
@@ -134,12 +142,12 @@ Optionally, you can upload what we have to huggingface.
     git lfs install
     git clone https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo
     cd my-redpajama3b-weight-huggingface-repo
-    cp path/to/mlc-llm/dist/rp_instruct_q4f16_1/params/* .
+    cp path/to/mlc-llm/dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC/* .
     git add . && git commit -m "Add redpajama-3b instruct model weights"
     git push origin main
 
-This would result in something like `RedPajama-INCITE-Chat-3B-v1-MLC
-<https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-MLC/tree/main>`_, but
+This would result in something like `RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
+<https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/tree/main>`_, but
 for **Instruct** instead of **Chat**.
 
 ..  REPOPULATE BELOW AFTER WE UPLOADING PREBUILT WEIGHTS AND UPDATING RUNTIME
