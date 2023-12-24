@@ -44,12 +44,12 @@ we see the code snippet:
       {
         "model_url": "https://huggingface.co/mlc-ai/Llama-2-7b-hf-q4f32_1-MLC/resolve/main/",
         "local_id": "Llama-2-7b-chat-hf-q4f32_1",
-        "model_lib_url": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Llama-2-7b-chat-hf-q4f32_1-ctx4k_cs1k-MLC-webgpu.wasm",
+        "model_lib_url": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f32_1-ctx4k_cs1k-webgpu.wasm",
       },
       {
         "model_url": "https://huggingface.co/mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/resolve/main/",
         "local_id": "Mistral-7B-Instruct-v0.2-q4f16_1",
-        "model_lib_url": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-MLC-webgpu.wasm",
+        "model_lib_url": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-webgpu.wasm",
         "required_features": ["shader-f16"],
       },
       // Add your own models here...
@@ -204,7 +204,7 @@ We simply specify the Huggingface link as ``model_url``, while reusing the ``mod
         // Substitute model_url with the one you created `my-huggingface-account/my-wizardMath-weight-huggingface-repo`
         "model_url": "https://huggingface.co/mlc-ai/WizardMath-7B-V1.1-q4f16_1-MLC/resolve/main/",
         "local_id": "WizardMath-7B-V1.1-q4f16_1",
-        "model_lib_url": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-MLC-webgpu.wasm",
+        "model_lib_url": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-webgpu.wasm",
         "required_features": ["shader-f16"],
       },
     ]
