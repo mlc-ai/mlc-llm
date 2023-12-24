@@ -144,7 +144,7 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     |
 
-    **Requirement**. Llama2-7B model needs an iOS device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.
+    **Requirement**. Llama2-7B model needs a device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.
     The demo is tested on
 
     - Samsung S23 with Snapdragon 8 Gen 2 chip
