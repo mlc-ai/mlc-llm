@@ -193,10 +193,11 @@ It is recommended to have at least 6GB free VRAM to run it.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Prebuilt Models
+   :caption: Model Prebuilts
    :hidden:
 
    prebuilt_models.rst
+   prebuilt_models_deprecated.rst
 
 .. toctree::
    :maxdepth: 1
