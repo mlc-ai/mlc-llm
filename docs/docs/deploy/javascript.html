@@ -192,9 +192,10 @@
 <li class="toctree-l1"><a class="reference internal" href="../compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">🚧 Define New Model Architectures</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Prebuilt Models</span></p>
+<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../prebuilt_models_deprecated.html">Model Prebuilts from Old Flow (Deprecated)</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
@@ -330,7 +331,7 @@ we see the code snippet:</p>
 <div class="highlight-typescript notranslate"><div class="highlight"><pre><span></span><span class="kd">const</span><span class="w"> </span><span class="nx">myAppConfig</span><span class="o">:</span><span class="w"> </span><span class="kt">AppConfig</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="nx">model_list</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
 <span class="w">    </span><span class="p">{</span>
-<span class="w">      </span><span class="s2">&quot;model_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://huggingface.co/mlc-ai/Llama-2-7b-hf-q4f32_1-MLC/resolve/main/&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;model_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f32_1-MLC/resolve/main/&quot;</span><span class="p">,</span>
 <span class="w">      </span><span class="s2">&quot;local_id&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f32_1&quot;</span><span class="p">,</span>
 <span class="w">      </span><span class="s2">&quot;model_lib_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f32_1-ctx4k_cs1k-webgpu.wasm&quot;</span><span class="p">,</span>
 <span class="w">    </span><span class="p">},</span>
@@ -350,7 +351,7 @@ we see the code snippet:</p>
 </div>
 <p>Just like any other platforms, to run a model with on WebLLM, you need:</p>
 <ol class="arabic simple">
-<li><p>Model weights converted to MLC format (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/Llama-2-7b-hf-q4f32_1-MLC/tree/main">Llama-2-7b-hf-q4f32_1-MLC</a>.): downloaded through <code class="docutils literal notranslate"><span class="pre">model_url</span></code></p></li>
+<li><p>Model weights converted to MLC format (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f32_1-MLC/tree/main">Llama-2-7b-hf-q4f32_1-MLC</a>.): downloaded through <code class="docutils literal notranslate"><span class="pre">model_url</span></code></p></li>
 <li><p>Model library that comprises the inference logic (see repo <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a>): downloaded through <code class="docutils literal notranslate"><span class="pre">model_lib_url</span></code>.</p></li>
 </ol>
 </section>
