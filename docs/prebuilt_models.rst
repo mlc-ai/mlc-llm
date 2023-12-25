@@ -16,18 +16,13 @@ MLC-LLM is a universal solution for deploying different language models. Any mod
 (a general representation for Neural Networks and can be imported from models written in PyTorch) can be recognized by MLC-LLM and thus deployed to different backends with the 
 help of :doc:`TVM Unity </install/tvm>`.
 
-There are two ways to run a model on MLC-LLM:
+There are two ways to run a model on MLC-LLM (this page focuses on the second one):
 
 1. Compile your own models following :doc:`the model compilation page </compilation/compile_models>`.
 2. Use off-the-shelf prebuilts models following this current page.
 
-This page focuses on the second option.
-
-..
-  This page focuses on the second option:
-
-  - Documenting :ref:`how to use prebuilts <using-model-prebuilts>` for various platforms, and
-  - Tracking what current :ref:`prebuilt models we provide <supported-model-architectures>`.
+.. This page focuses on the second option, documenting :ref:`how to use prebuilts <using-model-prebuilts>`
+.. for various platforms, and tracking what current :ref:`prebuilt models we provide <supported-model-architectures>`.
 
 In order to run a specific model on MLC-LLM, you need:
 
@@ -37,220 +32,218 @@ See the full list of all precompiled model libraries `here <https://github.com/m
 **2. Compiled weights:** a folder containing multiple files that store the compiled and quantized weights of a model
 (e.g. https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC).  See the full list of all precompiled weights `here <https://huggingface.co/mlc-ai>`__.
 
-.. 
-  .. _using-model-prebuilts:
+.. POPULATE BELOW AFTER IOS AND ANDROID RUNTIME DOCUMENTATION ARE SLM-IFIED
+.. .. _using-model-prebuilts:
 
-  Using Prebuilt Models for Different Platforms
-  ---------------------------------------------
+.. Using Prebuilt Models for Different Platforms
+.. ---------------------------------------------
 
-  We quickly go over how to use prebuilt models for each platform. You can find detailed instruction on each platform's corresponding page.
+.. We quickly go over how to use prebuilt models for each platform. You can find detailed instruction on each platform's corresponding page.
 
-  .. _using-prebuilt-models-cli:
+.. _using-prebuilt-models-cli:
 
+.. Prebuilt Models on CLI / Python
+.. ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-  Prebuilt Models on CLI / Python
-  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. For more, please see :doc:`the CLI page </deploy/cli>`, and the :doc:`the Python page </deploy/python>`.
 
-  For more, please see :doc:`the CLI page </deploy/cli>`, and the :doc:`the Python page </deploy/python>`.
+.. .. collapse:: Click to show details
 
-  .. collapse:: Click to show details
+..   First create the conda environment if you have not done so.
 
-    First create the conda environment if you have not done so.
+..     .. code:: shell
 
-      .. code:: shell
+..       conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-cli-nightly
+..       conda activate mlc-chat-venv
+..       conda install git git-lfs
+..       git lfs install
 
-        conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-cli-nightly
-        conda activate mlc-chat-venv
-        conda install git git-lfs
-        git lfs install
+..   Download the prebuilt model libraries from github.
 
-    Download the prebuilt model libraries from github.
+..     .. code:: shell
 
-      .. code:: shell
-
-        mkdir -p dist/prebuilt
-        git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
-
-    Download the prebuilt model weights from hugging face for the model variant you want.
-
-      .. code:: shell
-
-        # Say we want to run rwkv-raven-7b-q8f16_0
-        cd dist/prebuilt
-        git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0
-        cd ../..
-
-        # The format being:
-        # cd dist/prebuilt
-        # git clone https://huggingface.co/mlc-ai/mlc-chat-[model-code]
-        # cd ../..
-        # mlc_chat_cli --model [model-code]
-
-    Run the model with CLI:
-
-      .. code:: shell
-
-        # For CLI
-        mlc_chat_cli --model rwkv-raven-7b-q8f16_0
-
-    To run the model with Python API, see :doc:`the Python page </deploy/python>` (all other downloading steps are the same as CLI).
+..       mkdir dist/
+..       git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
 
 
-  .. for a blank line
+..   Download the prebuilt model weights from hugging face for the model variant you want.
 
-  |
+..     .. code:: shell
 
-  .. _using-prebuilt-models-ios:
+..       # Say we want to run Llama-2-7b-chat-hf-q4f16_1-MLC
+..       git lfs install
+..       git clone https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC \
+..                                         dist/Llama-2-7b-chat-hf-q4f16_1-MLC
 
-  Prebuilt Models on iOS
-  ^^^^^^^^^^^^^^^^^^^^^^
+..   Run the model with CLI:
 
-  For more, please see :doc:`the iOS page </deploy/ios>`.
+..     .. code:: shell
 
-  .. collapse:: Click to show details
+..       mlc_chat_cli --model dist/Llama-2-7b-chat-hf-q4f16_1-MLC \
+..                   --model-lib-path dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
+..                   # CUDA on Linux: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so
+..                   # Metal on macOS: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so
+..                   # Same rule applies for other platforms
 
-    The `iOS app <https://apps.apple.com/us/app/mlc-chat/id6448482937>`_ has builtin RedPajama-3B and Llama-2-7b support. 
 
-    All prebuilt models with an entry in ``iOS`` in the :ref:`model library table <model-library-tables>` are supported by iOS. Namely, we have:
+..   To run the model with Python API, see :doc:`the Python page </deploy/python>` (all other downloading steps are the same as CLI).
 
-    .. list-table:: Prebuilt model libraries integrated in the iOS app
-      :widths: 15 15 15
-      :header-rows: 1
 
-      * - Model library name
-        - Model Family
-        - Quantization Mode
-      * - `Llama-2-7b-chat-hf-q3f16_1`
-        - LLaMA
-        - * Weight storage data type: int3
-          * Running data type: float16
-          * Symmetric quantization
-      * - `vicuna-v1-7b-q3f16_0`
-        - LLaMA
-        - * Weight storage data type: int3
-          * Running data type: float16
-          * Symmetric quantization
-      * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
-        - GPT-NeoX
-        - * Weight storage data type: int4
-          * Running data type: float16
-          * Symmetric quantization
+.. .. for a blank line
 
-    As for prebuilt model weights, the ones we have integrated into app are listed below:
+.. |
 
-    .. list-table:: Tested prebuilt model weights for iOS
-      :widths: 15 15 15 15
-      :header-rows: 1
+.. .. _using-prebuilt-models-ios:
 
-      * - Model code
-        - Model Series
-        - Quantization Mode
-        - Hugging Face repo
-      * - `Llama-2-7b-q3f16_1`
-        - `Llama <https://ai.meta.com/llama/>`__
-        - * Weight storage data type: int3
-          * Running data type: float16
-          * Symmetric quantization
-        - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q3f16_1>`__
-      * - `vicuna-v1-7b-q3f16_0`
-        - `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
-        - * Weight storage data type: int3
-          * Running data type: float16
-          * Symmetric quantization
-        - `link <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0>`__
-      * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
-        - `RedPajama <https://www.together.xyz/blog/redpajama>`__
-        - * Weight storage data type: int4
-          * Running data type: float16
-          * Symmetric quantization
-        - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
-    
-    To run a model variant you compiled on your own, you can directly reuse the above
-    integrated prebuilt model libraries, as long as the model shares the
-    architecture and is compiled with the same quantization mode.
-    For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/open_llama>`_
-    with quantization mode ``q3f16_0``, then you can run the compiled OpenLLaMA model on iPhone
-    without rebuilding the iOS app by reusing the `vicuna-v1-7b-q3f16_0` model library.
-    Then you can upload the compiled weights to hugging face so that you can download
-    the weights in the app as shown below (for more on uploading to hugging face,
-    please check :ref:`distribute-compiled-models`).
-    
-    To add a model to the iOS app, follow the steps below:
+.. Prebuilt Models on iOS
+.. ^^^^^^^^^^^^^^^^^^^^^^
 
-    .. tabs::
+.. For more, please see :doc:`the iOS page </deploy/ios>`.
 
-        .. tab:: Step 1
+.. .. collapse:: Click to show details
 
-            Open "MLCChat" app, click "Add model variant".
+..   The `iOS app <https://apps.apple.com/us/app/mlc-chat/id6448482937>`_ has builtin RedPajama-3B and Llama-2-7b support. 
 
-            .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-1.png
-                :align: center
-                :width: 30%
+..   All prebuilt models with an entry in ``iOS`` in the :ref:`model library table <model-library-tables>` are supported by iOS. Namely, we have:
 
-        .. tab:: Step 2
+..   .. list-table:: Prebuilt model libraries integrated in the iOS app
+..     :widths: 15 15 15
+..     :header-rows: 1
 
-            Paste the repository URL of the model built on your own, and click "Add".
+..     * - Model library name
+..       - Model Family
+..       - Quantization Mode
+..     * - `Llama-2-7b-chat-hf-q3f16_1`
+..       - LLaMA
+..       - * Weight storage data type: int3
+..         * Running data type: float16
+..         * Symmetric quantization
+..     * - `vicuna-v1-7b-q3f16_0`
+..       - LLaMA
+..       - * Weight storage data type: int3
+..         * Running data type: float16
+..         * Symmetric quantization
+..     * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
+..       - GPT-NeoX
+..       - * Weight storage data type: int4
+..         * Running data type: float16
+..         * Symmetric quantization
 
-            You can refer to the link in the image as an example.
+..   As for prebuilt model weights, the ones we have integrated into app are listed below:
 
-            .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-2.png
-                :align: center
-                :width: 30%
+..   .. list-table:: Tested prebuilt model weights for iOS
+..     :widths: 15 15 15 15
+..     :header-rows: 1
 
-        .. tab:: Step 3
+..     * - Model code
+..       - Model Series
+..       - Quantization Mode
+..       - Hugging Face repo
+..     * - `Llama-2-7b-q3f16_1`
+..       - `Llama <https://ai.meta.com/llama/>`__
+..       - * Weight storage data type: int3
+..         * Running data type: float16
+..         * Symmetric quantization
+..       - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q3f16_1>`__
+..     * - `vicuna-v1-7b-q3f16_0`
+..       - `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
+..       - * Weight storage data type: int3
+..         * Running data type: float16
+..         * Symmetric quantization
+..       - `link <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0>`__
+..     * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
+..       - `RedPajama <https://www.together.xyz/blog/redpajama>`__
+..       - * Weight storage data type: int4
+..         * Running data type: float16
+..         * Symmetric quantization
+..       - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
+  
+..   To run a model variant you compiled on your own, you can directly reuse the above
+..   integrated prebuilt model libraries, as long as the model shares the
+..   architecture and is compiled with the same quantization mode.
+..   For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/open_llama>`_
+..   with quantization mode ``q3f16_0``, then you can run the compiled OpenLLaMA model on iPhone
+..   without rebuilding the iOS app by reusing the `vicuna-v1-7b-q3f16_0` model library.
+..   Then you can upload the compiled weights to hugging face so that you can download
+..   the weights in the app as shown below (for more on uploading to hugging face,
+..   please check :ref:`distribute-compiled-models`).
+  
+..   To add a model to the iOS app, follow the steps below:
 
-            After adding the model, you can download your model from the URL by clicking the download button.
+..   .. tabs::
 
-            .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-3.png
-                :align: center
-                :width: 30%
+..       .. tab:: Step 1
 
-        .. tab:: Step 4
+..           Open "MLCChat" app, click "Add model variant".
 
-            When the download is finished, click into the model and enjoy.
+..           .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-1.png
+..               :align: center
+..               :width: 30%
 
-            .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-4.png
-                :align: center
-                :width: 30%
+..       .. tab:: Step 2
 
-  .. for a blank line
+..           Paste the repository URL of the model built on your own, and click "Add".
 
-  |
+..           You can refer to the link in the image as an example.
 
-  .. _prebuilt-models-android:
+..           .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-2.png
+..               :align: center
+..               :width: 30%
 
-  Prebuilt Models on Android
-  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+..       .. tab:: Step 3
 
-  For more, please see :doc:`the Android page </deploy/android>`.
+..           After adding the model, you can download your model from the URL by clicking the download button.
 
-  .. collapse:: Click to show details
+..           .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-3.png
+..               :align: center
+..               :width: 30%
 
-    The apk for demo Android app includes the following models. To add more, check out the Android page.
+..       .. tab:: Step 4
 
-    .. list-table:: Prebuilt Models for Android
-      :widths: 15 15 15 15
-      :header-rows: 1
+..           When the download is finished, click into the model and enjoy.
 
-      * - Model code
-        - Model Series
-        - Quantization Mode
-        - Hugging Face repo
-      * - `Llama-2-7b-q4f16_1`
-        - `Llama <https://ai.meta.com/llama/>`__
-        - * Weight storage data type: int4
-          * Running data type: float16
-          * Symmetric quantization
-        - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
-      * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
-        - `RedPajama <https://www.together.xyz/blog/redpajama>`__
-        - * Weight storage data type: int4
-          * Running data type: float16
-          * Symmetric quantization
-        - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
-  .. for a blank line
+..           .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-4.png
+..               :align: center
+..               :width: 30%
 
-  |
+.. .. for a blank line
+
+.. |
+
+.. .. _prebuilt-models-android:
+
+.. Prebuilt Models on Android
+.. ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. For more, please see :doc:`the Android page </deploy/android>`.
+
+.. .. collapse:: Click to show details
+
+..   The apk for demo Android app includes the following models. To add more, check out the Android page.
+
+..   .. list-table:: Prebuilt Models for Android
+..     :widths: 15 15 15 15
+..     :header-rows: 1
+
+..     * - Model code
+..       - Model Series
+..       - Quantization Mode
+..       - Hugging Face repo
+..     * - `Llama-2-7b-q4f16_1`
+..       - `Llama <https://ai.meta.com/llama/>`__
+..       - * Weight storage data type: int4
+..         * Running data type: float16
+..         * Symmetric quantization
+..       - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
+..     * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
+..       - `RedPajama <https://www.together.xyz/blog/redpajama>`__
+..       - * Weight storage data type: int4
+..         * Running data type: float16
+..         * Symmetric quantization
+..       - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
+.. .. for a blank line
+
+.. |
 
 .. _supported-model-architectures:
 

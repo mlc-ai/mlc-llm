@@ -61,9 +61,9 @@ we see the code snippet:
 
 Just like any other platforms, to run a model with on WebLLM, you need:
 
-1. Model weights converted to MLC format (e.g. `Llama-2-7b-hf-q4f32_1-MLC 
+1. **Model weights** converted to MLC format (e.g. `Llama-2-7b-hf-q4f32_1-MLC 
    <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f32_1-MLC/tree/main>`_.): downloaded through ``model_url``
-2. Model library that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__): downloaded through ``model_lib_url``.
+2. **Model library** that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__): downloaded through ``model_lib_url``.
 
 Verify Installation for Adding Models
 -------------------------------------
