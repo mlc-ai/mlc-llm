@@ -112,8 +112,15 @@ class RotaryEmbedding(nn.Module):
 
             return te.compute(x.shape, compute, name="rotary")
 
-        q_embed = op.tensor_expr_op(te_op, "rotary_embedding", args=[q, q_offset])
-        k_embed = op.tensor_expr_op(te_op, "rotary_embedding", args=[k, 0])
+        q_embed = op.tensor_expr_op(
+            te_op,
+            "rotary_embedding",
+            args=[q, q_offset],
+            attrs={"mlc.rotary_embedding_to_all_dims": True},
+        )
+        k_embed = op.tensor_expr_op(
+            te_op, "rotary_embedding", args=[k, 0], attrs={"mlc.rotary_embedding_to_all_dims": True}
+        )
         return q_embed, k_embed
 
 
