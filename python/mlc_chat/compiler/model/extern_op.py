@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 
-def attention(  # pylint: disable=invalid-name
+def attention(  # pylint: disable=invalid-name,too-many-locals
     q: nn.Tensor,
     k: nn.Tensor,
     v: nn.Tensor,
@@ -63,7 +63,35 @@ def attention(  # pylint: disable=invalid-name
         and k.dtype == "float16"
         and v.dtype == "float16"
     ):
-        return extern_store.flashinfer.single_batch(q, k, v)
+        rope_scale = extern_store.flashinfer.rope_scale
+        rope_theta = extern_store.flashinfer.rope_theta
+        qkv_layout = 0  # "NHD", N for seq_len, H for num_heads, D for head_dim
+        rotary_mode = 0  # "kNone"
+        casual = 1  # True
+        fp16_qk = 1  # True
+
+        def _decode():
+            return op.extern(  # pylint: disable=no-member
+                name="flashinfer.single_decode",
+                args=[q, k, v, qkv_layout, rotary_mode, rope_scale, rope_theta],
+                out=nn.Tensor.placeholder((b, s, h_q * d), dtype="float16"),
+            )
+
+        def _prefill():
+            return op.extern(  # pylint: disable=no-member
+                name="flashinfer.single_prefill",
+                args=[q, k, v, casual, qkv_layout, rotary_mode, fp16_qk, rope_scale, rope_theta],
+                out=nn.Tensor.placeholder((b, s, h_q * d), dtype="float16"),
+            )
+
+        if isinstance(s, int) and s == 1:
+            func = "decode"
+        else:
+            func = "prefill"
+        return {
+            "decode": _decode,
+            "prefill": _prefill,
+        }[func]()
 
     # Fallback Implementation
     k = op.reshape(k, [b, t, h_kv, d])

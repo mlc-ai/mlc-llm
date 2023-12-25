@@ -19,7 +19,6 @@ from typing import Optional
 
 from tvm.target import Target
 
-from ...support.auto_target import detect_cuda_arch_list
 from .flashinfer import FlashInfer
 
 
@@ -69,7 +68,6 @@ def configure(rope_scale: float, rope_theta: float) -> None:
     if store.flashinfer is not None:
         assert store.target.kind.name == "cuda"
         store.flashinfer.configure(
-            arch_list=detect_cuda_arch_list(store.target),
             rope_scale=rope_scale,
             rope_theta=rope_theta,
         )
