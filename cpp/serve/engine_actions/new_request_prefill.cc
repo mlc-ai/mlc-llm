@@ -41,27 +41,20 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     auto tstart = std::chrono::high_resolution_clock::now();
 
     // - Move requests from waiting queue to running queue.
-    //   And assign internal ID for the requests.
-    std::vector<int> request_internal_ids;
-    request_internal_ids.reserve(num_requests);
     for (int i = 0; i < num_requests; ++i) {
-      int req_id = estate->running_queue.size();
       auto it = std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), requests[i]);
       ICHECK(it != estate->waiting_queue.end());
-
-      // - Move request from waiting queue to running queue.
       estate->waiting_queue.erase(it);
       estate->running_queue.push_back(requests[i]);
-      // - Assign internal request id for the requests.
-      AssignInternalIDForRequest(rstates[i], requests[i], req_id);
-      request_internal_ids.push_back(req_id);
     }
 
     // - Get embedding and run prefill for each model.
     NDArray logits_for_sample{nullptr};
     for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
       Array<NDArray> embeddings;
+      std::vector<int64_t> request_internal_ids;
       embeddings.reserve(num_requests);
+      request_internal_ids.reserve(num_requests);
       for (int i = 0; i < num_requests; ++i) {
         RequestModelState mstate = rstates[i]->mstates[model_id];
         ICHECK_EQ(mstate->GetInputLength(), prefill_lengths[i]);
@@ -69,6 +62,9 @@ class NewRequestPrefillActionObj : public EngineActionObj {
         ICHECK(mstate->draft_output_token_prob.empty());
         ICHECK(mstate->draft_output_prob_dist.empty());
         ICHECK(!mstate->inputs.empty());
+        // Add the sequence to the model.
+        models_[model_id]->AddNewSequence(mstate->internal_id);
+        request_internal_ids.push_back(mstate->internal_id);
         RECORD_EVENT(trace_recorder_, requests[i]->id, "start embedding");
         for (int i = 0; i < static_cast<int>(mstate->inputs.size()); ++i) {
           embeddings.push_back(mstate->inputs[i]->GetEmbedding(models_[model_id]));
@@ -192,19 +188,6 @@ class NewRequestPrefillActionObj : public EngineActionObj {
            num_required_pages + new_batch_size <= num_available_pages &&
            estate->stats.current_total_seq_len + total_input_length + 8 * new_batch_size <=
                kv_cache_config_->max_total_sequence_length;
-  }
-
-  /*! \brief Assign the given internal id for the given request. */
-  void AssignInternalIDForRequest(RequestState rstate, Request request, int req_id) {
-    // Set internal id in the request state.
-    for (RequestModelState mstate : rstate->mstates) {
-      mstate->request_id = req_id;
-    }
-    // Add a new sequence to each model.
-    for (int i = 0; i < static_cast<int>(models_.size()); ++i) {
-      int seq_id_in_model = models_[i]->AddNewSequence();
-      ICHECK_EQ(seq_id_in_model, req_id);
-    }
   }
 
   /*! \brief The models to run prefill in. */
