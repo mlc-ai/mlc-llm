@@ -58,23 +58,26 @@ class ModelObj : public Object {
 
   /*!
    * \brief Batch prefill function. Embedding in, logits out.
+   * The embedding order of sequences in `embedding_arr` follows
+   * the order of `seq_ids`.
    * \param embeddings The embedding of the input to be prefilled.
    * \param seq_id The id of the sequence in the KV cache.
    * \param lengths The length of each sequence to prefill.
    * \return The logits for the next token.
    */
-  virtual NDArray BatchPrefill(Array<NDArray> embedding_arr, std::vector<int> seq_ids,
-                               std::vector<int> lengths) = 0;
+  virtual NDArray BatchPrefill(const Array<NDArray>& embedding_arr,
+                               const std::vector<int64_t>& seq_ids,
+                               const std::vector<int>& lengths) = 0;
 
   /*!
    * \brief Batch decode function. Embedding in, logits out.
+   * The embedding order of sequences in `embeddings` follows
+   * the order of `seq_ids`.
    * \param embeddings The embedding of last generated token in the entire batch.
+   * \param seq_id The id of the sequence in the KV cache.
    * \return The logits for the next token for each sequence in the batch.
-   * \note The function runs for **every** sequence in the batch.
-   * That is to say, it does not accept "running a decode step for a subset
-   * of the full batch".
    */
-  virtual NDArray BatchDecode(NDArray embeddings) = 0;
+  virtual NDArray BatchDecode(const NDArray& embeddings, const std::vector<int64_t>& seq_ids) = 0;
 
   /*!
    * \brief Computing probabilities from logits with softmax and temperatures.
@@ -93,11 +96,11 @@ class ModelObj : public Object {
    */
   virtual void CreateKVCache(KVCacheConfig kv_cache_config) = 0;
 
-  /*! \brief Add a new sequence to the KV cache. Return the in-cache id of the sequence. */
-  virtual int AddNewSequence() = 0;
+  /*! \brief Add a new sequence with the given sequence id to the KV cache. */
+  virtual void AddNewSequence(int64_t seq_id) = 0;
 
   /*! \brief Remove the given sequence from the KV cache in the model. */
-  virtual void RemoveSequence(int seq_id) = 0;
+  virtual void RemoveSequence(int64_t seq_id) = 0;
 
   /*! \brief Get the number of available pages in KV cache. */
   virtual int GetNumAvailablePages() const = 0;

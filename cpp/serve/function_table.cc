@@ -159,17 +159,17 @@ void FunctionTable::_InitFunctions() {
   this->softmax_func_ = mod_get_func("softmax_with_temperature");
   this->create_kv_cache_func_ = mod_get_func("create_kv_cache");
   this->reset_kv_cache_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_clear");
-  this->add_sequence_to_kv_cache_func_ =
+  this->kv_cache_add_sequence_func_ =
       get_global_func("vm.builtin.paged_attention_kv_cache_add_sequence");
-  this->reserve_length_in_kv_cache_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_reserve_extra_length_for_append");
-  this->reset_append_length_kv_cache_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_reset_append_lengths");
-  this->sync_device_kv_cache_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_sync_aux_array_to_device");
-  this->remove_from_kv_cache_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_remove");
-  this->popn_from_kv_cache_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_popn");
-  this->get_num_available_pages_kv_cache_func_ =
+  this->kv_cache_remove_sequence_func_ =
+      get_global_func("vm.builtin.paged_attention_kv_cache_remove_sequence");
+  this->kv_cache_begin_forward_func_ =
+      get_global_func("vm.builtin.paged_attention_kv_cache_begin_forward");
+  this->kv_cache_end_forward_func_ =
+      get_global_func("vm.builtin.paged_attention_kv_cache_end_forward");
+  this->kv_cache_attention_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_attention");
+  this->kv_cache_popn_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_popn");
+  this->kv_cache_get_num_available_pages_func_ =
       get_global_func("vm.builtin.paged_attention_kv_cache_get_num_available_pages");
   support_backtracking_kv_ = true;
 }

@@ -20,10 +20,10 @@ using namespace tvm::runtime;
 /*!
  * \brief Remove the given request from models.
  * \param estate The engine state to update after removal.
- * \param req_id The internal id of the request to remove.
+ * \param req_internal_id The internal id of the request to remove.
  * \param models The models to remove the given request from.
  */
-void RemoveRequestFromModel(EngineState estate, int req_id, Array<Model> models);
+void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<Model> models);
 
 /*!
  * \brief The request post-processing after an engine action step.
