@@ -308,22 +308,18 @@ The MLC-LLM project consists of three distinct submodules: model definition, mod
 <p><strong>➂ Platform-native runtimes.</strong> Variants of MLCChat are provided on each platform: <strong>C++</strong> for command line, <strong>Javascript</strong> for web, <strong>Swift</strong> for iOS, and <strong>Java</strong> for Android, configurable with a JSON chat config. App developers only need to familiarize with the platform-naive runtimes to integrate MLC-compiled LLMs into their projects.</p>
 <section id="terminologies">
 <span id="id2"></span><h2>Terminologies<a class="headerlink" href="#terminologies" title="Permalink to this heading">¶</a></h2>
-<p>It is helpful for us to familiarize the basic terminologies used in the MLC chat applications.</p>
+<p>It is helpful for us to familiarize the basic terminologies used in the MLC chat applications. Below are the
+three things you need to run a model with MLC.</p>
 <ul class="simple">
-<li><p><strong>model weights</strong>: The model weight is a folder that contains the quantized neural network weights
-of the language models as well as the tokenizer configurations.</p></li>
 <li><p><strong>model lib</strong>: The model library refers to the executable libraries that enable
-the execution of a specific model architecture.   On Linux, these libraries have the suffix
-<code class="docutils literal notranslate"><span class="pre">.so</span></code>, on macOS, the suffix is <code class="docutils literal notranslate"><span class="pre">.dylib</span></code>, and on Windows, the library file ends with <code class="docutils literal notranslate"><span class="pre">.dll</span></code>.
-On web browser, the library suffix is <code class="docutils literal notranslate"><span class="pre">.wasm</span></code></p></li>
+the execution of a specific model architecture. On Linux and M-chip macOS, these libraries have the suffix
+<code class="docutils literal notranslate"><span class="pre">.so</span></code>; on intel macOS, the suffix is <code class="docutils literal notranslate"><span class="pre">.dylib</span></code>; on Windows, the library file ends with <code class="docutils literal notranslate"><span class="pre">.dll</span></code>;
+on web browser, the library suffix is <code class="docutils literal notranslate"><span class="pre">.wasm</span></code>. (see <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a>).</p></li>
+<li><p><strong>model weights</strong>: The model weight is a folder that contains the quantized neural network weights
+of the language models as well as the tokenizer configurations. (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC">Llama-2-7b-chat-hf-q4f16_1-MLC</a>)</p></li>
 <li><p><strong>chat config</strong>: The chat configuration includes settings that allow customization of parameters such as temperature and system prompt.
-The default chat config usually resides in the same directory as model weights.
-A chat config also contains the following two meta-data fields that are used in multi-model support settings.</p>
-<ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">local_id</span></code>, which uniquely identifies the model within an app, and</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">model_lib</span></code>, which specifies which model library to use.</p></li>
-</ul>
-</li>
+The default chat config usually resides in the same directory as model weights. (e.g. see <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf-q4f16_1</span></code>’s
+<a class="reference external" href="https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC/blob/main/mlc-chat-config.json">mlc-chat-config.json</a>)</p></li>
 </ul>
 </section>
 <section id="model-preparation">
@@ -332,7 +328,7 @@ A chat config also contains the following two meta-data fields that are used in 
 <ul class="simple">
 <li><p><a class="reference internal" href="../prebuilt_models.html#model-prebuilts"><span class="std std-ref">Model Prebuilts</span></a> contains models that can be directly used.</p></li>
 <li><p>You can also <a class="reference internal" href="../compilation/compile_models.html"><span class="doc">run model compilation</span></a> for model weight variants for given supported architectures.</p></li>
-<li><p>Finally, we can enhance the overall model definition flow to incorporate new model architectures.</p></li>
+<li><p>Finally, you can incorporate a new model architecture/inference logic following <a class="reference internal" href="../compilation/define_new_models.html"><span class="doc">Define New Models</span></a>.</p></li>
 </ul>
 <p>A default chat config usually comes with the model weight directory. You can further customize
 the system prompt, temperature, and other options by modifying the JSON file.
@@ -343,11 +339,10 @@ Please refer to <a class="reference internal" href="mlc_chat_config.html"><span 
 <h2>Runtime Flow Overview<a class="headerlink" href="#runtime-flow-overview" title="Permalink to this heading">¶</a></h2>
 <p>Once the model weights, model library, and chat configuration are prepared, an MLC chat runtime can consume them as an engine to drive a chat application.
 The diagram below shows a typical workflow for a MLC chat application.</p>
-<a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg" class="align-center" src="https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg" width="90%" /></a>
+<a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/a05d4598bae6eb5a3133652d5cc0323ced3b0e17/images/mlc-llm/tutorials/mlc-llm-flow-slm.svg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/a05d4598bae6eb5a3133652d5cc0323ced3b0e17/images/mlc-llm/tutorials/mlc-llm-flow-slm.svg" class="align-center" src="https://raw.githubusercontent.com/mlc-ai/web-data/a05d4598bae6eb5a3133652d5cc0323ced3b0e17/images/mlc-llm/tutorials/mlc-llm-flow-slm.svg" width="90%" /></a>
 <p>On the right side of the figure, you can see pseudo-code illustrating the structure of an MLC chat API during the execution of a chat app.
-Typically, there is a <code class="docutils literal notranslate"><span class="pre">ChatModule</span></code> that manages the model. The chat app includes a reload function that takes a <code class="docutils literal notranslate"><span class="pre">local_id</span></code>
-as well as an optional chat configuration override, which allows for overriding settings such as the system prompt and temperature.
-The runtime utilizes the <code class="docutils literal notranslate"><span class="pre">local_id</span></code> and <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> to locate the model weights and libraries.</p>
+Typically, there is a <code class="docutils literal notranslate"><span class="pre">ChatModule</span></code> that manages the model. We instantiate the chat app with two files: the model weights (which include an <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>)
+and the model library. We also have an optional chat configuration, which allows for overriding settings such as the system prompt and temperature.</p>
 <p>All MLC runtimes, including iOS, Web, CLI, and others, use these three elements.
 All the runtime can read the same model weight folder. The packaging of the model libraries may vary depending on the runtime.
 For the CLI, the model libraries are stored in a DLL directory.

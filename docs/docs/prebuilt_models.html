@@ -341,18 +341,17 @@
 <p>MLC-LLM is a universal solution for deploying different language models. Any models that can be described in <a class="reference external" href="https://mlc.ai/chapter_graph_optimization/index.html">TVM Relax</a>
 (a general representation for Neural Networks and can be imported from models written in PyTorch) can be recognized by MLC-LLM and thus deployed to different backends with the
 help of <a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a>.</p>
-<p>There are two ways to run a model on MLC-LLM:</p>
+<p>There are two ways to run a model on MLC-LLM (this page focuses on the second one):</p>
 <ol class="arabic simple">
 <li><p>Compile your own models following <a class="reference internal" href="compilation/compile_models.html"><span class="doc">the model compilation page</span></a>.</p></li>
 <li><p>Use off-the-shelf prebuilts models following this current page.</p></li>
 </ol>
-<p>This page focuses on the second option.</p>
 <p>In order to run a specific model on MLC-LLM, you need:</p>
 <p><strong>1. A model library:</strong> a binary file containing the end-to-end functionality to inference a model (e.g. <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf-q4f16_1-cuda.so</span></code>).
 See the full list of all precompiled model libraries <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">here</a>.</p>
 <p><strong>2. Compiled weights:</strong> a folder containing multiple files that store the compiled and quantized weights of a model
 (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC">https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC</a>).  See the full list of all precompiled weights <a class="reference external" href="https://huggingface.co/mlc-ai">here</a>.</p>
-</section>
+<span class="target" id="using-prebuilt-models-cli"></span></section>
 <section id="level-1-supported-model-architectures-the-all-in-one-table">
 <span id="supported-model-architectures"></span><h2><a class="toc-backref" href="#id16" role="doc-backlink">Level 1: Supported Model Architectures (The All-In-One Table)</a><a class="headerlink" href="#level-1-supported-model-architectures-the-all-in-one-table" title="Permalink to this heading">¶</a></h2>
 <p>For each model architecture (e.g. Llama), there are multiple variants (e.g. CodeLlama, WizardLM). The variants share the same code for inference and only differ in their weights. In other words, running CodeLlama and WizardLM can use the same model library file (specified in Level 2 tables), but different precompiled weights (specified in Level 3 tables). Note that we have not provided prebuilt weights for all model variants.</p>

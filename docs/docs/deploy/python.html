@@ -39,7 +39,6 @@
         <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script src="../_static/sphinx_highlight.js"></script>
-        <script src="../_static/tabs.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -176,15 +175,11 @@
 <li class="toctree-l1"><a class="reference internal" href="rest.html">Rest API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cli.html">CLI and C++ API</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Python API</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#id1">Python API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#verify-installation">Verify Installation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#get-started">Get Started</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#tutorial-with-python-notebooks">Tutorial with Python Notebooks</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#configure-mlcchat-in-python">Configure MLCChat in Python</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#raw-text-generation-in-python">Raw Text Generation in Python</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#stream-iterator-in-python">Stream Iterator in Python</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="#verify-installation">Verify Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#run-mlc-models-w-python">Run MLC Models w/ Python</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#configure-mlcchat-in-python">Configure MLCChat in Python</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#raw-text-generation-in-python">Raw Text Generation in Python</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#stream-iterator-in-python">Stream Iterator in Python</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#api-reference">API Reference</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#mlc_chat.ChatModule"><code class="docutils literal notranslate"><span class="pre">ChatModule</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_chat.ChatModule.__init__"><code class="docutils literal notranslate"><span class="pre">ChatModule.__init__()</span></code></a></li>
@@ -200,7 +195,6 @@
 <li class="toctree-l3"><a class="reference internal" href="#mlc_chat.GenerationConfig"><code class="docutils literal notranslate"><span class="pre">GenerationConfig</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#gradio-frontend-deprecated">Gradio Frontend (Deprecated)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="ios.html">iOS App and Swift API</a></li>
@@ -320,115 +314,85 @@
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#id1" id="id2">Python API</a></p>
-<ul>
-<li><p><a class="reference internal" href="#verify-installation" id="id3">Verify Installation</a></p></li>
-<li><p><a class="reference internal" href="#get-started" id="id4">Get Started</a></p></li>
-<li><p><a class="reference internal" href="#tutorial-with-python-notebooks" id="id5">Tutorial with Python Notebooks</a></p></li>
-<li><p><a class="reference internal" href="#configure-mlcchat-in-python" id="id6">Configure MLCChat in Python</a></p></li>
-<li><p><a class="reference internal" href="#raw-text-generation-in-python" id="id7">Raw Text Generation in Python</a></p></li>
-<li><p><a class="reference internal" href="#stream-iterator-in-python" id="id8">Stream Iterator in Python</a></p></li>
-</ul>
-</li>
-<li><p><a class="reference internal" href="#api-reference" id="id9">API Reference</a></p></li>
-<li><p><a class="reference internal" href="#gradio-frontend-deprecated" id="id10">Gradio Frontend (Deprecated)</a></p></li>
+<li><p><a class="reference internal" href="#verify-installation" id="id1">Verify Installation</a></p></li>
+<li><p><a class="reference internal" href="#run-mlc-models-w-python" id="id2">Run MLC Models w/ Python</a></p></li>
+<li><p><a class="reference internal" href="#configure-mlcchat-in-python" id="id3">Configure MLCChat in Python</a></p></li>
+<li><p><a class="reference internal" href="#raw-text-generation-in-python" id="id4">Raw Text Generation in Python</a></p></li>
+<li><p><a class="reference internal" href="#stream-iterator-in-python" id="id5">Stream Iterator in Python</a></p></li>
+<li><p><a class="reference internal" href="#api-reference" id="id6">API Reference</a></p></li>
 </ul>
 </nav>
-<p>We expose Python API for the MLC-Chat for easy integration into other Python projects.
-We also provide a web demo based on <a class="reference external" href="https://gradio.app/">gradio</a> as an example of using Python API to interact with MLC-Chat.</p>
-<section id="id1">
-<h2><a class="toc-backref" href="#id2" role="doc-backlink">Python API</a><a class="headerlink" href="#id1" title="Permalink to this heading">¶</a></h2>
-<p>The Python API is a part of the MLC-Chat package, which we have prepared pre-built pip wheels via the <a class="reference internal" href="../install/mlc_llm.html"><span class="doc">installation page</span></a>.</p>
+<p>We expose Python API for the MLC-Chat for easy integration into other Python projects.</p>
+<p>The Python API is a part of the MLC-Chat package, which we have prepared pre-built pip wheels via
+the <a class="reference internal" href="../install/mlc_llm.html"><span class="doc">installation page</span></a>.</p>
+<p>Instead of following this page, you could also checkout the following tutorials in
+Python notebook (all runnable in Colab):</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb">Getting Started with MLC-LLM</a>:
+how to quickly download prebuilt models and chat with it</p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_raw_text_generation.ipynb">Raw Text Generation with MLC-LLM</a>:
+how to perform raw text generation with MLC-LLM in Python</p></li>
+</ul>
 <section id="verify-installation">
-<h3><a class="toc-backref" href="#id3" role="doc-backlink">Verify Installation</a><a class="headerlink" href="#verify-installation" title="Permalink to this heading">¶</a></h3>
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Verify Installation</a><a class="headerlink" href="#verify-installation" title="Permalink to this heading">¶</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from mlc_chat import ChatModule; print(ChatModule)&quot;</span>
 </pre></div>
 </div>
 <p>You are expected to see the information about the <a class="reference internal" href="#mlc_chat.ChatModule" title="mlc_chat.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_chat.ChatModule</span></code></a> class.</p>
-<p>If the prebuilt is unavailable on your platform, or you would like to build a runtime
-that supports other GPU runtime than the prebuilt version, please refer to <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a>.</p>
+<p>If the command above results in error, follow <a class="reference internal" href="../install/mlc_llm.html#install-mlc-packages"><span class="std std-ref">Install MLC LLM Python Package</span></a> (either install the prebuilt pip wheels
+or <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a>).</p>
 </section>
-<section id="get-started">
-<h3><a class="toc-backref" href="#id4" role="doc-backlink">Get Started</a><a class="headerlink" href="#get-started" title="Permalink to this heading">¶</a></h3>
-<p>After confirming that the package <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code> is installed, we can follow the steps
-below to chat with an MLC-compiled model in Python.</p>
-<p>First, let us make sure that the MLC-compiled <code class="docutils literal notranslate"><span class="pre">model</span></code> we want to chat with already exists.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p><code class="docutils literal notranslate"><span class="pre">model</span></code> has the format <code class="docutils literal notranslate"><span class="pre">f&quot;{model_name}-{quantize_mode}&quot;</span></code>. For instance, if
-you used <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code> as the <code class="docutils literal notranslate"><span class="pre">quantize_mode</span></code> to compile <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf</span></code>, you
-would have <code class="docutils literal notranslate"><span class="pre">model</span></code> being <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf-q4f16_1</span></code>.</p>
-</div>
-<p>If you do not have the MLC-compiled <code class="docutils literal notranslate"><span class="pre">model</span></code> ready:</p>
-<ul class="simple">
-<li><p>Checkout <a class="reference internal" href="../index.html#get-started"><span class="std std-ref">Try out MLC Chat</span></a> to download prebuilt models for simplicity, or</p></li>
-<li><p>Checkout <a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Models via MLC</span></a> to compile models with <code class="docutils literal notranslate"><span class="pre">mlc_llm</span></code> (another package) yourself</p></li>
-</ul>
-<div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Check prebuilt models</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Check compiled models</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p>If you downloaded prebuilt models from MLC LLM, by default:</p>
-<ul class="simple">
-<li><p>Model lib should be placed at <code class="docutils literal notranslate"><span class="pre">./dist/prebuilt/lib/$(model)-$(arch).$(suffix)</span></code>.</p></li>
-<li><p>Model weights and chat config are located under <code class="docutils literal notranslate"><span class="pre">./dist/prebuilt/mlc-chat-$(model)/</span></code>.</p></li>
-</ul>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Please make sure that you have the same directory structure as above, because Python API
-relies on it to automatically search for model lib and weights. If you would like to directly
-provide a full model lib path to override the auto-search, you can specify <code class="docutils literal notranslate"><span class="pre">ChatModule.model_lib_path</span></code></p>
-</div>
-<details class="summary-example">
-<summary>Example</summary><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/prebuilt/lib
-Llama-2-7b-chat-hf-q4f16_1-metal.so<span class="w">  </span><span class="c1"># Format: $(model)-$(arch).$(suffix)</span>
-Llama-2-7b-chat-hf-q4f16_1-vulkan.so
-...
-&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1<span class="w">  </span><span class="c1"># Format: ./dist/prebuilt/mlc-chat-$(model)/</span>
-<span class="c1"># chat config:</span>
-mlc-chat-config.json
-<span class="c1"># model weights:</span>
-ndarray-cache.json
-params_shard_*.bin
-...
+<section id="run-mlc-models-w-python">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Run MLC Models w/ Python</a><a class="headerlink" href="#run-mlc-models-w-python" title="Permalink to this heading">¶</a></h2>
+<p>To run a model with MLC LLM in any platform/runtime, you need:</p>
+<ol class="arabic simple">
+<li><p><strong>Model weights</strong> converted to MLC format (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-MLC/tree/main">RedPajama-INCITE-Chat-3B-v1-MLC</a>.)</p></li>
+<li><p><strong>Model library</strong> that comprises the inference logic (see repo <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a>).</p></li>
+</ol>
+<p>There are two ways to obtain the model weights and libraries:</p>
+<ol class="arabic simple">
+<li><p>Compile your own model weights and libraries following <a class="reference internal" href="../compilation/compile_models.html"><span class="doc">the model compilation page</span></a>.</p></li>
+<li><p>Use off-the-shelf <a class="reference external" href="https://huggingface.co/mlc-ai">prebuilt models weights</a> and
+<a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">prebuilt model libraries</a> (see <a class="reference internal" href="../prebuilt_models.html#model-prebuilts"><span class="std std-ref">Model Prebuilts</span></a> for details).</p></li>
+</ol>
+<p>We use off-the-shelf prebuilt models in this page. However, same steps apply if you want to run
+the models you compiled yourself.</p>
+<p><strong>Step 1: Download prebuilt model weights and libraries</strong></p>
+<p>Skip this step if you have already obtained the model weights and libraries.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download pre-conveted weights</span>
+git<span class="w"> </span>lfs<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>dist/
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC<span class="w"> </span><span class="se">\</span>
+<span class="w">                                   </span>dist/Llama-2-7b-chat-hf-q4f16_1-MLC
+
+<span class="c1"># Download pre-compiled model library</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt_libs
 </pre></div>
 </div>
-</details></div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p>If you have compiled models using MLC LLM, by default:</p>
-<ul class="simple">
-<li><p>Model libraries should be placed at <code class="docutils literal notranslate"><span class="pre">./dist/$(model)/$(model)-$(arch).$(suffix)</span></code>.</p></li>
-<li><p>Model weights and chat config are located under <code class="docutils literal notranslate"><span class="pre">./dist/$(model)/params/</span></code>.</p></li>
-</ul>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Please make sure that you have the same directory structure as above, because Python API
-relies on it to automatically search for model lib and weights. If you would like to directly
-provide a full model lib path to override the auto-search, you can specify <code class="docutils literal notranslate"><span class="pre">ChatModule.model_lib_path</span></code></p>
-</div>
-<details class="summary-example">
-<summary>Example</summary><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/Llama-2-7b-chat-hf-q4f16_1/<span class="w"> </span><span class="c1"># Format: ./dist/$(model)/</span>
-Llama-2-7b-chat-hf-q4f16_1-metal.so<span class="w">  </span><span class="c1"># Format: $(model)-$(arch).$(suffix)</span>
-...
-&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/Llama-2-7b-chat-hf-q4f16_1/params<span class="w">  </span><span class="c1"># Format: ``./dist/$(model)/params/``</span>
-<span class="c1"># chat config:</span>
-mlc-chat-config.json
-<span class="c1"># model weights:</span>
-ndarray-cache.json
-params_shard_*.bin
-...
-</pre></div>
-</div>
-</details></div></div>
-<p>After making sure that the files exist, use the conda environment you used
-to install <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code>, from the <code class="docutils literal notranslate"><span class="pre">mlc-llm</span></code> directory, you can create a Python
+<p><strong>Step 2: Run the model in Python</strong></p>
+<p>Use the conda environment you used to install <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code>.
+From the <code class="docutils literal notranslate"><span class="pre">mlc-llm</span></code> directory, you can create a Python
 file <code class="docutils literal notranslate"><span class="pre">sample_mlc_chat.py</span></code> and paste the following lines:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_chat</span> <span class="kn">import</span> <span class="n">ChatModule</span>
 <span class="kn">from</span> <span class="nn">mlc_chat.callback</span> <span class="kn">import</span> <span class="n">StreamToStdout</span>
 
-<span class="c1"># From the mlc-llm directory, run</span>
-<span class="c1"># $ python sample_mlc_chat.py</span>
-
 <span class="c1"># Create a ChatModule instance</span>
-<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f16_1&quot;</span><span class="p">)</span>
-<span class="c1"># You can change to other models that you downloaded, for example,</span>
-<span class="c1"># cm = ChatModule(model=&quot;Llama-2-13b-chat-hf-q4f16_1&quot;)  # Llama2 13b model</span>
+<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span>
+   <span class="n">model</span><span class="o">=</span><span class="s2">&quot;dist/Llama-2-7b-chat-hf-q4f16_1-MLC&quot;</span><span class="p">,</span>
+   <span class="n">model_lib_path</span><span class="o">=</span><span class="s2">&quot;dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so&quot;</span>
+   <span class="c1"># Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so</span>
+   <span class="c1"># Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so</span>
+   <span class="c1"># Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}</span>
+<span class="p">)</span>
 
+<span class="c1"># You can change to other models that you downloaded</span>
+<span class="c1"># Model variants of the same architecture can reuse the same model library</span>
+<span class="c1"># Here WizardMath reuses Mistral&#39;s model library</span>
+<span class="c1"># cm = ChatModule(</span>
+<span class="c1">#     model=&quot;dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC&quot;,  # or &quot;dist/WizardMath-7B-V1.1-q4f16_1-MLC&quot;</span>
+<span class="c1">#     model_lib_path=&quot;dist/prebuilt_libs/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-cuda.so&quot;</span>
+<span class="c1"># )</span>
+
+<span class="c1"># Generate a response for a given prompt</span>
 <span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">,</span>
    <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
@@ -450,7 +414,6 @@ file <code class="docutils literal notranslate"><span class="pre">sample_mlc_cha
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>sample_mlc_chat.py
 </pre></div>
 </div>
-<p>You can also checkout the <a class="reference internal" href="../prebuilt_models.html"><span class="doc">Model Prebuilts</span></a> page to run other models.</p>
 <details class="summary-see-output">
 <summary>See output</summary><div class="highlight-default notranslate"><div class="highlight"><pre><span></span>Using model folder: ./dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
 Using mlc chat config: ./dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1/mlc-chat-config.json
@@ -476,30 +439,17 @@ I listed out 5 possible ways to approach the question of the meaning of life.
 </details><div class="line-block">
 <div class="line"><br /></div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>You could also specify the address of <code class="docutils literal notranslate"><span class="pre">model</span></code> and <code class="docutils literal notranslate"><span class="pre">model_lib_path</span></code> explicitly. If
-you only specify <code class="docutils literal notranslate"><span class="pre">model</span></code> as <code class="docutils literal notranslate"><span class="pre">model_name</span></code> and <code class="docutils literal notranslate"><span class="pre">quantize_mode</span></code>, we will
-do a search for you. See more in the documentation of <a class="reference internal" href="#mlc_chat.ChatModule.__init__" title="mlc_chat.ChatModule.__init__"><code class="xref py py-meth docutils literal notranslate"><span class="pre">mlc_chat.ChatModule.__init__()</span></code></a>.</p>
-</div>
-</section>
-<section id="tutorial-with-python-notebooks">
-<h3><a class="toc-backref" href="#id5" role="doc-backlink">Tutorial with Python Notebooks</a><a class="headerlink" href="#tutorial-with-python-notebooks" title="Permalink to this heading">¶</a></h3>
-<p>Now that you have tried out how to chat with the model in Python, we would
-recommend you to checkout the following tutorials in Python notebook (all runnable in Colab):</p>
-<ul class="simple">
-<li><p><a class="reference external" href="https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb">Getting Started with MLC-LLM</a>:
-how to quickly download prebuilt models and chat with it</p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_compile_llama2_with_mlc_llm.ipynb">Compiling Llama-2 with MLC-LLM</a>:
-how to use Python APIs to compile models with the MLC-LLM workflow</p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_extensions_to_more_model_variants.ipynb">Extensions to More Model Variants</a>:
-how to use Python APIs to compile and chat with any model variant you’d like</p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_raw_text_generation.ipynb">Raw Text Generation with MLC-LLM</a>:
-how to perform raw text generation with MLC-LLM in Python</p></li>
-</ul>
+<p><strong>Running other models</strong></p>
+<p>Checkout the <a class="reference internal" href="../prebuilt_models.html"><span class="doc">Model Prebuilts</span></a> page to run other pre-compiled models.</p>
+<p>For models other than the prebuilt ones we provided:</p>
+<ol class="arabic simple">
+<li><p>If the model is a variant to an existing model library (e.g. <code class="docutils literal notranslate"><span class="pre">WizardMathV1.1</span></code> and <code class="docutils literal notranslate"><span class="pre">OpenHermes</span></code> are variants of <code class="docutils literal notranslate"><span class="pre">Mistral</span></code> as
+shown in the code snippet), follow <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a> to convert the weights and reuse existing model libraries.</p></li>
+<li><p>Otherwise, follow <a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a> to compile both the model library and weights.</p></li>
+</ol>
 </section>
 <section id="configure-mlcchat-in-python">
-<h3><a class="toc-backref" href="#id6" role="doc-backlink">Configure MLCChat in Python</a><a class="headerlink" href="#configure-mlcchat-in-python" title="Permalink to this heading">¶</a></h3>
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Configure MLCChat in Python</a><a class="headerlink" href="#configure-mlcchat-in-python" title="Permalink to this heading">¶</a></h2>
 <p>If you have checked out <a class="reference internal" href="../get_started/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Configure MLCChat in JSON</span></a>, you would know
 that you could configure MLCChat through various fields such as <code class="docutils literal notranslate"><span class="pre">temperature</span></code>. We provide the
 option of overriding any field you’d like in Python, so that you do not need to manually edit
@@ -519,7 +469,14 @@ provide two dataclasses <a class="reference internal" href="#mlc_chat.ChatConfig
 <span class="n">chat_config</span> <span class="o">=</span> <span class="n">ChatConfig</span><span class="p">(</span><span class="n">max_gen_len</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span> <span class="n">conv_config</span><span class="o">=</span><span class="n">conv_config</span><span class="p">)</span>
 
 <span class="c1"># Using the `chat_config` we created, instantiate a `ChatModule`</span>
-<span class="n">cm</span> <span class="o">=</span> <span class="n">mlc_chat</span><span class="o">.</span><span class="n">ChatModule</span><span class="p">(</span><span class="s1">&#39;Llama-2-7b-chat-hf-q4f16_1&#39;</span><span class="p">,</span> <span class="n">chat_config</span><span class="o">=</span><span class="n">chat_config</span><span class="p">)</span>
+<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span>
+   <span class="n">chat_config</span><span class="o">=</span><span class="n">chat_config</span><span class="p">,</span>
+   <span class="n">model</span><span class="o">=</span><span class="s2">&quot;dist/Llama-2-7b-chat-hf-q4f16_1-MLC&quot;</span><span class="p">,</span>
+   <span class="n">model_lib_path</span><span class="o">=</span><span class="s2">&quot;dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so&quot;</span>
+   <span class="c1"># Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so</span>
+   <span class="c1"># Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so</span>
+   <span class="c1"># Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}</span>
+<span class="p">)</span>
 
 <span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is one plus one?&quot;</span><span class="p">,</span>
@@ -564,7 +521,7 @@ specified by the field <code class="docutils literal notranslate"><span class="p
 </div>
 </section>
 <section id="raw-text-generation-in-python">
-<h3><a class="toc-backref" href="#id7" role="doc-backlink">Raw Text Generation in Python</a><a class="headerlink" href="#raw-text-generation-in-python" title="Permalink to this heading">¶</a></h3>
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Raw Text Generation in Python</a><a class="headerlink" href="#raw-text-generation-in-python" title="Permalink to this heading">¶</a></h2>
 <p>Raw text generation allows the user to have more flexibility over his prompts,
 without being forced to create a new conversational template, making prompt customization easier.
 This serves other demands for APIs to handle LLM generation without the usual system prompts and other items.</p>
@@ -582,8 +539,14 @@ This serves other demands for APIs to handle LLM generation without the usual sy
 <span class="n">chat_config</span> <span class="o">=</span> <span class="n">ChatConfig</span><span class="p">(</span><span class="n">conv_config</span><span class="o">=</span><span class="n">conv_config</span><span class="p">,</span> <span class="n">conv_template</span><span class="o">=</span><span class="s2">&quot;LM&quot;</span><span class="p">)</span>
 
 <span class="c1"># Using the `chat_config` we created, instantiate a `ChatModule`</span>
-<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span><span class="s1">&#39;Llama-2-7b-chat-hf-q4f16_1&#39;</span><span class="p">,</span> <span class="n">chat_config</span><span class="o">=</span><span class="n">chat_config</span><span class="p">)</span>
-
+<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span>
+   <span class="n">chat_config</span><span class="o">=</span><span class="n">chat_config</span><span class="p">,</span>
+   <span class="n">model</span><span class="o">=</span><span class="s2">&quot;dist/Llama-2-7b-chat-hf-q4f16_1-MLC&quot;</span><span class="p">,</span>
+   <span class="n">model_lib_path</span><span class="o">=</span><span class="s2">&quot;dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so&quot;</span>
+   <span class="c1"># Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so</span>
+   <span class="c1"># Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so</span>
+   <span class="c1"># Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}</span>
+<span class="p">)</span>
 <span class="c1"># To make the model follow conversations a chat structure should be provided</span>
 <span class="c1"># This allows users to build their own prompts without building a new template</span>
 <span class="n">system_prompt</span> <span class="o">=</span> <span class="s2">&quot;&lt;&lt;SYS&gt;&gt;</span><span class="se">\n</span><span class="s2">You are a helpful, respectful and honest assistant.</span><span class="se">\n</span><span class="s2">&lt;&lt;/SYS&gt;&gt;</span><span class="se">\n\n</span><span class="s2">&quot;</span>
@@ -612,7 +575,7 @@ unless explicitly given inside the prompt.</p>
 </div>
 </section>
 <section id="stream-iterator-in-python">
-<h3><a class="toc-backref" href="#id8" role="doc-backlink">Stream Iterator in Python</a><a class="headerlink" href="#stream-iterator-in-python" title="Permalink to this heading">¶</a></h3>
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Stream Iterator in Python</a><a class="headerlink" href="#stream-iterator-in-python" title="Permalink to this heading">¶</a></h2>
 <p>Stream Iterator gives users an option to stream generated text to the function that the API is called from,
 instead of streaming to stdout, which could be a necessity when building services on top of MLC Chat.</p>
 <p>We provide an example below.</p>
@@ -620,7 +583,13 @@ instead of streaming to stdout, which could be a necessity when building service
 <span class="kn">from</span> <span class="nn">mlc_chat.callback</span> <span class="kn">import</span> <span class="n">StreamIterator</span>
 
 <span class="c1"># Create a ChatModule instance</span>
-<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f16_1&quot;</span><span class="p">)</span>
+<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span>
+   <span class="n">model</span><span class="o">=</span><span class="s2">&quot;dist/Llama-2-7b-chat-hf-q4f16_1-MLC&quot;</span><span class="p">,</span>
+   <span class="n">model_lib_path</span><span class="o">=</span><span class="s2">&quot;dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so&quot;</span>
+   <span class="c1"># Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so</span>
+   <span class="c1"># Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so</span>
+   <span class="c1"># Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}</span>
+<span class="p">)</span>
 
 <span class="c1"># Stream to an Iterator</span>
 <span class="kn">from</span> <span class="nn">threading</span> <span class="kn">import</span> <span class="n">Thread</span>
@@ -640,9 +609,8 @@ instead of streaming to stdout, which could be a necessity when building service
 </pre></div>
 </div>
 </section>
-</section>
 <section id="api-reference">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">API Reference</a><a class="headerlink" href="#api-reference" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">API Reference</a><a class="headerlink" href="#api-reference" title="Permalink to this heading">¶</a></h2>
 <p>User can initiate a chat module by creating <a class="reference internal" href="#mlc_chat.ChatModule" title="mlc_chat.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_chat.ChatModule</span></code></a> class, which is a wrapper of the MLC-Chat model.
 The <a class="reference internal" href="#mlc_chat.ChatModule" title="mlc_chat.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_chat.ChatModule</span></code></a> class provides the following methods:</p>
 <dl class="py class">
@@ -1003,34 +971,6 @@ Note that this parameter does not override the default stop string of the model.
 </dl>
 </dd></dl>
 
-</section>
-<section id="gradio-frontend-deprecated">
-<h2><a class="toc-backref" href="#id10" role="doc-backlink">Gradio Frontend (Deprecated)</a><a class="headerlink" href="#gradio-frontend-deprecated" title="Permalink to this heading">¶</a></h2>
-<p>The gradio frontend provides a web interface for the MLC-Chat model, which allows users to interact with the model in a more user-friendly way and switch between different models to compare performance.
-To use gradio frontend, you need to install gradio first:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>gradio
-</pre></div>
-</div>
-<p>Then you can run the following code to start the interface:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>mlc_chat.gradio<span class="w"> </span>--artifact-path<span class="w"> </span>ARTIFACT_PATH<span class="w"> </span><span class="o">[</span>--device<span class="w"> </span>DEVICE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT_NUMBER<span class="o">]</span><span class="w"> </span><span class="o">[</span>--share<span class="o">]</span>
-</pre></div>
-</div>
-<dl class="option-list">
-<dt><kbd><span class="option">--artifact-path</span></kbd></dt>
-<dd><p>Please provide a path containing all the model folders you wish to use. The default value is <code class="docutils literal notranslate"><span class="pre">dist</span></code>.</p>
-</dd>
-<dt><kbd><span class="option">--device</span></kbd></dt>
-<dd><p>The description of the device to run on. User should provide a string in the form of ‘device_name:device_id’ or ‘device_name’, where ‘device_name’ is one of ‘cuda’, ‘metal’, ‘vulkan’, ‘rocm’, ‘opencl’, ‘auto’ (automatically detect the local device), and ‘device_id’ is the device id to run on. If no ‘device_id’ is provided, it will be set to 0. The default value is <code class="docutils literal notranslate"><span class="pre">auto</span></code>.</p>
-</dd>
-<dt><kbd><span class="option">--port</span></kbd></dt>
-<dd><p>The port number to run gradio. The default value is <code class="docutils literal notranslate"><span class="pre">7860</span></code>.</p>
-</dd>
-<dt><kbd><span class="option">--share</span></kbd></dt>
-<dd><p>Whether to create a publicly shareable link for the interface.</p>
-</dd>
-</dl>
-<p>After setting it up properly, you are expected to see the following interface in your browser:</p>
-<a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/gradio-interface.png"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/gradio-interface.png" class="align-center" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/gradio-interface.png" style="width: 100%;" /></a>
 </section>
 </section>
 

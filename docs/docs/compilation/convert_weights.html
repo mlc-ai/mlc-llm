@@ -185,6 +185,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#clone-from-hf-and-convert-weight">1. Clone from HF and convert_weight</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#generate-mlc-chat-config">2. Generate MLC Chat Config</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#optional-3-upload-weights-to-hf">(Optional) 3. Upload weights to HF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#download-the-distributed-models-and-run-in-python">Download the Distributed Models and Run in Python</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Model Libraries</a></li>
@@ -297,8 +298,8 @@
 <span id="id1"></span><h1>Convert Weights via MLC<a class="headerlink" href="#convert-weights-via-mlc" title="Permalink to this heading">¶</a></h1>
 <p>To run a model with MLC LLM in any platform, you need:</p>
 <ol class="arabic simple">
-<li><p>Model weights converted to MLC format (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-MLC/tree/main">RedPajama-INCITE-Chat-3B-v1-MLC</a>.)</p></li>
-<li><p>Model library that comprises the inference logic (see repo <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a>).</p></li>
+<li><p><strong>Model weights</strong> converted to MLC format (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-MLC/tree/main">RedPajama-INCITE-Chat-3B-v1-MLC</a>.)</p></li>
+<li><p><strong>Model library</strong> that comprises the inference logic (see repo <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a>).</p></li>
 </ol>
 <p>In many cases, we only need to convert weights and reuse existing model library.
 This page demonstrates adding a model variant with <code class="docutils literal notranslate"><span class="pre">mlc_chat</span> <span class="pre">convert_weight</span></code>, which
@@ -326,6 +327,7 @@ familiarized with the high-level terminologies.</p>
 <li><p><a class="reference internal" href="#clone-from-hf-and-convert-weight" id="id4">1. Clone from HF and convert_weight</a></p></li>
 <li><p><a class="reference internal" href="#generate-mlc-chat-config" id="id5">2. Generate MLC Chat Config</a></p></li>
 <li><p><a class="reference internal" href="#optional-3-upload-weights-to-hf" id="id6">(Optional) 3. Upload weights to HF</a></p></li>
+<li><p><a class="reference internal" href="#download-the-distributed-models-and-run-in-python" id="id7">Download the Distributed Models and Run in Python</a></p></li>
 </ul>
 </nav>
 <section id="verify-installation">
@@ -419,6 +421,33 @@ git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </
 </div>
 <p>This would result in something like <a class="reference external" href="https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/tree/main">RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC</a>, but
 for <strong>Instruct</strong> instead of <strong>Chat</strong>.</p>
+</section>
+<section id="download-the-distributed-models-and-run-in-python">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Download the Distributed Models and Run in Python</a><a class="headerlink" href="#download-the-distributed-models-and-run-in-python" title="Permalink to this heading">¶</a></h2>
+<p>Running the distributed models are similar to running prebuilt model weights and libraries in <a class="reference internal" href="../prebuilt_models.html#model-prebuilts"><span class="std std-ref">Model Prebuilts</span></a>.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Clone prebuilt libs so we can reuse them:</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>dist/
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt_libs
+
+<span class="c1"># Or download the model library (only needed if we do not reuse the model lib):</span>
+<span class="nb">cd</span><span class="w"> </span>dist/prebuilt_libs
+wget<span class="w"> </span>url-to-my-model-lib
+<span class="nb">cd</span><span class="w"> </span>../..
+
+<span class="c1"># Download the model weights</span>
+<span class="nb">cd</span><span class="w"> </span>dist
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo<span class="w"> </span>RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC
+<span class="nb">cd</span><span class="w"> </span>..
+
+<span class="c1"># Run the model in Python; note that we reuse `-Chat` model library</span>
+python
+&gt;&gt;&gt;<span class="w"> </span>from<span class="w"> </span>mlc_chat<span class="w"> </span>import<span class="w"> </span>ChatModule
+&gt;&gt;&gt;<span class="w"> </span><span class="nv">cm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>ChatModule<span class="o">(</span><span class="nv">model</span><span class="o">=</span><span class="s2">&quot;dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC&quot;</span>,<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="nv">model_lib_path</span><span class="o">=</span><span class="s2">&quot;dist/prebuilt_libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so&quot;</span><span class="o">)</span><span class="w">  </span><span class="c1"># Adjust based on backend</span>
+&gt;&gt;&gt;<span class="w"> </span>cm.generate<span class="o">(</span><span class="s2">&quot;hi&quot;</span><span class="o">)</span>
+<span class="s1">&#39;Hi! How can I assist you today?&#39;</span>
+</pre></div>
+</div>
 </section>
 </section>
 
