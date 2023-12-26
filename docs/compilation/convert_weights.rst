@@ -5,9 +5,9 @@ Convert Weights via MLC
 
 To run a model with MLC LLM in any platform, you need:
 
-1. Model weights converted to MLC format (e.g. `RedPajama-INCITE-Chat-3B-v1-MLC 
+1. **Model weights** converted to MLC format (e.g. `RedPajama-INCITE-Chat-3B-v1-MLC 
    <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-MLC/tree/main>`_.)
-2. Model library that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__).
+2. **Model library** that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__).
 
 In many cases, we only need to convert weights and reuse existing model library. 
 This page demonstrates adding a model variant with ``mlc_chat convert_weight``, which
@@ -150,30 +150,35 @@ This would result in something like `RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
 <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/tree/main>`_, but
 for **Instruct** instead of **Chat**.
 
-..  REPOPULATE BELOW AFTER WE UPLOADING PREBUILT WEIGHTS AND UPDATING RUNTIME
-    ---------------------------------
-    Good job, you have successfully distributed the model you compiled.
-    Next, we will talk about how we can consume the model weights in applications.
+---------------------------------
+Good job, you have successfully distributed the model you compiled.
+Next, we will talk about how we can consume the model weights in applications.
 
-    Download the Distributed Models and Run in CLI
-    ----------------------------------------------
+Download the Distributed Models and Run in Python
+-------------------------------------------------
 
-    The steps needed to run models in CLI are similar to the steps to download the prebuilt model weights and libraries.
+Running the distributed models are similar to running prebuilt model weights and libraries in :ref:`Model Prebuilts`.
 
-    .. code:: shell
+.. code:: shell
 
-        # Clone prebuilt libs so we can reuse them:
-        mkdir -p dist/prebuilt
-        git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
+    # Clone prebuilt libs so we can reuse them:
+    mkdir -p dist/
+    git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
 
-        # Or download the model library (only needed if we do not reuse the model lib):
-        cd dist/prebuilt/lib
-        wget url-to-my-model-lib
-        cd ../../..
+    # Or download the model library (only needed if we do not reuse the model lib):
+    cd dist/prebuilt_libs
+    wget url-to-my-model-lib
+    cd ../..
 
-        # Download the model weights
-        cd dist/prebuilt
-        git clone https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo RedPajama-INCITE-Instruct-3B-v1-q4f16_1
-        cd ../..
-        # Run CLI
-        mlc_chat_cli --model RedPajama-INCITE-Instruct-3B-v1-q4f16_1
+    # Download the model weights
+    cd dist
+    git clone https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC
+    cd ..
+
+    # Run the model in Python; note that we reuse `-Chat` model library
+    python
+    >>> from mlc_chat import ChatModule
+    >>> cm = ChatModule(model="dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC", \
+        model_lib_path="dist/prebuilt_libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so")  # Adjust based on backend
+    >>> cm.generate("hi")
+    'Hi! How can I assist you today?'
