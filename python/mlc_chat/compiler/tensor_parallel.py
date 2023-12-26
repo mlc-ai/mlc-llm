@@ -1,4 +1,5 @@
 """Sharding operators for tensor parallelism."""
+# pylint: disable=invalid-name
 import dataclasses
 from typing import Any, Dict, List
 
