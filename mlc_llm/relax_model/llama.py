@@ -385,10 +385,6 @@ class LlamaAttentionBase(nn.Module):
 class LlamaPagedAttention(LlamaAttentionBase):
     def __init__(self, config: LlamaConfig):
         super().__init__(config)
-        ctx_mod = relax.BlockBuilder.current().get()
-        self.kv_cache_transpose_append = ctx_mod.get_global_var("kv_cache_transpose_append")
-        self.attention_compute_prefill = ctx_mod.get_global_var("attention_prefill")
-        self.attention_compute_decode = ctx_mod.get_global_var("attention_decode")
 
     def attention_fwd(
         self,
@@ -403,32 +399,16 @@ class LlamaPagedAttention(LlamaAttentionBase):
         assert "layer_id" in kwargs and isinstance(kwargs["layer_id"], int)
         layer_id = kwargs["layer_id"]
 
-        f_kv_cache_append = relax.extern("vm.builtin.paged_attention_kv_cache_append")
-        past_key_values = nn.emit(
-            relax.call_pure_packed(
-                f_kv_cache_append,
-                past_key_values,
-                self.kv_cache_transpose_append,
-                key_states,
-                value_states,
-                relax.PrimValue(layer_id),
-                sinfo_args=relax.ObjectStructInfo(),
-            )
-        )
-
         f_kv_cache_attention = relax.extern("vm.builtin.paged_attention_kv_cache_attention")
-        is_decode = query_states.struct_info.shape[1] == 1
         attn_output = nn.emit(
             relax.call_dps_packed(
                 f_kv_cache_attention,
                 [
                     past_key_values,
-                    self.attention_compute_decode if is_decode else self.attention_compute_prefill,
-                    query_states,
                     relax.PrimValue(layer_id),
-                    True,
-                    1.0,
-                    self.position_embedding_base,
+                    query_states,
+                    key_states,
+                    value_states,
                 ],
                 out_sinfo=relax.TensorStructInfo(
                     ((batch_size, q_len, self.num_query_heads, self.head_dim)),
@@ -1079,7 +1059,8 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
 
 def create_paged_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     head_dim = config.hidden_size // config.num_attention_heads
-    num_key_value_heads = config.get_num_key_value_heads() // config.num_shards
+    num_qo_heads = config.num_attention_heads // config.num_shards
+    num_kv_heads = config.get_num_key_value_heads() // config.num_shards
 
     page_size = tir.SizeVar("page_size", "int64")
     total_seq_len = tir.SizeVar("total_seq_len", "int64")
@@ -1099,10 +1080,25 @@ def create_paged_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> N
                     args=[
                         cache_config,
                         relax.PrimValue(config.num_hidden_layers),
-                        relax.PrimValue(num_key_value_heads),
+                        relax.PrimValue(num_qo_heads),
+                        relax.PrimValue(num_kv_heads),
                         relax.PrimValue(head_dim),
+                        relax.PrimValue(1),
+                        relax.PrimValue(config.position_embedding_base),
                         zeros,
-                        relax.PrimValue(0),
+                        bb.get().get_global_var("kv_cache_transpose_append"),
+                        bb.get().get_global_var("attention_prefill"),
+                        bb.get().get_global_var("attention_decode"),
+                        bb.get().get_global_var("attention_prefill_ragged"),
+                        bb.get().get_global_var("attention_prefill_ragged_begin_forward"),
+                        bb.get().get_global_var("attention_prefill_ragged_end_forward"),
+                        bb.get().get_global_var("attention_prefill_begin_forward"),
+                        bb.get().get_global_var("attention_prefill_end_forward"),
+                        bb.get().get_global_var("attention_decode_begin_forward"),
+                        bb.get().get_global_var("attention_decode_end_forward"),
+                        bb.get().get_global_var("attention_rope_in_place"),
+                        bb.get().get_global_var("attention_merge_state"),
+                        bb.get().get_global_var("kv_cache_debug_get_kv"),
                     ],
                     sinfo_args=[relax.ObjectStructInfo()],
                 )
@@ -1143,68 +1139,115 @@ def create_softmax_func_for_batching(bb: relax.BlockBuilder, config: LlamaConfig
 def emit_paged_kv_cache_op(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
     from tvm.script import tir as T
 
-    num_layers = config.num_hidden_layers
-    num_heads = config.num_key_value_heads // config.num_shards
+    num_kv_heads = config.get_num_key_value_heads() // config.num_shards
     head_dim = config.hidden_size // config.num_attention_heads
 
-    # fmt: off
     @T.prim_func
     def kv_cache_transpose_append(
         var_pages: T.handle,
         var_k_data: T.handle,
         var_v_data: T.handle,
-        var_page_table_indptr: T.handle,
-        var_page_table_values: T.handle,
-        var_last_page_offset: T.handle,
-        var_append_length_indptr: T.handle,
-        var_pos2seqidx: T.handle,
-        layer_id: T.int64,
+        var_position_map: T.handle,
     ):
-        nseq = T.int64()
         ntoken = T.SizeVar("ntoken", "int64")
-        npage = T.int64()
         page_size = T.SizeVar("page_size", "int64")
         num_pages = T.int64()
 
-        pages = T.match_buffer(var_pages, (num_pages, num_layers, 2, num_heads, page_size, head_dim), config.dtype)
-        k_data = T.match_buffer(var_k_data, (ntoken, num_heads, head_dim), config.dtype)
-        v_data = T.match_buffer(var_v_data, (ntoken, num_heads, head_dim), config.dtype)
-        last_page_offset = T.match_buffer(var_last_page_offset, (nseq,), "int32")
-        page_table_indptr = T.match_buffer(var_page_table_indptr, (nseq + 1,), "int32")
-        page_table_values = T.match_buffer(var_page_table_values, (npage,), "int32")
-        append_length_indptr = T.match_buffer(var_append_length_indptr, (nseq + 1,), "int32")
-        pos2seqidx = T.match_buffer(var_pos2seqidx, (ntoken,), "int32")
+        pages = T.match_buffer(
+            var_pages, (num_pages, 2, num_kv_heads, page_size, head_dim), config.dtype
+        )
+        k_data = T.match_buffer(var_k_data, (ntoken, num_kv_heads, head_dim), config.dtype)
+        v_data = T.match_buffer(var_v_data, (ntoken, num_kv_heads, head_dim), config.dtype)
+        position_map = T.match_buffer(var_position_map, (ntoken,), "int32")
 
-        for global_pos, h, f in T.grid(ntoken, num_heads, head_dim):
+        for global_pos, h, f in T.grid(ntoken, num_kv_heads, head_dim):
             with T.block("k_transpose_append"):
                 vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
-                seq_idx: T.int64 = T.Cast("int64", pos2seqidx[vgpos])
-                seqlen: T.int64 = T.Cast("int64", (page_table_indptr[seq_idx + 1] - page_table_indptr[seq_idx] - 1) * page_size + last_page_offset[seq_idx])
+                position: T.int64 = T.Cast("int64", position_map[vgpos])
                 pages[
-                    page_table_values[page_table_indptr[seq_idx] + T.floordiv(seqlen - (append_length_indptr[seq_idx + 1] - vgpos), page_size)],
-                    layer_id,
-                    0,
-                    vh,
-                    T.floormod(seqlen - (append_length_indptr[seq_idx + 1] - vgpos), page_size),
-                    vf,
+                    T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vf
                 ] = k_data[vgpos, vh, vf]
             with T.block("v_transpose_append"):
                 vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
-                seq_idx: T.int64 = T.Cast("int64", pos2seqidx[vgpos])
-                seqlen: T.int64 = T.Cast("int64", (page_table_indptr[seq_idx + 1] - page_table_indptr[seq_idx] - 1) * page_size + last_page_offset[seq_idx])
+                position: T.int64 = T.Cast("int64", position_map[vgpos])
                 pages[
-                    page_table_values[page_table_indptr[seq_idx] + T.floordiv(seqlen - (append_length_indptr[seq_idx + 1] - vgpos), page_size)],
-                    layer_id,
-                    1,
-                    vh,
-                    T.floormod(seqlen - (append_length_indptr[seq_idx + 1] - vgpos), page_size),
-                    vf,
+                    T.floordiv(position, page_size), 1, vh, T.floormod(position, page_size), vf
                 ] = v_data[vgpos, vh, vf]
-    # fmt: on
+
+    @T.prim_func
+    def kv_cache_debug_get_kv(
+        var_pages: T.handle,
+        var_position_map: T.handle,
+        var_k_data: T.handle,
+        var_v_data: T.handle,
+        layer_id: T.int64,
+    ):
+        seqlen = T.SizeVar("seqlen", "int64")
+        page_size = T.SizeVar("page_size", "int64")
+        num_pages = T.int64()
+
+        pages = T.match_buffer(
+            var_pages, (num_pages, 2, num_kv_heads, page_size, head_dim), config.dtype
+        )
+        position_map = T.match_buffer(var_position_map, (seqlen,), "int32")
+        k_data = T.match_buffer(
+            var_k_data, (config.num_hidden_layers, seqlen, num_kv_heads, head_dim), config.dtype
+        )
+        v_data = T.match_buffer(
+            var_v_data, (config.num_hidden_layers, seqlen, num_kv_heads, head_dim), config.dtype
+        )
+
+        for p, h, d in T.grid(seqlen, num_kv_heads, head_dim):
+            with T.block("copy0"):
+                vp, vh, vd = T.axis.remap("SSS", [p, h, d])
+                position: T.int64 = T.Cast("int64", position_map[vp])
+                k_data[layer_id, vp, vh, vd] = pages[
+                    T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vd
+                ]
+                v_data[layer_id, vp, vh, vd] = pages[
+                    T.floordiv(position, page_size), 1, vh, T.floormod(position, page_size), vd
+                ]
 
     bb.add_func(kv_cache_transpose_append, "kv_cache_transpose_append")
+    bb.add_func(kv_cache_debug_get_kv, "kv_cache_debug_get_kv")
     bb.add_func(relax.extern("paged_kv_cache.attention_kernel_prefill"), "attention_prefill")
     bb.add_func(relax.extern("paged_kv_cache.attention_kernel_decode"), "attention_decode")
+    bb.add_func(
+        relax.extern("flashinfer.attention_kernel_prefill_with_ragged_kv_cache"),
+        "attention_prefill_ragged",
+    )
+    bb.add_func(
+        relax.extern("paged_kv_cache.attention_kernel_prefill_begin_forward"),
+        "attention_prefill_begin_forward",
+    )
+    bb.add_func(
+        relax.extern("paged_kv_cache.attention_kernel_prefill_end_forward"),
+        "attention_prefill_end_forward",
+    )
+    bb.add_func(
+        relax.extern("paged_kv_cache.attention_kernel_decode_begin_forward"),
+        "attention_decode_begin_forward",
+    )
+    bb.add_func(
+        relax.extern("paged_kv_cache.attention_kernel_decode_end_forward"),
+        "attention_decode_end_forward",
+    )
+    bb.add_func(
+        relax.extern("flashinfer.attention_kernel_prefill_with_ragged_kv_cache_begin_forward"),
+        "attention_prefill_ragged_begin_forward",
+    )
+    bb.add_func(
+        relax.extern("flashinfer.attention_kernel_prefill_with_ragged_kv_cache_end_forward"),
+        "attention_prefill_ragged_end_forward",
+    )
+    bb.add_func(
+        relax.extern("flashinfer.merge_state_in_place"),
+        "attention_merge_state",
+    )
+    bb.add_func(
+        relax.extern("flashinfer.batch_qk_apply_rotary_in_place"),
+        "attention_rope_in_place",
+    )
 
 
 def setup_params(mod, param_manager, dtype, config, args):

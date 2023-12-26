@@ -31,9 +31,12 @@ namespace serve {
  * \param dst The destination of the concatenation
  * \return The concatenated embeddings.
  */
-NDArray ConcatEmbeddings(Array<NDArray> embedding_arr, int64_t total_length, DLDevice device,
+NDArray ConcatEmbeddings(const Array<NDArray>& embedding_arr, int64_t total_length, DLDevice device,
                          int initial_seq_len, NDArray* dst) {
   ICHECK(!embedding_arr.empty());
+  if (embedding_arr.size() == 1) {
+    return embedding_arr[0];
+  }
   ICHECK_NOTNULL(dst);
   int hidden_size = -1;
   DataType dtype;
@@ -99,7 +102,17 @@ NDArray CopyArrayToDevice(const std::vector<T>& array, NDArray* dst, DLDataType 
   }
   ICHECK_LE(static_cast<int64_t>(array.size()), (*dst)->shape[0]);
   NDArray view = dst->CreateView(ShapeTuple({static_cast<int64_t>(array.size())}), dtype);
-  view.CopyFromBytes(array.data(), array.size() * sizeof(T));
+
+  DLTensor copy_dst = *(view.operator->());
+  DLTensor copy_src;
+  copy_src.data = const_cast<T*>(array.data());
+  copy_src.device = Device{kDLCPU, 0};
+  copy_src.ndim = 1;
+  copy_src.dtype = view->dtype;
+  copy_src.shape = view->shape;
+  copy_src.strides = nullptr;
+  copy_src.byte_offset = 0;
+  NDArray::CopyFromTo(&copy_src, &copy_dst);
   return view;
 }
 
@@ -171,8 +184,8 @@ class ModelImpl : public ModelObj {
     return embeddings_ndarray;
   }
 
-  NDArray BatchPrefill(Array<NDArray> embedding_arr, std::vector<int> seq_ids,
-                       std::vector<int> lengths) final {
+  NDArray BatchPrefill(const Array<NDArray>& embedding_arr, const std::vector<int64_t>& seq_ids,
+                       const std::vector<int>& lengths) final {
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
@@ -182,14 +195,11 @@ class ModelImpl : public ModelObj {
     for (int i = 0; i < num_sequences; ++i) {
       total_length += lengths[i];
       logit_pos.push_back(total_length - 1);
-      if (i > 0) {
-        CHECK_GT(seq_ids[i], seq_ids[i - 1]) << "The input sequence ids must be non-decreasing.";
-      }
     }
 
     // embeddings: (1, n, h)
-    NDArray embeddings = ConcatEmbeddings(std::move(embedding_arr), total_length, device_,
-                                          max_window_size_, &embeddings_);
+    NDArray embeddings =
+        ConcatEmbeddings(embedding_arr, total_length, device_, max_window_size_, &embeddings_);
     ICHECK_EQ(embeddings->ndim, 3);
     ICHECK_EQ(embeddings->shape[0], 1);
     ICHECK_EQ(embeddings->shape[1], total_length);
@@ -202,17 +212,14 @@ class ModelImpl : public ModelObj {
     CHECK(ft_.prefill_func_.defined())
         << "`prefill_with_embed` function is not found in the model. Please make sure the model is "
            "compiled with flag `--sep-embed` and `--enable-batching`";
-    ICHECK(ft_.reset_append_length_kv_cache_func_.defined());
-    ICHECK(ft_.reserve_length_in_kv_cache_func_.defined());
-    ICHECK(ft_.sync_device_kv_cache_func_.defined());
+    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    ICHECK(ft_.kv_cache_end_forward_func_.defined());
     ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
-    // Reserve in KV cache for the length of the input.
-    ft_.reset_append_length_kv_cache_func_(kv_cache_);
-    for (int i = 0; i < num_sequences; ++i) {
-      ft_.reserve_length_in_kv_cache_func_(kv_cache_, seq_ids[i], lengths[i]);
-    }
-    ft_.sync_device_kv_cache_func_(kv_cache_);
+    // Begin forward with the sequence ids and new lengths.
+    IntTuple seq_ids_tuple(seq_ids);
+    IntTuple lengths_tuple(lengths.begin(), lengths.end());
+    ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
 
     ObjectRef embeddings_dref_or_nd = ft_.CopyToWorker0(embeddings);
     ObjectRef logit_pos_dref_or_nd = ft_.CopyToWorker0(logit_pos_nd);
@@ -227,15 +234,19 @@ class ModelImpl : public ModelObj {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    ft_.kv_cache_end_forward_func_(kv_cache_);
+
+    // logits: (1, num_sequences, v)
     ICHECK_EQ(logits->ndim, 3);
     ICHECK_EQ(logits->shape[0], 1);
     ICHECK_EQ(logits->shape[1], num_sequences);
     return logits;
   }
 
-  NDArray BatchDecode(NDArray embeddings) final {
+  NDArray BatchDecode(const NDArray& embeddings, const std::vector<int64_t>& seq_ids) final {
     // embeddings: (b, 1, h)
     CHECK_EQ(embeddings->ndim, 3);
+    CHECK_EQ(embeddings->shape[0], seq_ids.size());
     CHECK_EQ(embeddings->shape[1], 1);
     CHECK_EQ(embeddings->device.device_type, device_.device_type);
     CHECK_EQ(embeddings->device.device_id, device_.device_id);
@@ -243,17 +254,16 @@ class ModelImpl : public ModelObj {
     CHECK(ft_.decode_func_.defined())
         << "`decode_with_embed` function is not found in the model. Please make sure the model is "
            "compiled with flag `--sep-embed` and `--enable-batching`";
-    ICHECK(ft_.reset_append_length_kv_cache_func_.defined());
-    ICHECK(ft_.reserve_length_in_kv_cache_func_.defined());
-    ICHECK(ft_.sync_device_kv_cache_func_.defined());
+    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    ICHECK(ft_.kv_cache_end_forward_func_.defined());
     ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     // Reserve in KV cache for the lengths of the input.
-    ft_.reset_append_length_kv_cache_func_(kv_cache_);
-    for (int64_t seq_id = 0; seq_id < embeddings->shape[0]; ++seq_id) {
-      ft_.reserve_length_in_kv_cache_func_(kv_cache_, seq_id, /*length=*/1);
-    }
-    ft_.sync_device_kv_cache_func_(kv_cache_);
+    // Begin forward with the sequence ids and new lengths.
+    IntTuple seq_ids_tuple(seq_ids);
+    IntTuple lengths_tuple(std::vector<int64_t>(/*n=*/embeddings->shape[0], /*v=*/1));
+    ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
+
     ObjectRef embeddings_dref_or_nd = ft_.CopyToWorker0(embeddings);
 
     // args: embeddings, kv_cache, params
@@ -266,6 +276,8 @@ class ModelImpl : public ModelObj {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
     TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    ft_.kv_cache_end_forward_func_(kv_cache_);
+
     // logits: (b, 1, v)
     ICHECK_EQ(logits->ndim, 3);
     ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
@@ -308,25 +320,19 @@ class ModelImpl : public ModelObj {
     kv_cache_ = ft_.create_kv_cache_func_(kv_cache_config_shape);
   }
 
-  /*! \brief Add a new sequence to the KV cache. Return the in-cache id of the sequence. */
-  int AddNewSequence() final {
-    if (!ft_.use_disco) {
-      return ft_.add_sequence_to_kv_cache_func_(kv_cache_);
-    } else {
-      DRef in_cache_id = ft_.add_sequence_to_kv_cache_func_(kv_cache_);
-      return in_cache_id->DebugGetFromRemote(0);
-    }
-  }
+  void AddNewSequence(int64_t seq_id) final { ft_.kv_cache_add_sequence_func_(kv_cache_, seq_id); }
 
   /*! \brief Remove the given sequence from the KV cache in the model. */
-  void RemoveSequence(int seq_id) final { ft_.remove_from_kv_cache_func_(kv_cache_, seq_id); }
+  void RemoveSequence(int64_t seq_id) final {
+    ft_.kv_cache_remove_sequence_func_(kv_cache_, seq_id);
+  }
 
   /*! \brief Get the number of available pages in KV cache. */
   int GetNumAvailablePages() const final {
     if (!ft_.use_disco) {
-      return ft_.get_num_available_pages_kv_cache_func_(kv_cache_);
+      return ft_.kv_cache_get_num_available_pages_func_(kv_cache_);
     } else {
-      DRef ret = ft_.get_num_available_pages_kv_cache_func_(kv_cache_);
+      DRef ret = ft_.kv_cache_get_num_available_pages_func_(kv_cache_);
       return ret->DebugGetFromRemote(0);
     }
   }

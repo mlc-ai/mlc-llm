@@ -9,20 +9,10 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-void RemoveRequestFromModel(EngineState estate, int req_id, Array<Model> models) {
+void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<Model> models) {
   // Remove the request from all models (usually the KV cache).
   for (Model model : models) {
-    model->RemoveSequence(req_id);
-  }
-  // Update the internal request id of other requests.
-  for (auto& it : estate->request_states) {
-    RequestState state = it.second;
-    for (RequestModelState mstate : state->mstates) {
-      ICHECK_NE(mstate->request_id, req_id);
-      if (mstate->request_id > req_id) {
-        --mstate->request_id;
-      }
-    }
+    model->RemoveSequence(req_internal_id);
   }
 }
 
@@ -37,12 +27,8 @@ void ProcessFinishedRequest(Array<Request> finished_requests, EngineState estate
 
     // Update engine states.
     RequestState state = estate->GetRequestState(request);
-    int req_id = state->mstates[0]->request_id;
-    for (RequestModelState mstate : state->mstates) {
-      ICHECK_EQ(mstate->request_id, req_id);
-      mstate->request_id = -1;
-    }
-    RemoveRequestFromModel(estate, req_id, models);
+    RemoveRequestFromModel(estate, state->mstates[0]->internal_id, models);
+    estate->id_manager.RecycleId(state->mstates[0]->internal_id);
     estate->request_states.erase(request->id);
 
     // Update engine statistics.
@@ -76,10 +62,8 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
 
     // Check if there are new committed tokens.
     // If so, we will invoke the callback function for it.
-    // Otherwise, we do not invoke, and the request must have not been finished yet.
     ICHECK_LE(rstate->next_callback_token_pos, num_committed_tokens);
-    if (rstate->next_callback_token_pos == num_committed_tokens) {
-      ICHECK(!finish_reason.defined());
+    if (rstate->next_callback_token_pos == num_committed_tokens && !finish_reason.defined()) {
       continue;
     }
 
