@@ -63,13 +63,13 @@ struct FunctionTable {
   PackedFunc create_kv_cache_func_;
   PackedFunc reset_kv_cache_func_;
   bool support_backtracking_kv_;
-  PackedFunc add_sequence_to_kv_cache_func_;
-  PackedFunc reserve_length_in_kv_cache_func_;
-  PackedFunc reset_append_length_kv_cache_func_;
-  PackedFunc sync_device_kv_cache_func_;
-  PackedFunc remove_from_kv_cache_func_;
-  PackedFunc popn_from_kv_cache_func_;
-  PackedFunc get_num_available_pages_kv_cache_func_;
+  PackedFunc kv_cache_add_sequence_func_;
+  PackedFunc kv_cache_remove_sequence_func_;
+  PackedFunc kv_cache_begin_forward_func_;
+  PackedFunc kv_cache_end_forward_func_;
+  PackedFunc kv_cache_attention_func_;
+  PackedFunc kv_cache_popn_func_;
+  PackedFunc kv_cache_get_num_available_pages_func_;
 };
 
 }  // namespace serve

@@ -43,6 +43,7 @@ void EngineStateObj::Reset() {
   running_queue.clear();
   waiting_queue.clear();
   request_states.clear();
+  id_manager.Reset();
   stats.Reset();
 }
 

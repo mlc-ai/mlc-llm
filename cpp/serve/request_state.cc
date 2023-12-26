@@ -13,11 +13,12 @@ namespace serve {
 
 TVM_REGISTER_OBJECT_TYPE(RequestModelStateNode);
 
-RequestModelState::RequestModelState(Request request, int model_id, Array<Data> inputs) {
+RequestModelState::RequestModelState(Request request, int model_id, int64_t internal_id,
+                                     Array<Data> inputs) {
   ObjectPtr<RequestModelStateNode> n = make_object<RequestModelStateNode>();
   n->request = std::move(request);
   n->model_id = model_id;
-  n->request_id = -1;
+  n->internal_id = internal_id;
   n->inputs = std::move(inputs);
   data_ = std::move(n);
 }
@@ -32,12 +33,12 @@ int RequestModelStateNode::GetInputLength() const {
 
 TVM_REGISTER_OBJECT_TYPE(RequestStateNode);
 
-RequestState::RequestState(Request request, int num_models) {
+RequestState::RequestState(Request request, int num_models, int64_t internal_id) {
   ObjectPtr<RequestStateNode> n = make_object<RequestStateNode>();
   Array<RequestModelState> mstates;
   mstates.reserve(num_models);
   for (int i = 0; i < num_models; ++i) {
-    mstates.push_back(RequestModelState(request, i, request->inputs));
+    mstates.push_back(RequestModelState(request, i, internal_id, request->inputs));
   }
   n->request = std::move(request);
   n->mstates = std::move(mstates);
@@ -66,6 +67,7 @@ Optional<String> RequestStateNode::GenerationFinished(int max_single_sequence_le
           request->generation_cfg->stop_token_ids.begin(),
           request->generation_cfg->stop_token_ids.end(),
           [&committed_tokens](int32_t token) { return token == committed_tokens.back(); })) {
+    mstates[0]->committed_tokens.pop_back();
     return String("stop");
   }
   // Case 2. Generation reaches the specified max generation length ==> Finished

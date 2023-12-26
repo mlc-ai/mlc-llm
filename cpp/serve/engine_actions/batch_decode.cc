@@ -45,12 +45,6 @@ class BatchDecodeActionObj : public EngineActionObj {
 
     // NOTE: Right now we only support decode all the running requests at a time.
     int num_requests = estate->running_queue.size();
-    // Check if the requests ids are in an ascending order.
-    for (int i = 1; i < num_requests; ++i) {
-      ICHECK_GT(estate->GetRequestState(estate->running_queue[i])->mstates[0]->request_id,
-                estate->GetRequestState(estate->running_queue[i - 1])->mstates[0]->request_id);
-    }
-
     estate->stats.current_total_seq_len += num_requests;
     // Collect
     // - the last committed token,
@@ -59,16 +53,19 @@ class BatchDecodeActionObj : public EngineActionObj {
     // of each request.
     std::vector<int> input_tokens;
     Array<String> request_ids;
+    std::vector<int64_t> request_internal_ids;
     Array<RequestModelState> mstates;
     Array<GenerationConfig> generation_cfg;
     input_tokens.reserve(num_requests);
     request_ids.reserve(num_requests);
+    request_internal_ids.reserve(num_requests);
     mstates.reserve(num_requests);
     generation_cfg.reserve(num_requests);
     for (Request request : estate->running_queue) {
       RequestState rstate = estate->GetRequestState(request);
       input_tokens.push_back(rstate->mstates[0]->committed_tokens.back());
       request_ids.push_back(request->id);
+      request_internal_ids.push_back(rstate->mstates[0]->internal_id);
       mstates.push_back(rstate->mstates[0]);
       generation_cfg.push_back(request->generation_cfg);
     }
@@ -85,7 +82,7 @@ class BatchDecodeActionObj : public EngineActionObj {
 
     // - Invoke model decode.
     RECORD_EVENT(trace_recorder_, request_ids, "start decode");
-    NDArray logits = models_[0]->BatchDecode(embeddings);
+    NDArray logits = models_[0]->BatchDecode(embeddings, request_internal_ids);
     RECORD_EVENT(trace_recorder_, request_ids, "finish decode");
     ICHECK_EQ(logits->ndim, 3);
     ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
@@ -125,16 +122,13 @@ class BatchDecodeActionObj : public EngineActionObj {
     Request request = estate->running_queue.back();
 
     // Remove from models.
-    // - Reset internal `request_id` of states.
     // - Clear model speculation draft.
     // - Update `inputs` for future prefill.
     RequestState rstate = estate->GetRequestState(request);
     RECORD_EVENT(trace_recorder_, rstate->request->id, "preempt");
-    int req_id = rstate->mstates[0]->request_id;
     estate->stats.current_total_seq_len -=
         request->input_total_length + rstate->mstates[0]->committed_tokens.size() - 1;
     for (RequestModelState mstate : rstate->mstates) {
-      mstate->request_id = -1;
       mstate->draft_output_tokens.clear();
       mstate->draft_output_token_prob.clear();
       mstate->draft_output_prob_dist.clear();
@@ -154,7 +148,7 @@ class BatchDecodeActionObj : public EngineActionObj {
       }
       mstate->inputs = std::move(inputs);
     }
-    RemoveRequestFromModel(estate, req_id, models_);
+    RemoveRequestFromModel(estate, rstate->mstates[0]->internal_id, models_);
 
     // Move from running queue to the front of waiting queue.
     estate->running_queue.erase(estate->running_queue.end() - 1);

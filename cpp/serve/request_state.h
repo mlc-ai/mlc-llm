@@ -37,7 +37,7 @@ class RequestModelStateNode : public Object {
    * If the request is on hold (not in the running queue), the request id
    * should be -1.
    */
-  int request_id = -1;
+  int64_t internal_id = -1;
   /*! \brief The corresponding model id of this state. */
   int model_id = -1;
   /*!
@@ -86,7 +86,8 @@ class RequestModelStateNode : public Object {
 
 class RequestModelState : public ObjectRef {
  public:
-  explicit RequestModelState(Request request, int model_id, Array<Data> inputs);
+  explicit RequestModelState(Request request, int model_id, int64_t internal_id,
+                             Array<Data> inputs);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestModelState, ObjectRef, RequestModelStateNode);
 };
@@ -128,7 +129,7 @@ class RequestStateNode : public Object {
 
 class RequestState : public ObjectRef {
  public:
-  explicit RequestState(Request request, int num_models);
+  explicit RequestState(Request request, int num_models, int64_t internal_id);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestState, ObjectRef, RequestStateNode);
 };
