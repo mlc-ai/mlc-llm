@@ -2,6 +2,7 @@
 import argparse
 import json
 import re
+from functools import partial
 from pathlib import Path
 from typing import Union
 
@@ -37,6 +38,14 @@ def main(argv):
             raise argparse.ArgumentTypeError(f"Directory does not exist: {parent}")
         return path
 
+    def _parse_dir(path: Union[str, Path], auto_create: bool = False) -> Path:
+        path = Path(path)
+        if not auto_create and not path.is_dir():
+            raise argparse.ArgumentTypeError(f"Directory does not exist: {path}")
+        if auto_create and not path.is_dir():
+            path.mkdir(parents=True)
+        return path
+
     def _check_system_lib_prefix(prefix: str) -> str:
         pattern = r"^[a-zA-Z_][a-zA-Z0-9_]*$"
         if prefix == "" or re.match(pattern, prefix):
@@ -46,7 +55,7 @@ def main(argv):
             "numbers (0-9), alphabets (A-Z, a-z) and underscore (_)."
         )
 
-    parser = ArgumentParser("MLC LLM Compiler")
+    parser = ArgumentParser("mlc_chat compile")
     parser.add_argument(
         "model",
         type=detect_mlc_chat_config,
@@ -103,6 +112,12 @@ def main(argv):
         default="",
         help=HELP["overrides"] + ' (default: "%(default)s")',
     )
+    parser.add_argument(
+        "--debug-dump",
+        type=partial(_parse_dir, auto_create=True),
+        default=None,
+        help=HELP["debug_dump"] + " (default: %(default)s)",
+    )
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
     parsed.model_type = detect_model_type(parsed.model_type, parsed.model)
@@ -123,4 +138,5 @@ def main(argv):
         system_lib_prefix=parsed.system_lib_prefix,
         output=parsed.output,
         overrides=parsed.overrides,
+        debug_dump=parsed.debug_dump,
     )
