@@ -173,7 +173,6 @@ class GPTBigCodeModel(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
 
     def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
-        # pylint: disable=no-member
         if self.tensor_parallel_shards > 1:
             inputs = op.ccl_broadcast_from_worker0(inputs)
 

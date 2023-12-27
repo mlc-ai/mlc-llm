@@ -7,6 +7,10 @@ from tvm import relax
 from tvm.ir import IRModule, Op
 from tvm.relax.expr_functor import PyExprVisitor, visitor
 
+from mlc_chat.support import logging
+
+logger = logging.getLogger(__name__)
+
 
 @tvm.transform.module_pass(opt_level=0, name="AttachMetadata")
 class AttachMetadataWithMemoryUsage:  # pylint: disable=too-few-public-methods
@@ -48,6 +52,11 @@ class _MemoryEstimator(PyExprVisitor):
                 self.planned_mem_num = 0
                 self.visit_expr(func)
                 result[global_var.name_hint] = self.planned_alloc_mem
+                logger.info(
+                    "[Memory usage] Function `%s`: %.2f MB",
+                    global_var.name_hint,
+                    self.planned_alloc_mem / 1024 / 1024,
+                )
         return result
 
     def visit_call_(self, call: relax.Call) -> None:  # pylint: disable=arguments-renamed

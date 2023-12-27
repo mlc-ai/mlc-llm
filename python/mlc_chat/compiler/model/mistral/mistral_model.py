@@ -345,10 +345,8 @@ class MistralDecoderLayer(nn.Module):
         """Forward pass of a decoder layer; calculate attention, and add an residual connection."""
 
         def _apply_residual(out, residual):
-            # pylint: disable=no-member
             if self.tensor_parallel_shards > 1:
                 return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum")
-            # pylint: enable=no-member
             return out + residual
 
         out = self.self_attn(
@@ -386,10 +384,8 @@ class MistralModel(nn.Module):
         attention_mask: Tensor,
     ):
         """Forward pass of the model, passing through all decoder layers."""
-        # pylint: disable=no-member
         if self.tensor_parallel_shards > 1:
             inputs = op.ccl_broadcast_from_worker0(inputs)
-        # pylint: enable=no-member
         hidden_states = self.embed_tokens(inputs)
         for layer in self.layers:
             hidden_states = layer(

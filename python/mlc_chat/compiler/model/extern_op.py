@@ -71,14 +71,14 @@ def attention(  # pylint: disable=invalid-name,too-many-locals
         fp16_qk = 1  # True
 
         def _decode():
-            return op.extern(  # pylint: disable=no-member
+            return op.extern(
                 name="flashinfer.single_decode",
                 args=[q, k, v, qkv_layout, rotary_mode, rope_scale, rope_theta],
                 out=nn.Tensor.placeholder((b, s, h_q * d), dtype="float16"),
             )
 
         def _prefill():
-            return op.extern(  # pylint: disable=no-member
+            return op.extern(
                 name="flashinfer.single_prefill",
                 args=[q, k, v, casual, qkv_layout, rotary_mode, fp16_qk, rope_scale, rope_theta],
                 out=nn.Tensor.placeholder((b, s, h_q * d), dtype="float16"),
