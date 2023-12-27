@@ -126,6 +126,7 @@ target_compile_definitions(mlc_cli_objs PRIVATE ${MLC_LLM_COMPILE_DEFS})
 if (CMAKE_SYSTEM_NAME STREQUAL "Android")
   target_link_libraries(mlc_llm PRIVATE log)
   target_link_libraries(mlc_chat_cli PRIVATE log)
+  target_link_libraries(tokenizers_cpp PRIVATE log)
 endif()
 
 if (MLC_LLM_INSTALL_STATIC_LIB)
