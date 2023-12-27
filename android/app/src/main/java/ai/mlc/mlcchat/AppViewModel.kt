@@ -30,7 +30,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var alertMessage = mutableStateOf("")
     private var appConfig = AppConfig(
         emptyList(),
-        emptyList<ModelRecord>().toMutableList(),
         emptyList<ModelRecord>().toMutableList()
     )
     private val application = getApplication<Application>()
@@ -47,10 +46,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         loadAppConfig()
-    }
-
-    fun supportedModelLibs(): List<String> {
-        return appConfig.modelLibs
     }
 
     fun isShowingAlert(): Boolean {
@@ -78,14 +73,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         alertMessage.value = error
     }
 
-    fun requestAddModel(url: String, localId: String?) {
-        if (localId != null && localIdSet.contains(localId)) {
-            issueAlert("localId: $localId has been occupied")
-        } else {
-            downloadModelConfig(if (url.endsWith("/")) url else "$url/", localId, false)
-        }
-    }
-
     fun requestDeleteModel(localId: String) {
         deleteModel(localId)
         issueAlert("Model: $localId has been deleted")
@@ -109,16 +96,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (modelConfigFile.exists()) {
                 val modelConfigString = modelConfigFile.readText()
                 val modelConfig = gson.fromJson(modelConfigString, ModelConfig::class.java)
+                modelConfig.localId = modelRecord.localId
+                modelConfig.modelLib = modelRecord.modelLib
                 addModelConfig(modelConfig, modelRecord.modelUrl, true)
             } else {
                 downloadModelConfig(
-                    if (modelRecord.modelUrl.endsWith("/")) modelRecord.modelUrl else "$modelRecord.modelUrl/",
-                    modelRecord.localId,
+                    if (modelRecord.modelUrl.endsWith("/")) modelRecord.modelUrl else "${modelRecord.modelUrl}/",
+                    modelRecord,
                     true
                 )
             }
         }
-        modelSampleList += appConfig.modelSamples
     }
 
     private fun updateAppConfig(action: () -> Unit) {
@@ -140,7 +128,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
         if (!isBuiltin) {
             updateAppConfig {
-                appConfig.modelList.add(ModelRecord(modelUrl, modelConfig.localId))
+                appConfig.modelList.add(ModelRecord(modelUrl, modelConfig.localId, modelConfig.modelLib))
             }
         }
     }
@@ -157,7 +145,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun isModelConfigAllowed(modelConfig: ModelConfig): Boolean {
-        if (appConfig.modelLibs.contains(modelConfig.modelLib)) return true;
+        if (appConfig.modelLibs.contains(modelConfig.modelLib)) return true
         viewModelScope.launch {
             issueAlert("Model lib ${modelConfig.modelLib} is not supported.")
         }
@@ -165,7 +153,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
-    private fun downloadModelConfig(modelUrl: String, localId: String?, isBuiltin: Boolean) {
+    private fun downloadModelConfig(modelUrl: String, modelRecord: ModelRecord, isBuiltin: Boolean) {
         thread(start = true) {
             try {
                 val url = URL("${modelUrl}${ModelUrlSuffix}${ModelConfigFilename}")
@@ -186,9 +174,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     try {
                         val modelConfigString = tempFile.readText()
                         val modelConfig = gson.fromJson(modelConfigString, ModelConfig::class.java)
-                        if (localId != null) {
-                            require(modelConfig.localId == localId)
-                        }
+                        modelConfig.localId = modelRecord.localId
+                        modelConfig.modelLib = modelRecord.modelLib
                         if (localIdSet.contains(modelConfig.localId)) {
                             tempFile.delete()
                             issueAlert("${modelConfig.localId} has been used, please consider another local ID")
@@ -728,17 +715,17 @@ data class MessageData(val role: MessageRole, val text: String, val id: UUID = U
 data class AppConfig(
     @SerializedName("model_libs") val modelLibs: List<String>,
     @SerializedName("model_list") val modelList: MutableList<ModelRecord>,
-    @SerializedName("add_model_samples") val modelSamples: MutableList<ModelRecord>
 )
 
 data class ModelRecord(
     @SerializedName("model_url") val modelUrl: String,
-    @SerializedName("local_id") val localId: String
+    @SerializedName("local_id") val localId: String,
+    @SerializedName("model_lib") val modelLib: String
 )
 
 data class ModelConfig(
-    @SerializedName("model_lib") val modelLib: String,
-    @SerializedName("local_id") val localId: String,
+    @SerializedName("model_lib") var modelLib: String,
+    @SerializedName("local_id") var localId: String,
     @SerializedName("tokenizer_files") val tokenizerFiles: List<String>
 )
 

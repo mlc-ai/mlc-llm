@@ -210,40 +210,40 @@ See the full list of all precompiled model libraries `here <https://github.com/m
 
 .. |
 
-.. .. _prebuilt-models-android:
+.. _prebuilt-models-android:
 
-.. Prebuilt Models on Android
-.. ^^^^^^^^^^^^^^^^^^^^^^^^^^
+Prebuilt Models on Android
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. For more, please see :doc:`the Android page </deploy/android>`.
+For more, please see :doc:`the Android page </deploy/android>`.
 
-.. .. collapse:: Click to show details
+.. collapse:: Click to show details
 
-..   The apk for demo Android app includes the following models. To add more, check out the Android page.
+  The apk for demo Android app includes the following models. To add more, check out the Android page.
 
-..   .. list-table:: Prebuilt Models for Android
-..     :widths: 15 15 15 15
-..     :header-rows: 1
+  .. list-table:: Prebuilt Models for Android
+    :widths: 15 15 15 15
+    :header-rows: 1
 
-..     * - Model code
-..       - Model Series
-..       - Quantization Mode
-..       - Hugging Face repo
-..     * - `Llama-2-7b-q4f16_1`
-..       - `Llama <https://ai.meta.com/llama/>`__
-..       - * Weight storage data type: int4
-..         * Running data type: float16
-..         * Symmetric quantization
-..       - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
-..     * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
-..       - `RedPajama <https://www.together.xyz/blog/redpajama>`__
-..       - * Weight storage data type: int4
-..         * Running data type: float16
-..         * Symmetric quantization
-..       - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
-.. .. for a blank line
+    * - Model code
+      - Model Series
+      - Quantization Mode
+      - Hugging Face repo
+    * - `Llama-2-7b-q4f16_1`
+      - `Llama <https://ai.meta.com/llama/>`__
+      - * Weight storage data type: int4
+        * Running data type: float16
+        * Symmetric quantization
+      - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
+    * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
+      - `RedPajama <https://www.together.xyz/blog/redpajama>`__
+      - * Weight storage data type: int4
+        * Running data type: float16
+        * Symmetric quantization
+      - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
+.. for a blank line
 
-.. |
+|
 
 .. _supported-model-architectures:
 
