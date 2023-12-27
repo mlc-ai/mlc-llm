@@ -126,7 +126,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
             "ParamBytes": total_bytes,
             "BitsPerParam": total_bytes * 8.0 / total_params,
         },
-        encode_format="raw",
+        encode_format="f32-to-bf16",
     )
     logger.info("Saved to directory: %s", bold(str(args.output)))
 
