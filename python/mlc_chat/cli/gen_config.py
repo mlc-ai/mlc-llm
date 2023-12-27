@@ -2,10 +2,12 @@
 from pathlib import Path
 from typing import Union
 
-from mlc_chat.compiler import CONV_TEMPLATES, HELP, MODELS, QUANTIZATION, gen_config
-
-from ..support.argparse import ArgumentParser
-from ..support.auto_config import detect_config, detect_model_type
+from mlc_chat.help import HELP
+from mlc_chat.interface.gen_config import CONV_TEMPLATES, gen_config
+from mlc_chat.model import MODELS
+from mlc_chat.quantization import QUANTIZATION
+from mlc_chat.support.argparse import ArgumentParser
+from mlc_chat.support.auto_config import detect_config, detect_model_type
 
 
 def main(argv):
