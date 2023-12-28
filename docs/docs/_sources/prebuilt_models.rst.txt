@@ -210,40 +210,40 @@ See the full list of all precompiled model libraries `here <https://github.com/m
 
 .. |
 
-.. .. _prebuilt-models-android:
+.. _prebuilt-models-android:
 
-.. Prebuilt Models on Android
-.. ^^^^^^^^^^^^^^^^^^^^^^^^^^
+Prebuilt Models on Android
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. For more, please see :doc:`the Android page </deploy/android>`.
+For more, please see :doc:`the Android page </deploy/android>`.
 
-.. .. collapse:: Click to show details
+.. collapse:: Click to show details
 
-..   The apk for demo Android app includes the following models. To add more, check out the Android page.
+  The apk for demo Android app includes the following models. To add more, check out the Android page.
 
-..   .. list-table:: Prebuilt Models for Android
-..     :widths: 15 15 15 15
-..     :header-rows: 1
+  .. list-table:: Prebuilt Models for Android
+    :widths: 15 15 15 15
+    :header-rows: 1
 
-..     * - Model code
-..       - Model Series
-..       - Quantization Mode
-..       - Hugging Face repo
-..     * - `Llama-2-7b-q4f16_1`
-..       - `Llama <https://ai.meta.com/llama/>`__
-..       - * Weight storage data type: int4
-..         * Running data type: float16
-..         * Symmetric quantization
-..       - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
-..     * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
-..       - `RedPajama <https://www.together.xyz/blog/redpajama>`__
-..       - * Weight storage data type: int4
-..         * Running data type: float16
-..         * Symmetric quantization
-..       - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
-.. .. for a blank line
+    * - Model code
+      - Model Series
+      - Quantization Mode
+      - Hugging Face repo
+    * - `Llama-2-7b-q4f16_1`
+      - `Llama <https://ai.meta.com/llama/>`__
+      - * Weight storage data type: int4
+        * Running data type: float16
+        * Symmetric quantization
+      - `link <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC>`__
+    * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
+      - `RedPajama <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC>`__
+      - * Weight storage data type: int4
+        * Running data type: float16
+        * Symmetric quantization
+      - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
+.. for a blank line
 
-.. |
+|
 
 .. _supported-model-architectures:
 
@@ -345,7 +345,7 @@ and submit a PR to the repo `binary-mlc-llm-libs <https://github.com/mlc-ai/bina
 Llama
 ^^^^^
 .. list-table:: Llama
-  :widths: 8 8 8 8 8 8 8 8 8 8
+  :widths: 8 8 8 8 8 8 8 8 8 8 8
   :header-rows: 1
   :stub-columns: 1
 
@@ -365,6 +365,7 @@ Llama
 
       (Intel)
     - iOS
+    - Android
     - webgpu
     - mali
   * - 7B
@@ -381,6 +382,9 @@ Llama
       `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f32_1-metal.so>`__
     - 
     - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-android.tar>`__
+
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f32_1-android.tar>`__
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-ctx4k_cs1k-webgpu.wasm>`__
 
       `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f32_1-ctx4k_cs1k-webgpu.wasm>`__
@@ -391,6 +395,7 @@ Llama
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf/Llama-2-13b-chat-hf-q4f16_1-vulkan.so>`__
     - 
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf/Llama-2-13b-chat-hf-q4f16_1-metal.so>`__
+    - 
     - 
     - 
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf/Llama-2-13b-chat-hf-q4f16_1-ctx4k_cs1k-webgpu.wasm>`__
@@ -405,12 +410,14 @@ Llama
     - 
     - 
     - 
+    -
   * - 70B
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf/Llama-2-70b-chat-hf-q4f16_1-cuda.so>`__
     - 
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf/Llama-2-70b-chat-hf-q4f16_1-vulkan.so>`__
     - 
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf/Llama-2-70b-chat-hf-q4f16_1-metal.so>`__
+    - 
     - 
     - 
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf/Llama-2-70b-chat-hf-q4f16_1-ctx4k_cs1k-webgpu.wasm>`__
@@ -421,7 +428,7 @@ Llama
 Mistral
 ^^^^^^^
 .. list-table:: Mistral
-  :widths: 8 8 8 8 8 8 8 8 8 8
+  :widths: 8 8 8 8 8 8 8 8 8 8 8
   :header-rows: 1
   :stub-columns: 1
 
@@ -441,6 +448,7 @@ Mistral
 
       (Intel)
     - iOS
+    - Android
     - webgpu
     - mali
   * - 7B
@@ -449,6 +457,7 @@ Mistral
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-vulkan.so>`__
     - 
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-metal.so>`__
+    - 
     - 
     - 
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-webgpu.wasm>`__
@@ -460,7 +469,7 @@ Mistral
 GPT-NeoX (RedPajama-INCITE)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. list-table:: GPT-NeoX (RedPajama-INCITE)
-  :widths: 8 8 8 8 8 8 8 8 8 8
+  :widths: 8 8 8 8 8 8 8 8 8 8 8
   :header-rows: 1
   :stub-columns: 1
 
@@ -480,6 +489,7 @@ GPT-NeoX (RedPajama-INCITE)
 
       (Intel)
     - iOS
+    - Android
     - webgpu
     - mali
   * - 3B
@@ -496,6 +506,9 @@ GPT-NeoX (RedPajama-INCITE)
       `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f32_1-metal.so>`__
     - 
     - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar>`__
+
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f32_1-android.tar>`__
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-ctx2k-webgpu.wasm>`__
   
       `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f32_1-ctx2k-webgpu.wasm>`__
@@ -507,7 +520,7 @@ GPTBigCode
 ^^^^^^^^^^
 
 .. list-table:: GPTBigCode
-  :widths: 8 8 8 8 8 8 8 8 8 8
+  :widths: 8 8 8 8 8 8 8 8 8 8 8
   :header-rows: 1
   :stub-columns: 1
 
@@ -527,6 +540,7 @@ GPTBigCode
 
       (Intel)
     - iOS
+    - Android
     - webgpu
     - mali
   * - 15B
