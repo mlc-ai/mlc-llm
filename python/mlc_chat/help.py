@@ -57,7 +57,7 @@ conflicts. Different from objcopy, this takes no effect for shared library.
     "context_window_size": """
 Option to provide the maximum sequence length supported by the model.
 This is usually explicitly shown as context length or context window in the model card.
-If this option is not set explicitly, by default, 
+If this option is not set explicitly, by default,
 it will be determined by `context_window_size` or `max_position_embeddings` in `config.json`,
 and the latter is usually inaccurate for some models.
 """.strip(),
@@ -110,5 +110,10 @@ Model configuration override. Configurations to override `mlc-chat-config.json`.
 `context_window_size`, `prefill_chunk_size`, `sliding_window_size`, `attention_sink_size`,
 `max_batch_size` and `tensor_parallel_shards`. Meanwhile, model config could be explicitly
 specified via details knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
+""".strip(),
+    "debug_dump": """
+Specifies the directory where the compiler will store its IRs for debugging purposes
+during various phases of compilation. By default, this is set to `None`, indicating
+that debug dumping is disabled.
 """.strip(),
 }

@@ -1,5 +1,6 @@
 """The compilation pipeline for LLM applications."""
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import tvm
 from tvm import IRModule
@@ -34,13 +35,34 @@ class _LogProgress:  # pylint: disable=too-few-public-methods
         return mod
 
 
+@tvm.transform.module_pass(opt_level=0, name="DebugDump")
+class _DebugDump:  # pylint: disable=too-few-public-methods
+    """A dummy compiler pass that does nothing but logging.
+    Only enabled when debug_dump is not None"""
+
+    def __init__(self, file_name: str, file_path: Optional[Path], show_meta: bool = False):
+        self.file_name = file_name
+        self.file_path = file_path
+        self.show_meta = show_meta
+
+    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+        """A dummy transformation that dumps the module to file"""
+        if self.file_path is not None:
+            # NOTE: We use debug level here to avoid spamming the console
+            logger.debug("Dumping IR to %s", self.file_path / self.file_name)
+            with open(self.file_path / self.file_name, "w", encoding="utf-8") as f:
+                f.write(mod.script(show_meta=self.show_meta))
+        return mod
+
+
 @register_pipeline("mlc_llm")
-def _mlc_llm_pipeline(
+def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
     variable_bounds: Dict[str, int] = None,
     additional_tirs: Dict[str, tvm.tir.PrimFunc] = None,
     metadata: Dict[str, Any] = None,
     ext_mods: List[nn.ExternModule] = None,
     skip_gemm: bool = False,
+    debug_dump: Optional[Path] = None,
 ):
     variable_bounds = variable_bounds or {}
     additional_tirs = additional_tirs or {}
@@ -54,10 +76,12 @@ def _mlc_llm_pipeline(
                 # Phase 0. Add additional information for compilation
                 AttachVariableBounds(variable_bounds),
                 AttachAdditionalPrimFuncs(additional_tirs),
+                _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
                 FuseDequantizeTranspose(skip_gemm=skip_gemm),
                 FuseTransposeMatmul(),
+                _DebugDump("debug-phase1.py", debug_dump, show_meta=False),
                 # Phase 2. Lowering to TIR, inherited TVM Relax's official "zero" pipeline
                 _LogProgress("Lowering to TVM TIR kernels"),
                 tvm.relax.transform.LegalizeOps(),
@@ -65,12 +89,14 @@ def _mlc_llm_pipeline(
                 tvm.relax.transform.FoldConstant(),
                 tvm.relax.transform.FuseOps(),
                 tvm.relax.transform.FuseTIR(),
+                _DebugDump("debug-phase2.py", debug_dump, show_meta=False),
                 # Phase 3. Passes on TIR
                 _LogProgress("Running TVM TIR-level optimizations"),
                 FuseDequantizeMatmulEwise(),
                 FuseDequantizeTake(),
                 tvm.relax.transform.DeadCodeElimination(),
                 CleanUpTIRAttrs(["op_pattern"]),
+                _DebugDump("debug-phase3.py", debug_dump, show_meta=False),
                 # Phase 4. Low-level Optimizations
                 _LogProgress("Running TVM Dlight low-level optimizations"),
                 dl.ApplyDefaultSchedule(
@@ -80,6 +106,7 @@ def _mlc_llm_pipeline(
                     dl.gpu.GeneralReduction(),
                     dl.gpu.Fallback(),
                 ),
+                _DebugDump("debug-phase4.py", debug_dump, show_meta=False),
                 _LogProgress("Lowering to VM bytecode"),
                 LiftTIRGlobalBufferAlloc(),
                 tvm.tir.transform.ForceNarrowIndexToInt32(),
@@ -95,6 +122,7 @@ def _mlc_llm_pipeline(
                 tvm.relax.transform.VMBuiltinLower(),
                 tvm.relax.transform.VMShapeLower(),
                 tvm.relax.transform.AttachGlobalSymbol(),
+                _DebugDump("debug-final.py", debug_dump, show_meta=False),
                 _LogProgress("Compiling external modules"),
                 tvm.relax.transform.AttachExternModules(ext_mods),
                 _LogProgress("Compilation complete! Exporting to disk"),
