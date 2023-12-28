@@ -4,8 +4,8 @@ import dataclasses
 from io import StringIO
 from typing import Any, Optional
 
-from ..support import logging
-from ..support.style import bold, red
+from mlc_chat.support import logging
+from mlc_chat.support.style import bold, red
 
 logger = logging.getLogger(__name__)
 

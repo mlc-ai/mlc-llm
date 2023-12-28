@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple, Union
@@ -110,7 +111,7 @@ def _run_quantization(
             logger.info("[MLC] Processing in directory: %s", output_dir)
             # Required arguments
             cmd = [
-                "python",
+                sys.executable,
                 "-m",
                 "mlc_chat",
                 "gen_config",
@@ -132,7 +133,7 @@ def _run_quantization(
             print(" ".join(cmd), file=log_file, flush=True)
             subprocess.run(cmd, check=True, stdout=log_file, stderr=subprocess.STDOUT)
             cmd = [
-                "python",
+                sys.executable,
                 "-m",
                 "mlc_chat",
                 "convert_weight",

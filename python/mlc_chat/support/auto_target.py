@@ -9,7 +9,7 @@ from tvm.ir.transform import Pass
 from tvm.target import Target
 
 from . import logging
-from .auto_device import AUTO_DETECT_DEVICES, _device_to_str, detect_device
+from .auto_device import AUTO_DETECT_DEVICES, detect_device, device2str
 from .style import bold, green, red
 
 if TYPE_CHECKING:
@@ -52,7 +52,7 @@ def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
         target: Optional[Target] = None
         device = detect_device(hint)
         if device is not None:
-            device_str = _device_to_str(device)
+            device_str = device2str(device)
             try:
                 target = Target.from_device(device)
             except ValueError:

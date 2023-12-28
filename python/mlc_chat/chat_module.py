@@ -7,13 +7,15 @@ import sys
 import warnings
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm.runtime import disco  # pylint: disable=unused-import
 
 from mlc_chat.support import logging
-from mlc_chat.support.auto_device import detect_device
+from mlc_chat.support.auto_device import detect_device, device2str
+from mlc_chat.support.style import blue, bold, red
 
 from . import base as _
 
@@ -26,6 +28,7 @@ _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/mai
 
 
 logger = logging.getLogger(__name__)
+MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
 
 
 @dataclass
@@ -190,6 +193,105 @@ class ChatConfig:  # pylint: disable=too-many-instance-attributes
 
 
 @dataclass
+class JITOptions:
+    """Consistent with ModelConfigOverride, but with extra flags to configure `opt`."""
+
+    opt: str = "O2"
+    context_window_size: Optional[int] = None
+    sliding_window_size: Optional[int] = None
+    prefill_chunk_size: Optional[int] = None
+    attention_sink_size: Optional[int] = None
+    max_batch_size: Optional[int] = None
+    tensor_parallel_shards: int = 1
+
+    def update(self, m: Dict[str, Any]):  # pylint: disable=invalid-name
+        """Update the fields of this object with the values from the source dict."""
+        for key, value in m.items():
+            if value is not None and hasattr(self, key):
+                setattr(self, key, value)
+
+    def _as_model_config(self, mlc_chat_config_path: Path):
+        from mlc_chat.model import MODELS  # pylint: disable=import-outside-toplevel
+
+        with mlc_chat_config_path.open(mode="r", encoding="utf-8") as file:
+            mlc_chat_config = json.load(file)
+        cfg: Dict[str, Any] = mlc_chat_config.pop("model_config")
+        cfg.update(mlc_chat_config)
+        for key, value in list(asdict(self).items()):
+            if key != "opt" and value is not None:
+                cfg[key] = value
+        model_config_cls = MODELS[cfg["model_type"]].config
+        cfg = model_config_cls.from_dict(cfg).asdict()
+        cfg["quantization"] = mlc_chat_config["quantization"]
+        return cfg
+
+    @property
+    def _overrides(self) -> str:
+        overrides = []
+        for field in fields(JITOptions):
+            key = field.name
+            value = getattr(self, key)
+            if key != "opt" and value is not None:
+                overrides.append(f"{key}={value}")
+        return ";".join(overrides)
+
+    def _jit(
+        self,
+        model_path: Path,
+        device: str,
+    ) -> str:
+        # pylint: disable=import-outside-toplevel
+        import hashlib
+        import shutil
+        import subprocess
+        import tempfile
+
+        from mlc_chat.support.download import get_cache_dir
+
+        # pylint: enable=import-outside-toplevel
+        overrides = self._overrides
+        hash_key = {
+            "model_config": self._as_model_config(model_path / "mlc-chat-config.json"),
+            "device": device,
+            "overrides": overrides,
+            "opt": self.opt,
+        }
+        hash_value = hashlib.md5(
+            json.dumps(
+                hash_key,
+                sort_keys=True,
+                indent=2,
+            ).encode("utf-8")
+        ).hexdigest()
+        dst = get_cache_dir() / "model_lib" / f"{hash_value}.so"
+        if dst.is_file():
+            logger.info("Using cached model lib: %s", bold(str(dst)))
+            return str(dst)
+        with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir:
+            dso_path = os.path.join(tmp_dir, "lib.so")
+            cmd = [
+                sys.executable,
+                "-m",
+                "mlc_chat",
+                "compile",
+                str(model_path),
+                "--opt",
+                self.opt,
+                "--overrides",
+                overrides,
+                "--device",
+                device,
+                "--output",
+                dso_path,
+            ]
+            logger.info("Compiling using command: %s", blue(" ".join(cmd)))
+            subprocess.run(cmd, check=True)
+            shutil.move(dso_path, str(dst))
+            logger.info("Using compiled model lib: %s", bold(str(dst)))
+        return str(dst)
+
+
+@dataclass
 class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     r"""A dataclass that represents user-defined generation configuration.
 
@@ -316,6 +418,16 @@ def _get_model_path(model: str) -> Tuple[str, str]:
     ------
     FileNotFoundError: if we cannot find a valid `model_path`.
     """
+    if model.startswith("HF://"):
+        from mlc_chat.support.download import (  # pylint: disable=import-outside-toplevel
+            download_mlc_weights,
+        )
+
+        logger.info("Downloading model from HuggingFace: %s", model)
+        mlc_dir = download_mlc_weights(model)
+        cfg_dir = mlc_dir / "mlc-chat-config.json"
+        return str(mlc_dir), str(cfg_dir)
+
     # Note that the order of this list corresponds to our search priority
     candidate_paths = [
         f"{model}",  # full path, or just the name
@@ -460,7 +572,7 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
         The path to ``mlc-chat-config.json``. Used for error message making.
 
     Returns
-    ------
+    -------
     model_lib_path : str
         The path pointing to the model library we find.
 
@@ -651,12 +763,13 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         possible paths.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         model: str,
         device: str = "auto",
         chat_config: Optional[ChatConfig] = None,
         model_lib_path: Optional[str] = None,
+        jit_options: Optional[JITOptions] = None,
     ):
         # 0. Get device:
         # Retrieve device_name and device_id (if any, default 0) from device arg
@@ -697,14 +810,30 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         self.chat_config = _get_chat_config(self.config_file_path, chat_config)
 
         # 4. Look up model library
-        self.model_lib_path = _get_lib_module_path(
-            model,
-            self.model_path,
-            self.chat_config,
-            model_lib_path,
-            self.device.MASK2STR[self.device.device_type],
-            self.config_file_path,
-        )
+        try:
+            self.model_lib_path = _get_lib_module_path(
+                model,
+                self.model_path,
+                self.chat_config,
+                model_lib_path,
+                self.device.MASK2STR[self.device.device_type],
+                self.config_file_path,
+            )
+        except FileNotFoundError:
+            logger.exception("%s to find model lib with the exception below", red("Failed"))
+            logger.info("Now compiling model lib on device")
+            if jit_options is None:
+                jit_options = JITOptions()
+            jit_options.update(
+                {
+                    "tensor_parallel_shards": self.chat_config.tensor_parallel_shards,
+                    "context_window_size": self.chat_config.max_window_size,
+                }
+            )
+            self.model_lib_path = jit_options._jit(
+                Path(self.model_path),
+                device2str(self.device),
+            )
 
         # 5. Call reload
         user_chat_config_json_str = _convert_chat_config_to_json_str(
