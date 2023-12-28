@@ -27,7 +27,7 @@ class Row:
         """Generate shard info for this sharding strategy."""
         assert weight.shape == [self.row, self.col]
         return {
-            "func": self.name,
+            "func_name": self.name,
             "out_shape": (shards, self.row, self.col),
             "out_dtype": weight.dtype,
         }
@@ -121,5 +121,95 @@ class RowSeg:
         return {
             "func_name": self.name,
             "out_shape": (shards, self.row, self.col),
+            "out_dtype": weight.dtype,
+        }
+
+
+@dataclasses.dataclass
+class Row1D:
+    """Shard a 1D vector."""
+
+    name: str
+    row: int
+
+    def gen_tir(self, shards: int, weight: nn.Tensor) -> tir.PrimFunc:
+        """Generate a TIR function that shards the 1-D tensor."""
+        assert weight.shape == [self.row]
+        w = te.placeholder([self.row * shards], weight.dtype, name="w")
+        o = topi.reshape(w, (shards, self.row))
+        func = te.create_prim_func([w, o])
+        return func
+
+    def gen_shard_info(self, shards: int, weight: nn.Tensor) -> Dict[str, Any]:
+        """Generate shard info for this sharding strategy."""
+        assert weight.shape == [self.row]
+        return {
+            "func_name": self.name,
+            "out_shape": (shards, self.row),
+            "out_dtype": weight.dtype,
+        }
+
+
+@dataclasses.dataclass
+class RowSeg1D:
+    """Shard a 1D tensor by its "segmented" rows, where each segment has a different number of rows
+    and sharded evenly on each worker.
+
+
+    => Step #1:
+
+    [#shards, rows_1 // g, g]
+    [#shards, rows_2 // g, g]
+    ...
+    [#shards, rows_n // g, g]
+
+    => Step #2:
+
+    [#shards, sum(rows) // g, g]
+
+    => Step #3:
+
+    [#shards, sum(rows)]
+
+    """
+
+    name: str
+    rows: List[int]
+    groups: int
+
+    @property
+    def row(self) -> int:
+        """Number of rows in total"""
+        return sum(self.rows)
+
+    def gen_tir(self, shards: int, weight: nn.Tensor) -> tir.PrimFunc:
+        """Generate a TIR function that shards the weight tensor by its row segments."""
+        assert weight.shape == [self.row]
+        w = te.placeholder([self.row * shards], weight.dtype, name="w")
+        ws: List[te.Tensor] = []
+        offset = 0
+        for idx, sub_row in enumerate(self.rows):
+            assert sub_row % self.groups == 0
+            ws.append(
+                topi.reshape(
+                    te.compute(
+                        (shards * sub_row,),
+                        lambda i: w[i + offset],  # pylint: disable=cell-var-from-loop
+                        name=f"w_{idx}",
+                    ),
+                    (shards, sub_row // self.groups, self.groups),
+                )
+            )
+            offset += sub_row * shards
+        o = topi.reshape(topi.concatenate(ws, axis=1), (shards, self.row))
+        func = te.create_prim_func([w, o])
+        return func
+
+    def gen_shard_info(self, shards: int, weight: nn.Tensor) -> Dict[str, Any]:
+        """Generate shard info for this sharding strategy."""
+        assert weight.shape == [self.row]
+        return {
+            "func_name": self.name,
+            "out_shape": (shards, self.row),
             "out_dtype": weight.dtype,
         }
