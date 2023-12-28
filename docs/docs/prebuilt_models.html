@@ -189,7 +189,7 @@
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Model Prebuilts</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#prebuilt-models-on-android">Prebuilt Models on Android</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#using-prebuilt-models-for-different-platforms">Using Prebuilt Models for Different Platforms</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#level-1-supported-model-architectures-the-all-in-one-table">Level 1: Supported Model Architectures (The All-In-One Table)</a></li>
@@ -198,6 +198,8 @@
 <li class="toctree-l3"><a class="reference internal" href="#mistral">Mistral</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#gpt-neox-redpajama-incite">GPT-NeoX (RedPajama-INCITE)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#gptbigcode">GPTBigCode</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#phi">Phi</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#gpt2">GPT2</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#level-3-model-variant-tables-precompiled-weights">Level 3: Model Variant Tables (Precompiled Weights)</a><ul>
@@ -207,6 +209,8 @@
 <li class="toctree-l3"><a class="reference internal" href="#openhermes-2-mistral">OpenHermes-2-Mistral</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wizardmath-v1-1">WizardMath V1.1</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#redpajama">RedPajama</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#phi-variant-table">Phi</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#gpt2-variant-table">GPT2</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#contribute-models-to-mlc-llm">Contribute Models to MLC-LLM</a></li>
@@ -316,55 +320,105 @@
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#overview" id="id15">Overview</a></p>
+<li><p><a class="reference internal" href="#overview" id="id22">Overview</a></p>
 <ul>
-<li><p><a class="reference internal" href="#prebuilt-models-on-android" id="id16">Prebuilt Models on Android</a></p></li>
+<li><p><a class="reference internal" href="#using-prebuilt-models-for-different-platforms" id="id23">Using Prebuilt Models for Different Platforms</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#level-1-supported-model-architectures-the-all-in-one-table" id="id17">Level 1: Supported Model Architectures (The All-In-One Table)</a></p></li>
-<li><p><a class="reference internal" href="#level-2-model-library-tables-precompiled-binary-files" id="id18">Level 2: Model Library Tables (Precompiled Binary Files)</a></p>
+<li><p><a class="reference internal" href="#level-1-supported-model-architectures-the-all-in-one-table" id="id24">Level 1: Supported Model Architectures (The All-In-One Table)</a></p></li>
+<li><p><a class="reference internal" href="#level-2-model-library-tables-precompiled-binary-files" id="id25">Level 2: Model Library Tables (Precompiled Binary Files)</a></p>
 <ul>
-<li><p><a class="reference internal" href="#llama" id="id19">Llama</a></p></li>
-<li><p><a class="reference internal" href="#mistral" id="id20">Mistral</a></p></li>
-<li><p><a class="reference internal" href="#gpt-neox-redpajama-incite" id="id21">GPT-NeoX (RedPajama-INCITE)</a></p></li>
-<li><p><a class="reference internal" href="#gptbigcode" id="id22">GPTBigCode</a></p></li>
+<li><p><a class="reference internal" href="#llama" id="id26">Llama</a></p></li>
+<li><p><a class="reference internal" href="#mistral" id="id27">Mistral</a></p></li>
+<li><p><a class="reference internal" href="#gpt-neox-redpajama-incite" id="id28">GPT-NeoX (RedPajama-INCITE)</a></p></li>
+<li><p><a class="reference internal" href="#gptbigcode" id="id29">GPTBigCode</a></p></li>
+<li><p><a class="reference internal" href="#phi" id="id30">Phi</a></p></li>
+<li><p><a class="reference internal" href="#gpt2" id="id31">GPT2</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#level-3-model-variant-tables-precompiled-weights" id="id23">Level 3: Model Variant Tables (Precompiled Weights)</a></p>
+<li><p><a class="reference internal" href="#level-3-model-variant-tables-precompiled-weights" id="id32">Level 3: Model Variant Tables (Precompiled Weights)</a></p>
 <ul>
-<li><p><a class="reference internal" href="#llama-2" id="id24">Llama-2</a></p></li>
-<li><p><a class="reference internal" href="#mistralinstruct-variant-table" id="id25">Mistral</a></p></li>
-<li><p><a class="reference internal" href="#neuralhermes-2-5-mistral" id="id26">NeuralHermes-2.5-Mistral</a></p></li>
-<li><p><a class="reference internal" href="#openhermes-2-mistral" id="id27">OpenHermes-2-Mistral</a></p></li>
-<li><p><a class="reference internal" href="#wizardmath-v1-1" id="id28">WizardMath V1.1</a></p></li>
-<li><p><a class="reference internal" href="#redpajama" id="id29">RedPajama</a></p></li>
+<li><p><a class="reference internal" href="#llama-2" id="id33">Llama-2</a></p></li>
+<li><p><a class="reference internal" href="#mistralinstruct-variant-table" id="id34">Mistral</a></p></li>
+<li><p><a class="reference internal" href="#neuralhermes-2-5-mistral" id="id35">NeuralHermes-2.5-Mistral</a></p></li>
+<li><p><a class="reference internal" href="#openhermes-2-mistral" id="id36">OpenHermes-2-Mistral</a></p></li>
+<li><p><a class="reference internal" href="#wizardmath-v1-1" id="id37">WizardMath V1.1</a></p></li>
+<li><p><a class="reference internal" href="#redpajama" id="id38">RedPajama</a></p></li>
+<li><p><a class="reference internal" href="#phi-variant-table" id="id39">Phi</a></p></li>
+<li><p><a class="reference internal" href="#gpt2-variant-table" id="id40">GPT2</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#contribute-models-to-mlc-llm" id="id30">Contribute Models to MLC-LLM</a></p></li>
+<li><p><a class="reference internal" href="#contribute-models-to-mlc-llm" id="id41">Contribute Models to MLC-LLM</a></p></li>
 </ul>
 </nav>
 <section id="overview">
-<span id="model-prebuilts-overview"></span><h2><a class="toc-backref" href="#id15" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Permalink to this heading">¶</a></h2>
+<span id="model-prebuilts-overview"></span><h2><a class="toc-backref" href="#id22" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Permalink to this heading">¶</a></h2>
 <p>MLC-LLM is a universal solution for deploying different language models. Any models that can be described in <a class="reference external" href="https://mlc.ai/chapter_graph_optimization/index.html">TVM Relax</a>
 (a general representation for Neural Networks and can be imported from models written in PyTorch) can be recognized by MLC-LLM and thus deployed to different backends with the
 help of <a class="reference internal" href="install/tvm.html"><span class="doc">TVM Unity</span></a>.</p>
 <p>There are two ways to run a model on MLC-LLM (this page focuses on the second one):</p>
 <ol class="arabic simple">
 <li><p>Compile your own models following <a class="reference internal" href="compilation/compile_models.html"><span class="doc">the model compilation page</span></a>.</p></li>
-<li><p>Use off-the-shelf prebuilts models following this current page.</p></li>
+<li><p>Use off-the-shelf prebuilt models following this current page.</p></li>
 </ol>
 <p>In order to run a specific model on MLC-LLM, you need:</p>
 <p><strong>1. A model library:</strong> a binary file containing the end-to-end functionality to inference a model (e.g. <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf-q4f16_1-cuda.so</span></code>).
 See the full list of all precompiled model libraries <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">here</a>.</p>
 <p><strong>2. Compiled weights:</strong> a folder containing multiple files that store the compiled and quantized weights of a model
 (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC">https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC</a>).  See the full list of all precompiled weights <a class="reference external" href="https://huggingface.co/mlc-ai">here</a>.</p>
-<span class="target" id="using-prebuilt-models-cli"></span><section id="prebuilt-models-on-android">
-<span id="prebuilt-models-android"></span><h3><a class="toc-backref" href="#id16" role="doc-backlink">Prebuilt Models on Android</a><a class="headerlink" href="#prebuilt-models-on-android" title="Permalink to this heading">¶</a></h3>
+<p>In this page, we first quickly go over <a class="reference internal" href="#using-model-prebuilts"><span class="std std-ref">how to use prebuilts</span></a> for different platforms,
+then track what current <a class="reference internal" href="#supported-model-architectures"><span class="std std-ref">prebuilt models we provide</span></a>.</p>
+<section id="using-prebuilt-models-for-different-platforms">
+<span id="using-model-prebuilts"></span><h3><a class="toc-backref" href="#id23" role="doc-backlink">Using Prebuilt Models for Different Platforms</a><a class="headerlink" href="#using-prebuilt-models-for-different-platforms" title="Permalink to this heading">¶</a></h3>
+<p>We quickly go over how to use prebuilt models for each platform. You can find detailed instruction on each platform’s corresponding page.</p>
+<p id="using-prebuilt-models-cli"><strong>Prebuilt Models on CLI / Python</strong></p>
+<p>For more, please see <a class="reference internal" href="deploy/cli.html"><span class="doc">the CLI page</span></a>, and the <a class="reference internal" href="deploy/python.html"><span class="doc">the Python page</span></a>.</p>
+<details class="summary-click-to-show-details">
+<summary>Click to show details</summary><p>First create the conda environment if you have not done so.</p>
+<blockquote>
+<div><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>mlc-ai<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mlc-chat-cli-nightly
+conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
+conda<span class="w"> </span>install<span class="w"> </span>git<span class="w"> </span>git-lfs
+git<span class="w"> </span>lfs<span class="w"> </span>install
+</pre></div>
+</div>
+</div></blockquote>
+<p>Download the prebuilt model libraries from github.</p>
+<blockquote>
+<div><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>dist/
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt_libs
+</pre></div>
+</div>
+</div></blockquote>
+<p>Download the prebuilt model weights from hugging face for the model variant you want.</p>
+<blockquote>
+<div><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Say we want to run Llama-2-7b-chat-hf-q4f16_1-MLC</span>
+git<span class="w"> </span>lfs<span class="w"> </span>install
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC<span class="w"> </span><span class="se">\</span>
+<span class="w">                                  </span>dist/Llama-2-7b-chat-hf-q4f16_1-MLC
+</pre></div>
+</div>
+</div></blockquote>
+<p>Run the model with CLI:</p>
+<blockquote>
+<div><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>dist/Llama-2-7b-chat-hf-q4f16_1-MLC<span class="w"> </span><span class="se">\</span>
+<span class="w">            </span>--model-lib-path<span class="w"> </span>dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
+<span class="w">            </span><span class="c1"># CUDA on Linux: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so</span>
+<span class="w">            </span><span class="c1"># Metal on macOS: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so</span>
+<span class="w">            </span><span class="c1"># Same rule applies for other platforms</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>To run the model with Python API, see <a class="reference internal" href="deploy/python.html"><span class="doc">the Python page</span></a> (all other downloading steps are the same as CLI).</p>
+</details><div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p id="prebuilt-models-android"><strong>Prebuilt Models on Android</strong></p>
 <p>For more, please see <a class="reference internal" href="deploy/android.html"><span class="doc">the Android page</span></a>.</p>
 <details class="summary-click-to-show-details">
 <summary>Click to show details</summary><p>The apk for demo Android app includes the following models. To add more, check out the Android page.</p>
-<table class="docutils align-default" id="id4">
-<caption><span class="caption-text">Prebuilt Models for Android</span><a class="headerlink" href="#id4" title="Permalink to this table">¶</a></caption>
+<table class="docutils align-default" id="id6">
+<caption><span class="caption-text">Prebuilt Models for Android</span><a class="headerlink" href="#id6" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25%" />
 <col style="width: 25%" />
@@ -407,12 +461,12 @@ See the full list of all precompiled model libraries <a class="reference externa
 </section>
 </section>
 <section id="level-1-supported-model-architectures-the-all-in-one-table">
-<span id="supported-model-architectures"></span><h2><a class="toc-backref" href="#id17" role="doc-backlink">Level 1: Supported Model Architectures (The All-In-One Table)</a><a class="headerlink" href="#level-1-supported-model-architectures-the-all-in-one-table" title="Permalink to this heading">¶</a></h2>
+<span id="supported-model-architectures"></span><h2><a class="toc-backref" href="#id24" role="doc-backlink">Level 1: Supported Model Architectures (The All-In-One Table)</a><a class="headerlink" href="#level-1-supported-model-architectures-the-all-in-one-table" title="Permalink to this heading">¶</a></h2>
 <p>For each model architecture (e.g. Llama), there are multiple variants (e.g. CodeLlama, WizardLM). The variants share the same code for inference and only differ in their weights. In other words, running CodeLlama and WizardLM can use the same model library file (specified in Level 2 tables), but different precompiled weights (specified in Level 3 tables). Note that we have not provided prebuilt weights for all model variants.</p>
 <p>Each entry below hyperlinks to the corresponding level 2 and level 3 tables.</p>
 <p>MLC-LLM supports the following model architectures:</p>
-<table class="docutils align-default" id="id5">
-<caption><span class="caption-text">Supported Model Architectures</span><a class="headerlink" href="#id5" title="Permalink to this table">¶</a></caption>
+<table class="docutils align-default" id="id7">
+<caption><span class="caption-text">Supported Model Architectures</span><a class="headerlink" href="#id7" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 20%" />
 <col style="width: 20%" />
@@ -430,7 +484,7 @@ See the full list of all precompiled model libraries <a class="reference externa
 <tr class="row-even"><td><p><a class="reference external" href="https://github.com/facebookresearch/llama">LLaMA</a></p></td>
 <td><ul class="simple">
 <li><p><a class="reference internal" href="#llama-library-table"><span class="std std-ref">Prebuilt Model Library</span></a></p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/compiler/model/llama">MLC Implementation</a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/model/llama">MLC Implementation</a></p></li>
 </ul>
 </td>
 <td><ul class="simple">
@@ -456,7 +510,7 @@ See the full list of all precompiled model libraries <a class="reference externa
 <tr class="row-odd"><td><p><a class="reference external" href="https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2">Mistral</a></p></td>
 <td><ul class="simple">
 <li><p><a class="reference internal" href="#mistral-library-table"><span class="std std-ref">Prebuilt Model Library</span></a></p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/compiler/model/mistral">MLC Implementation</a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/model/mistral">MLC Implementation</a></p></li>
 </ul>
 </td>
 <td><ul class="simple">
@@ -471,7 +525,7 @@ See the full list of all precompiled model libraries <a class="reference externa
 <tr class="row-even"><td><p><a class="reference external" href="https://github.com/EleutherAI/gpt-neox">GPT-NeoX</a></p></td>
 <td><ul class="simple">
 <li><p><a class="reference internal" href="#gpt-neox-library-table"><span class="std std-ref">Prebuilt Model Library</span></a></p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/compiler/model/gpt_neox">MLC Implementation</a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/model/gpt_neox">MLC Implementation</a></p></li>
 </ul>
 </td>
 <td><ul class="simple">
@@ -488,7 +542,7 @@ See the full list of all precompiled model libraries <a class="reference externa
 <tr class="row-odd"><td><p><a class="reference external" href="https://huggingface.co/docs/transformers/model_doc/gpt_bigcode">GPTBigCode</a></p></td>
 <td><ul class="simple">
 <li><p><a class="reference internal" href="#gpt-big-code-library-table"><span class="std std-ref">Prebuilt Model Library</span></a></p></li>
-<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/compiler/model/gpt_bigcode">MLC Implementation</a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/model/gpt_bigcode">MLC Implementation</a></p></li>
 </ul>
 </td>
 <td></td>
@@ -498,6 +552,31 @@ See the full list of all precompiled model libraries <a class="reference externa
 <li><p><a class="reference external" href="https://github.com/nlpxucan/WizardLM/tree/main/WizardCoder">WizardCoder (old)</a></p></li>
 </ul>
 </td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="https://huggingface.co/microsoft/phi-2">Phi</a></p></td>
+<td><ul class="simple">
+<li><p><a class="reference internal" href="#phi-library-table"><span class="std std-ref">Prebuilt Model Library</span></a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/model/phi">MLC Implementation</a></p></li>
+</ul>
+</td>
+<td><ul class="simple">
+<li><p><a class="reference internal" href="#phi-variant-table"><span class="std std-ref">Phi-1_5</span></a></p></li>
+<li><p><a class="reference internal" href="#phi-variant-table"><span class="std std-ref">Phi-2</span></a></p></li>
+</ul>
+</td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://huggingface.co/docs/transformers/model_doc/gpt2">GPT2</a></p></td>
+<td><ul class="simple">
+<li><p><a class="reference internal" href="#gpt2-library-table"><span class="std std-ref">Prebuilt Model Library</span></a></p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/model/gpt2">MLC Implementation</a></p></li>
+</ul>
+</td>
+<td><ul class="simple">
+<li><p><a class="reference internal" href="#gpt2-variant-table"><span class="std std-ref">GPT2</span></a></p></li>
+</ul>
+</td>
+<td></td>
 </tr>
 </tbody>
 </table>
@@ -515,7 +594,7 @@ automatically shows up on our <a class="reference external" href="https://github
 </ul>
 </section>
 <section id="level-2-model-library-tables-precompiled-binary-files">
-<span id="model-library-tables"></span><h2><a class="toc-backref" href="#id18" role="doc-backlink">Level 2: Model Library Tables (Precompiled Binary Files)</a><a class="headerlink" href="#level-2-model-library-tables-precompiled-binary-files" title="Permalink to this heading">¶</a></h2>
+<span id="model-library-tables"></span><h2><a class="toc-backref" href="#id25" role="doc-backlink">Level 2: Model Library Tables (Precompiled Binary Files)</a><a class="headerlink" href="#level-2-model-library-tables-precompiled-binary-files" title="Permalink to this heading">¶</a></h2>
 <p>As mentioned earlier, each model architecture corresponds to a different model library file. That is, you cannot use the same model library file to run <code class="docutils literal notranslate"><span class="pre">RedPajama</span></code> and <code class="docutils literal notranslate"><span class="pre">Llama-2</span></code>. However, you can use the same <code class="docutils literal notranslate"><span class="pre">Llama</span></code> model library file to run <code class="docutils literal notranslate"><span class="pre">Llama-2</span></code>, <code class="docutils literal notranslate"><span class="pre">WizardLM</span></code>, <code class="docutils literal notranslate"><span class="pre">CodeLlama</span></code>, etc, but just with different weight files (from tables in Level 3).</p>
 <p>Each table below demonstrates the pre-compiled model library files for each model architecture. This is categorized by:</p>
 <ul class="simple">
@@ -528,9 +607,9 @@ automatically shows up on our <a class="reference external" href="https://github
 <p>If the model library you found is not available as a prebuilt, you can compile it yourself by following <a class="reference internal" href="compilation/compile_models.html"><span class="doc">the model compilation page</span></a>,
 and submit a PR to the repo <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a> afterwards.</p>
 <section id="llama">
-<span id="llama-library-table"></span><h3><a class="toc-backref" href="#id19" role="doc-backlink">Llama</a><a class="headerlink" href="#llama" title="Permalink to this heading">¶</a></h3>
-<table class="docutils align-default" id="id6">
-<caption><span class="caption-text">Llama</span><a class="headerlink" href="#id6" title="Permalink to this table">¶</a></caption>
+<span id="llama-library-table"></span><h3><a class="toc-backref" href="#id26" role="doc-backlink">Llama</a><a class="headerlink" href="#llama" title="Permalink to this heading">¶</a></h3>
+<table class="docutils align-default" id="id8">
+<caption><span class="caption-text">Llama</span><a class="headerlink" href="#id8" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 9%" />
 <col style="width: 9%" />
@@ -629,9 +708,9 @@ and submit a PR to the repo <a class="reference external" href="https://github.c
 </table>
 </section>
 <section id="mistral">
-<span id="mistral-library-table"></span><h3><a class="toc-backref" href="#id20" role="doc-backlink">Mistral</a><a class="headerlink" href="#mistral" title="Permalink to this heading">¶</a></h3>
-<table class="docutils align-default" id="id7">
-<caption><span class="caption-text">Mistral</span><a class="headerlink" href="#id7" title="Permalink to this table">¶</a></caption>
+<span id="mistral-library-table"></span><h3><a class="toc-backref" href="#id27" role="doc-backlink">Mistral</a><a class="headerlink" href="#mistral" title="Permalink to this heading">¶</a></h3>
+<table class="docutils align-default" id="id9">
+<caption><span class="caption-text">Mistral</span><a class="headerlink" href="#id9" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 9%" />
 <col style="width: 9%" />
@@ -684,9 +763,9 @@ and submit a PR to the repo <a class="reference external" href="https://github.c
 </table>
 </section>
 <section id="gpt-neox-redpajama-incite">
-<span id="gpt-neox-library-table"></span><h3><a class="toc-backref" href="#id21" role="doc-backlink">GPT-NeoX (RedPajama-INCITE)</a><a class="headerlink" href="#gpt-neox-redpajama-incite" title="Permalink to this heading">¶</a></h3>
-<table class="docutils align-default" id="id8">
-<caption><span class="caption-text">GPT-NeoX (RedPajama-INCITE)</span><a class="headerlink" href="#id8" title="Permalink to this table">¶</a></caption>
+<span id="gpt-neox-library-table"></span><h3><a class="toc-backref" href="#id28" role="doc-backlink">GPT-NeoX (RedPajama-INCITE)</a><a class="headerlink" href="#gpt-neox-redpajama-incite" title="Permalink to this heading">¶</a></h3>
+<table class="docutils align-default" id="id10">
+<caption><span class="caption-text">GPT-NeoX (RedPajama-INCITE)</span><a class="headerlink" href="#id10" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 9%" />
 <col style="width: 9%" />
@@ -749,11 +828,221 @@ and submit a PR to the repo <a class="reference external" href="https://github.c
 </table>
 </section>
 <section id="gptbigcode">
-<span id="gpt-big-code-library-table"></span><h3><a class="toc-backref" href="#id22" role="doc-backlink">GPTBigCode</a><a class="headerlink" href="#gptbigcode" title="Permalink to this heading">¶</a></h3>
+<span id="gpt-big-code-library-table"></span><h3><a class="toc-backref" href="#id29" role="doc-backlink">GPTBigCode</a><a class="headerlink" href="#gptbigcode" title="Permalink to this heading">¶</a></h3>
+<table class="docutils align-default" id="id11">
+<caption><span class="caption-text">GPTBigCode</span><a class="headerlink" href="#id11" title="Permalink to this table">¶</a></caption>
+<colgroup>
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head stub"></th>
+<th class="head"><p>CUDA</p></th>
+<th class="head"><p>ROCm</p></th>
+<th class="head"><p>Vulkan</p>
+<p>(Linux)</p>
+</th>
+<th class="head"><p>Vulkan</p>
+<p>(Windows)</p>
+</th>
+<th class="head"><p>Metal</p>
+<p>(M Chip)</p>
+</th>
+<th class="head"><p>Metal</p>
+<p>(Intel)</p>
+</th>
+<th class="head"><p>iOS</p></th>
+<th class="head"><p>Android</p></th>
+<th class="head"><p>webgpu</p></th>
+<th class="head"><p>mali</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><th class="stub"><p>15B</p></th>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="phi">
+<span id="phi-library-table"></span><h3><a class="toc-backref" href="#id30" role="doc-backlink">Phi</a><a class="headerlink" href="#phi" title="Permalink to this heading">¶</a></h3>
+<table class="docutils align-default" id="id12">
+<caption><span class="caption-text">Phi</span><a class="headerlink" href="#id12" title="Permalink to this table">¶</a></caption>
+<colgroup>
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head stub"></th>
+<th class="head"><p>CUDA</p></th>
+<th class="head"><p>ROCm</p></th>
+<th class="head"><p>Vulkan</p>
+<p>(Linux)</p>
+</th>
+<th class="head"><p>Vulkan</p>
+<p>(Windows)</p>
+</th>
+<th class="head"><p>Metal</p>
+<p>(M Chip)</p>
+</th>
+<th class="head"><p>Metal</p>
+<p>(Intel)</p>
+</th>
+<th class="head"><p>iOS</p></th>
+<th class="head"><p>Android</p></th>
+<th class="head"><p>webgpu</p></th>
+<th class="head"><p>mali</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><th class="stub"><p>Phi-2</p>
+<p>(2.7B)</p>
+</th>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q0f16-cuda.so">q0f16</a></p>
+<p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q4f16_1-cuda.so">q4f16_1</a></p>
+</td>
+<td></td>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q0f16-vulkan.so">q0f16</a></p>
+<p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q4f16_1-vulkan.so">q4f16_1</a></p>
+</td>
+<td></td>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q0f16-metal.so">q0f16</a></p>
+<p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q4f16_1-metal.so">q4f16_1</a></p>
+</td>
+<td></td>
+<td></td>
+<td></td>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q0f16-ctx2k-webgpu.wasm">q0f16</a></p>
+<p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q4f16_1-ctx2k-webgpu.wasm">q4f16_1</a></p>
+</td>
+<td></td>
+</tr>
+<tr class="row-odd"><th class="stub"><p>Phi-1.5</p>
+<p>(1.3B)</p>
+</th>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q0f16-cuda.so">q0f16</a></p>
+<p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q4f16_1-cuda.so">q4f16_1</a></p>
+</td>
+<td></td>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q0f16-vulkan.so">q0f16</a></p>
+<p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q4f16_1-vulkan.so">q4f16_1</a></p>
+</td>
+<td></td>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q0f16-metal.so">q0f16</a></p>
+<p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q4f16_1-metal.so">q4f16_1</a></p>
+</td>
+<td></td>
+<td></td>
+<td></td>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q0f16-ctx2k-webgpu.wasm">q0f16</a></p>
+<p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q4f16_1-ctx2k-webgpu.wasm">q4f16_1</a></p>
+</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="gpt2">
+<span id="gpt2-library-table"></span><h3><a class="toc-backref" href="#id31" role="doc-backlink">GPT2</a><a class="headerlink" href="#gpt2" title="Permalink to this heading">¶</a></h3>
+<table class="docutils align-default" id="id13">
+<caption><span class="caption-text">GPT2</span><a class="headerlink" href="#id13" title="Permalink to this table">¶</a></caption>
+<colgroup>
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head stub"></th>
+<th class="head"><p>CUDA</p></th>
+<th class="head"><p>ROCm</p></th>
+<th class="head"><p>Vulkan</p>
+<p>(Linux)</p>
+</th>
+<th class="head"><p>Vulkan</p>
+<p>(Windows)</p>
+</th>
+<th class="head"><p>Metal</p>
+<p>(M Chip)</p>
+</th>
+<th class="head"><p>Metal</p>
+<p>(Intel)</p>
+</th>
+<th class="head"><p>iOS</p></th>
+<th class="head"><p>Android</p></th>
+<th class="head"><p>webgpu</p></th>
+<th class="head"><p>mali</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><th class="stub"><p>GPT2</p>
+<p>(124M)</p>
+</th>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2/gpt2-q0f16-cuda.so">q0f16</a></p></td>
+<td></td>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2/gpt2-q0f16-vulkan.so">q0f16</a></p></td>
+<td></td>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2/gpt2-q0f16-metal.so">q0f16</a></p></td>
+<td></td>
+<td></td>
+<td></td>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2/gpt2-q0f16-ctx1k-webgpu.wasm">q0f16</a></p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><th class="stub"><p>GPT2-med</p>
+<p>(355M)</p>
+</th>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2-medium/gpt2-medium-q0f16-cuda.so">q0f16</a></p></td>
+<td></td>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2-medium/gpt2-medium-q0f16-vulkan.so">q0f16</a></p></td>
+<td></td>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2-medium/gpt2-medium-q0f16-metal.so">q0f16</a></p></td>
+<td></td>
+<td></td>
+<td></td>
+<td><p><a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2-medium/gpt2-medium-q0f16-ctx1k-webgpu.wasm">q0f16</a></p></td>
+<td></td>
+</tr>
+</tbody>
+</table>
 </section>
 </section>
 <section id="level-3-model-variant-tables-precompiled-weights">
-<span id="model-variant-tables"></span><h2><a class="toc-backref" href="#id23" role="doc-backlink">Level 3: Model Variant Tables (Precompiled Weights)</a><a class="headerlink" href="#level-3-model-variant-tables-precompiled-weights" title="Permalink to this heading">¶</a></h2>
+<span id="model-variant-tables"></span><h2><a class="toc-backref" href="#id32" role="doc-backlink">Level 3: Model Variant Tables (Precompiled Weights)</a><a class="headerlink" href="#level-3-model-variant-tables-precompiled-weights" title="Permalink to this heading">¶</a></h2>
 <p>Finally, for each model variant, we provide the precompiled weights we uploaded to hugging face.</p>
 <p>Each precompiled weight is categorized by its model size (e.g. 7B vs. 13B) and the quantization scheme (e.g. <code class="docutils literal notranslate"><span class="pre">q3f16_1</span></code> vs. <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>). We note that the weights are <strong>platform-agnostic</strong>.</p>
 <p>Each model variant also loads its conversation configuration from a pre-defined <a class="reference internal" href="get_started/mlc_chat_config.html#load-predefined-conv-template"><span class="std std-ref">conversation template</span></a>. Note that multiple model variants can share a common conversation template.</p>
@@ -761,8 +1050,8 @@ and submit a PR to the repo <a class="reference external" href="https://github.c
 <section id="llama-2">
 <span id="llama2-variant-table"></span><h3><a class="reference external" href="https://ai.meta.com/llama/">Llama-2</a><a class="headerlink" href="#llama-2" title="Permalink to this heading">¶</a></h3>
 <p>Conversation template: <code class="docutils literal notranslate"><span class="pre">llama-2</span></code></p>
-<table class="docutils align-default" id="id9">
-<caption><span class="caption-text">Llama-2</span><a class="headerlink" href="#id9" title="Permalink to this table">¶</a></caption>
+<table class="docutils align-default" id="id14">
+<caption><span class="caption-text">Llama-2</span><a class="headerlink" href="#id14" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 50%" />
 <col style="width: 50%" />
@@ -798,8 +1087,8 @@ and submit a PR to the repo <a class="reference external" href="https://github.c
 <section id="mistralinstruct-variant-table">
 <span id="id2"></span><h3><a class="reference external" href="https://huggingface.co/docs/transformers/main/en/model_doc/mistral">Mistral</a><a class="headerlink" href="#mistralinstruct-variant-table" title="Permalink to this heading">¶</a></h3>
 <p>Conversation template: <code class="docutils literal notranslate"><span class="pre">mistral_default</span></code></p>
-<table class="docutils align-default" id="id10">
-<caption><span class="caption-text">Mistral</span><a class="headerlink" href="#id10" title="Permalink to this table">¶</a></caption>
+<table class="docutils align-default" id="id15">
+<caption><span class="caption-text">Mistral</span><a class="headerlink" href="#id15" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 50%" />
 <col style="width: 50%" />
@@ -822,8 +1111,8 @@ and submit a PR to the repo <a class="reference external" href="https://github.c
 <section id="neuralhermes-2-5-mistral">
 <span id="neuralhermes-variant-table"></span><h3><a class="reference external" href="https://huggingface.co/mlabonne/NeuralHermes-2.5-Mistral-7B">NeuralHermes-2.5-Mistral</a><a class="headerlink" href="#neuralhermes-2-5-mistral" title="Permalink to this heading">¶</a></h3>
 <p>Conversation template: <code class="docutils literal notranslate"><span class="pre">neural_hermes_mistral</span></code></p>
-<table class="docutils align-default" id="id11">
-<caption><span class="caption-text">Neural Hermes</span><a class="headerlink" href="#id11" title="Permalink to this table">¶</a></caption>
+<table class="docutils align-default" id="id16">
+<caption><span class="caption-text">Neural Hermes</span><a class="headerlink" href="#id16" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 50%" />
 <col style="width: 50%" />
@@ -846,8 +1135,8 @@ and submit a PR to the repo <a class="reference external" href="https://github.c
 <section id="openhermes-2-mistral">
 <span id="openhermes-variant-table"></span><h3><a class="reference external" href="https://huggingface.co/teknium/OpenHermes-2-Mistral-7B">OpenHermes-2-Mistral</a><a class="headerlink" href="#openhermes-2-mistral" title="Permalink to this heading">¶</a></h3>
 <p>Conversation template: <code class="docutils literal notranslate"><span class="pre">open_hermes_mistral</span></code></p>
-<table class="docutils align-default" id="id12">
-<caption><span class="caption-text">Open Hermes</span><a class="headerlink" href="#id12" title="Permalink to this table">¶</a></caption>
+<table class="docutils align-default" id="id17">
+<caption><span class="caption-text">Open Hermes</span><a class="headerlink" href="#id17" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 50%" />
 <col style="width: 50%" />
@@ -870,8 +1159,8 @@ and submit a PR to the repo <a class="reference external" href="https://github.c
 <section id="wizardmath-v1-1">
 <span id="wizardmathv1-1-variant-table"></span><h3><a class="reference external" href="https://github.com/nlpxucan/WizardLM/tree/main/WizardMath">WizardMath V1.1</a><a class="headerlink" href="#wizardmath-v1-1" title="Permalink to this heading">¶</a></h3>
 <p>Conversation template: <code class="docutils literal notranslate"><span class="pre">wizard_coder_or_math</span></code></p>
-<table class="docutils align-default" id="id13">
-<caption><span class="caption-text">WizardMath</span><a class="headerlink" href="#id13" title="Permalink to this table">¶</a></caption>
+<table class="docutils align-default" id="id18">
+<caption><span class="caption-text">WizardMath</span><a class="headerlink" href="#id18" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 50%" />
 <col style="width: 50%" />
@@ -893,9 +1182,9 @@ and submit a PR to the repo <a class="reference external" href="https://github.c
 </section>
 <section id="redpajama">
 <span id="red-pajama-variant-table"></span><h3><a class="reference external" href="https://www.together.xyz/blog/redpajama">RedPajama</a><a class="headerlink" href="#redpajama" title="Permalink to this heading">¶</a></h3>
-<p>Conversation template: <code class="docutils literal notranslate"><span class="pre">LM</span></code></p>
-<table class="docutils align-default" id="id14">
-<caption><span class="caption-text">Red Pajama</span><a class="headerlink" href="#id14" title="Permalink to this table">¶</a></caption>
+<p>Conversation template: <code class="docutils literal notranslate"><span class="pre">redpajama_chat</span></code></p>
+<table class="docutils align-default" id="id19">
+<caption><span class="caption-text">Red Pajama</span><a class="headerlink" href="#id19" title="Permalink to this table">¶</a></caption>
 <colgroup>
 <col style="width: 50%" />
 <col style="width: 50%" />
@@ -915,11 +1204,73 @@ and submit a PR to the repo <a class="reference external" href="https://github.c
 </tr>
 </tbody>
 </table>
+</section>
+<section id="phi-variant-table">
+<span id="id3"></span><h3><a class="reference external" href="https://huggingface.co/microsoft/phi-2">Phi</a><a class="headerlink" href="#phi-variant-table" title="Permalink to this heading">¶</a></h3>
+<p>Conversation template: <code class="docutils literal notranslate"><span class="pre">phi-2</span></code></p>
+<table class="docutils align-default" id="id20">
+<caption><span class="caption-text">Phi</span><a class="headerlink" href="#id20" title="Permalink to this table">¶</a></caption>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Size</p></th>
+<th class="head"><p>Hugging Face Repo Link</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Phi-2 (2.7B)</p></td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/phi-2-q0f16-MLC">q0f16</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/phi-2-q4f16_1-MLC">q4f16_1</a></p></li>
+</ul>
+</td>
+</tr>
+<tr class="row-odd"><td><p>Phi-1.5 (1.3B)</p></td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/phi-1_5-q0f16-MLC">q0f16</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/phi-1_5-q4f16_1-MLC">q4f16_1</a></p></li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="gpt2-variant-table">
+<span id="id4"></span><h3><a class="reference external" href="https://huggingface.co/docs/transformers/model_doc/gpt2">GPT2</a><a class="headerlink" href="#gpt2-variant-table" title="Permalink to this heading">¶</a></h3>
+<p>Conversation template: <code class="docutils literal notranslate"><span class="pre">gpt2</span></code></p>
+<table class="docutils align-default" id="id21">
+<caption><span class="caption-text">GPT2</span><a class="headerlink" href="#id21" title="Permalink to this table">¶</a></caption>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Size</p></th>
+<th class="head"><p>Hugging Face Repo Link</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>GPT2 (124M)</p></td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/gpt2-q0f16-MLC">q0f16</a></p></li>
+</ul>
+</td>
+</tr>
+<tr class="row-odd"><td><p>GPT2-medium (355M)</p></td>
+<td><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/mlc-ai/gpt2-medium-q0f16-MLC">q0f16</a></p></li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
 <hr class="docutils" />
 </section>
 </section>
 <section id="contribute-models-to-mlc-llm">
-<span id="id3"></span><h2><a class="toc-backref" href="#id30" role="doc-backlink">Contribute Models to MLC-LLM</a><a class="headerlink" href="#contribute-models-to-mlc-llm" title="Permalink to this heading">¶</a></h2>
+<span id="id5"></span><h2><a class="toc-backref" href="#id41" role="doc-backlink">Contribute Models to MLC-LLM</a><a class="headerlink" href="#contribute-models-to-mlc-llm" title="Permalink to this heading">¶</a></h2>
 <p>Ready to contribute your compiled models/new model architectures? Awesome! Please check <a class="reference internal" href="community/guideline.html#contribute-new-models"><span class="std std-ref">Contribute New Models to MLC-LLM</span></a> on how to contribute new models to MLC-LLM.</p>
 </section>
 </section>
