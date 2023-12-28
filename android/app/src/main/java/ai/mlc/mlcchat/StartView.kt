@@ -54,7 +54,6 @@ fun StartView(
     appViewModel: AppViewModel
 ) {
     val localFocusManager = LocalFocusManager.current
-    var isAddingModel by rememberSaveable { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -85,72 +84,6 @@ fun StartView(
                         modelState = modelState,
                         appViewModel = appViewModel
                     )
-                }
-                if (!isAddingModel) {
-                    item {
-                        TextButton(onClick = { isAddingModel = true }) {
-                            Text(text = "Add Model Variant")
-                        }
-                    }
-                }
-            }
-            if (isAddingModel) {
-                Text(text = "Supported Base Model Libs", modifier = Modifier.padding(top = 10.dp))
-                for (lib in appViewModel.supportedModelLibs()) {
-                    Text(
-                        text = lib,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                Text(text = "Add Model Variant", modifier = Modifier.padding(top = 10.dp))
-                LazyColumn() {
-                    items(
-                        items = appViewModel.modelSampleList
-                    ) { modelRecord ->
-                        TextButton(onClick = {
-                            appViewModel.requestAddModel(
-                                modelRecord.modelUrl,
-                                modelRecord.localId
-                            )
-                        }) {
-                            Text(text = modelRecord.localId)
-                        }
-                    }
-                }
-                Text(text = "Add Model by URL")
-                SelectionContainer {
-                    Text(
-                        text = "Sample URL: https://huggingface.co/mlc-ai/demo-vicuna-v1-7b-int4/",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                var url by rememberSaveable { mutableStateOf("") }
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = { Text(text = "Model URL") },
-                    maxLines = 3,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentHeight()
-                ) {
-                    TextButton(onClick = { url = "" }) {
-                        Text(text = "Clear")
-                    }
-                    TextButton(onClick = { isAddingModel = false }) {
-                        Text(text = "Cancel")
-                    }
-                    TextButton(onClick = {
-                        appViewModel.requestAddModel(url, null)
-                        url = ""
-                    }) {
-                        Text(text = "Add")
-                    }
                 }
             }
         }
