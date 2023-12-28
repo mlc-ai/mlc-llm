@@ -219,7 +219,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     system_lib_prefix: str,
     output: Path,
     overrides: ModelConfigOverride,
-    debug_dump: Optional[str] = None,
+    debug_dump: Optional[Path] = None,
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
     if "model_config" in config:

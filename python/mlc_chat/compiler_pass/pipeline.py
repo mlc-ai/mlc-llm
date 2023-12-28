@@ -1,5 +1,5 @@
 """The compilation pipeline for LLM applications."""
-import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import tvm
@@ -40,7 +40,7 @@ class _DebugDump:  # pylint: disable=too-few-public-methods
     """A dummy compiler pass that does nothing but logging.
     Only enabled when debug_dump is not None"""
 
-    def __init__(self, file_name: str, file_path: Optional[str], show_meta: bool = False):
+    def __init__(self, file_name: str, file_path: Optional[Path], show_meta: bool = False):
         self.file_name = file_name
         self.file_path = file_path
         self.show_meta = show_meta
@@ -49,20 +49,20 @@ class _DebugDump:  # pylint: disable=too-few-public-methods
         """A dummy transformation that dumps the module to file"""
         if self.file_path is not None:
             # NOTE: We use debug level here to avoid spamming the console
-            logger.debug("Dumping IR to %s", os.path.join(self.file_path, self.file_name))
-            with open(os.path.join(self.file_path, self.file_name), "w", encoding="utf-8") as f:
+            logger.debug("Dumping IR to %s", self.file_path / self.file_name)
+            with open(self.file_path / self.file_name, "w", encoding="utf-8") as f:
                 f.write(mod.script(show_meta=self.show_meta))
         return mod
 
 
 @register_pipeline("mlc_llm")
-def _mlc_llm_pipeline(
+def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
     variable_bounds: Dict[str, int] = None,
     additional_tirs: Dict[str, tvm.tir.PrimFunc] = None,
     metadata: Dict[str, Any] = None,
     ext_mods: List[nn.ExternModule] = None,
     skip_gemm: bool = False,
-    debug_dump: Optional[str] = None,
+    debug_dump: Optional[Path] = None,
 ):
     variable_bounds = variable_bounds or {}
     additional_tirs = additional_tirs or {}
