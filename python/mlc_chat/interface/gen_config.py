@@ -197,4 +197,5 @@ CONV_TEMPLATES = {
     "wizard_coder_or_math",
     "glm",
     "custom",  # for web-llm only
+    "phi-2",
 }

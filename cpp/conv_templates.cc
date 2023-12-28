@@ -661,6 +661,25 @@ Conversation GLM() {
   return conv;
 }
 
+Conversation Phi2() {
+  Conversation conv;
+  conv.name = "phi-2";
+  conv.system = "";
+  conv.roles = {"Instruct", "Output"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"\n"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {50256};
+  conv.stop_str = "<|endoftext|>";
+  conv.add_bos = false;
+  return conv;
+}
+
 }  // namespace
 
 using ConvFactory = Conversation (*)();
@@ -696,6 +715,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"wizardlm_7b", WizardLM7B},
       {"wizard_coder_or_math", WizardCoderOrMATH},
       {"glm", GLM},
+      {"phi-2", Phi2},
   };
   auto it = factory.find(name);
   if (it == factory.end()) {
