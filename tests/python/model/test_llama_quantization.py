@@ -1,8 +1,9 @@
 # pylint: disable=invalid-name,missing-docstring
 import pytest
 
-from mlc_chat.compiler import MODEL_PRESETS, MODELS, QUANTIZATION
-from mlc_chat.compiler.quantization.group_quantization import (
+from mlc_chat.model import MODEL_PRESETS, MODELS
+from mlc_chat.quantization import QUANTIZATION
+from mlc_chat.quantization.group_quantization import (
     GroupQuantizeEmbedding,
     GroupQuantizeLinear,
 )

@@ -5,22 +5,24 @@ import re
 from pathlib import Path
 from typing import Union
 
-from mlc_chat.compiler import (  # pylint: disable=redefined-builtin
-    HELP,
-    MODELS,
-    QUANTIZATION,
+from mlc_chat.help import HELP
+from mlc_chat.interface.compile import (  # pylint: disable=redefined-builtin
     ModelConfigOverride,
     OptimizationFlags,
     compile,
 )
-
-from ..support.argparse import ArgumentParser
-from ..support.auto_config import (
+from mlc_chat.model import MODELS
+from mlc_chat.quantization import QUANTIZATION
+from mlc_chat.support.argparse import ArgumentParser
+from mlc_chat.support.auto_config import (
     detect_mlc_chat_config,
     detect_model_type,
     detect_quantization,
 )
-from ..support.auto_target import detect_system_lib_prefix, detect_target_and_host
+from mlc_chat.support.auto_target import (
+    detect_system_lib_prefix,
+    detect_target_and_host,
+)
 
 
 def main(argv):

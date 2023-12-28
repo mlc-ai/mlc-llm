@@ -15,7 +15,7 @@ from tvm.runtime import disco  # pylint: disable=unused-import
 from mlc_chat.support import logging
 from mlc_chat.support.auto_device import detect_device
 
-from . import base  # pylint: disable=unused-import
+from . import base as _
 
 if TYPE_CHECKING:
     from .interface.openai_api import ChatMessage
