@@ -11,6 +11,7 @@ from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
+from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
 from mlc_chat.support.style import bold
 
@@ -68,8 +69,6 @@ class GPTNeoXConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             # chunk size same as context window size by default
             self.prefill_chunk_size = self.context_window_size
 
-        assert self.tensor_parallel_shards == 1, "GPTNeoX currently does not support sharding."
-
 
 # pylint: disable=invalid-name,missing-docstring
 
@@ -123,14 +122,16 @@ class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
     def __init__(self, config: GPTNeoXConfig, rotary_embedding: RotaryEmbedding):
         self.rotary_embedding = rotary_embedding
         self.hidden_size = config.hidden_size
-        self.num_attention_heads = config.num_attention_heads
+        self.num_attention_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.head_dim = config.head_dim
         self.query_key_value = nn.Linear(
             in_features=self.hidden_size,
-            out_features=3 * self.hidden_size,
+            out_features=3 * self.num_attention_heads * self.head_dim,
             bias=True,
         )
-        self.dense = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
+        self.dense = nn.Linear(
+            self.num_attention_heads * self.head_dim, self.hidden_size, bias=True
+        )
         self.k_cache = nn.KVCache(
             config.context_window_size, [self.num_attention_heads, self.head_dim]
         )
@@ -218,19 +219,19 @@ class GPTNeoXMLP(nn.Module):
     def __init__(self, config: GPTNeoXConfig):
         super().__init__()
         out_dtype = config.ffn_out_dtype
+        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.dense_h_to_4h = nn.Linear(
             config.hidden_size,
-            config.intermediate_size,
+            self.intermediate_size,
             out_dtype=out_dtype,
         )
         self.dense_4h_to_h = nn.Linear(
-            config.intermediate_size,
+            self.intermediate_size,
             config.hidden_size,
             out_dtype=out_dtype,
         )
 
     def forward(self, hidden_states: Tensor):
-        # dtype = "float16"
         dtype = hidden_states.dtype
         if hidden_states.dtype != dtype:
             hidden_states = hidden_states.astype(dtype)
@@ -252,13 +253,41 @@ class GPTNeoXLayer(nn.Module):
         self.mlp = GPTNeoXMLP(config)
         self.use_parallel_residual = config.use_parallel_residual
 
+        def _set_tp():
+            def _set(param, hint):
+                param.attrs["shard_strategy"] = hint
+
+            h = config.hidden_size
+            hd = config.head_dim
+            q = k = v = self.attention.num_attention_heads * hd
+            i = self.mlp.intermediate_size
+            _set(
+                self.attention.query_key_value.weight,
+                tp.RowSeg("_shard_qkv_weight", rows=[q, k, v], col=h, groups=hd),
+            )
+            _set(
+                self.attention.query_key_value.bias,
+                tp.RowSeg1D("_shard_qkv_bias", rows=[q, k, v], groups=hd),
+            )
+            _set(self.attention.dense.weight, tp.Col("_shard_dense", row=h, col=q))
+            _set(self.mlp.dense_h_to_4h.weight, tp.Row("_shard_dense_h_to_4h_weight", row=i, col=h))
+            _set(self.mlp.dense_h_to_4h.bias, tp.Row1D("_shard_dense_h_to_4h_bias", row=i))
+            _set(self.mlp.dense_4h_to_h.weight, tp.Col("_shard_dense_4h_to_h", row=h, col=i))
+
+        self.tensor_parallel_shards = config.tensor_parallel_shards
+        _set_tp()
+
     def forward(
         self,
         hidden_states: Tensor,
         attention_mask: Tensor,
         total_seq_len: tir.Var,
     ):
-        # dtype = "float16"
+        def _apply_residual(out, residual, bias):
+            if self.tensor_parallel_shards > 1:
+                return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum") - bias
+            return out + residual
+
         dtype = hidden_states.dtype
         attn_input = self.input_layernorm(hidden_states)
         attn_output = self.attention(
@@ -271,10 +300,12 @@ class GPTNeoXLayer(nn.Module):
             mlp_output = self.mlp(mlp_input)
             hidden_states = mlp_output + attn_output + hidden_states
         else:
-            attn_output = attn_output + hidden_states
+            attn_output = _apply_residual(attn_output, hidden_states, self.attention.dense.bias)
             mlp_input = self.post_attention_layernorm(attn_output)
             mlp_output = self.mlp(mlp_input)
-            hidden_states = mlp_output.astype(dtype) + attn_output
+            hidden_states = _apply_residual(
+                mlp_output.astype(dtype), attn_output, self.mlp.dense_4h_to_h.bias.astype(dtype)
+            )
         return hidden_states
 
 
@@ -286,8 +317,11 @@ class GPTNeoXModel(nn.Module):
             [GPTNeoXLayer(config, rotart_embedding) for _ in range(config.num_hidden_layers)]
         )
         self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.tensor_parallel_shards = config.tensor_parallel_shards
 
     def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
+        if self.tensor_parallel_shards > 1:
+            inputs = op.ccl_broadcast_from_worker0(inputs)
         hidden_states = self.embed_in(inputs)
 
         for layer in self.layers:
