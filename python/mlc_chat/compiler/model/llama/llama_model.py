@@ -9,11 +9,13 @@ from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from ....support import logging
-from ....support.config import ConfigBase
-from ....support.style import bold
+from mlc_chat.support import logging
+from mlc_chat.support.config import ConfigBase
+from mlc_chat.support.style import bold
+
 from ... import tensor_parallel as tp
 from .. import extern_op
+from ..position_embedding_op import llama_rope
 
 logger = logging.getLogger(__name__)
 
@@ -72,49 +74,6 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 # pylint: disable=invalid-name,missing-docstring
 
 
-class RotaryEmbedding(nn.Module):
-    def __init__(self, config: LlamaConfig):
-        super().__init__()
-        self.head_dim = config.head_dim
-        self.position_embedding_base = config.position_embedding_base
-
-    def forward(self, q: Tensor, k: Tensor, offset: tir.Var):
-        def te_op(x: te.Tensor, offset: tir.Var):
-            dtype = x.dtype
-
-            def compute(b: tir.Var, s: tir.Var, h: tir.Var, d: tir.Var):
-                head_dim = tir.const(self.head_dim, "int32")
-                position_embedding_base = tir.const(self.position_embedding_base, "float32")
-                freq = tir.power(
-                    position_embedding_base,
-                    (d * 2 % head_dim).astype("float32") / head_dim,
-                )
-                freq = (offset + s) / freq
-                cos = tir.cos(freq).astype(dtype) * x[b, s, h, d]
-                sin = tir.sin(freq).astype(dtype) * tir.if_then_else(
-                    d < head_dim // 2,
-                    -x[b, s, h, d + head_dim // 2],
-                    x[b, s, h, d - head_dim // 2],
-                )
-                return cos + sin
-
-            return te.compute(x.shape, compute, name="rotary")
-
-        q_embed = op.tensor_expr_op(
-            te_op,
-            "rotary_embedding",
-            args=[q, offset],
-            attrs={"mlc.rotary_embedding_to_all_dims": True},
-        )
-        k_embed = op.tensor_expr_op(
-            te_op,
-            "rotary_embedding",
-            args=[k, offset],
-            attrs={"mlc.rotary_embedding_to_all_dims": True},
-        )
-        return q_embed, k_embed
-
-
 class LlamaFFN(nn.Module):
     def __init__(self, config: LlamaConfig):
         super().__init__()
@@ -133,9 +92,9 @@ class LlamaFFN(nn.Module):
 
 
 class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
-    def __init__(self, config: LlamaConfig, rotary_embedding: RotaryEmbedding):
-        self.rotary_embedding = rotary_embedding
+    def __init__(self, config: LlamaConfig):
         self.hidden_size = config.hidden_size
+        self.rope_theta = config.position_embedding_base
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
@@ -160,9 +119,8 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         # Step 1. QKV Projection
         qkv = self.qkv_proj(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
-        q, k, v = op.split(qkv, indices_or_sections=[h_q, h_q + h_kv], axis=2)
         # Step 2. Apply QK rotary embedding
-        q, k = self.rotary_embedding(q, k, t - s)
+        q, k, v = llama_rope(qkv, t, self.rope_theta, h_q, h_kv)
         # Step 3. Query and update KVCache
         self.k_cache.append(op.squeeze(k, axis=0))
         self.v_cache.append(op.squeeze(v, axis=0))
@@ -175,9 +133,9 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
 
 
 class LlamaDecoderLayer(nn.Module):
-    def __init__(self, config: LlamaConfig, rotary_embedding: RotaryEmbedding):
+    def __init__(self, config: LlamaConfig):
         rms_norm_eps = config.rms_norm_eps
-        self.self_attn = LlamaAttention(config, rotary_embedding)
+        self.self_attn = LlamaAttention(config)
         self.mlp = LlamaFFN(config)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
@@ -202,10 +160,8 @@ class LlamaDecoderLayer(nn.Module):
 
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
         def _apply_residual(out, residual):
-            # pylint: disable=no-member
             if self.tensor_parallel_shards > 1:
                 return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum")
-            # pylint: enable=no-member
             return out + residual
 
         out = self.self_attn(self.input_layernorm(hidden_states), attention_mask, total_seq_len)
@@ -218,19 +174,16 @@ class LlamaDecoderLayer(nn.Module):
 class LlamaModel(nn.Module):
     def __init__(self, config: LlamaConfig):
         assert config.hidden_size % config.num_attention_heads == 0
-        rotary_embedding = RotaryEmbedding(config)
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
-            [LlamaDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
+            [LlamaDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.tensor_parallel_shards = config.tensor_parallel_shards
 
     def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
-        # pylint: disable=no-member
         if self.tensor_parallel_shards > 1:
             inputs = op.ccl_broadcast_from_worker0(inputs)
-        # pylint: enable=no-member
         hidden_states = self.embed_tokens(inputs)
         for layer in self.layers:
             hidden_states = layer(hidden_states, attention_mask, total_seq_len)

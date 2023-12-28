@@ -7,14 +7,14 @@ from tvm import dlight as dl
 from tvm.relax import register_pipeline  # pylint: disable=no-name-in-module
 from tvm.relax.frontend import nn
 
-from ...support import logging
+from mlc_chat.support import logging
+
 from .attach_to_ir_module import AttachAdditionalPrimFuncs, AttachVariableBounds
 from .clean_up_tir_attrs import CleanUpTIRAttrs
 from .estimate_memory_usage import AttachMetadataWithMemoryUsage
 from .fuse_dequantize_matmul_ewise import FuseDequantizeMatmulEwise
 from .fuse_dequantize_take import FuseDequantizeTake
 from .fuse_dequantize_transpose import FuseDequantizeTranspose
-from .fuse_split_rotary_embedding import FuseSplitRotaryEmbedding
 from .fuse_transpose_matmul import FuseTransposeMatmul
 from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
 
@@ -58,7 +58,6 @@ def _mlc_llm_pipeline(
                 _LogProgress("Running TVM Relax graph-level optimizations"),
                 FuseDequantizeTranspose(skip_gemm=skip_gemm),
                 FuseTransposeMatmul(),
-                FuseSplitRotaryEmbedding(),
                 # Phase 2. Lowering to TIR, inherited TVM Relax's official "zero" pipeline
                 _LogProgress("Lowering to TVM TIR kernels"),
                 tvm.relax.transform.LegalizeOps(),
@@ -81,7 +80,7 @@ def _mlc_llm_pipeline(
                     dl.gpu.GeneralReduction(),
                     dl.gpu.Fallback(),
                 ),
-                _LogProgress("Running memory optimizations"),
+                _LogProgress("Lowering to VM bytecode"),
                 LiftTIRGlobalBufferAlloc(),
                 tvm.tir.transform.ForceNarrowIndexToInt32(),
                 tvm.relax.transform.RewriteDataflowReshape(),
@@ -97,7 +96,7 @@ def _mlc_llm_pipeline(
                 tvm.relax.transform.VMShapeLower(),
                 tvm.relax.transform.AttachGlobalSymbol(),
                 _LogProgress("Compiling external modules"),
-                tvm.relax.transform.AttachExternModules(ext_mods),  # pylint: disable=no-member
+                tvm.relax.transform.AttachExternModules(ext_mods),
                 _LogProgress("Compilation complete! Exporting to disk"),
             ]
         )
