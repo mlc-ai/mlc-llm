@@ -371,22 +371,19 @@ git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/m
 <span class="w">          </span>./dist/models/
 </pre></div>
 </div>
-<p><strong>Compile Android-capable models</strong>. Install TVM Unity compiler as a Python package, and then compile the model for android using the following commands:
-.. code-block:: bash</p>
-<blockquote>
-<div><p># convert weights
-mlc_chat convert_weight ./dist/models/$MODEL_NAME/ –quantization $QUANTIZATION -o dist/$MODEL_NAME-$QUANTIZATION-MLC/
-# create mlc-chat-config.json
-mlc_chat gen_config ./dist/models/$MODEL_NAME/ –quantization $QUANTIZATION </p>
-<blockquote>
-<div><p>–conv-template llama-2 –context-window-size 768 -o dist/${MODEL_NAME}-${QUANTIZATION}-MLC/</p>
-</div></blockquote>
-<p># 2. compile: compile model library with specification in mlc-chat-config.json
-mlc_chat compile ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/mlc-chat-config.json </p>
-<blockquote>
-<div><p>–device android -o ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/${MODEL_NAME}-${QUANTIZATION}-android.tar</p>
-</div></blockquote>
-</div></blockquote>
+<p><strong>Compile Android-capable models</strong>. Install TVM Unity compiler as a Python package, and then compile the model for android using the following commands:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># convert weights</span>
+mlc_chat<span class="w"> </span>convert_weight<span class="w"> </span>./dist/models/<span class="nv">$MODEL_NAME</span>/<span class="w"> </span>--quantization<span class="w"> </span><span class="nv">$QUANTIZATION</span><span class="w"> </span>-o<span class="w"> </span>dist/<span class="nv">$MODEL_NAME</span>-<span class="nv">$QUANTIZATION</span>-MLC/
+
+<span class="c1"># create mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/<span class="nv">$MODEL_NAME</span>/<span class="w"> </span>--quantization<span class="w"> </span><span class="nv">$QUANTIZATION</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--conv-template<span class="w"> </span>llama-2<span class="w"> </span>--context-window-size<span class="w"> </span><span class="m">768</span><span class="w"> </span>-o<span class="w"> </span>dist/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-MLC/
+
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-MLC/mlc-chat-config.json<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--device<span class="w"> </span>android<span class="w"> </span>-o<span class="w"> </span>./dist/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-MLC/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-android.tar
+</pre></div>
+</div>
 <p>This generates the directory <code class="docutils literal notranslate"><span class="pre">./dist/$MODEL_NAME-$QUANTIZATION-MLC</span></code> which contains the necessary components to run the model, as explained below.</p>
 <p><strong>Expected output format</strong>. By default models are placed under <code class="docutils literal notranslate"><span class="pre">./dist/${MODEL_NAME}-${QUANTIZATION}-MLC</span></code>, and the result consists of 3 major components:</p>
 <ul class="simple">
