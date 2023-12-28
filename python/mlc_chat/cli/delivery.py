@@ -12,10 +12,10 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 from huggingface_hub import HfApi  # pylint: disable=import-error
 from huggingface_hub.utils import HfHubHTTPError  # pylint: disable=import-error
 
-from ..support import logging
-from ..support.argparse import ArgumentParser
-from ..support.download import git_clone
-from ..support.style import bold, green, red
+from mlc_chat.support import logging
+from mlc_chat.support.argparse import ArgumentParser
+from mlc_chat.support.download import git_clone
+from mlc_chat.support.style import bold, green, red
 
 logging.enable_logging()
 logger = logging.getLogger(__name__)
@@ -110,6 +110,8 @@ def _run_quantization(
             logger.info("[MLC] Processing in directory: %s", output_dir)
             # Required arguments
             cmd = [
+                "python",
+                "-m",
                 "mlc_chat",
                 "gen_config",
                 str(model_info.model),
@@ -130,6 +132,8 @@ def _run_quantization(
             print(" ".join(cmd), file=log_file, flush=True)
             subprocess.run(cmd, check=True, stdout=log_file, stderr=subprocess.STDOUT)
             cmd = [
+                "python",
+                "-m",
                 "mlc_chat",
                 "convert_weight",
                 str(model_info.model),
