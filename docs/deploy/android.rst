@@ -95,14 +95,14 @@ To deploy models on Android with reasonable performance, one has to cross-compil
     --conv-template llama-2 --context-window-size 768 -o dist/${MODEL_NAME}-${QUANTIZATION}-MLC/
   # 2. compile: compile model library with specification in mlc-chat-config.json
   mlc_chat compile ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/mlc-chat-config.json \
-      --device android -o ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/${MODEL_NAME}-${QUANTIZATION}-MLC-android.tar
+      --device android -o ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/${MODEL_NAME}-${QUANTIZATION}-android.tar
 
 This generates the directory ``./dist/$MODEL_NAME-$QUANTIZATION-MLC`` which contains the necessary components to run the model, as explained below.
 
 **Expected output format**. By default models are placed under ``./dist/${MODEL_NAME}-${QUANTIZATION}-MLC``, and the result consists of 3 major components:
 
 - Runtime configuration: It configures conversation templates including system prompts, repetition penalty, sampling including temperature and top-p probability, maximum sequence length, etc. It is usually named as ``mlc-chat-config.json`` alongside with tokenizer configurations.
-- Model lib: The compiled library that uses mobile GPU. It is usually named as ``${MODEL_NAME}-${QUANTIZATION}-MLC-android.tar``, for example, ``Llama-2-7b-chat-hf-q4f16_1-MLC-android.tar``.
+- Model lib: The compiled library that uses mobile GPU. It is usually named as ``${MODEL_NAME}-${QUANTIZATION}-android.tar``, for example, ``Llama-2-7b-chat-hf-q4f16_1-android.tar``.
 - Model weights: the model weights are sharded as ``params_shard_*.bin`` and the metadata is stored in ``ndarray-cache.json``
 
 Create Android Project using Compiled Models
@@ -123,7 +123,7 @@ The source code for MLC LLM is available under ``android/``, including scripts t
 .. note::
     ❗ The compiled library path specificed using ``model_lib_path`` field in ``app-config.json`` expects it to be placed under ``./dist/`` under the project ``HOME`` directory. The ``model_lib`` field for each model is the system-lib-prefix set during ``mlc_chat compile`` which can be specified using ``--system-lib-prefix`` argument. By default, it is set to ``"${model_type}_${quantization}"`` e.g. ``llama_q4f16_1``. If the ``--system-lib-prefix`` argument is manually specified during ``mlc_chat compile``, the ``model_lib`` field in ``app-config.json`` should be updated accordingly.
 
-Then bundle the android library ``${MODEL_NAME}-${QUANTIZATION}-MLC-android.tar`` compiled from ``mlc_chat compile`` in the previous steps, with TVM Unity's Java runtime by running the commands below:
+Then bundle the android library ``${MODEL_NAME}-${QUANTIZATION}-android.tar`` compiled from ``mlc_chat compile`` in the previous steps, with TVM Unity's Java runtime by running the commands below:
 
 .. code-block:: bash
 

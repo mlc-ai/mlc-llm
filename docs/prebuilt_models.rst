@@ -234,9 +234,9 @@ For more, please see :doc:`the Android page </deploy/android>`.
       - * Weight storage data type: int4
         * Running data type: float16
         * Symmetric quantization
-      - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
+      - `link <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC>`__
     * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
-      - `RedPajama <https://www.together.xyz/blog/redpajama>`__
+      - `RedPajama <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC>`__
       - * Weight storage data type: int4
         * Running data type: float16
         * Symmetric quantization
