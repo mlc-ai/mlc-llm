@@ -135,7 +135,7 @@ def detect_model_type(model_type: str, config: Path) -> "Model":
         The model type.
     """
 
-    from mlc_chat.model import MODELS, Model  # pylint: disable=import-outside-toplevel
+    from mlc_chat.model import MODELS  # pylint: disable=import-outside-toplevel
 
     if model_type == "auto":
         with open(config, "r", encoding="utf-8") as config_file:

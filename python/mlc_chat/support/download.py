@@ -39,6 +39,8 @@ def get_cache_dir() -> Path:
             f"The default cache directory is not a directory: {result}. "
             "Use environment variable MLC_CACHE_DIR to specify a valid cache directory."
         )
+    (result / "model_weights").mkdir(parents=True, exist_ok=True)
+    (result / "model_lib").mkdir(parents=True, exist_ok=True)
     return result
 
 
@@ -141,7 +143,7 @@ def download_mlc_weights(  # pylint: disable=too-many-locals
     if model_url.count("/") != 1 + mlc_prefix.count("/") or not model_url.startswith(mlc_prefix):
         raise ValueError(f"Invalid model URL: {model_url}")
     user, repo = model_url[len(mlc_prefix) :].split("/")
-    git_dir = get_cache_dir() / "model_weights" / repo
+    git_dir = get_cache_dir() / "model_weights" / user / repo
     try:
         _ensure_directory_not_exist(git_dir, force_redo=force_redo)
     except ValueError:

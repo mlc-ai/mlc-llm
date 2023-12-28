@@ -64,9 +64,9 @@ def main(argv):
     parser.add_argument(
         "--quantization",
         type=str,
-        required=False,
         choices=list(QUANTIZATION.keys()),
-        help=HELP["quantization"] + " (required, choices: %(choices)s)",
+        help=HELP["quantization"]
+        + " (default: look up mlc-chat-config.json, choices: %(choices)s)",
     )
     parser.add_argument(
         "--model-type",
