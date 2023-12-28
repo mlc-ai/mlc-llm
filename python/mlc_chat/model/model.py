@@ -12,6 +12,7 @@ from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quan
 from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
+from .phi import phi_loader, phi_model, phi_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -121,6 +122,19 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": gpt_bigcode_quantization.no_quant,
             "group-quant": gpt_bigcode_quantization.group_quant,
+        },
+    ),
+    "phi-msft": Model(
+        name="phi-msft",
+        model=phi_model.PhiForCausalLM,
+        config=phi_model.PhiConfig,
+        source={
+            "huggingface-torch": phi_loader.huggingface,
+            "huggingface-safetensor": phi_loader.huggingface,
+        },
+        quantize={
+            "no-quant": phi_quantization.no_quant,
+            "group-quant": phi_quantization.group_quant,
         },
     ),
 }

@@ -9,10 +9,10 @@ from tvm import te, tir, topi
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from ....support import logging
-from ....support.config import ConfigBase
-from ....support.style import bold
-from .. import extern_op
+from mlc_chat import operator as op_ext
+from mlc_chat.support import logging
+from mlc_chat.support.config import ConfigBase
+from mlc_chat.support.style import bold
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +142,7 @@ class PhiCrossAttention(nn.Module):
         super().__init__()
 
     def forward(self, q: Tensor, k: Tensor, v: Tensor, attention_mask: Tensor):
-        output = extern_op.attention(q, k, v, casual_mask=attention_mask)
+        output = op_ext.attention(q, k, v, casual_mask=attention_mask)
         return output
 
 

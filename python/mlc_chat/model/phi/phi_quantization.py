@@ -4,8 +4,9 @@ from typing import Tuple
 
 from tvm.relax.frontend import nn
 
-from ...loader import QuantizeMapping
-from ...quantization import GroupQuantize, NoQuantize
+from mlc_chat.loader import QuantizeMapping
+from mlc_chat.quantization import GroupQuantize, NoQuantize
+
 from .phi_model import PhiConfig, PhiForCausalLM
 
 

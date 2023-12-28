@@ -4,8 +4,9 @@ PyTorch, HuggingFace safetensors.
 """
 import functools
 
-from ...loader import ExternMapping
-from ...quantization import Quantization
+from mlc_chat.loader import ExternMapping
+from mlc_chat.quantization import Quantization
+
 from .phi_model import PhiConfig, PhiForCausalLM
 
 
