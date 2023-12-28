@@ -86,13 +86,16 @@ To deploy models on Android with reasonable performance, one has to cross-compil
             ./dist/models/
 
 **Compile Android-capable models**. Install TVM Unity compiler as a Python package, and then compile the model for android using the following commands:
+
 .. code-block:: bash
 
   # convert weights
   mlc_chat convert_weight ./dist/models/$MODEL_NAME/ --quantization $QUANTIZATION -o dist/$MODEL_NAME-$QUANTIZATION-MLC/
+  
   # create mlc-chat-config.json
   mlc_chat gen_config ./dist/models/$MODEL_NAME/ --quantization $QUANTIZATION \
     --conv-template llama-2 --context-window-size 768 -o dist/${MODEL_NAME}-${QUANTIZATION}-MLC/
+  
   # 2. compile: compile model library with specification in mlc-chat-config.json
   mlc_chat compile ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/mlc-chat-config.json \
       --device android -o ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/${MODEL_NAME}-${QUANTIZATION}-android.tar
