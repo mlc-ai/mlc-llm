@@ -16,16 +16,20 @@ def convert_uint_to_float(  # pylint: disable=too-many-arguments
     """Convert a quantized uint weight to an unquantized float weight."""
     tir_bin_mask = tir.const((1 << bits) - 1, storage_dtype)
     return te.compute(
-        shape=[weight.shape[0], weight.shape[1] * num_elem_per_storage]
+        shape=[*weight.shape[:-1], weight.shape[-1] * num_elem_per_storage]
         if out_shape is None
         else out_shape,
-        fcompute=lambda i, j: tir.bitwise_and(
+        fcompute=lambda *idx: tir.bitwise_and(
             tir.shift_right(
-                weight[i, j // num_elem_per_storage],
+                weight[idx[:-1] + (idx[-1] // num_elem_per_storage,)],
                 (
-                    ((j % num_elem_per_storage) % 2 * 4 + (j % num_elem_per_storage) // 2) * bits
+                    (
+                        (idx[-1] % num_elem_per_storage) % 2 * 4
+                        + (idx[-1] % num_elem_per_storage) // 2
+                    )
+                    * bits
                     if ft_reorder
-                    else (j % num_elem_per_storage) * bits
+                    else (idx[-1] % num_elem_per_storage) * bits
                 ).astype(storage_dtype),
             ),
             tir_bin_mask,
