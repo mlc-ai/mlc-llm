@@ -149,7 +149,7 @@ class GPTBigCodeBlock(nn.Module):
             i = config.n_inner
             _set(self.attn.c_attn, tp.RowSeg("_shard_c_attn", rows=[q, k, v], col=h, groups=hd))
             _set(self.attn.c_proj, tp.Col("_shard_c_proj", row=h, col=q))
-            _set(self.mlp.c_fc, tp.RowSeg("_shard_mlp_c_fc", rows=[i, i], col=h, groups=1))
+            _set(self.mlp.c_fc, tp.Col("_shard_mlp_c_fc", row=i, col=h))
             _set(self.mlp.c_proj, tp.Col("_shard_mlp_c_proj", row=h, col=i))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
