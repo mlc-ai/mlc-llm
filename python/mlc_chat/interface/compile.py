@@ -62,7 +62,7 @@ class OptimizationFlags:
             cudagraph=results.cudagraph,
         )
 
-    def update(self, target: Target) -> None:
+    def update(self, target: Target, quantization: Quantization) -> None:
         """Update optimization flags based on additional information."""
 
         def _flashinfer(target) -> bool:
@@ -81,7 +81,14 @@ class OptimizationFlags:
                     return False
             return True
 
+        def _cublas_gemm(target, quantization) -> bool:
+            """correct cublas_gemm flag"""
+            if not (target.kind.name == "cuda" and quantization.name in ["q0f16", "q0f32"]):
+                return False
+            return self.cublas_gemm
+
         self.flashinfer = _flashinfer(target)
+        self.cublas_gemm = _cublas_gemm(target, quantization)
 
 
 @dataclasses.dataclass
@@ -100,7 +107,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
     debug_dump: Optional[Path]
 
     def __post_init__(self) -> None:
-        self.opt.update(self.target)
+        self.opt.update(self.target, self.quantization)
 
     def display(self) -> None:
         """Display the arguments to stdout."""
@@ -199,6 +206,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             args,
             pipeline=relax.get_pipeline(  # type: ignore
                 "mlc_llm",
+                cublas_gemm=args.opt.cublas_gemm,
                 variable_bounds=variable_bounds,
                 additional_tirs=additional_tirs,
                 ext_mods=ext_mods,

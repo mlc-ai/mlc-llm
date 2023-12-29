@@ -12,6 +12,7 @@ from mlc_chat.support import logging
 
 from .attach_to_ir_module import AttachAdditionalPrimFuncs, AttachVariableBounds
 from .clean_up_tir_attrs import CleanUpTIRAttrs
+from .cublas_dispatch import CublasDispatch
 from .estimate_memory_usage import AttachMetadataWithMemoryUsage
 from .fuse_dequantize_matmul_ewise import FuseDequantizeMatmulEwise
 from .fuse_dequantize_take import FuseDequantizeTake
@@ -57,6 +58,7 @@ class _DebugDump:  # pylint: disable=too-few-public-methods
 
 @register_pipeline("mlc_llm")
 def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
+    cublas_gemm: bool,
     variable_bounds: Dict[str, int] = None,
     additional_tirs: Dict[str, tvm.tir.PrimFunc] = None,
     metadata: Dict[str, Any] = None,
@@ -80,6 +82,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
                 FuseDequantizeTranspose(skip_gemm=skip_gemm),
+                CublasDispatch() if cublas_gemm else tvm.transform.Sequential([]),
                 FuseTransposeMatmul(),
                 _DebugDump("debug-phase1.py", debug_dump, show_meta=False),
                 # Phase 2. Lowering to TIR, inherited TVM Relax's official "zero" pipeline
