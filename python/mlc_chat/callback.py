@@ -1,5 +1,4 @@
 """Namespace of callback functions in Python API."""
-# pylint: disable=unused-import, invalid-name, unnecessary-pass
 from queue import Queue
 from typing import Optional
 
@@ -66,7 +65,6 @@ class DeltaCallback:
         r"""Perform a callback action when we receive a "stop generating" signal.
         Can optionally ignore this function if no action need to be done when
         generation stops."""
-        pass
 
 
 class StreamToStdout(DeltaCallback):
