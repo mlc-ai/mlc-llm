@@ -196,8 +196,8 @@ It is recommended to have at least 6GB free VRAM to run it.
 
    compilation/convert_weights.rst
    compilation/compile_models.rst
-   compilation/configure_quantization.rst
    compilation/define_new_models.rst
+   compilation/configure_quantization.rst
 
 .. toctree::
    :maxdepth: 1
