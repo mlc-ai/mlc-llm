@@ -81,7 +81,7 @@ class OptimizationFlags:
                     return False
             return True
 
-        def _cublas_gemm(target, quantization) -> None:
+        def _cublas_gemm(target, quantization) -> bool:
             """correct cublas_gemm flag"""
             if not (target.kind.name == "cuda" and quantization.name in ["q0f16", "q0f32"]):
                 return False
@@ -206,7 +206,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             args,
             pipeline=relax.get_pipeline(  # type: ignore
                 "mlc_llm",
-                opt=args.opt,
+                cublas_gemm=args.opt.cublas_gemm,
                 variable_bounds=variable_bounds,
                 additional_tirs=additional_tirs,
                 ext_mods=ext_mods,

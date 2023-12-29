@@ -28,5 +28,4 @@ class CublasDispatch:  # pylint: disable=too-few-public-methods,broad-exception-
                 relax.transform.RunCodegen({}, entry_functions=model_names),
             ]
         )(mod)
-        print("cublas dispatch done")
         return mod
