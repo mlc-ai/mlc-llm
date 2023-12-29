@@ -162,7 +162,6 @@ class GPTBigCodeBlock(nn.Module):
             q = config.n_head * hd
             k = 1 * hd
             v = 1 * hd
-            i = config.n_inner
             _set(self.attn.c_attn, tp.ShardSingleDim("_shard_c_attn", dim=0, segs=[q, k, v]))
             _set(self.attn.c_proj, tp.ShardSingleDim("_shard_c_proj", dim=1))
             _set(self.mlp.c_fc, tp.ShardSingleDim("_shard_mlp_c_fc", dim=0))

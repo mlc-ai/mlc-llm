@@ -8,7 +8,24 @@ from tvm.relax.frontend import nn
 
 @dataclasses.dataclass
 class ShardSingleDim:
-    """Shard a tensor by one of its dimension."""
+    """
+    Shard a tensor by a single dimension.
+
+
+    Parameters
+    ----------
+    name : str
+        The name of the shard func
+
+    dim : int
+        The dimension to shard
+
+    segs : Optional[List[int]]
+        The length of segments along `dim`. Default to None. If specified,
+        shard a tensor by its "segmented" dimension, where each segment has a different length
+        and sharded evenly on each worker.
+
+    """
 
     name: str
     dim: int
