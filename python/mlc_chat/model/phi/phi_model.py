@@ -5,7 +5,7 @@ TODO: add docstring
 import dataclasses
 from typing import Any, Dict, Optional
 
-from tvm import te, tir, topi
+from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -77,51 +77,6 @@ class PhiConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 # pylint: disable=invalid-name,missing-docstring
 
 
-class RotaryEmbedding(nn.Module):
-    def __init__(self, config: PhiConfig):
-        super().__init__()
-        self.rotary_dim = config.rotary_dim
-        self.position_embedding_base = config.position_embedding_base
-
-    def forward(self, q: Tensor, k: Tensor, offset: tir.Var):
-        def te_op(x: te.Tensor, offset: tir.Var):
-            dtype = x.dtype
-            x_rot, x_pass = topi.split(x, [self.rotary_dim], axis=3)
-
-            def compute(b: tir.Var, s: tir.Var, h: tir.Var, d: tir.Var):
-                rotary_dim = tir.const(self.rotary_dim, "int32")
-                position_embedding_base = tir.const(self.position_embedding_base, "float32")
-                freq = tir.power(
-                    position_embedding_base,
-                    (d * 2 % rotary_dim).astype("float32") / rotary_dim,
-                )
-                freq = (offset + s) / freq
-                cos = tir.cos(freq).astype(dtype) * x_rot[b, s, h, d]
-                sin = tir.sin(freq).astype(dtype) * tir.if_then_else(
-                    d < rotary_dim // 2,
-                    -x_rot[b, s, h, d + rotary_dim // 2],
-                    x_rot[b, s, h, d - rotary_dim // 2],
-                )
-                return cos + sin
-
-            x_rot_new = te.compute(x_rot.shape, compute, name="rotary")
-            return topi.concatenate((x_rot_new, x_pass), axis=3)
-
-        q_embed = op.tensor_expr_op(
-            te_op,
-            "rotary_embedding",
-            args=[q, offset],
-            attrs={"mlc.rotary_embedding_to_all_dims": False},
-        )
-        k_embed = op.tensor_expr_op(
-            te_op,
-            "rotary_embedding",
-            args=[k, offset],
-            attrs={"mlc.rotary_embedding_to_all_dims": False},
-        )
-        return q_embed, k_embed
-
-
 class PhiMLP(nn.Module):
     def __init__(self, config: PhiConfig):
         super().__init__()
@@ -147,8 +102,9 @@ class PhiCrossAttention(nn.Module):
 
 
 class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
-    def __init__(self, config: PhiConfig, rotary_embedding: RotaryEmbedding):
-        self.rotary_embedding = rotary_embedding
+    def __init__(self, config: PhiConfig):
+        self.rope_theta = config.position_embedding_base
+        self.rotary_dim = config.rotary_dim
         self.n_head = config.n_head
         self.n_head_kv = config.n_head_kv
         self.head_dim = config.head_dim
@@ -168,9 +124,8 @@ class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
         # Step 1. QKV Projection
         qkv = self.Wqkv(x)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
-        q, k, v = op.split(qkv, indices_or_sections=[h_q, h_q + h_kv], axis=2)
         # Step 2. Apply QK rotary embedding
-        q, k = self.rotary_embedding(q, k, t - s)
+        q, k, v = op_ext.llama_rope(qkv, t, self.rope_theta, h_q, h_kv, rotary_dim=self.rotary_dim)
         # Step 3. Query and update KVCache
         self.k_cache.append(op.squeeze(k, axis=0))
         self.v_cache.append(op.squeeze(v, axis=0))
@@ -183,11 +138,11 @@ class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
 
 
 class PhiParallelBlock(nn.Module):
-    def __init__(self, config: PhiConfig, rotary_embedding: RotaryEmbedding):
+    def __init__(self, config: PhiConfig):
         super().__init__()
 
         self.ln = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
-        self.mixer = PhiMHA(config, rotary_embedding)
+        self.mixer = PhiMHA(config)
         self.mlp = PhiMLP(config)
 
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
@@ -226,11 +181,8 @@ class PhiCausalLMHead(nn.Module):
 class PhiModel(nn.Module):
     def __init__(self, config: PhiConfig) -> None:
         super().__init__()
-        rotary_embedding = RotaryEmbedding(config)
         self.embd = nn.Embedding(config.vocab_size, config.n_embd)
-        self.h = nn.ModuleList(
-            [PhiParallelBlock(config, rotary_embedding) for i in range(config.n_layer)]
-        )
+        self.h = nn.ModuleList([PhiParallelBlock(config) for i in range(config.n_layer)])
 
     def forward(self, input_ids: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
         hidden_states = self.embd(input_ids)

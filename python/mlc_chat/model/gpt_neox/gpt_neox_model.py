@@ -4,13 +4,13 @@ TODO: add docstring
 """
 import dataclasses
 import logging
-import math
 from typing import Any, Dict, Optional
 
 from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
+from mlc_chat import operator as op_ext
 from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
 from mlc_chat.support.style import bold
@@ -73,54 +73,11 @@ class GPTNeoXConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 # pylint: disable=invalid-name,missing-docstring
 
 
-class RotaryEmbedding(nn.Module):
-    def __init__(self, config: GPTNeoXConfig):
-        super().__init__()
-        self.head_dim = config.head_dim
-        self.position_embedding_base = config.position_embedding_base
-
-    def forward(self, q: Tensor, k: Tensor, offset: tir.Var):
-        def te_op(x: te.Tensor, offset: tir.Var):
-            dtype = x.dtype
-
-            def compute(b: tir.Var, s: tir.Var, h: tir.Var, d: tir.Var):
-                head_dim = tir.const(self.head_dim, "int32")
-                position_embedding_base = tir.const(self.position_embedding_base, "float32")
-                freq = tir.power(
-                    position_embedding_base,
-                    (d * 2 % head_dim).astype("float32") / head_dim,
-                )
-                freq = (offset + s) / freq
-                cos = tir.cos(freq).astype(dtype) * x[b, s, h, d]
-                sin = tir.sin(freq).astype(dtype) * tir.if_then_else(
-                    d < head_dim // 2,
-                    -x[b, s, h, d + head_dim // 2],
-                    x[b, s, h, d - head_dim // 2],
-                )
-                return cos + sin
-
-            return te.compute(x.shape, compute, name="rotary")
-
-        q_embed = op.tensor_expr_op(
-            te_op,
-            "rotary_embedding",
-            args=[q, offset],
-            attrs={"mlc.rotary_embedding_to_all_dims": True},
-        )
-        k_embed = op.tensor_expr_op(
-            te_op,
-            "rotary_embedding",
-            args=[k, offset],
-            attrs={"mlc.rotary_embedding_to_all_dims": True},
-        )
-        return q_embed, k_embed
-
-
 class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
-    def __init__(self, config: GPTNeoXConfig, rotary_embedding: RotaryEmbedding):
-        self.rotary_embedding = rotary_embedding
+    def __init__(self, config: GPTNeoXConfig):
+        self.rope_theta = config.position_embedding_base
         self.hidden_size = config.hidden_size
         self.num_attention_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.head_dim = config.head_dim
@@ -152,66 +109,18 @@ class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         # q/k/v states: [batch_size, seq_len, hidden_size]
         qkv = self.query_key_value(hidden_states)
         qkv = op.reshape(qkv, (batch_size, seq_len, 3 * self.num_attention_heads, self.head_dim))
-        q, k, v = op.split(
-            qkv,
-            indices_or_sections=[self.num_attention_heads, 2 * self.num_attention_heads],
-            axis=2,
-        )
         # q/k/v states: [batch_size, seq_len, num_attention_heads, head_size]
-        q, k = self.rotary_embedding(q, k, total_seq_len - seq_len)
+        q, k, v = op_ext.llama_rope(
+            qkv, total_seq_len, self.rope_theta, self.num_attention_heads, self.num_attention_heads
+        )
         self.k_cache.append(op.squeeze(k, axis=0))
         self.v_cache.append(op.squeeze(v, axis=0))
 
-        # k/v states: [batch_size, total_seq_len, num_attention_heads, head_size]
-        k = op.reshape(
-            self.k_cache.view(total_seq_len),
-            (batch_size, total_seq_len, self.num_attention_heads, self.head_dim),
-        )
-        v = op.reshape(
-            self.v_cache.view(total_seq_len),
-            (batch_size, total_seq_len, self.num_attention_heads, self.head_dim),
-        )
+        k = self.k_cache.view(total_seq_len)
+        v = self.v_cache.view(total_seq_len)
 
-        # k/v states: [batch_size, num_attention_heads, seq_len, head_size]
-        q = q.permute_dims([0, 2, 1, 3])
-        # k/v states: [batch_size, num_attention_heads, total_seq_len, head_size]
-        k = k.permute_dims([0, 2, 1, 3])
-        v = v.permute_dims([0, 2, 1, 3])
-
-        # Calculate QK
-        # [batch_size, num_attention_heads, seq_len, head_size]
-        # matmul
-        # [batch_size, num_attention_heads, head_size, total_seq_len]
-        # [batch_size, num_attention_heads, seq_len, totla_seq_len]
-        attn_weights = op.matmul(q, k.permute_dims([0, 1, 3, 2])) / math.sqrt(self.head_dim)
-        # Apply attention mask
-        dtype = attn_weights.dtype
-        attn_weights = attn_weights.maximum(tir.min_value(dtype)).minimum(attention_mask)
-
-        # Calculate Softmax(QK)
-        if dtype == "float32":
-            attn_weights = op.softmax(attn_weights, axis=-1)
-        else:
-            attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
-
-        # Calculate Softmax(QK)V
-        # [batch_size, num_attention_heads, seq_len, totla_seq_len]
-        # matmul
-        # [batch_size, num_attention_heads, total_seq_len, head_size]
-        # [batch_size, num_attention_heads, seq_len, head_size]
-        attn_output = op.matmul(attn_weights, v)
-
-        # Apply output projection
-        # [batch_size, num_attention_heads, seq_len, head_size]
-        # =>
-        # [batch_size, seq_len, num_attention_heads, head_size]
-        # =>
-        # [batch_size, seq_len, hidden_size]
-        attn_output = self.dense(
-            attn_output.permute_dims([0, 2, 1, 3]).reshape(
-                (batch_size, seq_len, self.num_attention_heads * self.head_dim)
-            )
-        )
+        output = op_ext.attention(q, k, v, casual_mask=attention_mask)
+        attn_output = self.dense(output)
         return attn_output
 
 
@@ -246,10 +155,10 @@ class GPTNeoXMLP(nn.Module):
 
 
 class GPTNeoXLayer(nn.Module):
-    def __init__(self, config: GPTNeoXConfig, rotary_embedding: RotaryEmbedding):
+    def __init__(self, config: GPTNeoXConfig):
         self.input_layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.post_attention_layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.attention = GPTNeoXAttention(config, rotary_embedding)
+        self.attention = GPTNeoXAttention(config)
         self.mlp = GPTNeoXMLP(config)
         self.use_parallel_residual = config.use_parallel_residual
 
@@ -311,11 +220,8 @@ class GPTNeoXLayer(nn.Module):
 
 class GPTNeoXModel(nn.Module):
     def __init__(self, config: GPTNeoXConfig):
-        rotart_embedding = RotaryEmbedding(config)
         self.embed_in = nn.Embedding(num=config.vocab_size, dim=config.hidden_size)
-        self.layers = nn.ModuleList(
-            [GPTNeoXLayer(config, rotart_embedding) for _ in range(config.num_hidden_layers)]
-        )
+        self.layers = nn.ModuleList([GPTNeoXLayer(config) for _ in range(config.num_hidden_layers)])
         self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.tensor_parallel_shards = config.tensor_parallel_shards
 
