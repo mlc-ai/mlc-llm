@@ -45,7 +45,7 @@ def rope_freq(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype: str):
 # mypy: disable-error-code="attr-defined"
 
 
-def llama_rope(
+def llama_rope(  # pylint: disable=too-many-arguments
     qkv: Tensor,
     total_seq_len: tir.Var,
     theta: float,
