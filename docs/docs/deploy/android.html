@@ -395,11 +395,11 @@ mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/<span clas
 <section id="create-android-project-using-compiled-models">
 <h2><a class="toc-backref" href="#id4" role="doc-backlink">Create Android Project using Compiled Models</a><a class="headerlink" href="#create-android-project-using-compiled-models" title="Permalink to this heading">¶</a></h2>
 <p>The source code for MLC LLM is available under <code class="docutils literal notranslate"><span class="pre">android/</span></code>, including scripts to build dependencies. Enter the directory first:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>./android/
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>./android/library
 </pre></div>
 </div>
 <p><strong>Build necessary dependencies.</strong> Configure the list of models the app comes with using the JSON file <code class="docutils literal notranslate"><span class="pre">app-config.json</span></code>. The <code class="docutils literal notranslate"><span class="pre">model_libs</span></code> field contains the list of model libraries that are bundled with and supported by the apk. The <code class="docutils literal notranslate"><span class="pre">model_list</span></code> field contains data for models that are not bundled with the apk, but downloaded from the Internet at run-time. By default, it is configured to use both Llama2-7B and RedPajama-3B models. To change the configuration, edit <code class="docutils literal notranslate"><span class="pre">app-config.json</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>vim<span class="w"> </span>./library/src/main/assets/app-config.json
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>vim<span class="w"> </span>./src/main/assets/app-config.json
 </pre></div>
 </div>
 <div class="admonition note">
