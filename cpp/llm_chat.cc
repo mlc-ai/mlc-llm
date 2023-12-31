@@ -576,7 +576,7 @@ class LLMChat {
     // Step 6. KV cache creation.
     this->kv_cache_ = ft_.create_kv_cache_func_();
     // Step 7. Pre-allocate fixed size ndarray
-    this->temperature_arr_ = NDArray::Empty({}, DataType::Float(32), device_);
+    this->temperature_arr_ = NDArray::Empty({1}, DataType::Float(32), device_);
     float temperature = static_cast<float>(this->temperature_);
     this->temperature_arr_.CopyFromBytes(&temperature, sizeof(float));
     if (ft_.use_disco) {
@@ -1081,7 +1081,7 @@ class LLMChat {
       CHECK(generation_config["temperature"].is<double>());
       *gen_temperature = generation_config["temperature"].get<double>();
 
-      *gen_temperature_arr = NDArray::Empty({}, DataType::Float(32), device_);
+      *gen_temperature_arr = NDArray::Empty({1}, DataType::Float(32), device_);
       float temperature_cast = static_cast<float>(*gen_temperature);
       gen_temperature_arr->CopyFromBytes(&temperature_cast, sizeof(float));
     } else {
@@ -1331,7 +1331,16 @@ class LLMChat {
 
   NDArray Softmax(NDArray input, NDArray temperature_arr) {
     NDArray ret;
-    ret = ft_.softmax_func_(input, temperature_arr);
+    try {
+      ret = ft_.softmax_func_(input, temperature_arr);
+    } catch (const dmlc::Error& e) {
+      // This branch is for compatibility:
+      // The old softmax function takes temperature arr with shape (),
+      // and the new softmax func takes temperature arr with shape (1,).
+      // Remove this branch after updating all prebuilt model libraries.
+      temperature_arr = temperature_arr.CreateView({}, temperature_arr->dtype);
+      ret = ft_.softmax_func_(input, temperature_arr);
+    }
     return ret;
   }
 

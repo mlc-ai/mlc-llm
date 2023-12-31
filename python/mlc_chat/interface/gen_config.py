@@ -33,6 +33,7 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     prefill_chunk_size: int
     attention_sink_size: int
     tensor_parallel_shards: int
+    max_batch_size: int
     # Control the behavior of the runtime
     mean_gen_len: int = None
     max_gen_len: int = None
@@ -79,6 +80,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     prefill_chunk_size: Optional[int],
     attention_sink_size: Optional[int],
     tensor_parallel_shards: Optional[int],
+    max_batch_size: int,
     output: Path,
 ):
     """Entrypoint of MLC Chat configuration generation."""
@@ -100,6 +102,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         prefill_chunk_size=model_config.prefill_chunk_size,
         attention_sink_size=getattr(model_config, "attention_sink_size", -1),
         tensor_parallel_shards=model_config.tensor_parallel_shards,
+        max_batch_size=max_batch_size,
         conv_template=conv_template,
     )
     # Step 2. Load `generation_config.json` and `config.json` for text-generation related configs

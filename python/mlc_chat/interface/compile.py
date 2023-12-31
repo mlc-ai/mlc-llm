@@ -85,16 +85,16 @@ def _apply_preproc_to_params(
 
 def _compile(args: CompileArgs, model_config: ConfigBase):
     def _get_variable_bounds(model_config) -> Dict[str, int]:
+        variable_bounds = {"seq_len": model_config.prefill_chunk_size}
         if hasattr(model_config, "sliding_window_size"):
-            return {
-                "seq_len": model_config.prefill_chunk_size,
-                "rolling_cache_len": model_config.sliding_window_size,
-                "kv_seq_len": model_config.sliding_window_size + model_config.prefill_chunk_size,
-            }
-        return {
-            "seq_len": model_config.prefill_chunk_size,
-            "total_seq_len": model_config.context_window_size,
-        }
+            variable_bounds["rolling_cache_len"] = model_config.sliding_window_size
+            variable_bounds["kv_seq_len"] = (
+                model_config.sliding_window_size + model_config.prefill_chunk_size,
+            )
+        else:
+            variable_bounds["total_seq_len"] = model_config.context_window_size
+        variable_bounds["batch_size"] = getattr(model_config, "max_batch_size", 1)
+        return variable_bounds
 
     def _get_param_metadata(name: str, param: nn.Parameter) -> Dict[str, Any]:
         return {

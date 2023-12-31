@@ -77,6 +77,12 @@ def main(argv):
         help=HELP["tensor_parallel_shards"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
+        "--max-batch-size",
+        type=int,
+        default=80,
+        help=HELP["max_batch_size"] + ' (default: "%(default)s")',
+    )
+    parser.add_argument(
         "--output",
         "-o",
         type=_parse_output,
@@ -95,5 +101,6 @@ def main(argv):
         prefill_chunk_size=parsed.prefill_chunk_size,
         attention_sink_size=parsed.attention_sink_size,
         tensor_parallel_shards=parsed.tensor_parallel_shards,
+        max_batch_size=parsed.max_batch_size,
         output=parsed.output,
     )
