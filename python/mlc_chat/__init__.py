@@ -2,6 +2,7 @@
 
 MLC Chat is the app runtime of MLC LLM.
 """
+from . import callback
 from .chat_module import (
     ChatConfig,
     ChatModule,

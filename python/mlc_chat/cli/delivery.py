@@ -11,7 +11,10 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple, Union
 
 from huggingface_hub import HfApi  # pylint: disable=import-error
-from huggingface_hub.utils import HfHubHTTPError  # pylint: disable=import-error
+from huggingface_hub.utils import (  # pylint: disable=import-error
+    HfHubHTTPError,
+    disable_progress_bars,
+)
 
 from mlc_chat.support import logging
 from mlc_chat.support.argparse import ArgumentParser
@@ -178,6 +181,7 @@ def _main(  # pylint: disable=too-many-locals
     api: HfApi,
     spec: Dict[str, Any],
 ):
+    disable_progress_bars()
     failed_cases: List[Tuple[str, str]] = []
     for task_index, task in enumerate(spec["tasks"], 1):
         with DeferredScope() as deferred:

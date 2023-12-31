@@ -78,57 +78,46 @@ Scaling of fp16 and 4-bit CodeLlama-34 and Llama2-70B on A100-80G-PCIe and A10G-
 * [05/01/2023] [[Post]](https://blog.mlc.ai/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) MLC LLM is released with Metal, Vulkan and CUDA backends.
 * [04/14/2023] [WebLLM](https://github.com/mlc-ai/web-llm) is released prior to MLC LLM with WebGPU and WebAssembly backend.
 
-## Getting Started
+## Quick Start
 
-Please visit our [documentation](https://llm.mlc.ai/docs/index.html#getting-started) for detailed instructions.
+**Python.** Install [MLC](https://llm.mlc.ai/docs/install/mlc_llm.html) and [Apache TVM Unity](https://llm.mlc.ai/docs/install/tvm.html), and run the following scripts:
+
+```python
+MODEL = "HF://junrushao/Llama-2-7b-chat-hf-q4f16_1-MLC"
+
+import logging
+from mlc_chat import ChatModule, callback
+from mlc_chat.callback import StreamToStdout
+
+logging.basicConfig(level=logging.INFO, style="{", format="{levelname}: {message}")
+cm = ChatModule(MODEL, device="auto")
+cm.generate("What is the meaning of life?", progress_callback=StreamToStdout(callback_interval=2))
+```
+
+``MODEL`` can be any model from [Prebuilt Models](https://github.com/mlc-ai/mlc-llm/blob/main/MODEL_PREBUILTS.md).
+MLC LLM will automatically download the model and compile it on your device.
+
+**Other platforms.** Visit our [documentation](https://llm.mlc.ai/docs/index.html#getting-started) for instructions.
 
 ## Model Support
 
-MLC LLM supports a wide range of model architectures and variants. We have the following prebuilts which you can
-use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_models.html) to see the full list, and [Compile Models via MLC](https://llm.mlc.ai/docs/compilation/compile_models.html) to see how to use models not on this list.
+MLC LLM supports the following model architectures:
 
-<table style="width:100%">
-  <thead>
-    <tr>
-      <th style="width:40%">Architecture</th>
-      <th style="width:60%">Prebuilt Model Variants</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Llama</td>
-      <td>Llama-2, Code Llama, Vicuna, WizardLM, WizardMath, OpenOrca Platypus2, FlagAlpha Llama-2 Chinese, georgesung Llama-2 Uncensored</td>
-    </tr>
-    <tr>
-      <td>GPT-NeoX</td>
-      <td>RedPajama</td>
-    </tr>
-    <tr>
-      <td>GPT-J</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>RWKV</td>
-      <td>RWKV-raven</td>
-    </tr>
-    <tr>
-      <td>MiniGPT</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>GPTBigCode</td>
-      <td>WizardCoder</td>
-    </tr>
-    <tr>
-      <td>ChatGLM</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>StableLM</td>
-      <td></td>
-    </tr>
-  </tbody>
-</table>
+- Llama
+- Mistral
+- GPT-2
+- GPT-BigCode
+- GPT-NeoX
+- Phi
+- RWKV
+- GPT-J
+- ChatGLM
+- MiniGPT
+
+[Prebuilt models](https://github.com/mlc-ai/mlc-llm/blob/main/MODEL_PREBUILTS.md) (and [legacy](https://llm.mlc.ai/docs/prebuilt_models.html)) are released via HuggingFace.
+
+For advanced users to quantize and compile models from scratch, please refer to
+[Compile Models via MLC](https://llm.mlc.ai/docs/compilation/compile_models.html).
 
 ## Universal Deployment APIs
 
