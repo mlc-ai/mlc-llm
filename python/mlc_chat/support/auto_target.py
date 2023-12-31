@@ -1,5 +1,4 @@
 """Helper functioms for target auto-detection."""
-import os
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
 from tvm import IRModule, relax
@@ -10,6 +9,7 @@ from tvm.target import Target
 
 from . import logging
 from .auto_device import AUTO_DETECT_DEVICES, detect_device, device2str
+from .constants import MLC_MULTI_ARCH
 from .style import bold, green, red
 
 if TYPE_CHECKING:
@@ -227,9 +227,8 @@ def _build_default():
 def detect_cuda_arch_list(target: Target) -> List[int]:
     """Detect the CUDA architecture list from the target."""
     assert target.kind.name == "cuda", f"Expect target to be CUDA, but got {target}"
-    env_multi_arch = os.environ.get("MLC_MULTI_ARCH", None)
-    if env_multi_arch is not None:
-        multi_arch = [int(x.strip()) for x in env_multi_arch.split(",")]
+    if MLC_MULTI_ARCH is not None:
+        multi_arch = [int(x.strip()) for x in MLC_MULTI_ARCH.split(",")]
     else:
         assert target.arch.startswith("sm_")
         multi_arch = [int(target.arch[3:])]
@@ -238,8 +237,7 @@ def detect_cuda_arch_list(target: Target) -> List[int]:
 
 
 def _register_cuda_hook(target: Target):
-    env_multi_arch = os.environ.get("MLC_MULTI_ARCH", None)
-    if env_multi_arch is None:
+    if MLC_MULTI_ARCH is None:
         default_arch = target.attrs.get("arch", None)
         logger.info("Generating code for CUDA architecture: %s", bold(default_arch))
         logger.info(
@@ -249,8 +247,8 @@ def _register_cuda_hook(target: Target):
         )
         multi_arch = None
     else:
-        logger.info("%s %s: %s", FOUND, bold("MLC_MULTI_ARCH"), env_multi_arch)
-        multi_arch = [int(x.strip()) for x in env_multi_arch.split(",")]
+        logger.info("%s %s: %s", FOUND, bold("MLC_MULTI_ARCH"), MLC_MULTI_ARCH)
+        multi_arch = [int(x.strip()) for x in MLC_MULTI_ARCH.split(",")]
         logger.info("Generating code for CUDA architecture: %s", multi_arch)
 
     @register_func("tvm_callback_cuda_compile", override=True)

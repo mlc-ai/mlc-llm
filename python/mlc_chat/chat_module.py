@@ -8,19 +8,18 @@ import warnings
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import tvm
 from tvm.runtime import disco  # pylint: disable=unused-import
 
 from mlc_chat.support import logging
-from mlc_chat.support.auto_device import detect_device, device2str
-from mlc_chat.support.style import blue, bold, red
+from mlc_chat.support.auto_device import detect_device
 
 from . import base as _
 
 if TYPE_CHECKING:
-    from .interface.openai_api import ChatMessage
+    from mlc_chat.interface.openai_api import ChatMessage
 
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
@@ -28,7 +27,6 @@ _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/mai
 
 
 logger = logging.getLogger(__name__)
-MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
 
 
 @dataclass
@@ -162,12 +160,30 @@ class ChatConfig:  # pylint: disable=too-many-instance-attributes
         The category of the model's architecture (e.g. ``llama``, ``gpt_neox``, ``rwkv``).
     model_name : Optional[str]
         Name of the model (e.g. ``Llama-2-7b-chat-hf``).
-    tensor_parallel_shards: Optional[str]
+    tensor_parallel_shards : Optional[str]
         Tensor parallel degree.
-    use_presharded_weights: Optional[bool]
+    use_presharded_weights : Optional[bool]
         If True, the weights were saved with sharding already applied.
-    max_window_size: Optional[str]
+    context_window_size : Optional[int]
         Maximum kv cache window size.
+    prefill_chunk_size: Optional[int]
+        (Experimental) The chunk size during prefilling. By default,
+        the chunk size is the same as sliding window or max sequence length.
+        This flag subjects to future refactoring.
+    attention_sink_size : Optional[int]
+        (Experimental) The number of stored sinks. Only supported on Mistral yet. By default,
+        the number of sinks is 4. This flag subjects to future refactoring.
+    sliding_window_size : Optional[int]
+        (Experimental) The sliding window size in sliding window attention (SWA).
+        This optional field overrides the `sliding_window_size` in config.json for
+        those models that use SWA. Currently only useful when compiling Mistral.
+        This flag subjects to future refactoring.
+    opt : Optional[str]
+        Optimization flags. MLC LLM maintains a predefined set of optimization flags,
+        denoted as O0, O1, O2, O3, where O0 means no optimization, O2 means majority of them,
+        and O3 represents extreme optimization that could potentially break the system.
+        Meanwhile, optimization flags could be explicitly specified via details knobs, e.g.
+        --opt="cublas_gemm=1;cudagraph=0".
     """
 
     model_lib: Optional[str] = None
@@ -185,110 +201,16 @@ class ChatConfig:  # pylint: disable=too-many-instance-attributes
     model_name: Optional[str] = None
     tensor_parallel_shards: Optional[int] = None
     use_presharded_weights: Optional[bool] = None
-    max_window_size: Optional[int] = None
-
-    @classmethod
-    def _from_json(cls, json_obj: dict):
-        return cls(**{k: v for k, v in json_obj.items() if k in inspect.signature(cls).parameters})
-
-
-@dataclass
-class JITOptions:
-    """Consistent with ModelConfigOverride, but with extra flags to configure `opt`."""
-
-    opt: str = "O2"
     context_window_size: Optional[int] = None
     sliding_window_size: Optional[int] = None
     prefill_chunk_size: Optional[int] = None
     attention_sink_size: Optional[int] = None
     max_batch_size: Optional[int] = None
-    tensor_parallel_shards: int = 1
+    opt: Optional[str] = None
 
-    def update(self, m: Dict[str, Any]):  # pylint: disable=invalid-name
-        """Update the fields of this object with the values from the source dict."""
-        for key, value in m.items():
-            if value is not None and hasattr(self, key):
-                setattr(self, key, value)
-
-    def _as_model_config(self, mlc_chat_config_path: Path):
-        from mlc_chat.model import MODELS  # pylint: disable=import-outside-toplevel
-
-        with mlc_chat_config_path.open(mode="r", encoding="utf-8") as file:
-            mlc_chat_config = json.load(file)
-        cfg: Dict[str, Any] = mlc_chat_config.pop("model_config")
-        cfg.update(mlc_chat_config)
-        for key, value in list(asdict(self).items()):
-            if key != "opt" and value is not None:
-                cfg[key] = value
-        model_config_cls = MODELS[cfg["model_type"]].config
-        cfg = model_config_cls.from_dict(cfg).asdict()
-        cfg["quantization"] = mlc_chat_config["quantization"]
-        return cfg
-
-    @property
-    def _overrides(self) -> str:
-        overrides = []
-        for field in fields(JITOptions):
-            key = field.name
-            value = getattr(self, key)
-            if key != "opt" and value is not None:
-                overrides.append(f"{key}={value}")
-        return ";".join(overrides)
-
-    def _jit(
-        self,
-        model_path: Path,
-        device: str,
-    ) -> str:
-        # pylint: disable=import-outside-toplevel
-        import hashlib
-        import shutil
-        import subprocess
-        import tempfile
-
-        from mlc_chat.support.download import get_cache_dir
-
-        # pylint: enable=import-outside-toplevel
-        overrides = self._overrides
-        hash_key = {
-            "model_config": self._as_model_config(model_path / "mlc-chat-config.json"),
-            "device": device,
-            "overrides": overrides,
-            "opt": self.opt,
-        }
-        hash_value = hashlib.md5(
-            json.dumps(
-                hash_key,
-                sort_keys=True,
-                indent=2,
-            ).encode("utf-8")
-        ).hexdigest()
-        dst = get_cache_dir() / "model_lib" / f"{hash_value}.so"
-        if dst.is_file():
-            logger.info("Using cached model lib: %s", bold(str(dst)))
-            return str(dst)
-        with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir:
-            dso_path = os.path.join(tmp_dir, "lib.so")
-            cmd = [
-                sys.executable,
-                "-m",
-                "mlc_chat",
-                "compile",
-                str(model_path),
-                "--opt",
-                self.opt,
-                "--overrides",
-                overrides,
-                "--device",
-                device,
-                "--output",
-                dso_path,
-            ]
-            logger.info("Compiling using command: %s", blue(" ".join(cmd)))
-            subprocess.run(cmd, check=True)
-            shutil.move(dso_path, str(dst))
-            logger.info("Using compiled model lib: %s", bold(str(dst)))
-        return str(dst)
+    @classmethod
+    def _from_json(cls, json_obj: dict):
+        return cls(**{k: v for k, v in json_obj.items() if k in inspect.signature(cls).parameters})
 
 
 @dataclass
@@ -769,7 +691,6 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         device: str = "auto",
         chat_config: Optional[ChatConfig] = None,
         model_lib_path: Optional[str] = None,
-        jit_options: Optional[JITOptions] = None,
     ):
         # 0. Get device:
         # Retrieve device_name and device_id (if any, default 0) from device arg
@@ -820,19 +741,17 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
                 self.config_file_path,
             )
         except FileNotFoundError:
-            logger.exception("%s to find model lib with the exception below", red("Failed"))
-            logger.info("Now compiling model lib on device")
-            if jit_options is None:
-                jit_options = JITOptions()
-            jit_options.update(
-                {
-                    "tensor_parallel_shards": self.chat_config.tensor_parallel_shards,
-                    "context_window_size": self.chat_config.max_window_size,
-                }
+            logger.exception("Model lib not found. Now compiling model lib on device...")
+            from mlc_chat.interface import (  # pylint: disable=import-outside-toplevel
+                jit,
             )
-            self.model_lib_path = jit_options._jit(
-                Path(self.model_path),
-                device2str(self.device),
+
+            self.model_lib_path = str(
+                jit.jit(
+                    model_path=Path(self.model_path),
+                    chat_config=asdict(self.chat_config),
+                    device=self.device,
+                )
             )
 
         # 5. Call reload

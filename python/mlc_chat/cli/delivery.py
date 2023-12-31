@@ -2,7 +2,6 @@
 import argparse
 import dataclasses
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -15,12 +14,13 @@ from huggingface_hub.utils import HfHubHTTPError  # pylint: disable=import-error
 
 from mlc_chat.support import logging
 from mlc_chat.support.argparse import ArgumentParser
+from mlc_chat.support.constants import MLC_TEMP_DIR
 from mlc_chat.support.download import git_clone
 from mlc_chat.support.style import bold, green, red
 
 logging.enable_logging()
 logger = logging.getLogger(__name__)
-MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
+
 GEN_CONFIG_OPTIONAL_ARGS = [
     "context_window_size",
     "sliding_window_size",

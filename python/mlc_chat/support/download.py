@@ -5,7 +5,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from typing import Optional, Tuple
@@ -13,35 +12,10 @@ from typing import Optional, Tuple
 import requests  # pylint: disable=import-error
 
 from . import logging, tqdm
+from .constants import MLC_CACHE_DIR, MLC_TEMP_DIR
+from .style import bold
 
 logger = logging.getLogger(__name__)
-
-MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
-
-
-def get_cache_dir() -> Path:
-    """Return the path to the cache directory."""
-
-    if os.getenv("MLC_CACHE_DIR"):
-        result = Path(os.getenv("MLC_CACHE_DIR"))
-    elif sys.platform == "win32":
-        result = Path(os.environ["LOCALAPPDATA"])
-        result = result / "mlc_chat"
-    elif os.getenv("XDG_CACHE_HOME", None) is not None:
-        result = Path(os.getenv("XDG_CACHE_HOME"))
-        result = result / "mlc_chat"
-    else:
-        result = Path(os.path.expanduser("~/.cache"))
-        result = result / "mlc_chat"
-    result.mkdir(parents=True, exist_ok=True)
-    if not result.is_dir():
-        raise ValueError(
-            f"The default cache directory is not a directory: {result}. "
-            "Use environment variable MLC_CACHE_DIR to specify a valid cache directory."
-        )
-    (result / "model_weights").mkdir(parents=True, exist_ok=True)
-    (result / "model_lib").mkdir(parents=True, exist_ok=True)
-    return result
 
 
 def _ensure_directory_not_exist(path: Path, force_redo: bool) -> None:
@@ -62,7 +36,7 @@ def git_clone(url: str, destination: Path, ignore_lfs: bool) -> None:
     _ensure_directory_not_exist(destination, force_redo=False)
     try:
         with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir:
-            logger.info("[Git] Cloning %s to %s", url, destination)
+            logger.info("[Git] Cloning %s to %s", bold(url), destination)
             subprocess.run(
                 command,
                 env={"GIT_LFS_SKIP_SMUDGE": "1"},
@@ -143,11 +117,11 @@ def download_mlc_weights(  # pylint: disable=too-many-locals
     if model_url.count("/") != 1 + mlc_prefix.count("/") or not model_url.startswith(mlc_prefix):
         raise ValueError(f"Invalid model URL: {model_url}")
     user, repo = model_url[len(mlc_prefix) :].split("/")
-    git_dir = get_cache_dir() / "model_weights" / user / repo
+    git_dir = MLC_CACHE_DIR / "model_weights" / user / repo
     try:
         _ensure_directory_not_exist(git_dir, force_redo=force_redo)
     except ValueError:
-        logger.info("Weights already downloaded: %s", git_dir)
+        logger.info("Weights already downloaded: %s", bold(str(git_dir)))
         return git_dir
     with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir_prefix:
         tmp_dir = Path(tmp_dir_prefix) / "tmp"
@@ -168,6 +142,6 @@ def download_mlc_weights(  # pylint: disable=too-many-locals
                 for future in tqdm.tqdm(cf.as_completed(futures), total=len(futures)):
                     file_url, file_dest = future.result()
                     logger.info("Downloaded %s to %s", file_url, file_dest)
-        logger.info("Moving %s to %s", tmp_dir, git_dir)
+        logger.info("Moving %s to %s", tmp_dir, bold(str(git_dir)))
         shutil.move(str(tmp_dir), str(git_dir))
     return git_dir

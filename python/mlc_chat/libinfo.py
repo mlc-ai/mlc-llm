@@ -4,6 +4,7 @@ import os
 import sys
 
 __version__ = "0.1.dev0"
+MLC_LIBRARY_PATH = os.environ.get("MLC_LIBRARY_PATH", None)
 
 
 def get_env_paths(env_var, splitter):
@@ -22,20 +23,16 @@ def get_dll_directories():
         os.path.join(source_dir, "build"),
         os.path.join(source_dir, "build", "Release"),
     ]
-
-    if "MLC_LIBRARY_PATH" in os.environ:
-        dll_path.append(os.environ["MLC_LIBRARY_PATH"])
-
+    if MLC_LIBRARY_PATH:
+        dll_path.append(MLC_LIBRARY_PATH)
     if "CONDA_PREFIX" in os.environ:
         dll_path.append(os.path.join(os.environ["CONDA_PREFIX"], "lib"))
-
     if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
         dll_path.extend(get_env_paths("LD_LIBRARY_PATH", ":"))
     elif sys.platform.startswith("darwin"):
         dll_path.extend(get_env_paths("DYLD_LIBRARY_PATH", ":"))
     elif sys.platform.startswith("win32"):
         dll_path.extend(get_env_paths("PATH", ";"))
-
     return [os.path.abspath(p) for p in dll_path if os.path.isdir(p)]
 
 
