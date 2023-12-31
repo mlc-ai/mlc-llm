@@ -91,11 +91,11 @@ To deploy models on Android with reasonable performance, one has to cross-compil
 
   # convert weights
   mlc_chat convert_weight ./dist/models/$MODEL_NAME/ --quantization $QUANTIZATION -o dist/$MODEL_NAME-$QUANTIZATION-MLC/
-  
+
   # create mlc-chat-config.json
   mlc_chat gen_config ./dist/models/$MODEL_NAME/ --quantization $QUANTIZATION \
     --conv-template llama-2 --context-window-size 768 -o dist/${MODEL_NAME}-${QUANTIZATION}-MLC/
-  
+
   # 2. compile: compile model library with specification in mlc-chat-config.json
   mlc_chat compile ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/mlc-chat-config.json \
       --device android -o ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/${MODEL_NAME}-${QUANTIZATION}-android.tar
@@ -115,13 +115,13 @@ The source code for MLC LLM is available under ``android/``, including scripts t
 
 .. code-block:: bash
 
-  cd ./android/
+  cd ./android/library
 
 **Build necessary dependencies.** Configure the list of models the app comes with using the JSON file ``app-config.json``. The ``model_libs`` field contains the list of model libraries that are bundled with and supported by the apk. The ``model_list`` field contains data for models that are not bundled with the apk, but downloaded from the Internet at run-time. By default, it is configured to use both Llama2-7B and RedPajama-3B models. To change the configuration, edit ``app-config.json``:
 
 .. code-block:: bash
 
-  vim ./library/src/main/assets/app-config.json
+  vim ./src/main/assets/app-config.json
 
 .. note::
     ❗ The compiled library path specificed using ``model_lib_path`` field in ``app-config.json`` expects it to be placed under ``./dist/`` under the project ``HOME`` directory. The ``model_lib`` field for each model is the system-lib-prefix set during ``mlc_chat compile`` which can be specified using ``--system-lib-prefix`` argument. By default, it is set to ``"${model_type}_${quantization}"`` e.g. ``llama_q4f16_1``. If the ``--system-lib-prefix`` argument is manually specified during ``mlc_chat compile``, the ``model_lib`` field in ``app-config.json`` should be updated accordingly.
