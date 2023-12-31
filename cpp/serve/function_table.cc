@@ -93,6 +93,7 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, int num_shards) 
     {
       Module mod = this->disco_mod->DebugGetFromRemote(0);
       this->softmax_func_ = mod->GetFunction("softmax_with_temperature");
+      this->model_metadata_ = ModelMetadata::FromModule(mod);
     }
   } else {
     Module executable{nullptr};
@@ -118,30 +119,52 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, int num_shards) 
       CHECK(f != nullptr) << "ValueError: Cannot find function " << name;
       return *f;
     };
+    this->model_metadata_ = ModelMetadata::FromModule(this->local_vm);
     this->_InitFunctions();
   }
 }
 
 ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device) {
   if (this->use_disco) {
-    std::filesystem::path fs_model_path = model_path;
-    std::string metadata_path = (fs_model_path / "ndarray-cache.json").string();
-    std::string ndarray_cache_metadata = LoadBytesFromFile(metadata_path);
-    PackedFunc loader_create = this->get_global_func("runtime.disco.ShardLoader");
-    PackedFunc loader_load_all = this->get_global_func("runtime.disco.ShardLoaderLoadAll");
-    CHECK(loader_create != nullptr);
-    CHECK(loader_load_all != nullptr);
-    DRef loader = loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod);
-    DRef params = loader_load_all(loader);
+    DRef params{nullptr};
+    if (this->model_metadata_.params.empty()) {
+      std::filesystem::path fs_model_path = model_path;
+      std::string metadata_path = (fs_model_path / "ndarray-cache.json").string();
+      std::string ndarray_cache_metadata = LoadBytesFromFile(metadata_path);
+      PackedFunc loader_create = this->get_global_func("runtime.disco.ShardLoader");
+
+      auto load_all_func_name = "runtime.disco.ShardLoaderLoadAll";
+      PackedFunc loader_load_all = this->get_global_func(load_all_func_name);
+      CHECK(loader_create != nullptr);
+      CHECK(loader_load_all != nullptr);
+      DRef loader = loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod);
+      params = loader_load_all(loader);
+    } else {
+      PackedFunc loader = this->get_global_func("mlc.loader.LoadMultiGPU");
+      params = loader(model_path, this->disco_mod);
+    }
     return params;
   } else {
     const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
     ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
     (*fload_cache)(model_path, static_cast<int32_t>(device.device_type), device.device_id);
-    const PackedFunc* fload_params =
-        tvm::runtime::Registry::Get("vm.builtin.param_array_from_cache");
-    ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
-    Array<NDArray> params = (*fload_params)("param", -1);
+    Array<NDArray> params;
+    if (this->model_metadata_.params.empty()) {
+      constexpr const char* name_loader = "vm.builtin.param_array_from_cache";
+      const PackedFunc* fload_params = tvm::runtime::Registry::Get(name_loader);
+      ICHECK(fload_params) << "Cannot find env function: " << name_loader;
+      params = (*fload_params)("param", -1);
+    } else {
+      constexpr const char* name_loader = "vm.builtin.param_array_from_cache_by_name";
+      const PackedFunc* fload_params = tvm::runtime::Registry::Get(name_loader);
+      ICHECK(fload_params) << "Cannot find env function: " << name_loader;
+      Array<String> param_names;
+      param_names.reserve(this->model_metadata_.params.size());
+      for (const auto& param : this->model_metadata_.params) {
+        param_names.push_back(param.name);
+      }
+      params = (*fload_params)(param_names);
+    }
     // after we get params, it is safe to simply clear the cached version
     // as these params are referenced by params_
     const PackedFunc* fclear_ndarray_cache =
@@ -154,10 +177,10 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
 
 void FunctionTable::_InitFunctions() {
   this->embed_func_ = mod_get_func("embed");
-  this->prefill_func_ = mod_get_func("prefill_with_embed");
-  this->decode_func_ = mod_get_func("decode_with_embed");
+  this->prefill_func_ = mod_get_func("batch_prefill");
+  this->decode_func_ = mod_get_func("batch_decode");
   this->softmax_func_ = mod_get_func("softmax_with_temperature");
-  this->create_kv_cache_func_ = mod_get_func("create_kv_cache");
+  this->create_kv_cache_func_ = mod_get_func("create_flashinfer_paged_kv_cache");
   this->reset_kv_cache_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_clear");
   this->kv_cache_add_sequence_func_ =
       get_global_func("vm.builtin.paged_attention_kv_cache_add_sequence");

@@ -2,6 +2,7 @@
 # type: ignore
 import argparse
 import json
+import os
 import random
 import time
 from typing import Any, Callable, List, Tuple
@@ -9,14 +10,13 @@ from typing import Any, Callable, List, Tuple
 import numpy as np
 from transformers import AutoTokenizer
 
-from mlc_chat.chat_module import _get_model_path
 from mlc_chat.serve import Engine, GenerationConfig, KVCacheConfig
 from mlc_chat.serve.engine import ModelInfo
 
 
 def _parse_args():
     args = argparse.ArgumentParser()
-    args.add_argument("--model-id", type=str, default="Llama-2-7b-chat-hf-q0f16")
+    args.add_argument("--model-lib-path", type=str, required=True)
     # Download dataset from
     # https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json
     args.add_argument("--dataset", type=str, required=True)
@@ -28,6 +28,7 @@ def _parse_args():
     args.add_argument("--seed", type=int, default=0)
 
     parsed = args.parse_args()
+    parsed.model = os.path.dirname(parsed.model_lib_path)
     assert parsed.batch_size % 16 == 0
     assert parsed.page_size == 16
     assert parsed.max_total_seq_length >= 2048
@@ -35,12 +36,11 @@ def _parse_args():
 
 
 def sample_requests(
-    dataset_path: str, num_requests: int, model_id: str
+    dataset_path: str, num_requests: int, model_path: str
 ) -> Tuple[List[str], List[GenerationConfig]]:
     """Sample requests from dataset.
     Acknowledgement to the benchmark scripts in the vLLM project.
     """
-    model_path, _ = _get_model_path(model_id)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     with open(dataset_path, encoding="utf-8") as f:
@@ -101,7 +101,7 @@ def benchmark(args: argparse.Namespace):
     random.seed(args.seed)
 
     # Initialize model loading info and KV cache config
-    model = ModelInfo(args.model_id, args.device)
+    model = ModelInfo(args.model, args.model_lib_path, args.device)
     kv_cache_config = KVCacheConfig(
         page_size=args.page_size,
         max_num_sequence=args.batch_size,
@@ -111,7 +111,7 @@ def benchmark(args: argparse.Namespace):
     # Create engine
     engine = Engine(model, kv_cache_config)
     # Sample prompts from dataset
-    prompts, generation_config = sample_requests(args.dataset, args.num_prompts, args.model_id)
+    prompts, generation_config = sample_requests(args.dataset, args.num_prompts, args.model)
     # Engine statistics
     num_runs = 1
     single_token_prefill_latency = []
