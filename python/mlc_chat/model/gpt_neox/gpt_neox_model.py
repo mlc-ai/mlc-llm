@@ -10,7 +10,7 @@ from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from mlc_chat import operator as op_ext
+from mlc_chat import op as op_ext
 from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
 from mlc_chat.support.style import bold
