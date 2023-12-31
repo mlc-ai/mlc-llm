@@ -149,7 +149,9 @@ def _check_safetensor(weight_path: Path) -> Optional[Path]:
 
     safetensor_file_path = weight_path / "model.safetensors"
     if safetensor_file_path.exists():
-        from safetensors.torch import load_file  # pylint: disable=import-outside-toplevel
+        from safetensors.torch import (
+            load_file,  # pylint: disable=import-outside-toplevel,import-error
+        )
 
         weights = load_file(safetensor_file_path, device="cpu")
         weight_map = {key: "model.safetensors" for key in weights}
