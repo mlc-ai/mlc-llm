@@ -10,7 +10,7 @@ from mlc_chat.quantization import Quantization
 from mlc_chat.support import logging
 from mlc_chat.support.style import bold, green, red
 
-from .flags_model_config_override import ModelConfigOverride
+from .compiler_flags import ModelConfigOverride
 
 logger = logging.getLogger(__name__)
 

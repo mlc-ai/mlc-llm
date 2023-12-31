@@ -47,7 +47,7 @@ Optimization flags. MLC LLM maintains a predefined set of optimization flags,
 denoted as O0, O1, O2, O3, where O0 means no optimization, O2 means majority of them,
 and O3 represents extreme optimization that could potentially break the system.
 Meanwhile, optimization flags could be explicitly specified via details knobs, e.g.
---opt="cutlass_attn=1;cutlass_norm=0;cublas_gemm=0;cudagraph=0".
+--opt="cublas_gemm=1;cudagraph=0".
 """.strip(),
     "system_lib_prefix": """
 Adding a prefix to all symbols exported. Similar to "objcopy --prefix-symbols".

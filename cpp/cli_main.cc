@@ -6,9 +6,6 @@
 // NOTE we only interact with the module through tvm runtime
 // so there is no need to depend on a header interface
 // the same set of operations can be implemented in other languages
-#define PICOJSON_USE_INT64
-#define __STDC_FORMAT_MACROS
-
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
