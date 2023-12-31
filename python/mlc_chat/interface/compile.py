@@ -10,7 +10,7 @@ from tvm.relax.frontend import nn
 from tvm.target import Target
 
 from mlc_chat import compiler_pass as _
-from mlc_chat import operator as op_ext
+from mlc_chat import op as op_ext
 from mlc_chat.model import Model
 from mlc_chat.quantization import Quantization
 from mlc_chat.support import argparse, logging
