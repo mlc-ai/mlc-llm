@@ -50,7 +50,22 @@ class GPTBigCodeConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
                     "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
-        if self.prefill_chunk_size == 0:  # chunk size same as context window size by default
+        if self.prefill_chunk_size == 0:
+            logger.info(
+                "%s defaults to %s (%d)",
+                bold("prefill_chunk_size"),
+                bold("context_window_size"),
+                self.context_window_size,
+            )
+            self.prefill_chunk_size = self.context_window_size
+        elif self.prefill_chunk_size > self.context_window_size:
+            logger.info(
+                "Overriding %s from %d to %d (%s)",
+                bold("prefill_chunk_size"),
+                self.prefill_chunk_size,
+                self.context_window_size,
+                bold("context_window_size"),
+            )
             self.prefill_chunk_size = self.context_window_size
 
 

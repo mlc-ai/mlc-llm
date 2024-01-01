@@ -59,14 +59,29 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                     "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
-        if self.prefill_chunk_size == 0:  # chunk size same as context window size by default
-            self.prefill_chunk_size = self.context_window_size
         if self.num_key_value_heads == 0:
             self.num_key_value_heads = self.num_attention_heads
         if self.head_dim == 0:
             self.head_dim = self.hidden_size // self.num_attention_heads
         assert self.head_dim * self.num_attention_heads == self.hidden_size
         assert self.num_attention_heads % self.num_key_value_heads == 0
+        if self.prefill_chunk_size == 0:
+            logger.info(
+                "%s defaults to %s (%d)",
+                bold("prefill_chunk_size"),
+                bold("context_window_size"),
+                self.context_window_size,
+            )
+            self.prefill_chunk_size = self.context_window_size
+        elif self.prefill_chunk_size > self.context_window_size:
+            logger.info(
+                "Overriding %s from %d to %d (%s)",
+                bold("prefill_chunk_size"),
+                self.prefill_chunk_size,
+                self.context_window_size,
+                bold("context_window_size"),
+            )
+            self.prefill_chunk_size = self.context_window_size
 
 
 # pylint: disable=invalid-name,missing-docstring

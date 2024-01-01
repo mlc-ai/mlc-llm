@@ -2,7 +2,6 @@
 Implementation for Mistral architecture.
 """
 import dataclasses
-import math
 from typing import Any, Dict, Optional
 
 from tvm import relax as rx
@@ -10,6 +9,7 @@ from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
+from mlc_chat import op as op_ext
 from mlc_chat.support import logging
 from mlc_chat.support.config import ConfigBase
 from mlc_chat.support.style import bold
@@ -28,7 +28,6 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     rms_norm_eps: float
     vocab_size: int
     position_embedding_base: int = 0
-    context_window_size: int = 0
     num_key_value_heads: int = 0
     head_dim: int = 0
     sliding_window_size: int = 4096
@@ -38,23 +37,6 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
-        if self.context_window_size == 0:
-            for name in ["max_position_embeddings", "max_sequence_length"]:
-                if name in self.kwargs:
-                    self.context_window_size = self.kwargs.pop(name)
-                    logger.info(
-                        "%s not found in config.json. Falling back to %s (%d)",
-                        bold("context_window_size"),
-                        bold(name),
-                        self.context_window_size,
-                    )
-                    break
-            else:
-                raise ValueError(
-                    "Unable to determine the maxmimum sequence length, because none of "
-                    "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
-                    "provided in `config.json`."
-                )
         if self.position_embedding_base == 0:
             if "rope_theta" in self.kwargs:
                 self.position_embedding_base = self.kwargs.pop("rope_theta")
@@ -66,17 +48,24 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.head_dim = self.hidden_size // self.num_attention_heads
         assert self.num_attention_heads % self.num_key_value_heads == 0
         assert self.head_dim * self.num_attention_heads == self.hidden_size
-
         assert self.attention_sink_size >= 0
-
         if self.prefill_chunk_size == 0:
-            # chunk size same as sliding window by default
+            logger.info(
+                "%s defaults to %s (%d)",
+                bold("prefill_chunk_size"),
+                bold("sliding_window_size"),
+                self.sliding_window_size,
+            )
             self.prefill_chunk_size = self.sliding_window_size
-        self.context_window_size = -1
-        logger.info(
-            "Using sliding window attention, setting %s to -1",
-            bold("context_window_size"),
-        )
+        elif self.prefill_chunk_size > self.sliding_window_size:
+            logger.info(
+                "Overriding %s from %d to %d (%s)",
+                bold("prefill_chunk_size"),
+                self.prefill_chunk_size,
+                self.sliding_window_size,
+                bold("sliding_window_size"),
+            )
+            self.prefill_chunk_size = self.sliding_window_size
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -252,33 +241,13 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
         b, s, _ = hidden_states.shape
         assert b == 1, "Only support batch size 1 at this moment."
-
         qkv_cur = self.qkv_proj(hidden_states)
         qkv_cur = op.reshape(qkv_cur, (b, s, h_q + 2 * h_kv, d))
         q, k_cur, v_cur = op.split(qkv_cur, [h_q, h_q + h_kv], axis=2)
-
         k, v = self.interleave_kv(k_cur, v_cur, kv_seq_len, rolling_cache_len, cache_offset)
-
         q, k = self.rotary_embedding(q, k, rolling_cache_len)
-
-        if h_kv != h_q:
-            k = k.repeat(h_q // h_kv, axis=2)
-            v = v.repeat(h_q // h_kv, axis=2)
-        q = q.permute_dims([0, 2, 1, 3])  # [b, h, s, d]
-        k = k.permute_dims([0, 2, 1, 3])  # [b, h, t, d]
-        v = v.permute_dims([0, 2, 1, 3])  # [b, h, t, d]
-        attn_weights = op.matmul(
-            q, k.permute_dims([0, 1, 3, 2])  # [b, h, s, d] x [b, h, d, t] = [b, h, s, t]
-        ) / math.sqrt(d)
-        dtype = attn_weights.dtype
-        attn_weights = attn_weights.maximum(tir.min_value(dtype)).minimum(attention_mask)
-        if dtype == "float32":
-            attn_weights = op.softmax(attn_weights, axis=-1)
-        else:
-            attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
-        # [b, h, s, t] x [b, h, t, d] => [b, h, s, d] => [b, s, h, d]
-        output = op.matmul(attn_weights, v)
-        return self.o_proj(output.permute_dims([0, 2, 1, 3]).reshape((b, s, h_q * d)))
+        output = op_ext.attention(q, k, v, attention_mask)
+        return self.o_proj(output)
 
 
 class RollingKVCacheWithSinks(nn.KVCache):

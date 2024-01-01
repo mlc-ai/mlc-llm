@@ -62,7 +62,9 @@ class PhiConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                     "n_positions",
                     self.context_window_size,
                 )
-        if self.prefill_chunk_size == 0:  # chunk size same as context window size by default
+        if self.prefill_chunk_size == 0:
+            self.prefill_chunk_size = self.context_window_size
+        if self.prefill_chunk_size > self.context_window_size:
             self.prefill_chunk_size = self.context_window_size
         if self.n_head_kv == 0 or self.n_head_kv is None:
             self.n_head_kv = self.n_head

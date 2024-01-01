@@ -3,6 +3,7 @@
 import inspect
 import json
 import os
+import subprocess
 import sys
 import warnings
 from dataclasses import asdict, dataclass, fields
@@ -630,6 +631,17 @@ def _convert_generation_config_to_json_str(generation_config: Optional[Generatio
     return json.dumps(asdict(generation_config))
 
 
+def _inspect_model_lib_metadata_memory_usage(model_lib_path):
+    cmd = [
+        sys.executable,
+        "-m",
+        "mlc_chat.cli.model_metadata",
+        model_lib_path,
+        "--memory-only",
+    ]
+    subprocess.run(cmd, check=False)
+
+
 class ChatModule:  # pylint: disable=too-many-instance-attributes
     r"""The ChatModule for MLC LLM.
 
@@ -741,7 +753,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
                 self.config_file_path,
             )
         except FileNotFoundError:
-            logger.exception("Model lib not found. Now compiling model lib on device...")
+            logger.info("Model lib not found. Now compiling model lib on device...")
             from mlc_chat.interface import (  # pylint: disable=import-outside-toplevel
                 jit,
             )
@@ -753,6 +765,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
                     device=self.device,
                 )
             )
+        _inspect_model_lib_metadata_memory_usage(self.model_lib_path)
 
         # 5. Call reload
         user_chat_config_json_str = _convert_chat_config_to_json_str(
