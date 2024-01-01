@@ -83,20 +83,19 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
 ):
     """Entrypoint of MLC Chat configuration generation."""
     # Step 1. Initialize `mlc-chat-config.json` using `config.json`
-    model_config = model.config.from_file(config)
-    ModelConfigOverride(
+    model_config = ModelConfigOverride(
         context_window_size=context_window_size,
         sliding_window_size=sliding_window_size,
         prefill_chunk_size=prefill_chunk_size,
         attention_sink_size=attention_sink_size,
         tensor_parallel_shards=tensor_parallel_shards,
-    ).apply(model_config)
+    ).apply(model.config.from_file(config))
     mlc_chat_config = MLCChatConfig(
         model_type=model.name,
         quantization=quantization.name,
         model_config=model_config.asdict(),
         vocab_size=model_config.vocab_size,
-        context_window_size=model_config.context_window_size,
+        context_window_size=getattr(model_config, "context_window_size", -1),
         sliding_window_size=getattr(model_config, "sliding_window_size", -1),
         prefill_chunk_size=model_config.prefill_chunk_size,
         attention_sink_size=getattr(model_config, "attention_sink_size", -1),

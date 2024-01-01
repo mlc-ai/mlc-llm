@@ -60,8 +60,8 @@ def _load_prompt(path_or_prompt: str) -> str:
     try:
         path = Path(path_or_prompt)
         if path.is_file():
-            with path.open("r", encoding="utf-8") as f:
-                return f.read()
+            with path.open("r", encoding="utf-8") as in_file:
+                return in_file.read()
     except:  # pylint: disable=bare-except
         pass
     return path_or_prompt

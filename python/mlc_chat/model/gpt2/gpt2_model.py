@@ -36,7 +36,6 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     def __post_init__(self):
         if self.n_inner is None or self.n_inner == -1:
             self.n_inner = 4 * self.n_embd
-
         if self.context_window_size == 0:
             for name in ["n_positions", "max_sequence_length"]:
                 if name in self.kwargs:
@@ -54,11 +53,24 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
                     "`context_window_size`, `n_positions` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
-
-        if self.prefill_chunk_size == 0:
-            # chunk size same as context window size by default
-            self.prefill_chunk_size = self.context_window_size
         assert self.tensor_parallel_shards == 1, "GPT2 currently does not support sharding."
+        if self.prefill_chunk_size == 0:
+            logger.info(
+                "%s defaults to %s (%d)",
+                bold("prefill_chunk_size"),
+                bold("context_window_size"),
+                self.context_window_size,
+            )
+            self.prefill_chunk_size = self.context_window_size
+        elif self.prefill_chunk_size > self.context_window_size:
+            logger.info(
+                "Overriding %s from %d to %d (%s)",
+                bold("prefill_chunk_size"),
+                self.prefill_chunk_size,
+                self.context_window_size,
+                bold("context_window_size"),
+            )
+            self.prefill_chunk_size = self.context_window_size
 
 
 # pylint: disable=invalid-name,missing-docstring,too-many-locals

@@ -1,9 +1,11 @@
 """Python entrypoint of compilation."""
 import dataclasses
+import math
 from io import StringIO
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+import numpy as np
 from tvm import IRModule, relax, tir
 from tvm.ir.transform import Pass
 from tvm.relax.frontend import nn
@@ -102,15 +104,33 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "preprocs": param.attrs["preprocs"],
         }
 
-    args.overrides.apply(model_config)
+    def _find_kv_cache_bytes(model: nn.Module, model_config) -> int:
+        all_kv_cache = nn.core._attribute_finder(  # pylint: disable=protected-access
+            model,
+            prefix="",
+            condition_yield=lambda x: isinstance(x, nn.KVCache),
+        )
+        result = 0
+        for _, kv_cache in all_kv_cache:
+            result += math.prod(kv_cache.unit_shape) * np.dtype(kv_cache.dtype).itemsize
+        if getattr(model_config, "sliding_window_size", -1) > 0:
+            window_size = model_config.sliding_window_size
+        elif getattr(model_config, "context_window_size", -1) > 0:
+            window_size = model_config.context_window_size
+        else:
+            window_size = 0
+        return result * window_size
+
+    model_config = args.overrides.apply(model_config)
     with args.target:
         op_ext.enable(
             target=args.target,
             flashinfer=args.opt.flashinfer,
         )
         # Step 1. Create the quantized model
-        logger.info("Creating model from: %s", args.config)
+        logger.info("Creating model from: %s", model_config)
         model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
+        kv_cache_bytes = _find_kv_cache_bytes(model, model_config)
         # Step 2. Exporting the model to TVM Unity
         logger.info("Exporting the model to TVM Unity compiler")
         mod, named_params, ext_mods = model.export_tvm(
@@ -124,11 +144,12 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         metadata = {
             "model_type": args.model.name,
             "quantization": args.quantization.name,
-            "context_window_size": model_config.context_window_size,  # type: ignore
-            "prefill_chunk_size": model_config.prefill_chunk_size,  # type: ignore
+            "context_window_size": getattr(model_config, "context_window_size", -1),
             "sliding_window_size": getattr(model_config, "sliding_window_size", -1),
             "attention_sink_size": getattr(model_config, "attention_sink_size", -1),
+            "prefill_chunk_size": model_config.prefill_chunk_size,  # type: ignore
             "tensor_parallel_shards": model_config.tensor_parallel_shards,  # type: ignore
+            "kv_cache_bytes": kv_cache_bytes,
         }
         logger.info("Registering metadata: %s", metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
@@ -162,9 +183,12 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
     if "model_config" in config:
-        model_config = model_type.config.from_dict({**config["model_config"], **config})
+        model_config = config.pop("model_config")
+        model_config.update(config)
+        model_config = model_type.config.from_dict(model_config)
     else:
         model_config = model_type.config.from_dict(config)
+    model_config.kwargs = {}
     args = CompileArgs(
         model_config,
         quantization,

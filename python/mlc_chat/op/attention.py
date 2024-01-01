@@ -5,7 +5,11 @@ from tvm import tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import op
 
+from mlc_chat.support import logging
+
 from . import extern as _extern
+
+logger = logging.getLogger(__name__)
 
 
 def attention(  # pylint: disable=invalid-name,too-many-locals
@@ -44,19 +48,49 @@ def attention(  # pylint: disable=invalid-name,too-many-locals
         o = attn @ v  # [b, h, s, d]
         o -> [b, s, h * d]
     """
-    assert q.ndim == 4 and k.ndim == 3 and v.ndim == 3
+    assert q.ndim == 4 and k.ndim in [3, 4] and v.ndim in [3, 4]
     b, s, h_q, d = q.shape
-    t, h_kv, _ = k.shape
+    t, h_kv, _ = k.shape[-3:]
+    group_size = h_q // h_kv
     assert b == 1, "batch size must be 1"
 
+    def _fallback():
+        nonlocal q, k, v
+        if k.ndim == 3:
+            k = op.reshape(k, [b, t, h_kv, d])
+        if v.ndim == 3:
+            v = op.reshape(v, [b, t, h_kv, d])
+        if h_kv != h_q:
+            k = k.repeat(h_q // h_kv, axis=2)
+            v = v.repeat(h_q // h_kv, axis=2)
+        q = q.permute_dims([0, 2, 1, 3])
+        k = k.permute_dims([0, 2, 1, 3])
+        v = v.permute_dims([0, 2, 1, 3])
+        attn_weights = op.matmul(  # [b, h, s, t]
+            q,  # [b, h, s, d]
+            k.permute_dims([0, 1, 3, 2]),  # [b, h, d, t]
+        ) / math.sqrt(d)
+        dtype = attn_weights.dtype
+        attn_weights = attn_weights.maximum(tir.min_value(dtype)).minimum(casual_mask)
+        if dtype == "float32":
+            attn_weights = op.softmax(attn_weights, axis=-1)
+        else:
+            attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
+        output = op.matmul(attn_weights, v)  # [b, h, s, d] <= [b, h, s, t] x [b, h, t, d]
+        output = output.permute_dims([0, 2, 1, 3])  #  [b, s, h, d]
+        output = output.reshape([b, s, h_q * d])  # [b, s, h * d]
+        return output
+
     # FlashInfer Implementation
-    extern_store = _extern.get_store()
     if (
-        extern_store.flashinfer
+        _extern.get_store().flashinfer
         and q.dtype == "float16"
         and k.dtype == "float16"
         and v.dtype == "float16"
     ):
+        if group_size not in [1, 8]:
+            logger.warning("FlashInfer only supports group size in [1, 8], but got %d", group_size)
+            return _fallback()
         rope_theta = 0.0
         rope_scale = 1.0
         qkv_layout = 0  # "NHD", N for seq_len, H for num_heads, D for head_dim
@@ -88,25 +122,4 @@ def attention(  # pylint: disable=invalid-name,too-many-locals
         }[func]()
 
     # Fallback Implementation
-    k = op.reshape(k, [b, t, h_kv, d])
-    v = op.reshape(v, [b, t, h_kv, d])
-    if h_kv != h_q:
-        k = k.repeat(h_q // h_kv, axis=2)
-        v = v.repeat(h_q // h_kv, axis=2)
-    q = q.permute_dims([0, 2, 1, 3])
-    k = k.permute_dims([0, 2, 1, 3])
-    v = v.permute_dims([0, 2, 1, 3])
-    attn_weights = op.matmul(  # [b, h, s, t]
-        q,  # [b, h, s, d]
-        k.permute_dims([0, 1, 3, 2]),  # [b, h, d, t]
-    ) / math.sqrt(d)
-    dtype = attn_weights.dtype
-    attn_weights = attn_weights.maximum(tir.min_value(dtype)).minimum(casual_mask)
-    if dtype == "float32":
-        attn_weights = op.softmax(attn_weights, axis=-1)
-    else:
-        attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
-    output = op.matmul(attn_weights, v)  # [b, h, s, d] <= [b, h, s, t] x [b, h, t, d]
-    output = output.permute_dims([0, 2, 1, 3])  #  [b, s, h, d]
-    output = output.reshape([b, s, h_q * d])  # [b, s, h * d]
-    return output
+    return _fallback()

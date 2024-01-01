@@ -34,7 +34,7 @@ def jit(model_path: Path, chat_config: Dict[str, Any], device: Device) -> Path:
     quantization = mlc_chat_config.pop("quantization")
 
     def _get_optimization_flags() -> str:
-        opt = mlc_chat_config.pop("opt", "O2")
+        opt = chat_config.pop("opt", "O2")
         return repr(OptimizationFlags.from_str(opt))
 
     def _get_overrides() -> str:
@@ -60,6 +60,11 @@ def jit(model_path: Path, chat_config: Dict[str, Any], device: Device) -> Path:
         return MODELS[model_type].config.from_dict(model_config).asdict()
 
     def _run_jit(opt: str, overrides: str, device: str, dst: str):
+        def _quote(s: str) -> str:  # pylint: disable=invalid-name
+            if ";" in s:
+                return f'"{s}"'
+            return s
+
         with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir:
             dso_path = os.path.join(tmp_dir, "lib.so")
             cmd = [
@@ -78,7 +83,7 @@ def jit(model_path: Path, chat_config: Dict[str, Any], device: Device) -> Path:
                 dso_path,
             ]
             logger.info("Compiling using commands below:")
-            logger.info("%s", blue(" ".join(cmd)))
+            logger.info("%s", blue(" ".join(_quote(s) for s in cmd)))
             subprocess.run(cmd, check=True)
             shutil.move(dso_path, dst)
             logger.info("Using compiled model lib: %s", bold(dst))

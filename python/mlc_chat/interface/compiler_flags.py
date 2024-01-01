@@ -1,7 +1,7 @@
 """Flags for overriding model config."""
 import dataclasses
 from io import StringIO
-from typing import Any, Optional
+from typing import Optional
 
 from mlc_chat.support import argparse, logging
 from mlc_chat.support.style import bold, red
@@ -99,64 +99,34 @@ class ModelConfigOverride:
         print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
         return out.getvalue().rstrip()
 
-    def __post_init__(self):
-        # If `sliding_window_size` is set
-        # - 1) Disable `context_window_size`
-        # - 2) Require `prefill_chunk_size` to present
-        # - 3) Set `attention_sink_size` to default (4)
-        if self.sliding_window_size is not None:
-            self.context_window_size = -1
-            logger.info(
-                "Setting %s to -1 (disabled), because %s is already set",
-                bold("context_window_size"),
-                bold("sliding_window_size"),
-            )
-            if self.prefill_chunk_size is None:
-                logger.info(
-                    "Default %s to %s (%d) because it is not provided",
-                    bold("prefill_chunk_size"),
-                    bold("sliding_window_size"),
-                    self.sliding_window_size,
-                )
-                self.prefill_chunk_size = self.sliding_window_size
-            if self.attention_sink_size is None:
-                logger.info(
-                    "Default %s to %d because it is not provided",
-                    bold("attention_sink_size"),
-                    4,
-                )
-                self.attention_sink_size = 4
-        elif self.context_window_size is not None:
-            if self.prefill_chunk_size is None:
-                logger.info(
-                    "Default %s to %s (%d) because it is not provided",
-                    bold("prefill_chunk_size"),
-                    bold("context_window_size"),
-                    self.context_window_size,
-                )
-                self.prefill_chunk_size = self.context_window_size
-
     def apply(self, model_config):
         """Apply the overrides to the given model config."""
-        if self.context_window_size is not None:
-            _model_config_override(model_config, "context_window_size", self.context_window_size)
-        if self.sliding_window_size is not None:
-            _model_config_override(model_config, "sliding_window_size", self.sliding_window_size)
-        if self.prefill_chunk_size is not None:
-            _model_config_override(model_config, "prefill_chunk_size", self.prefill_chunk_size)
-        if self.attention_sink_size is not None:
-            _model_config_override(model_config, "attention_sink_size", self.attention_sink_size)
-        if self.max_batch_size is not None:
-            _model_config_override(model_config, "max_batch_size", self.max_batch_size)
-        if self.tensor_parallel_shards is not None:
-            _model_config_override(
-                model_config, "tensor_parallel_shards", self.tensor_parallel_shards
-            )
+        updated = model_config.asdict()
+        for field in dataclasses.fields(self):
+            key = field.name
+            value = getattr(self, key)
+            if value is None:
+                continue
+            if key not in updated:
+                logger.warning(
+                    "%s: Cannot override %s, because %s does not have this field",
+                    red("Warning"),
+                    bold(key),
+                    bold(type(model_config).__name__),
+                )
+            else:
+                logger.info(
+                    "Overriding %s from %d to %d",
+                    bold(key),
+                    updated[key],
+                    value,
+                )
+                updated[key] = value
+        return type(model_config).from_dict(updated)
 
     @staticmethod
     def from_str(source: str) -> "ModelConfigOverride":
         """Parse model config override values from a string."""
-
         parser = argparse.ArgumentParser(description="model config override values")
         parser.add_argument("--context_window_size", type=int, default=None)
         parser.add_argument("--sliding_window_size", type=int, default=None)
@@ -172,24 +142,6 @@ class ModelConfigOverride:
             attention_sink_size=results.attention_sink_size,
             max_batch_size=results.max_batch_size,
             tensor_parallel_shards=results.tensor_parallel_shards,
-        )
-
-
-def _model_config_override(model_config, field: str, value: Any) -> None:
-    if hasattr(model_config, field):
-        logger.info(
-            "Overriding %s from %d to %d",
-            bold(field),
-            getattr(model_config, field),
-            value,
-        )
-        setattr(model_config, field, value)
-    else:
-        logger.warning(
-            "%s: %s does not have %s",
-            red("Warning"),
-            bold(type(model_config).__name__),
-            bold(field),
         )
 
 
