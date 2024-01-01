@@ -88,8 +88,11 @@ def attention(  # pylint: disable=invalid-name,too-many-locals
         and k.dtype == "float16"
         and v.dtype == "float16"
     ):
-        if group_size not in [1, 8]:
-            logger.warning("FlashInfer only supports group size in [1, 8], but got %d", group_size)
+        if group_size not in [1, 4, 8]:
+            logger.warning(
+                "FlashInfer only supports group size in [1, 4, 8], but got %d",
+                group_size,
+            )
             return _fallback()
         rope_theta = 0.0
         rope_scale = 1.0
@@ -98,17 +101,40 @@ def attention(  # pylint: disable=invalid-name,too-many-locals
         casual = 1  # True
         fp16_qk = 1  # True
 
+        # 32MB scratchpad
+        scratch = op.empty([8192 * 1024], dtype="float32")  # pylint: disable=no-member
+
         def _decode():
             return op.extern(
                 name="flashinfer.single_decode",
-                args=[q, k, v, qkv_layout, rotary_mode, rope_scale, rope_theta],
+                args=[
+                    q,
+                    k,
+                    v,
+                    scratch,
+                    qkv_layout,
+                    rotary_mode,
+                    rope_scale,
+                    rope_theta,
+                ],
                 out=nn.Tensor.placeholder((b, s, h_q * d), dtype="float16"),
             )
 
         def _prefill():
             return op.extern(
                 name="flashinfer.single_prefill",
-                args=[q, k, v, casual, qkv_layout, rotary_mode, fp16_qk, rope_scale, rope_theta],
+                args=[
+                    q,
+                    k,
+                    v,
+                    scratch,
+                    casual,
+                    qkv_layout,
+                    rotary_mode,
+                    fp16_qk,
+                    rope_scale,
+                    rope_theta,
+                ],
                 out=nn.Tensor.placeholder((b, s, h_q * d), dtype="float16"),
             )
 

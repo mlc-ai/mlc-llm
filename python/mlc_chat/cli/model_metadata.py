@@ -46,18 +46,20 @@ def _report_memory_usage(metadata: Dict[str, Any]) -> None:
     for param in metadata["params"]:
         if all(v > 0 for v in param["shape"]):
             params_bytes += math.prod(param["shape"]) * np.dtype(param["dtype"]).itemsize
-    logger.info("%s: %.2f MB", green("Parameter size"), params_bytes / 1024 / 1024)
-
     temp_func_bytes = 0.0
     for _func_name, func_bytes in metadata["memory_usage"].items():
         temp_func_bytes = max(temp_func_bytes, func_bytes)
-    logger.info("%s: %.2f MB", green("Temporary buffer size"), temp_func_bytes / 1024 / 1024)
-
     kv_cache_bytes = metadata["kv_cache_bytes"]
-    logger.info("%s: %.2f MB", green("KVCache size"), kv_cache_bytes / 1024 / 1024)
 
     total_size = params_bytes + temp_func_bytes + kv_cache_bytes
-    logger.info("%s: %.2f MB", green("Total memory usage"), total_size / 1024 / 1024)
+    logger.info(
+        "%s: %.2f MB (Parameters: %.2f MB. KVCache: %.2f MB. Temporary buffer: %.2f MB)",
+        green("Total memory usage"),
+        total_size / 1024 / 1024,
+        params_bytes / 1024 / 1024,
+        kv_cache_bytes / 1024 / 1024,
+        temp_func_bytes / 1024 / 1024,
+    )
 
     logger.info(
         "To reduce memory usage, "
