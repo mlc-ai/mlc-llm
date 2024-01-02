@@ -464,7 +464,7 @@ def create_func(
 ):
     if func_name not in ["prefill", "decode"]:
         raise ValueError(f"func_name must be 'prefill' or 'decode', got {func_name}")
-    seq_len = 1 if func_name == "decode" else tir.Var("n", "int64")
+    seq_len = 1 if func_name == "decode" else tir.SizeVar("n", "int64")
 
     with bb.function(func_name):
         model = RWKVForCausalLM(config)

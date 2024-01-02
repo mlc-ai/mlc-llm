@@ -8,9 +8,11 @@ import tvm._ffi.base
 
 from . import libinfo
 
+SKIP_LOADING_MLCLLM_SO = os.environ.get("SKIP_LOADING_MLCLLM_SO", "0")
+
 
 def _load_mlc_llm_lib():
-    """Load mlc llm lib"""
+    """Load MLC LLM lib"""
     if sys.platform.startswith("win32") and sys.version_info >= (3, 8):
         for path in libinfo.get_dll_directories():
             os.add_dll_directory(path)
@@ -22,39 +24,5 @@ def _load_mlc_llm_lib():
 
 
 # only load once here
-if os.environ.get("SKIP_LOADING_MLCLLM_SO", "0") == "0":
+if SKIP_LOADING_MLCLLM_SO == "0":
     _LIB, _LIB_PATH = _load_mlc_llm_lib()
-
-
-def get_delta_message(curr_message: str, new_message: str) -> str:
-    r"""Given the current message and the new message, compute the delta message
-    (the newly generated part, the diff of the new message from the current message).
-
-    Parameters
-    ----------
-    curr_message : str
-        The message generated in the previous round.
-    new_message : str
-        The message generated in the new round.
-
-    Returns
-    -------
-    delta_message : str
-        The diff of the new message from the current message (the newly generated part).
-    """
-    f_get_delta_message = tvm.get_global_func("mlc.get_delta_message")
-    return f_get_delta_message(curr_message, new_message)
-
-
-def set_global_random_seed(seed):
-    """Set global random seed for python, numpy, torch and tvm."""
-    if "numpy" in sys.modules:
-        sys.modules["numpy"].random.seed(seed)
-    if "torch" in sys.modules:
-        sys.modules["torch"].manual_seed(seed)
-    if "random" in sys.modules:
-        sys.modules["random"].seed(seed)
-    if "tvm" in sys.modules:
-        set_seed = sys.modules["tvm"].get_global_func("mlc.random.set_seed")
-        if set_seed:
-            set_seed(seed)

@@ -40,6 +40,9 @@ def git_describe_version(original_version):
     _, gd_version = libver["git_describe_version"]()
     if gd_version is not None and gd_version != original_version:
         print(f"Use git describe based version {gd_version}")
+    if gd_version is None:
+        print(f"Use original version {original_version}")
+        return original_version
     return gd_version
 
 

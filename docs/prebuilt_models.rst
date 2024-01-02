@@ -16,37 +16,33 @@ MLC-LLM is a universal solution for deploying different language models. Any mod
 (a general representation for Neural Networks and can be imported from models written in PyTorch) can be recognized by MLC-LLM and thus deployed to different backends with the 
 help of :doc:`TVM Unity </install/tvm>`.
 
-There are two ways to run a model on MLC-LLM:
+There are two ways to run a model on MLC-LLM (this page focuses on the second one):
 
 1. Compile your own models following :doc:`the model compilation page </compilation/compile_models>`.
-2. Use off-the-shelf prebuilts models following this current page.
-
-This page focuses on the second option:
-
-- Documenting :ref:`how to use prebuilts <using-model-prebuilts>` for various platforms, and
-- Tracking what current :ref:`prebuilt models we provide <supported-model-architectures>`.
-
-Prerequisite: Model Libraries and Compiled Weights
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2. Use off-the-shelf prebuilt models following this current page.
 
 In order to run a specific model on MLC-LLM, you need:
 
-**1. A model library:** a binary file containing the end-to-end functionality to inference a model (e.g. ``Llama-2-7b-chat-hf-q4f16_1-cuda.so``). See the full list of all precompiled model libraries `here <https://github.com/mlc-ai/binary-mlc-llm-libs>`__.
+**1. A model library:** a binary file containing the end-to-end functionality to inference a model (e.g. ``Llama-2-7b-chat-hf-q4f16_1-cuda.so``).
+See the full list of all precompiled model libraries `here <https://github.com/mlc-ai/binary-mlc-llm-libs>`__.
 
-**2. Compiled weights:** a folder containing multiple files that store the compiled and quantized weights of a model (e.g. https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1).  See the full list of all precompiled weights `here <https://huggingface.co/mlc-ai>`__.
+**2. Compiled weights:** a folder containing multiple files that store the compiled and quantized weights of a model
+(e.g. https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC).  See the full list of all precompiled weights `here <https://huggingface.co/mlc-ai>`__.
+
+In this page, we first quickly go over :ref:`how to use prebuilts <using-model-prebuilts>` for different platforms,
+then track what current :ref:`prebuilt models we provide <supported-model-architectures>`.
+
 
 .. _using-model-prebuilts:
 
 Using Prebuilt Models for Different Platforms
----------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We quickly go over how to use prebuilt models for each platform. You can find detailed instruction on each platform's corresponding page.
 
 .. _using-prebuilt-models-cli:
 
-
-Prebuilt Models on CLI / Python
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+**Prebuilt Models on CLI / Python**
 
 For more, please see :doc:`the CLI page </deploy/cli>`, and the :doc:`the Python page </deploy/python>`.
 
@@ -65,30 +61,29 @@ For more, please see :doc:`the CLI page </deploy/cli>`, and the :doc:`the Python
 
     .. code:: shell
 
-      mkdir -p dist/prebuilt
-      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
+      mkdir dist/
+      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
+
 
   Download the prebuilt model weights from hugging face for the model variant you want.
 
     .. code:: shell
 
-      # Say we want to run rwkv-raven-7b-q8f16_0
-      cd dist/prebuilt
-      git clone https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0
-      cd ../..
-
-      # The format being:
-      # cd dist/prebuilt
-      # git clone https://huggingface.co/mlc-ai/mlc-chat-[model-code]
-      # cd ../..
-      # mlc_chat_cli --model [model-code]
+      # Say we want to run Llama-2-7b-chat-hf-q4f16_1-MLC
+      git lfs install
+      git clone https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC \
+                                        dist/Llama-2-7b-chat-hf-q4f16_1-MLC
 
   Run the model with CLI:
 
     .. code:: shell
 
-      # For CLI
-      mlc_chat_cli --model rwkv-raven-7b-q8f16_0
+      mlc_chat_cli --model dist/Llama-2-7b-chat-hf-q4f16_1-MLC \
+                  --model-lib-path dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
+                  # CUDA on Linux: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so
+                  # Metal on macOS: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so
+                  # Same rule applies for other platforms
+
 
   To run the model with Python API, see :doc:`the Python page </deploy/python>` (all other downloading steps are the same as CLI).
 
@@ -97,119 +92,126 @@ For more, please see :doc:`the CLI page </deploy/cli>`, and the :doc:`the Python
 
 |
 
-.. _using-prebuilt-models-ios:
+.. POPULATE BELOW AFTER IOS RUNTIME DOCUMENTATION IS SLM-IFIED
+.. .. _using-prebuilt-models-ios:
 
-Prebuilt Models on iOS
-^^^^^^^^^^^^^^^^^^^^^^
+.. **Prebuilt Models on iOS**
 
-For more, please see :doc:`the iOS page </deploy/ios>`.
+.. For more, please see :doc:`the iOS page </deploy/ios>`.
 
-.. collapse:: Click to show details
+.. .. collapse:: Click to show details
 
-  The `iOS app <https://apps.apple.com/us/app/mlc-chat/id6448482937>`_ has builtin RedPajama-3B and Llama-2-7b support. 
+..   The `iOS app <https://apps.apple.com/us/app/mlc-chat/id6448482937>`_ has builtin RedPajama-3B and Llama-2-7b support. 
 
-  All prebuilt models with an entry in ``iOS`` in the :ref:`model library table <model-library-tables>` are supported by iOS. Namely, we have:
+..   All prebuilt models with an entry in ``iOS`` in the :ref:`model library table <model-library-tables>` are supported by iOS. Namely, we have:
 
-  .. list-table:: Prebuilt model libraries integrated in the iOS app
-    :widths: 15 15 15
-    :header-rows: 1
+..   .. list-table:: Prebuilt model libraries integrated in the iOS app
+..     :widths: 15 15 15
+..     :header-rows: 1
 
-    * - Model library name
-      - Model Family
-      - Quantization Mode
-    * - `Llama-2-7b-chat-hf-q3f16_1`
-      - LLaMA
-      - * Weight storage data type: int3
-        * Running data type: float16
-        * Symmetric quantization
-    * - `vicuna-v1-7b-q3f16_0`
-      - LLaMA
-      - * Weight storage data type: int3
-        * Running data type: float16
-        * Symmetric quantization
-    * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
-      - GPT-NeoX
-      - * Weight storage data type: int4
-        * Running data type: float16
-        * Symmetric quantization
+..     * - Model library name
+..       - Model Family
+..       - Quantization Mode
+..     * - `Llama-2-7b-chat-hf-q3f16_1`
+..       - LLaMA
+..       - * Weight storage data type: int3
+..         * Running data type: float16
+..         * Symmetric quantization
+..     * - `vicuna-v1-7b-q3f16_0`
+..       - LLaMA
+..       - * Weight storage data type: int3
+..         * Running data type: float16
+..         * Symmetric quantization
+..     * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
+..       - GPT-NeoX
+..       - * Weight storage data type: int4
+..         * Running data type: float16
+..         * Symmetric quantization
 
-  As for prebuilt model weights, the ones we have integrated into app are listed below:
+..   As for prebuilt model weights, the ones we have integrated into app are listed below:
 
-  .. list-table:: Tested prebuilt model weights for iOS
-    :widths: 15 15 15 15
-    :header-rows: 1
+..   .. list-table:: Tested prebuilt model weights for iOS
+..     :widths: 15 15 15 15
+..     :header-rows: 1
 
-    * - Model code
-      - Model Series
-      - Quantization Mode
-      - Hugging Face repo
-    * - `Llama-2-7b-q3f16_1`
-      - `Llama <https://ai.meta.com/llama/>`__
-      - * Weight storage data type: int3
-        * Running data type: float16
-        * Symmetric quantization
-      - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q3f16_1>`__
-    * - `vicuna-v1-7b-q3f16_0`
-      - `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
-      - * Weight storage data type: int3
-        * Running data type: float16
-        * Symmetric quantization
-      - `link <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0>`__
-    * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
-      - `RedPajama <https://www.together.xyz/blog/redpajama>`__
-      - * Weight storage data type: int4
-        * Running data type: float16
-        * Symmetric quantization
-      - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
+..     * - Model code
+..       - Model Series
+..       - Quantization Mode
+..       - Hugging Face repo
+..     * - `Llama-2-7b-q3f16_1`
+..       - `Llama <https://ai.meta.com/llama/>`__
+..       - * Weight storage data type: int3
+..         * Running data type: float16
+..         * Symmetric quantization
+..       - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q3f16_1>`__
+..     * - `vicuna-v1-7b-q3f16_0`
+..       - `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
+..       - * Weight storage data type: int3
+..         * Running data type: float16
+..         * Symmetric quantization
+..       - `link <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0>`__
+..     * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
+..       - `RedPajama <https://www.together.xyz/blog/redpajama>`__
+..       - * Weight storage data type: int4
+..         * Running data type: float16
+..         * Symmetric quantization
+..       - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
   
-  To run a model variant you compiled on your own, you can directly reuse the above integrated prebuilt model libraries, as long as the model shares the architecture and is compiled with the same quantization mode. For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/open_llama>`_ with quantization mode ``q3f16_0``, then you can run the compiled OpenLLaMA model on iPhone without rebuilding the iOS app by reusing the `vicuna-v1-7b-q3f16_0` model library. Then you can upload the compiled weights to hugging face so that you can download the weights in the app as shown below (for more on uploading to hugging face, please check the :doc:`model distribution page </compilation/distribute_compiled_models>`).
+..   To run a model variant you compiled on your own, you can directly reuse the above
+..   integrated prebuilt model libraries, as long as the model shares the
+..   architecture and is compiled with the same quantization mode.
+..   For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/open_llama>`_
+..   with quantization mode ``q3f16_0``, then you can run the compiled OpenLLaMA model on iPhone
+..   without rebuilding the iOS app by reusing the `vicuna-v1-7b-q3f16_0` model library.
+..   Then you can upload the compiled weights to hugging face so that you can download
+..   the weights in the app as shown below (for more on uploading to hugging face,
+..   please check :ref:`distribute-compiled-models`).
   
-  To add a model to the iOS app, follow the steps below:
+..   To add a model to the iOS app, follow the steps below:
 
-  .. tabs::
+..   .. tabs::
 
-      .. tab:: Step 1
+..       .. tab:: Step 1
 
-          Open "MLCChat" app, click "Add model variant".
+..           Open "MLCChat" app, click "Add model variant".
 
-          .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-1.png
-              :align: center
-              :width: 30%
+..           .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-1.png
+..               :align: center
+..               :width: 30%
 
-      .. tab:: Step 2
+..       .. tab:: Step 2
 
-          Paste the repository URL of the model built on your own, and click "Add".
+..           Paste the repository URL of the model built on your own, and click "Add".
 
-          You can refer to the link in the image as an example.
+..           You can refer to the link in the image as an example.
 
-          .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-2.png
-              :align: center
-              :width: 30%
+..           .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-2.png
+..               :align: center
+..               :width: 30%
 
-      .. tab:: Step 3
+..       .. tab:: Step 3
 
-          After adding the model, you can download your model from the URL by clicking the download button.
+..           After adding the model, you can download your model from the URL by clicking the download button.
 
-          .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-3.png
-              :align: center
-              :width: 30%
+..           .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-3.png
+..               :align: center
+..               :width: 30%
 
-      .. tab:: Step 4
+..       .. tab:: Step 4
 
-          When the download is finished, click into the model and enjoy.
+..           When the download is finished, click into the model and enjoy.
 
-          .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-4.png
-              :align: center
-              :width: 30%
+..           .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-4.png
+..               :align: center
+..               :width: 30%
 
-.. for a blank line
+.. .. for a blank line
 
-|
+.. |
 
 .. _prebuilt-models-android:
 
-Prebuilt Models on Android
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+**Prebuilt Models on Android**
 
 For more, please see :doc:`the Android page </deploy/android>`.
 
@@ -230,9 +232,9 @@ For more, please see :doc:`the Android page </deploy/android>`.
       - * Weight storage data type: int4
         * Running data type: float16
         * Symmetric quantization
-      - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
+      - `link <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC>`__
     * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
-      - `RedPajama <https://www.together.xyz/blog/redpajama>`__
+      - `RedPajama <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC>`__
       - * Weight storage data type: int4
         * Running data type: float16
         * Symmetric quantization
@@ -262,68 +264,67 @@ MLC-LLM supports the following model architectures:
     - Unavailable in MLC Prebuilts
   * - `LLaMA <https://github.com/facebookresearch/llama>`__
     - * :ref:`Prebuilt Model Library <llama_library_table>`
-      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/llama.py>`__
-    - * :ref:`Llama-2 <llama2_variant_table>`
-      * :ref:`Code Llama <code_llama_variant_table>`
-      * :ref:`Vicuna <vicuna_variant_table>`
-      * :ref:`WizardLM <WizardLM_variant_table>` 
-      * :ref:`WizardMath <wizard_math_variant_table>`
-      * :ref:`OpenOrca Platypus2 <open_orca_variant_table>`
-      * :ref:`FlagAlpha Llama-2 Chinese <flag_alpha_llama2_variant_table>` 
-      * :ref:`georgesung Llama-2 Uncensored <llama2_uncensored_variant_table>`
-    - * `Alpaca <https://github.com/tatsu-lab/stanford_alpaca>`__
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/model/llama>`__
+    - * :ref:`Llama-2-chat <llama2_variant_table>`
+    - * `Code Llama <https://huggingface.co/codellama>`__
+      * `Vicuna <https://huggingface.co/lmsys/vicuna-7b-v1.5>`__
+      * `WizardLM <https://github.com/nlpxucan/WizardLM/tree/main/WizardLM>`__
+      * `WizardCoder (new) <https://github.com/nlpxucan/WizardLM/tree/main/WizardCoder>`__
+      * `OpenOrca Platypus2 <https://huggingface.co/Open-Orca/OpenOrca-Platypus2-13B>`__
+      * `FlagAlpha Llama-2 Chinese <https://github.com/FlagAlpha/Llama2-Chinese>`__
+      * `georgesung Llama-2 Uncensored <https://huggingface.co/georgesung/llama2_7b_chat_uncensored>`__
+      * `Alpaca <https://github.com/tatsu-lab/stanford_alpaca>`__
       * `Guanaco <https://github.com/artidoro/qlora>`__
       * `OpenLLaMA <https://github.com/openlm-research/open_llama>`__
       * `Gorilla <https://huggingface.co/gorilla-llm/gorilla-7b-hf-delta-v0>`__
       * `YuLan-Chat <https://github.com/RUC-GSAI/YuLan-Chat>`__
-      * `WizardCoder (new) <https://github.com/nlpxucan/WizardLM/tree/main/WizardCoder>`__
+  * - `Mistral <https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2>`__
+    - * :ref:`Prebuilt Model Library <mistral_library_table>`
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/model/mistral>`__
+    - * :ref:`Mistral-7B-Instruct-v0.2 <mistralInstruct_variant_table>`
+      * :ref:`NeuralHermes-2.5-Mistral-7B <neuralHermes_variant_table>`
+      * :ref:`OpenHermes-2.5-Mistral-7B <openHermes_variant_table>`
+      * :ref:`WizardMath-7B-V1.1 <wizardMathV1.1_variant_table>`
+    - 
   * - `GPT-NeoX <https://github.com/EleutherAI/gpt-neox>`__
     - * :ref:`Prebuilt Model Library <gpt_neox_library_table>`
-      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_neox.py>`__
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/model/gpt_neox>`__
     - * :ref:`RedPajama <red_pajama_variant_table>` 
     - * `Dolly <https://github.com/databrickslabs/dolly>`__
       * `Pythia <https://huggingface.co/EleutherAI/pythia-1.4b>`__
       * `StableCode <https://huggingface.co/stabilityai/stablecode-instruct-alpha-3b>`__
-  * - `GPT-J <https://huggingface.co/EleutherAI/gpt-j-6b>`__
-    - * Prebuilt not compiled yet
-      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gptj.py>`__
-    - 
-    - * `MOSS <https://github.com/OpenLMLab/MOSS>`__
-  * - `RWKV <https://github.com/BlinkDL/RWKV-LM>`__
-    - * :ref:`Prebuilt Model Library <rwkv_library_table>`
-      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py>`__
-    - * :ref:`RWKV-raven <rwkv_raven_variant_table>` 
-    - 
-  * - `MiniGPT <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
-    - * Prebuilt not compiled yet
-      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/minigpt.py>`__
-    - 
-    - * `MiniGPT-4 <https://huggingface.co/Vision-CAIR/MiniGPT-4>`__
   * - `GPTBigCode <https://huggingface.co/docs/transformers/model_doc/gpt_bigcode>`__
     - * :ref:`Prebuilt Model Library <gpt_big_code_library_table>`
-      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/gpt_bigcode.py>`__
-    - * :ref:`WizardCoder (old) <wizard_coder_variant_table>` 
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/model/gpt_bigcode>`__
+    - 
     - * `StarCoder <https://huggingface.co/bigcode/starcoder>`__
       * `SantaCoder <https://huggingface.co/bigcode/gpt_bigcode-santacoder>`__
-  * - `ChatGLM <https://github.com/THUDM/ChatGLM-6B/blob/main/README_en.md>`__
-    - * Prebuilt not compiled yet
-      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/chatglm.py>`__
+      * `WizardCoder (old) <https://github.com/nlpxucan/WizardLM/tree/main/WizardCoder>`__
+  * - `Phi <https://huggingface.co/microsoft/phi-2>`__
+    - * :ref:`Prebuilt Model Library <phi_library_table>`
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/model/phi>`__
+    - * :ref:`Phi-1_5 <phi_variant_table>`
+      * :ref:`Phi-2 <phi_variant_table>`
     - 
-    - * `ChatGLM2 <https://huggingface.co/THUDM/chatglm2-6b>`__
-      * `CodeGeeX2 <https://huggingface.co/THUDM/codegeex2-6b>`__
-  * - `StableLM <https://huggingface.co/stabilityai>`__
-    - * Prebuilt not compiled yet
-      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/stablelm_3b.py>`__
+  * - `GPT2  <https://huggingface.co/docs/transformers/model_doc/gpt2>`__
+    - * :ref:`Prebuilt Model Library <gpt2_library_table>`
+      * `MLC Implementation <https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_chat/model/gpt2>`__
+    - * :ref:`GPT2 <gpt2_variant_table>`
     - 
-    - * `StableLM <https://huggingface.co/collections/stabilityai/stable-lm-650852cfd55dd4e15cdcb30a>`__
 
-If the model variant you are interested in uses one of these model architectures we support (but we have not provided the prebuilt weights yet), you can check out :doc:`/compilation/compile_models` on how to compile your own models. Afterwards, you may follow :doc:`/compilation/distribute_compiled_models` to upload your prebuilt weights to hugging face, and submit a PR that adds an entry to this page, contributing to the community.
+If the model variant you are interested in uses one of these model architectures we support,
+(but we have not provided the prebuilt weights yet), you can check out 
+:doc:`/compilation/convert_weights` on how to convert the weights.
+Afterwards, you may follow :ref:`distribute-compiled-models` to upload your prebuilt
+weights to hugging face, and submit a PR that adds an entry to this page,
+contributing to the community.
 
 For models structured in an architecture we have not supported yet, you could:
 
-- Either `create a [Model Request] issue <https://github.com/mlc-ai/mlc-llm/issues/new?assignees=&labels=new-models&projects=&template=model-request.md&title=%5BModel+Request%5D+>`__ which automatically shows up on our `Model Request Tracking Board <https://github.com/orgs/mlc-ai/projects/2>`__.
+- Either `create a [Model Request] issue <https://github.com/mlc-ai/mlc-llm/issues/new?assignees=&labels=new-models&projects=&template=model-request.md&title=%5BModel+Request%5D+>`__ which
+  automatically shows up on our `Model Request Tracking Board <https://github.com/orgs/mlc-ai/projects/2>`__.
 
-- Or follow our tutorial :doc:`Define New Models </tutorials/customize/define_new_models>`, which introduces how to bring a new model architecture to MLC-LLM.
+- Or follow our tutorial :doc:`Define New Models </compilation/define_new_models>`, which introduces how to bring a new model architecture to MLC-LLM.
 
 
 .. _model-library-tables:
@@ -339,16 +340,20 @@ Each table below demonstrates the pre-compiled model library files for each mode
 
 - **Platform**: the backend that the model library is intended to be run on (e.g. CUDA, ROCm, iphone, etc.)
 
-- **Quantization scheme**: the model library file also differs due to the quantization scheme used. For more on this, please see the :doc:`model compilation page </compilation/compile_models>` (e.g. ``q3f16_1`` vs. ``q4f16_1``)
+- **Quantization scheme**: the model library file also differs due to the quantization scheme used. For more on this, please see the :doc:`quantization page </compilation/configure_quantization>`
+  (e.g. ``q3f16_1`` vs. ``q4f16_1``).
 
 Each entry links to the specific model library file found in `this github repo <https://github.com/mlc-ai/binary-mlc-llm-libs>`__.
+
+If the model library you found is not available as a prebuilt, you can compile it yourself by following :doc:`the model compilation page </compilation/compile_models>`,
+and submit a PR to the repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__ afterwards.
 
 .. _llama_library_table:
 
 Llama
 ^^^^^
 .. list-table:: Llama
-  :widths: 8 8 8 8 8 8 8 8 8 8
+  :widths: 8 8 8 8 8 8 8 8 8 8 8
   :header-rows: 1
   :stub-columns: 1
 
@@ -363,66 +368,116 @@ Llama
       (Windows)
     - Metal
 
-      (M1/M2)
+      (M Chip)
     - Metal
 
       (Intel)
     - iOS
+    - Android
     - webgpu
     - mali
   * - 7B
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-cuda.so>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-rocm.so>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-vulkan.so>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-vulkan.dll>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-metal.so>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-metal_x86_64.dylib>`__
-    - `q3f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q3f16_1-iphone.tar>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-webgpu.wasm>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so>`__
 
-      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f32_1-webgpu.wasm>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf-q4f16_1-mali.so>`__
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f32_1-cuda.so>`__
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so>`__
+
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f32_1-vulkan.so>`__
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so>`__
+
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f32_1-metal.so>`__
+    - 
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-android.tar>`__
+
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f32_1-android.tar>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-ctx4k_cs1k-webgpu.wasm>`__
+
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f32_1-ctx4k_cs1k-webgpu.wasm>`__
+    - 
   * - 13B
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-cuda.so>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-rocm.so>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-vulkan.so>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-vulkan.dll>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-metal.so>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-metal_x86_64.dylib>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf/Llama-2-13b-chat-hf-q4f16_1-cuda.so>`__
     - 
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-webgpu.wasm>`__
-    
-      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f32_1-webgpu.wasm>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf-q4f16_1-mali.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf/Llama-2-13b-chat-hf-q4f16_1-vulkan.so>`__
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf/Llama-2-13b-chat-hf-q4f16_1-metal.so>`__
+    - 
+    - 
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-13b-chat-hf/Llama-2-13b-chat-hf-q4f16_1-ctx4k_cs1k-webgpu.wasm>`__
+    - 
   * - 34B
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/CodeLlama-34b-hf-q4f16_1-cuda.so>`__
-    - 
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/CodeLlama-34b-hf-q4f16_1-vulkan.so>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/CodeLlama-34b-hf-q4f16_1-vulkan.dll>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/CodeLlama-34b-hf-q4f16_1-metal.so>`__
     - 
     - 
     - 
     - 
+    - 
+    - 
+    - 
+    - 
+    - 
+    -
   * - 70B
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf/Llama-2-70b-chat-hf-q4f16_1-cuda.so>`__
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf/Llama-2-70b-chat-hf-q4f16_1-vulkan.so>`__
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf/Llama-2-70b-chat-hf-q4f16_1-metal.so>`__
     - 
     - 
     - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf/Llama-2-70b-chat-hf-q4f16_1-ctx4k_cs1k-webgpu.wasm>`__
     - 
-    - `q3f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf-q3f16_1-metal.so>`__
 
-      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf-q4f16_1-metal.so>`__
+.. _mistral_library_table:
+  
+Mistral
+^^^^^^^
+.. list-table:: Mistral
+  :widths: 8 8 8 8 8 8 8 8 8 8 8
+  :header-rows: 1
+  :stub-columns: 1
+
+  * -
+    - CUDA
+    - ROCm
+    - Vulkan
+
+      (Linux)
+    - Vulkan
+
+      (Windows)
+    - Metal
+
+      (M Chip)
+    - Metal
+
+      (Intel)
+    - iOS
+    - Android
+    - webgpu
+    - mali
+  * - 7B
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-cuda.so>`__
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-vulkan.so>`__
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-metal.so>`__
     - 
     - 
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Llama-2-70b-chat-hf-q4f16_1-webgpu.wasm>`__
-    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-android.tar>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-webgpu.wasm>`__
+    -
+
 
 .. _gpt_neox_library_table:
   
 GPT-NeoX (RedPajama-INCITE)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. list-table:: GPT-NeoX (RedPajama-INCITE)
-  :widths: 8 8 8 8 8 8 8 8 8 8
+  :widths: 8 8 8 8 8 8 8 8 8 8 8
   :header-rows: 1
   :stub-columns: 1
 
@@ -437,107 +492,43 @@ GPT-NeoX (RedPajama-INCITE)
       (Windows)
     - Metal
 
-      (M1/M2)
+      (M Chip)
     - Metal
 
       (Intel)
     - iOS
+    - Android
     - webgpu
     - mali
   * - 3B
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-rocm.so>`__
-    - `q4f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_0-vulkan.so>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so>`__
+  
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f32_1-cuda.so>`__
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so>`__
+  
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f32_1-vulkan.so>`__
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so>`__
+  
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f32_1-metal.so>`__
+    - 
+    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar>`__
 
-      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so>`__
-    - `q4f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_0-vulkan.dll>`__
-
-      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.dll>`__
-    - `q4f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_0-metal.so>`__
-
-      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so>`__
-    - `q4f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_0-metal_x86_64.dylib>`__
-
-      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal_x86_64.dylib>`__
-    - `q4f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_0-iphone.tar>`__
-
-      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar>`__
-    - `q4f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_0-webgpu-v1.wasm>`__
-
-      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm>`__
-
-      `q4f32_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f32_0-webgpu-v1.wasm>`__
-
-      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f32_1-webgpu.wasm>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-mali.so>`__
-
-.. _rwkv_library_table:
-
-RWKV
-^^^^
-.. list-table:: RWKV
-  :widths: 8 8 8 8 8 8 8 8 8 8
-  :header-rows: 1
-  :stub-columns: 1
-
-  * -
-    - CUDA
-    - ROCm
-    - Vulkan
-
-      (Linux)
-    - Vulkan
-
-      (Windows)
-    - Metal
-
-      (M1/M2)
-    - Metal
-
-      (Intel)
-    - iOS
-    - webgpu
-    - mali
-  * - 1B5
-    -
-    -
-    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-1b5-q8f16_0-vulkan.so>`__
-    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-1b5-q8f16_0-vulkan.dll>`__
-    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-1b5-q8f16_0-metal.so>`__
-    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-1b5-q8f16_0-metal_x86_64.dylib>`__
-    -
-    -
-    -
-  * - 3B
-    -
-    -
-    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-3b-q8f16_0-vulkan.so>`__
-    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-3b-q8f16_0-vulkan.dll>`__
-    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-3b-q8f16_0-metal.so>`__
-    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-3b-q8f16_0-metal_x86_64.dylib>`__
-    -
-    -
-    -
-  * - 7B
-    -
-    -
-    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-7b-q8f16_0-vulkan.so>`__
-    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-7b-q8f16_0-vulkan.dll>`__
-    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-7b-q8f16_0-metal.so>`__
-    - `q8f16_0 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/rwkv-raven-7b-q8f16_0-metal_x86_64.dylib>`__
-    -
-    -
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f32_1-android.tar>`__
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-ctx2k-webgpu.wasm>`__
+  
+      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f32_1-ctx2k-webgpu.wasm>`__
     -
 
 .. _gpt_big_code_library_table:
 
 GPTBigCode
 ^^^^^^^^^^
-Note that these all links to model libraries for WizardCoder (the older version released in Jun. 2023). 
-However, any GPTBigCode model variants should be able to reuse these (e.g. StarCoder, SantaCoder).
 
 .. list-table:: GPTBigCode
-  :widths: 8 8 8 8 8 8 8 8 8 8
+  :widths: 8 8 8 8 8 8 8 8 8 8 8
   :header-rows: 1
   :stub-columns: 1
 
@@ -552,32 +543,152 @@ However, any GPTBigCode model variants should be able to reuse these (e.g. StarC
       (Windows)
     - Metal
 
-      (M1/M2)
+      (M Chip)
     - Metal
 
       (Intel)
     - iOS
+    - Android
     - webgpu
     - mali
   * - 15B
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f16_1-cuda.so>`__
+    - 
+    - 
+    - 
+    - 
+    - 
+    - 
+    - 
+    - 
+    - 
+    - 
 
-      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f32_1-cuda.so>`__
-    - 
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f16_1-vulkan.so>`__
-      
-      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f32_1-vulkan.so>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f16_1-vulkan.dll>`__
-    
-      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f32_1-vulkan.dll>`__
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f16_1-metal.so>`__
-    - 
-    - 
-    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f16_1-webgpu.wasm>`__
-
-      `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/WizardCoder-15B-V1.0-q4f32_1-webgpu.wasm>`__
-    - 
+.. _phi_library_table:
   
+Phi
+^^^
+.. list-table:: Phi
+  :widths: 8 8 8 8 8 8 8 8 8 8 8
+  :header-rows: 1
+  :stub-columns: 1
+
+  * -
+    - CUDA
+    - ROCm
+    - Vulkan
+
+      (Linux)
+    - Vulkan
+
+      (Windows)
+    - Metal
+
+      (M Chip)
+    - Metal
+
+      (Intel)
+    - iOS
+    - Android
+    - webgpu
+    - mali
+  * - Phi-2
+   
+      (2.7B)
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q0f16-cuda.so>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q4f16_1-cuda.so>`__
+    - 
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q0f16-vulkan.so>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q4f16_1-vulkan.so>`__
+    - 
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q0f16-metal.so>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q4f16_1-metal.so>`__
+    - 
+    - 
+    - 
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q0f16-ctx2k-webgpu.wasm>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-2/phi-2-q4f16_1-ctx2k-webgpu.wasm>`__
+    -
+  * - Phi-1.5
+  
+      (1.3B)
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q0f16-cuda.so>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q4f16_1-cuda.so>`__
+    - 
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q0f16-vulkan.so>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q4f16_1-vulkan.so>`__
+    - 
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q0f16-metal.so>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q4f16_1-metal.so>`__
+    - 
+    - 
+    - 
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q0f16-ctx2k-webgpu.wasm>`__
+
+      `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/phi-1_5/phi-1_5-q4f16_1-ctx2k-webgpu.wasm>`__
+    -
+
+.. _gpt2_library_table:
+  
+GPT2
+^^^^
+.. list-table:: GPT2
+  :widths: 8 8 8 8 8 8 8 8 8 8 8
+  :header-rows: 1
+  :stub-columns: 1
+
+  * -
+    - CUDA
+    - ROCm
+    - Vulkan
+
+      (Linux)
+    - Vulkan
+
+      (Windows)
+    - Metal
+
+      (M Chip)
+    - Metal
+
+      (Intel)
+    - iOS
+    - Android
+    - webgpu
+    - mali
+  * - GPT2 
+  
+      (124M)
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2/gpt2-q0f16-cuda.so>`__
+    - 
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2/gpt2-q0f16-vulkan.so>`__
+    - 
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2/gpt2-q0f16-metal.so>`__
+    - 
+    - 
+    - 
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2/gpt2-q0f16-ctx1k-webgpu.wasm>`__
+    -
+  * - GPT2-med
+  
+      (355M)
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2-medium/gpt2-medium-q0f16-cuda.so>`__
+    - 
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2-medium/gpt2-medium-q0f16-vulkan.so>`__
+    - 
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2-medium/gpt2-medium-q0f16-metal.so>`__
+    - 
+    - 
+    - 
+    - `q0f16 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/gpt2-medium/gpt2-medium-q0f16-ctx1k-webgpu.wasm>`__
+    -
+
 .. _model-variant-tables:
 
 Level 3: Model Variant Tables (Precompiled Weights)
@@ -605,93 +716,69 @@ Conversation template: ``llama-2``
   * - Size
     - Hugging Face Repo Link
   * - 7B
-    - * `q3f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q3f16_1>`__
-      * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1>`__
-      * `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f32_1>`__
+    - * `q4f16_1 (Chat) <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC>`__
+      * `q4f32_1 (Chat) <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f32_1-MLC>`__
 
   * - 13B
-    - * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f16_1>`__
-      * `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-13b-chat-hf-q4f32_1>`__
+    - * `q4f16_1 <https://huggingface.co/mlc-ai/Llama-2-13b-chat-hf-q4f16_1-MLC>`__
 
   * - 70B
-    - * `q3f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q3f16_1>`__
-      * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-70b-chat-hf-q4f16_1>`__
+    - * `q4f16_1 <https://huggingface.co/mlc-ai/Llama-2-70b-chat-hf-q4f16_1-MLC>`__
 
-.. _code_llama_variant_table:
+.. _mistralinstruct_variant_table:
 
-`Code Llama <https://about.fb.com/news/2023/08/code-llama-ai-for-coding/>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+`Mistral <https://huggingface.co/docs/transformers/main/en/model_doc/mistral>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: ``codellama_completion``
+Conversation template: ``mistral_default``
 
-.. list-table:: Code Llama
+.. list-table:: Mistral
   :widths: 30 30
   :header-rows: 1
 
   * - Size
     - Hugging Face Repo Link
   * - 7B
-    - * `q4f16_1 (Base) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-7b-hf-q4f16_1>`__
-      * `q4f16_1 (Instruct) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-7b-Instruct-hf-q4f16_1>`__
-      * `q4f16_1 (Python) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-7b-Python-hf-q4f16_1>`__
+    - * `q4f16_1 (Instruct) <https://huggingface.co/mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC>`__
 
-  * - 13B
-    - * `q4f16_1 (Base) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-13b-hf-q4f16_1>`__
-      * `q4f16_1 (Instruct) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-13b-Instruct-hf-q4f16_1>`__
-      * `q4f16_1 (Python) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-13b-Python-hf-q4f16_1>`__
+.. _neuralhermes_variant_table:
 
-  * - 34B
-    - * `q4f16_1 (Base) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-34b-hf-q4f16_1>`__
-      * `q4f16_1 (Instruct) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-34b-Instruct-hf-q4f16_1>`__
-      * `q4f16_1 (Python) <https://huggingface.co/mlc-ai/mlc-chat-CodeLlama-34b-Python-hf-q4f16_1>`__
+`NeuralHermes-2.5-Mistral <https://huggingface.co/mlabonne/NeuralHermes-2.5-Mistral-7B>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Conversation template: ``neural_hermes_mistral``
 
-.. _vicuna_variant_table:
-
-`Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Conversation template: ``vicuna_v1.1``
-
-.. list-table:: Vicuna
+.. list-table:: Neural Hermes
   :widths: 30 30
   :header-rows: 1
 
   * - Size
     - Hugging Face Repo Link
   * - 7B
-    - * `q3f16_0 <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0>`__
-      * `q4f32_0 <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q4f32_0>`__
-      * `int3 (demo) <https://huggingface.co/mlc-ai/demo-vicuna-v1-7b-int3>`__
-      * `int4 (demo) <https://huggingface.co/mlc-ai/demo-vicuna-v1-7b-int4>`__
+    - * `q4f16_1 <https://huggingface.co/mlc-ai/NeuralHermes-2.5-Mistral-7B-q4f16_1-MLC>`__
 
+.. _openhermes_variant_table:
 
-.. _WizardLM_variant_table:
+`OpenHermes-2-Mistral <https://huggingface.co/teknium/OpenHermes-2-Mistral-7B>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-`WizardLM <https://github.com/nlpxucan/WizardLM>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Conversation template: ``open_hermes_mistral``
 
-Conversation template: ``vicuna_v1.1``
-
-.. list-table:: WizardLM
+.. list-table:: Open Hermes
   :widths: 30 30
   :header-rows: 1
 
   * - Size
     - Hugging Face Repo Link
-  * - 13B
-    - * `q4f16_1 (V1.2) <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-13B-V1.2-q4f16_1>`__
-      * `q4f32_1 (V1.2) <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-13B-V1.2-q4f32_1>`__
-
-  * - 70B
-    - * `q3f16_1 (V1.0) <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-70B-V1.0-q3f16_1>`__
-      * `q4f16_1 (V1.0) <https://huggingface.co/mlc-ai/mlc-chat-WizardLM-70B-V1.0-q4f16_1>`__
+  * - 7B
+    - * `q4f16_1 <https://huggingface.co/mlc-ai/OpenHermes-2.5-Mistral-7B-q4f16_1-MLC>`__
 
 
-.. _wizard_math_variant_table:
 
-`WizardMath <https://github.com/nlpxucan/WizardLM/tree/main/WizardMath>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _wizardmathv1.1_variant_table:
+
+`WizardMath V1.1 <https://github.com/nlpxucan/WizardLM/tree/main/WizardMath>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Conversation template: ``wizard_coder_or_math``
 
@@ -702,72 +789,15 @@ Conversation template: ``wizard_coder_or_math``
   * - Size
     - Hugging Face Repo Link
   * - 7B
-    - * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-7B-V1.0-q4f16_1>`__
-      * `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-7B-V1.0-q4f32_1>`__
-  * - 13B
-    - `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-13B-V1.0-q4f16_1>`__
-  * - 70B
-    - `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardMath-70B-V1.0-q4f16_1>`__
+    - * `q4f16_1 <https://huggingface.co/mlc-ai/WizardMath-7B-V1.1-q4f16_1-MLC>`__
 
-
-.. _open_orca_variant_table:
-
-`OpenOrca Platypus2 <https://huggingface.co/Open-Orca/OpenOrca-Platypus2-13B>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Conversation template: ``llama-2``
-
-.. list-table:: OpenOrca Platypus2
-  :widths: 30 30
-  :header-rows: 1
-
-  * - Size
-    - Hugging Face Repo Link
-  * - 13B
-    - `q4f16_1 <https://huggingface.co/DavidSharma/mlc-chat-OpenOrca-Platypus2-13B-q4f16_1>`__
-
-
-.. _flag_alpha_llama2_variant_table:
-
-`FlagAlpha Llama-2 Chinese <https://github.com/FlagAlpha/Llama2-Chinese>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Conversation template: ``llama-2``
-
-.. list-table:: FlagAlpha Llama-2 Chinese
-  :widths: 30 30
-  :header-rows: 1
-
-  * - Size
-    - Hugging Face Repo Link
-  * - 7B
-    - * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-FlagAlpha-Llama2-Chinese-7b-Chat-q4f16_1>`__
-      * `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-FlagAlpha-Llama2-Chinese-7b-Chat-q4f32_1>`__
-
-
-.. _llama2_uncensored_variant_table:
-
-`Llama2 uncensored (georgesung) <https://huggingface.co/georgesung/llama2_7b_chat_uncensored>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Conversation template: ``llama-default``
-
-.. list-table:: Llama2 uncensored
-  :widths: 30 30
-  :header-rows: 1
-
-  * - Size
-    - Hugging Face Repo Link
-  * - 7B
-    - * `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-georgesung-llama2-7b-chat-uncensored-q4f16_1>`__
-      * `q4f32_1 <https://huggingface.co/mlc-ai/mlc-chat-georgesung-llama2-7b-chat-uncensored-q4f32_1>`__
 
 .. _red_pajama_variant_table:
 
 `RedPajama <https://www.together.xyz/blog/redpajama>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: ``LM``
+Conversation template: ``redpajama_chat``
 
 .. list-table:: Red Pajama
   :widths: 30 30
@@ -776,50 +806,49 @@ Conversation template: ``LM``
   * - Size
     - Hugging Face Repo Link
   * - 3B
-    - * `q4f16_0 (Instruct) <https://huggingface.co/mlc-ai/RedPajama-INCITE-Instruct-3B-v1-q4f16_0>`__
-      * `q4f16_0 (Chat) <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_0>`__
-      * `q4f16_1 (Chat) <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
-      * `q4f32_0 (Chat) <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f32_0>`__
+    - * `q4f16_1 (Chat) <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC>`__
+      * `q4f32_1 (Chat) <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f32_1-MLC>`__
 
 
-.. _rwkv_raven_variant_table:
+.. _phi_variant_table:
 
-`RWKV-raven <https://github.com/BlinkDL/RWKV-LM>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+`Phi <https://huggingface.co/microsoft/phi-2>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: ``rwkv``
+Conversation template: ``phi-2``
 
-.. list-table:: RWKV-raven
+.. list-table:: Phi
   :widths: 30 30
   :header-rows: 1
 
   * - Size
     - Hugging Face Repo Link
-  * - 1B5
-    - `q8f16_0 <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-1b5-q8f16_0>`__
-
-  * - 3B
-    - `q8f16_0 <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-3b-q8f16_0>`__
-
-  * - 7B
-    - `q8f16_0 <https://huggingface.co/mlc-ai/mlc-chat-rwkv-raven-7b-q8f16_0>`__
+  * - Phi-2 (2.7B)
+    - * `q0f16 <https://huggingface.co/mlc-ai/phi-2-q0f16-MLC>`__
+      * `q4f16_1 <https://huggingface.co/mlc-ai/phi-2-q4f16_1-MLC>`__
+  * - Phi-1.5 (1.3B)
+    - * `q0f16 <https://huggingface.co/mlc-ai/phi-1_5-q0f16-MLC>`__
+      * `q4f16_1 <https://huggingface.co/mlc-ai/phi-1_5-q4f16_1-MLC>`__
 
 
-.. _wizard_coder_variant_table:
+.. _gpt2_variant_table:
 
-`WizardCoder <https://github.com/nlpxucan/WizardLM>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+`GPT2 <https://huggingface.co/docs/transformers/model_doc/gpt2>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Conversation template: ``wizard_coder_or_math``
+Conversation template: ``gpt2``
 
-.. list-table:: WizardCoder
+.. list-table:: GPT2
   :widths: 30 30
   :header-rows: 1
 
   * - Size
     - Hugging Face Repo Link
-  * - 15B
-    - `q4f16_1 <https://huggingface.co/mlc-ai/mlc-chat-WizardCoder-15B-V1.0-q4f16_1>`__
+  * - GPT2 (124M)
+    - * `q0f16 <https://huggingface.co/mlc-ai/gpt2-q0f16-MLC>`__
+  * - GPT2-medium (355M)
+    - * `q0f16 <https://huggingface.co/mlc-ai/gpt2-medium-q0f16-MLC>`__
+
 
 ------------------
 

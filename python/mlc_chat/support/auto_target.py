@@ -1,15 +1,15 @@
 """Helper functioms for target auto-detection."""
-import logging
-import os
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
-import tvm
 from tvm import IRModule, relax
 from tvm._ffi import get_global_func, register_func
 from tvm.contrib import tar, xcode
-from tvm.runtime import Device
+from tvm.ir.transform import Pass
 from tvm.target import Target
 
+from . import logging
+from .auto_device import AUTO_DETECT_DEVICES, detect_device, device2str
+from .constants import MLC_MULTI_ARCH
 from .style import bold, green, red
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 HELP_MSG = """TBD"""
 FOUND = green("Found")
 NOT_FOUND = red("Not found")
-BuildFunc = Callable[[IRModule, "CompileArgs"], None]
+BuildFunc = Callable[[IRModule, "CompileArgs", Pass], None]
 
 
 def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[Target, BuildFunc]:
@@ -45,50 +45,26 @@ def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[T
     return target, build_func
 
 
-def detect_device(device_hint: str) -> Device:
-    """Detect locally available device from string hint."""
-    if device_hint == "auto":
-        device = None
-        for device_type in AUTO_DETECT_DEVICES:
-            cur_device = tvm.device(dev_type=device_type, dev_id=0)
-            if cur_device.exist:
-                logger.info("%s device: %s:0", FOUND, device_type)
-                if device is None:
-                    device = cur_device
-            else:
-                logger.info("%s device: %s:0", NOT_FOUND, device_type)
-        if device is None:
-            logger.info("%s: No available device detected. Falling back to CPU", NOT_FOUND)
-            return tvm.device("cpu:0")
-        device_str = f"{tvm.runtime.Device.MASK2STR[device.device_type]}:{device.device_id}"
-        logger.info("Using device: %s. Use `--device` to override.", bold(device_str))
-        return device
-    try:
-        device = tvm.device(device_hint)
-    except Exception as err:
-        raise ValueError(f"Invalid device name: {device_hint}") from err
-    if not device.exist:
-        raise ValueError(f"Device is not found on your local environment: {device_hint}")
-    return device
-
-
 def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
     if hint in ["iphone", "android", "webgpu", "mali", "opencl"]:
         hint += ":generic"
-    if hint == "auto":
-        logger.info("Detecting potential target devices: %s", ", ".join(AUTO_DETECT_DEVICES))
+    if hint == "auto" or hint in AUTO_DETECT_DEVICES:
         target: Optional[Target] = None
-        for device in AUTO_DETECT_DEVICES:
-            device_target = _detect_target_from_device(device + ":0")
-            if device_target is not None and target is None:
-                target = device_target
+        device = detect_device(hint)
+        if device is not None:
+            device_str = device2str(device)
+            try:
+                target = Target.from_device(device)
+            except ValueError:
+                logger.info("%s: Cannot detect target from device: %s", NOT_FOUND, device_str)
         if target is None:
-            raise ValueError("No GPU target detected. Please specify explicitly")
-        return target, _build_default()
-    if hint in AUTO_DETECT_DEVICES:
-        target = _detect_target_from_device(hint + ":0")
-        if target is None:
-            raise ValueError(f"No GPU target detected from device: {hint}")
+            raise ValueError(f"No target detected from device: {hint}. Please specify explicitly")
+        logger.info(
+            '%s configuration of target device "%s": %s',
+            FOUND,
+            bold(device_str),
+            target.export(),
+        )
         return target, _build_default()
     if hint in PRESET:
         preset = PRESET[hint]
@@ -114,10 +90,12 @@ def _detect_target_host(hint: str) -> Target:
     """Detect the host CPU architecture."""
     if hint == "auto":
         target_triple = get_global_func("tvm.codegen.llvm.GetDefaultTargetTriple")()
-        logger.info("%s host LLVM triple: %s", FOUND, bold(target_triple))
-    else:
-        target_triple = hint
-        logger.info("Using LLVM triple specified by --host: %s", bold(target_triple))
+        target = Target.from_device("cpu")
+        logger.info("%s host LLVM triple: %s", FOUND, bold(target.attrs["mtriple"]))
+        logger.info("%s host LLVM CPU: %s", FOUND, bold(target.attrs["mcpu"]))
+        return target
+    target_triple = hint
+    logger.info("Using LLVM triple specified by --host: %s", bold(target_triple))
     return Target({"kind": "llvm", "mtriple": target_triple})
 
 
@@ -129,45 +107,31 @@ def _is_device(device: str):
     return True
 
 
-def _add_prefix_symbol(mod: IRModule, prefix: str, is_system_lib: bool) -> IRModule:
+def _add_system_lib_prefix(mod: IRModule, prefix: str, is_system_lib: bool) -> IRModule:
     if is_system_lib and prefix:
         mod = mod.with_attrs({"system_lib_prefix": prefix})  # type: ignore[dict-item]
     elif is_system_lib:
         logger.warning(
             "%s is not specified when building a static library",
-            bold("--prefix-symbols"),
+            bold("--system-lib-prefix"),
         )
     elif prefix:
         logger.warning(
-            "--prefix-symbols is specified, but it will not take any effect "
+            "--system-lib-prefix is specified, but it will not take any effect "
             "when building the shared library"
         )
     return mod
 
 
-def _detect_target_from_device(device: str) -> Optional[Target]:
-    try:
-        target = Target.from_device(device)
-    except ValueError:
-        logger.info("%s: target device: %s", NOT_FOUND, device)
-        return None
-    logger.info(
-        '%s configuration of target device "%s": %s',
-        FOUND,
-        bold(device),
-        target.export(),
-    )
-    return target
-
-
 def _build_metal_x86_64():
-    def build(mod: IRModule, args: "CompileArgs"):
+    def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
-        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=False)
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=False)
         assert output.suffix == ".dylib"
         relax.build(
             mod,
             target=args.target,
+            pipeline=pipeline,
         ).export_library(
             str(output),
             fcompile=xcode.create_dylib,
@@ -185,13 +149,14 @@ def _build_iphone():
             return xcode.compile_metal(src, sdk=target.libs[0])
         return xcode.compile_metal(src)
 
-    def build(mod: IRModule, args: "CompileArgs"):
+    def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
-        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=True)
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
         assert output.suffix == ".tar"
         relax.build(
             mod,
             target=args.target,
+            pipeline=pipeline,
             system_lib=True,
         ).export_library(
             str(output),
@@ -202,13 +167,14 @@ def _build_iphone():
 
 
 def _build_android():
-    def build(mod: IRModule, args: "CompileArgs"):
+    def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
-        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=True)
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
         assert output.suffix == ".tar"
         relax.build(
             mod,
             target=args.target,
+            pipeline=pipeline,
             system_lib=True,
         ).export_library(
             str(output),
@@ -219,13 +185,14 @@ def _build_android():
 
 
 def _build_webgpu():
-    def build(mod: IRModule, args: "CompileArgs"):
+    def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
-        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=True)
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
         assert output.suffix == ".wasm"
         relax.build(
             mod,
             target=args.target,
+            pipeline=pipeline,
             system_lib=True,
         ).export_library(
             str(output),
@@ -235,7 +202,7 @@ def _build_webgpu():
 
 
 def _build_default():
-    def build(mod: IRModule, args: "CompileArgs"):
+    def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
         if output.suffix in [".tar", ".lib"]:
             system_lib = True
@@ -244,10 +211,11 @@ def _build_default():
         else:
             logger.warning("Unknown output suffix: %s. Assuming shared library.", output.suffix)
             system_lib = False
-        mod = _add_prefix_symbol(mod, args.prefix_symbols, is_system_lib=system_lib)
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=system_lib)
         relax.build(
             mod,
             target=args.target,
+            pipeline=pipeline,
             system_lib=system_lib,
         ).export_library(
             str(output),
@@ -256,9 +224,20 @@ def _build_default():
     return build
 
 
+def detect_cuda_arch_list(target: Target) -> List[int]:
+    """Detect the CUDA architecture list from the target."""
+    assert target.kind.name == "cuda", f"Expect target to be CUDA, but got {target}"
+    if MLC_MULTI_ARCH is not None:
+        multi_arch = [int(x.strip()) for x in MLC_MULTI_ARCH.split(",")]
+    else:
+        assert target.arch.startswith("sm_")
+        multi_arch = [int(target.arch[3:])]
+    multi_arch = list(set(multi_arch))
+    return multi_arch
+
+
 def _register_cuda_hook(target: Target):
-    env_multi_arch = os.environ.get("MLC_MULTI_ARCH", None)
-    if env_multi_arch is None:
+    if MLC_MULTI_ARCH is None:
         default_arch = target.attrs.get("arch", None)
         logger.info("Generating code for CUDA architecture: %s", bold(default_arch))
         logger.info(
@@ -268,8 +247,8 @@ def _register_cuda_hook(target: Target):
         )
         multi_arch = None
     else:
-        logger.info("%s %s: %s", FOUND, bold("MLC_MULTI_ARCH"), env_multi_arch)
-        multi_arch = [int(x.strip()) for x in env_multi_arch.split(",")]
+        logger.info("%s %s: %s", FOUND, bold("MLC_MULTI_ARCH"), MLC_MULTI_ARCH)
+        multi_arch = [int(x.strip()) for x in MLC_MULTI_ARCH.split(",")]
         logger.info("Generating code for CUDA architecture: %s", multi_arch)
 
     @register_func("tvm_callback_cuda_compile", override=True)
@@ -287,7 +266,33 @@ def _register_cuda_hook(target: Target):
         return ptx
 
 
-AUTO_DETECT_DEVICES = ["cuda", "rocm", "metal", "vulkan"]
+def detect_system_lib_prefix(
+    target_hint: str, prefix_hint: str, model_name: str, quantization: str
+) -> str:
+    """Detect the iOS / Android system lib prefix to identify the library needed to load the app.
+
+    Parameters
+    ----------
+    target_hint : str
+        The hint for the target device.
+
+    prefix_hint : str
+        The hint for the system lib prefix.
+    """
+    if prefix_hint == "auto" and target_hint in ["iphone", "android"]:
+        prefix = f"{model_name}_{quantization}_".replace("-", "_")
+        logger.warning(
+            "%s is automatically picked from the filename, %s, this allows us to use the filename "
+            "as the model_lib in android/iOS builds. Please avoid renaming the .tar file when "
+            "uploading the prebuilt.",
+            bold("--system-lib-prefix"),
+            bold(prefix),
+        )
+        return prefix
+    if not target_hint in ["iphone", "android"]:
+        return ""
+    return prefix_hint
+
 
 PRESET = {
     "iphone:generic": {

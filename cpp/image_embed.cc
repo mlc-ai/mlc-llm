@@ -3,9 +3,6 @@
  * \file image_embed.cc
  * \brief Implementation of image embedding module in support of multimodality in LLM.
  */
-#define PICOJSON_USE_INT64
-#define __STDC_FORMAT_MACROS
-
 #include "image_embed.h"
 
 #include <picojson.h>

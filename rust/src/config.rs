@@ -224,10 +224,7 @@ mod tests {
     #[test]
     fn test_conv_config() {
         let mut config = ConvConfig {
-            messages: Some(vec![vec![
-                "User: Hi".to_string(),
-                "Assistant: Hello".to_string(),
-            ]]),
+            messages: Some(vec![vec!["User: Hi".to_string(), "Assistant: Hello".to_string()]]),
             offset: None,
             ..Default::default()
         };
@@ -266,10 +263,7 @@ mod tests {
         let gen_config = GenerationConfig::from_chat_config(&chat_config);
 
         assert_eq!(gen_config.temperature, chat_config.temperature);
-        assert_eq!(
-            gen_config.repetition_penalty,
-            chat_config.repetition_penalty
-        );
+        assert_eq!(gen_config.repetition_penalty, chat_config.repetition_penalty);
         assert_eq!(gen_config.top_p, chat_config.top_p);
         assert_eq!(gen_config.mean_gen_len, chat_config.mean_gen_len);
         assert_eq!(gen_config.max_gen_len, chat_config.max_gen_len);

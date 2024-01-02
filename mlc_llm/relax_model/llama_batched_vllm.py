@@ -192,7 +192,7 @@ class LlamaModel(nn.Module):
         self,
         config: LlamaConfig,
         cpu_device: VDevice,
-        vocab_size_var: tvm.tir.Var,
+        vocab_size_var: tvm.tir.SizeVar,
         sep_embed: bool = False,
     ):
         self.padding_idx = config.pad_token_id
@@ -272,7 +272,7 @@ class LlamaForCausalLM(nn.Module):
         self,
         config: LlamaConfig,
         cpu_device: VDevice,
-        vocab_size_var: tvm.tir.Var,
+        vocab_size_var: tvm.tir.SizeVar,
         sep_embed: bool = False,
     ):
         self.num_shards = config.num_shards
@@ -402,7 +402,7 @@ def get_inputs(
     positions = nn.Placeholder((num_token,), dtype="int32", name="positions")
 
     if need_cache:
-        num_blocks = tvm.tir.Var("num_blocks", "int64")
+        num_blocks = tvm.tir.SizeVar("num_blocks", "int64")
         block_size = 16
 
         vec_size = 8  # 128 bit, fp16 x 8
@@ -455,11 +455,11 @@ def create_evaluate_func(
     """Evaluate logits for the last token in each sequence. Same as prefill but without KV cache."""
     func_name = "evaluate"
 
-    num_token = tvm.tir.Var("num_token", "int64")
-    num_seq = tvm.tir.Var("num_seq", "int64")
+    num_token = tvm.tir.SizeVar("num_token", "int64")
+    num_seq = tvm.tir.SizeVar("num_seq", "int64")
 
     with bb.function(func_name):
-        model = LlamaForCausalLM(config, cpu_dev, tvm.tir.Var("vocab_size", "int64"), sep_embed)
+        model = LlamaForCausalLM(config, cpu_dev, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         inputs, positions, seq_lens, _, _, _ = get_inputs(
@@ -504,13 +504,13 @@ def create_encoding_func(
     """
     func_name = "prefill_with_embed" if sep_embed else "prefill"
 
-    num_token = tvm.tir.Var("num_token", "int64")
-    num_seq = tvm.tir.Var("num_seq", "int64")
+    num_token = tvm.tir.SizeVar("num_token", "int64")
+    num_seq = tvm.tir.SizeVar("num_seq", "int64")
 
     num_inputs = 5
 
     with bb.function(func_name):
-        model = LlamaForCausalLM(config, cpu_dev, tvm.tir.Var("vocab_size", "int64"), sep_embed)
+        model = LlamaForCausalLM(config, cpu_dev, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids, positions, seq_lens, past_key_values, slot_mapping, _ = get_inputs(
@@ -540,7 +540,7 @@ def create_encoding_func(
                 # The value of num_cached_total is between
                 # num_token (if seq_len < sliding_window for all seq) and
                 # num_seq * config.sliding_window (if seq_len > sliding_window for all seq)
-                num_cached_total = tvm.tir.Var("num_cached_total", "int64")
+                num_cached_total = tvm.tir.SizeVar("num_cached_total", "int64")
                 indices_within_window = nn.Placeholder(
                     (num_cached_total,), dtype="int32", name="indices_within_window"
                 )
@@ -569,8 +569,8 @@ def create_decoding_func(
     """Batched decoding with vLLM paged KV cache."""
     func_name = "decode"
 
-    num_seq = tvm.tir.Var("num_seq", "int64")
-    max_num_blocks_per_seq = tvm.tir.Var("max_num_blocks_per_seq", "int64")
+    num_seq = tvm.tir.SizeVar("num_seq", "int64")
+    max_num_blocks_per_seq = tvm.tir.SizeVar("max_num_blocks_per_seq", "int64")
 
     with bb.function(func_name):
         inputs, positions, seq_lens, past_key_values, slot_mapping, block_tables = get_inputs(
@@ -578,7 +578,7 @@ def create_decoding_func(
         )
 
         with bb.dataflow():
-            model = LlamaForCausalLM(config, cpu_dev, tvm.tir.Var("vocab_size", "int64"))
+            model = LlamaForCausalLM(config, cpu_dev, tvm.tir.SizeVar("vocab_size", "int64"))
             param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
             logits, new_kvs = model(

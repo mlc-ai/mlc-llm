@@ -1,11 +1,11 @@
 # pylint: disable=invalid-name,missing-docstring
 import pytest
 
-from mlc_chat.compiler import MODEL_PRESETS, MODELS
+from mlc_chat.model import MODEL_PRESETS, MODELS
 
 
 @pytest.mark.parametrize("model_name", ["mistral_7b"])
-def test_llama2_creation(model_name: str):
+def test_mistral_creation(model_name: str):
     model_info = MODELS["mistral"]
     config = model_info.config.from_dict(MODEL_PRESETS[model_name])
     model = model_info.model(config)
@@ -18,4 +18,4 @@ def test_llama2_creation(model_name: str):
 
 
 if __name__ == "__main__":
-    test_llama2_creation("mistral_7b")
+    test_mistral_creation("mistral_7b")

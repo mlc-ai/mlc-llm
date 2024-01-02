@@ -20,19 +20,19 @@ It is recommended to have at least 6GB free VRAM to run it.
     **Install MLC Chat Python**. :doc:`MLC LLM <install/mlc_llm>` is available via pip.
     It is always recommended to install it in an isolated conda virtual environment.
 
-    **Download pre-quantized weights**. The comamnds below download the int4-quantized Llama2-7B from HuggingFace:
+    **Download pre-quantized weights**. The commands below download the int4-quantized Llama2-7B from HuggingFace:
 
     .. code:: bash
 
-      git lfs install && mkdir -p dist/prebuilt
-      git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1 \
-                                dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
+      git lfs install && mkdir dist/
+      git clone https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC \
+                                        dist/Llama-2-7b-chat-hf-q4f16_1-MLC
 
     **Download pre-compiled model library**. The pre-compiled model library is available as below:
 
     .. code:: bash
 
-      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
+      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
 
     **Run in Python.** The following Python script showcases the Python API of MLC LLM and its stream capability:
 
@@ -41,7 +41,13 @@ It is recommended to have at least 6GB free VRAM to run it.
       from mlc_chat import ChatModule
       from mlc_chat.callback import StreamToStdout
 
-      cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
+      cm = ChatModule(
+          model="dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
+          model_lib_path="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
+          # Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so
+          # Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so
+          # Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}
+      )
       cm.generate(prompt="What is the meaning of life?", progress_callback=StreamToStdout(callback_interval=2))
 
     **Colab walkthrough.**  A Jupyter notebook on `Colab <https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb>`_
@@ -70,21 +76,23 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     .. code:: bash
 
-      git lfs install && mkdir -p dist/prebuilt
-      git clone https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q4f16_1 \
-                                dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1
+      git lfs install && mkdir dist/
+      git clone https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC \
+                                        dist/Llama-2-7b-chat-hf-q4f16_1-MLC
 
     **Download pre-compiled model library**. The pre-compiled model library is available as below:
 
     .. code:: bash
 
-      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt/lib
+      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
 
     **Run in command line**.
 
     .. code:: bash
 
-      mlc_chat_cli --model Llama-2-7b-chat-hf-q4f16_1
+      mlc_chat_cli --model dist/Llama-2-7b-chat-hf-q4f16_1-MLC \
+                   --model-lib-path dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
+                   # Metal on macOS: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so
 
     .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif
       :width: 500
@@ -144,7 +152,7 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     |
 
-    **Requirement**. Llama2-7B model needs an iOS device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.
+    **Requirement**. Llama2-7B model needs a device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.
     The demo is tested on
 
     - Samsung S23 with Snapdragon 8 Gen 2 chip
@@ -186,24 +194,18 @@ It is recommended to have at least 6GB free VRAM to run it.
    :caption: Compile Models
    :hidden:
 
+   compilation/convert_weights.rst
    compilation/compile_models.rst
-   compilation/distribute_compiled_models.rst
-   compilation/python.rst
+   compilation/define_new_models.rst
    compilation/configure_quantization.rst
 
 .. toctree::
    :maxdepth: 1
-   :caption: Define Model Architectures
-   :hidden:
-
-   tutorials/customize/define_new_models.rst
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Prebuilt Models
+   :caption: Model Prebuilts
    :hidden:
 
    prebuilt_models.rst
+   prebuilt_models_deprecated.rst
 
 .. toctree::
    :maxdepth: 1

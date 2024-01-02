@@ -2,25 +2,32 @@
 #! pylint: disable=too-many-lines
 import inspect
 import json
-import logging
 import os
+import subprocess
 import sys
 import warnings
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import tvm
 from tvm.runtime import disco  # pylint: disable=unused-import
 
-from . import base  # pylint: disable=unused-import
+from mlc_chat.support import logging
+from mlc_chat.support.auto_device import detect_device
+
+from . import base as _
 
 if TYPE_CHECKING:
-    from .interface.openai_api import ChatMessage
+    from mlc_chat.interface.openai_api import ChatMessage
 
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
 # pylint: enable=line-too-long
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -154,12 +161,30 @@ class ChatConfig:  # pylint: disable=too-many-instance-attributes
         The category of the model's architecture (e.g. ``llama``, ``gpt_neox``, ``rwkv``).
     model_name : Optional[str]
         Name of the model (e.g. ``Llama-2-7b-chat-hf``).
-    num_shards: Optional[str]
+    tensor_parallel_shards : Optional[str]
         Tensor parallel degree.
-    use_presharded_weights: Optional[bool]
+    use_presharded_weights : Optional[bool]
         If True, the weights were saved with sharding already applied.
-    max_window_size: Optional[str]
+    context_window_size : Optional[int]
         Maximum kv cache window size.
+    prefill_chunk_size: Optional[int]
+        (Experimental) The chunk size during prefilling. By default,
+        the chunk size is the same as sliding window or max sequence length.
+        This flag subjects to future refactoring.
+    attention_sink_size : Optional[int]
+        (Experimental) The number of stored sinks. Only supported on Mistral yet. By default,
+        the number of sinks is 4. This flag subjects to future refactoring.
+    sliding_window_size : Optional[int]
+        (Experimental) The sliding window size in sliding window attention (SWA).
+        This optional field overrides the `sliding_window_size` in config.json for
+        those models that use SWA. Currently only useful when compiling Mistral.
+        This flag subjects to future refactoring.
+    opt : Optional[str]
+        Optimization flags. MLC LLM maintains a predefined set of optimization flags,
+        denoted as O0, O1, O2, O3, where O0 means no optimization, O2 means majority of them,
+        and O3 represents extreme optimization that could potentially break the system.
+        Meanwhile, optimization flags could be explicitly specified via details knobs, e.g.
+        --opt="cublas_gemm=1;cudagraph=0".
     """
 
     model_lib: Optional[str] = None
@@ -175,9 +200,14 @@ class ChatConfig:  # pylint: disable=too-many-instance-attributes
     conv_config: Optional[ConvConfig] = None
     model_category: Optional[str] = None
     model_name: Optional[str] = None
-    num_shards: Optional[int] = None
+    tensor_parallel_shards: Optional[int] = None
     use_presharded_weights: Optional[bool] = None
-    max_window_size: Optional[int] = None
+    context_window_size: Optional[int] = None
+    sliding_window_size: Optional[int] = None
+    prefill_chunk_size: Optional[int] = None
+    attention_sink_size: Optional[int] = None
+    max_batch_size: Optional[int] = None
+    opt: Optional[str] = None
 
     @classmethod
     def _from_json(cls, json_obj: dict):
@@ -311,6 +341,16 @@ def _get_model_path(model: str) -> Tuple[str, str]:
     ------
     FileNotFoundError: if we cannot find a valid `model_path`.
     """
+    if model.startswith("HF://"):
+        from mlc_chat.support.download import (  # pylint: disable=import-outside-toplevel
+            download_mlc_weights,
+        )
+
+        logger.info("Downloading model from HuggingFace: %s", model)
+        mlc_dir = download_mlc_weights(model)
+        cfg_dir = mlc_dir / "mlc-chat-config.json"
+        return str(mlc_dir), str(cfg_dir)
+
     # Note that the order of this list corresponds to our search priority
     candidate_paths = [
         f"{model}",  # full path, or just the name
@@ -323,8 +363,8 @@ def _get_model_path(model: str) -> Tuple[str, str]:
     for candidate in candidate_paths:
         chat_file = os.path.join(candidate, "mlc-chat-config.json")
         if os.path.isfile(chat_file):
-            logging.info("Using model folder: %s", os.path.abspath(candidate))
-            logging.info("Using mlc chat config: %s", os.path.abspath(chat_file))
+            logger.info("Using model folder: %s", os.path.abspath(candidate))
+            logger.info("Using mlc chat config: %s", os.path.abspath(chat_file))
             return candidate, chat_file
 
     # Failed to find a valid model_path, analyzing error for user
@@ -455,7 +495,7 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
         The path to ``mlc-chat-config.json``. Used for error message making.
 
     Returns
-    ------
+    -------
     model_lib_path : str
         The path pointing to the model library we find.
 
@@ -466,7 +506,7 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
     # 1. Use user's model_lib_path if provided
     if model_lib_path is not None:
         if os.path.isfile(model_lib_path):
-            logging.info("Using library model: %s", model_lib_path)
+            logger.info("Using library model: %s", model_lib_path)
             return model_lib_path
         raise FileNotFoundError(
             f"The `model_lib_path` you passed in is not a file: {model_lib_path}.\n"
@@ -510,7 +550,7 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
     # 4. Search for model library
     for candidate in candidate_paths:
         if os.path.isfile(candidate):
-            logging.info("Using library model: %s", os.path.abspath(candidate))
+            logger.info("Using library model: %s", os.path.abspath(candidate))
             return candidate
 
     # 5. Error
@@ -591,87 +631,15 @@ def _convert_generation_config_to_json_str(generation_config: Optional[Generatio
     return json.dumps(asdict(generation_config))
 
 
-def _parse_device_str(device: str) -> Tuple[tvm.runtime.Device, str]:
-    """Parse the input device identifier into device name and id.
-
-    Parameters
-    ----------
-    device : str
-        The device identifier to parse.
-        It can be "device_name" (e.g., "cuda") or
-        "device_name:device_id" (e.g., "cuda:1").
-
-    Returns
-    -------
-    dev : tvm.runtime.Device
-        The device.
-
-    device_name : str
-        The name of the device.
-    """
-    device_err_msg = (
-        f"Invalid device name: {device}. Please enter the device in the form "
-        "'device_name:device_id' or 'device_name', where 'device_name' needs to be "
-        "one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto'."
-    )
-    device_args = device.split(":")
-    if len(device_args) == 1:
-        device_name, device_id = device_args[0], 0
-    elif len(device_args) == 2:
-        device_name, device_id = device_args[0], int(device_args[1])
-    elif len(device_args) > 2:
-        raise ValueError(device_err_msg)
-
-    if device_name == "cuda":
-        device = tvm.cuda(device_id)
-    elif device_name == "metal":
-        device = tvm.metal(device_id)
-    elif device_name == "vulkan":
-        device = tvm.vulkan(device_id)
-    elif device_name == "rocm":
-        device = tvm.rocm(device_id)
-    elif device_name == "opencl":
-        device = tvm.opencl(device_id)
-    elif device_name == "auto":
-        device, device_name = _detect_local_device(device_id)
-        logging.info("System automatically detected device: %s", device_name)
-    else:
-        raise ValueError(device_err_msg)
-
-    return device, device_name
-
-
-def _detect_local_device(device_id: int = 0) -> Tuple[tvm.runtime.Device, str]:
-    """Automatically detect the local device if user does not specify.
-
-    Parameters
-    ----------
-    device_id : int
-        The local device id.
-
-    Returns
-    ------
-    dev : tvm.runtime.Device
-        The local device.
-
-    device_name : str
-        The name of the device.
-    """
-    if tvm.metal().exist:
-        return tvm.metal(device_id), "metal"
-    if tvm.rocm().exist:
-        return tvm.rocm(device_id), "rocm"
-    if tvm.cuda().exist:
-        return tvm.cuda(device_id), "cuda"
-    if tvm.vulkan().exist:
-        return tvm.vulkan(device_id), "vulkan"
-    if tvm.opencl().exist:
-        return tvm.opencl(device_id), "opencl"
-    logging.info(
-        "None of the following device is detected: metal, rocm, cuda, vulkan, opencl. "
-        "Switch to llvm instead."
-    )
-    return tvm.cpu(device_id), "llvm"
+def _inspect_model_lib_metadata_memory_usage(model_lib_path):
+    cmd = [
+        sys.executable,
+        "-m",
+        "mlc_chat.cli.model_metadata",
+        model_lib_path,
+        "--memory-only",
+    ]
+    subprocess.run(cmd, check=False)
 
 
 class ChatModule:  # pylint: disable=too-many-instance-attributes
@@ -729,7 +697,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         possible paths.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         model: str,
         device: str = "auto",
@@ -738,7 +706,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
     ):
         # 0. Get device:
         # Retrieve device_name and device_id (if any, default 0) from device arg
-        self.device, device_name = _parse_device_str(device)
+        self.device = detect_device(device)
         device_type = self.device.device_type
         device_id = self.device.device_id
 
@@ -775,14 +743,29 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         self.chat_config = _get_chat_config(self.config_file_path, chat_config)
 
         # 4. Look up model library
-        self.model_lib_path = _get_lib_module_path(
-            model,
-            self.model_path,
-            self.chat_config,
-            model_lib_path,
-            device_name,
-            self.config_file_path,
-        )
+        try:
+            self.model_lib_path = _get_lib_module_path(
+                model,
+                self.model_path,
+                self.chat_config,
+                model_lib_path,
+                self.device.MASK2STR[self.device.device_type],
+                self.config_file_path,
+            )
+        except FileNotFoundError:
+            logger.info("Model lib not found. Now compiling model lib on device...")
+            from mlc_chat.interface import (  # pylint: disable=import-outside-toplevel
+                jit,
+            )
+
+            self.model_lib_path = str(
+                jit.jit(
+                    model_path=Path(self.model_path),
+                    chat_config=asdict(self.chat_config),
+                    device=self.device,
+                )
+            )
+        _inspect_model_lib_metadata_memory_usage(self.model_lib_path)
 
         # 5. Call reload
         user_chat_config_json_str = _convert_chat_config_to_json_str(
@@ -795,6 +778,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         prompt: Union[str, List["ChatMessage"]],
         generation_config: Optional[GenerationConfig] = None,
         progress_callback=None,
+        stateless=False,
     ) -> Union[str, List[str]]:
         r"""A high-level method that returns the full response from the chat module given a user
         prompt. User can optionally specify which callback method to use upon receiving the
@@ -852,7 +836,8 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
             return_str = False
 
         for _ in range(num_return_sequences):
-            self.reset_chat()
+            if stateless:
+                self.reset_chat()
             self._prefill(prompt, generation_config=generation_config)
 
             if not progress_callback:

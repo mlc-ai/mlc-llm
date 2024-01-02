@@ -3,7 +3,27 @@
 from queue import Queue
 from typing import Optional
 
-from .base import get_delta_message
+
+def _get_delta_message(curr_message: str, new_message: str) -> str:
+    r"""Given the current message and the new message, compute the delta message
+    (the newly generated part, the diff of the new message from the current message).
+
+    Parameters
+    ----------
+    curr_message : str
+        The message generated in the previous round.
+    new_message : str
+        The message generated in the new round.
+
+    Returns
+    -------
+    delta_message : str
+        The diff of the new message from the current message (the newly generated part).
+    """
+    from tvm._ffi import get_global_func  # pylint: disable=import-outside-toplevel
+
+    f_get_delta_message = get_global_func("mlc.get_delta_message")
+    return f_get_delta_message(curr_message, new_message)
 
 
 class DeltaCallback:
@@ -27,7 +47,7 @@ class DeltaCallback:
             self.stopped_callback()
             self.curr_message = ""
         else:
-            delta = get_delta_message(self.curr_message, message)
+            delta = _get_delta_message(self.curr_message, message)
             self.curr_message = message
             self.delta_callback(delta)
 
@@ -93,7 +113,7 @@ class StreamIterator(DeltaCallback):
             Timeout for put and get from the delta messages queue
         """
         super().__init__()
-        self.delta_messages: Queue[str] = Queue()
+        self.delta_messages: Queue = Queue()
         self.callback_interval = callback_interval
         self.timeout = timeout
 
