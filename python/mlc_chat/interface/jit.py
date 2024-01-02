@@ -34,7 +34,9 @@ def jit(model_path: Path, chat_config: Dict[str, Any], device: Device) -> Path:
     quantization = mlc_chat_config.pop("quantization")
 
     def _get_optimization_flags() -> str:
-        opt = chat_config.pop("opt", "O2")
+        opt = chat_config.pop("opt", None)
+        if opt is None:
+            opt = "O2"
         return repr(OptimizationFlags.from_str(opt))
 
     def _get_overrides() -> str:

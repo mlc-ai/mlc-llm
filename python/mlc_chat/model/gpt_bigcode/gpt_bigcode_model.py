@@ -3,13 +3,13 @@ Implementation for GPTBigCode architecture.
 TODO: add docstring
 """
 import dataclasses
-import math
 from typing import Any, Dict, Optional
 
 from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
+from mlc_chat import op as op_ext
 from mlc_chat.support import logging
 from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
@@ -125,26 +125,10 @@ class GPTBigCodeAttention(nn.Module):  # pylint: disable=too-many-instance-attri
 
         self.k_cache.append(op.squeeze(k, axis=0))
         self.v_cache.append(op.squeeze(v, axis=0))
-        k = op.reshape(self.k_cache.view(t), (b, t, h_kv, d))
-        v = op.reshape(self.v_cache.view(t), (b, t, h_kv, d))
-        if h_kv != h_q:
-            k = k.repeat(h_q // h_kv, axis=2)
-            v = v.repeat(h_q // h_kv, axis=2)
-        q = q.permute_dims([0, 2, 1, 3])  # [b, h, s, d]
-        k = k.permute_dims([0, 2, 1, 3])  # [b, h, t, d]
-        v = v.permute_dims([0, 2, 1, 3])  # [b, h, t, d]
-        attn_weights = op.matmul(
-            q, k.permute_dims([0, 1, 3, 2])  # [b, h, s, d] x [b, h, d, t] = [b, h, s, t]
-        ) / math.sqrt(d)
-        dtype = attn_weights.dtype
-        attn_weights = attn_weights.maximum(tir.min_value(dtype)).minimum(attention_mask)
-        if dtype == "float32":
-            attn_weights = op.softmax(attn_weights, axis=-1)
-        else:
-            attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
-        # [b, h, s, t] x [b, h, t, d] => [b, h, s, d] => [b, s, h, d]
-        output = op.matmul(attn_weights, v)
-        return self.c_proj(output.permute_dims([0, 2, 1, 3]).reshape((b, s, h_q * d)))
+        k = self.k_cache.view(t)
+        v = self.v_cache.view(t)
+        output = op_ext.attention(q, k, v, casual_mask=attention_mask)
+        return self.c_proj(output)
 
 
 class GPTBigCodeBlock(nn.Module):
