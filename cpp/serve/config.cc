@@ -37,6 +37,16 @@ GenerationConfig::GenerationConfig(String config_json_str) {
     CHECK(config["top_p"].is<double>());
     n->top_p = config["top_p"].get<double>();
   }
+  if (config.count("frequency_penalty")) {
+    CHECK(config["frequency_penalty"].is<double>());
+    n->frequency_penalty = config["frequency_penalty"].get<double>();
+    CHECK(std::fabs(n->frequency_penalty) <= 2.0) << "Frequency penalty must be in [-2, 2]!";
+  }
+  if (config.count("presence_penalty")) {
+    CHECK(config["presence_penalty"].is<double>());
+    n->presence_penalty = config["presence_penalty"].get<double>();
+    CHECK(std::fabs(n->presence_penalty) <= 2.0) << "Presence penalty must be in [-2, 2]!";
+  }
   if (config.count("repetition_penalty")) {
     CHECK(config["repetition_penalty"].is<double>());
     n->repetition_penalty = config["repetition_penalty"].get<double>();
@@ -86,6 +96,8 @@ String GenerationConfigNode::AsJSONString() const {
   picojson::object config;
   config["temperature"] = picojson::value(this->temperature);
   config["top_p"] = picojson::value(this->top_p);
+  config["frequency_penalty"] = picojson::value(this->frequency_penalty);
+  config["presence_penalty"] = picojson::value(this->presence_penalty);
   config["repetition_penalty"] = picojson::value(this->repetition_penalty);
   config["max_tokens"] = picojson::value(static_cast<int64_t>(this->max_tokens));
 

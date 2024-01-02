@@ -22,6 +22,8 @@ class GenerationConfigNode : public Object {
  public:
   double temperature = 0.8;
   double top_p = 0.95;
+  double frequency_penalty = 0.0;
+  double presence_penalty = 0.0;
   double repetition_penalty = 1.0;
 
   int max_tokens = 128;
