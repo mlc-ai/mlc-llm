@@ -128,7 +128,13 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             flashinfer=args.opt.flashinfer,
         )
         # Step 1. Create the quantized model
-        logger.info("Creating model from: %s", model_config)
+        logger.info("Creating model from: %s", args.config)
+        if (
+            args.quantization.kind == "ft-quant"
+            and hasattr(model_config, "tensor_parallel_shards")
+            and model_config.tensor_parallel_shards > 1
+        ):
+            raise NotImplementedError
         model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
         kv_cache_bytes = _find_kv_cache_bytes(model, model_config)
         # Step 2. Exporting the model to TVM Unity
