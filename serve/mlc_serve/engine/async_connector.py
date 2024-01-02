@@ -87,6 +87,7 @@ class AsyncEngineConnector:
             LOG.info("AsyncEngineConnector.generate iterator cancelled.", request_id=request.request_id)
             await asyncio.shield(asyncio.to_thread(self.engine.cancel, request.request_id))
             LOG.info("AsyncEngineConnector.generate request sucessfully cancelled.", request_id=request.request_id)
+            raise
         finally:
             LOG.info("AsyncEngineConnector.generate removing request from result queue.", request_id=request.request_id)
             self.result_queues.pop(request.request_id, None)
