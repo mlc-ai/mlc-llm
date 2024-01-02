@@ -2,6 +2,7 @@
 from typing import Any, Dict
 
 from .awq_quantization import AWQQuantize
+from .ft_quantization import FTQuantize
 from .group_quantization import GroupQuantize
 from .no_quantization import NoQuantize
 
@@ -65,6 +66,13 @@ QUANTIZATION: Dict[str, Quantization] = {
         group_size=128,
         quantize_dtype="int4",
         storage_dtype="uint32",
+        model_dtype="float16",
+    ),
+    "q4f16_ft": FTQuantize(
+        name="q4f16_ft",
+        kind="ft-quant",
+        quantize_dtype="int4",
+        storage_dtype="int8",
         model_dtype="float16",
     ),
 }

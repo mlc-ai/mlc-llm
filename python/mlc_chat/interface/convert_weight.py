@@ -51,7 +51,7 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
 
 
 def _calc_total_params(model: nn.Module) -> int:
-    _, named_params = model.export_tvm(spec=model.get_default_spec())  # type: ignore
+    _, named_params, _ = model.export_tvm(spec=model.get_default_spec(), allow_extern=True)
     total_params = 0
     for _, param in named_params:
         total_params += math.prod(param.shape)
@@ -61,6 +61,12 @@ def _calc_total_params(model: nn.Module) -> int:
 def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-locals
     # model config & quantization config
     model_config = args.model.config.from_file(args.config)
+    if (
+        args.quantization.kind == "ft-quant"
+        and hasattr(model_config, "tensor_parallel_shards")
+        and model_config.tensor_parallel_shards > 1
+    ):
+        raise NotImplementedError
     model, quantize_map = args.model.quantize[args.quantization.kind](
         model_config, args.quantization
     )
