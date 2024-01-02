@@ -180,22 +180,23 @@ class GPTNeoXLayer(nn.Module):
             def _set(param, hint):
                 param.attrs["shard_strategy"] = hint
 
-            h = config.hidden_size
             hd = config.head_dim
             q = k = v = self.attention.num_attention_heads * hd
-            i = self.mlp.intermediate_size
             _set(
                 self.attention.query_key_value.weight,
-                tp.RowSeg("_shard_qkv_weight", rows=[q, k, v], col=h, groups=hd),
+                tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
             )
             _set(
                 self.attention.query_key_value.bias,
-                tp.RowSeg1D("_shard_qkv_bias", rows=[q, k, v], groups=hd),
+                tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
             )
-            _set(self.attention.dense.weight, tp.Col("_shard_dense", row=h, col=q))
-            _set(self.mlp.dense_h_to_4h.weight, tp.Row("_shard_dense_h_to_4h_weight", row=i, col=h))
-            _set(self.mlp.dense_h_to_4h.bias, tp.Row1D("_shard_dense_h_to_4h_bias", row=i))
-            _set(self.mlp.dense_4h_to_h.weight, tp.Col("_shard_dense_4h_to_h", row=h, col=i))
+            _set(self.attention.dense.weight, tp.ShardSingleDim("_shard_dense", dim=1))
+            _set(
+                self.mlp.dense_h_to_4h.weight,
+                tp.ShardSingleDim("_shard_dense_h_to_4h_weight", dim=0),
+            )
+            _set(self.mlp.dense_h_to_4h.bias, tp.ShardSingleDim("_shard_dense_h_to_4h_bias", dim=0))
+            _set(self.mlp.dense_4h_to_h.weight, tp.ShardSingleDim("_shard_dense_4h_to_h", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()

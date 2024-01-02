@@ -110,6 +110,12 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.rope_theta = config.position_embedding_base
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
+        assert (
+            config.num_key_value_heads % config.tensor_parallel_shards == 0
+        ), f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
+        assert (
+            config.num_key_value_heads >= config.tensor_parallel_shards
+        ), f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
         self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
@@ -157,16 +163,15 @@ class LlamaDecoderLayer(nn.Module):
             def _set(layer, hint):
                 layer.weight.attrs["shard_strategy"] = hint
 
-            h = config.hidden_size
             hd = config.head_dim
             q = self.self_attn.num_q_heads * hd
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
             i = self.mlp.intermediate_size
-            _set(self.self_attn.qkv_proj, tp.RowSeg("_shard_qkv", rows=[q, k, v], col=h, groups=hd))
-            _set(self.self_attn.o_proj, tp.Col("_shard_o", row=h, col=q))
-            _set(self.mlp.gate_up_proj, tp.RowSeg("_shard_mlp_up", rows=[i, i], col=h, groups=1))
-            _set(self.mlp.down_proj, tp.Col("_shard_mlp_down", row=h, col=i))
+            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
+            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()

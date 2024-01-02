@@ -133,15 +133,15 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             out_shape,
         )
         return te.compute(
-            shape=[weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
+            shape=[*weight.shape[:-1], weight.shape[-1] * self.num_elem_per_storage]
             if out_shape is None
             else out_shape,
-            fcompute=lambda i, j: tir.multiply(
+            fcompute=lambda *idx: tir.multiply(
                 tir.subtract(
-                    float_weight[i, j],
+                    float_weight[idx[:-1] + (idx[-1],)],
                     tir_max_int,
                 ),
-                scale[i, j // self.group_size],
+                scale[idx[:-1] + (idx[-1] // self.group_size,)],
             ),
             name="dequantize",
         )
@@ -160,7 +160,6 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         ret: List[NDArray]
             The list of group quantized weights.
         """
-        assert len(weight.shape) == 2
         device = weight.device
         device_type = device.MASK2STR[device.device_type]
 
@@ -194,7 +193,14 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             vm = relax.VirtualMachine(ex, device)  # pylint: disable=invalid-name
             return vm["main"]
 
-        key = str((int(weight.shape[0]), int(weight.shape[1]), weight.dtype, device_type))
+        key = str(
+            (
+                *(int(weight.shape[i]) for i in range(len(weight.shape) - 1)),
+                int(weight.shape[-1]),
+                weight.dtype,
+                device_type,
+            )
+        )
         quantize_func = self._quantize_func_cache.get(key, None)
         if quantize_func is None:
             logger.info("Compiling quantize function for key: %s", key)
@@ -207,20 +213,20 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         weight: te.Tensor,
     ) -> Tuple[te.Tensor, te.Tensor]:
         """Group quantization for weight tensor, defined in tensor expression."""
-        assert len(weight.shape) == 2
         max_int = tir.const(self.max_int_value, self.model_dtype)
-        n, k = weight.shape  # pylint: disable=invalid-name
+        shape = weight.shape  # pylint: disable=invalid-name
+        k = shape[-1]
         quantize_dtype = DataType(self.quantize_dtype)
         # compute scale per group
         r = te.reduce_axis((0, self.group_size), name="r")  # pylint: disable=invalid-name
         num_group = tir.ceildiv(k, self.group_size)
-        scale_shape = (n, num_group)
+        scale_shape = (*shape[:-1], num_group)
         max_abs = te.compute(
             shape=scale_shape,
-            fcompute=lambda i, j: te.max(
+            fcompute=lambda *idx: te.max(
                 tir.if_then_else(
-                    j * self.group_size + r < k,
-                    te.abs(weight[i, j * self.group_size + r]),
+                    idx[-1] * self.group_size + r < k,
+                    te.abs(weight[idx[:-1] + (idx[-1] * self.group_size + r,)]),
                     te.min_value(self.model_dtype),
                 ),
                 axis=r,
@@ -229,15 +235,19 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         )
         scale = te.compute(
             scale_shape,
-            lambda i, j: max_abs[i, j].astype(self.model_dtype) / max_int,
+            lambda *idx: max_abs[idx[:-1] + (idx[-1],)].astype(self.model_dtype) / max_int,
             name="scale",
         )
         # compute scaled weight
         scaled_weight = te.compute(
             shape=weight.shape,
-            fcompute=lambda i, j: tir.min(
+            fcompute=lambda *idx: tir.min(
                 tir.max(
-                    tir.round(weight[i, j] / scale[i, j // self.group_size] + max_int),
+                    tir.round(
+                        weight[idx[:-1] + (idx[-1],)]
+                        / scale[idx[:-1] + (idx[-1] // self.group_size,)]
+                        + max_int
+                    ),
                     tir.const(0, self.model_dtype),
                 ),
                 max_int * 2,
@@ -246,13 +256,13 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         # compute quantized weight per storage
         r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
         num_storage = self.num_storage_per_group * num_group
-        quantized_weight_shape = (n, num_storage)
+        quantized_weight_shape = (*shape[:-1], num_storage)
         quantized_weight = te.compute(
             shape=quantized_weight_shape,
-            fcompute=lambda i, j: tir.sum(
+            fcompute=lambda *idx: tir.sum(
                 tir.if_then_else(
-                    j * self.num_elem_per_storage + r < k,
-                    scaled_weight[i, j * self.num_elem_per_storage + r]
+                    idx[-1] * self.num_elem_per_storage + r < k,
+                    scaled_weight[idx[:-1] + (idx[-1] * self.num_elem_per_storage + r,)]
                     << (r * quantize_dtype.bits),
                     0,
                 ),
@@ -432,27 +442,11 @@ class GroupQuantizeEmbedding(nn.Module):
 
 
 def _apply_sharding(shard, name: str, weight: nn.Parameter):
-    assert weight.ndim == 2
-    if isinstance(shard, tp.Row):
-        assert weight.shape[0] == shard.row
-        weight.attrs["shard_strategy"] = tp.Row(
+    if isinstance(shard, tp.ShardSingleDim):
+        weight.attrs["shard_strategy"] = tp.ShardSingleDim(
             name=name,
-            row=weight.shape[0],
-            col=weight.shape[1],
-        )
-    elif isinstance(shard, tp.RowSeg):
-        assert weight.shape[0] == sum(shard.rows)
-        weight.attrs["shard_strategy"] = tp.RowSeg(
-            name=name,
-            rows=shard.rows,
-            col=weight.shape[1],
-            groups=shard.groups,
-        )
-    elif isinstance(shard, tp.Col):
-        weight.attrs["shard_strategy"] = tp.Col(
-            name=name,
-            row=weight.shape[0],
-            col=weight.shape[1],
+            dim=shard.dim,
+            segs=shard.segs,
         )
     else:
         raise NotImplementedError(f"Unknowing sharding strategy: {shard}")
