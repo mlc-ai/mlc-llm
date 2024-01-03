@@ -16,11 +16,12 @@ WARN_FLASHINFER_GROUP_SIZE = False
 WARN_FLASHINFER_HEAD_DIM = False
 
 
-def attention(  # pylint: disable=invalid-name,too-many-locals
+def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statements
     q: nn.Tensor,
     k: nn.Tensor,
     v: nn.Tensor,
     casual_mask: nn.Tensor,
+    attn_score_scaling_factor: float = 1.0,
 ) -> nn.Tensor:
     """Attention with casual mask.
 
@@ -47,7 +48,7 @@ def attention(  # pylint: disable=invalid-name,too-many-locals
             v = v.repeat(h_q // h_kv, axis=1)
         q -> [b, h, s, d]
         k, v -> [b, h, t, d]
-        attn = q @ k^T / sqrt(d)  # [b, h, s, t]
+        attn = q @ k^T / sqrt(d) * attn_score_scaling_factor  # [b, h, s, t]
         attn = softmax_with_mask(attn, casual_mask, axis=-1)
         o = attn @ v  # [b, h, s, d]
         o -> [b, s, h * d]
@@ -67,13 +68,15 @@ def attention(  # pylint: disable=invalid-name,too-many-locals
         if h_kv != h_q:
             k = k.repeat(h_q // h_kv, axis=2)
             v = v.repeat(h_q // h_kv, axis=2)
-        q = q.permute_dims([0, 2, 1, 3])
-        k = k.permute_dims([0, 2, 1, 3])
-        v = v.permute_dims([0, 2, 1, 3])
+        q = op.permute_dims(q, [0, 2, 1, 3])
+        k = op.permute_dims(k, [0, 2, 1, 3])
+        v = op.permute_dims(v, [0, 2, 1, 3])
         attn_weights = op.matmul(  # [b, h, s, t]
             q,  # [b, h, s, d]
-            k.permute_dims([0, 1, 3, 2]),  # [b, h, d, t]
+            op.permute_dims(k, [0, 1, 3, 2]),  # [b, h, d, t]
         ) / math.sqrt(d)
+        if attn_score_scaling_factor != 1.0:
+            attn_weights = attn_weights * attn_score_scaling_factor
         dtype = attn_weights.dtype
         attn_weights = attn_weights.maximum(tir.min_value(dtype)).minimum(casual_mask)
         if dtype == "float32":
@@ -81,13 +84,14 @@ def attention(  # pylint: disable=invalid-name,too-many-locals
         else:
             attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
         output = op.matmul(attn_weights, v)  # [b, h, s, d] <= [b, h, s, t] x [b, h, t, d]
-        output = output.permute_dims([0, 2, 1, 3])  #  [b, s, h, d]
-        output = output.reshape([b, s, h_q * d])  # [b, s, h * d]
+        output = op.permute_dims(output, [0, 2, 1, 3])  #  [b, s, h, d]
+        output = op.reshape(output, [b, s, h_q * d])  # [b, s, h * d]
         return output
 
     # FlashInfer Implementation
     if (
         _extern.get_store().flashinfer
+        and attn_score_scaling_factor == 1.0
         and q.dtype == "float16"
         and k.dtype == "float16"
         and v.dtype == "float16"

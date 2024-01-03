@@ -3,13 +3,13 @@ Implementation for GPT-2 architecture.
 TODO: add docstring
 """
 import dataclasses
-import math
 from typing import Any, Dict, Optional
 
 from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
+from mlc_chat import op as op_ext
 from mlc_chat.support import logging
 from mlc_chat.support.config import ConfigBase
 from mlc_chat.support.style import bold
@@ -110,29 +110,15 @@ class GPT2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
 
         self.k_cache.append(op.squeeze(k, axis=0))
         self.v_cache.append(op.squeeze(v, axis=0))
-        k = op.reshape(self.k_cache.view(t), (b, t, h, d))
-        v = op.reshape(self.v_cache.view(t), (b, t, h, d))
-
-        q = q.permute_dims([0, 2, 1, 3])  # [b, h, s, d]
-        k = k.permute_dims([0, 2, 1, 3])  # [b, h, t, d]
-        v = v.permute_dims([0, 2, 1, 3])  # [b, h, t, d]
-
-        attn_weights = op.matmul(
-            q, k.permute_dims([0, 1, 3, 2])  # [b, h, s, d] x [b, h, d, t] = [b, h, s, t]
-        ) / math.sqrt(d)
+        k = self.k_cache.view(t)
+        v = self.v_cache.view(t)
 
         if self.scale_attn_by_inverse_layer_idx:
-            attn_weights = attn_weights / float(self.layer_idx + 1)
-
-        dtype = attn_weights.dtype
-        attn_weights = attn_weights.maximum(tir.min_value(dtype)).minimum(attention_mask)
-        if dtype == "float32":
-            attn_weights = op.softmax(attn_weights, axis=-1)
+            attn_score_scaling_factor = 1.0 / float(self.layer_idx + 1)
         else:
-            attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
-        # [b, h, s, t] x [b, h, t, d] => [b, h, s, d] => [b, s, h, d]
-        output = op.matmul(attn_weights, v)
-        return self.c_proj(output.permute_dims([0, 2, 1, 3]).reshape((b, s, h * d)))
+            attn_score_scaling_factor = 1.0
+        output = op_ext.attention(q, k, v, attention_mask, attn_score_scaling_factor)
+        return self.c_proj(output)
 
 
 class GPT2MLP(nn.Module):
