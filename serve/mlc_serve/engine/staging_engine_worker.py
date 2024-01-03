@@ -158,7 +158,9 @@ class GenerationLoopWorker(EngineBase):
                         error=err,
                     )
                 )
-                del self.sequence_map[gen_seq.seq_id]
+
+                if gen_seq.seq_id in self.sequence_map:
+                    del self.sequence_map[gen_seq.seq_id]
 
             if state.request_id in self.current_batch:
                 self.remove_request_from_batch(state.request_id)
