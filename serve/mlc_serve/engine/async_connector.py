@@ -77,6 +77,8 @@ class AsyncEngineConnector:
         try:
             queue = await self._add_request(request)
             while True:
+                # TODO(jknight): Should make sure we are catching cancellations 
+                # correctly inside this _get_queue...(...) awaitable object too
                 output = await self._get_queue_item_until_stopped(queue)
                 if output.error is not None:
                     raise TextGenerationError(output.error)
@@ -85,8 +87,10 @@ class AsyncEngineConnector:
                     return
         except asyncio.CancelledError:
             LOG.info("AsyncEngineConnector.generate iterator cancelled.", request_id=request.request_id)
-            await asyncio.shield(asyncio.to_thread(self.engine.cancel, request.request_id))
+            # Running this sync because `await` inside of cancellation events is problematic
+            self.engine.cancel(request.request_id)
             LOG.info("AsyncEngineConnector.generate request sucessfully cancelled.", request_id=request.request_id)
+            # Always re-raise CancellationErrors unless you know what you're doing.
             raise
         finally:
             LOG.info("AsyncEngineConnector.generate removing request from result queue.", request_id=request.request_id)
