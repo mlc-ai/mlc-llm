@@ -11,6 +11,7 @@ from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_chat import op as op_ext
 from mlc_chat.support import logging
+from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
 from mlc_chat.support.style import bold
 
@@ -118,13 +119,13 @@ class MistralMLP(nn.Module):
 
     def __init__(self, config: MistralConfig):
         super().__init__()
-        intermediate_size = config.intermediate_size // config.tensor_parallel_shards
+        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
-            out_features=2 * intermediate_size,
+            out_features=2 * self.intermediate_size,
             bias=False,
         )
-        self.down_proj = nn.Linear(intermediate_size, config.hidden_size, bias=False)
+        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
 
     def forward(self, x: Tensor):
         concat_x1_x2 = self.gate_up_proj(x)
@@ -301,7 +302,22 @@ class MistralDecoderLayer(nn.Module):
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
 
+        def _set_tp():
+            def _set(layer, hint):
+                layer.weight.attrs["shard_strategy"] = hint
+
+            hd = config.head_dim
+            q = self.self_attn.num_q_heads * hd
+            k = self.self_attn.num_kv_heads * hd
+            v = self.self_attn.num_kv_heads * hd
+            i = self.mlp.intermediate_size
+            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
+            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
+
         self.tensor_parallel_shards = config.tensor_parallel_shards
+        _set_tp()
 
     def forward(  # pylint: disable=too-many-arguments
         self,
