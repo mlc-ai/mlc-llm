@@ -12,6 +12,10 @@ from . import extern as _extern
 logger = logging.getLogger(__name__)
 
 
+WARN_FLASHINFER_GROUP_SIZE = False
+WARN_FLASHINFER_HEAD_DIM = False
+
+
 def attention(  # pylint: disable=invalid-name,too-many-locals
     q: nn.Tensor,
     k: nn.Tensor,
@@ -89,10 +93,22 @@ def attention(  # pylint: disable=invalid-name,too-many-locals
         and v.dtype == "float16"
     ):
         if group_size not in [1, 4, 8]:
-            logger.warning(
-                "FlashInfer only supports group size in [1, 4, 8], but got %d",
-                group_size,
-            )
+            global WARN_FLASHINFER_GROUP_SIZE  # pylint: disable=global-statement
+            if not WARN_FLASHINFER_GROUP_SIZE:
+                WARN_FLASHINFER_GROUP_SIZE = True
+                logger.warning(
+                    "FlashInfer only supports group size in [1, 4, 8], but got %d",
+                    group_size,
+                )
+            return _fallback()
+        if d not in [128]:
+            global WARN_FLASHINFER_HEAD_DIM  # pylint: disable=global-statement
+            if not WARN_FLASHINFER_HEAD_DIM:
+                WARN_FLASHINFER_HEAD_DIM = True
+                logger.warning(
+                    "FlashInfer only head_dim in [128], but got %d",
+                    d,
+                )
             return _fallback()
         rope_theta = 0.0
         rope_scale = 1.0
