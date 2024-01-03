@@ -55,7 +55,12 @@ def load_safetensor_shard(path: Path) -> Iterator[Tuple[str, np.ndarray]]:
     """Load and yield SafeTensor format parameters."""
     import safetensors  # pylint: disable=import-outside-toplevel,import-error
 
-    with safetensors.safe_open(path, framework="numpy", device="cpu") as in_file:
+    with safetensors.safe_open(path, framework="pt", device="cpu") as in_file:
         for name in in_file.keys():
             param = in_file.get_tensor(name)
+            param = param.detach().cpu()
+            dtype = str(param.dtype)
+            if dtype == "torch.bfloat16":
+                param = param.float()
+            param = param.numpy()
             yield name, param
