@@ -16,9 +16,9 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
     def __init__(  # pylint: disable=too-many-arguments
         self,
         model: str,
+        model_lib_path: str,
         device: str = "auto",
         *,
-        model_lib_path: str = "",
         max_batch_size: int = 80,
         max_total_sequence_length: int = 16800,
         enable_tracing: bool = False,
@@ -28,8 +28,8 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         """Please check out `python/mlc_chat/serve/server/__main__.py`
         for the server arguments."""
         self.model = model
-        self.device = device
         self.model_lib_path = model_lib_path
+        self.device = device
         self.max_batch_size = max_batch_size
         self.max_total_sequence_length = max_total_sequence_length
         self.enable_tracing = enable_tracing
@@ -44,8 +44,8 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         cmd = [sys.executable]
         cmd += ["-m", "mlc_chat.serve.server"]
         cmd += ["--model", self.model]
-        cmd += ["--device", self.device]
         cmd += ["--model-lib-path", self.model_lib_path]
+        cmd += ["--device", self.device]
         cmd += ["--max-batch-size", str(self.max_batch_size)]
         cmd += ["--max-total-seq-length", str(self.max_total_sequence_length)]
         if self.enable_tracing:

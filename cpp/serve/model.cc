@@ -314,10 +314,10 @@ class ModelImpl : public ModelObj {
   /*********************** KV Cache Management  ***********************/
 
   void CreateKVCache(KVCacheConfig kv_cache_config) final {
-    IntTuple kv_cache_config_shape({kv_cache_config->max_num_sequence,
-                                    kv_cache_config->max_total_sequence_length,
-                                    kv_cache_config->page_size});
-    kv_cache_ = ft_.create_kv_cache_func_(kv_cache_config_shape);
+    IntTuple max_num_sequence{kv_cache_config->max_num_sequence};
+    IntTuple max_total_sequence_length{kv_cache_config->max_total_sequence_length};
+    IntTuple page_size{kv_cache_config->page_size};
+    kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence, max_total_sequence_length, page_size);
   }
 
   void AddNewSequence(int64_t seq_id) final { ft_.kv_cache_add_sequence_func_(kv_cache_, seq_id); }
@@ -362,30 +362,23 @@ class ModelImpl : public ModelObj {
 
     // Get json fields.
     picojson::object config = config_json.get<picojson::object>();
-    if (config.count("num_shards")) {
-      CHECK(config["num_shards"].is<int64_t>());
-      this->num_shards_ = config["num_shards"].get<int64_t>();
+    if (config.count("tensor_parallel_shards")) {
+      CHECK(config["tensor_parallel_shards"].is<int64_t>());
+      this->num_shards_ = config["tensor_parallel_shards"].get<int64_t>();
     } else {
       this->num_shards_ = 1;
     }
-    if (config.count("model_name")) {
-      CHECK(config["model_name"].is<std::string>());
-      this->model_name_ = config["model_name"].get<std::string>();
+    if (config.count("context_window_size")) {
+      CHECK(config["context_window_size"].is<int64_t>());
+      this->max_window_size_ = config["context_window_size"].get<int64_t>();
     } else {
-      LOG(FATAL) << "Key \"model_name\" not found.";
-    }
-    if (config.count("max_window_size")) {
-      CHECK(config["max_window_size"].is<int64_t>());
-      this->max_window_size_ = config["max_window_size"].get<int64_t>();
-    } else {
-      LOG(FATAL) << "Key \"max_window_size\" not found.";
+      LOG(FATAL) << "Key \"context_window_size\" not found.";
     }
   }
 
   //----------------------------
   // Model configurations
   //----------------------------
-  std::string model_name_;
   int num_shards_ = -1;
   int max_window_size_ = -1;
 

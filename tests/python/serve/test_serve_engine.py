@@ -68,7 +68,10 @@ def test_engine_basic():
     """
 
     # Initialize model loading info and KV cache config
-    model = ModelInfo("Llama-2-7b-chat-hf-q4f16_1")
+    model = ModelInfo(
+        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
+        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
+    )
     kv_cache_config = KVCacheConfig(page_size=16)
 
     # Hyperparameters for tests (you can try different combinations).
@@ -125,7 +128,10 @@ def test_engine_continuous_batching_1():
     """
 
     # Initialize model loading info and KV cache config
-    model = ModelInfo("Llama-2-7b-chat-hf-q4f16_1")
+    model = ModelInfo(
+        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
+        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
+    )
     kv_cache_config = KVCacheConfig(page_size=16)
 
     # Hyperparameters for tests (you can try different combinations)
@@ -200,7 +206,10 @@ def test_engine_continuous_batching_2():
     """
 
     # Initialize model loading info and KV cache config
-    model = ModelInfo("Llama-2-7b-chat-hf-q4f16_1")
+    model = ModelInfo(
+        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
+        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
+    )
     kv_cache_config = KVCacheConfig(page_size=16)
 
     # Hyperparameters for tests (you can try different combinations)
@@ -276,7 +285,10 @@ def test_engine_continuous_batching_3():
     """
 
     # Initialize model loading info and KV cache config
-    model = ModelInfo("Llama-2-7b-chat-hf-q4f16_1")
+    model = ModelInfo(
+        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
+        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
+    )
     kv_cache_config = KVCacheConfig(page_size=16)
 
     # Hyperparameters for tests (you can try different combinations)
@@ -352,7 +364,10 @@ def test_engine_continuous_batching_3():
 
 def test_engine_generate():
     # Initialize model loading info and KV cache config
-    model = ModelInfo("Llama-2-7b-chat-hf-q4f16_1")
+    model = ModelInfo(
+        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
+        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
+    )
     kv_cache_config = KVCacheConfig(page_size=16)
     # Create engine
     engine = Engine(model, kv_cache_config)
