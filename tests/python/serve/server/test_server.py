@@ -3,24 +3,25 @@ Before running any test, we use pytest fixtures to launch a
 test-session-wide server in a subprocess, and then execute the tests.
 
 The recommended way to run the tests is to use the following command:
-  MLC_SERVE_MODEL="YOUR_MODEL_ID" pytest -vv tests/python/serve/server/test_server.py
+  MLC_SERVE_MODEL_LIB="YOUR_MODEL_LIB" pytest -vv tests/python/serve/server/test_server.py
 
-Here "YOUR_MODEL_ID" can be a small model like `Llama-2-7b-chat-hf-q4f16_1`,
+Here "YOUR_MODEL_LIB" is a compiled model library like
+`dist/Llama-2-7b-chat-hf-q4f16_1/Llama-2-7b-chat-hf-q4f16_1-cuda.so`,
 as long as the model is built with batching and embedding separation enabled.
 
 To directly run the Python file (a.k.a., not using pytest), you need to
 launch the server in ahead before running this file. This can be done in
 two steps:
 - start a new shell session, run
-  python -m mlc_chat.serve.server --model "YOUR_MODEL_ID"
+  python -m mlc_chat.serve.server --model "YOUR_MODEL_LIB"
 - start another shell session, run this file
-  MLC_SERVE_MODEL="YOUR_MODEL_ID" python tests/python/serve/server/test_server.py
+  MLC_SERVE_MODEL_LIB="YOUR_MODEL_LIB" python tests/python/serve/server/test_server.py
 """
 # pylint: disable=missing-function-docstring,too-many-arguments,too-many-locals,too-many-branches
 import json
 import os
 from http import HTTPStatus
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import pytest
 import requests
@@ -162,7 +163,7 @@ def expect_error(response_str: str, msg_prefix: Optional[str] = None):
 
 
 def test_openai_v1_models(
-    served_model,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -176,14 +177,14 @@ def test_openai_v1_models(
 
     model_card = models[0]
     assert isinstance(model_card, dict)
-    assert model_card["id"] == served_model
+    assert model_card["id"] == served_model[0], f"{model_card['id']} {served_model[0]}"
     assert model_card["object"] == "model"
     assert model_card["owned_by"] == "MLC-LLM"
 
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
@@ -193,7 +194,7 @@ def test_openai_v1_completions(
     prompt = "What is the meaning of life?"
     max_tokens = 256
     payload = {
-        "model": served_model,
+        "model": served_model[0],
         "prompt": prompt,
         "max_tokens": max_tokens,
         "stream": stream,
@@ -204,7 +205,7 @@ def test_openai_v1_completions(
         check_openai_nonstream_response(
             response.json(),
             is_chat_completion=False,
-            model=served_model,
+            model=served_model[0],
             object_str="text_completion",
             num_choices=1,
             finish_reason="length",
@@ -219,7 +220,7 @@ def test_openai_v1_completions(
         check_openai_stream_response(
             responses,
             is_chat_completion=False,
-            model=served_model,
+            model=served_model[0],
             object_str="text_completion",
             num_choices=1,
             finish_reason="length",
@@ -229,7 +230,7 @@ def test_openai_v1_completions(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_openai_package(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
@@ -240,7 +241,7 @@ def test_openai_v1_completions_openai_package(
     prompt = "What is the meaning of life?"
     max_tokens = 256
     response = client.completions.create(
-        model=served_model,
+        model=served_model[0],
         prompt=prompt,
         max_tokens=max_tokens,
         stream=stream,
@@ -249,7 +250,7 @@ def test_openai_v1_completions_openai_package(
         check_openai_nonstream_response(
             response.model_dump(),
             is_chat_completion=False,
-            model=served_model,
+            model=served_model[0],
             object_str="text_completion",
             num_choices=1,
             finish_reason="length",
@@ -262,7 +263,7 @@ def test_openai_v1_completions_openai_package(
         check_openai_stream_response(
             responses,
             is_chat_completion=False,
-            model=served_model,
+            model=served_model[0],
             object_str="text_completion",
             num_choices=1,
             finish_reason="length",
@@ -289,7 +290,7 @@ def test_openai_v1_completions_invalid_requested_model(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_echo(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
@@ -299,7 +300,7 @@ def test_openai_v1_completions_echo(
     prompt = "What is the meaning of life?"
     max_tokens = 256
     payload = {
-        "model": served_model,
+        "model": served_model[0],
         "prompt": prompt,
         "max_tokens": max_tokens,
         "echo": True,
@@ -311,7 +312,7 @@ def test_openai_v1_completions_echo(
         check_openai_nonstream_response(
             response.json(),
             is_chat_completion=False,
-            model=served_model,
+            model=served_model[0],
             object_str="text_completion",
             num_choices=1,
             finish_reason="length",
@@ -327,7 +328,7 @@ def test_openai_v1_completions_echo(
         check_openai_stream_response(
             responses,
             is_chat_completion=False,
-            model=served_model,
+            model=served_model[0],
             object_str="text_completion",
             num_choices=1,
             finish_reason="length",
@@ -338,7 +339,7 @@ def test_openai_v1_completions_echo(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_suffix(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
@@ -349,7 +350,7 @@ def test_openai_v1_completions_suffix(
     suffix = "Hello, world!"
     max_tokens = 256
     payload = {
-        "model": served_model,
+        "model": served_model[0],
         "prompt": prompt,
         "max_tokens": max_tokens,
         "suffix": suffix,
@@ -361,7 +362,7 @@ def test_openai_v1_completions_suffix(
         check_openai_nonstream_response(
             response.json(),
             is_chat_completion=False,
-            model=served_model,
+            model=served_model[0],
             object_str="text_completion",
             num_choices=1,
             finish_reason="length",
@@ -377,7 +378,7 @@ def test_openai_v1_completions_suffix(
         check_openai_stream_response(
             responses,
             is_chat_completion=False,
-            model=served_model,
+            model=served_model[0],
             object_str="text_completion",
             num_choices=1,
             finish_reason="length",
@@ -388,7 +389,7 @@ def test_openai_v1_completions_suffix(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_stop_str(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
@@ -401,7 +402,7 @@ def test_openai_v1_completions_stop_str(
     stop = ["in"]
     max_tokens = 256
     payload = {
-        "model": served_model,
+        "model": served_model[0],
         "prompt": prompt,
         "max_tokens": max_tokens,
         "stop": stop,
@@ -413,7 +414,7 @@ def test_openai_v1_completions_stop_str(
         check_openai_nonstream_response(
             response.json(),
             is_chat_completion=False,
-            model=served_model,
+            model=served_model[0],
             object_str="text_completion",
             num_choices=1,
             finish_reason="stop",
@@ -428,7 +429,7 @@ def test_openai_v1_completions_stop_str(
         check_openai_stream_response(
             responses,
             is_chat_completion=False,
-            model=served_model,
+            model=served_model[0],
             object_str="text_completion",
             num_choices=1,
             finish_reason="stop",
@@ -438,7 +439,7 @@ def test_openai_v1_completions_stop_str(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_temperature(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
@@ -448,7 +449,7 @@ def test_openai_v1_completions_temperature(
     prompt = "What's the meaning of life?"
     max_tokens = 128
     payload = {
-        "model": served_model,
+        "model": served_model[0],
         "prompt": prompt,
         "max_tokens": max_tokens,
         "stream": stream,
@@ -460,7 +461,7 @@ def test_openai_v1_completions_temperature(
         check_openai_nonstream_response(
             response.json(),
             is_chat_completion=False,
-            model=served_model,
+            model=served_model[0],
             object_str="text_completion",
             num_choices=1,
             finish_reason="length",
@@ -474,7 +475,7 @@ def test_openai_v1_completions_temperature(
         check_openai_stream_response(
             responses,
             is_chat_completion=False,
-            model=served_model,
+            model=served_model[0],
             object_str="text_completion",
             num_choices=1,
             finish_reason="length",
@@ -483,7 +484,7 @@ def test_openai_v1_completions_temperature(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_prompt_overlong(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
@@ -493,7 +494,7 @@ def test_openai_v1_completions_prompt_overlong(
     num_tokens = 17000
     prompt = [128] * num_tokens
     payload = {
-        "model": served_model,
+        "model": served_model[0],
         "prompt": prompt,
         "max_tokens": 256,
         "stream": stream,
@@ -516,7 +517,7 @@ def test_openai_v1_completions_prompt_overlong(
 
 
 def test_openai_v1_completions_unsupported_args(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -525,7 +526,7 @@ def test_openai_v1_completions_unsupported_args(
     # Right now "best_of" is unsupported.
     best_of = 2
     payload = {
-        "model": served_model,
+        "model": served_model[0],
         "prompt": "What is the meaning of life?",
         "max_tokens": 256,
         "best_of": best_of,
@@ -537,7 +538,7 @@ def test_openai_v1_completions_unsupported_args(
 
 
 def test_openai_v1_completions_request_cancellation(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -545,7 +546,7 @@ def test_openai_v1_completions_request_cancellation(
 
     # Use a large max_tokens and small timeout to force timeouts.
     payload = {
-        "model": served_model,
+        "model": served_model[0],
         "prompt": "What is the meaning of life?",
         "max_tokens": 2048,
         "stream": False,
@@ -564,7 +565,7 @@ def test_openai_v1_completions_request_cancellation(
 
     model_card = models[0]
     assert isinstance(model_card, dict)
-    assert model_card["id"] == served_model
+    assert model_card["id"] == served_model[0]
     assert model_card["object"] == "model"
     assert model_card["owned_by"] == "MLC-LLM"
 
@@ -596,7 +597,7 @@ CHAT_COMPLETION_MESSAGES = [
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("messages", CHAT_COMPLETION_MESSAGES)
 def test_openai_v1_chat_completions(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
     messages: List[Dict[str, str]],
@@ -605,7 +606,7 @@ def test_openai_v1_chat_completions(
     # defined in conftest.py.
 
     payload = {
-        "model": served_model,
+        "model": served_model[0],
         "messages": messages,
         "stream": stream,
     }
@@ -615,7 +616,7 @@ def test_openai_v1_chat_completions(
         check_openai_nonstream_response(
             response.json(),
             is_chat_completion=True,
-            model=served_model,
+            model=served_model[0],
             object_str="chat.completion",
             num_choices=1,
             finish_reason="stop",
@@ -629,7 +630,7 @@ def test_openai_v1_chat_completions(
         check_openai_stream_response(
             responses,
             is_chat_completion=True,
-            model=served_model,
+            model=served_model[0],
             object_str="chat.completion.chunk",
             num_choices=1,
             finish_reason="stop",
@@ -639,7 +640,7 @@ def test_openai_v1_chat_completions(
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("messages", CHAT_COMPLETION_MESSAGES)
 def test_openai_v1_chat_completions_openai_package(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
     messages: List[Dict[str, str]],
@@ -649,7 +650,7 @@ def test_openai_v1_chat_completions_openai_package(
 
     client = OpenAI(base_url=OPENAI_BASE_URL, api_key="None")
     response = client.chat.completions.create(
-        model=served_model,
+        model=served_model[0],
         messages=messages,
         stream=stream,
     )
@@ -657,7 +658,7 @@ def test_openai_v1_chat_completions_openai_package(
         check_openai_nonstream_response(
             response.model_dump(),
             is_chat_completion=True,
-            model=served_model,
+            model=served_model[0],
             object_str="chat.completion",
             num_choices=1,
             finish_reason="stop",
@@ -669,7 +670,7 @@ def test_openai_v1_chat_completions_openai_package(
         check_openai_stream_response(
             responses,
             is_chat_completion=True,
-            model=served_model,
+            model=served_model[0],
             object_str="chat.completion.chunk",
             num_choices=1,
             finish_reason="stop",
@@ -678,7 +679,7 @@ def test_openai_v1_chat_completions_openai_package(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_chat_completions_max_tokens(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
@@ -688,7 +689,7 @@ def test_openai_v1_chat_completions_max_tokens(
     messages = [{"role": "user", "content": "Write a novel with at least 500 words."}]
     max_tokens = 16
     payload = {
-        "model": served_model,
+        "model": served_model[0],
         "messages": messages,
         "stream": stream,
         "max_tokens": max_tokens,
@@ -699,7 +700,7 @@ def test_openai_v1_chat_completions_max_tokens(
         check_openai_nonstream_response(
             response.json(),
             is_chat_completion=True,
-            model=served_model,
+            model=served_model[0],
             object_str="chat.completion",
             num_choices=1,
             finish_reason="length",
@@ -714,7 +715,7 @@ def test_openai_v1_chat_completions_max_tokens(
         check_openai_stream_response(
             responses,
             is_chat_completion=True,
-            model=served_model,
+            model=served_model[0],
             object_str="chat.completion.chunk",
             num_choices=1,
             finish_reason="length",
@@ -723,7 +724,7 @@ def test_openai_v1_chat_completions_max_tokens(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_chat_completions_system_prompt_wrong_pos(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
 ):
@@ -739,7 +740,7 @@ def test_openai_v1_chat_completions_system_prompt_wrong_pos(
         },
     ]
     payload = {
-        "model": served_model,
+        "model": served_model[0],
         "messages": messages,
         "stream": stream,
     }
@@ -759,7 +760,7 @@ def test_openai_v1_chat_completions_system_prompt_wrong_pos(
 
 
 def test_openai_v1_chat_completions_unsupported_args(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -768,7 +769,7 @@ def test_openai_v1_chat_completions_unsupported_args(
     # Right now "tool_choice" is unsupported.
     tool_choice = "auto"
     payload = {
-        "model": served_model,
+        "model": served_model[0],
         "messages": CHAT_COMPLETION_MESSAGES[0],
         "tool_choice": tool_choice,
     }
@@ -779,24 +780,26 @@ def test_openai_v1_chat_completions_unsupported_args(
 
 
 def test_debug_dump_event_trace(
-    served_model: str,
+    served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
 ):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
     # We only check that the request does not fail.
-    payload = {"model": served_model}
+    payload = {"model": served_model[0]}
     response = requests.post(DEBUG_DUMP_EVENT_TRACE_URL, json=payload, timeout=60)
     assert response.status_code == HTTPStatus.OK
 
 
 if __name__ == "__main__":
-    MODEL = os.environ.get("MLC_SERVE_MODEL")
-    if MODEL is None:
-        MODEL = "Llama-2-7b-chat-hf-q0f16"
-        print(
-            'WARNING: Variable "MLC_SERVE_MODEL" not found in environment, '
-            f"fallback to use model {MODEL}, which requires 16GB of VRAM. "
-            "Changing to use a quantized model can reduce the VRAM requirements."
+    model_lib_path = os.environ.get("MLC_SERVE_MODEL_LIB")
+    if model_lib_path is None:
+        raise ValueError(
+            'Environment variable "MLC_SERVE_MODEL_LIB" not found. '
+            "Please set it to model lib compiled by MLC LLM "
+            "(e.g., `dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so`)."
         )
+    MODEL = (os.path.dirname(model_lib_path), model_lib_path)
 
     test_openai_v1_models(MODEL, None)
 

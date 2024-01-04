@@ -14,6 +14,8 @@
 
 #include <string>
 
+#include "../metadata/model.h"
+
 namespace mlc {
 namespace llm {
 namespace serve {
@@ -55,6 +57,8 @@ struct FunctionTable {
 
   TypedPackedFunc<PackedFunc(const std::string&)> mod_get_func;
   TypedPackedFunc<PackedFunc(const std::string&)> get_global_func;
+
+  ModelMetadata model_metadata_;
 
   PackedFunc embed_func_;
   PackedFunc prefill_func_;
