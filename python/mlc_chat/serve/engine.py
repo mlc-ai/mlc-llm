@@ -35,15 +35,14 @@ class ModelInfo:
         It can be "auto", "device_name" (e.g., "cuda") or
         "device_name:device_id" (e.g., "cuda:1").
 
-    model_lib_path : Optional[str]
-        The compiled library of the model.
-        When specified, it is a path to the model library,
-        e.g., "dist/prebuilt/lib/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
+    model_lib_path : str
+        The path to the compiled library of the model.
+        E.g., "dist/prebuilt/lib/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
     """
 
     model: str
+    model_lib_path: str
     device: Device = "auto"  # type: ignore
-    model_lib_path: Optional[str] = None
 
     def __post_init__(self):
         if isinstance(self.device, str):
