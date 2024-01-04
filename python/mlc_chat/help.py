@@ -102,6 +102,9 @@ This flag subjects to future refactoring.
 (Experimental) The number of stored sinks. Only supported on Mistral yet. By default,
 the number of sinks is 4. This flag subjects to future refactoring.
 """.strip(),
+    "max_batch_size": """
+The maximum allowed batch size set for batch prefill/decode function.
+""".strip(),
     """tensor_parallel_shards""": """
 Number of shards to split the model into in tensor parallelism multi-gpu inference.
 """.strip(),

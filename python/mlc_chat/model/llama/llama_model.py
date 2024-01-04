@@ -10,6 +10,7 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_chat import op as op_ext
+from mlc_chat.nn.kv_cache import FlashInferPagedKVCache, PagedKVCache
 from mlc_chat.support import logging
 from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
@@ -34,6 +35,7 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     num_key_value_heads: int = 0
     head_dim: int = 0
     tensor_parallel_shards: int = 1
+    max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -123,6 +125,7 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
             bias=False,
         )
         self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
+        # KV cache for single sequence
         self.k_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
         self.v_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
 
@@ -148,6 +151,17 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         # Step 4. Compute softmax(Q @ K^T / sqrt(d)) @ V
         output = op_ext.attention(q, k, v, casual_mask=attention_mask)
         # Step 5. Apply output projection
+        return self.o_proj(output)
+
+    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+        d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
+        b, s, _ = hidden_states.shape
+        # QKV Projection
+        qkv = self.qkv_proj(hidden_states)
+        qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
+        # Attention
+        q, k, v = op.split(qkv, indices_or_sections=[h_q, h_q + h_kv], axis=2)
+        output = op.reshape(paged_kv_cache.attention(layer_id, q, k, v), (b, s, h_q * d))
         return self.o_proj(output)
 
 
@@ -177,16 +191,25 @@ class LlamaDecoderLayer(nn.Module):
         _set_tp()
 
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
-        def _apply_residual(out, residual):
-            if self.tensor_parallel_shards > 1:
-                return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum")
-            return out + residual
-
         out = self.self_attn(self.input_layernorm(hidden_states), attention_mask, total_seq_len)
-        hidden_states = _apply_residual(out, residual=hidden_states)
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
-        hidden_states = _apply_residual(out, residual=hidden_states)
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
+
+    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+        out = self.self_attn.batch_forward(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
+        )
+        hidden_states = self._apply_residual(out, residual=hidden_states)
+        out = self.mlp(self.post_attention_layernorm(hidden_states))
+        hidden_states = self._apply_residual(out, residual=hidden_states)
+        return hidden_states
+
+    def _apply_residual(self, out, residual):
+        if self.tensor_parallel_shards > 1:
+            return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum")
+        return out + residual
 
 
 class LlamaModel(nn.Module):
@@ -199,22 +222,37 @@ class LlamaModel(nn.Module):
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.tensor_parallel_shards = config.tensor_parallel_shards
 
-    def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
+    def forward(self, input_ids: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
         if self.tensor_parallel_shards > 1:
-            inputs = op.ccl_broadcast_from_worker0(inputs)
-        hidden_states = self.embed_tokens(inputs)
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
+        hidden_states = self.embed_tokens(input_ids)
         for layer in self.layers:
             hidden_states = layer(hidden_states, attention_mask, total_seq_len)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
+    def batch_forward(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
+        if self.tensor_parallel_shards > 1:
+            input_embeds = op.ccl_broadcast_from_worker0(input_embeds)
+        hidden_states = input_embeds
+        for layer_id, layer in enumerate(self.layers):
+            hidden_states = layer.batch_forward(hidden_states, paged_kv_cache, layer_id)
+        hidden_states = self.norm(hidden_states)
+        return hidden_states
 
-class LlamaForCasualLM(nn.Module):
+
+class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: LlamaConfig):
         self.model = LlamaModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.num_hidden_layers = config.num_hidden_layers
+        self.num_attention_heads = config.num_attention_heads
+        self.num_key_value_heads = config.num_key_value_heads
+        self.head_dim = config.head_dim
+        self.hidden_size = config.hidden_size
         self.vocab_size = config.vocab_size
         self.rope_theta = config.position_embedding_base
+        self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):
@@ -222,21 +260,40 @@ class LlamaForCasualLM(nn.Module):
         if dtype is not None:
             self.dtype = dtype
 
-    def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
+    def forward(self, input_ids: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
         op_ext.configure()
 
         def _index(x: te.Tensor):  # x[:-1,:]
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-        hidden_states = self.model(inputs, total_seq_len, attention_mask)
+        hidden_states = self.model(input_ids, total_seq_len, attention_mask)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
 
-    def prefill(self, inputs: Tensor, total_seq_len: tir.Var):
+    def batch_forward(
+        self,
+        input_embeds: Tensor,
+        paged_kv_cache: PagedKVCache,
+        logit_positions: Optional[Tensor] = None,
+    ):
+        op_ext.configure()
+
+        hidden_states = self.model.batch_forward(input_embeds, paged_kv_cache)
+        if logit_positions is not None:
+            hidden_states = op.take(hidden_states, logit_positions, axis=1)
+        logits = self.lm_head(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits
+
+    def embed(self, input_ids: Tensor):
+        return self.model.embed_tokens(input_ids)
+
+    def prefill(self, input_ids: Tensor, total_seq_len: tir.Var):
         def _attention_mask(batch_size, seq_len, total_seq_len):
             return te.compute(
                 (batch_size, 1, seq_len, total_seq_len),
@@ -248,31 +305,68 @@ class LlamaForCasualLM(nn.Module):
                 name="attention_mask_prefill",
             )
 
-        batch_size, seq_len = inputs.shape
+        batch_size, seq_len = input_ids.shape
         attention_mask = op.tensor_expr_op(
             _attention_mask,
             name_hint="attention_mask_prefill",
             args=[batch_size, seq_len, total_seq_len],
         )
-        return self.forward(inputs, total_seq_len, attention_mask)
+        return self.forward(input_ids, total_seq_len, attention_mask)
 
-    def decode(self, inputs: Tensor, total_seq_len: tir.Var):
-        batch_size, seq_len = inputs.shape
+    def decode(self, input_ids: Tensor, total_seq_len: tir.Var):
+        batch_size, seq_len = input_ids.shape
         attention_mask = op.full(
             shape=[batch_size, 1, seq_len, total_seq_len],
             fill_value=tir.max_value(self.dtype),
             dtype=self.dtype,
         )
-        return self.forward(inputs, total_seq_len, attention_mask)
+        return self.forward(input_ids, total_seq_len, attention_mask)
+
+    def batch_prefill(
+        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+    ):
+        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
+        return logits, paged_kv_cache
+
+    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
+        logits = self.batch_forward(input_embeds, paged_kv_cache)
+        return logits, paged_kv_cache
 
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
-        return op.softmax(logits / temperature, axis=-1)
+        return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
+
+    def create_flashinfer_paged_kv_cache(
+        self, max_batch_size: tir.Var, max_total_seq_len: tir.Var, page_size: tir.Var
+    ) -> PagedKVCache:
+        num_qo_heads = self.num_attention_heads // self.tensor_parallel_shards
+        num_kv_heads = self.num_key_value_heads // self.tensor_parallel_shards
+        # Note: Right now we only have FlashInfer-based KV cache supported.
+        # TIR version will be introduced soon.
+        return FlashInferPagedKVCache.create(
+            max_batch_size=max_batch_size,
+            max_total_seq_len=max_total_seq_len,
+            page_size=page_size,
+            num_hidden_layers=self.num_hidden_layers,
+            num_attention_heads=num_qo_heads,
+            num_key_value_heads=num_kv_heads,
+            head_dim=self.head_dim,
+            rope_scale=1,
+            rope_theta=self.rope_theta,
+            dtype=self.dtype,
+        )
 
     def get_default_spec(self):
         batch_size = 1
         mod_spec = {
+            "embed": {
+                "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
             "prefill": {
-                "inputs": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
+                "input_ids": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
                 "total_seq_len": int,
                 "$": {
                     "param_mode": "packed",
@@ -280,16 +374,42 @@ class LlamaForCasualLM(nn.Module):
                 },
             },
             "decode": {
-                "inputs": nn.spec.Tensor([batch_size, 1], "int32"),
+                "input_ids": nn.spec.Tensor([batch_size, 1], "int32"),
                 "total_seq_len": int,
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "packed",
                 },
             },
+            "batch_prefill": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_decode": {
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
             "softmax_with_temperature": {
-                "logits": nn.spec.Tensor([1, 1, "vocab_size"], "float32"),
-                "temperature": nn.spec.Tensor([], "float32"),
+                "logits": nn.spec.Tensor(["batch_size", 1, self.vocab_size], "float32"),
+                "temperature": nn.spec.Tensor(["batch_size"], "float32"),
+                "$": {
+                    "param_mode": "none",
+                    "effect_mode": "none",
+                },
+            },
+            "create_flashinfer_paged_kv_cache": {
+                "max_batch_size": int,
+                "max_total_seq_len": int,
+                "page_size": int,
                 "$": {
                     "param_mode": "none",
                     "effect_mode": "none",
