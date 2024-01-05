@@ -483,6 +483,53 @@ def test_openai_v1_completions_temperature(
 
 
 @pytest.mark.parametrize("stream", [False, True])
+def test_openai_v1_completions_presence_frequency_penalty(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    prompt = "What's the meaning of life?"
+    max_tokens = 128
+    payload = {
+        "model": served_model[0],
+        "prompt": prompt,
+        "max_tokens": max_tokens,
+        "stream": stream,
+        "frequency_penalty": 2.0,
+        "presence_penalty": 2.0,
+    }
+
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    if not stream:
+        print(response.json())
+        check_openai_nonstream_response(
+            response.json(),
+            is_chat_completion=False,
+            model=served_model[0],
+            object_str="text_completion",
+            num_choices=1,
+            finish_reason="length",
+        )
+    else:
+        responses = []
+        for chunk in response.iter_lines(chunk_size=512):
+            if not chunk or chunk == b"data: [DONE]":
+                continue
+            responses.append(json.loads(chunk.decode("utf-8")[6:]))
+        check_openai_stream_response(
+            responses,
+            is_chat_completion=False,
+            model=served_model[0],
+            object_str="text_completion",
+            num_choices=1,
+            finish_reason="length",
+        )
+
+
+@pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_prompt_overlong(
     served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
@@ -816,6 +863,8 @@ if __name__ == "__main__":
     test_openai_v1_completions_stop_str(MODEL, None, stream=True)
     test_openai_v1_completions_temperature(MODEL, None, stream=False)
     test_openai_v1_completions_temperature(MODEL, None, stream=True)
+    test_openai_v1_completions_presence_frequency_penalty(MODEL, None, stream=False)
+    test_openai_v1_completions_presence_frequency_penalty(MODEL, None, stream=True)
     test_openai_v1_completions_prompt_overlong(MODEL, None, stream=False)
     test_openai_v1_completions_prompt_overlong(MODEL, None, stream=True)
     test_openai_v1_completions_unsupported_args(MODEL, None)

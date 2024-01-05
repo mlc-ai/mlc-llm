@@ -38,13 +38,9 @@ void ApplyRepetitionPenaltyOnCPU(NDArray logits, int token_offset, RequestModelS
   CHECK_EQ(logits->device.device_type, DLDeviceType::kDLCPU);
   int vocab_size = logits->shape[1];
 
-  // Collect appeared tokens.
-  std::unordered_set<int32_t> appeared_token_ids;
-  appeared_token_ids.insert(state->committed_tokens.begin(), state->committed_tokens.end());
-  appeared_token_ids.insert(state->draft_output_tokens.begin(), state->draft_output_tokens.end());
-
   float* logits_raw_data = static_cast<float*>(logits->data) + (token_offset * vocab_size);
-  for (int32_t token_id : appeared_token_ids) {
+  for (const auto& it : state->appeared_token_ids) {
+    int token_id = it.first;
     ICHECK_GE(token_id, 0);
     ICHECK_LT(token_id, vocab_size);
     if (logits_raw_data[token_id] <= 0) {
@@ -52,6 +48,34 @@ void ApplyRepetitionPenaltyOnCPU(NDArray logits, int token_offset, RequestModelS
     } else {
       logits_raw_data[token_id] /= repetition_penalty;
     }
+  }
+}
+
+/*!
+ * \brief In-place apply frequency and presence penalty to logits based on history tokens.
+ * \param logits The logits (a batch) to be in-place mutated.
+ * \param token_offset The offset of the token in the batch
+ * whose logits will be updated.
+ * \param state The request state that contains history tokens.
+ * \param frequency_penalty The value of frequency penalty.
+ * \param presence_penalty The value of presence penalty.
+ */
+void ApplyFrequencyAndPresencePenaltyOnCPU(NDArray logits, int token_offset,
+                                           RequestModelState state, double frequency_penalty,
+                                           double presence_penalty) {
+  // logits: (n, v)
+  CHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
+  CHECK_EQ(logits->ndim, 2);
+  CHECK_EQ(logits->device.device_type, DLDeviceType::kDLCPU);
+  int vocab_size = logits->shape[1];
+
+  float* logits_raw_data = static_cast<float*>(logits->data) + (token_offset * vocab_size);
+  for (const auto& it : state->appeared_token_ids) {
+    int token_id = it.first;
+    int occurrences = it.second;
+    ICHECK_GE(token_id, 0);
+    ICHECK_LT(token_id, vocab_size);
+    logits_raw_data[token_id] -= occurrences * frequency_penalty + presence_penalty;
   }
 }
 
@@ -343,10 +367,12 @@ class CPUSampler : public SamplerObj {
     if (flogits_to_probs_inplace_.defined()) {
       return false;
     }
+    // - Return false if any sampling param has frequency/presence penalty other than 0.0.
     // - Return false if any sampling param has repetition penalty other than 1.0.
     // - Return false if any sampling param has zero temperature.
     for (GenerationConfig cfg : generation_cfg) {
-      if (cfg->repetition_penalty != 1.0 || cfg->temperature < 1e-6) {
+      if (cfg->frequency_penalty != 0.0 || cfg->presence_penalty != 0.0 ||
+          cfg->repetition_penalty != 1.0 || cfg->temperature < 1e-6) {
         return false;
       }
     }
@@ -375,8 +401,17 @@ class CPUSampler : public SamplerObj {
 
     tvm::runtime::parallel_for_with_threading_backend(
         [this, &logits, &states, &generation_cfg](int i) {
-          // - Apply repetition penalty (inplace).
-          if (generation_cfg[i]->repetition_penalty != 1.0) {
+          // - Apply frequency/presence penalty or repetition penalty (inplace).
+          if (generation_cfg[i]->frequency_penalty != 0.0 ||
+              generation_cfg[i]->presence_penalty != 0.0) {
+            RECORD_EVENT(trace_recorder_, states[i]->request->id,
+                         "start frequency/presence penalty");
+            ApplyFrequencyAndPresencePenaltyOnCPU(logits, i, states[i],
+                                                  generation_cfg[i]->frequency_penalty,
+                                                  generation_cfg[i]->presence_penalty);
+            RECORD_EVENT(trace_recorder_, states[i]->request->id,
+                         "finish frequency/presence penalty");
+          } else if (generation_cfg[i]->repetition_penalty != 1.0) {
             RECORD_EVENT(trace_recorder_, states[i]->request->id, "start repetition penalty");
             ApplyRepetitionPenaltyOnCPU(logits, i, states[i],
                                         generation_cfg[i]->repetition_penalty);

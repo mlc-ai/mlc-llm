@@ -5,7 +5,7 @@ from typing import List, Optional
 
 
 @dataclass
-class GenerationConfig:
+class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     """The generation configuration dataclass.
 
     Parameters
@@ -17,8 +17,19 @@ class GenerationConfig:
         In sampling, only the most probable tokens with probabilities summed up to
         `top_k` are kept for sampling.
 
+    frequency_penalty : float
+        Positive values penalize new tokens based on their existing frequency
+        in the text so far, decreasing the model's likelihood to repeat the same
+        line verbatim.
+
+    presence_penalty : float
+        Positive values penalize new tokens based on whether they appear in the text
+        so far, increasing the model's likelihood to talk about new topics.
+
     repetition_penalty : float
         The penalty term that applies to logits to control token repetition in generation.
+        It will be suppressed when any of frequency_penalty and presence_penalty is
+        non-zero.
 
     max_tokens : Optional[int]
         The maximum number of generated tokens,
@@ -34,6 +45,8 @@ class GenerationConfig:
 
     temperature: float = 0.8
     top_p: float = 0.95
+    frequency_penalty: float = 0.0
+    presence_penalty: float = 0.0
     repetition_penalty: float = 1.0
 
     max_tokens: Optional[int] = 128

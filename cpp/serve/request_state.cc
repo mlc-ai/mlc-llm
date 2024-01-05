@@ -31,6 +31,11 @@ int RequestModelStateNode::GetInputLength() const {
   return total_length;
 }
 
+void RequestModelStateNode::CommitToken(int32_t token_id) {
+  committed_tokens.push_back(token_id);
+  appeared_token_ids[token_id] += 1;
+}
+
 TVM_REGISTER_OBJECT_TYPE(RequestStateNode);
 
 RequestState::RequestState(Request request, int num_models, int64_t internal_id) {
