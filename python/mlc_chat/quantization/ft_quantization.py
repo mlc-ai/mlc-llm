@@ -351,7 +351,7 @@ class FTQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribut
             The output tensor for the FasterTransformer quantized linear layer.
         """
         return faster_transformer_dequantize_gemm(
-            x, self.q_weight, self.q_scale, self.bias, self.config.group_size
+            x, self.q_weight, self.q_scale, self.bias, group_size=self.config.group_size
         )
 
     def to(self, dtype: Optional[str] = None) -> None:

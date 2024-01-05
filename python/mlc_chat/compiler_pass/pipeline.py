@@ -14,6 +14,7 @@ from .attach_to_ir_module import AttachAdditionalPrimFuncs, AttachVariableBounds
 from .clean_up_tir_attrs import CleanUpTIRAttrs
 from .cublas_dispatch import CublasDispatch
 from .estimate_memory_usage import AttachMetadataWithMemoryUsage
+from .fuse_dequantize_matmul_epilogue import FuseDequantizeEpilogue
 from .fuse_dequantize_matmul_ewise import FuseDequantizeMatmulEwise
 from .fuse_dequantize_take import FuseDequantizeTake
 from .fuse_dequantize_transpose import FuseDequantizeTranspose
@@ -81,6 +82,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
+                FuseDequantizeEpilogue(),
                 FuseDequantizeTranspose(skip_gemm=skip_gemm),
                 CublasDispatch() if cublas_gemm else tvm.transform.Sequential([]),
                 FuseTransposeMatmul(),
