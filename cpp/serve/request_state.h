@@ -74,9 +74,13 @@ class RequestModelStateNode : public Object {
    * choosing only to use one between them.
    */
   std::vector<float> draft_output_token_prob;
+  /*! \brief The appeared committed and draft tokens and their occurrence times. */
+  std::unordered_map<int32_t, int32_t> appeared_token_ids;
 
   /*! \brief Return the total length of the input data. */
   int GetInputLength() const;
+  /*! \brief Commit a new token into committed_tokens. Update appeared_token_ids. */
+  void CommitToken(int32_t token_id);
 
   static constexpr const char* _type_key = "mlc.serve.RequestModelState";
   static constexpr const bool _type_has_method_sequal_reduce = false;
