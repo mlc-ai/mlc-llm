@@ -6,7 +6,7 @@ https://github.com/lm-sys/FastChat/blob/main/fastchat/protocol/openai_api_protoc
 import time
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 ################ Commons ################
 
@@ -72,6 +72,14 @@ class CompletionRequest(BaseModel):
     temperature: float = 1.0
     top_p: float = 1.0
     user: Optional[str] = None
+
+    @field_validator("frequency_penalty", "presence_penalty")
+    @classmethod
+    def check_penalty_range(cls, penalty_value: float) -> float:
+        """Check if the penalty value is in range [-2, 2]."""
+        if penalty_value < -2 or penalty_value > 2:
+            raise ValueError("Penalty value should be in range [-2, 2].")
+        return penalty_value
 
 
 class CompletionResponseChoice(BaseModel):
@@ -197,8 +205,6 @@ def openai_api_get_unsupported_fields(
     """Get the unsupported fields in the request."""
     unsupported_field_default_values: List[Tuple[str, Any]] = [
         ("best_of", 1),
-        ("frequency_penalty", 0.0),
-        ("presence_penalty", 0.0),
         ("logit_bias", None),
         ("logprobs", None),
         ("n", 1),
@@ -220,7 +226,7 @@ def openai_api_get_generation_config(
 ) -> Dict[str, Any]:
     """Create the generation config from the given request."""
     kwargs: Dict[str, Any] = {}
-    arg_names = ["temperature", "top_p", "max_tokens"]
+    arg_names = ["temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"]
     for arg_name in arg_names:
         kwargs[arg_name] = getattr(request, arg_name)
     if kwargs["max_tokens"] is None:

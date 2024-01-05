@@ -97,7 +97,7 @@ class BatchDecodeActionObj : public EngineActionObj {
 
     // - Update the committed tokens of states.
     for (int i = 0; i < num_requests; ++i) {
-      mstates[i]->committed_tokens.push_back(next_tokens[i]);
+      mstates[i]->CommitToken(next_tokens[i]);
     }
 
     auto tend = std::chrono::high_resolution_clock::now();
