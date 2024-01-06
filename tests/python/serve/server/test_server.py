@@ -504,7 +504,6 @@ def test_openai_v1_completions_presence_frequency_penalty(
 
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
     if not stream:
-        print(response.json())
         check_openai_nonstream_response(
             response.json(),
             is_chat_completion=False,
@@ -527,6 +526,40 @@ def test_openai_v1_completions_presence_frequency_penalty(
             num_choices=1,
             finish_reason="length",
         )
+
+
+def test_openai_v1_completions_seed(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    prompt = "What's the meaning of life?"
+    max_tokens = 128
+    payload = {
+        "model": served_model[0],
+        "prompt": prompt,
+        "max_tokens": max_tokens,
+        "stream": False,
+        "seed": 233,
+    }
+
+    response1 = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    response2 = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    for response in [response1, response2]:
+        check_openai_nonstream_response(
+            response.json(),
+            is_chat_completion=False,
+            model=served_model[0],
+            object_str="text_completion",
+            num_choices=1,
+            finish_reason="length",
+        )
+
+    text1 = response1.json()["choices"][0]["text"]
+    text2 = response2.json()["choices"][0]["text"]
+    assert text1 == text2
 
 
 @pytest.mark.parametrize("stream", [False, True])
@@ -865,6 +898,7 @@ if __name__ == "__main__":
     test_openai_v1_completions_temperature(MODEL, None, stream=True)
     test_openai_v1_completions_presence_frequency_penalty(MODEL, None, stream=False)
     test_openai_v1_completions_presence_frequency_penalty(MODEL, None, stream=True)
+    test_openai_v1_completions_seed(MODEL, None)
     test_openai_v1_completions_prompt_overlong(MODEL, None, stream=False)
     test_openai_v1_completions_prompt_overlong(MODEL, None, stream=True)
     test_openai_v1_completions_unsupported_args(MODEL, None)

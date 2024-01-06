@@ -8,6 +8,8 @@
 
 #include <picojson.h>
 
+#include <random>
+
 #include "data.h"
 
 namespace mlc {
@@ -61,8 +63,16 @@ GenerationConfig::GenerationConfig(String config_json_str) {
       // model capability or hit any stop criteria.
       n->max_tokens = -1;
     }
-    CHECK(config["max_tokens"].is<int64_t>());
-    n->max_tokens = config["max_tokens"].get<int64_t>();
+  }
+  if (config.count("seed")) {
+    if (config["seed"].is<int64_t>()) {
+      n->seed = config["seed"].get<int64_t>();
+    } else {
+      CHECK(config["seed"].is<picojson::null>()) << "Unrecognized seed";
+      n->seed = std::random_device{}();
+    }
+  } else {
+    n->seed = std::random_device{}();
   }
   if (config.count("stop_strs")) {
     CHECK(config["stop_strs"].is<picojson::array>())
@@ -100,6 +110,7 @@ String GenerationConfigNode::AsJSONString() const {
   config["presence_penalty"] = picojson::value(this->presence_penalty);
   config["repetition_penalty"] = picojson::value(this->repetition_penalty);
   config["max_tokens"] = picojson::value(static_cast<int64_t>(this->max_tokens));
+  config["seed"] = picojson::value(static_cast<int64_t>(this->seed));
 
   picojson::array stop_strs_arr;
   for (String stop_str : this->stop_strs) {

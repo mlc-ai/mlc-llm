@@ -63,6 +63,7 @@ RequestState::RequestState(Request request, int num_models, int64_t internal_id)
   for (int i = 0; i < num_models; ++i) {
     mstates.push_back(RequestModelState(request, i, internal_id, request->inputs));
   }
+  n->rng = RandomGenerator(request->generation_cfg->seed);
   n->request = std::move(request);
   n->mstates = std::move(mstates);
   n->next_callback_token_pos = 0;
