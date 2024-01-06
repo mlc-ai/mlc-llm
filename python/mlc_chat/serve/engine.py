@@ -1,6 +1,7 @@
 """The MLC LLM Serving Engine."""
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import tvm
@@ -83,14 +84,28 @@ def _process_model_args(
             tokenizer_path = model_path
         if conv_template_name is None:
             conv_template_name = chat_config.conv_template
-        model_lib_path = _get_lib_module_path(
-            model=model.model,
-            model_path=model_path,
-            chat_config=chat_config,
-            model_lib_path=model.model_lib_path,
-            device_name=device.MASK2STR[device.device_type],
-            config_file_path=config_file_path,
-        )
+        # Try look up model library, and do JIT compile if model library not found.
+        try:
+            model_lib_path = _get_lib_module_path(
+                model=model.model,
+                model_path=model_path,
+                chat_config=chat_config,
+                model_lib_path=model.model_lib_path,
+                device_name=device.MASK2STR[device.device_type],
+                config_file_path=config_file_path,
+            )
+        except FileNotFoundError:
+            from mlc_chat.interface import (  # pylint: disable=import-outside-toplevel
+                jit,
+            )
+
+            model_lib_path = str(
+                jit.jit(
+                    model_path=Path(model_path),
+                    chat_config=asdict(chat_config),
+                    device=device,
+                )
+            )
         return [model_lib_path, model_path, device.device_type, device.device_id]
 
     if isinstance(models, list):
