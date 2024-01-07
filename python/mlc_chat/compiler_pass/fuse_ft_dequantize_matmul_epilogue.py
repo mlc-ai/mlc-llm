@@ -9,8 +9,8 @@ from tvm.relax.dpl.pattern import is_op, wildcard
 
 
 @tvm.transform.module_pass(opt_level=0, name="FuseDequantizeEpilogue")
-class FuseDequantizeEpilogue:  # pylint: disable=too-few-public-methods
-    """A compiler pass that fuses dequantize matmul + epilogue."""
+class FuseFTDequantizeEpilogue:  # pylint: disable=too-few-public-methods
+    """A compiler pass that fuses FasterTransformer dequantize matmul + epilogue."""
 
     def transform_module(
         self,
