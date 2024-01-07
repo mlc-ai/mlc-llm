@@ -20,6 +20,7 @@ from .fuse_dequantize_transpose import FuseDequantizeTranspose
 from .fuse_ft_dequantize_matmul_epilogue import FuseFTDequantizeEpilogue
 from .fuse_transpose_matmul import FuseTransposeMatmul
 from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
+from .prune_relax_func import PruneRelaxFunc
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ class _DebugDump:  # pylint: disable=too-few-public-methods
 
 @register_pipeline("mlc_llm")
 def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
+    flashinfer: bool = False,
     cublas_gemm: bool = False,
     variable_bounds: Dict[str, int] = None,
     additional_tirs: Dict[str, tvm.tir.PrimFunc] = None,
@@ -75,7 +77,8 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
         seq = tvm.transform.Sequential(
             [
-                # Phase 0. Add additional information for compilation
+                # Phase 0. Add additional information for compilation and remove unused Relax func
+                PruneRelaxFunc(flashinfer=flashinfer),
                 AttachVariableBounds(variable_bounds),
                 AttachAdditionalPrimFuncs(additional_tirs),
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
