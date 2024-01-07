@@ -17,6 +17,7 @@ from .estimate_memory_usage import AttachMetadataWithMemoryUsage
 from .fuse_dequantize_matmul_ewise import FuseDequantizeMatmulEwise
 from .fuse_dequantize_take import FuseDequantizeTake
 from .fuse_dequantize_transpose import FuseDequantizeTranspose
+from .fuse_ft_dequantize_matmul_epilogue import FuseFTDequantizeEpilogue
 from .fuse_transpose_matmul import FuseTransposeMatmul
 from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
 
@@ -63,7 +64,6 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
     additional_tirs: Dict[str, tvm.tir.PrimFunc] = None,
     metadata: Dict[str, Any] = None,
     ext_mods: List[nn.ExternModule] = None,
-    skip_gemm: bool = False,
     debug_dump: Optional[Path] = None,
 ):
     variable_bounds = variable_bounds or {}
@@ -81,7 +81,8 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
-                FuseDequantizeTranspose(skip_gemm=skip_gemm),
+                FuseFTDequantizeEpilogue(),
+                FuseDequantizeTranspose(),
                 CublasDispatch() if cublas_gemm else tvm.transform.Sequential([]),
                 FuseTransposeMatmul(),
                 _DebugDump("debug-phase1.py", debug_dump, show_meta=False),

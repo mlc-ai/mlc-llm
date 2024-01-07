@@ -10,12 +10,9 @@ from tvm.relax.expr_functor import PyExprMutator, mutator
 class FuseDequantizeTranspose:  # pylint: disable=too-few-public-methods
     """A compiler pass that fuses transpose + dequantize."""
 
-    def __init__(self, skip_gemm: bool) -> None:
-        self.skip_gemm = skip_gemm
-
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
-        return _DequantizeTransposeFuser(mod, skip_gemm=self.skip_gemm).transform()
+        return _DequantizeTransposeFuser(mod).transform()
 
 
 @mutator
@@ -23,11 +20,9 @@ class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-meth
     def __init__(
         self,
         mod: IRModule,
-        skip_gemm: bool,
     ):
         super().__init__(mod)
         self.mod = mod
-        self.skip_gemm = skip_gemm
 
     def transform(self) -> IRModule:
         """Entry point"""
@@ -46,7 +41,7 @@ class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-meth
         if call.op != tvm.ir.Op.get("relax.matmul"):
             return call
         # Do not fuse dequantize-transpose for GeMM
-        if self.skip_gemm and (
+        if (
             call.args[0].struct_info.ndim < 2
             or not isinstance(call.args[0].struct_info.shape[-2], tir.IntImm)
             or call.args[0].struct_info.shape[-2].value != 1

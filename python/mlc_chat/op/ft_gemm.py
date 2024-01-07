@@ -7,11 +7,12 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import op
 
 
-def faster_transformer_dequantize_gemm(
+def faster_transformer_dequantize_gemm(  # pylint: disable=too-many-arguments
     x: nn.Tensor,
     weight: nn.Tensor,
     scale: nn.Tensor,
     bias: Optional[nn.Tensor] = None,
+    activation: Optional[str] = None,
     group_size: Optional[int] = None,
 ):
     """
@@ -46,6 +47,14 @@ def faster_transformer_dequantize_gemm(
         "Reduction dimension mismatched between x and weight, "
         f"{x.shape[-1]} vs {weight.shape[0]}."
     )
+    assert activation in [
+        None,
+        "relu",
+        "gelu",
+        "silu",
+        "identity",
+    ], "Supported activations are [None, 'identity', 'gelu', 'silu', 'relu']."
+    activation = activation if activation else "identity"
     m = reduce(operator.mul, x.shape[:-1], 1)
     k = x.shape[-1]
     n = scale.shape[1]
@@ -62,11 +71,22 @@ def faster_transformer_dequantize_gemm(
         )
         return op.extern(
             name="fastertransformer.gemm_fp16_int_bias",
-            args=[x, weight, scale, bias, m, n, k, group_size, bias_stride],
+            args=[
+                x,
+                weight,
+                scale,
+                bias,
+                activation,
+                m,
+                n,
+                k,
+                group_size,
+                bias_stride,
+            ],
             out=nn.Tensor.placeholder((*x.shape[:-1], scale.shape[1]), dtype="float16"),
         )
     return op.extern(
         name="fastertransformer.gemm_fp16_int",
-        args=[x, weight, scale, m, n, k, group_size],
+        args=[x, weight, scale, activation, m, n, k, group_size],
         out=nn.Tensor.placeholder((*x.shape[:-1], scale.shape[1]), dtype="float16"),
     )
