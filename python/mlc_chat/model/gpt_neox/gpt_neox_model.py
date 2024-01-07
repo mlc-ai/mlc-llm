@@ -229,11 +229,9 @@ class GPTNeoXLayer(nn.Module):
                 - (self.tensor_parallel_shards - 1) * self.attention.dense.bias
             )
             mlp_input = self.post_attention_layernorm(attn_output)
-            # with tp.shard_bias(self.mlp.dense_4h_to_h.bias, self.tensor_parallel_shards):
-            #     mlp_output = self.mlp(mlp_input)
-            mlp_output = self.mlp(mlp_input) - (
-                self.tensor_parallel_shards - 1
-            ) * self.mlp.dense_4h_to_h.bias.astype(dtype)
+            with tp.shard_bias(self.mlp.dense_4h_to_h.bias, self.tensor_parallel_shards):
+                mlp_output = self.mlp(mlp_input)
+            mlp_output = self.mlp(mlp_input)
             hidden_states = _apply_residual(mlp_output.astype(dtype), attn_output)
         return hidden_states
 
