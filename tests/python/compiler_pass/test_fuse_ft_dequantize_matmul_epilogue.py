@@ -4,8 +4,8 @@ from tvm.ir import assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import relax as R
 
-from mlc_chat.compiler_pass.fuse_dequantize_matmul_epilogue import (
-    FuseDequantizeEpilogue,
+from mlc_chat.compiler_pass.fuse_ft_dequantize_matmul_epilogue import (
+    FuseFTDequantizeEpilogue,
 )
 
 
@@ -67,7 +67,7 @@ def test_fuse_bias():
                 R.output(lv2)
             return lv2
 
-    seq = tvm.transform.Sequential([FuseDequantizeEpilogue()])
+    seq = tvm.transform.Sequential([FuseFTDequantizeEpilogue()])
     mod = seq(Before)
     assert_structural_equal(mod, After)
 
@@ -126,7 +126,7 @@ def test_fuse_activation():
                 R.output(lv2)
             return lv2
 
-    seq = tvm.transform.Sequential([FuseDequantizeEpilogue()])
+    seq = tvm.transform.Sequential([FuseFTDequantizeEpilogue()])
     mod = seq(Before)
     assert_structural_equal(mod, After)
 
@@ -190,7 +190,7 @@ def test_fuse_bias_activation():
                 R.output(lv2)
             return lv2
 
-    seq = tvm.transform.Sequential([FuseDequantizeEpilogue()])
+    seq = tvm.transform.Sequential([FuseFTDequantizeEpilogue()])
     mod = seq(Before)
     assert_structural_equal(mod, After)
 
@@ -259,7 +259,7 @@ def test_fuse_residual_binary():
                 R.output(lv2)
             return lv2
 
-    seq = tvm.transform.Sequential([FuseDequantizeEpilogue()])
+    seq = tvm.transform.Sequential([FuseFTDequantizeEpilogue()])
     mod = seq(Before)
     assert_structural_equal(mod, After)
 
@@ -329,7 +329,7 @@ def test_fuse_residual_unary():
                 R.output(lv2)
             return lv2
 
-    seq = tvm.transform.Sequential([FuseDequantizeEpilogue()])
+    seq = tvm.transform.Sequential([FuseFTDequantizeEpilogue()])
     mod = seq(Before)
     assert_structural_equal(mod, After)
 

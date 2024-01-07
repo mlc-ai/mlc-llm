@@ -14,10 +14,10 @@ from .attach_to_ir_module import AttachAdditionalPrimFuncs, AttachVariableBounds
 from .clean_up_tir_attrs import CleanUpTIRAttrs
 from .cublas_dispatch import CublasDispatch
 from .estimate_memory_usage import AttachMetadataWithMemoryUsage
-from .fuse_ft_dequantize_matmul_epilogue import FuseFTDequantizeEpilogue
 from .fuse_dequantize_matmul_ewise import FuseDequantizeMatmulEwise
 from .fuse_dequantize_take import FuseDequantizeTake
 from .fuse_dequantize_transpose import FuseDequantizeTranspose
+from .fuse_ft_dequantize_matmul_epilogue import FuseFTDequantizeEpilogue
 from .fuse_transpose_matmul import FuseTransposeMatmul
 from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
 
