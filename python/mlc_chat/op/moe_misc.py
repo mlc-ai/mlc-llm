@@ -186,7 +186,7 @@ def moe_cumsum(expert_indices: Tensor, num_local_experts: int) -> Tensor:
         .permute_dims(1, 0)
         .reshape(batch_size * num_local_experts)
     )
-    with Target(
+    with Target.current(allow_none=True) or Target(
         {
             "kind": "cuda",
             "max_num_threads": 1024,
