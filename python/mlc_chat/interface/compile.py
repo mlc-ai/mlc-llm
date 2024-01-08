@@ -166,6 +166,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             args,
             pipeline=relax.get_pipeline(  # type: ignore
                 "mlc_llm",
+                flashinfer=args.opt.flashinfer,
                 cublas_gemm=args.opt.cublas_gemm,
                 variable_bounds=variable_bounds,
                 additional_tirs=additional_tirs,
