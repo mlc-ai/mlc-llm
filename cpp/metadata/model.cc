@@ -23,8 +23,9 @@ ModelMetadata::Param::Preproc ModelMetadata::Param::Preproc::FromJSON(const pico
 ModelMetadata::Param ModelMetadata::Param::FromJSON(const picojson::object& param) {
   Param result;
   result.name = json::Lookup<std::string>(param, "name");
-  result.shape = json::Lookup<ShapeTuple>(param, "shape");
   result.dtype = json::Lookup<DataType>(param, "dtype");
+  // A shape being `-1` means that it is dynamic
+  result.shape = json::Lookup<ShapeTuple>(param, "shape");
   picojson::array preprocs = json::Lookup<picojson::array>(param, "preprocs");
   result.preprocs.reserve(preprocs.size());
   for (int i = 0; i < preprocs.size(); i++) {

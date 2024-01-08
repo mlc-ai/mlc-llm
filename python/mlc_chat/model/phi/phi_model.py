@@ -248,7 +248,7 @@ class PhiCausalLMHead(nn.Module):
         super().__init__()
 
         self.ln = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
-        self.linear = nn.Linear(config.n_embd, config.vocab_size)
+        self.linear = nn.Linear(config.n_embd, "vocab_size")
 
     def forward(self, hidden_states: Tensor):
         hidden_states = self.ln(hidden_states)
@@ -262,7 +262,7 @@ class PhiCausalLMHead(nn.Module):
 class PhiModel(nn.Module):
     def __init__(self, config: PhiConfig) -> None:
         super().__init__()
-        self.embd = nn.Embedding(config.vocab_size, config.n_embd)
+        self.embd = nn.Embedding("vocab_size", config.n_embd)
         self.h = nn.ModuleList([PhiParallelBlock(config) for i in range(config.n_layer)])
 
     def forward(self, input_ids: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):

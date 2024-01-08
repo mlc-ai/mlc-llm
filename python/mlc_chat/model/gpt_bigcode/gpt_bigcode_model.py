@@ -165,7 +165,7 @@ class GPTBigCodeBlock(nn.Module):
 class GPTBigCodeModel(nn.Module):
     def __init__(self, config: GPTBigCodeConfig):
         assert config.n_embd % config.n_head == 0
-        self.wte = nn.Embedding(config.vocab_size, config.n_embd)
+        self.wte = nn.Embedding("vocab_size", config.n_embd)
         self.wpe = nn.Embedding(config.n_positions, config.n_embd)
         self.h = nn.ModuleList([GPTBigCodeBlock(config) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
@@ -206,8 +206,7 @@ class GPTBigCodeModel(nn.Module):
 class GPTBigCodeForCausalLM(nn.Module):
     def __init__(self, config: GPTBigCodeConfig):
         self.transformer = GPTBigCodeModel(config)
-        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
-        self.vocab_size = config.vocab_size
+        self.lm_head = nn.Linear(config.n_embd, "vocab_size", bias=False)
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):

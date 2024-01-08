@@ -235,7 +235,7 @@ class GPTNeoXLayer(nn.Module):
 
 class GPTNeoXModel(nn.Module):
     def __init__(self, config: GPTNeoXConfig):
-        self.embed_in = nn.Embedding(num=config.vocab_size, dim=config.hidden_size)
+        self.embed_in = nn.Embedding(num="vocab_size", dim=config.hidden_size)
         self.layers = nn.ModuleList([GPTNeoXLayer(config) for _ in range(config.num_hidden_layers)])
         self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -256,7 +256,7 @@ class GPTNeoXForCausalLM(nn.Module):
         self.gpt_neox = GPTNeoXModel(config)
         self.embed_out = nn.Linear(
             in_features=config.hidden_size,
-            out_features=config.vocab_size,
+            out_features="vocab_size",
             bias=False,
             dtype="float32",
         )

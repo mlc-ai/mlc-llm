@@ -173,6 +173,8 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
             for name, param in load_func(path):
                 result[name] = param
                 self.stats.mem_add(param.nbytes)
+                if name not in self.extern_param_map.unused_params:
+                    self.stats.total_param_num += param.size
             self.cached_files[path] = result
 
     def _unload_file(self, path: Path) -> None:
