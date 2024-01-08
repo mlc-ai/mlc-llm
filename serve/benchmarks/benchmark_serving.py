@@ -107,7 +107,11 @@ async def send_request(
                 async for chunk, _ in response.content.iter_chunks():
                     chunks.append(chunk)
             output = b"".join(chunks).decode("utf-8")
-            output = json.loads(output)
+            try:
+                output = json.loads(output)
+            except:
+                print(f"Cannot convert response to json. Returned response: '{output}', original prompt: {prompt}")
+                return
 
             # Re-send the request if it failed.
             if "error" not in output:
