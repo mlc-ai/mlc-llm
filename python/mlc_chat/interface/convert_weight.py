@@ -51,7 +51,10 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
 
 
 def _calc_total_params(model: nn.Module) -> int:
-    _, named_params, _ = model.export_tvm(spec=model.get_default_spec(), allow_extern=True)
+    _, named_params, _ = model.export_tvm(  # type: ignore[misc]
+        spec=model.get_default_spec(),  # type: ignore[attr-defined]
+        allow_extern=True,
+    )
     total_params = 0
     for _, param in named_params:
         total_params += math.prod(param.shape)

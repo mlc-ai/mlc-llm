@@ -10,7 +10,7 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_chat import op as op_ext
-from mlc_chat.nn.kv_cache import FlashInferPagedKVCache, PagedKVCache
+from mlc_chat.nn import FlashInferPagedKVCache, PagedKVCache
 from mlc_chat.support import logging
 from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
@@ -342,7 +342,7 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         num_kv_heads = self.num_key_value_heads // self.tensor_parallel_shards
         # Note: Right now we only have FlashInfer-based KV cache supported.
         # TIR version will be introduced soon.
-        return FlashInferPagedKVCache.create(
+        return FlashInferPagedKVCache(
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             page_size=page_size,

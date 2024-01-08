@@ -12,6 +12,7 @@ from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quan
 from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
+from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
 from .phi import phi_loader, phi_model, phi_quantization
 
 ModelConfig = Any
@@ -97,6 +98,19 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": gpt2_quantization.no_quant,
             "group-quant": gpt2_quantization.group_quant,
+        },
+    ),
+    "mixtral": Model(
+        name="mixtral",
+        model=mixtral_model.MixtralForCasualLM,
+        config=mixtral_model.MixtralConfig,
+        source={
+            "huggingface-torch": mixtral_loader.huggingface,
+            "huggingface-safetensor": mixtral_loader.huggingface,
+        },
+        quantize={
+            "no-quant": mixtral_quantization.no_quant,
+            "group-quant": mixtral_quantization.group_quant,
         },
     ),
     "gpt_neox": Model(

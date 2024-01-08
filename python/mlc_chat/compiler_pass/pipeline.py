@@ -59,7 +59,7 @@ class _DebugDump:  # pylint: disable=too-few-public-methods
 
 @register_pipeline("mlc_llm")
 def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
-    cublas_gemm: bool,
+    cublas_gemm: bool = False,
     variable_bounds: Dict[str, int] = None,
     additional_tirs: Dict[str, tvm.tir.PrimFunc] = None,
     metadata: Dict[str, Any] = None,

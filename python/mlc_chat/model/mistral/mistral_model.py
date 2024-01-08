@@ -358,7 +358,7 @@ class MistralModel(nn.Module):
             [MistralDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
         )
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
-        self.tensor_parallel_shards = config.tensor_parallel_shards > 1
+        self.tensor_parallel_shards = config.tensor_parallel_shards
 
     def forward(  # pylint: disable=too-many-arguments
         self,
