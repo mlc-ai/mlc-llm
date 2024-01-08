@@ -7,8 +7,11 @@ import random
 import argparse
 
 
-def get_default_mlc_serve_argparser(description=""):
-    parser = argparse.ArgumentParser(description=description)
+def get_default_mlc_serve_argparser(description="", allow_override=False):
+    if allow_override:
+        parser = argparse.ArgumentParser(description=description, conflict_handler="resolve")
+    else:
+        parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--local-id", type=str, required=True)
     parser.add_argument("--artifact-path", type=str, default="dist")
     parser.add_argument("--use-sync-engine", action="store_true")

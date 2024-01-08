@@ -18,9 +18,7 @@ from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
 from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModelModule
 from mlc_serve.utils import get_default_mlc_serve_argparser, postproc_mlc_serve_args
 
-# Temperature needs to be set based on the user arguments.
-SAMPLER_SETTING = {"ignore_eos": True, "temperature": -1}
-
+SAMPLER_SETTING = {"ignore_eos": True}
 
 def sample_requests(
     dataset_path: str,
@@ -75,7 +73,8 @@ def run_mii(requests: List[Tuple[str, int, int]], args) -> float:
         prompts,
         max_new_tokens=args.max_output_tokens,
         ignore_eos=SAMPLER_SETTING["ignore_eos"],
-        temperature=SAMPLER_SETTING["temperature"],
+        # mii does not support temperature of zero.
+        temperature=(0.000001 if random.random() <= args.greedy_sampling_ratio else 1.0),
     )
     end = time.perf_counter()
     return end - start
@@ -102,7 +101,7 @@ def run_vllm(requests: List[Tuple[str, int, int]], args) -> float:
             sampling_params=SamplingParams(
                 n=args.num_sequences_to_sample,
                 use_beam_search=False,
-                temperature=SAMPLER_SETTING["temperature"],
+                temperature=(0.0 if random.random() <= args.greedy_sampling_ratio else 1.0),
                 ignore_eos=SAMPLER_SETTING["ignore_eos"],
                 max_tokens=args.max_output_tokens,
             ),
@@ -122,7 +121,7 @@ def run_mlc(engine, requests, args) -> float:
                     request_id=str(i),
                     messages=[ChatMessage(role="user", content=prompt)],
                     sampling_params=SamplingParams(
-                        temperature=SAMPLER_SETTING["temperature"]
+                        temperature=(0.0 if random.random() <= args.greedy_sampling_ratio else 1.0)
                     ),
                     stopping_criteria=StoppingCriteria(
                         max_tokens=args.max_output_tokens, stop_sequences=None
@@ -233,7 +232,7 @@ def main(args: argparse.Namespace):
 
 
 if __name__ == "__main__":
-    parser = get_default_mlc_serve_argparser(description="Benchmark the throughput.")
+    parser = get_default_mlc_serve_argparser(description="Benchmark the throughput.", allow_override=True)
     parser.add_argument(
         "--backend", type=str, default="mlc-serve", choices=["mlc-serve", "vllm", "mii"]
     )
@@ -259,6 +258,8 @@ if __name__ == "__main__":
         help="Append the current result to the given path if provided.",
     )
     # flags for vllm and deepspeed mii
+    # override local-id to make it non-required as it is only for mlc-serve
+    parser.add_argument("--local-id", type=str, required=False)
     parser.add_argument(
         "--model",
         type=str,
@@ -290,9 +291,8 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    args = postproc_mlc_serve_args(args)
+    if args.backend == "mlc-serve":
+        args = postproc_mlc_serve_args(args)
 
     assert args.greedy_sampling_ratio >= 0.0 and  args.greedy_sampling_ratio <= 1.0
-    SAMPLER_SETTING["temperature"] = (0.0 if random.random() <= args.greedy_sampling_ratio else 1.0)
-
     main(args)
