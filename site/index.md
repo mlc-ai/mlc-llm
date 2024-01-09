@@ -20,9 +20,11 @@ Please visit [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html)
 ### iOS
 
 Our iOS app, MLCChat, is available on [App Store](https://apps.apple.com/us/app/mlc-chat/id6448482937) for iPhone and iPad.
+You can try out the [Testflight app](https://testflight.apple.com/join/57zd7oxa) that sometimes contains beta release of latest models.
 This app is tested on iPhone 15 Pro Max, iPhone 14 Pro Max, iPhone 14 Pro and iPhone 12 Pro.
 Besides the [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html) page,
 [documentation](https://llm.mlc.ai/docs/deploy/ios.html) is available for building iOS apps with MLC LLM.
+
 
 <p align="center">
 <img src="gif/ios-demo.gif" height="700">

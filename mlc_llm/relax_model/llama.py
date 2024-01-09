@@ -726,9 +726,7 @@ class LlamaModelBase(nn.Module):
 
 
 class LlamaModelForSingleSequence(LlamaModelBase):
-    def __init__(
-        self, config: LlamaConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool = False
-    ):
+    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool = False):
         super().__init__(config, vocab_size_var, sep_embed, enable_batching=False)
 
     def _prepare_decoder_attention_mask(self, input_shape, src_len, dtype):

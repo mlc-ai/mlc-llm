@@ -1,5 +1,4 @@
 """Automatic detection of the device available on the local machine."""
-import logging
 import subprocess
 import sys
 from typing import Dict, Optional
@@ -7,6 +6,7 @@ from typing import Dict, Optional
 import tvm
 from tvm.runtime import Device
 
+from . import logging
 from .style import bold, green, red
 
 FOUND = green("Found")
@@ -30,7 +30,7 @@ def detect_device(device_hint: str) -> Optional[Device]:
         if device is None:
             logger.info("%s: No available device detected", NOT_FOUND)
             return None
-        logger.info("Using device: %s", bold(_device_to_str(device)))
+        logger.info("Using device: %s", bold(device2str(device)))
         return device
     try:
         device = tvm.device(device_hint)
@@ -41,13 +41,14 @@ def detect_device(device_hint: str) -> Optional[Device]:
     return device
 
 
-def _device_to_str(device: Device) -> str:
+def device2str(device: Device) -> str:
+    """Convert a TVM device object to string."""
     return f"{tvm.runtime.Device.MASK2STR[device.device_type]}:{device.device_id}"
 
 
 def _device_exists(device: Device) -> bool:
     device_type = tvm.runtime.Device.MASK2STR[device.device_type]
-    device_str = _device_to_str(device)
+    device_str = device2str(device)
     if device_str in _RESULT_CACHE:
         return _RESULT_CACHE[device_str]
     cmd = [

@@ -62,5 +62,17 @@ class ConfigBase:
         with source.open("r", encoding="utf-8") as in_file:
             return cls.from_dict(json.load(in_file))
 
+    def asdict(self):
+        """Convert the config object to a dictionary.
+
+        Returns
+        -------
+        Dict[str, Any]
+            A dictionary representation of the config object.
+        """
+        result = dataclasses.asdict(self)
+        result.pop("kwargs")
+        return result
+
 
 __all__ = ["ConfigBase"]

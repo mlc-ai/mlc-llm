@@ -114,6 +114,10 @@ class BuildArgs:
         The chunk size during prefilling. By default, the chunk size is the same as
         max sequence length. Currently only useful when compiling Mistral.
 
+    attention_sink_size: int
+        Number of attention sinks (https://arxiv.org/abs/2309.17453).
+        Only supported on mistral yet.
+
     cc_path: str
         ``/path/to/cross_compiler_path``; currently only used for cross-compile
         for nvidia/jetson device.
@@ -372,6 +376,15 @@ class BuildArgs:
             ),
         },
     )
+    attention_sink_size: int = field(
+        default=0,
+        metadata={
+            "help": (
+                "The number of attention sinks to keep in cache."
+                "Only supported on mistral yet."
+            ),
+        },
+    )
     pdb: bool = field(
         default=False,
         metadata={
@@ -389,11 +402,6 @@ class BuildArgs:
             "action": "store_true",
         },
     )
-
-    @property
-    def convert_weight_only(self):
-        """A backwards-compatibility helper"""
-        return self.convert_weights_only
 
     @property
     def convert_weight_only(self):
@@ -746,6 +754,10 @@ def dump_mlc_chat_config(
     if args.sliding_window != -1:
         # Do not add max window size if use sliding window
         config["sliding_window"] = args.sliding_window
+
+        # only use sinks if sliding window enabled
+        if args.attention_sink_size > 0:
+            config["attention_sink_size"] = args.attention_sink_size
     else:
         config["max_window_size"] = max_window_size
 

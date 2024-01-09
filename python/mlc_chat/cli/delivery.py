@@ -2,10 +2,9 @@
 import argparse
 import dataclasses
 import json
-import logging
-import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple, Union
@@ -13,31 +12,40 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 from huggingface_hub import HfApi  # pylint: disable=import-error
 from huggingface_hub.utils import HfHubHTTPError  # pylint: disable=import-error
 
-from ..support.argparse import ArgumentParser
-from ..support.download import git_clone
-from ..support.style import bold, green, red
+from mlc_chat.support import logging
+from mlc_chat.support.argparse import ArgumentParser
+from mlc_chat.support.constants import MLC_TEMP_DIR
+from mlc_chat.support.download import git_clone
+from mlc_chat.support.style import bold, green, red
 
-logging.basicConfig(
-    level=logging.INFO,
-    style="{",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    format="[{asctime}] {levelname} {filename}:{lineno}: {message}",
-)
-
+logging.enable_logging()
 logger = logging.getLogger(__name__)
-MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
+
+GEN_CONFIG_OPTIONAL_ARGS = [
+    "context_window_size",
+    "sliding_window_size",
+    "prefill_chunk_size",
+    "attention_sink_size",
+    "tensor_parallel_shards",
+]
 
 
 @dataclasses.dataclass
-class ModelInfo:
+class ModelInfo:  # pylint: disable=too-many-instance-attributes
     """Necessary information for the model delivery"""
 
     model_id: str
     model: Path
     conv_template: str
-    context_window_size: int
     quantization: str
     source_format: str = "auto"
+    # If unspecified in CLI, remains to be None and will not be
+    # passed to `gen_config` or `convert_weight`
+    context_window_size: int = None
+    sliding_window_size: int = None
+    prefill_chunk_size: int = None
+    attention_sink_size: int = None
+    tensor_parallel_shards: int = None
 
 
 class DeferredScope:
@@ -101,26 +109,34 @@ def _run_quantization(
         with log_path.open("a", encoding="utf-8") as log_file:
             assert isinstance(model_info.model, Path)
             logger.info("[MLC] Processing in directory: %s", output_dir)
+            # Required arguments
             cmd = [
+                sys.executable,
+                "-m",
                 "mlc_chat",
-                "gen_mlc_chat_config",
-                "--model",
+                "gen_config",
                 str(model_info.model),
                 "--quantization",
                 model_info.quantization,
                 "--conv-template",
                 model_info.conv_template,
-                "--context-window-size",
-                str(model_info.context_window_size),
                 "--output",
                 output_dir,
             ]
+            # Optional arguments
+            for optional_arg in GEN_CONFIG_OPTIONAL_ARGS:
+                optional_arg_val = getattr(model_info, optional_arg, None)
+                if optional_arg_val is not None:
+                    # e.g. --context-window-size 4096
+                    cmd += ["--" + optional_arg.replace("_", "-"), str(optional_arg_val)]
+
             print(" ".join(cmd), file=log_file, flush=True)
             subprocess.run(cmd, check=True, stdout=log_file, stderr=subprocess.STDOUT)
             cmd = [
+                sys.executable,
+                "-m",
                 "mlc_chat",
                 "convert_weight",
-                "--model",
                 str(model_info.model),
                 "--quantization",
                 model_info.quantization,
@@ -177,15 +193,18 @@ def _main(  # pylint: disable=too-many-locals
                 model_info = {
                     "model_id": task["model_id"],
                     "model": model,
-                    "context_window_size": task["context_window_size"],
                     "conv_template": task["conv_template"],
                 }
+                # Process optional arguments
+                for optional_arg in GEN_CONFIG_OPTIONAL_ARGS:
+                    # e.g. "context_window_size": task.get("context_window_size", None)
+                    model_info[optional_arg] = task.get(optional_arg, None)
                 if isinstance(quantization, str):
                     model_info["quantization"] = quantization
                 else:
                     model_info["quantization"] = quantization.pop("format")
                     model_info.update(quantization)
-                repo = spec.get("destination", "{username}/{model_id}-{quantization}").format(
+                repo = spec.get("destination", "{username}/{model_id}-{quantization}-MLC").format(
                     username=username,
                     model_id=model_info["model_id"],
                     quantization=model_info["quantization"],

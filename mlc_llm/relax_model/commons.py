@@ -266,7 +266,7 @@ def create_shard_transformation_func(param_manager, args, model_config) -> tvm.I
 
     bb = relax.BlockBuilder()  # pylint: disable=invalid-name
     with bb.function("transform_params"):
-        rank = tir.Var("rank", "int64")
+        rank = tir.SizeVar("rank", "int64")
         # TODO(Lunderberg): Support primitive inputs to relax
         # functions.  Currently, using a PrimStructInfo as the
         # argument results in an error thrown during

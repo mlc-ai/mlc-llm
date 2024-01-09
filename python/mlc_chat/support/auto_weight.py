@@ -1,9 +1,9 @@
 """Help functions for detecting weight paths and weight formats."""
 import json
-import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from . import logging
 from .style import bold, green, red
 
 logger = logging.getLogger(__name__)
@@ -146,6 +146,24 @@ def _check_safetensor(weight_path: Path) -> Optional[Path]:
             safetensor_json_path,
         )
         return safetensor_json_path
+
+    safetensor_file_path = weight_path / "model.safetensors"
+    if safetensor_file_path.exists():
+        from safetensors.torch import (  # pylint: disable=import-outside-toplevel,import-error
+            load_file,
+        )
+
+        weights = load_file(safetensor_file_path, device="cpu")
+        weight_map = {key: "model.safetensors" for key in weights}
+        with open(safetensor_json_path, "w", encoding="utf-8") as file:
+            json.dump({"weight_map": weight_map}, file, indent=2)
+        logger.info(
+            "%s source weight format: huggingface-safetensor. Source configuration: %s",
+            FOUND,
+            safetensor_json_path,
+        )
+        return safetensor_json_path
+
     logger.info("%s Huggingface Safetensor", NOT_FOUND)
     return None
 

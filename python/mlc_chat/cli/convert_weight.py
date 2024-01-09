@@ -3,12 +3,14 @@ import argparse
 from pathlib import Path
 from typing import Union
 
-from mlc_chat.compiler import HELP, MODELS, QUANTIZATION, convert_weight
-
-from ..support.argparse import ArgumentParser
-from ..support.auto_config import detect_config, detect_model_type
-from ..support.auto_device import detect_device
-from ..support.auto_weight import detect_weight
+from mlc_chat.help import HELP
+from mlc_chat.interface.convert_weight import convert_weight
+from mlc_chat.model import MODELS
+from mlc_chat.quantization import QUANTIZATION
+from mlc_chat.support.argparse import ArgumentParser
+from mlc_chat.support.auto_config import detect_config, detect_model_type
+from mlc_chat.support.auto_device import detect_device
+from mlc_chat.support.auto_weight import detect_weight
 
 
 def main(argv):
@@ -30,11 +32,9 @@ def main(argv):
 
     parser = ArgumentParser("MLC AutoLLM Quantization Framework")
     parser.add_argument(
-        "--model",
+        "config",
         type=detect_config,
-        required=True,
-        dest="config",
-        help=HELP["model"] + " (required)",
+        help=HELP["config"] + " (required)",
     )
     parser.add_argument(
         "--quantization",

@@ -17,14 +17,14 @@ Conversation ChatML() {
   conv.messages = {};
   conv.offset = 0;
   conv.separator_style = SeparatorStyle::kSepRoleMsg;
-  conv.seps = {"<|im_end|>", "<|im_end|>"};
+  conv.seps = {"<|im_end|>\n"};
   conv.role_msg_sep = "\n";
   conv.role_empty_sep = "\n";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
   conv.stop_tokens = {2};
   conv.stop_str = "<|im_end|>";
-  conv.add_bos = true;
+  conv.add_bos = false;
   return conv;
 }
 
@@ -41,14 +41,34 @@ Conversation OpenHermesMistral() {
   conv.messages = {};
   conv.offset = 0;
   conv.separator_style = SeparatorStyle::kSepRoleMsg;
-  conv.seps = {"<|im_end|>", "<|im_end|>"};
+  conv.seps = {"<|im_end|>\n"};
   conv.role_msg_sep = "\n";
   conv.role_empty_sep = "\n";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
   conv.stop_tokens = {2, 32000};
   conv.stop_str = "<|im_end|>";
-  conv.add_bos = true;
+  conv.add_bos = false;
+  return conv;
+}
+
+Conversation NeuralHermesMistral() {
+  // Identical to chatml except for the system prompt and stop tokens
+  Conversation conv;
+  conv.name = "neural_hermes_mistral";
+  conv.roles = {"<|im_start|>user", "<|im_start|>assistant"};
+  conv.system = ("<|im_start|>system\nYou are a helpful assistant chatbot.");
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"<|im_end|>\n"};
+  conv.role_msg_sep = "\n";
+  conv.role_empty_sep = "\n";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2, 32000};
+  conv.stop_str = "<|im_end|>";
+  conv.add_bos = false;
   return conv;
 }
 
@@ -104,7 +124,7 @@ Conversation MistralDefault() {
   conv.separator_style = SeparatorStyle::kSepRoleMsg;
   conv.seps = {" "};
   conv.role_msg_sep = " ";
-  conv.role_empty_sep = " ";
+  conv.role_empty_sep = "";
   conv.stop_tokens = {2};
   conv.stop_str = "</s>";
   conv.add_bos = true;
@@ -615,7 +635,7 @@ Conversation WizardCoderOrMATH() {
   conv.role_empty_sep = ":\n";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
-  conv.stop_tokens = {0};
+  conv.stop_tokens = {2};
   conv.stop_str = "</s>";
   conv.add_bos = true;
   return conv;
@@ -641,6 +661,25 @@ Conversation GLM() {
   return conv;
 }
 
+Conversation Phi2() {
+  Conversation conv;
+  conv.name = "phi-2";
+  conv.system = "";
+  conv.roles = {"Instruct", "Output"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"\n"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {50256};
+  conv.stop_str = "<|endoftext|>";
+  conv.add_bos = false;
+  return conv;
+}
+
 }  // namespace
 
 using ConvFactory = Conversation (*)();
@@ -651,6 +690,8 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"llama_default", LlamaDefault},
       {"llama-2", Llama2},
       {"mistral_default", MistralDefault},
+      {"open_hermes_mistral", OpenHermesMistral},
+      {"neural_hermes_mistral", NeuralHermesMistral},
       {"codellama_completion", CodeLlamaCompletion},
       {"codellama_instruct", CodeLlamaInstruct},
       {"gpt2", GPT2},
@@ -674,7 +715,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"wizardlm_7b", WizardLM7B},
       {"wizard_coder_or_math", WizardCoderOrMATH},
       {"glm", GLM},
-      {"mixtral_default", MistralDefault}
+      {"phi-2", Phi2},
   };
   auto it = factory.find(name);
   if (it == factory.end()) {

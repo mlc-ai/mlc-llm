@@ -6,7 +6,8 @@ rm -rf dist
 mkdir -p dist
 
 declare -a builtin_list=(
-	"Mistral-7B-Instruct-v0.1-q3f16_1"
+        "Mistral-7B-Instruct-v0.2-q3f16_1"
+        #"OpenHermes-2.5-Mistral-7B-q3f16_1"
 	# "Llama-2-7b-chat-hf-q3f16_1"
 	# "RedPajama-INCITE-Chat-3B-v1-q4f16_1"
 	# "vicuna-v1-7b-q3f16_0"

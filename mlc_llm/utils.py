@@ -122,6 +122,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "codegeex2": "glm",
         "tinyllama": "chatml",
         "openhermes-2.5-mistral": "open_hermes_mistral",
+        "neuralhermes-2.5-mistral": "neural_hermes_mistral",
     }
 
     for prefix, conv_template in model_conv_templates.items():

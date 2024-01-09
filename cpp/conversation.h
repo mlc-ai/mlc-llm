@@ -3,8 +3,6 @@
  * \file conversation.h
  * \brief Header of conversation template in MLC-LLM.
  */
-#define PICOJSON_USE_INT64
-#define __STDC_FORMAT_MACROS
 #include <picojson.h>
 #include <tvm/runtime/module.h>
 

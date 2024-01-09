@@ -1,7 +1,7 @@
 # pylint: disable=invalid-name,missing-docstring
 import pytest
 
-from mlc_chat.compiler import MODEL_PRESETS, MODELS
+from mlc_chat.model import MODEL_PRESETS, MODELS
 
 
 @pytest.mark.parametrize("model_name", ["gpt2"])

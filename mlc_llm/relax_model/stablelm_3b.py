@@ -429,7 +429,7 @@ def _make_causal_mask(input_ids_shape, dtype, src_len):
 
 
 class StableLM3bEmbedTokens(nn.Module):
-    def __init__(self, config: StableLM3bConfig, vocab_size_var: tvm.tir.Var):
+    def __init__(self, config: StableLM3bConfig, vocab_size_var: tvm.tir.SizeVar):
         self.embed_tokens = Embedding(vocab_size_var, config.hidden_size, dtype=config.dtype)
 
     def forward(self, input_ids: relax.Expr):
@@ -438,7 +438,7 @@ class StableLM3bEmbedTokens(nn.Module):
 
 
 class StableLM3bEmbedTokensWrapper(nn.Module):
-    def __init__(self, config: StableLM3bConfig, vocab_size_var: tvm.tir.Var):
+    def __init__(self, config: StableLM3bConfig, vocab_size_var: tvm.tir.SizeVar):
         # build a wrapper to ensure that the naming of the embed_tokens parameter is consistent
         self.model = StableLM3bEmbedTokens(config, vocab_size_var)
 
@@ -449,7 +449,7 @@ class StableLM3bEmbedTokensWrapper(nn.Module):
 
 class StableLM3bModell(nn.Module):
     def __init__(
-        self, config: StableLM3bConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False
+        self, config: StableLM3bConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool = False
     ):
         rotary_embedding = RotaryEmbedding(
             hidden_size=config.hidden_size,
@@ -478,7 +478,7 @@ class StableLM3bModell(nn.Module):
         # create causal mask
         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
         combined_attention_mask = None
-        if isinstance(input_shape[-1], tvm.tir.Var) or input_shape[-1] > 1:
+        if isinstance(input_shape[-1], tvm.tir.SizeVar) or input_shape[-1] > 1:
             combined_attention_mask = _make_causal_mask(input_shape, dtype, src_len)
         else:
             # Get src_len from input parameters
@@ -540,7 +540,7 @@ class StableLM3bModell(nn.Module):
 
 class StableLM3bForCausalLM(nn.Module):
     def __init__(
-        self, config: StableLM3bConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False
+        self, config: StableLM3bConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool = False
     ):
         self.model = StableLM3bModell(config, vocab_size_var, sep_embed)
         self.lm_head = Linear(config.hidden_size, vocab_size_var, dtype=config.dtype, bias=False)
@@ -593,9 +593,9 @@ def create_embed_func(
     func_name = "embed"
 
     bsz = 1
-    seq_len = tvm.tir.Var("m", "int64")
+    seq_len = tvm.tir.SizeVar("m", "int64")
     with bb.function(func_name):
-        model = StableLM3bEmbedTokensWrapper(config, tvm.tir.Var("vocab_size", "int64"))
+        model = StableLM3bEmbedTokensWrapper(config, tvm.tir.SizeVar("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
@@ -620,11 +620,11 @@ def create_encoding_func(
     func_name = "prefill_with_embed" if sep_embed else "prefill"
 
     bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")
-    all_seq_len = tvm.tir.Var("m", "int64")
+    seq_len = tvm.tir.SizeVar("n", "int64")
+    all_seq_len = tvm.tir.SizeVar("m", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
-        model = StableLM3bForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), sep_embed)
+        model = StableLM3bForCausalLM(config, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         inputs = (
@@ -665,10 +665,10 @@ def create_decoding_func(
     func_name = "decode"
 
     bsz = 1
-    all_seq_len = tvm.tir.Var("m", "int64")
+    all_seq_len = tvm.tir.SizeVar("m", "int64")
 
     with bb.function(func_name):
-        model = StableLM3bForCausalLM(config, tvm.tir.Var("vocab_size", "int64"))
+        model = StableLM3bForCausalLM(config, tvm.tir.SizeVar("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
@@ -731,7 +731,7 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: StableLM3bConfig) -> No
 def create_softmax_func(bb: relax.BlockBuilder, config: StableLM3bConfig) -> None:
     with bb.function("softmax_with_temperature"):
         logits = nn.Placeholder(
-            (1, 1, tvm.tir.Var("vocab_size", "int64")), dtype="float32", name="logits"
+            (1, 1, tvm.tir.SizeVar("vocab_size", "int64")), dtype="float32", name="logits"
         )
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():

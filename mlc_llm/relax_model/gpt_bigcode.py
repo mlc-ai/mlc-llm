@@ -64,7 +64,7 @@ class GPTBigCodeConfig:
 def _prepare_decoder_attention_mask(input_shape, src_len, dtype):
     # create causal mask
     # [bsz, seq_len] -> [bsz, tgt_seq_len, 1, src_seq_len]
-    if isinstance(input_shape[-1], tvm.tir.Var) or input_shape[-1] > 1:
+    if isinstance(input_shape[-1], tvm.tir.SizeVar) or input_shape[-1] > 1:
         bsz, tgt_len = input_shape
 
         def min_max_triu_te():
@@ -488,8 +488,8 @@ def create_encoding_func(
     func_name = "prefill"
 
     batch_size = tvm.tir.IntImm("int64", 1)
-    seq_len = tvm.tir.Var("n", "int64")
-    all_seq_len = tvm.tir.Var("m", "int64")
+    seq_len = tvm.tir.SizeVar("n", "int64")
+    all_seq_len = tvm.tir.SizeVar("m", "int64")
     with bb.function(func_name):
         model = GPTBigCodeForCausalLM(config)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
@@ -530,7 +530,7 @@ def create_decoding_func(
 
     bsz = tvm.tir.IntImm("int64", 1)
     seq_len = tvm.tir.IntImm("int64", 1)
-    all_seq_len = tvm.tir.Var("m", "int64")
+    all_seq_len = tvm.tir.SizeVar("m", "int64")
 
     with bb.function(func_name):
         model = GPTBigCodeForCausalLM(config)

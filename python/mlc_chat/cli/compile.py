@@ -1,20 +1,29 @@
 """Command line entrypoint of compilation."""
 import argparse
+import json
 import re
+from functools import partial
 from pathlib import Path
 from typing import Union
 
-from mlc_chat.compiler import (  # pylint: disable=redefined-builtin
-    HELP,
-    MODELS,
-    QUANTIZATION,
+from mlc_chat.help import HELP
+from mlc_chat.interface.compile import (  # pylint: disable=redefined-builtin
+    ModelConfigOverride,
     OptimizationFlags,
     compile,
 )
-
-from ..support.argparse import ArgumentParser
-from ..support.auto_config import detect_config, detect_model_type
-from ..support.auto_target import detect_target_and_host
+from mlc_chat.model import MODELS
+from mlc_chat.quantization import QUANTIZATION
+from mlc_chat.support.argparse import ArgumentParser
+from mlc_chat.support.auto_config import (
+    detect_mlc_chat_config,
+    detect_model_type,
+    detect_quantization,
+)
+from mlc_chat.support.auto_target import (
+    detect_system_lib_prefix,
+    detect_target_and_host,
+)
 
 
 def main(argv):
@@ -22,12 +31,22 @@ def main(argv):
 
     def _parse_output(path: Union[str, Path]) -> Path:
         path = Path(path)
+        if path.is_dir():
+            raise argparse.ArgumentTypeError(f"Output cannot be a directory: {path}")
         parent = path.parent
         if not parent.is_dir():
             raise argparse.ArgumentTypeError(f"Directory does not exist: {parent}")
         return path
 
-    def _check_prefix_symbols(prefix: str) -> str:
+    def _parse_dir(path: Union[str, Path], auto_create: bool = False) -> Path:
+        path = Path(path)
+        if not auto_create and not path.is_dir():
+            raise argparse.ArgumentTypeError(f"Directory does not exist: {path}")
+        if auto_create and not path.is_dir():
+            path.mkdir(parents=True)
+        return path
+
+    def _check_system_lib_prefix(prefix: str) -> str:
         pattern = r"^[a-zA-Z_][a-zA-Z0-9_]*$"
         if prefix == "" or re.match(pattern, prefix):
             return prefix
@@ -36,20 +55,18 @@ def main(argv):
             "numbers (0-9), alphabets (A-Z, a-z) and underscore (_)."
         )
 
-    parser = ArgumentParser("MLC LLM Compiler")
+    parser = ArgumentParser("mlc_chat compile")
     parser.add_argument(
-        "--model",
-        type=detect_config,
-        required=True,
-        dest="config",
+        "model",
+        type=detect_mlc_chat_config,
         help=HELP["model"] + " (required)",
     )
     parser.add_argument(
         "--quantization",
         type=str,
-        required=True,
         choices=list(QUANTIZATION.keys()),
-        help=HELP["quantization"] + " (required, choices: %(choices)s)",
+        help=HELP["quantization"]
+        + " (default: look up mlc-chat-config.json, choices: %(choices)s)",
     )
     parser.add_argument(
         "--model-type",
@@ -77,16 +94,10 @@ def main(argv):
         help=HELP["opt"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--prefix-symbols",
+        "--system-lib-prefix",
         type=str,
-        default="",
-        help=HELP["prefix_symbols"] + ' (default: "%(default)s")',
-    )
-    parser.add_argument(
-        "--context-window-size",
-        type=int,
-        default=None,
-        help=HELP["context_window_size"] + ' (default: "%(default)s")',
+        default="auto",
+        help=HELP["system_lib_prefix"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--output",
@@ -96,30 +107,36 @@ def main(argv):
         help=HELP["output_compile"] + " (required)",
     )
     parser.add_argument(
-        "--sliding-window",
-        type=int,
-        default=None,
-        help=HELP["sliding_window"] + ' (default: "%(default)s")',
+        "--overrides",
+        type=ModelConfigOverride.from_str,
+        default="",
+        help=HELP["overrides"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--prefill-chunk-size",
-        type=int,
+        "--debug-dump",
+        type=partial(_parse_dir, auto_create=True),
         default=None,
-        help=HELP["prefill_chunk_size"] + ' (default: "%(default)s")',
+        help=HELP["debug_dump"] + " (default: %(default)s)",
     )
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
-    parsed.model_type = detect_model_type(parsed.model_type, parsed.config)
+    parsed.model_type = detect_model_type(parsed.model_type, parsed.model)
+    parsed.quantization = detect_quantization(parsed.quantization, parsed.model)
+    parsed.system_lib_prefix = detect_system_lib_prefix(
+        parsed.device, parsed.system_lib_prefix, parsed.model_type.name, parsed.quantization.name
+    )
+    with open(parsed.model, "r", encoding="utf-8") as config_file:
+        config = json.load(config_file)
+
     compile(
-        config=parsed.config,
-        quantization=QUANTIZATION[parsed.quantization],
+        config=config,
+        quantization=parsed.quantization,
         model_type=parsed.model_type,
         target=target,
         opt=parsed.opt,
         build_func=build_func,
-        prefix_symbols=parsed.prefix_symbols,
+        system_lib_prefix=parsed.system_lib_prefix,
         output=parsed.output,
-        context_window_size=parsed.context_window_size,
-        sliding_window=parsed.sliding_window,
-        prefill_chunk_size=parsed.prefill_chunk_size,
+        overrides=parsed.overrides,
+        debug_dump=parsed.debug_dump,
     )

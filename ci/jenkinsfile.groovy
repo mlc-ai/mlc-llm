@@ -17,8 +17,9 @@
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
-image = 'mlcaidev/ci-cpu:caab922'
-docker_run = "bash ci/bash.sh ${image}"
+run_cpu = "bash ci/bash.sh mlcaidev/ci-cpu:a7b7a72"
+run_cuda = "bash ci/bash.sh mlcaidev/ci-cu121:a7b7a72"
+pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu121:1da76a2"
 
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
@@ -29,7 +30,7 @@ def init_git(submodule = false) {
   checkout scm
   if (submodule) {
     retry(5) {
-      timeout(time: 2, unit: 'MINUTES') {
+      timeout(time: 10, unit: 'MINUTES') {
         sh(script: 'git submodule update --init --recursive -f', label: 'Update git submodules')
       }
     }
@@ -43,8 +44,8 @@ stage('Lint') {
         ws(per_exec_ws('mlc-llm-lint-isort')) {
           init_git()
           sh(script: "ls", label: 'debug')
-          sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${docker_run} bash ci/task/isort.sh", label: 'Lint')
+          sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
+          sh(script: "${run_cpu} conda run -n ci-lint ci/task/isort.sh", label: 'Lint')
         }
       }
     },
@@ -53,8 +54,8 @@ stage('Lint') {
         ws(per_exec_ws('mlc-llm-lint-black')) {
           init_git()
           sh(script: "ls", label: 'debug')
-          sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${docker_run} bash ci/task/black.sh", label: 'Lint')
+          sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
+          sh(script: "${run_cpu} conda run -n ci-lint ci/task/black.sh", label: 'Lint')
         }
       }
     },
@@ -63,8 +64,8 @@ stage('Lint') {
         ws(per_exec_ws('mlc-llm-lint-mypy')) {
           init_git()
           sh(script: "ls", label: 'debug')
-          sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${docker_run} bash ci/task/mypy.sh", label: 'Lint')
+          sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
+          sh(script: "${run_cpu} conda run -n ci-lint ci/task/mypy.sh", label: 'Lint')
         }
       }
     },
@@ -73,8 +74,8 @@ stage('Lint') {
         ws(per_exec_ws('mlc-llm-lint-pylint')) {
           init_git()
           sh(script: "ls", label: 'debug')
-          sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${docker_run} bash ci/task/pylint.sh", label: 'Lint')
+          sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
+          sh(script: "${run_cpu} conda run -n ci-lint ci/task/pylint.sh", label: 'Lint')
         }
       }
     },
@@ -83,10 +84,27 @@ stage('Lint') {
         ws(per_exec_ws('mlc-llm-lint-clang-format')) {
           init_git()
           sh(script: "ls", label: 'debug')
-          sh(script: "${docker_run} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${docker_run} bash ci/task/clang-format.sh", label: 'Lint')
+          sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
+          sh(script: "${run_cpu} conda run -n ci-lint ci/task/clang-format.sh", label: 'Lint')
         }
       }
     },
+  )
+}
+
+stage('Build') {
+  parallel(
+    'CUDA': {
+      node('CPU-SMALL') {
+        ws(per_exec_ws('mlc-llm-build')) {
+          init_git(true)
+          sh(script: "ls", label: 'debug')
+          sh(script: 'git clone --recursive https://github.com/mlc-ai/package', label: 'Clone mlc-ai/package')
+          sh(script: "${pkg_cuda} ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
+          sh(script: "${pkg_cuda} ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
+          sh(script: "${pkg_cuda} ./ci/task/build_clean.sh", label: 'Cleanups after build')
+        }
+      }
+    }
   )
 }

@@ -1,9 +1,11 @@
 # pylint: disable=missing-docstring,fixme,import-error
 import argparse
+import ast
 import asyncio
 import dataclasses
+import json
 from contextlib import asynccontextmanager
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 import uvicorn
@@ -12,8 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from mlc_chat.chat_module import GenerationConfig
+from mlc_chat.support.random import set_global_random_seed
 
-from .base import set_global_random_seed
 from .chat_module import ChatModule
 from .interface.openai_api import (
     ChatCompletionRequest,
@@ -30,6 +32,8 @@ from .interface.openai_api import (
     DeltaMessage,
     EmbeddingsRequest,
     EmbeddingsResponse,
+    ToolCalls,
+    ToolChoice,
     UsageInfo,
     VisualStudioCodeCompletionRequest,
     VisualStudioCodeCompletionResponse,
@@ -180,6 +184,69 @@ class AsyncCompletionStream:
         raise StopAsyncIteration
 
 
+def add_function_call(prompt: List[ChatMessage], function_string: str):
+    # update content of the last input message to include function string
+    user_query = prompt[-1].content
+    prompt[-1].content = f"<<question>> {user_query} <<function>> {function_string}\n"
+
+
+def function_call_util(request: ChatCompletionRequest):
+    """Performs the necessary actions to add function calls to the prompt
+    returns True if function calls are added to the prompt else returns False
+    TODO: Check function name in tools.function['name']
+    TODO: Currently auto mode default to generating function calls instead of smartly
+    checking weather to generate function calls or not
+    """
+
+    # return if no tools are provided
+    if request.tools is None:
+        return False
+
+    # skip if tool_choice is set to none
+    if isinstance(request.tool_choice, str) and request.tool_choice == "none":
+        return False
+
+    if isinstance(request.tool_choice, ToolChoice):
+        # force the model to use a specific function provided by tool_choice
+        if request.tool_choice.type != "function":
+            raise ValueError("Only 'function' tool choice is supported")
+        for tool in request.tools:
+            if tool.function["name"] == request.tool_choice.function["name"]:
+                add_function_call(request.messages, json.dumps(tool.function))
+                return True
+        raise ValueError("ToolChoice.function.name not found in tools")
+
+    if isinstance(request.tool_choice, str):
+        # Add all the functions to the input prompt
+        function_list = []
+        for tool in request.tools:
+            if tool.type == "function":
+                function_list.append(tool.function)
+            else:
+                raise ValueError("Only 'function' tool.type is supported")
+        add_function_call(request.messages, json.dumps(function_list))
+    else:
+        raise ValueError("Invalid toolChoice instance type")
+    return True
+
+
+def convert_function_str_to_json(stringified_calls):
+    def parse_function_call(call_str):
+        node = ast.parse(call_str, mode="eval")
+        call_node = node.body
+        if isinstance(call_node, ast.Call):
+            name = call_node.func.id
+            arguments = {}
+            for keyword in call_node.keywords:
+                arguments[keyword.arg] = ast.literal_eval(keyword.value)
+            return {"name": name, "arguments": arguments}
+        return None
+
+    calls = ast.literal_eval(stringified_calls)
+    result = [parse_function_call(call_str) for call_str in calls]
+    return result
+
+
 @app.post("/v1/chat/completions")
 async def request_chat_completion(request: ChatCompletionRequest):
     """
@@ -207,6 +274,8 @@ async def request_chat_completion(request: ChatCompletionRequest):
     )
 
     session["chat_mod"].reset_chat()  # Reset previous history, KV cache, etc.
+
+    use_function_call = function_call_util(request)
 
     if request.stream:
         session["chat_mod"]._prefill(  # pylint: disable=protected-access
@@ -239,18 +308,45 @@ async def request_chat_completion(request: ChatCompletionRequest):
             yield "data: [DONE]\n\n"
 
         return StreamingResponse(iter_response(), media_type="text/event-stream")
-    msg = session["chat_mod"].generate(prompt=request.messages, generation_config=generation_config)
+    msg = session["chat_mod"].generate(
+        prompt=request.messages, generation_config=generation_config, stateless=True
+    )
     if isinstance(msg, str):
         msg = [msg]
-    return ChatCompletionResponse(
-        choices=[
-            ChatCompletionResponseChoice(
-                index=index,
-                message=ChatMessage(role="assistant", content=msg[index]),
-                finish_reason="stop",
+
+    choices = []
+    for index, msg_i in enumerate(msg):
+        if use_function_call:
+            choices.append(
+                ChatCompletionResponseChoice(
+                    index=index,
+                    message=ChatMessage(
+                        role="assistant",
+                        content=None,
+                        tool_calls=[
+                            ToolCalls(
+                                function=fn_json_obj,
+                            )
+                            for fn_json_obj in convert_function_str_to_json(msg_i)
+                        ],
+                    ),
+                    finish_reason="tool_calls",
+                )
             )
-            for index in range(len(msg))
-        ],
+        else:
+            choices.append(
+                ChatCompletionResponseChoice(
+                    index=index,
+                    message=ChatMessage(
+                        role="assistant",
+                        content=msg_i,
+                    ),
+                    finish_reason="stop",
+                )
+            )
+
+    return ChatCompletionResponse(
+        choices=choices,
         # TODO: Fill in correct usage info
         usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
     )

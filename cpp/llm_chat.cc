@@ -3,9 +3,6 @@
  * \file llm_chat.cc
  * \brief Implementation of llm chat.
  */
-#define PICOJSON_USE_INT64
-#define __STDC_FORMAT_MACROS
-
 #include "llm_chat.h"
 
 #include <picojson.h>
@@ -17,6 +14,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/relax_vm/ndarray_cache_support.h>
 
 #include <cctype>
 #include <chrono>
@@ -31,10 +29,10 @@
 #include <unordered_set>
 #include <vector>
 
+#include "./metadata/model.h"
+#include "./support/load_bytes_from_file.h"
 #include "conversation.h"
-#include "model_metadata.h"
 #include "random.h"
-#include "support.h"
 #include "tokenizers.h"
 
 namespace mlc {
@@ -123,7 +121,8 @@ struct FunctionTable {
         device_ids[i] = i;
       }
       this->use_disco = true;
-      this->sess = Session::ProcessSession(num_shards, f_create_process_pool);
+      this->sess =
+          Session::ProcessSession(num_shards, f_create_process_pool, "mlc_chat.cli.worker");
       this->sess->InitCCL(ccl, ShapeTuple(device_ids));
       this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
                                          lib_path, null_device);
@@ -144,6 +143,7 @@ struct FunctionTable {
       {
         Module mod = this->disco_mod->DebugGetFromRemote(0);
         this->softmax_func_ = mod->GetFunction("softmax_with_temperature");
+        this->model_metadata_ = ModelMetadata::FromModule(mod);
       }
     } else {
       Module executable{nullptr};
@@ -177,19 +177,25 @@ struct FunctionTable {
 
   ObjectRef LoadParams(const std::string& model_path, Device device, bool use_presharded_weights) {
     if (this->use_disco) {
-      std::filesystem::path fs_model_path = model_path;
-      std::string metadata_path = (fs_model_path / "ndarray-cache.json").string();
-      std::string ndarray_cache_metadata = LoadBytesFromFile(metadata_path);
-      PackedFunc loader_create = this->get_global_func("runtime.disco.ShardLoader");
+      DRef params{nullptr};
+      if (this->model_metadata_.params.empty()) {
+        std::filesystem::path fs_model_path = model_path;
+        std::string metadata_path = (fs_model_path / "ndarray-cache.json").string();
+        std::string ndarray_cache_metadata = LoadBytesFromFile(metadata_path);
+        PackedFunc loader_create = this->get_global_func("runtime.disco.ShardLoader");
 
-      auto load_all_func_name = use_presharded_weights
-                                    ? "runtime.disco.ShardLoaderLoadAllPresharded"
-                                    : "runtime.disco.ShardLoaderLoadAll";
-      PackedFunc loader_load_all = this->get_global_func(load_all_func_name);
-      CHECK(loader_create != nullptr);
-      CHECK(loader_load_all != nullptr);
-      DRef loader = loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod);
-      DRef params = loader_load_all(loader);
+        auto load_all_func_name = use_presharded_weights
+                                      ? "runtime.disco.ShardLoaderLoadAllPresharded"
+                                      : "runtime.disco.ShardLoaderLoadAll";
+        PackedFunc loader_load_all = this->get_global_func(load_all_func_name);
+        CHECK(loader_create != nullptr);
+        CHECK(loader_load_all != nullptr);
+        DRef loader = loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod);
+        params = loader_load_all(loader);
+      } else {
+        PackedFunc loader = this->get_global_func("mlc.loader.LoadMultiGPU");
+        params = loader(model_path, this->disco_mod);
+      }
       return params;
     } else {
       CHECK(!use_presharded_weights) << "Use of pre-sharded weights requires more than one GPU";
@@ -322,9 +328,12 @@ class LLMChat {
       return;
     }
 
-    PackedFunc fget_metadata = ft_.mod_get_func("get_metadata");
+    PackedFunc fget_metadata = ft_.mod_get_func("_metadata");  // name in SLIM
     if (fget_metadata == nullptr) {
-      return;
+      fget_metadata = ft_.mod_get_func("get_metadata");  // backward-compatible name
+      if (fget_metadata == nullptr) {
+        return;  // Skip if neither exists
+      }
     }
     ObjectRef ret = fget_metadata();
     std::string metadata_str = std::string(Downcast<String>(ret));
@@ -332,17 +341,30 @@ class LLMChat {
     picojson::parse(metadata_info, std::string(metadata_str));
     auto metadata = metadata_info.get<picojson::object>();
 
-    ICHECK(metadata["max_window_size"].is<int64_t>());
-    max_window_size_ = std::min(max_window_size_, metadata["max_window_size"].get<int64_t>());
+    std::string key = "max_window_size";
+    if (!metadata.count(key)) {
+      key = "context_window_size";
+      ICHECK(metadata.count(key))
+          << "Key \"max_window_size\" or \"context_window_size\" not found.";
+    }
+    ICHECK(metadata[key].is<int64_t>());
+    max_window_size_ = std::min(max_window_size_, metadata[key].get<int64_t>());
 
     if (metadata.count("prefill_chunk_size")) {
       ICHECK(metadata["prefill_chunk_size"].is<int64_t>());
       prefill_chunk_size_ =
           std::min(prefill_chunk_size_, metadata["prefill_chunk_size"].get<int64_t>());
     }
+    if (metadata.count("sliding_window_size")) {
+      ICHECK(metadata["sliding_window_size"].is<int64_t>());
+      sliding_window_size_ =
+          std::min(sliding_window_size_, metadata["sliding_window_size"].get<int64_t>());
+    }
+    // to be removed after SLM migration
     if (metadata.count("sliding_window")) {
       ICHECK(metadata["sliding_window"].is<int64_t>());
-      sliding_window_ = std::min(sliding_window_, metadata["sliding_window"].get<int64_t>());
+      sliding_window_size_ =
+          std::min(sliding_window_size_, metadata["sliding_window"].get<int64_t>());
     }
   }
 
@@ -352,13 +374,13 @@ class LLMChat {
   std::string VerboseRuntimeStatsText() {
     std::ostringstream os;
     os << "----------- prefill -----------\n"
-       << "throughput: " << std::setprecision(1) << std::fixed
+       << "throughput: " << std::setprecision(3) << std::fixed
        << this->prefill_total_tokens / (this->prefill_total_time + this->embed_total_time)
        << " tok/s\n"
        << "total tokens: " << this->prefill_total_tokens << " tok\n"
        << "total time: " << this->prefill_total_time << " s\n"
        << "------------ decode ------------\n"
-       << "throughput: " << std::setprecision(1) << std::fixed
+       << "throughput: " << std::setprecision(3) << std::fixed
        << this->decode_total_tokens / this->decode_total_time << " tok/s\n"
        << "total tokens: " << this->decode_total_tokens << " tok\n"
        << "total time: " << this->decode_total_time << " s\n";
@@ -395,9 +417,9 @@ class LLMChat {
     } else {
       CHECK(partial_update) << "Key \"vocab_size\" not found.";
     }
-    if (config.count("num_shards")) {
-      CHECK(config["num_shards"].is<int64_t>());
-      this->num_shards_ = config["num_shards"].get<int64_t>();
+    if (config.count("tensor_parallel_shards")) {
+      CHECK(config["tensor_parallel_shards"].is<int64_t>());
+      this->num_shards_ = config["tensor_parallel_shards"].get<int64_t>();
     } else {
       this->num_shards_ = 1;
     }
@@ -412,18 +434,39 @@ class LLMChat {
       this->max_window_size_ =
           std::min(this->max_window_size_, config["max_window_size"].get<int64_t>());
     }
+    if (config.count("context_window_size")) {
+      CHECK(config["context_window_size"].is<int64_t>());
+      this->max_window_size_ =
+          std::min(this->max_window_size_, config["context_window_size"].get<int64_t>());
+    }
+    if (config.count("sliding_window_size")) {
+      CHECK(config["sliding_window_size"].is<int64_t>());
+      CHECK(!config.count("max_window_size"))
+          << "Cannot specify both sliding_window and max_window_size.";
+      this->sliding_window_size_ = config["sliding_window_size"].get<int64_t>();
+      CHECK(this->sliding_window_size_ > 0 || this->sliding_window_size_ == -1)
+          << "Sliding window size needs to be -1 or positive";
+      CHECK(config.count("prefill_chunk_size"))
+          << "Need to specify chunk size if using sliding window attention.";
+    }
+    // to be removed after SLM migration
     if (config.count("sliding_window")) {
       CHECK(config["sliding_window"].is<int64_t>());
       CHECK(!config.count("max_window_size"))
           << "Cannot specify both sliding_window and max_window_size.";
-      this->sliding_window_ = config["sliding_window"].get<int64_t>();
-      CHECK(this->sliding_window_ > 0) << "Sliding window size needs to be positive";
+      this->sliding_window_size_ = config["sliding_window"].get<int64_t>();
+      CHECK(this->sliding_window_size_ > 0 || this->sliding_window_size_ == -1)
+          << "Sliding window size needs to be -1 or positive";
       CHECK(config.count("prefill_chunk_size"))
           << "Need to specify chunk size if using sliding window attention.";
     }
     if (config.count("prefill_chunk_size")) {
       CHECK(config["prefill_chunk_size"].is<int64_t>());
       this->prefill_chunk_size_ = config["prefill_chunk_size"].get<int64_t>();
+    }
+    if (config.count("attention_sink_size")) {
+      CHECK(config["attention_sink_size"].is<int64_t>());
+      this->attention_sink_size_ = config["attention_sink_size"].get<int64_t>();
     }
     if (config.count("top_p")) {
       CHECK(config["top_p"].is<double>());
@@ -513,7 +556,7 @@ class LLMChat {
     // classes other than basic tvm runtime.
     this->ft_.Init(reload_lib, device_, this->num_shards_);
     UpdateConfigFromMetadata();
-    if (this->sliding_window_ == -1) {
+    if (this->sliding_window_size_ == -1) {
       CHECK(max_window_size_ != std::numeric_limits<int64_t>::max())
           << "Key \"max_window_size\" not found.";
     }
@@ -533,7 +576,7 @@ class LLMChat {
     // Step 6. KV cache creation.
     this->kv_cache_ = ft_.create_kv_cache_func_();
     // Step 7. Pre-allocate fixed size ndarray
-    this->temperature_arr_ = NDArray::Empty({}, DataType::Float(32), device_);
+    this->temperature_arr_ = NDArray::Empty({1}, DataType::Float(32), device_);
     float temperature = static_cast<float>(this->temperature_);
     this->temperature_arr_.CopyFromBytes(&temperature, sizeof(float));
     if (ft_.use_disco) {
@@ -553,6 +596,8 @@ class LLMChat {
     this->ResetRuntimeStats();
     this->ResetKVCache();
     this->total_seq_len_ = 0;
+    this->sliding_window_cache_offset_ = 0;
+    this->sink_triggered_ = false;
   }
 
   /*! \brief reset the runtime stats. */
@@ -614,7 +659,7 @@ class LLMChat {
     std::string all_prompt = GetConcatPrompt(prompts, 0, 0);
     std::vector<int32_t> encoded = this->tokenizer_->Encode(all_prompt);
     tokens.insert(tokens.end(), encoded.begin(), encoded.end());
-    if (this->sliding_window_ != -1 ||  // There is no max window size if we use sliding window
+    if (this->sliding_window_size_ != -1 ||  // There is no max window size if we use sliding window
         this->total_seq_len_ + tokens.size() + gen_mean_gen_len < this->max_window_size_) {
       return tokens;
     }
@@ -838,11 +883,24 @@ class LLMChat {
             std::vector<int32_t>(prompt_tokens.begin() + begin, prompt_tokens.begin() + end);
         new_seq_len += static_cast<int64_t>(chunk.size());
         logits_on_device = this->ForwardTokens(chunk, new_seq_len);
+
+        // update window cache offset (prefill)
+        if (this->sliding_window_size_ != -1) {
+          if (sink_triggered_) {
+            sliding_window_cache_offset_ =
+                std::max((sliding_window_cache_offset_ + static_cast<int64_t>(chunk.size())) %
+                             sliding_window_size_,
+                         attention_sink_size_);
+          } else {
+            sliding_window_cache_offset_ += static_cast<int64_t>(chunk.size());
+            sink_triggered_ = sliding_window_cache_offset_ >= attention_sink_size_;
+          }
+        }
       }
       ICHECK_EQ(new_seq_len, total_seq_len_ + token_len) << "Expect chunking process all tokens";
     } else {
       // Otherwise, prefill entire prompt at once.
-      CHECK(sliding_window_ == -1) << "Expect chunking with sliding window attention";
+      CHECK(sliding_window_size_ == -1) << "Expect chunking with sliding window attention";
       new_seq_len += token_len;
       logits_on_device = this->ForwardTokens(prompt_tokens, new_seq_len);
     }
@@ -876,6 +934,17 @@ class LLMChat {
 
     NDArray logits_on_device = this->ForwardTokens({last_token}, total_seq_len_ + 1);
     total_seq_len_ += 1;
+
+    // update window cache offset (decoding)
+    if (this->sliding_window_size_ != -1) {
+      if (sink_triggered_) {
+        sliding_window_cache_offset_ = std::max(
+            (sliding_window_cache_offset_ + 1) % sliding_window_size_, attention_sink_size_);
+      } else {
+        sliding_window_cache_offset_ += 1;
+        sink_triggered_ = sliding_window_cache_offset_ >= attention_sink_size_;
+      }
+    }
 
     int32_t next_token = this->SampleTokenFromLogits(logits_on_device, generation_config);
 
@@ -1012,7 +1081,7 @@ class LLMChat {
       CHECK(generation_config["temperature"].is<double>());
       *gen_temperature = generation_config["temperature"].get<double>();
 
-      *gen_temperature_arr = NDArray::Empty({}, DataType::Float(32), device_);
+      *gen_temperature_arr = NDArray::Empty({1}, DataType::Float(32), device_);
       float temperature_cast = static_cast<float>(*gen_temperature);
       gen_temperature_arr->CopyFromBytes(&temperature_cast, sizeof(float));
     } else {
@@ -1183,8 +1252,8 @@ class LLMChat {
     }
     // max_window_size_ != -1 to handle
     // https://github.com/mlc-ai/mlc-llm/blob/main/mlc_llm/relax_model/rwkv.py#L588-L589
-    // sliding_window_ == -1 to make sure we do not stop when using sliding window
-    else if (max_window_size_ != -1 && sliding_window_ == -1 &&
+    // sliding_window_size_ == -1 to make sure we do not stop when using sliding window
+    else if (max_window_size_ != -1 && sliding_window_size_ == -1 &&
              total_seq_len_ >= max_window_size_) {
       stop_triggered_ = true;
     }
@@ -1199,16 +1268,17 @@ class LLMChat {
     if (input_tokens.size() > 1 && ft_.prefill_func_.defined()) {
       ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray(input_tokens));
       ShapeTuple cur_pos_shape = ShapeTuple({cur_pos});
-      if (sliding_window_ == -1) {
+      if (sliding_window_size_ == -1) {
         ret = ft_.prefill_func_(input_data, cur_pos_shape, kv_cache_, params_);
       } else {
         // Sliding window attention needs extra shape parameters
         int64_t seq_len = static_cast<int64_t>(input_tokens.size());
         // Number of elements in the cache
-        int64_t cache_len = std::min(this->sliding_window_, cur_pos - seq_len);
+        int64_t cache_len = std::min(this->sliding_window_size_, cur_pos - seq_len);
         ShapeTuple cache_len_shape = ShapeTuple({cache_len});
         ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
-        ret = ft_.prefill_func_(input_data, cur_pos_shape, cache_len_shape, kv_seq_len_shape,
+        ShapeTuple cache_offset_shape = ShapeTuple({sliding_window_cache_offset_});
+        ret = ft_.prefill_func_(input_data, cache_len_shape, kv_seq_len_shape, cache_offset_shape,
                                 kv_cache_, params_);
       }
     } else {
@@ -1224,16 +1294,17 @@ class LLMChat {
         }
         int64_t pos = cur_pos + i + 1 - input_tokens.size();
         ShapeTuple pos_shape = ShapeTuple({pos});
-        if (sliding_window_ == -1) {
+        if (sliding_window_size_ == -1) {
           ret = ft_.decode_func_(input_data, pos_shape, kv_cache_, params_);
         } else {
           // Sliding window attention needs extra shape parameters
           int64_t seq_len = static_cast<int64_t>(input_tokens.size());
           // Number of elements in the cache
-          int64_t cache_len = std::min(this->sliding_window_, pos - seq_len);
+          int64_t cache_len = std::min(this->sliding_window_size_, pos - seq_len);
           ShapeTuple cache_len_shape = ShapeTuple({cache_len});
           ShapeTuple kv_seq_len_shape = ShapeTuple({cache_len + seq_len});
-          ret = ft_.decode_func_(input_data, pos_shape, cache_len_shape, kv_seq_len_shape,
+          ShapeTuple cache_offset_shape = ShapeTuple({sliding_window_cache_offset_});
+          ret = ft_.decode_func_(input_data, cache_len_shape, kv_seq_len_shape, cache_offset_shape,
                                  kv_cache_, params_);
         }
       }
@@ -1260,7 +1331,16 @@ class LLMChat {
 
   NDArray Softmax(NDArray input, NDArray temperature_arr) {
     NDArray ret;
-    ret = ft_.softmax_func_(input, temperature_arr);
+    try {
+      ret = ft_.softmax_func_(input, temperature_arr);
+    } catch (const dmlc::Error& e) {
+      // This branch is for compatibility:
+      // The old softmax function takes temperature arr with shape (),
+      // and the new softmax func takes temperature arr with shape (1,).
+      // Remove this branch after updating all prebuilt model libraries.
+      temperature_arr = temperature_arr.CreateView({}, temperature_arr->dtype);
+      ret = ft_.softmax_func_(input, temperature_arr);
+    }
     return ret;
   }
 
@@ -1362,7 +1442,7 @@ class LLMChat {
   // max window size, mean and max generation length, sliding window
   // If we use sliding window, max window size is its default max() value
   int64_t max_window_size_{std::numeric_limits<int64_t>::max()}, mean_gen_len_{128},
-      max_gen_len_{512}, sliding_window_{-1}, prefill_chunk_size_{-1};
+      max_gen_len_{512}, sliding_window_size_{-1}, prefill_chunk_size_{-1}, attention_sink_size_{0};
   // size of the vocab table
   int64_t vocab_size_;
   // number of shards in distributed inference
@@ -1391,6 +1471,10 @@ class LLMChat {
   std::string output_message_;
   // Whether encounter stop str
   bool stop_triggered_{false};
+  // Whether sink is in action
+  bool sink_triggered_{false};
+  // sliding window cache offset
+  int64_t sliding_window_cache_offset_{0};
   //----------------------------
   // Tokenizer
   //----------------------------

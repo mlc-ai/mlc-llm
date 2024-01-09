@@ -12,7 +12,7 @@
 #include <fstream>
 #include <string>
 
-#include "support.h"
+#include "./support/load_bytes_from_file.h"
 
 namespace mlc {
 namespace llm {

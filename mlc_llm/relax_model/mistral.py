@@ -38,6 +38,7 @@ class MistralConfig:
         rms_norm_eps=1e-5,
         rope_theta=10000.0,
         sliding_window=4096,
+        attention_sink_size=0,
         tie_word_embeddings=False,
         vocab_size=32000,
         dtype="float32",
@@ -61,6 +62,7 @@ class MistralConfig:
         self.rms_norm_eps = rms_norm_eps
         self.rope_theta = rope_theta
         self.sliding_window = sliding_window
+        self.attention_sink_size = attention_sink_size
         self.tie_word_embeddings = tie_word_embeddings
         self.vocab_size = vocab_size
         self.dtype = dtype
@@ -198,7 +200,7 @@ class MistralMLP(nn.Module):
         return result
 
 
-def apply_rotary_pos_emb(q, k, base, offset: int = 0):
+def apply_rotary_pos_emb(q, k, base, q_offset):
     def f_rotary_embedding(tensor, offset):
         dtype = tensor.dtype
         head_dim = tensor.shape[-1]
@@ -224,8 +226,8 @@ def apply_rotary_pos_emb(q, k, base, offset: int = 0):
 
         return tvm.te.compute(tensor.shape, rotary_compute, name="rotary")
 
-    q_embed = nn.emit_te(f_rotary_embedding, q, offset, primfunc_name_hint="rotary_embedding")
-    k_embed = nn.emit_te(f_rotary_embedding, k, offset, primfunc_name_hint="rotary_embedding")
+    q_embed = nn.emit_te(f_rotary_embedding, q, q_offset, primfunc_name_hint="rotary_embedding")
+    k_embed = nn.emit_te(f_rotary_embedding, k, 0, primfunc_name_hint="rotary_embedding")
     return q_embed, k_embed
 
 
@@ -241,6 +243,7 @@ class MistralAttention(nn.Module):
         self.head_dim = self.hidden_size // config.num_attention_heads
         self.rope_theta = config.rope_theta
         self.sliding_window = config.sliding_window
+        self.attention_sink_size = config.attention_sink_size
 
         self.combine_matmul = config.combine_matmul
         if self.combine_matmul:
@@ -288,9 +291,43 @@ class MistralAttention(nn.Module):
         kv_seq_len: int,
         rolling_cache_len: int,
         cache_offset: int,
+        attention_sink_size: int,
         past_key_value: Tuple[relax.Expr],
     ):
-        from tvm.relax.op import reshape, squeeze
+        from tvm.relax.op import reshape
+
+        def te_cache_unrotate(x_cached, cache_offset, rolling_cache_len):
+            return te.compute(
+                (kv_cur_shape[0], rolling_cache_len, kv_cur_shape[2], kv_cur_shape[3]),
+                lambda b, s, h, d: te.if_then_else(
+                    s < attention_sink_size,
+                    x_cached[b, s, h, d],
+                    te.if_then_else(
+                        s < rolling_cache_len - cache_offset + attention_sink_size,
+                        x_cached[b, s + cache_offset - attention_sink_size, h, d],
+                        x_cached[b, s + cache_offset - rolling_cache_len, h, d],
+                    ),
+                ),
+                name="te_cache_unrotate",
+            )
+
+        def te_cache_cur_concat(x, x_cached, kv_seq_len, rolling_cache_len):
+            return te.compute(
+                (kv_cur_shape[0], kv_seq_len, kv_cur_shape[2], kv_cur_shape[3]),
+                lambda b, s, h, d: te.if_then_else(
+                    s < rolling_cache_len,
+                    x_cached[b, s, h, d],
+                    x[b, s - rolling_cache_len, h, d],
+                ),
+                name="te_cache_cur_concat",
+            )
+
+        def te_squeeze(x):
+            return te.compute(
+                x.shape[1:],
+                lambda s, h, d: x[0, s, h, d],
+                name="squeeze_te",
+            )
 
         # [bsz, t, nh, hd]
         kv_cur_shape = key_cur.struct_info.shape
@@ -322,66 +359,67 @@ class MistralAttention(nn.Module):
         key_cached = nn.emit(reshape(key_cached, kv_batched_cache_shape))
         value_cached = nn.emit(reshape(value_cached, kv_batched_cache_shape))
 
-        def te_unrotate_concat(x, x_cached, cache_offset, rolling_cache_len):
-            return te.compute(
-                (kv_cur_shape[0], kv_seq_len, kv_cur_shape[2], kv_cur_shape[3]),
-                lambda b, s, h, d: te.if_then_else(
-                    s < rolling_cache_len - cache_offset,
-                    x_cached[b, cache_offset + s, h, d],
-                    te.if_then_else(
-                        s < rolling_cache_len,
-                        x_cached[b, s + cache_offset - rolling_cache_len, h, d],
-                        x[b, s - rolling_cache_len, h, d],
-                    ),
-                ),
-                name="unrotate_concat_te",
-            )
-
-        key = nn.emit_te(
-            te_unrotate_concat,
-            key_cur,
+        key_cached = nn.emit_te(
+            te_cache_unrotate,
             key_cached,
             cache_offset,
             rolling_cache_len,
-            primfunc_name_hint="te_unrotate_concat_key",
+            primfunc_name_hint="te_cache_unrotate_key",
         )
-        value = nn.emit_te(
-            te_unrotate_concat,
-            value_cur,
+        key = nn.emit_te(
+            te_cache_cur_concat,
+            key_cur,
+            key_cached,
+            kv_seq_len,
+            rolling_cache_len,
+            primfunc_name_hint="te_cache_cur_concat_key",
+        )
+
+        value_cached = nn.emit_te(
+            te_cache_unrotate,
             value_cached,
             cache_offset,
             rolling_cache_len,
-            primfunc_name_hint="te_unrotate_concat_value",
+            primfunc_name_hint="te_cache_unrotate_value",
         )
-
-        # # update cache
-        # k_cache, v_cache = past_key_value
-        # squeezed_key = nn.emit(squeeze(key_cur))
-        # squeezed_value = nn.emit(squeeze(value_cur))
-
-        def te_squeeze(x):
-            return te.compute(
-                x.shape[1:],
-                lambda s, h, d: x[0, s, h, d],
-                name="squeeze_te",
-            )
+        value = nn.emit_te(
+            te_cache_cur_concat,
+            value_cur,
+            value_cached,
+            kv_seq_len,
+            rolling_cache_len,
+            primfunc_name_hint="te_cache_cur_concat_value",
+        )
 
         # update cache
         squeezed_key = nn.emit_te(te_squeeze, key_cur)
         squeezed_value = nn.emit_te(te_squeeze, value_cur)
 
-        f_kv_cache_override = relax.extern("vm.builtin.attention_kv_cache_window_override")
+        assert attention_sink_size >= 0
+        f_kv_cache_override = relax.extern(
+            "vm.builtin.attention_kv_cache_window_override_with_sinks"
+        )
         k_cache = nn.emit(
             relax.Call(
                 f_kv_cache_override,
-                args=[k_cache, squeezed_key, relax.PrimValue(self.sliding_window)],
+                args=[
+                    k_cache,
+                    squeezed_key,
+                    relax.PrimValue(self.sliding_window),
+                    relax.PrimValue(attention_sink_size),
+                ],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
         )
         v_cache = nn.emit(
             relax.Call(
                 f_kv_cache_override,
-                args=[v_cache, squeezed_value, relax.PrimValue(self.sliding_window)],
+                args=[
+                    v_cache,
+                    squeezed_value,
+                    relax.PrimValue(self.sliding_window),
+                    relax.PrimValue(attention_sink_size),
+                ],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
         )
@@ -391,9 +429,9 @@ class MistralAttention(nn.Module):
     def forward(
         self,
         hidden_states: relax.Expr,
-        all_seq_len_shape: relax.Expr,
         cache_len_shape: relax.Expr,
         kv_seq_len_shape: relax.Expr,
+        cache_offset_shape: relax.Expr,
         past_key_value: Tuple[relax.Expr],
         attention_mask: Optional[relax.Expr] = None,
     ) -> Tuple[relax.Expr, Optional[relax.Expr], Optional[Tuple[relax.Expr]]]:
@@ -442,21 +480,26 @@ class MistralAttention(nn.Module):
             ),
         )
 
-        all_seq_len = all_seq_len_shape.struct_info.values[0]
-        offset = all_seq_len - q_len
-        query, key_cur = apply_rotary_pos_emb(
-            query,
-            key_cur,
-            self.rope_theta,
-            offset=offset,
-        )
-
         # concat current kv with cached kv (unrotating the cache)
         rolling_cache_len = cache_len_shape.struct_info.values[0]
         kv_seq_len = kv_seq_len_shape.struct_info.values[0]
-        cache_offset = (all_seq_len - q_len) % self.sliding_window
+        cache_offset = cache_offset_shape.struct_info.values[0]
         key, value, updated_key_value = self.interleave_kv(
-            key_cur, value_cur, kv_seq_len, rolling_cache_len, cache_offset, past_key_value
+            key_cur,
+            value_cur,
+            kv_seq_len,
+            rolling_cache_len,
+            cache_offset,
+            self.attention_sink_size,
+            past_key_value,
+        )
+
+        # cache relative position embeddings (after KV Cache)
+        query, key = apply_rotary_pos_emb(
+            query,
+            key,
+            self.rope_theta,
+            q_offset=rolling_cache_len,
         )
 
         if self.num_key_value_heads != self.num_query_heads:
@@ -522,9 +565,9 @@ class MistralDecoderLayer(nn.Module):
     def forward(
         self,
         hidden_states: relax.Expr,
-        all_seq_len_shape: relax.Expr,
         cache_len_shape: relax.Expr,
         kv_seq_len_shape: relax.Expr,
+        cache_offset_shape: relax.Expr,
         past_key_value: Tuple[relax.Expr],
         attention_mask: Optional[relax.Expr] = None,
     ) -> Tuple[relax.Expr, Optional[Tuple[relax.Expr, relax.Expr]]]:
@@ -537,9 +580,9 @@ class MistralDecoderLayer(nn.Module):
             hidden_states=hidden_states,
             past_key_value=past_key_value,
             attention_mask=attention_mask,
-            all_seq_len_shape=all_seq_len_shape,
             cache_len_shape=cache_len_shape,
             kv_seq_len_shape=kv_seq_len_shape,
+            cache_offset_shape=cache_offset_shape,
         )
         if self.self_attn.num_shards > 1:
             residual = nn.emit(
@@ -570,7 +613,7 @@ def _make_sliding_window_mask(input_shape, kv_seq_len, sliding_window, dtype):
     bsz, tgt_len = input_shape  # TODO: only support batch size of 1 for now
     cache_len = kv_seq_len - tgt_len  # number of elements in cache
 
-    if isinstance(tgt_len, tvm.tir.Var) or tgt_len > 1:
+    if isinstance(tgt_len, tvm.tir.SizeVar) or tgt_len > 1:
         # Either 1. First prefill, or 2. Subsequent prefill
         from tvm.relax.op import broadcast_to  # pylint: disable=import-outside-toplevel
 
@@ -602,7 +645,7 @@ def _make_sliding_window_mask(input_shape, kv_seq_len, sliding_window, dtype):
 
 
 class MistralEmbedTokens(nn.Module):
-    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.Var):
+    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.SizeVar):
         self.embed_tokens = Embedding(vocab_size_var, config.hidden_size, dtype=config.dtype)
 
     def forward(self, input_ids: relax.Expr):
@@ -611,7 +654,7 @@ class MistralEmbedTokens(nn.Module):
 
 
 class MistralEmbedTokensWrapper(nn.Module):
-    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.Var):
+    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.SizeVar):
         # build a wrapper to ensure that the naming of the embed_tokens parameter is consistent
         self.model = MistralEmbedTokens(config, vocab_size_var)
 
@@ -621,7 +664,7 @@ class MistralEmbedTokensWrapper(nn.Module):
 
 
 class MistralModel(nn.Module):
-    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
+    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool = False):
         self.num_shards = config.num_shards
         self.padding_idx = config.pad_token_id
         self.embed_tokens = None
@@ -638,9 +681,9 @@ class MistralModel(nn.Module):
     def forward(
         self,
         inputs: relax.Expr,
-        all_seq_len_shape: relax.Expr,
         cache_len_shape: relax.Expr,
         kv_seq_len_shape: relax.Expr,
+        cache_offset_shape: relax.Expr,
         past_key_values: relax.Expr,
     ):
         if self.num_shards > 1:
@@ -674,9 +717,9 @@ class MistralModel(nn.Module):
                 hidden_states,
                 attention_mask=attention_mask,
                 past_key_value=past_key_value,
-                all_seq_len_shape=all_seq_len_shape,
                 cache_len_shape=cache_len_shape,
                 kv_seq_len_shape=kv_seq_len_shape,
+                cache_offset_shape=cache_offset_shape,
             )
             next_decoder_cache += key_value_cache
 
@@ -687,7 +730,7 @@ class MistralModel(nn.Module):
 
 
 class MistralForCausalLM(nn.Module):
-    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.Var, sep_embed: bool = False):
+    def __init__(self, config: MistralConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool = False):
         self.model = MistralModel(config, vocab_size_var, sep_embed)
         self.lm_head = Linear(config.hidden_size, vocab_size_var, dtype=config.dtype, bias=False)
 
@@ -709,16 +752,16 @@ class MistralForCausalLM(nn.Module):
     def forward(
         self,
         inputs: relax.Expr,
-        all_seq_len_shape: relax.Expr,
         cache_len_shape: relax.Expr,
         kv_seq_len_shape: relax.Expr,
+        cache_offset_shape: relax.Expr,
         past_key_values: relax.Expr,
     ):
         hidden_states, key_value_cache = self.model(
             inputs=inputs,
-            all_seq_len_shape=all_seq_len_shape,
             cache_len_shape=cache_len_shape,
             kv_seq_len_shape=kv_seq_len_shape,
+            cache_offset_shape=cache_offset_shape,
             past_key_values=past_key_values,
         )
 
@@ -756,9 +799,9 @@ def create_embed_func(
     func_name = "embed"
 
     bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")
+    seq_len = tvm.tir.SizeVar("n", "int64")
     with bb.function(func_name):
-        model = MistralEmbedTokensWrapper(config, tvm.tir.Var("vocab_size", "int64"))
+        model = MistralEmbedTokensWrapper(config, tvm.tir.SizeVar("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
@@ -783,16 +826,18 @@ def create_encoding_func(
     func_name = "prefill_with_embed" if sep_embed else "prefill"
 
     bsz = 1
-    seq_len = tvm.tir.Var("n", "int64")  # number of tokens for the input
-    all_seq_len = tvm.tir.Var("m", "int64")  # total_seq_len in `llm_chat.cc` (including seq_len)
-    rolling_cache_len = tvm.tir.Var("c", "int64")  # rolling_cache_len captures number of elements in the cache
-    kv_seq_len = tvm.tir.Var(
+    seq_len = tvm.tir.SizeVar("n", "int64")  # number of tokens for the input
+    rolling_cache_len = tvm.tir.SizeVar("c", "int64")  # rolling_cache_len captures number of elements in the cache
+    kv_seq_len = tvm.tir.SizeVar(
         "k", "int64"
     )  # kv_seq_len captures number of elements in cache + seq_len
+    cache_offset = tvm.tir.SizeVar(
+        "o", "int64"
+    )  # slidinf window kv cache offset
 
     hidden_size = config.hidden_size
     with bb.function(func_name):
-        model = MistralForCausalLM(config, tvm.tir.Var("vocab_size", "int64"), sep_embed)
+        model = MistralForCausalLM(config, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed)
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         inputs = (
@@ -800,9 +845,11 @@ def create_encoding_func(
             if sep_embed
             else nn.Placeholder((bsz, seq_len), dtype="int32", name="input_ids")
         )
-        all_seq_len_shape = relax.Var("all_seq_len", relax.ShapeStructInfo((all_seq_len,)))
-        cache_len_shape = relax.Var("rolling_cache_len", relax.ShapeStructInfo((rolling_cache_len,)))
+        cache_len_shape = relax.Var(
+            "rolling_cache_len", relax.ShapeStructInfo((rolling_cache_len,))
+        )
         kv_seq_len_shape = relax.Var("kv_seq_len", relax.ShapeStructInfo((kv_seq_len,)))
+        cache_offset_shape = relax.Var("cache_offset", relax.ShapeStructInfo((cache_offset,)))
         past_key_values = relax.Var(
             "kv_cache",
             relax.TupleStructInfo(
@@ -812,16 +859,16 @@ def create_encoding_func(
         with bb.dataflow():
             logits, key_value_cache = model(
                 inputs,
-                all_seq_len_shape,
                 cache_len_shape,
                 kv_seq_len_shape,
+                cache_offset_shape,
                 past_key_values=past_key_values,
             )
             params = [
                 inputs,
-                all_seq_len_shape,
                 cache_len_shape,
                 kv_seq_len_shape,
+                cache_offset_shape,
                 past_key_values,
             ] + model.parameters()
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
@@ -841,20 +888,24 @@ def create_decoding_func(
     func_name = "decode"
 
     bsz = 1
-    all_seq_len = tvm.tir.Var("m", "int64")
-    rolling_cache_len = tvm.tir.Var("c", "int64")  # rolling_cache_len captures number of elements in the cache
-    kv_seq_len = tvm.tir.Var(
+    rolling_cache_len = tvm.tir.SizeVar("c", "int64")  # rolling_cache_len captures number of elements in the cache
+    kv_seq_len = tvm.tir.SizeVar(
         "k", "int64"
     )  # kv_seq_len captures number of elements in cache + seq_len
+    cache_offset = tvm.tir.SizeVar(
+        "o", "int64"
+    )  # sliding window kv cache offset
 
     with bb.function(func_name):
-        model = MistralForCausalLM(config, tvm.tir.Var("vocab_size", "int64"))
+        model = MistralForCausalLM(config, tvm.tir.SizeVar("vocab_size", "int64"))
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((bsz, 1), dtype="int32", name="input_ids")
-        all_seq_len_shape = relax.Var("all_seq_len", relax.ShapeStructInfo((all_seq_len,)))
-        cache_len_shape = relax.Var("rolling_cache_len", relax.ShapeStructInfo((rolling_cache_len,)))
+        cache_len_shape = relax.Var(
+            "rolling_cache_len", relax.ShapeStructInfo((rolling_cache_len,))
+        )
         kv_seq_len_shape = relax.Var("kv_seq_len", relax.ShapeStructInfo((kv_seq_len,)))
+        cache_offset_shape = relax.Var("cache_offset", relax.ShapeStructInfo((cache_offset,)))
         past_key_values = relax.Var(
             "kv_cache",
             relax.TupleStructInfo(
@@ -864,16 +915,16 @@ def create_decoding_func(
         with bb.dataflow():
             logits, key_value_cache = model(
                 input_ids,
-                all_seq_len_shape,
                 cache_len_shape,
                 kv_seq_len_shape,
+                cache_offset_shape,
                 past_key_values=past_key_values,
             )
             params = [
                 input_ids,
-                all_seq_len_shape,
                 cache_len_shape,
                 kv_seq_len_shape,
+                cache_offset_shape,
                 past_key_values,
             ] + model.parameters()
             gv = bb.emit_output((logits, relax.Tuple(key_value_cache)))
@@ -915,7 +966,7 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: MistralConfig) -> None:
 def create_softmax_func(bb: relax.BlockBuilder, config: MistralConfig) -> None:
     with bb.function("softmax_with_temperature"):
         logits = nn.Placeholder(
-            (1, 1, tvm.tir.Var("vocab_size", "int64")), dtype="float32", name="logits"
+            (1, 1, tvm.tir.SizeVar("vocab_size", "int64")), dtype="float32", name="logits"
         )
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
@@ -933,6 +984,8 @@ def get_model(args, hf_config):
 
     if args.sliding_window != -1:
         hf_config["sliding_window"] = args.sliding_window
+        if args.attention_sink_size > 0:
+            hf_config["attention_sink_size"] = args.attention_sink_size
     if args.max_seq_len != -1:
         hf_config["max_sequence_length"] = args.max_seq_len
 
@@ -944,11 +997,12 @@ def get_model(args, hf_config):
         build_model_only=args.build_model_only,
     )
 
-    assert config.sliding_window != -1
-
     # prefill chunk size same as sliding window by default
     if args.prefill_chunk_size < 1:
-        args.prefill_chunk_size = config.sliding_window
+        args.prefill_chunk_size = config.sliding_window - config.attention_sink_size
+
+    assert config.sliding_window != -1
+    assert args.prefill_chunk_size <= config.sliding_window - config.attention_sink_size
 
     param_manager = ParamManager()
     bb = relax.BlockBuilder()

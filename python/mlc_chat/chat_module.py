@@ -2,27 +2,32 @@
 #! pylint: disable=too-many-lines
 import inspect
 import json
-import logging
 import os
+import subprocess
 import sys
 import warnings
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import tvm
 from tvm.runtime import disco  # pylint: disable=unused-import
 
+from mlc_chat.support import logging
 from mlc_chat.support.auto_device import detect_device
 
-from . import base  # pylint: disable=unused-import
+from . import base as _
 
 if TYPE_CHECKING:
-    from .interface.openai_api import ChatMessage
+    from mlc_chat.interface.openai_api import ChatMessage
 
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
 # pylint: enable=line-too-long
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -156,12 +161,30 @@ class ChatConfig:  # pylint: disable=too-many-instance-attributes
         The category of the model's architecture (e.g. ``llama``, ``gpt_neox``, ``rwkv``).
     model_name : Optional[str]
         Name of the model (e.g. ``Llama-2-7b-chat-hf``).
-    num_shards: Optional[str]
+    tensor_parallel_shards : Optional[str]
         Tensor parallel degree.
-    use_presharded_weights: Optional[bool]
+    use_presharded_weights : Optional[bool]
         If True, the weights were saved with sharding already applied.
-    max_window_size: Optional[str]
+    context_window_size : Optional[int]
         Maximum kv cache window size.
+    prefill_chunk_size: Optional[int]
+        (Experimental) The chunk size during prefilling. By default,
+        the chunk size is the same as sliding window or max sequence length.
+        This flag subjects to future refactoring.
+    attention_sink_size : Optional[int]
+        (Experimental) The number of stored sinks. Only supported on Mistral yet. By default,
+        the number of sinks is 4. This flag subjects to future refactoring.
+    sliding_window_size : Optional[int]
+        (Experimental) The sliding window size in sliding window attention (SWA).
+        This optional field overrides the `sliding_window_size` in config.json for
+        those models that use SWA. Currently only useful when compiling Mistral.
+        This flag subjects to future refactoring.
+    opt : Optional[str]
+        Optimization flags. MLC LLM maintains a predefined set of optimization flags,
+        denoted as O0, O1, O2, O3, where O0 means no optimization, O2 means majority of them,
+        and O3 represents extreme optimization that could potentially break the system.
+        Meanwhile, optimization flags could be explicitly specified via details knobs, e.g.
+        --opt="cublas_gemm=1;cudagraph=0".
     """
 
     model_lib: Optional[str] = None
@@ -177,9 +200,14 @@ class ChatConfig:  # pylint: disable=too-many-instance-attributes
     conv_config: Optional[ConvConfig] = None
     model_category: Optional[str] = None
     model_name: Optional[str] = None
-    num_shards: Optional[int] = None
+    tensor_parallel_shards: Optional[int] = None
     use_presharded_weights: Optional[bool] = None
-    max_window_size: Optional[int] = None
+    context_window_size: Optional[int] = None
+    sliding_window_size: Optional[int] = None
+    prefill_chunk_size: Optional[int] = None
+    attention_sink_size: Optional[int] = None
+    max_batch_size: Optional[int] = None
+    opt: Optional[str] = None
 
     @classmethod
     def _from_json(cls, json_obj: dict):
@@ -313,6 +341,16 @@ def _get_model_path(model: str) -> Tuple[str, str]:
     ------
     FileNotFoundError: if we cannot find a valid `model_path`.
     """
+    if model.startswith("HF://"):
+        from mlc_chat.support.download import (  # pylint: disable=import-outside-toplevel
+            download_mlc_weights,
+        )
+
+        logger.info("Downloading model from HuggingFace: %s", model)
+        mlc_dir = download_mlc_weights(model)
+        cfg_dir = mlc_dir / "mlc-chat-config.json"
+        return str(mlc_dir), str(cfg_dir)
+
     # Note that the order of this list corresponds to our search priority
     candidate_paths = [
         f"{model}",  # full path, or just the name
@@ -325,8 +363,8 @@ def _get_model_path(model: str) -> Tuple[str, str]:
     for candidate in candidate_paths:
         chat_file = os.path.join(candidate, "mlc-chat-config.json")
         if os.path.isfile(chat_file):
-            logging.info("Using model folder: %s", os.path.abspath(candidate))
-            logging.info("Using mlc chat config: %s", os.path.abspath(chat_file))
+            logger.info("Using model folder: %s", os.path.abspath(candidate))
+            logger.info("Using mlc chat config: %s", os.path.abspath(chat_file))
             return candidate, chat_file
 
     # Failed to find a valid model_path, analyzing error for user
@@ -457,7 +495,7 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
         The path to ``mlc-chat-config.json``. Used for error message making.
 
     Returns
-    ------
+    -------
     model_lib_path : str
         The path pointing to the model library we find.
 
@@ -468,7 +506,7 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
     # 1. Use user's model_lib_path if provided
     if model_lib_path is not None:
         if os.path.isfile(model_lib_path):
-            logging.info("Using library model: %s", model_lib_path)
+            logger.info("Using library model: %s", model_lib_path)
             return model_lib_path
         raise FileNotFoundError(
             f"The `model_lib_path` you passed in is not a file: {model_lib_path}.\n"
@@ -512,7 +550,7 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
     # 4. Search for model library
     for candidate in candidate_paths:
         if os.path.isfile(candidate):
-            logging.info("Using library model: %s", os.path.abspath(candidate))
+            logger.info("Using library model: %s", os.path.abspath(candidate))
             return candidate
 
     # 5. Error
@@ -593,6 +631,17 @@ def _convert_generation_config_to_json_str(generation_config: Optional[Generatio
     return json.dumps(asdict(generation_config))
 
 
+def _inspect_model_lib_metadata_memory_usage(model_lib_path):
+    cmd = [
+        sys.executable,
+        "-m",
+        "mlc_chat.cli.model_metadata",
+        model_lib_path,
+        "--memory-only",
+    ]
+    subprocess.run(cmd, check=False)
+
+
 class ChatModule:  # pylint: disable=too-many-instance-attributes
     r"""The ChatModule for MLC LLM.
 
@@ -648,7 +697,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         possible paths.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         model: str,
         device: str = "auto",
@@ -694,14 +743,29 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         self.chat_config = _get_chat_config(self.config_file_path, chat_config)
 
         # 4. Look up model library
-        self.model_lib_path = _get_lib_module_path(
-            model,
-            self.model_path,
-            self.chat_config,
-            model_lib_path,
-            self.device.MASK2STR[self.device.device_type],
-            self.config_file_path,
-        )
+        try:
+            self.model_lib_path = _get_lib_module_path(
+                model,
+                self.model_path,
+                self.chat_config,
+                model_lib_path,
+                self.device.MASK2STR[self.device.device_type],
+                self.config_file_path,
+            )
+        except FileNotFoundError:
+            logger.info("Model lib not found. Now compiling model lib on device...")
+            from mlc_chat.interface import (  # pylint: disable=import-outside-toplevel
+                jit,
+            )
+
+            self.model_lib_path = str(
+                jit.jit(
+                    model_path=Path(self.model_path),
+                    chat_config=asdict(self.chat_config),
+                    device=self.device,
+                )
+            )
+        _inspect_model_lib_metadata_memory_usage(self.model_lib_path)
 
         # 5. Call reload
         user_chat_config_json_str = _convert_chat_config_to_json_str(
@@ -714,6 +778,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         prompt: Union[str, List["ChatMessage"]],
         generation_config: Optional[GenerationConfig] = None,
         progress_callback=None,
+        stateless=False,
     ) -> Union[str, List[str]]:
         r"""A high-level method that returns the full response from the chat module given a user
         prompt. User can optionally specify which callback method to use upon receiving the
@@ -771,7 +836,8 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
             return_str = False
 
         for _ in range(num_return_sequences):
-            self.reset_chat()
+            if stateless:
+                self.reset_chat()
             self._prefill(prompt, generation_config=generation_config)
 
             if not progress_callback:

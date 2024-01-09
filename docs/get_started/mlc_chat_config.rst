@@ -3,12 +3,18 @@
 Configure MLCChat in JSON
 =========================
 
-This page explains the components of a chat configuration and how to customize them for your own purposes.
+``mlc-chat-config.json`` is required for both compile-time and runtime, hence serving two purposes:
 
-Each MLC Chat runtime can be configured via an ``mlc-chat-config.json`` file under the directory of each compiled model (e.g.
-`RedPajama chat config <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1/blob/main/mlc-chat-config.json>`__)
-which contains the chat configuration. You can customize the chat configuration by modifying this file.
-Additionally, the runtimes also provide APIs to optionally override some of the configurations.
+1. Specify how we compile a model (shown in :ref:`compile-model-libraries`), and
+2. Specify conversation behavior in runtime.
+
+**This page focuses on the second purpose.** We explain the components of a chat
+configuration and how to customize them by modifying the file. Additionally,
+the runtimes also provide APIs to optionally override some of the configurations.
+
+In runtime, this file is stored under the directory of each compiled model
+(e.g. `RedPajama chat config <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1/blob/main/mlc-chat-config.json>`__).
+
 
 .. _struct-mlc-chat-conv:
 
@@ -21,40 +27,47 @@ Below is the ``mlc-chat-config.json`` file corresponding to Llama2 model:
 
   // mlc-chat-config.json
   {
-    "model_lib": "Llama-2-7b-chat-hf-q4f16_1",
-    "local_id": "Llama-2-7b-chat-hf-q4f16_1",
-    "conv_template": "llama-2",
-    "temperature": 0.7,
-    "repetition_penalty": 1.0,
-    "top_p": 0.95,
+    // 1. Metadata used to specify how to compile a model
+    "model_type": "llama",
+    "quantization": "q4f16_1",
+    "version": "0.1.0",
+    "model_config": {
+      "hidden_size": 4096,
+      "intermediate_size": 11008,
+      // more fields here...
+    },
+    "vocab_size": 32000,
+    "context_window_size": 4096,
+    "sliding_window_size": -1,
+    "prefill_chunk_size": 4096,
+    "tensor_parallel_shards": 1,
+
+    // 2. Tokenizer-related fields
+    "pad_token_id": 0,
+    "bos_token_id": 1,
+    "eos_token_id": 2,
+    "tokenizer_files": [
+      "tokenizer.model",
+      "tokenizer.json",
+      "tokenizer_config.json"
+    ]
+
+    // 3. Chat related fields that affect runtime behavior
     "mean_gen_len": 128,
     "max_gen_len": 512,
     "shift_fill_factor": 0.3,
-    "tokenizer_files": [
-        "added_tokens.json",
-        "tokenizer.json",
-        "tokenizer.model"
-    ],
-    "model_category": "llama",
-    "model_name": "Llama-2-7b-chat-hf"
+    "temperature": 0.6,
+    "repetition_penalty": 1.0,
+    "top_p": 0.9,
+    "conv_template": "llama-2",
   }
 
-The following fields contain the meta-data which affect system behaviors.
+.. note:: 
+  Fields in the first part of ``mlc-chat-config.json`` (e.g. ``context-window-size``)
+  is only for compile-time. Changing them during runtime may lead to unexpected behavior.
 
-``model_lib``
-  The necessary model library to launch this model architecture. We recommend reuse model library when possible.
-  For example, all LLaMA-7B models compiled under ``q4f16_1`` quantization
-  can use `Llama-2-7b-chat-hf-q4f16_1`. So you can distribute LLaMA-7B
-  weight variants and still use them in prebuilt MLC chat apps.
-
-``local_id``
-  Uniquely identifying the model in application. This is also used by command line interface app to specify which model to run.
-
-``tokenizer_files``
-  List of tokenizer files of the model.
-
-
-The following fields can be customized to change the behavior of the model:
+**As shown above, the file is divided into three parts. We focus on the third part, which
+can be customized to change the behavior of the model.**
 
 ``conv_template``
   The name of the conversation template that this chat uses. For more information, please refer to :ref:`conversation structure <struct-conv>`.
@@ -72,6 +85,14 @@ The following fields can be customized to change the behavior of the model:
 
   For additional information on top-p sampling, please refer to this `blog post <https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling>`_.
 
+``mean_gen_len``
+  The approximated average number of generated tokens in each round. Used to determine whether the maximum window size would be exceeded.
+
+``max_gen_len``
+  This parameter determines the maximum length of the generated text. If it is not set, the model will generate text until it encounters a stop token.
+
+``shift_fill_factor``
+  The fraction of maximum window size to shift when it is exceeded.
 
 .. _struct-conv:
 
@@ -230,4 +251,4 @@ The following example demonstrates how to chat with Vicuna and resume from a cha
   }
 
 
-The next time you start ``mlc_chat_cli``, you will initiate a chat with Vicuna and resume from the provided chat history.
+The next time you start ``mlc_chat_cli``, or use Python API, you will initiate a chat with Vicuna and resume from the provided chat history.

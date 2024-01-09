@@ -1,20 +1,15 @@
 # pylint: disable=missing-docstring
 import json
-import logging
 import os
 import tempfile
 from pathlib import Path
 
 import pytest
 
+from mlc_chat.support import logging
 from mlc_chat.support.auto_weight import detect_weight
 
-logging.basicConfig(
-    level=logging.INFO,
-    style="{",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    format="{asctime} {levelname} {filename}:{lineno}: {message}",
-)
+logging.enable_logging()
 
 
 def _create_json_file(json_path, data):

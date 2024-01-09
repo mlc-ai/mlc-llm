@@ -1,7 +1,6 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-import logging
 from typing import Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -10,6 +9,8 @@ from langchain.embeddings.openai import (  # pylint: disable=import-error
     async_embed_with_retry,
     embed_with_retry,
 )
+
+from mlc_chat.support import logging
 
 logger = logging.getLogger(__name__)
 

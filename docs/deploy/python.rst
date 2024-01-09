@@ -1,20 +1,34 @@
-Python API and Gradio Frontend
-==============================
+.. _deploy-python:
+
+Python API
+==========
 
 .. contents:: Table of Contents
    :local:
    :depth: 2
 
 We expose Python API for the MLC-Chat for easy integration into other Python projects.
-We also provide a web demo based on `gradio <https://gradio.app/>`_ as an example of using Python API to interact with MLC-Chat.
 
-Python API
-----------
+The Python API is a part of the MLC-Chat package, which we have prepared pre-built pip wheels via
+the :doc:`installation page <../install/mlc_llm>`.
 
-The Python API is a part of the MLC-Chat package, which we have prepared pre-built pip wheels via the :doc:`installation page <../install/mlc_llm>`.
+Instead of following this page, you could also checkout the following tutorials in
+Python notebook (all runnable in Colab):
+
+- `Getting Started with MLC-LLM <https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb>`_:
+  how to quickly download prebuilt models and chat with it
+- `Raw Text Generation with MLC-LLM <https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_raw_text_generation.ipynb>`_:
+  how to perform raw text generation with MLC-LLM in Python
+
+.. These notebooks are not up-to-date with SLM yet
+.. - `Compiling Llama-2 with MLC-LLM <https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_compile_llama2_with_mlc_llm.ipynb>`_:
+..   how to use Python APIs to compile models with the MLC-LLM workflow
+.. - `Extensions to More Model Variants <https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_extensions_to_more_model_variants.ipynb>`_:
+..   how to use Python APIs to compile and chat with any model variant you'd like
+
 
 Verify Installation
-^^^^^^^^^^^^^^^^^^^
+-------------------
 
 .. code:: bash
 
@@ -22,85 +36,46 @@ Verify Installation
 
 You are expected to see the information about the :class:`mlc_chat.ChatModule` class.
 
-If the prebuilt is unavailable on your platform, or you would like to build a runtime
-that supports other GPU runtime than the prebuilt version. Please refer our :ref:`Build MLC-Chat Package From Source<mlcchat_package_build_from_source>` tutorial.
+If the command above results in error, follow :ref:`install-mlc-packages` (either install the prebuilt pip wheels
+or :ref:`mlcchat_build_from_source`).
 
-Get Started
-^^^^^^^^^^^
-After confirming that the package ``mlc_chat`` is installed, we can follow the steps
-below to chat with an MLC-compiled model in Python.
+Run MLC Models w/ Python
+------------------------
 
-First, let us make sure that the MLC-compiled ``model`` we want to chat with already exists.
+To run a model with MLC LLM in any platform/runtime, you need:
 
-.. note::
-   ``model`` has the format ``f"{model_name}-{quantize_mode}"``. For instance, if
-   you used ``q4f16_1`` as the ``quantize_mode`` to compile ``Llama-2-7b-chat-hf``, you 
-   would have ``model`` being ``Llama-2-7b-chat-hf-q4f16_1``.
+1. **Model weights** converted to MLC format (e.g. `RedPajama-INCITE-Chat-3B-v1-MLC 
+   <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-MLC/tree/main>`_.)
+2. **Model library** that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__).
 
-If you do not have the MLC-compiled ``model`` ready:
+There are two ways to obtain the model weights and libraries:
 
-- Checkout :ref:`Try out MLC Chat<get_started>` to download prebuilt models for simplicity, or
-- Checkout :ref:`Compile Models via MLC<compile-models-via-MLC>` to compile models with ``mlc_llm`` (another package) yourself
+1. Compile your own model weights and libraries following :doc:`the model compilation page </compilation/compile_models>`.
+2. Use off-the-shelf `prebuilt models weights <https://huggingface.co/mlc-ai>`__ and
+   `prebuilt model libraries <https://github.com/mlc-ai/binary-mlc-llm-libs>`__ (see :ref:`Model Prebuilts` for details).
 
-.. tabs ::
+We use off-the-shelf prebuilt models in this page. However, same steps apply if you want to run
+the models you compiled yourself.
 
-   .. tab :: Check prebuilt models
+**Step 1: Download prebuilt model weights and libraries**
 
-      If you downloaded prebuilt models from MLC LLM, by default:
+Skip this step if you have already obtained the model weights and libraries.
 
-      - Model lib should be placed at ``./dist/prebuilt/lib/$(model)-$(arch).$(suffix)``.
-      - Model weights and chat config are located under ``./dist/prebuilt/mlc-chat-$(model)/``.
+.. code:: shell
 
-      .. note::
-         Please make sure that you have the same directory structure as above, because Python API
-         relies on it to automatically search for model lib and weights. If you would like to directly
-         provide a full model lib path to override the auto-search, you can specify ``ChatModule.model_lib_path``
+  # Download pre-conveted weights
+  git lfs install && mkdir dist/
+  git clone https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC \
+                                     dist/Llama-2-7b-chat-hf-q4f16_1-MLC
 
-      .. collapse:: Example
+  # Download pre-compiled model library
+  git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
 
-         .. code:: shell
 
-            >>> ls -l ./dist/prebuilt/lib
-            Llama-2-7b-chat-hf-q4f16_1-metal.so  # Format: $(model)-$(arch).$(suffix)
-            Llama-2-7b-chat-hf-q4f16_1-vulkan.so
-            ...
-            >>> ls -l ./dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1  # Format: ./dist/prebuilt/mlc-chat-$(model)/
-            # chat config:
-            mlc-chat-config.json
-            # model weights:
-            ndarray-cache.json
-            params_shard_*.bin
-            ...
+**Step 2: Run the model in Python**
 
-   .. tab :: Check compiled models
-
-      If you have compiled models using MLC LLM, by default:
-
-      - Model libraries should be placed at ``./dist/$(model)/$(model)-$(arch).$(suffix)``.
-      - Model weights and chat config are located under ``./dist/$(model)/params/``.
-
-      .. note::
-         Please make sure that you have the same directory structure as above, because Python API
-         relies on it to automatically search for model lib and weights. If you would like to directly
-         provide a full model lib path to override the auto-search, you can specify ``ChatModule.model_lib_path``
-
-      .. collapse:: Example
-
-         .. code:: shell
-
-            >>> ls -l ./dist/Llama-2-7b-chat-hf-q4f16_1/ # Format: ./dist/$(model)/
-            Llama-2-7b-chat-hf-q4f16_1-metal.so  # Format: $(model)-$(arch).$(suffix)
-            ...
-            >>> ls -l ./dist/Llama-2-7b-chat-hf-q4f16_1/params  # Format: ``./dist/$(model)/params/``
-            # chat config:
-            mlc-chat-config.json
-            # model weights:
-            ndarray-cache.json
-            params_shard_*.bin
-            ...
-
-After making sure that the files exist, use the conda environment you used
-to install ``mlc_chat``, from the ``mlc-llm`` directory, you can create a Python
+Use the conda environment you used to install ``mlc_chat``.
+From the ``mlc-llm`` directory, you can create a Python
 file ``sample_mlc_chat.py`` and paste the following lines:
 
 .. code:: python
@@ -108,14 +83,24 @@ file ``sample_mlc_chat.py`` and paste the following lines:
    from mlc_chat import ChatModule
    from mlc_chat.callback import StreamToStdout
 
-   # From the mlc-llm directory, run
-   # $ python sample_mlc_chat.py
-
    # Create a ChatModule instance
-   cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
-   # You can change to other models that you downloaded, for example,
-   # cm = ChatModule(model="Llama-2-13b-chat-hf-q4f16_1")  # Llama2 13b model
+   cm = ChatModule(
+      model="dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
+      model_lib_path="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
+      # Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so
+      # Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so
+      # Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}
+   )
 
+   # You can change to other models that you downloaded
+   # Model variants of the same architecture can reuse the same model library
+   # Here WizardMath reuses Mistral's model library
+   # cm = ChatModule(
+   #     model="dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC",  # or "dist/WizardMath-7B-V1.1-q4f16_1-MLC"
+   #     model_lib_path="dist/prebuilt_libs/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-cuda.so"
+   # )
+
+   # Generate a response for a given prompt
    output = cm.generate(
       prompt="What is the meaning of life?",
       progress_callback=StreamToStdout(callback_interval=2),
@@ -132,13 +117,13 @@ file ``sample_mlc_chat.py`` and paste the following lines:
    # Reset the chat module by
    # cm.reset_chat()
 
+
 Now run the Python file to start the chat
 
 .. code:: bash
 
    python sample_mlc_chat.py
 
-You can also checkout the :doc:`/prebuilt_models` page to run other models.
 
 .. collapse:: See output
 
@@ -166,28 +151,19 @@ You can also checkout the :doc:`/prebuilt_models` page to run other models.
 
 |
 
-.. note:: 
-   You could also specify the address of ``model`` and ``model_lib_path`` explicitly. If
-   you only specify ``model`` as ``model_name`` and ``quantize_mode``, we will
-   do a search for you. See more in the documentation of :meth:`mlc_chat.ChatModule.__init__`.
+**Running other models**
 
-Tutorial with Python Notebooks
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Checkout the :doc:`/prebuilt_models` page to run other pre-compiled models.
 
-Now that you have tried out how to chat with the model in Python, we would
-recommend you to checkout the following tutorials in Python notebook (all runnable in Colab):
+For models other than the prebuilt ones we provided:
 
-- `Getting Started with MLC-LLM <https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb>`_:
-  how to quickly download prebuilt models and chat with it
-- `Compiling Llama-2 with MLC-LLM <https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_compile_llama2_with_mlc_llm.ipynb>`_:
-  how to use Python APIs to compile models with the MLC-LLM workflow
-- `Extensions to More Model Variants <https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_extensions_to_more_model_variants.ipynb>`_:
-  how to use Python APIs to compile and chat with any model variant you'd like
-- `Raw Text Generation with MLC-LLM <https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_raw_text_generation.ipynb>`_:
-  how to perform raw text generation with MLC-LLM in Python
+1. If the model is a variant to an existing model library (e.g. ``WizardMathV1.1`` and ``OpenHermes`` are variants of ``Mistral`` as
+   shown in the code snippet), follow :ref:`convert-weights-via-MLC` to convert the weights and reuse existing model libraries.
+2. Otherwise, follow :ref:`compile-model-libraries` to compile both the model library and weights.
+
 
 Configure MLCChat in Python
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+---------------------------
 If you have checked out :ref:`Configure MLCChat in JSON<configure-mlc-chat-json>`, you would know
 that you could configure MLCChat through various fields such as ``temperature``. We provide the
 option of overriding any field you'd like in Python, so that you do not need to manually edit
@@ -212,7 +188,14 @@ We provide an example below.
    chat_config = ChatConfig(max_gen_len=256, conv_config=conv_config)
 
    # Using the `chat_config` we created, instantiate a `ChatModule`
-   cm = mlc_chat.ChatModule('Llama-2-7b-chat-hf-q4f16_1', chat_config=chat_config)
+   cm = ChatModule(
+      chat_config=chat_config,
+      model="dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
+      model_lib_path="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
+      # Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so
+      # Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so
+      # Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}
+   )
 
    output = cm.generate(
       prompt="What is one plus one?",
@@ -257,7 +240,7 @@ We provide an example below.
    :ref:`Configure MLCChat in JSON<configure-mlc-chat-json>`.
 
 Raw Text Generation in Python
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-----------------------------
 
 Raw text generation allows the user to have more flexibility over his prompts, 
 without being forced to create a new conversational template, making prompt customization easier.
@@ -280,8 +263,14 @@ We provide an example below.
    chat_config = ChatConfig(conv_config=conv_config, conv_template="LM")
 
    # Using the `chat_config` we created, instantiate a `ChatModule`
-   cm = ChatModule('Llama-2-7b-chat-hf-q4f16_1', chat_config=chat_config)
-
+   cm = ChatModule(
+      chat_config=chat_config,
+      model="dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
+      model_lib_path="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
+      # Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so
+      # Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so
+      # Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}
+   )
    # To make the model follow conversations a chat structure should be provided
    # This allows users to build their own prompts without building a new template
    system_prompt = "<<SYS>>\nYou are a helpful, respectful and honest assistant.\n<</SYS>>\n\n"
@@ -307,7 +296,7 @@ We provide an example below.
    unless explicitly given inside the prompt.
 
 Stream Iterator in Python
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-------------------------
 
 Stream Iterator gives users an option to stream generated text to the function that the API is called from,
 instead of streaming to stdout, which could be a necessity when building services on top of MLC Chat.
@@ -320,7 +309,13 @@ We provide an example below.
    from mlc_chat.callback import StreamIterator
 
    # Create a ChatModule instance
-   cm = ChatModule(model="Llama-2-7b-chat-hf-q4f16_1")
+   cm = ChatModule(
+      model="dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
+      model_lib_path="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
+      # Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so
+      # Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so
+      # Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}
+   )
 
    # Stream to an Iterator
    from threading import Thread
@@ -363,30 +358,3 @@ The :class:`mlc_chat.ChatModule` class provides the following methods:
 
 .. autoclass:: GenerationConfig
    :members:
-
-Gradio Frontend
----------------
-
-The gradio frontend provides a web interface for the MLC-Chat model, which allows users to interact with the model in a more user-friendly way and switch between different models to compare performance.
-To use gradio frontend, you need to install gradio first:
-
-.. code-block:: bash
-
-   pip install gradio
-
-Then you can run the following code to start the interface:
-
-.. code:: bash
-
-   python -m mlc_chat.gradio --artifact-path ARTIFACT_PATH [--device DEVICE] [--port PORT_NUMBER] [--share]
-
---artifact-path        Please provide a path containing all the model folders you wish to use. The default value is ``dist``.
---device               The description of the device to run on. User should provide a string in the form of 'device_name:device_id' or 'device_name', where 'device_name' is one of 'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto' (automatically detect the local device), and 'device_id' is the device id to run on. If no 'device_id' is provided, it will be set to 0. The default value is ``auto``.
---port                 The port number to run gradio. The default value is ``7860``.   
---share                Whether to create a publicly shareable link for the interface.
-
-After setting it up properly, you are expected to see the following interface in your browser:
-
-.. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/gradio-interface.png
-   :width: 100%
-   :align: center

@@ -1,100 +1,183 @@
-.. _compile-models-via-MLC:
+.. _compile-model-libraries:
 
-Compile Models via MLC
-======================
+Compile Model Libraries
+=======================
 
-This page describes how to compile a model with MLC LLM. Model compilation takes model inputs, produces quantized model weights,
-and optimizes model lib for a given platform. It enables users to bring their own new model weights, try different quantization modes,
-and customize the overall model optimization flow.
+To run a model with MLC LLM in any platform, you need:
+
+1. **Model weights** converted to MLC format (e.g. `RedPajama-INCITE-Chat-3B-v1-MLC 
+   <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-MLC/tree/main>`_.)
+2. **Model library** that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__).
+
+If you are simply adding a model variant, follow :ref:`convert-weights-via-MLC` suffices.
+
+This page describes how to compile a model library with MLC LLM. Model compilation optimizes
+the model inference for a given platform, allowing users bring their own new model
+architecture, use different quantization modes, and customize the overall model
+optimization flow.
+
+We compile ``RedPajama-INCITE-Chat-3B-v1`` with ``q4f16_1`` as an example for all platforms.
 
 .. note::
-    Before you proceed, please make sure that you have :ref:`install-tvm-unity` correctly installed on your machine.
-    TVM-Unity is the necessary foundation for us to compile models with MLC LLM.
-    If you want to build webgpu, please also complete :ref:`install-web-build`.
-    Please also follow the instructions in :ref:`deploy-cli` to obtain the CLI app that can be used to chat with the compiled model.
-    Finally, we strongly recommend you read :ref:`project-overview` first to get familiarized with the high-level terminologies.
-
+    Before you proceed, make sure you followed :ref:`install-tvm-unity`, a required
+    backend to compile models with MLC LLM.
+    
+    Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python` to obtain
+    the CLI app / Python API that can be used to chat with the compiled model.
+    Finally, we strongly recommend you to read :ref:`project-overview` first to get
+    familiarized with the high-level terminologies.
 
 .. contents:: Table of Contents
     :depth: 1
     :local:
 
-Install MLC-LLM Package
------------------------
+0. Verify Installation
+----------------------
 
-Work with Source Code
-^^^^^^^^^^^^^^^^^^^^^
+**Step 1. Verify mlc_chat**
 
-The easiest way to use MLC-LLM is to clone the repository, and compile models under the root directory of the repository.
-
-.. code:: bash
-
-    # clone the repository
-    git clone https://github.com/mlc-ai/mlc-llm.git --recursive
-    # enter to root directory of the repo
-    cd mlc-llm
-    # install mlc-llm
-    pip install .
-
-Verify Installation
-^^^^^^^^^^^^^^^^^^^
+We use the python package ``mlc_chat`` to compile models. This can be installed by 
+following :ref:`install-mlc-packages`, either by building from source, or by
+installing the prebuilt package. Verify ``mlc_chat`` installation in command line via:
 
 .. code:: bash
 
-   python3 -m mlc_llm.build --help
+    $ mlc_chat --help
+    # You should see help information with this line
+    usage: MLC LLM Command Line Interface. [-h] {compile,convert_weight,gen_config}
 
-You are expected to see the help information of the building script.
+.. note::
+    If it runs into error ``command not found: mlc_chat``, try ``python -m mlc_chat --help``.
 
-Get Started
------------
+**Step 2. Verify TVM**
 
-This section provides a step by step instructions to guide you through the compilation process of one specific model.
-We take the RedPajama-v1-3B as an example.
-You can select the platform where you want to **run** your model from the tabs below and run the corresponding command.
-We strongly recommend you **start with Metal/CUDA/Vulkan** as it is easier to validate the compilation result on
-your personal computer.
+To compile models, you also need to follow :ref:`install-tvm-unity`.
+Here we verify ``tvm`` quickly with command line (for full verification, see :ref:`tvm-unity-validate`):
+
+.. code:: bash
+
+    $ python -c "import tvm; print(tvm.__file__)"
+    /some-path/lib/python3.11/site-packages/tvm/__init__.py
+
+1. Clone from HF and convert_weight
+-----------------------------------
+
+This replicates :ref:`convert-weights-via-MLC`, see that page for more details.
+
+You can be under the mlc-llm repo, or your own working directory. Note that all platforms
+can share the same compiled/quantized weights.
+
+.. code:: shell
+
+    # Create directory
+    mkdir -p dist/models && cd dist/models
+    # Clone HF weights
+    git lfs install
+    git clone https://huggingface.co/togethercomputer/RedPajama-INCITE-Chat-3B-v1
+    cd ../..
+    # Convert weight
+    mlc_chat convert_weight ./dist/models/RedPajama-INCITE-Chat-3B-v1/ \
+        --quantization q4f16_1 \
+        -o dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
+
+2. Generate mlc-chat-config and compile
+---------------------------------------
+
+A model library is specified by:
+
+ - The model architecture (e.g. ``llama-2``, ``gpt-neox``)
+ - Quantization (e.g. ``q4f16_1``, ``q0f32``)
+ - Metadata (e.g. ``context_window_size``, ``sliding_window_size``, ``prefill-chunk-size``), which affects memory planning
+ - Platform (e.g. ``cuda``, ``webgpu``, ``iOS``)
+
+All these knobs are specified in ``mlc-chat-config.json`` generated by ``gen_config``.
+
+.. code:: shell
+
+    # Create output directory for the model library compiled
+    mkdir dist/libs
 
 .. tabs::
-
-    .. group-tab:: Metal
-
-        On Apple Silicon powered Mac, compile for Apple Silicon Mac:
-
-        .. code:: shell
-
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target metal --quantization q4f16_1
-
-        On Apple Silicon powered Mac, compile for x86 Mac:
-
-        .. code:: shell
-
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target metal_x86_64 --quantization q4f16_1
 
     .. group-tab:: Linux - CUDA
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target cuda --quantization q4f16_1
+            # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ \
+                --quantization q4f16_1 --conv-template redpajama_chat \
+                -o dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/
+            # 2. compile: compile model library with specification in mlc-chat-config.json
+            mlc_chat compile ./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json \
+                --device cuda -o dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so
+
+
+    .. group-tab:: Metal
+
+        For M-chip Mac:
+
+        .. code:: shell
+
+            # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ \
+                --quantization q4f16_1 --conv-template redpajama_chat \
+                -o dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/
+            # 2. compile: compile model library with specification in mlc-chat-config.json
+            mlc_chat compile ./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json \
+                --device metal -o dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so
+
+        For Intel Mac:
+
+        .. code:: shell
+
+            # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ \
+                --quantization q4f16_1 --conv-template redpajama_chat \
+                -o dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/
+            # 2. compile: compile model library with specification in mlc-chat-config.json
+            mlc_chat compile ./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json \
+                --device metal -o dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal_x86_64.dylib
+
 
     .. group-tab:: Vulkan
 
-        On Linux, compile for Linux:
+        For Linux: 
 
         .. code:: shell
+            
+            # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ \
+                --quantization q4f16_1 --conv-template redpajama_chat \
+                -o dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/
+            # 2. compile: compile model library with specification in mlc-chat-config.json
+            mlc_chat compile ./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json \
+                --device vulkan -o dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_1
-
-        On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
+        For Windows: 
 
         .. code:: shell
-
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_1 --llvm-mingw path/to/llvm-mingw
+            
+            # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ \
+                --quantization q4f16_1 --conv-template redpajama_chat \
+                -o dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/
+            # 2. compile: compile model library with specification in mlc-chat-config.json
+            mlc_chat compile ./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json \
+                --device vulkan -o dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.dll
 
     .. group-tab:: iOS/iPadOS
 
+        You need a Mac to compile models for it.
+
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q4f16_1
+            # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ --quantization q4f16_1 \
+                --conv-template redpajama_chat --context-window-size 768 \
+                -o dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/
+            # 2. compile: compile model library with specification in mlc-chat-config.json
+            mlc_chat compile ./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json \
+                --device iphone -o dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar
 
         .. note::
             If it runs into error
@@ -112,57 +195,70 @@ your personal computer.
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target android --max-seq-len 768 --quantization q4f16_1
+            # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ --quantization q4f16_1 \
+                --conv-template redpajama_chat --context-window-size 768 \
+                -o dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/
+            # 2. compile: compile model library with specification in mlc-chat-config.json
+            mlc_chat compile ./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json \
+                --device android -o dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar
 
     .. group-tab:: WebGPU
 
         .. code:: shell
 
-            python3 -m mlc_llm.build --hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1 --target webgpu --quantization q4f16_1
+            # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+            mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ \
+                --quantization q4f16_1 --conv-template redpajama_chat \
+                -o dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/
+            # 2. compile: compile model library with specification in mlc-chat-config.json
+            mlc_chat compile ./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json \
+                --device webgpu -o dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm
+
+        .. note::
+            To compile for webgpu, you need to build from source when installing ``mlc_chat``. Besides, you also need to follow :ref:`install-web-build`.
+            Otherwise, it would run into error
+
+            .. code:: text
+
+                RuntimeError: Cannot find libraries: wasm_runtime.bc
+
+        .. note::
+            For webgpu, when compiling larger models like ``Llama-2-7B``, you may want to add ``--prefill_chunk_size 1024`` or lower ``context_window_size`` to decrease memory usage.
+            Otherwise, you may run into issues like:
+
+            .. code:: text
+
+                TypeError: Failed to execute 'createBuffer' on 'GPUDevice': Failed to read the 'size' property from
+                'GPUBufferDescriptor': Value is outside the 'unsigned long long' value range.
+
+.. note:: 
+
+    For the ``conv-template``, `conv_template.cc <https://github.com/mlc-ai/mlc-llm/blob/main/cpp/conv_templates.cc>`__
+    contains a full list of conversation templates that MLC provides. If the model you are adding
+    requires a new conversation template, you would need to add your own.
+    Follow `this PR <https://github.com/mlc-ai/mlc-llm/pull/1402>`__ as an example.
+    However, adding your own template would require you :ref:`build mlc_chat from source <mlcchat_build_from_source>`
+    in order for it to be recognized by the runtime.
+
+    For more details, please see :ref:`configure-mlc-chat-json`.
+
+3. Verify output and chat
+-------------------------
 
 By executing the compile command above, we generate the model weights, model lib, and a chat config.
 We can check the output with the commands below:
 
 .. tabs::
 
-    .. group-tab:: Metal
-
-        .. code:: shell
-
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
-              RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so     # ===> the model library
-              mod_cache_before_build_metal.pkl                 # ===> a cached file for future builds
-              params                                           # ===> containing the model weights, tokenizer and chat config
-
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
-              mlc-chat-config.json                             # ===> the chat config
-              ndarray-cache.json                               # ===> the model weight info
-              params_shard_0.bin                               # ===> the model weights
-              params_shard_1.bin
-              ...
-              tokenizer.json                                   # ===> the tokenizer files
-              tokenizer_config.json
-
-        We now chat with the model using the command line interface (CLI) app.
-
-        .. code:: shell
-
-            # Run CLI
-            mlc_chat_cli --model RedPajama-INCITE-Chat-3B-v1-q4f16_1
-
-       The CLI will use the config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json``
-       and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so``.
-
     .. group-tab:: Linux - CUDA
 
         .. code:: shell
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+            ~/mlc-llm > ls dist/libs
               RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so      # ===> the model library
-              mod_cache_before_build_cuda.pkl                  # ===> a cached file for future builds
-              params                                           # ===> containing the model weights, tokenizer and chat config
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
               mlc-chat-config.json                             # ===> the chat config
               ndarray-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
@@ -171,27 +267,53 @@ We can check the output with the commands below:
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
-        We now chat with the model using the command line interface (CLI) app.
-        Follow the build from the source instruction
+        We can now chat with the model using the command line interface (CLI) app or the Python API.
 
         .. code:: shell
 
-            # Run CLI
-            mlc_chat_cli --model RedPajama-INCITE-Chat-3B-v1-q4f16_1
+            python
+            >>> from mlc_chat import ChatModule
+            >>> cm = ChatModule(model="./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC", \
+                model_lib_path="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so")
+            >>> cm.generate("hi")
+            'Hi! How can I assist you today?'
 
-        The CLI app using config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json``
-        and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so``.
+    .. group-tab:: Metal
+
+        .. code:: shell
+
+            ~/mlc-llm > ls dist/libs
+              RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so     # ===> the model library (will be -metal_x86_64.dylib for Intel Mac)
+
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
+              mlc-chat-config.json                             # ===> the chat config
+              ndarray-cache.json                               # ===> the model weight info
+              params_shard_0.bin                               # ===> the model weights
+              params_shard_1.bin
+              ...
+              tokenizer.json                                   # ===> the tokenizer files
+              tokenizer_config.json
+
+        We can now chat with the model using the command line interface (CLI) app or the Python API.
+
+        .. code:: shell
+
+            python
+            >>> from mlc_chat import ChatModule
+            >>> cm = ChatModule(model="./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC", \
+                model_lib_path="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so")
+            >>> cm.generate("hi")
+            'Hi! How can I assist you today?'
+
 
     .. group-tab:: Vulkan
 
         .. code:: shell
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
-              RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so    # ===> the model library (will be .dll when built for Windows)
-              mod_cache_before_build_vulkan.pkl                # ===> a cached file for future builds
-              params                                           # ===> containing the model weights, tokenizer and chat config
+            ~/mlc-llm > ls dist/libs
+              RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so    # ===> the model library (will be .dll for Windows)
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
               mlc-chat-config.json                             # ===> the chat config
               ndarray-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
@@ -200,26 +322,25 @@ We can check the output with the commands below:
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
-        We can further quickly run and validate the model compilation using the command line interface (CLI) app.
+        We can now chat with the model using the command line interface (CLI) app or the Python API.
 
         .. code:: shell
 
-            # Run CLI
-            mlc_chat_cli --model RedPajama-INCITE-Chat-3B-v1-q4f16_1
-
-        CLI app will use config file ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params/mlc-chat-config.json``
-        and model library ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so`` (or ``.dll``).
+            python
+            >>> from mlc_chat import ChatModule
+            >>> cm = ChatModule(model="./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC", \
+                model_lib_path="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so", device="vulkan")
+            >>> cm.generate("hi")
+            'Hi! How can I assist you today?'
 
     .. group-tab:: iOS/iPadOS
 
         .. code:: shell
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+            ~/mlc-llm > ls dist/libs
               RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar   # ===> the model library
-              mod_cache_before_build_iphone.pkl                # ===> a cached file for future builds
-              params                                           # ===> containing the model weights, tokenizer and chat config
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
               mlc-chat-config.json                             # ===> the chat config
               ndarray-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
@@ -228,19 +349,17 @@ We can check the output with the commands below:
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
-        The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar``
+        The model lib ``dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar``
         will be packaged as a static library into the iOS app. Checkout :ref:`deploy-ios` for more details.
 
     .. group-tab:: Android
 
         .. code:: shell
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+            ~/mlc-llm > ls dist/libs
               RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar  # ===> the model library
-              mod_cache_before_build_android.pkl               # ===> a cached file for future builds
-              params                                           # ===> containing the model weights, tokenizer and chat config
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
               mlc-chat-config.json                             # ===> the chat config
               ndarray-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
@@ -249,19 +368,17 @@ We can check the output with the commands below:
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
-        The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar``
+        The model lib ``dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar``
         will be packaged as a static library into the android app. Checkout :ref:`deploy-android` for more details.
 
     .. group-tab:: WebGPU
 
         .. code:: shell
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1
+            ~/mlc-llm > ls dist/libs
               RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm  # ===> the model library
-              mod_cache_before_build_webgpu.pkl                # ===> a cached file for future builds
-              params                                           # ===> containing the model weights, tokenizer and chat config
 
-            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/params
+            ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
               mlc-chat-config.json                             # ===> the chat config
               ndarray-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
@@ -270,101 +387,42 @@ We can check the output with the commands below:
               tokenizer.json                                   # ===> the tokenizer files
               tokenizer_config.json
 
-        The model lib ``dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm``
-        can be uploaded to the internet. You can pass a ``model_lib_map`` field to WebLLM app config to use this library.
+        To use this in WebGPU runtime, checkout :ref:`webllm-runtime`.
 
+Compile Commands for More Models
+--------------------------------
 
-Each compilation target produces a specific model library for the given platform. The model weight is shared across
-different targets. If you are interested in distributing the model besides local execution, please checkout :ref:`distribute-compiled-models`.
-You are also more than welcome to read the following sections for more details about the compilation.
-
-.. _compile-command-specification:
-
-Compile Command Specification
------------------------------
-
-This section describes the list of options that can be used during compilation.
-Note that the arguments are generated by the dataclass :class:`BuildArgs`, read
-more in :ref:`api-reference-compile-model`.
-Generally, the model compile command is specified by a sequence of arguments and in the following pattern:
-
-.. code:: shell
-
-    python3 -m mlc_llm.build \
-        --model MODEL_NAME_OR_PATH \
-        [--hf-path HUGGINGFACE_NAME] \
-        --target TARGET_NAME \
-        --quantization QUANTIZATION_MODE \
-        [--max-seq-len MAX_ALLOWED_SEQUENCE_LENGTH] \
-        [--reuse-lib LIB_NAME] \
-        [--use-cache=0] \
-        [--debug-dump] \
-        [--use-safetensors]
-
-This command first goes with ``--model`` or ``--hf-path``.
-**Only one of them needs to be specified**: when the model is publicly available on Hugging Face, you can use ``--hf-path`` to specify the model.
-In other cases you need to specify the model via ``--model``.
-
---model MODEL_NAME_OR_PATH  The name or local path of the model to compile.
-                            We will search for the model on your disk in the following two candidates:
-
-                            - ``dist/models/MODEL_NAME_OR_PATH`` (e.g., ``--model Llama-2-7b-chat-hf``),
-                            - ``MODEL_NAME_OR_PATH`` (e.g., ``--model /my-model/Llama-2-7b-chat-hf``).
-
-                            When running the compile command using ``--model``, please make sure you have placed the model to compile under ``dist/models/`` or another location on the disk.
-
---hf-path HUGGINGFACE_NAME  The name of the model's Hugging Face repository.
-                            We will download the model to ``dist/models/HUGGINGFACE_NAME`` and load the model from this directory.
-
-                            For example, by specifying ``--hf-path togethercomputer/RedPajama-INCITE-Chat-3B-v1``, it will download the model from ``https://huggingface.co/togethercomputer/RedPajama-INCITE-Chat-3B-v1`` to ``dist/models/``.
-
-Another two necessary arguments for the compile command are the target and the quantization mode:
-
---target TARGET_NAME                The target platform to compile the model for.
-                                    The default target is ``auto``, using which we will detect from ``cuda``, ``metal``, ``vulkan`` and ``opencl``.
-                                    Besides ``auto``, other available options are: ``metal`` (for M1/M2), ``metal_x86_64`` (for Intel CPU), ``iphone``,
-                                    ``vulkan``, ``cuda``, ``webgpu``, ``android``, and ``opencl``.
---quantization QUANTIZATION_MODE    The quantization mode we use to compile.
-                                    The format of the code is ``qAfB(_0)``, where ``A`` represents the number of bits for storing weights and ``B`` represents the number of bits for storing activations.
-                                    Available options are: ``q3f16_0``, ``q4f16_1``, ``q4f16_2``, ``q4f32_0``, ``q0f32``, and ``q0f16``.
-                                    We encourage you to use 4-bit quantization, as the text generated by 3-bit quantized models may have bad quality depending on the model.
-
-The following arguments are optional:
-
---max-seq-len MAX_ALLOWED_SEQUENCE_LENGTH   The maximum allowed sequence length for the model.
-                                            When it is not specified,
-                                            we will use the maximum sequence length from the ``config.json`` in the model directory.
---reuse-lib LIB_NAME                        Specifies the previously generated library to reuse.
-                                            This is useful when building the same model architecture with different weights.
-                                            You can refer to the :ref:`model distribution <distribute-model-step3-specify-model-lib>` page for details of this argument.
---use-cache                                 When ``--use-cache=0`` is specified,
-                                            the model compilation will not use cached file from previous builds,
-                                            and will compile the model from the very start.
-                                            Using a cache can help reduce the time needed to compile.
---debug-dump                                Specifies whether to dump debugging files during compilation.
---use-safetensors                           Specifies whether to use ``.safetensors`` instead of the default ``.bin`` when loading in model weights.
-
-More Model Compile Commands
----------------------------
-
-This section lists compile commands for more models that you can try out.
+This section lists compile commands for more models that you can try out. Note that this can be easily
+generalized to any model variant, as long as mlc-llm supports the architecture.
 
 .. tabs::
 
     .. tab:: Model: Llama-2-7B
 
         Please `request for access <https://huggingface.co/meta-llama>`_ to the Llama-2 weights from Meta first.
-        After granted access, please create directory ``dist/models`` and download the model to the directory.
+        After granted access, first create directory ``dist/models`` and download the model to the directory.
         For example, you can run the following code:
 
         .. code:: shell
 
-            mkdir -p dist/models
-            cd dist/models
+            mkdir -p dist/models && cd dist/models
+            git lfs install
             git clone https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
             cd ../..
 
-        After downloading the model, run the following command to compile the model.
+        Then convert the HF weights into MLC-compatible weights. Note that all platforms
+        can share the same compiled/quantized weights.
+
+        .. code:: shell
+
+            mlc_chat convert_weight ./dist/models/Llama-2-7b-chat-hf/ --quantization q4f16_1 -o dist/Llama-2-7b-chat-hf-q4f16_1-MLC
+        
+        Afterwards, run the following command to generate mlc config and compile the model.
+
+        .. code:: shell
+
+            # Create output directory for the model library compiled
+            mkdir dist/libs
 
         .. tabs::
 
@@ -372,58 +430,134 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target cuda --quantization q4f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Llama-2-7b-chat-hf/ --quantization q4f16_1 \
+                        --conv-template llama-2 -o dist/Llama-2-7b-chat-hf-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/mlc-chat-config.json \
+                        --device cuda -o dist/libs/Llama-2-7b-chat-hf-q4f16_1-cuda.so
 
             .. tab:: Metal
 
-                On Apple Silicon powered Mac, compile for Apple Silicon Mac:
+                For M-chip Mac:
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target metal --quantization q4f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Llama-2-7b-chat-hf/ --quantization q4f16_1 \
+                        --conv-template llama-2 -o dist/Llama-2-7b-chat-hf-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/mlc-chat-config.json \
+                        --device metal -o dist/libs/Llama-2-7b-chat-hf-q4f16_1-metal.so
 
-                On Apple Silicon powered Mac, compile for x86 Mac:
+
+                For Intel Mac:
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target metal_x86_64 --quantization q4f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Llama-2-7b-chat-hf/ --quantization q4f16_1 \
+                        --conv-template llama-2 -o dist/Llama-2-7b-chat-hf-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/mlc-chat-config.json \
+                        --device metal -o dist/libs/Llama-2-7b-chat-hf-q4f16_1-metal_x86_64.dylib
 
             .. tab:: Vulkan
 
-                On Linux, compile for Linux:
+                For Linux: 
 
                 .. code:: shell
+                    
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Llama-2-7b-chat-hf/ --quantization q4f16_1 \
+                        --conv-template llama-2 -o dist/Llama-2-7b-chat-hf-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/mlc-chat-config.json \
+                        --device vulkan -o dist/libs/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
 
-                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target vulkan --quantization q4f16_1
-
-                On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
+                For Windows: 
 
                 .. code:: shell
-
-                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target vulkan --quantization q4f16_1 --llvm-mingw path/to/llvm-mingw
+                    
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Llama-2-7b-chat-hf/ --quantization q4f16_1 \
+                        --conv-template llama-2 -o dist/Llama-2-7b-chat-hf-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/mlc-chat-config.json \
+                        --device vulkan -o dist/libs/Llama-2-7b-chat-hf-q4f16_1-vulkan.dll
 
             .. tab:: WebGPU
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target webgpu --quantization q4f32_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Llama-2-7b-chat-hf/ --quantization q4f16_1 \
+                        --context-window-size 2048 --conv-template llama-2 -o dist/Llama-2-7b-chat-hf-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/mlc-chat-config.json \
+                        --device webgpu -o dist/libs/Llama-2-7b-chat-hf-q4f16_1-webgpu.wasm
+
+                .. note::
+                    To compile for webgpu, you need to build from source when installing ``mlc_chat``. Besides, you also need to follow :ref:`install-web-build`.
+                    Otherwise, it would run into error
+
+                    .. code:: text
+
+                        RuntimeError: Cannot find libraries: wasm_runtime.bc
 
             .. tab:: iPhone/iPad
 
+                You need a Mac to compile models for it.
+
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target iphone --max-seq-len 768 --quantization q3f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Llama-2-7b-chat-hf/ --quantization q4f16_1 \
+                        --conv-template llama-2 --context-window-size 768 -o dist/Llama-2-7b-chat-hf-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/mlc-chat-config.json \
+                        --device iphone -o dist/libs/Llama-2-7b-chat-hf-q4f16_1-iphone.tar
 
             .. tab:: Android
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model Llama-2-7b-chat-hf --target android --max-seq-len 768 --quantization q4f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Llama-2-7b-chat-hf/ --quantization q4f16_1 \
+                        --conv-template llama-2 --context-window-size 768 -o dist/Llama-2-7b-chat-hf-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/mlc-chat-config.json \
+                        --device android -o dist/libs/Llama-2-7b-chat-hf-q4f16_1-android.tar
 
+    .. tab:: Mistral-7B-Instruct-v0.2
 
-    .. tab:: Vicuna-v1-7B
+        Note that Mistral uses sliding window attention (SWA). Thus, instead of specifying
+        ``context-window-size``, we specify ``sliding-window-size``.
 
-        Please check this page on :doc:`how to get the Vicuna model weights </compilation/get-vicuna-weight>`.
+        First create directory ``dist/models`` and download the model to the directory.
+        For example, you can run the following code:
+
+        .. code:: shell
+
+            mkdir -p dist/models && cd dist/models
+            git lfs install
+            git clone https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2
+            cd ../..
+
+        Then convert the HF weights into MLC-compatible weights. Note that all platforms
+        can share the same compiled/quantized weights.
+
+        .. code:: shell
+
+            mlc_chat convert_weight ./dist/models/Mistral-7B-Instruct-v0.2/ --quantization q4f16_1 \
+                -o dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC
+
+        Afterwards, run the following command to generate mlc config and compile the model.
+
+        .. code:: shell
+
+            # Create output directory for the model library compiled
+            mkdir dist/libs
 
         .. tabs::
 
@@ -431,250 +565,246 @@ This section lists compile commands for more models that you can try out.
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target cuda --quantization q4f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Mistral-7B-Instruct-v0.2/ --quantization q4f16_1 \
+                        --conv-template mistral_default -o dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/mlc-chat-config.json \
+                        --device cuda -o dist/libs/Mistral-7B-Instruct-v0.2-q4f16_1-cuda.so
 
             .. tab:: Metal
 
-                On Apple Silicon powered Mac, compile for Apple Silicon Mac:
+                For M-chip Mac:
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target metal --quantization q4f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Mistral-7B-Instruct-v0.2/ --quantization q4f16_1 \
+                        --conv-template mistral_default -o dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/mlc-chat-config.json \
+                        --device metal -o dist/libs/Mistral-7B-Instruct-v0.2-q4f16_1-metal.so
 
-                On Apple Silicon powered Mac, compile for x86 Mac:
+
+                For Intel Mac:
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target metal_x86_64 --quantization q4f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Mistral-7B-Instruct-v0.2/ --quantization q4f16_1 \
+                        --conv-template mistral_default -o dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/mlc-chat-config.json \
+                        --device metal -o dist/libs/Mistral-7B-Instruct-v0.2-q4f16_1-metal_x86_64.dylib
 
             .. tab:: Vulkan
 
-                On Linux, compile for Linux:
+                For Linux: 
 
                 .. code:: shell
+                    
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Mistral-7B-Instruct-v0.2/ --quantization q4f16_1 \
+                        --conv-template mistral_default -o dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/mlc-chat-config.json \
+                        --device vulkan -o dist/libs/Mistral-7B-Instruct-v0.2-q4f16_1-vulkan.so
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target vulkan --quantization q4f16_1
-
-                On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
+                For Windows: 
 
                 .. code:: shell
-
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target vulkan --quantization q4f16_1 --llvm-mingw path/to/llvm-mingw
+                    
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Mistral-7B-Instruct-v0.2/ --quantization q4f16_1 \
+                        --conv-template mistral_default -o dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/mlc-chat-config.json \
+                        --device vulkan -o dist/libs/Mistral-7B-Instruct-v0.2-q4f16_1-vulkan.dll
 
             .. tab:: WebGPU
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target webgpu --quantization q4f32_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Mistral-7B-Instruct-v0.2/ --quantization q4f16_1 \
+                        --prefill-chunk-size 1024 --conv-template mistral_default \
+                        -o dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/mlc-chat-config.json \
+                        --device webgpu -o dist/libs/Mistral-7B-Instruct-v0.2-q4f16_1-webgpu.wasm
+
+                .. note::
+                    To compile for webgpu, you need to build from source when installing ``mlc_chat``. Besides, you also need to follow :ref:`install-web-build`.
+                    Otherwise, it would run into error
+
+                    .. code:: text
+
+                        RuntimeError: Cannot find libraries: wasm_runtime.bc
+
+                .. note::
+                    For webgpu, when compiling larger models like ``Llama-2-7B``, you may want to add ``--prefill_chunk_size 1024`` or lower ``context_window_size`` to decrease memory usage.
+                    Otherwise, you may run into issues like:
+
+                    .. code:: text
+
+                        TypeError: Failed to execute 'createBuffer' on 'GPUDevice': Failed to read the 'size' property from
+                        'GPUBufferDescriptor': Value is outside the 'unsigned long long' value range.
 
             .. tab:: iPhone/iPad
 
+                You need a Mac to compile models for it.
+
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target iphone --max-seq-len 768 --quantization q3f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Mistral-7B-Instruct-v0.2/ --quantization q4f16_1 \
+                        --conv-template mistral_default --sliding-window-size 1024 --prefill-chunk-size 128  \
+                        -o dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/mlc-chat-config.json \
+                        --device iphone -o dist/libs/Mistral-7B-Instruct-v0.2-q4f16_1-iphone.tar
 
             .. tab:: Android
 
                 .. code:: shell
 
-                    python3 -m mlc_llm.build --model vicuna-v1-7b --target android --max-seq-len 768 --quantization q4f16_1
-
-    .. tab:: RedPajama-v1-3B
-
-        .. tabs::
-
-            .. tab:: Target: CUDA
-
-                .. code:: shell
-
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target cuda --quantization q4f16_1
-
-            .. tab:: Metal
-
-                On Apple Silicon powered Mac, compile for Apple Silicon Mac:
-
-                .. code:: shell
-
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target metal --quantization q4f16_1
-
-                On Apple Silicon powered Mac, compile for x86 Mac:
-
-                .. code:: shell
-
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target metal_x86_64 --quantization q4f16_1
-
-            .. tab:: Vulkan
-
-                On Linux, compile for Linux:
-
-                .. code:: shell
-
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_1
-
-                On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
-
-                .. code:: shell
-
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target vulkan --quantization q4f16_1 --llvm-mingw path/to/llvm-mingw
-
-            .. tab:: WebGPU
-
-                .. code:: shell
-
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target webgpu --quantization q4f16_1
-
-            .. tab:: iPhone/iPad
-
-                .. code:: shell
-
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target iphone --max-seq-len 768 --quantization q4f16_1
-
-            .. tab:: Android
-
-                .. code:: shell
-
-                    python3 -m mlc_llm.build --model RedPajama-INCITE-Chat-3B-v1 --target android --max-seq-len 768 --quantization q4f16_1
-
-    .. tab:: rwkv-raven-1b5/3b/7b
-
-        .. tabs::
-
-            .. tab:: Target: CUDA
-
-                .. code:: shell
-
-                    # For 1.5B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-1b5 --target cuda --quantization q4f16_2
-                    # For 3B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-3b --target cuda --quantization q4f16_2
-                    # For 7B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-7b --target cuda --quantization q4f16_2
-
-            .. tab:: Metal
-
-                On Apple Silicon powered Mac, compile for Apple Silicon Mac:
-
-                .. code:: shell
-
-                    # For 1.5B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-1b5 --target metal --quantization q4f16_2
-                    # For 3B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-3b --target metal --quantization q4f16_2
-                    # For 7B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-7b --target metal --quantization q4f16_2
-
-                On Apple Silicon powered Mac, compile for x86 Mac:
-
-                .. code:: shell
-
-                    # For 1.5B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-1b5 --target metal_x86_64 --quantization q4f16_2
-                    # For 3B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-3b --target metal_x86_64 --quantization q4f16_2
-                    # For 7B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-7b --target metal_x86_64 --quantization q4f16_2
-
-            .. tab:: Vulkan
-
-                On Linux, compile for Linux:
-
-                .. code:: shell
-
-                    # For 1.5B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-1b5 --target vulkan --quantization q4f16_2
-                    # For 3B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-3b --target vulkan --quantization q4f16_2
-                    # For 7B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-7b --target vulkan --quantization q4f16_2
-
-                On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
-
-                .. code:: shell
-
-                    # For 1.5B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-1b5 --target vulkan --quantization q4f16_2 --llvm-mingw path/to/llvm-mingw
-                    # For 3B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-3b --target vulkan --quantization q4f16_2 --llvm-mingw path/to/llvm-mingw
-                    # For 7B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-7b --target vulkan --quantization q4f16_2 --llvm-mingw path/to/llvm-mingw
-
-            .. tab:: iPhone/iPad
-
-                .. code:: shell
-
-                    # For 1.5B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-1b5 --target iphone --quantization q4f16_2
-                    # For 3B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-3b --target iphone --quantization q4f16_2
-                    # For 7B model
-                    python3 -m mlc_llm.build --hf-path=RWKV/rwkv-raven-7b --target iphone --quantization q4f16_2
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/Mistral-7B-Instruct-v0.2/ --quantization q4f16_1 \
+                        --conv-template mistral_default --sliding-window-size 1024 --prefill-chunk-size 128 -o dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/mlc-chat-config.json \
+                        --device android -o dist/libs/Mistral-7B-Instruct-v0.2-q4f16_1-android.tar
 
     .. tab:: Other models
 
+        First create directory ``dist/models`` and download the model to the directory.
+        For example, you can run the following code:
+
+        .. code:: shell
+
+            mkdir -p dist/models && cd dist/models
+            git lfs install
+            git clone https://huggingface.co/DISTRIBUTOR/HF_MODEL
+            cd ../..
+
+        Then convert the HF weights into MLC-compatible weights. Note that all platforms
+        can share the same compiled/quantized weights.
+
+        .. code:: shell
+
+            mlc_chat convert_weight ./dist/models/HF_MODEL/ --quantization q4f16_1 -o dist/OUTPUT-MLC
+
+        Afterwards, run the following command to generate mlc config and compile the model.
+
+        .. code:: shell
+
+            # Create output directory for the model library compiled
+            mkdir dist/libs
+
         .. tabs::
 
             .. tab:: Target: CUDA
 
                 .. code:: shell
 
-                    # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target cuda --quantization q4f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/HF_MODEL/ --quantization q4f16_1 --conv-template CONV_TEMPLATE -o dist/OUTPUT-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/OUTPUT-MLC/mlc-chat-config.json --device cuda -o dist/libs/OUTPUT-cuda.so
 
             .. tab:: Metal
 
-                On Apple Silicon powered Mac, compile for Apple Silicon Mac:
+                For M-chip Mac:
 
                 .. code:: shell
 
-                    # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target metal --quantization q4f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/HF_MODEL/ --quantization q4f16_1 --conv-template CONV_TEMPLATE -o dist/OUTPUT-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/OUTPUT-MLC/mlc-chat-config.json --device metal -o dist/libs/OUTPUT-metal.so
 
-                On Apple Silicon powered Mac, compile for x86 Mac:
+
+                For Intel Mac:
 
                 .. code:: shell
 
-                    # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target metal_x86_64 --quantization q4f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/HF_MODEL/ --quantization q4f16_1 --conv-template CONV_TEMPLATE -o dist/OUTPUT-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/OUTPUT-MLC/mlc-chat-config.json --device metal -o dist/libs/OUTPUT-metal_x86_64.dylib
 
             .. tab:: Vulkan
 
-                On Linux, compile for Linux:
+                For Linux: 
 
                 .. code:: shell
+                    
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/HF_MODEL/ --quantization q4f16_1 --conv-template CONV_TEMPLATE -o dist/OUTPUT-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/OUTPUT-MLC/mlc-chat-config.json --device vulkan -o dist/libs/OUTPUT-vulkan.so
 
-                    # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target vulkan --quantization q4f16_1
-
-                On Linux, compile for Windows: please first install the `LLVM-MinGW <https://github.com/mstorsjo/llvm-mingw>`_ toolchain, and substitute the ``path/to/llvm-mingw`` in the command with your LLVM-MinGW installation path.
+                For Windows: 
 
                 .. code:: shell
-
-                    # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target vulkan --quantization q4f16_1 --llvm-mingw path/to/llvm-mingw
+                    
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/HF_MODEL/ --quantization q4f16_1 --conv-template CONV_TEMPLATE -o dist/OUTPUT-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/OUTPUT-MLC/mlc-chat-config.json --device vulkan -o dist/libs/OUTPUT-vulkan.dll
 
             .. tab:: WebGPU
 
                 .. code:: shell
 
-                    # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target webgpu --quantization q4f32_0
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/HF_MODEL/ --quantization q4f16_1 --conv-template CONV_TEMPLATE -o dist/OUTPUT-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/OUTPUT-MLC/mlc-chat-config.json --device webgpu -o dist/libs/OUTPUT-webgpu.wasm
+
+                .. note::
+                    To compile for webgpu, you need to build from source when installing ``mlc_chat``. Besides, you also need to follow :ref:`install-web-build`.
+                    Otherwise, it would run into error
+
+                    .. code:: text
+
+                        RuntimeError: Cannot find libraries: wasm_runtime.bc
+
+                .. note::
+                    For webgpu, when compiling larger models like ``Llama-2-7B``, you may want to add ``--prefill_chunk_size 1024`` or lower ``context_window_size`` to decrease memory usage.
+                    Otherwise, you may run into issues like:
+
+                    .. code:: text
+
+                        TypeError: Failed to execute 'createBuffer' on 'GPUDevice': Failed to read the 'size' property from
+                        'GPUBufferDescriptor': Value is outside the 'unsigned long long' value range.
 
             .. tab:: iPhone/iPad
 
+                You need a Mac to compile models for it.
+
                 .. code:: shell
 
-                    # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target iphone --max-seq-len 768 --quantization q4f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/HF_MODEL/ --quantization q4f16_1 --conv-template CONV_TEMPLATE \
+                        --context-window-size 768 -o dist/OUTPUT-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/OUTPUT-MLC/mlc-chat-config.json --device iphone -o dist/libs/OUTPUT-iphone.tar
 
             .. tab:: Android
 
                 .. code:: shell
 
-                    # Download and put the model to `dist/models/MODEL_NAME`, and then run
-                    python3 -m mlc_llm.build --model MODEL_NAME --target android --max-seq-len 768 --quantization q4f16_1
+                    # 1. gen_config: generate mlc-chat-config.json and process tokenizers
+                    mlc_chat gen_config ./dist/models/HF_MODEL/ --quantization q4f16_1 --conv-template CONV_TEMPLATE \
+                        --context-window-size 768 -o dist/OUTPUT-MLC/
+                    # 2. compile: compile model library with specification in mlc-chat-config.json
+                    mlc_chat compile ./dist/OUTPUT-MLC/mlc-chat-config.json --device android -o dist/libs/OUTPUT-android.tar
 
-
-For each model and each backend, the above only provides the most recommended build command (which is the most optimized). You can also try with different argument values (e.g., different quantization modes), whose build results may not run as fast and robustly as the provided one when running the model.
+For each model and each backend, the above only provides the most recommended build command (which is the most optimized).
+You can also try with different argument values (e.g., different quantization modes, context window size, etc.),
+whose build results affect runtime memory requirement, and it is possible that they may not run as
+fast and robustly as the provided one when running the model.
 
 .. note::
     Uing 3-bit quantization usually can be overly aggressive and only works for limited settings.
@@ -682,3 +812,222 @@ For each model and each backend, the above only provides the most recommended bu
     consider utilizing a higher number of bits for quantization (e.g., 4-bit quantization).
 
 If you are interested in distributing the model besides local execution, please checkout :ref:`distribute-compiled-models`.
+
+
+.. _compile-command-specification:
+
+Compile Command Specification
+-----------------------------
+
+As you have seen in the section above, the model compilation is split into three steps: convert weights, generate
+``mlc-chat-config.json``, and compile the model. This section describes the list of options that can be used
+during compilation.
+
+1. Convert Weight
+^^^^^^^^^^^^^^^^^
+
+Weight conversion command follows the pattern below:
+
+.. code:: text
+
+    mlc_chat convert_weight \
+        CONFIG \
+        --quantization QUANTIZATION_MODE \
+        [--model-type MODEL_TYPE] \
+        [--device DEVICE] \
+        [--source SOURCE] \
+        [--source-format SOURCE_FORMAT] \
+        --output OUTPUT
+
+Note that ``CONFIG`` is a positional argument. Arguments wrapped with ``[ ]`` are optional.
+
+--CONFIG                            It can be one of the following:
+
+                                    1. Path to a HuggingFace model directory that contains a ``config.json`` or
+                                    2. Path to ``config.json`` in HuggingFace format, or
+                                    3. The name of a pre-defined model architecture.
+
+                                    A ``config.json`` file in HuggingFace format defines the model architecture, including the vocabulary
+                                    size, the number of layers, the hidden size, number of attention heads, etc.
+                                    Example: https://huggingface.co/codellama/CodeLlama-7b-hf/blob/main/config.json.
+
+                                    A HuggingFace directory often contains a ``config.json`` which defines the model architecture,
+                                    the non-quantized model weights in PyTorch or SafeTensor format, tokenizer configurations,
+                                    as well as an optional ``generation_config.json`` provides additional default configuration for
+                                    text generation.
+                                    Example: https://huggingface.co/codellama/CodeLlama-7b-hf/tree/main.
+
+                                    For existing pre-defined model architecture, see ``MODEL_PRESETS``
+                                    `here <https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_chat/compiler/model/model.py>`_.
+
+--quantization QUANTIZATION_MODE    The quantization mode we use to compile.
+
+                                    See :ref:`quantization_mode` for more information.
+                                    Available options are: ``q0f16``, ``q0f32``, ``q3f16_1``, ``q4f16_1``, ``q4f32_1``, and
+                                    ``q4f16_awq``.
+
+                                    We encourage you to use 4-bit quantization, as the text generated by 3-bit
+                                    quantized models may have bad quality depending on the model.
+
+--model-type MODEL_TYPE             Model architecture such as "llama". If not set, it is inferred from ``config.json``.
+
+--device DEVICE                     The device used to do quantization such as "cuda" or "cuda:0". Will detect from
+                                    local available GPUs if not specified.
+
+--source SOURCE                     The path to original model weight, infer from ``config`` if missing.
+
+--source-format SOURCE_FORMAT       The format of source model weight, infer from ``config`` if missing.
+
+--output OUTPUT                     The output directory to save the quantized model weight.
+                                    Will create ``params_shard_*.bin`` and ```ndarray-cache.json``` in this directory.
+
+2. Generate MLC Chat Config
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In order to compile a model, we first need to generate the ``mlc-chat-config.json``. This file contains specifications
+like ``context-window-size`` and ``sliding-window-size``, among others that can alter the model compiled. We also process
+tokenizers in this step.
+
+Config generation command follows the pattern below:
+
+.. code:: text
+
+    mlc_chat gen_config \
+        CONFIG \
+        --quantization QUANTIZATION_MODE \
+        [--model-type MODEL_TYPE] \
+        --conv-template CONV_TEMPLATE \
+        [--context-window-size CONTEXT_WINDOW_SIZE] \
+        [--sliding-window-size SLIDING_WINDOW_SIZE] \
+        [--prefill-chunk-size PREFILL_CHUNK_SIZE] \
+        [--tensor-parallel-shard TENSOR_PARALLEL_SHARDS] \
+        --output OUTPUT
+
+Note that ``CONFIG`` is a positional argument. Arguments wrapped with ``[ ]`` are optional.
+
+--CONFIG                                        It can be one of the following:
+
+                                                1. Path to a HuggingFace model directory that contains a ``config.json`` or
+                                                2. Path to ``config.json`` in HuggingFace format, or
+                                                3. The name of a pre-defined model architecture.
+
+                                                A ``config.json`` file in HuggingFace format defines the model architecture, including the vocabulary
+                                                size, the number of layers, the hidden size, number of attention heads, etc.
+                                                Example: https://huggingface.co/codellama/CodeLlama-7b-hf/blob/main/config.json.
+
+                                                A HuggingFace directory often contains a ``config.json`` which defines the model architecture,
+                                                the non-quantized model weights in PyTorch or SafeTensor format, tokenizer configurations,
+                                                as well as an optional ``generation_config.json`` provides additional default configuration for
+                                                text generation.
+                                                Example: https://huggingface.co/codellama/CodeLlama-7b-hf/tree/main.
+
+                                                For existing pre-defined model architecture, see ``MODEL_PRESETS``
+                                                `here <https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_chat/compiler/model/model.py>`_.
+
+--quantization QUANTIZATION_MODE                The quantization mode we use to compile.
+
+                                                See :ref:`quantization_mode` for more information.
+                                                Available options are: ``q0f16``, ``q0f32``, ``q3f16_1``, ``q4f16_1``, ``q4f32_1``, and
+                                                ``q4f16_awq``.
+
+                                                We encourage you to use 4-bit quantization, as the text generated by 3-bit
+                                                quantized models may have bad quality depending on the model.
+
+--model-type MODEL_TYPE                         Model architecture such as "llama". If not set, it is inferred from ``config.json``.
+
+--conv-template CONV_TEMPLATE                   Conversation template. It depends on how the model is tuned. Use "LM" for vanilla base model
+                                                For existing pre-defined templates, see ``CONV_TEMPLATES``
+                                                `here <https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_chat/compiler/model/model.py>`_.
+
+--context-window-size CONTEXT_WINDOW_SIZE       Option to provide the maximum sequence length supported by the model.
+                                                This is usually explicitly shown as context length or context window in the model card.
+                                                If this option is not set explicitly, by default, 
+                                                it will be determined by ``context_window_size`` or ``max_position_embeddings`` in ``config.json``,
+                                                and the latter is usually inaccurate for some models.
+
+--sliding-window-size SLIDING_WINDOW            (Experimental) The sliding window size in sliding window attention (SWA).
+                                                This optional field overrides the ``sliding_window`` in ``config.json`` for
+                                                those models that use SWA. Currently only useful when compiling mistral-based models.
+                                                This flag subjects to future refactoring.
+
+--prefill-chunk-size PREFILL_CHUNK_SIZE         (Experimental) The chunk size during prefilling. By default,
+                                                the chunk size is the same as ``context_window_size`` or ``sliding_window_size``.
+                                                This flag subjects to future refactoring.
+
+--tensor-parallel-shard TENSOR_PARALLEL_SHARDS  Number of shards to split the model into in tensor parallelism multi-gpu inference.
+
+--output OUTPUT                                 The output directory for generated configurations, including `mlc-chat-config.json` and tokenizer configuration.
+
+3. Compile Model Library
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+After generating ``mlc-chat-config.json``, we can compile the model into a model library (files ending in ``.so``, ``.tar``, etc. that contains
+the inference logic of a model).
+
+Model compilation command follows the pattern below:
+
+.. code:: text
+
+    mlc_chat compile \
+        MODEL \
+        [--quantization QUANTIZATION_MODE] \
+        [--model-type MODEL_TYPE] \
+        [--device DEVICE] \
+        [--host HOST] \
+        [--opt OPT] \
+        [--system-lib-prefix SYSTEM_LIB_PREFIX] \
+        --output OUTPUT \
+        [--overrides OVERRIDES]
+
+Note that ``MODEL`` is a positional argument. Arguments wrapped with ``[ ]`` are optional.
+
+--MODEL                                     A path to ``mlc-chat-config.json``, or an MLC model directory that contains ``mlc-chat-config.json``.
+
+--quantization QUANTIZATION_MODE            The quantization mode we use to compile. If unprovided, will infer from ``MODEL``.
+
+                                            See :ref:`quantization_mode` for more information.
+                                            Available options are: ``q0f16``, ``q0f32``, ``q3f16_1``, ``q4f16_1``, ``q4f32_1``, and
+                                            ``q4f16_awq``.
+
+                                            We encourage you to use 4-bit quantization, as the text generated by 3-bit
+                                            quantized models may have bad quality depending on the model.
+
+--model-type MODEL_TYPE                     Model architecture such as "llama". If not set, it is inferred from ``mlc-chat-config.json``.
+
+--device DEVICE                             The GPU device to compile the model to. If not set, it is inferred from GPUs available locally.
+
+--host HOST                                 The host LLVM triple to compile the model to. If not set, it is inferred from the local CPU and OS.
+                                            Examples of the LLVM triple:
+
+                                            1) iPhones: arm64-apple-ios;
+                                            2) ARM64 Android phones: aarch64-linux-android;
+                                            3) WebAssembly: wasm32-unknown-unknown-wasm;
+                                            4) Windows: x86_64-pc-windows-msvc;
+                                            5) ARM macOS: arm64-apple-darwin.
+
+--opt OPT                                   Optimization flags. MLC LLM maintains a predefined set of optimization flags,
+                                            denoted as ``O0``, ``O1``, ``O2``, ``O3``, where ``O0`` means no optimization, ``O2``
+                                            means majority of them, and ``O3`` represents extreme optimization that could
+                                            potentially break the system.
+                                            
+                                            Meanwhile, optimization flags could be explicitly specified via details knobs, e.g.
+                                            ``--opt="cutlass_attn=1;cutlass_norm=0;cublas_gemm=0;cudagraph=0"``.
+
+--system-lib-prefix SYSTEM_LIB_PREFIX       Adding a prefix to all symbols exported. Similar to ``objcopy --prefix-symbols``.
+                                            This is useful when compiling multiple models into a single library to avoid symbol
+                                            conflicts. Different from objcopy, this takes no effect for shared library.
+
+
+--output OUTPUT                             The path to the output file. The suffix determines if the output file is a shared library or
+                                            objects. Available suffixes:
+
+                                            1) Linux: .so (shared), .tar (objects);
+                                            2) macOS: .dylib (shared), .tar (objects);
+                                            3) Windows: .dll (shared), .tar (objects);
+                                            4) Android, iOS: .tar (objects);
+                                            5) Web: .wasm (web assembly).
+
+--overrides OVERRIDES                       Model configuration override. Configurations to override ``mlc-chat-config.json``. Supports
+                                            ``context_window_size``, ``prefill_chunk_size``, ``sliding_window``, ``max_batch_size`` and
+                                            ``tensor_parallel_shards``. Meanwhile, model config could be explicitly specified via details
+                                            knobs, e.g. ``--overrides "context_window_size=1024;prefill_chunk_size=128"``.

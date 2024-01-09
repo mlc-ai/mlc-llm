@@ -1,5 +1,6 @@
 """A command line tool for benchmarking a chat model."""
 import argparse
+from pathlib import Path
 
 from mlc_chat import ChatConfig, ChatModule
 
@@ -23,9 +24,11 @@ parser.add_argument(
     required=False,
 )
 parser.add_argument(
+    "--tensor-parallel-shards",
     "--num-shards",
     type=int,
     help="Number of GPUs to be used.",
+    dest="tensor_parallel_shards",
     required=False,
 )
 parser.add_argument(
@@ -52,18 +55,29 @@ parser.add_argument(
 )
 
 
+def _load_prompt(path_or_prompt: str) -> str:
+    """Load the prompt from a file or use the provided prompt."""
+    try:
+        path = Path(path_or_prompt)
+        if path.is_file():
+            with path.open("r", encoding="utf-8") as in_file:
+                return in_file.read()
+    except:  # pylint: disable=bare-except
+        pass
+    return path_or_prompt
+
+
 def main():
     """The main function that runs the benchmarking."""
     args = parser.parse_args()
     chat_module = ChatModule(
         model=args.model,
         device=args.device,
-        chat_config=ChatConfig(
-            num_shards=args.num_shards,
-        ),
+        chat_config=ChatConfig(tensor_parallel_shards=args.tensor_parallel_shards),
         model_lib_path=args.model_lib,
     )
-    output = chat_module.benchmark_generate(args.prompt, generate_length=args.generate_length)
+    prompt = _load_prompt(args.prompt)
+    output = chat_module.benchmark_generate(prompt, generate_length=args.generate_length)
     print(f"Generated text:\n{output}\n")
     print(f"Statistics: {chat_module.stats(verbose=True)}")
 
