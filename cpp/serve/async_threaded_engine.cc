@@ -31,14 +31,15 @@ class AsyncThreadedEngineImpl : public AsyncThreadedEngine, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("abort_request", &AsyncThreadedEngineImpl::AbortRequest);
   TVM_MODULE_VTABLE_ENTRY("run_background_loop", &AsyncThreadedEngineImpl::RunBackgroundLoop);
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &AsyncThreadedEngineImpl::ExitBackgroundLoop);
+  if (_name == "init_background_engine") {
+    return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void {
+      SelfPtr self = static_cast<SelfPtr>(_self.get());
+      self->InitBackgroundEngine(args);
+    });
+  }
   TVM_MODULE_VTABLE_END();
 
-  explicit AsyncThreadedEngineImpl(std::unique_ptr<Engine> background_engine)
-      : background_engine_(std::move(background_engine)) {}
-
-  static tvm::runtime::Module Create(std::unique_ptr<Engine> background_engine) {
-    return Module(make_object<AsyncThreadedEngineImpl>(std::move(background_engine)));
-  }
+  void InitBackgroundEngine(TVMArgs args) { background_engine_ = CreateEnginePacked(args); }
 
   void AddRequest(Request request) final {
     {
@@ -126,12 +127,8 @@ class AsyncThreadedEngineImpl : public AsyncThreadedEngine, public ModuleNode {
   std::atomic<int> pending_operation_cnt_ = 0;
 };
 
-std::unique_ptr<AsyncThreadedEngine> AsyncThreadedEngine::Create(std::unique_ptr<Engine> engine) {
-  return std::make_unique<AsyncThreadedEngineImpl>(std::move(engine));
-}
-
-TVM_REGISTER_GLOBAL("mlc.serve.create_threaded_engine").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = AsyncThreadedEngineImpl::Create(CreateEnginePacked(args));
+TVM_REGISTER_GLOBAL("mlc.serve.create_threaded_engine").set_body_typed([]() {
+  return Module(make_object<AsyncThreadedEngineImpl>());
 });
 
 }  // namespace serve
