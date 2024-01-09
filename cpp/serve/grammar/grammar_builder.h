@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2023 by Contributors
  * \file serve/grammar/grammar_builder.h
- * \brief
+ * \brief The header for the building the BNF AST.
  */
 
 #ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_BUILDER_H_

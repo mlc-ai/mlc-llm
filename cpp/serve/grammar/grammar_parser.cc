@@ -15,6 +15,7 @@ namespace serve {
 
 class EBNFParserImpl {
  public:
+  /*! \brief The logic of parsing the grammar string. */
   BNFGrammar DoParse(String ebnf_string);
 
  private:
@@ -22,8 +23,6 @@ class EBNFParserImpl {
   using TRuleId = BNFGrammarNode::TRuleId;
   using TSubruleId = BNFGrammarNode::TSubruleId;
   using ParseError = EBNFParser::ParseError;
-
-  // The logic of parsing the grammar string.
 
   // Parsing different parts of the grammar
   std::string ParseName(bool accept_empty = false);

@@ -75,7 +75,7 @@ class BNFGrammarNode : public Object {
   const Rule& GetRule(TRuleId rule_id) const { return rules[rule_id]; }
 
   /****************** Subrule definition ******************/
-  
+
   using TSubruleData = int32_t;
 
   struct Subrule {
