@@ -36,8 +36,8 @@ std::string BNFGrammarPrinter::PrintSubrule(TSubruleId subrule_id) {
     case static_cast<TSubruleData>(DataKind::kSequence):
       result += PrintSequence(subrule);
       break;
-    case static_cast<TSubruleData>(DataKind::kOrRule):
-      result += PrintOrRule(subrule);
+    case static_cast<TSubruleData>(DataKind::kChoices):
+      result += PrintChoices(subrule);
       break;
   }
   return result;
@@ -91,7 +91,7 @@ std::string BNFGrammarPrinter::PrintSequence(const Subrule& subrule) {
   return result;
 }
 
-std::string BNFGrammarPrinter::PrintOrRule(const Subrule& subrule) {
+std::string BNFGrammarPrinter::PrintChoices(const Subrule& subrule) {
   std::string result;
 
   auto prev_require_parentheses = require_parentheses_;

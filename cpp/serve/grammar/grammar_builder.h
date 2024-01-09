@@ -108,10 +108,10 @@ class BNFGrammarBuilder {
     return InsertSubrule({data.data(), data.size()});
   }
 
-  /*! \brief Insert subrules for subrule or choices.*/
-  TSubruleId InsertOrRule(const std::vector<TSubruleId>& choices) {
+  /*! \brief Insert subrules for subrule choices.*/
+  TSubruleId InsertChoices(const std::vector<TSubruleId>& choices) {
     std::vector<TSubruleData> data;
-    data.push_back(static_cast<TSubruleData>(DataKind::kOrRule));
+    data.push_back(static_cast<TSubruleData>(DataKind::kChoices));
     data.insert(data.end(), choices.begin(), choices.end());
     return InsertSubrule({data.data(), data.size()});
   }

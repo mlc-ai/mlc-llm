@@ -44,7 +44,7 @@ using namespace tvm::runtime;
  * - Empty: an empty string, i.e. ""
  * - Rule reference: a reference to another rule
  * - Sequence: a sequence of subrules, e.g. ("a" "b"). These subrules are concatenated together.
- * - Or rule: a choice of subrules, e.g. ("a" "b") | "c". Each subrule can be matched.
+ * - Choices: a choice of subrules, e.g. ("a" "b") | "c". Each subrule can be matched.
  *
  * Every subrule is represented by a variable-length vector of TSubruleData (int32_t), where the
  * first element indicates the type of the subrule, and the subsequent elements represent the data
@@ -98,8 +98,8 @@ class BNFGrammarNode : public Object {
     kRuleRef,
     // Format: [kSequence, subrule_id0, subrule_id1, ...]
     kSequence,
-    // Format: [kOrRule, subrule_id0, subrule_id1, ...]
-    kOrRule,
+    // Format: [kChoices, subrule_id0, subrule_id1, ...]
+    kChoices,
   };
 
   /*! \brief Get the number of subrules. */

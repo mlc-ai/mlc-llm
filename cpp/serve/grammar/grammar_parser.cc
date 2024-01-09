@@ -32,7 +32,7 @@ class EBNFParserImpl {
   TSubruleId ParseElement();
   TSubruleId ParseQuantifier();
   TSubruleId ParseSequence();
-  TSubruleId ParseOrRule();
+  TSubruleId ParseChoices();
   Rule ParseRule();
 
   // Helper functions
@@ -126,9 +126,10 @@ std::string EBNFParserImpl::ParseName(bool accept_empty) {
 }
 
 // Character range:
-// [a-z] [ab] [a-zA-Z0-9] [^a-z] [测] [\u0123]
-// [a-] and [-a] means a or -
-// [a--] means a to -
+// 1. Examples: [a-z] [ab] [a-zA-Z0-9] [^a-z] [测] [\u0123]
+// 2. "-" appearing in the start or end of the character range means itself. Only if it appears
+// between two characters, it means a range. E.g. [a-] and [-a] means "a" or "-"" [a--] means a to -
+// 3. "-" and "]" can be escaped:
 // [\-] means -
 // [\]] means ]
 // Character range should not contain newlines.
@@ -226,7 +227,7 @@ EBNFParserImpl::TSubruleId EBNFParserImpl::ParseElement() {
       ConsumeSpace();
       auto prev_in_parentheses = in_parentheses_;
       in_parentheses_ = true;
-      auto subrule_id = ParseOrRule();
+      auto subrule_id = ParseChoices();
       ConsumeSpace();
       if (Peek() != ')') {
         ThrowParseError("Expect )");
@@ -270,8 +271,8 @@ EBNFParserImpl::TRuleId EBNFParserImpl::HandleStarQuantifier(
   auto new_rule_id = grammar_builder_.InsertEmptyRule(new_rule_name);
   auto new_rule_ref = grammar_builder_.InsertRuleRef(new_rule_id);
   auto new_subrule =
-      grammar_builder_.InsertOrRule({grammar_builder_.InsertSequence({subrule_id, new_rule_ref}),
-                                     grammar_builder_.InsertEmpty()});
+      grammar_builder_.InsertChoices({grammar_builder_.InsertSequence({subrule_id, new_rule_ref}),
+                                      grammar_builder_.InsertEmpty()});
   grammar_builder_.SetRuleBody(new_rule_id, new_subrule);
   return new_rule_id;
 }
@@ -290,7 +291,7 @@ EBNFParserImpl::TRuleId EBNFParserImpl::HandlePlusQuantifier(
   auto a_plus_ref = grammar_builder_.InsertRuleRef(new_rule_id);
   auto a_ref1 = grammar_builder_.InsertRuleRef(a_rule_id);
   auto a_ref2 = grammar_builder_.InsertRuleRef(a_rule_id);
-  auto new_subrule = grammar_builder_.InsertOrRule(
+  auto new_subrule = grammar_builder_.InsertChoices(
       {grammar_builder_.InsertSequence({a_ref1, a_plus_ref}), a_ref2});
   grammar_builder_.SetRuleBody(new_rule_id, new_subrule);
   return new_rule_id;
@@ -300,7 +301,7 @@ EBNFParserImpl::TRuleId EBNFParserImpl::HandleQuestionQuantifier(
     EBNFParserImpl::TSubruleId subrule_id) {
   // a?  -->  rule ::= a | empty
   auto new_rule_name = grammar_builder_.GetNewRuleName(cur_rule_name_);
-  auto new_subrule = grammar_builder_.InsertOrRule({subrule_id, grammar_builder_.InsertEmpty()});
+  auto new_subrule = grammar_builder_.InsertChoices({subrule_id, grammar_builder_.InsertEmpty()});
   auto new_rule_id = grammar_builder_.InsertRule({new_rule_name, new_subrule});
   return new_rule_id;
 }
@@ -337,7 +338,7 @@ EBNFParserImpl::TSubruleId EBNFParserImpl::ParseSequence() {
   return grammar_builder_.InsertSequence(elements);
 }
 
-EBNFParserImpl::TSubruleId EBNFParserImpl::ParseOrRule() {
+EBNFParserImpl::TSubruleId EBNFParserImpl::ParseChoices() {
   std::vector<TSubruleId> choices;
 
   choices.push_back(ParseSequence());
@@ -348,7 +349,7 @@ EBNFParserImpl::TSubruleId EBNFParserImpl::ParseOrRule() {
     choices.push_back(ParseSequence());
     ConsumeSpace();
   }
-  return grammar_builder_.InsertOrRule(choices);
+  return grammar_builder_.InsertChoices(choices);
 }
 
 EBNFParserImpl::Rule EBNFParserImpl::ParseRule() {
@@ -360,7 +361,7 @@ EBNFParserImpl::Rule EBNFParserImpl::ParseRule() {
   }
   Consume(3);
   ConsumeSpace();
-  return {name, ParseOrRule()};
+  return {name, ParseChoices()};
 }
 
 void EBNFParserImpl::BuildRuleNameToId() {

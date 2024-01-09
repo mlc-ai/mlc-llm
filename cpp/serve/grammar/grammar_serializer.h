@@ -57,21 +57,19 @@ class BNFGrammarPrinter : public BNFGrammarSerializer {
    */
   String ToString() final;
 
-  /*!
-   * \brief Print a subrule with the given id. Mainly for debug use.
-   */
+  /*! \brief Print a subrule corresponding to the given id. */
   std::string PrintSubrule(TSubruleId subrule_id);
 
-  /*!
-   * \brief Print subrules according to the type.
-   * \param begin The beginning iterator of the content of subrule.
-   * \param end The end iterator of the content of subrule.
-   */
+  /*! \brief Print subrules for character range. */
   std::string PrintCharacterRange(const Subrule& subrule);
+  /*! \brief Print subrules for empty string. */
   std::string PrintEmpty(const Subrule& subrule);
+  /*! \brief Print subrules for rule reference. */
   std::string PrintRuleRef(const Subrule& subrule);
+  /*! \brief Print subrules for subrule sequence. */
   std::string PrintSequence(const Subrule& subrule);
-  std::string PrintOrRule(const Subrule& subrule);
+  /*! \brief Print subrules for subrule choices. */
+  std::string PrintChoices(const Subrule& subrule);
 
  private:
   // Only print parentheses when necessary (i.e. when this subrule contains multiple elements
