@@ -91,6 +91,66 @@ def _get_shard_strategies(
     }
 
 
+def _get_shard_strategies_ft(
+    model_config, num_shards: int, param_shape_is_already_sharded: bool
+) -> Dict[str, tvm.tir.PrimFunc]:
+    q_heads = model_config.num_attention_heads
+    kv_heads = model_config.get_num_key_value_heads()
+
+    def shard_qkv_weight_scale(x: relax.TensorStructInfo):
+        (red, spatial), dtype = x.shape, x.dtype
+        red, spatial = int(red), int(spatial)
+        if param_shape_is_already_sharded:
+            spatial *= num_shards
+        head_dim = spatial // (q_heads + 2 * kv_heads)
+        a = te.placeholder((red, spatial), dtype=dtype)
+        w = topi.reshape(a, (red, spatial // head_dim, head_dim))
+        q = te.compute((red, q_heads, head_dim), lambda i, j, k: w[i, j, k])
+        k = te.compute((red, kv_heads, head_dim), lambda i, j, k: w[i, q_heads + j, k])
+        v = te.compute((red, kv_heads, head_dim), lambda i, j, k: w[i, q_heads + kv_heads + j, k])
+        q = topi.reshape(q, (red, num_shards, q_heads // num_shards, head_dim))
+        k = topi.reshape(k, (red, num_shards, kv_heads // num_shards, head_dim))
+        v = topi.reshape(v, (red, num_shards, kv_heads // num_shards, head_dim))
+        w = topi.concatenate((q, k, v), axis=2)
+        w = topi.reshape(w, (red, num_shards, (q_heads + kv_heads * 2) // num_shards * head_dim))
+        w = topi.transpose(w, (1, 0, 2))
+        func = te.create_prim_func([a, w])
+        return func
+
+    def shard_k_weight(weight: relax.TensorStructInfo):
+        (red, spatial), dtype = weight.shape, weight.dtype
+        red, spatial = int(red), int(spatial)
+        if param_shape_is_already_sharded:
+            red *= num_shards
+        a = te.placeholder((red, spatial), dtype=dtype)
+        w = topi.reshape(a, (num_shards, red // num_shards, spatial))
+        func = te.create_prim_func([a, w])
+        return func
+
+    def shard_gate_up_weight_scale(x: relax.TensorStructInfo):
+        (red, spatial), dtype = x.shape, x.dtype
+        red, spatial = int(red), int(spatial)
+        if param_shape_is_already_sharded:
+            spatial *= num_shards
+        a = te.placeholder((red, spatial), dtype=dtype)
+        g = te.compute((red, spatial // 2), lambda i, j: a[i, j])
+        u = te.compute((red, spatial // 2), lambda i, j: a[i, spatial // 2 + j])
+        g = topi.reshape(g, (red, num_shards, spatial // 2 // num_shards))
+        u = topi.reshape(u, (red, num_shards, spatial // 2 // num_shards))
+        w = topi.concatenate((g, u), axis=2)
+        w = topi.reshape(w, (red, num_shards, spatial // num_shards))
+        w = topi.transpose(w, (1, 0, 2))
+        func = te.create_prim_func([a, w])
+        return func
+
+    return {
+        "shard_qkv": shard_qkv_weight_scale,
+        "shard_mlp_k": shard_k_weight,
+        "shard_o_proj_k": shard_k_weight,
+        "shard_gate_up": shard_gate_up_weight_scale,
+    }
+
+
 def create_shard_info_func(param_manager, args, model_config) -> tvm.IRModule:
     shard_strategy_to_func = _get_shard_strategies(
         model_config,
@@ -143,11 +203,25 @@ def create_shard_info_func(param_manager, args, model_config) -> tvm.IRModule:
 
 
 def create_shard_transformation_func(param_manager, args, model_config) -> tvm.IRModule:
-    shard_strategy_to_func = _get_shard_strategies(
-        model_config,
-        num_shards=args.num_shards,
-        param_shape_is_already_sharded=args.build_model_only,
-    )
+    use_ft_quant = args.quantization.name in [
+        "q4f16_ft",
+        "q8f16_ft",
+        "q4f16_ft_group",
+        "q8f16_ft_group",
+    ]
+
+    if use_ft_quant:
+        shard_strategy_to_func = _get_shard_strategies_ft(
+            model_config,
+            num_shards=args.num_shards,
+            param_shape_is_already_sharded=args.build_model_only,
+        )
+    else:
+        shard_strategy_to_func = _get_shard_strategies(
+            model_config,
+            num_shards=args.num_shards,
+            param_shape_is_already_sharded=args.build_model_only,
+        )
 
     q_params = param_manager.get_quantized_param_info("prefill").fields
 
@@ -192,7 +266,11 @@ def create_shard_transformation_func(param_manager, args, model_config) -> tvm.I
 
             arg = relax.Var(arg_name, qparam_sinfo)
 
-            if param.shard_strategy is None:
+            if param.shard_strategy is None or (
+                use_ft_quant
+                and param.shard_strategy in ["shard_mlp_k", "shard_o_proj_k"]
+                and qparam_sinfo.shape[0] == 1
+            ):
                 sharded = arg
             else:
                 strategy_func = shard_strategy_to_func[param.shard_strategy](
