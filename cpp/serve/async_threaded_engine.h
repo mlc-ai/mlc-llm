@@ -30,9 +30,6 @@ class AsyncThreadedEngine {
  public:
   virtual ~AsyncThreadedEngine() = default;
 
-  /*! \brief Create an AsyncThreadedEngine with the given background engine. */
-  static std::unique_ptr<AsyncThreadedEngine> Create(std::unique_ptr<Engine> engine);
-
   /*! \brief Starts the background request processing loop. */
   virtual void RunBackgroundLoop() = 0;
 
