@@ -11,12 +11,12 @@ from mlc_serve.engine import (
     Request,
     SamplingParams,
     StoppingCriteria,
-    get_engine_config,
 )
-from mlc_serve.engine.staging_engine import StagingInferenceEngine
-from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
-from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModelModule
-from mlc_serve.utils import get_default_mlc_serve_argparser, postproc_mlc_serve_args
+from mlc_serve.utils import (
+    get_default_mlc_serve_argparser,
+    postproc_mlc_serve_args,
+    create_mlc_engine,
+)
 
 SAMPLER_SETTING = {"ignore_eos": True}
 
@@ -71,7 +71,7 @@ def run_mii(requests: List[Tuple[str, int, int]], args) -> float:
     start = time.perf_counter()
     engine(
         prompts,
-        max_new_tokens=args.max_output_tokens,
+        max_new_tokens=args.num_output_tokens,
         ignore_eos=SAMPLER_SETTING["ignore_eos"],
         # mii does not support temperature of zero.
         temperature=(0.000001 if random.random() <= args.greedy_sampling_ratio else 1.0),
@@ -103,7 +103,7 @@ def run_vllm(requests: List[Tuple[str, int, int]], args) -> float:
                 use_beam_search=False,
                 temperature=(0.0 if random.random() <= args.greedy_sampling_ratio else 1.0),
                 ignore_eos=SAMPLER_SETTING["ignore_eos"],
-                max_tokens=args.max_output_tokens,
+                max_tokens=args.num_output_tokens,
             ),
         )
 
@@ -124,7 +124,7 @@ def run_mlc(engine, requests, args) -> float:
                         temperature=(0.0 if random.random() <= args.greedy_sampling_ratio else 1.0)
                     ),
                     stopping_criteria=StoppingCriteria(
-                        max_tokens=args.max_output_tokens, stop_sequences=None
+                        max_tokens=args.num_output_tokens, stop_sequences=None
                     ),
                     num_sequences=args.num_sequences_to_sample,
                     debug_options=DebugOptions(
@@ -145,38 +145,6 @@ def run_mlc(engine, requests, args) -> float:
         engine.stop()
 
     return end - start
-
-
-def create_mlc_engine(args: argparse.Namespace):
-    engine_config = get_engine_config(
-        {
-            "use_staging_engine": args.use_staging_engine,
-            "max_num_sequences": args.max_num_sequences,
-            "max_input_len": args.max_input_len,
-            "min_decode_steps": args.min_decode_steps,
-            "max_decode_steps": args.max_decode_steps,
-        }
-    )
-
-    if args.use_staging_engine:
-        engine = StagingInferenceEngine(
-            tokenizer_module=HfTokenizerModule(args.model_artifact_path),
-            model_module_loader=PagedCacheModelModule,
-            model_module_loader_kwargs={
-                "model_artifact_path": args.model_artifact_path,
-                "engine_config": engine_config,
-            },
-        )
-        engine.start()
-    else:
-        engine = SynchronousInferenceEngine(
-            PagedCacheModelModule(
-                model_artifact_path=args.model_artifact_path,
-                engine_config=engine_config,
-            )
-        )
-
-    return engine
 
 
 def main(args: argparse.Namespace):
@@ -209,7 +177,7 @@ def main(args: argparse.Namespace):
             elapsed_time = run_vllm(requests, args)
 
     total_num_tokens = sum(
-        prompt_len + args.max_output_tokens * args.num_sequences_to_sample
+        prompt_len + args.num_output_tokens * args.num_sequences_to_sample
         for _, prompt_len, _ in requests
     )
     req_per_sec = len(requests) / elapsed_time
@@ -246,7 +214,7 @@ if __name__ == "__main__":
         "--greedy-sampling-ratio", type=float, default=0.5, help="Ratio of greedy sampling in the requests."
     )
     parser.add_argument(
-        "--max-output-tokens",
+        "--num-output-tokens",
         type=int,
         default=128,
         help="Maximum number of generation tokens.",

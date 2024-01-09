@@ -1,10 +1,16 @@
 """Utility functions for mlc-serve"""
-from mlc_serve.logging_utils import configure_logging
+
 from pathlib import Path
 import os
 import torch
 import random
 import argparse
+
+from mlc_serve.engine import get_engine_config
+from mlc_serve.logging_utils import configure_logging
+from mlc_serve.engine.staging_engine import StagingInferenceEngine
+from mlc_serve.engine.sync_engine import SynchronousInferenceEngine
+from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModelModule
 
 
 def get_default_mlc_serve_argparser(description="", allow_override=False):
@@ -38,3 +44,36 @@ def postproc_mlc_serve_args(args):
     torch.cuda.manual_seed(args.seed)
     random.seed(args.seed)
     return args
+
+
+def create_mlc_engine(args: argparse.Namespace):
+    engine_config = get_engine_config(
+        {
+            "use_staging_engine": args.use_staging_engine,
+            "max_num_sequences": args.max_num_sequences,
+            "max_input_len": args.max_input_len,
+            "min_decode_steps": args.min_decode_steps,
+            "max_decode_steps": args.max_decode_steps,
+        }
+    )
+    
+    # TODO(@team): There is a type mismatch in the definition. Let's fix this when have time. 
+    if args.use_staging_engine:
+        engine = StagingInferenceEngine( # type: ignore
+            tokenizer_module=HfTokenizerModule(args.model_artifact_path),
+            model_module_loader=PagedCacheModelModule, # type: ignore
+            model_module_loader_kwargs={
+                "model_artifact_path": args.model_artifact_path,
+                "engine_config": engine_config,
+            },
+        )
+        engine.start()
+    else:
+        engine = SynchronousInferenceEngine( # type: ignore
+            PagedCacheModelModule( # type: ignore
+                model_artifact_path=args.model_artifact_path,
+                engine_config=engine_config,
+            )
+        )
+    return engine
+

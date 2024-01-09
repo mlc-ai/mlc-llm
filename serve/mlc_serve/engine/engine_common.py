@@ -34,16 +34,19 @@ LOG = structlog.stdlib.get_logger(__name__)
 def get_new_request_state(
     request: Request, conversation_template: ConversationTemplate, tokenizer: TokenizerP
 ) -> RequestState:
-    if request.debug_options.prompt is not None:
-        prompt = request.debug_options.prompt
+    if request.debug_options.prompt_token_ids is not None:
+        prompt_token_ids = request.debug_options.prompt_token_ids
     else:
-        prompt = conversation_template.apply(request.messages)
+        if request.debug_options.prompt is not None:
+            prompt = request.debug_options.prompt
+        else:
+            prompt = conversation_template.apply(request.messages)
 
-    prompt_tokens = tokenizer.encode(prompt)
+        prompt_token_ids = tokenizer.encode(prompt)
 
     validation_err = None
     if request.validate_tokens is not None:
-        validation_err = request.validate_tokens(request, prompt_tokens)
+        validation_err = request.validate_tokens(request, prompt_token_ids)
 
     gen_seqs = [
         GenerationSequence(
@@ -57,7 +60,7 @@ def get_new_request_state(
 
     return RequestState(
         request_id=request.request_id,
-        prompt_token_ids=prompt_tokens,
+        prompt_token_ids=prompt_token_ids,
         generation_sequences=gen_seqs,
         sampling_params=request.sampling_params,
         stopping_criteria=request.stopping_criteria,
