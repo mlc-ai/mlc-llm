@@ -116,7 +116,6 @@ def sample(
 
             if param.logit_bias:
                 logits[i][param.logit_bias_index] += torch.Tensor(param.logit_bias_value).type_as(logits).to(device=logits.device)
-            
 
     logits_random = logits[mask_random]
 
@@ -125,7 +124,7 @@ def sample(
         logits_random.div_(t.unsqueeze(dim=1))
 
     if do_top_p or do_top_k:
-        logits = _apply_top_p_top_k(logits_random, top_ps, top_ks)
+        logits_random = _apply_top_p_top_k(logits_random, top_ps, top_ks)
 
     probs = torch.softmax(logits_random, dim=-1)
 
