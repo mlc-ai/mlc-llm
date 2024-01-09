@@ -131,7 +131,7 @@ if __name__ == "__main__":
     parser.add_argument("--use-random-sampling", action="store_true")
     parser.add_argument("--max-output-len", type=int, default=20)
     args = parser.parse_args()
-    args = postproc_mlc_serve_args(args)
+    postproc_mlc_serve_args(args)
 
     if args.long_prompt:
         args.max_input_len = 10000

@@ -352,7 +352,7 @@ def test_penalty(
 if __name__ == "__main__":
     parser = get_default_mlc_serve_argparser("test engine with samplers")
     args = parser.parse_args()
-    args = postproc_mlc_serve_args(args)
+    postproc_mlc_serve_args(args)
 
     _test_max_tokens(args.model_artifact_path, use_staging_engine=True)
     _test_max_tokens(args.model_artifact_path, use_staging_engine=False)

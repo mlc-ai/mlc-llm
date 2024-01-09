@@ -6,7 +6,6 @@ from typing import List, Tuple
 import argparse
 import pandas as pd
 from mlc_serve.engine import (
-    ChatMessage,
     DebugOptions,
     Request,
     SamplingParams,
@@ -17,8 +16,8 @@ from mlc_serve.utils import (
     postproc_mlc_serve_args,
     create_mlc_engine,
 )
+from utils import add_sampling_flags, postproc_sampling_args
 
-SAMPLER_SETTING = {"ignore_eos": True}
 
 def sample_requests(
     dataset_path: str,
@@ -68,13 +67,17 @@ def run_mii(requests: List[Tuple[str, int, int]], args) -> float:
 
     engine = pipeline(args.model, tensor_parallel=args.num_shards)
     prompts = [prompt for prompt, _, _ in requests]
+    temp = 0.000001 if random.random() <= args.greedy_sampling_ratio else 0.7
     start = time.perf_counter()
     engine(
         prompts,
         max_new_tokens=args.num_output_tokens,
-        ignore_eos=SAMPLER_SETTING["ignore_eos"],
+        ignore_eos=args.sampling_setting["ignore_eos"],
         # mii does not support temperature of zero.
-        temperature=(0.000001 if random.random() <= args.greedy_sampling_ratio else 1.0),
+        temperature=temp,
+        top_p=1 if temp == 0.0 else args.sampling_setting["top_p"],
+        top_k=-1 if temp == 0.0 else args.sampling_setting["top_k"],
+        # mii currently does not support `logit_bias` and any of penalties
     )
     end = time.perf_counter()
     return end - start
@@ -95,14 +98,21 @@ def run_vllm(requests: List[Tuple[str, int, int]], args) -> float:
 
     # Add the requests to the engine.
     for prompt, _, _ in requests:
+        temp = 0.0 if random.random() <= args.greedy_sampling_ratio else 0.7
         llm._add_request(
             prompt=prompt,
             prompt_token_ids=None,
             sampling_params=SamplingParams(
                 n=args.num_sequences_to_sample,
                 use_beam_search=False,
-                temperature=(0.0 if random.random() <= args.greedy_sampling_ratio else 1.0),
-                ignore_eos=SAMPLER_SETTING["ignore_eos"],
+                temperature=temp,
+                top_p=1 if temp == 0.0 else args.sampling_setting["top_p"],
+                top_k=-1 if temp == 0.0 else args.sampling_setting["top_k"],
+                repetition_penalty=args.sampling_setting["repetition_penalty"],
+                frequency_penalty=args.sampling_setting["frequency_penalty"],
+                presence_penalty=args.sampling_setting["presence_penalty"],
+                # vllm does not support `logit bias`
+                ignore_eos=args.sampling_setting["ignore_eos"],
                 max_tokens=args.num_output_tokens,
             ),
         )
@@ -115,20 +125,27 @@ def run_vllm(requests: List[Tuple[str, int, int]], args) -> float:
 
 def run_mlc(engine, requests, args) -> float:
     for i, (prompt, _, _) in enumerate(requests):
+        temp = 0.0 if random.random() <= args.greedy_sampling_ratio else 0.7
         engine.add(
             [
                 Request(
                     request_id=str(i),
-                    messages=[ChatMessage(role="user", content=prompt)],
+                    messages=None,  # Provide prompt as `DebugOption` to bypass the conv template
                     sampling_params=SamplingParams(
-                        temperature=(0.0 if random.random() <= args.greedy_sampling_ratio else 1.0)
+                        temperature=temp,
+                        top_p=1 if temp == 0.0 else args.sampling_setting["top_p"],
+                        top_k=-1 if temp == 0.0 else args.sampling_setting["top_k"],
+                        repetition_penalty=args.sampling_setting["repetition_penalty"],
+                        frequency_penalty=args.sampling_setting["frequency_penalty"],
+                        presence_penalty=args.sampling_setting["presence_penalty"],
+                        logit_bias=args.sampling_setting["logit_bias"],
                     ),
                     stopping_criteria=StoppingCriteria(
                         max_tokens=args.num_output_tokens, stop_sequences=None
                     ),
                     num_sequences=args.num_sequences_to_sample,
                     debug_options=DebugOptions(
-                        ignore_eos=SAMPLER_SETTING["ignore_eos"], prompt=prompt
+                        ignore_eos=args.sampling_setting["ignore_eos"], prompt=prompt
                     ),
                 )
             ]
@@ -200,7 +217,9 @@ def main(args: argparse.Namespace):
 
 
 if __name__ == "__main__":
-    parser = get_default_mlc_serve_argparser(description="Benchmark the throughput.", allow_override=True)
+    parser = get_default_mlc_serve_argparser(
+        description="Benchmark the throughput.", allow_override=True
+    )
     parser.add_argument(
         "--backend", type=str, default="mlc-serve", choices=["mlc-serve", "vllm", "mii"]
     )
@@ -211,7 +230,10 @@ if __name__ == "__main__":
         "--num-prompts", type=int, default=1000, help="Number of prompts to process."
     )
     parser.add_argument(
-        "--greedy-sampling-ratio", type=float, default=0.5, help="Ratio of greedy sampling in the requests."
+        "--greedy-sampling-ratio",
+        type=float,
+        default=0.5,
+        help="Ratio of greedy sampling in the requests.",
     )
     parser.add_argument(
         "--num-output-tokens",
@@ -257,10 +279,12 @@ if __name__ == "__main__":
         "for FP32 and FP16 models, and BF16 precision "
         "for BF16 models.",
     )
-
+    add_sampling_flags(parser)
     args = parser.parse_args()
     if args.backend == "mlc-serve":
-        args = postproc_mlc_serve_args(args)
+        postproc_mlc_serve_args(args)
 
-    assert args.greedy_sampling_ratio >= 0.0 and  args.greedy_sampling_ratio <= 1.0
+    assert args.greedy_sampling_ratio >= 0.0 and args.greedy_sampling_ratio <= 1.0
+    postproc_sampling_args(args)
+
     main(args)

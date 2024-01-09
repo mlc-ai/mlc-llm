@@ -15,7 +15,9 @@ from mlc_serve.model.paged_cache_model import HfTokenizerModule, PagedCacheModel
 
 def get_default_mlc_serve_argparser(description="", allow_override=False):
     if allow_override:
-        parser = argparse.ArgumentParser(description=description, conflict_handler="resolve")
+        parser = argparse.ArgumentParser(
+            description=description, conflict_handler="resolve"
+        )
     else:
         parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--local-id", type=str, required=True)
@@ -43,7 +45,6 @@ def postproc_mlc_serve_args(args):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     random.seed(args.seed)
-    return args
 
 
 def create_mlc_engine(args: argparse.Namespace):
@@ -56,12 +57,12 @@ def create_mlc_engine(args: argparse.Namespace):
             "max_decode_steps": args.max_decode_steps,
         }
     )
-    
-    # TODO(@team): There is a type mismatch in the definition. Let's fix this when have time. 
+
+    # TODO(@team): There is a type mismatch in the definition. Let's fix this when have time.
     if args.use_staging_engine:
-        engine = StagingInferenceEngine( # type: ignore
+        engine = StagingInferenceEngine(  # type: ignore
             tokenizer_module=HfTokenizerModule(args.model_artifact_path),
-            model_module_loader=PagedCacheModelModule, # type: ignore
+            model_module_loader=PagedCacheModelModule,  # type: ignore
             model_module_loader_kwargs={
                 "model_artifact_path": args.model_artifact_path,
                 "engine_config": engine_config,
@@ -69,11 +70,10 @@ def create_mlc_engine(args: argparse.Namespace):
         )
         engine.start()
     else:
-        engine = SynchronousInferenceEngine( # type: ignore
-            PagedCacheModelModule( # type: ignore
+        engine = SynchronousInferenceEngine(  # type: ignore
+            PagedCacheModelModule(  # type: ignore
                 model_artifact_path=args.model_artifact_path,
                 engine_config=engine_config,
             )
         )
     return engine
-

@@ -12,6 +12,8 @@ from mlc_serve.utils import (
     postproc_mlc_serve_args,
     create_mlc_engine,
 )
+from utils import add_sampling_flags, postproc_sampling_args
+
 
 def main(args: argparse.Namespace):
     print(args)
@@ -21,8 +23,22 @@ def main(args: argparse.Namespace):
         [
             Request(
                 request_id="0",
-                messages=None,
-                sampling_params=SamplingParams(temperature=args.temperature),
+                messages=None,  # Provide prompt as `DebugOption` to bypass the conv template
+                sampling_params=SamplingParams(
+                    temperature=args.temperature,
+                    top_p=(
+                        1 if args.temperature == 0.0 else args.sampling_setting["top_p"]
+                    ),
+                    top_k=(
+                        -1
+                        if args.temperature == 0.0
+                        else args.sampling_setting["top_k"]
+                    ),
+                    repetition_penalty=args.sampling_setting["repetition_penalty"],
+                    frequency_penalty=args.sampling_setting["frequency_penalty"],
+                    presence_penalty=args.sampling_setting["presence_penalty"],
+                    logit_bias=args.sampling_setting["logit_bias"],
+                ),
                 stopping_criteria=StoppingCriteria(
                     max_tokens=args.num_output_tokens, stop_sequences=None
                 ),
@@ -44,6 +60,7 @@ def main(args: argparse.Namespace):
     if args.use_staging_engine:
         engine.stop()
 
+    assert len(latencies) == args.num_output_tokens
     ttft = latencies[0]  # time to first token
     itl = np.mean(latencies[1:])  # inter-token latency for subsequent tokens
     e2e = np.sum(latencies)
@@ -62,9 +79,14 @@ if __name__ == "__main__":
     parser.add_argument("--num-input-tokens", type=int, default=128)
     parser.add_argument("--num-output-tokens", type=int, default=128)
     parser.add_argument(
-        "--temperature", type=float, default=0.5, help="Temparature. By default, random sampling has used."
+        "--temperature",
+        type=float,
+        default=0.5,
+        help="Temparature. By default, random sampling has used.",
     )
+    add_sampling_flags(parser)
     args = parser.parse_args()
-    args = postproc_mlc_serve_args(args)
+    postproc_mlc_serve_args(args)
+    postproc_sampling_args(args)
 
     main(args)
