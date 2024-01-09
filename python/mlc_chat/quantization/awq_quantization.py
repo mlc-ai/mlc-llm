@@ -138,7 +138,7 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
             self.num_elem_per_storage,
             self.storage_dtype,
             self.model_dtype,
-            [weight.shape[0], weight.shape[1] * self.num_elem_per_storage],
+            out_shape=[weight.shape[0], weight.shape[1] * self.num_elem_per_storage],
             ft_reorder=True,
         )
         float_zeros = convert_uint_to_float(
@@ -147,7 +147,7 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
             self.num_elem_per_storage,
             self.storage_dtype,
             self.model_dtype,
-            [zeros.shape[0], zeros.shape[1] * self.num_elem_per_storage],
+            out_shape=[zeros.shape[0], zeros.shape[1] * self.num_elem_per_storage],
             ft_reorder=True,
         )
         float_weight = topi.transpose(float_weight)

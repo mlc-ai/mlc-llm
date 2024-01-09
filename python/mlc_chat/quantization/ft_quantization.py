@@ -1,6 +1,6 @@
 """The FasterTransformer quantization config"""
 from dataclasses import dataclass
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Literal, Optional, Tuple
 
 import tvm
 from tvm import DataType, DataTypeCode, IRModule
@@ -25,9 +25,9 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
 
     name: str
     kind: str
-    quantize_dtype: str  # "int4", "int8"
-    storage_dtype: str  # "int8"
-    model_dtype: str  # "float16"
+    quantize_dtype: Literal["int4", "int8"]
+    storage_dtype: Literal["int8"]
+    model_dtype: Literal["float16"]
     group_size: Optional[int] = None
 
     num_elem_per_storage: int = 0
@@ -49,6 +49,7 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
             quantize_dtype=self.quantize_dtype,
             storage_dtype="uint32",
             model_dtype=self.model_dtype,
+            linear_weight_layout="NK",
         )
 
     def __post_init__(self):
