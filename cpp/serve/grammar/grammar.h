@@ -116,17 +116,17 @@ class BNFGrammarNode : public Object {
     return {const_cast<TSubruleData*>(subrule_data.data() + start_index), len};
   }
 
-  static constexpr const char* _type_key = "mlc.serve.BNFGrammar";
-  static constexpr const bool _type_has_method_sequal_reduce = false;
-  static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(BNFGrammarNode, Object);
-
   /*! \brief The rules of the grammar. */
   std::vector<Rule> rules;
   /*! \brief The data of all subrules. */
   std::vector<TSubruleData> subrule_data;
   /*! \brief The start index of every subrule in subrule_data. */
   std::vector<int> subrule_indptr;
+
+  static constexpr const char* _type_key = "mlc.serve.BNFGrammar";
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  TVM_DECLARE_BASE_OBJECT_INFO(BNFGrammarNode, Object);
 };
 
 class BNFGrammar : public ObjectRef {
