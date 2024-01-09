@@ -255,6 +255,10 @@ class GenerationLoopWorker(EngineBase):
                 gen_seq.generated_token_ids
             )
 
+            if not state.is_prefilled:
+                # Successfully completed a prefill request
+                state.is_prefilled = True
+
             finish_reason = None
 
             # Need to match at the token-id level

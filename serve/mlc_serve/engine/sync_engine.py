@@ -198,6 +198,10 @@ class SynchronousInferenceEngine(InferenceEngine, EngineBase):
                 state.stopping_criteria,
             )
 
+            if not state.is_prefilled:
+                # Successfully completed a prefill request
+                state.is_prefilled = True
+
             finish_reason = None
 
             if gen_seq.is_finished:

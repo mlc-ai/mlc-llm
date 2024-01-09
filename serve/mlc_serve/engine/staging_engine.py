@@ -233,6 +233,10 @@ class StagingInferenceEngine(ScopedInferenceEngine):
                     else:
                         delta = None
 
+                    if not state.is_prefilled:
+                        # Successfully completed a prefill request
+                        state.is_prefilled = True
+
                     finish_reason = seq_output.finish_reason
 
                     if seq_output.finish_reason is not None:

@@ -52,7 +52,7 @@ def get_new_request_state(
         GenerationSequence(
             seq_id=SequenceId(request.request_id, i),
             generated_token_ids=[],
-            next_start_position=0,
+            next_start_position=len(prompt_tokens),
             output_text="",
         )
         for i in range(request.num_sequences)
@@ -181,16 +181,13 @@ def get_requests_to_process(
     requests: list[Union[PrefillRequest, DecodeRequest]] = []
     # TODO: consider having hybrid batch if the underlying attention kernel supports
     # mixing prefill and decode.
-    is_prompt_batch = any(
-        state.generation_sequences[0].next_start_position == 0
-        for state in current_states
-    )
+    is_prompt_batch = any(not state.is_prefilled for state in current_states)
 
     token_counts = 0
 
     if is_prompt_batch:
         for state in current_states:
-            if state.generation_sequences[0].next_start_position == 0:
+            if not state.is_prefilled:
                 requests.append(
                     # generated_token_ids is added for the case where the request is
                     # recovering from cache eviction.
@@ -358,7 +355,7 @@ class EngineBase:
                 continue
 
             self.remove_request_from_batch(request_to_remove.request_id)
-            request_to_remove.generation_sequences[0].next_start_position = 0
+            request_to_remove.is_prefilled = False
             self.queue.appendleft(request_to_remove)
 
             LOG.debug(
@@ -403,7 +400,7 @@ class EngineBase:
         else:
             # Evicting and recovering multi-sequence requests is not supported for now.
             assert all(
-                gen_seq.next_start_position == 0
+                gen_seq.next_start_position == state.prompt_len
                 for gen_seq in state.generation_sequences
             )
             num_tokens = state.prompt_len

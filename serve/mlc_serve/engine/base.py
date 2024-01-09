@@ -327,6 +327,7 @@ class RequestState:
     validation_err: Optional[ValidationError] = None
     # Context variables to attach to logging.
     contextvars: Dict[str, Any] = field(default_factory=dict)
+    is_prefilled: bool = False
 
     @property
     def is_finished(self) -> bool:
