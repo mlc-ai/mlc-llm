@@ -20,9 +20,10 @@ namespace serve {
  */
 class BatchDraftActionObj : public EngineActionObj {
  public:
-  explicit BatchDraftActionObj(Array<Model> models, Sampler sampler,
+  explicit BatchDraftActionObj(Array<Model> models, LogitProcessor logit_processor, Sampler sampler,
                                Optional<EventTraceRecorder> trace_recorder, int draft_length)
       : models_(std::move(models)),
+        logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         trace_recorder_(std::move(trace_recorder)),
         draft_length_(draft_length) {
@@ -102,13 +103,19 @@ class BatchDraftActionObj : public EngineActionObj {
         ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
         ICHECK_EQ(logits->shape[1], 1);
 
+        // - Update logits.
+        logits = logits.CreateView({num_requests, logits->shape[2]}, logits->dtype);
+        logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
+
+        // - Compute probability distributions.
+        NDArray probs_device =
+            logit_processor_->ComputeProbsFromLogits(logits, generation_cfg, request_ids);
+
         // - Sample tokens.
-        RECORD_EVENT(trace_recorder_, request_ids, "start proposal sampling");
         std::vector<NDArray> prob_dist;
         std::vector<float> token_probs;
         std::vector<int32_t> next_tokens = sampler_->BatchSampleTokens(
-            logits, models_[model_id], mstates, generation_cfg, rngs, &prob_dist, &token_probs);
-        RECORD_EVENT(trace_recorder_, request_ids, "finish proposal sampling");
+            probs_device, request_ids, generation_cfg, rngs, &prob_dist, &token_probs);
         ICHECK_EQ(next_tokens.size(), num_requests);
 
         // - Update the draft tokens, prob dist, token probs of states.
@@ -143,6 +150,8 @@ class BatchDraftActionObj : public EngineActionObj {
 
   /*! \brief The model to run draft generation in speculative decoding. */
   Array<Model> models_;
+  /*! \brief The logit processor. */
+  LogitProcessor logit_processor_;
   /*! \brief The sampler to sample new tokens. */
   Sampler sampler_;
   /*! \brief Event trace recorder. */
@@ -151,11 +160,12 @@ class BatchDraftActionObj : public EngineActionObj {
   int draft_length_;
 };
 
-EngineAction EngineAction::BatchDraft(Array<Model> models, Sampler sampler,
-                                      Optional<EventTraceRecorder> trace_recorder,
+EngineAction EngineAction::BatchDraft(Array<Model> models, LogitProcessor logit_processor,
+                                      Sampler sampler, Optional<EventTraceRecorder> trace_recorder,
                                       int draft_length) {
-  return EngineAction(make_object<BatchDraftActionObj>(std::move(models), std::move(sampler),
-                                                       std::move(trace_recorder), draft_length));
+  return EngineAction(make_object<BatchDraftActionObj>(
+      std::move(models), std::move(logit_processor), std::move(sampler), std::move(trace_recorder),
+      draft_length));
 }
 
 }  // namespace serve

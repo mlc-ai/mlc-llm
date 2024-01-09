@@ -81,6 +81,11 @@ class RequestModelStateNode : public Object {
 
   /*! \brief Return the total length of the input data. */
   int GetInputLength() const;
+  /*!
+   * \brief Return the token bitmask induced by the current state.
+   * The returned vector should have size "ceildiv(vocab_size, 32)".
+   */
+  std::vector<int> GetTokenBitmask(int vocab_size) const;
   /*! \brief Commit a new token into committed_tokens. Update appeared_token_ids. */
   void CommitToken(int32_t token_id);
   /*! \brief Add a draft token into draft_output_tokens. Update appeared_token_ids. */

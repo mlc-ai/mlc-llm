@@ -13,6 +13,7 @@ from mlc_chat.support import logging
 
 from .attach_to_ir_module import (
     AttachAdditionalPrimFuncs,
+    AttachLogitProcessFunc,
     AttachMemoryPlanAttr,
     AttachVariableBounds,
 )
@@ -89,6 +90,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 # Phase 0. Add additional information for compilation and remove unused Relax func
                 RewriteKVCacheCreation(target, flashinfer, metadata),
                 AttachVariableBounds(variable_bounds),
+                AttachLogitProcessFunc(),
                 AttachAdditionalPrimFuncs(additional_tirs),
                 AttachMemoryPlanAttr(),
                 tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False)),

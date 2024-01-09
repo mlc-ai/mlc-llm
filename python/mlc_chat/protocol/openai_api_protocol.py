@@ -63,7 +63,7 @@ class CompletionRequest(BaseModel):
     echo: bool = False
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
-    logit_bias: Optional[Dict[str, float]] = None
+    logit_bias: Optional[Dict[int, float]] = None
     logprobs: Optional[int] = None
     max_tokens: int = 16
     n: int = 1
@@ -83,6 +83,22 @@ class CompletionRequest(BaseModel):
         if penalty_value < -2 or penalty_value > 2:
             raise ValueError("Penalty value should be in range [-2, 2].")
         return penalty_value
+
+    @field_validator("logit_bias")
+    @classmethod
+    def check_logit_bias(
+        cls, logit_bias_value: Optional[Dict[int, float]]
+    ) -> Optional[Dict[int, float]]:
+        """Check if the logit bias key is given as an integer."""
+        if logit_bias_value is None:
+            return None
+        for token_id, bias in logit_bias_value.items():
+            if abs(bias) > 100:
+                raise ValueError(
+                    "Logit bias value should be in range [-100, 100], while value "
+                    f"{bias} is given for token id {token_id}"
+                )
+        return logit_bias_value
 
 
 class CompletionResponseChoice(BaseModel):
@@ -149,7 +165,7 @@ class ChatCompletionRequest(BaseModel):
     model: str
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
-    logit_bias: Optional[Dict[str, float]] = None
+    logit_bias: Optional[Dict[int, float]] = None
     max_tokens: Optional[int] = None
     n: int = 1
     response_format: Literal["text", "json_object"] = "text"
@@ -162,6 +178,30 @@ class ChatCompletionRequest(BaseModel):
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None
     user: Optional[str] = None
     ignore_eos: bool = False
+
+    @field_validator("frequency_penalty", "presence_penalty")
+    @classmethod
+    def check_penalty_range(cls, penalty_value: float) -> float:
+        """Check if the penalty value is in range [-2, 2]."""
+        if penalty_value < -2 or penalty_value > 2:
+            raise ValueError("Penalty value should be in range [-2, 2].")
+        return penalty_value
+
+    @field_validator("logit_bias")
+    @classmethod
+    def check_logit_bias(
+        cls, logit_bias_value: Optional[Dict[int, float]]
+    ) -> Optional[Dict[int, float]]:
+        """Check if the logit bias key is given as an integer."""
+        if logit_bias_value is None:
+            return None
+        for token_id, bias in logit_bias_value.items():
+            if abs(bias) > 100:
+                raise ValueError(
+                    "Logit bias value should be in range [-100, 100], while value "
+                    f"{bias} is given for token id {token_id}"
+                )
+        return logit_bias_value
 
 
 class ChatCompletionResponseChoice(BaseModel):
@@ -214,7 +254,6 @@ def openai_api_get_unsupported_fields(
     """Get the unsupported fields in the request."""
     unsupported_field_default_values: List[Tuple[str, Any]] = [
         ("best_of", 1),
-        ("logit_bias", None),
         ("logprobs", None),
         ("n", 1),
         ("response_format", "text"),
@@ -238,6 +277,7 @@ def openai_api_get_generation_config(
         "max_tokens",
         "frequency_penalty",
         "presence_penalty",
+        "logit_bias",
         "seed",
         "ignore_eos",
     ]

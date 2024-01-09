@@ -53,13 +53,14 @@ class EngineAction : public ObjectRef {
    * \brief Create the action that prefills requests in the `waiting_queue`
    * of the engine state.
    * \param models The models to run prefill in.
+   * \param logit_processor The logit processor.
    * \param sampler The sampler to sample new tokens.
    * \param kv_cache_config The KV cache config to help decide prefill is doable.
    * \param trace_recorder The event trace recorder for requests.
    * \return The created action object.
    */
-  static EngineAction NewRequestPrefill(Array<Model> models, Sampler sampler,
-                                        KVCacheConfig kv_cache_config,
+  static EngineAction NewRequestPrefill(Array<Model> models, LogitProcessor logit_processor,
+                                        Sampler sampler, KVCacheConfig kv_cache_config,
                                         Optional<EventTraceRecorder> trace_recorder);
   /*!
    * \brief Create the action that runs one-step decode for requests in the
@@ -74,8 +75,8 @@ class EngineAction : public ObjectRef {
    * \param trace_recorder The event trace recorder for requests.
    * \return The created action object.
    */
-  static EngineAction BatchDecode(Array<Model> models, Sampler sampler,
-                                  Optional<EventTraceRecorder> trace_recorder);
+  static EngineAction BatchDecode(Array<Model> models, LogitProcessor logit_processor,
+                                  Sampler sampler, Optional<EventTraceRecorder> trace_recorder);
 
   /*!
    * \brief Create the action that runs one-step speculative draft proposal for
@@ -88,8 +89,9 @@ class EngineAction : public ObjectRef {
    * \param draft_length The number of draft proposal rounds.
    * \return The created action object.
    */
-  static EngineAction BatchDraft(Array<Model> models, Sampler sampler,
-                                 Optional<EventTraceRecorder> trace_recorder, int draft_length = 4);
+  static EngineAction BatchDraft(Array<Model> models, LogitProcessor logit_processor,
+                                 Sampler sampler, Optional<EventTraceRecorder> trace_recorder,
+                                 int draft_length = 4);
 
   /*!
    * \brief Create the action that runs one-step speculative verification for requests in the
@@ -102,8 +104,8 @@ class EngineAction : public ObjectRef {
    * \param trace_recorder The event trace recorder for requests.
    * \return The created action object.
    */
-  static EngineAction BatchVerify(Array<Model> models, Sampler sampler,
-                                  KVCacheConfig kv_cache_config,
+  static EngineAction BatchVerify(Array<Model> models, LogitProcessor logit_processor,
+                                  Sampler sampler, KVCacheConfig kv_cache_config,
                                   Optional<EventTraceRecorder> trace_recorder);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineAction, ObjectRef, EngineActionObj);

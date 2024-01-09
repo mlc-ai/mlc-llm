@@ -52,6 +52,22 @@ GenerationConfig::GenerationConfig(String config_json_str) {
     n->repetition_penalty = config["repetition_penalty"].get<double>();
     CHECK(n->repetition_penalty > 0) << "Repetition penalty must be a positive number!";
   }
+  if (config.count("logit_bias")) {
+    CHECK(config["logit_bias"].is<picojson::null>() || config["logit_bias"].is<picojson::object>());
+    if (config["logit_bias"].is<picojson::object>()) {
+      picojson::object logit_bias_json = config["logit_bias"].get<picojson::object>();
+      std::vector<std::pair<int, float>> logit_bias;
+      logit_bias.reserve(logit_bias_json.size());
+      for (auto [token_id_str, bias] : logit_bias_json) {
+        CHECK(bias.is<double>());
+        double bias_value = bias.get<double>();
+        CHECK_LE(std::fabs(bias_value), 100.0)
+            << "Logit bias value should be in range [-100, 100].";
+        logit_bias.emplace_back(std::stoi(token_id_str), bias_value);
+      }
+      n->logit_bias = std::move(logit_bias);
+    }
+  }
   if (config.count("max_tokens")) {
     if (config["max_tokens"].is<int64_t>()) {
       n->max_tokens = config["max_tokens"].get<int64_t>();
@@ -114,6 +130,12 @@ String GenerationConfigNode::AsJSONString() const {
   config["repetition_penalty"] = picojson::value(this->repetition_penalty);
   config["max_tokens"] = picojson::value(static_cast<int64_t>(this->max_tokens));
   config["seed"] = picojson::value(static_cast<int64_t>(this->seed));
+
+  picojson::object logit_bias_obj;
+  for (auto [token_id, bias] : logit_bias) {
+    logit_bias_obj[std::to_string(token_id)] = picojson::value(static_cast<double>(bias));
+  }
+  config["logit_bias"] = picojson::value(logit_bias_obj);
 
   picojson::array stop_strs_arr;
   for (String stop_str : this->stop_strs) {

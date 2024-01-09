@@ -71,6 +71,9 @@ struct FunctionTable {
   PackedFunc decode_func_;
   PackedFunc verify_func_;
   PackedFunc softmax_func_;
+  PackedFunc apply_logit_bias_func_;
+  PackedFunc apply_penalty_func_;
+  PackedFunc apply_bitmask_func_;
   PackedFunc create_kv_cache_func_;
   PackedFunc reset_kv_cache_func_;
   bool support_backtracking_kv_;
