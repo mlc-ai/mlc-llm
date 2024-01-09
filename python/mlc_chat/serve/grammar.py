@@ -40,7 +40,7 @@ class BNFGrammar(Object):
             ebnf_string
         )
 
-    def as_string(self) -> str:
+    def to_string(self) -> str:
         """Print the BNF grammar to a string, in standard BNF format.
 
         Returns
@@ -48,7 +48,7 @@ class BNFGrammar(Object):
         grammar_string : str
             The BNF grammar string.
         """
-        return str(_ffi_api.BNFGrammarAsString(self))  # type: ignore  # pylint: disable=no-member
+        return str(_ffi_api.BNFGrammarToString(self))  # type: ignore  # pylint: disable=no-member
 
     @staticmethod
     def from_json(json_string: str) -> "BNFGrammar":
@@ -66,7 +66,7 @@ class BNFGrammar(Object):
         """
         return _ffi_api.BNFGrammarFromJSON(json_string)  # type: ignore  # pylint: disable=no-member
 
-    def as_json(self, prettify: bool = True) -> str:
+    def to_json(self, prettify: bool = True) -> str:
         """Serialize the AST. Dump the raw representation of the AST to a JSON file.
 
         Parameters
@@ -80,5 +80,5 @@ class BNFGrammar(Object):
             The JSON string.
         """
         return str(
-            _ffi_api.BNFGrammarAsJSON(self, prettify)  # type: ignore  # pylint: disable=no-member
+            _ffi_api.BNFGrammarToJSON(self, prettify)  # type: ignore  # pylint: disable=no-member
         )

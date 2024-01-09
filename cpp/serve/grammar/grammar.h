@@ -7,9 +7,12 @@
 #ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_H_
 #define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_H_
 
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
+
+#include <cstdint>
+#include <string>
+#include <vector>
 
 namespace mlc {
 namespace llm {
@@ -18,54 +21,116 @@ namespace serve {
 using namespace tvm::runtime;
 
 /*!
- * \brief This class stores the abstract syntax tree (AST) of the Backus-Naur Form (BNF) grammar and
- * provides utilities to parse and print the AST. User should provide a BNF/EBNF (Extended
- * Backus-Naur Form) grammar, and use BNFGrammar::FromEBNFString to parse and simplify the grammar
- * into an AST of BNF grammar.
+ * \brief This class stores the abstract syntax tree (AST) of the Backus-Naur Form (BNF) grammar.
+ * The BNF definition here is standard BNF, and the characters are represented using regex-style
+ * character ranges (e.g. [a-z], [^a-z]).
  *
- * \sa For the design and implementation details of the AST, see ./grammar_impl.h.
+ * \details The AST contains two sets: a set of rules, and a set of subrules.
+ *
+ * Each rule represents a production of the BNF grammar. The BNF grammar is a set of rules.
+ *
+ * Subrule means a part of the rule definition. For example, in the following rule:
+ * rule ::= ("a" "b") | "c"
+ * ("a" "b"), "c", ("a" "b") | "c" are all subrules.
+ *
+ * Rule is a represented with subrule and a name. Each rule has a rule id for reference. Each rule
+ * uniquely corresponds to one subrule, but a subrule may not correspond to any rule and may only be
+ * a part of a certain rule.
+ *
+ * Subrule has several types:
+ * - Character range: a range of characters (each character is a unicode codepoint),
+ *   e.g. [a-z], [ac-z]
+ * - Not character range: all characters that are not in the range, e.g. [^a-z], [^ac-z]
+ * - Empty: an empty string, i.e. ""
+ * - Rule reference: a reference to another rule
+ * - Sequence: a sequence of subrules, e.g. ("a" "b"). These subrules are concatenated together.
+ * - Or rule: a choice of subrules, e.g. ("a" "b") | "c". Each subrule can be matched.
+ *
+ * Every subrule is represented by a variable-length vector of TSubruleData (int32_t), where the
+ * first element indicates the type of the subrule, and the subsequent elements represent the data
+ * of the subrule. For the format in every subrule, see BNFGrammarNode::DataKind. Each subrule
+ * corresponds to an subrule id for reference.
+ *
+ * We store all subrules in csr_matrix style. That is, they are stored togeth in one vector (data
+ * vector) and the starting position of each subrule is recorded in the indptr vector.
  */
 class BNFGrammarNode : public Object {
  public:
-  /*!
-   * \brief Print the BNF grammar to a string, in standard BNF format.
-   */
-  virtual String AsString() const = 0;
-  /*!
-   * \brief Serialize the AST. Dump the raw representation of the AST to a JSON file.
-   * \param prettify Whether to format the JSON string. If false, all whitespaces will be removed.
-   * \sa For the format of the JSON file, see ./grammar_impl.h.
-   */
-  virtual String AsJSON(bool prettify = true) const = 0;
+  /*! \brief The id of a rule. Refers to the index of a rule in the rule vector. */
+  using TRuleId = int32_t;
+  /*! \brief The id of a subrule. Refers to the index of a subrule in the subrule_indptr vector. */
+  using TSubruleId = int32_t;
+
+  /****************** Rule definition ******************/
+
+  /*! \brief A rule with name. */
+  struct Rule {
+    std::string name;
+    TSubruleId subrule;
+  };
+
+  /*! \brief Get the number of rules. */
+  size_t NumRules() const { return rules.size(); }
+  /*! \brief Get the rule with the given id. */
+  const Rule& GetRule(TRuleId rule_id) const { return rules[rule_id]; }
+
+  /****************** Subrule definition ******************/
+  
+  using TSubruleData = int32_t;
+
+  struct Subrule {
+    TSubruleData* data;
+    size_t size;
+
+    TSubruleData& operator[](int i) const { return data[i]; }
+  };
+
+  /*! \brief The data type of the content of subrules. */
+  enum class DataKind : TSubruleData {
+    // Format: [kCharacterRange, lower0, upper0, lower1, upper1, ...]
+    // to represent a single character, just add the same lower and upper bound.
+    kCharacterRange,
+    // Format: [kNotCharacterRange, lower0, upper0, lower1, upper1, ...]
+    kNotCharacterRange,
+    // Format: [kEmpty]
+    kEmpty,
+    // Format: [kRuleRef, rule_id]
+    kRuleRef,
+    // Format: [kSequence, subrule_id0, subrule_id1, ...]
+    kSequence,
+    // Format: [kOrRule, subrule_id0, subrule_id1, ...]
+    kOrRule,
+  };
+
+  /*! \brief Get the number of subrules. */
+  size_t NumSubrules() const { return subrule_indptr.size(); }
+  /*! \brief Get the subrule with the given id. */
+  Subrule GetSubrule(TSubruleId subrule_id) const {
+    int start_index = subrule_indptr[subrule_id];
+    size_t len;
+    if (subrule_id == subrule_indptr.size() - 1) {
+      len = subrule_data.size() - subrule_indptr[subrule_id];
+    } else {
+      len = subrule_indptr[subrule_id + 1] - subrule_indptr[subrule_id];
+    }
+    return {const_cast<TSubruleData*>(subrule_data.data() + start_index), len};
+  }
 
   static constexpr const char* _type_key = "mlc.serve.BNFGrammar";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_BASE_OBJECT_INFO(BNFGrammarNode, Object);
+
+  /*! \brief The rules of the grammar. */
+  std::vector<Rule> rules;
+  /*! \brief The data of all subrules. */
+  std::vector<TSubruleData> subrule_data;
+  /*! \brief The start index of every subrule in subrule_data. */
+  std::vector<int> subrule_indptr;
 };
 
 class BNFGrammar : public ObjectRef {
  public:
-  /*!
-   * \brief Parse a BNF grammar from a string in BNF/EBNF format.
-   * \details This function accepts the EBNF notation from the W3C XML Specification, which is a
-   * popular standard, with the following changes:
-   * - Using # as comment mark instead of /**\/
-   * - Using C-style unicode escape sequence \u01AB, \U000001AB, \xAB instead of #x0123
-   * - Do not support A-B (match A and not match B) yet
-   *
-   * See tests/python/serve/json.ebnf for an example.
-   *
-   * \param ebnf_string The grammar string.
-   * \return The parsed BNF grammar.
-   */
-  TVM_DLL static BNFGrammar FromEBNFString(String ebnf_string);
-  /*!
-   * \brief Load a BNF grammar from the raw representation of the AST in JSON format.
-   * \param json_string The JSON string.
-   * \return The loaded BNF grammar.
-   */
-  TVM_DLL static BNFGrammar FromJSON(String json_string);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BNFGrammar, ObjectRef, BNFGrammarNode);
 };
 

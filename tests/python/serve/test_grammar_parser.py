@@ -18,7 +18,7 @@ b ::= [b]
 c ::= [c]
 """
     bnf_grammar = BNFGrammar.from_ebnf_string(before)
-    after = bnf_grammar.as_string()
+    after = bnf_grammar.to_string()
     assert after == expected
 
 
@@ -30,15 +30,16 @@ d ::= "d"?
 """
     expected = """main ::= (b c) | (b main)
 b ::= b_1 d
-c ::= c_1
+c ::= c_2
 d ::= d_1
 b_1 ::= ([b] b_1) | ""
-c_1 ::= (c_2 c_1) | c_2
-c_2 ::= [acep-z]
+c_1 ::= [acep-z]
+c_2 ::= (c_1 c_2) | c_1
 d_1 ::= [d] | ""
 """
     bnf_grammar = BNFGrammar.from_ebnf_string(before)
-    after = bnf_grammar.as_string()
+    after = bnf_grammar.to_string()
+    print(after)
     assert after == expected
 
 
@@ -52,7 +53,7 @@ rest ::= [a-zA-Z0-9\-] [\u0234-\u0345] [\u6d4b-\u8bd5] [\--\]] rest1
 rest1 ::= ([\?] [\"] [\'] [\u6d4b] [\u8bd5] [\u3042] [c]) [\U0001f440] ""
 """
     bnf_grammar = BNFGrammar.from_ebnf_string(before)
-    after = bnf_grammar.as_string()
+    after = bnf_grammar.to_string()
     assert after == expected
 
 
@@ -67,7 +68,7 @@ main::="a"  "b" ("c""d"
     expected = """main ::= ([a] [b] ([c] [d] [e])) | [f] | [g]
 """
     bnf_grammar = BNFGrammar.from_ebnf_string(before)
-    after = bnf_grammar.as_string()
+    after = bnf_grammar.to_string()
     assert after == expected
 
 
@@ -77,7 +78,7 @@ def test_nest():
     expected = """main ::= ([a] ([b] | ([c] [d]))) | ([e] [f])
 """
     bnf_grammar = BNFGrammar.from_ebnf_string(before)
-    after = bnf_grammar.as_string()
+    after = bnf_grammar.to_string()
     assert after == expected
 
 
@@ -108,15 +109,15 @@ digit ::= [0-9]
 onenine ::= [1-9]
 fraction ::= "" | ([.] digits)
 exponent ::= "" | (([e] | [E]) ("" | [+] | [\-]) digits)
-ws ::= "" | (([0] [0] [2] [0]) ws) | (([0] [0] [0] [A]) ws) | (([0] [0] [0] [D]) ws) | (([0] [0] [0] [9]) ws)
+ws ::= "" | ([ ] ws) | ([\n] ws) | ([\r] ws) | ([\t] ws)
 """
 
     bnf_grammar = BNFGrammar.from_ebnf_string(before)
-    after = bnf_grammar.as_string()
+    after = bnf_grammar.to_string()
     assert after == expected
 
 
-def test_string_roundtrip():
+def test_to_string_roundtrip():
     before = r"""main ::= (b c) | (b main)
 b ::= b_1 d
 c ::= c_1
@@ -127,9 +128,9 @@ c_2 ::= [acep-z]
 d_1 ::= [d] | ""
 """
     bnf_grammar = BNFGrammar.from_ebnf_string(before)
-    string = bnf_grammar.as_string()
+    string = bnf_grammar.to_string()
     new_grammar = BNFGrammar.from_ebnf_string(string)
-    new_string = new_grammar.as_string()
+    new_string = new_grammar.to_string()
     assert string == new_string
 
 
@@ -174,23 +175,23 @@ def test_error():
         BNFGrammar.from_ebnf_string('a ::= "a"')
 
 
-def test_asjson():
+def test_to_json():
     before = """main ::= b c | b main
 b ::= "bcd"
 c ::= [a-z]
 """
     expected = (
-        '{"subrule_storage_json":{"start_index":[0,2,4,7,9,11,14,17,20,23,26,30,32,34,37,39],'
-        '"data":[3,1,3,2,4,0,1,3,1,3,0,4,3,4,5,2,5,0,98,98,0,99,99,0,100,100,4,7,8,9,4,10,5,'
-        '11,0,97,122,4,13,5,14]},"rules":[{"subrule":6,"name":"main"},{"subrule":12,"name":"b"},'
-        '{"subrule":15,"name":"c"}]}'
+        '{"subrule_indptr":[0,2,4,7,9,11,14,17,20,23,26,30,32,34,37,39],'
+        '"subrule_data":[3,1,3,2,4,0,1,3,1,3,0,4,3,4,5,2,5,0,98,98,0,99,99,'
+        '0,100,100,4,7,8,9,4,10,5,11,0,97,122,4,13,5,14],"rules":['
+        '{"subrule":6,"name":"main"},{"subrule":12,"name":"b"},{"subrule":15,"name":"c"}]}'
     )
     bnf_grammar = BNFGrammar.from_ebnf_string(before)
-    after = bnf_grammar.as_json(False)
+    after = bnf_grammar.to_json(False)
     assert after == expected
 
 
-def test_json_roundtrip():
+def test_to_json_roundtrip():
     before = r"""main ::= (b c) | (b main)
 b ::= b_1 d
 c ::= c_1
@@ -201,10 +202,10 @@ c_2 ::= [acep-z]
 d_1 ::= [d] | ""
 """
     bnf_grammar = BNFGrammar.from_ebnf_string(before)
-    json = bnf_grammar.as_json(False)
+    json = bnf_grammar.to_json(False)
     new_grammar = BNFGrammar.from_json(json)
-    new_json = new_grammar.as_json(False)
-    after = new_grammar.as_string()
+    new_json = new_grammar.to_json(False)
+    after = new_grammar.to_string()
     assert json == new_json
     assert after == before
 

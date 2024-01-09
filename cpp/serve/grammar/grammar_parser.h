@@ -7,7 +7,10 @@
 #ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_PARSER_H_
 #define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_PARSER_H_
 
-#include "grammar_impl.h"
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/logging.h>
+
+#include "grammar.h"
 
 namespace mlc {
 namespace llm {
@@ -16,22 +19,23 @@ namespace serve {
 using namespace tvm::runtime;
 
 /*!
- * \brief This class parses a BNF/EBNF grammar string into an abstract syntax tree (AST).
+ * \brief This class parses a BNF/EBNF grammar string into an BNF abstract syntax tree (AST).
+ * \details This function accepts the EBNF notation from the W3C XML Specification, which is a
+ * popular standard, with the following changes:
+ * - Using # as comment mark instead of /**\/
+ * - Using C-style unicode escape sequence \u01AB, \U000001AB, \xAB instead of #x0123
+ * - Do not support A-B (match A and not match B) yet
+ *
+ * See tests/python/serve/json.ebnf for an example.
  */
 class EBNFParser {
  public:
   /*!
-   * \brief The constructor.
-   * \param bnf_grammar The grammar to parse into.
-   */
-  explicit EBNFParser(BNFGrammarImpl* bnf_grammar) : bnf_grammar_(bnf_grammar) {}
-
-  /*!
-   * \brief Parse the grammar string into the provided bnf_grammar. If fails, throw ParseError with
-   * the error message.
+   * \brief Parse the grammar string. If fails, throw ParseError with the error message.
    * \param ebnf_string The grammar string.
+   * \return The parsed grammar.
    */
-  void Parse(String ebnf_string);
+  static BNFGrammar Parse(String ebnf_string);
 
   /*!
    * \brief The exception thrown when parsing fails.
@@ -40,73 +44,19 @@ class EBNFParser {
    public:
     ParseError(const std::string& msg) : Error(msg) {}
   };
+};
 
- private:
-  // Parsing different parts of the grammar
-  std::string ParseName(bool accept_empty = false);
-  BNFGrammarImpl::TSubruleId ParseCharacterRange();
-  BNFGrammarImpl::TSubruleId ParseString();
-  BNFGrammarImpl::TSubruleId ParseRuleRef();
-  BNFGrammarImpl::TSubruleId ParseElement();
-  BNFGrammarImpl::TSubruleId ParseQuantifier();
-  BNFGrammarImpl::TSubruleId ParseSequence();
-  BNFGrammarImpl::TSubruleId ParseOrRule();
-  BNFGrammarImpl::Rule ParseRule();
-
-  // Helper functions
-  // Helper for ParseQuantifier
-  BNFGrammarImpl::TRuleId HandleStarQuantifier(BNFGrammarImpl::TSubruleId subrule_id);
-  BNFGrammarImpl::TRuleId HandlePlusQuantifier(BNFGrammarImpl::TSubruleId subrule_id);
-  BNFGrammarImpl::TRuleId HandleQuestionQuantifier(BNFGrammarImpl::TSubruleId subrule_id);
-
-  // When parsing, we first find the names of all rules, and build the mapping from name to rule id.
-  void BuildRuleNameToId();
-  // Consumes several spaces (newline, space, tab, comment, etc.)
-  void ConsumeSpace(bool allow_newline = true);
-  // Check the validity of a name
-  static bool IsNameChar(TCodepoint c, bool first_char = false);
-  // Create a new rule and return the rule id.
-  BNFGrammarImpl::TRuleId NewRule(std::string name_hint);
-  // Reset the parser to the beginning of the string.
-  void Reset(const char* cur);
-
-  // Consume a specified number of characters, and maintain the line and column number.
-  void Consume(int cnt = 1) {
-    for (int i = 0; i < cnt; ++i) {
-      // \n \r \r\n
-      if (Peek() == '\n' || (Peek() == '\r' && Peek(1) != '\n')) {
-        ++cur_line_;
-        cur_column_ = 1;
-      } else {
-        ++cur_column_;
-      }
-      ++cur_;
-    }
-  }
-
-  // Peek the next character.
-  char Peek(int delta = 0) const { return *(cur_ + delta); }
-
-  // Throw a ParseError with the given message and the line and column number.
-  [[noreturn]] void ThrowParseError(const std::string& msg) {
-    throw ParseError(msg + " at line " + std::to_string(cur_line_) + ", column " +
-                     std::to_string(cur_column_));
-  }
-
-  // The grammar to parse into.
-  BNFGrammarImpl* bnf_grammar_;
-  // A pointer to the current parse position in the string
-  const char* cur_ = nullptr;
-  // The current line and column number
-  int cur_line_ = 1;
-  int cur_column_ = 1;
-  // The current rule name. Help to generate a name for a new rule.
-  std::string cur_rule_name_;
-  // Whether the current element is in parentheses.
-  // A sequence expression cannot contain newline, unless it is in parentheses.
-  bool in_parentheses_ = false;
-  // The mapping from rule name to rule id.
-  std::unordered_map<std::string, BNFGrammarImpl::TRuleId> rule_name_to_id_;
+/*!
+ * \brief Parse a BNF grammar from the raw representation of the AST in JSON format.
+ */
+class BNFJSONParser {
+ public:
+  /*!
+   * \brief Parse the JSON string
+   * \param json_string The JSON string.
+   * \return The parsed BNF grammar.
+   */
+  static BNFGrammar Parse(String json_string);
 };
 
 }  // namespace serve
