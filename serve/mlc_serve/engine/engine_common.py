@@ -52,7 +52,7 @@ def get_new_request_state(
         GenerationSequence(
             seq_id=SequenceId(request.request_id, i),
             generated_token_ids=[],
-            next_start_position=len(prompt_tokens),
+            next_start_position=len(prompt_token_ids),
             output_text="",
         )
         for i in range(request.num_sequences)
