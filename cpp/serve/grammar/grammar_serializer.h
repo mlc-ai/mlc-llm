@@ -25,6 +25,7 @@ class BNFGrammarSerializer {
    * \param grammar The grammar to print.
    */
   explicit BNFGrammarSerializer(const BNFGrammar& grammar) : grammar_(grammar) {}
+
   /*!
    * \brief Serialize the grammar to string.
    */
