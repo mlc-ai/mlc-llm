@@ -5,11 +5,13 @@ import asyncio
 import threading
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
+import tvm
+
 from ..streamer import StopStringHandler, TextStreamer
 from ..tokenizer import Tokenizer
 from . import data
 from .config import GenerationConfig, KVCacheConfig
-from .engine import ModelInfo, _create_tvm_module, _process_model_args
+from .engine import ModelInfo, _process_model_args
 from .event_trace_recorder import EventTraceRecorder
 from .request import Request, RequestStreamOutput
 
@@ -107,33 +109,37 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             self.conv_template_name,
         ) = _process_model_args(models)
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
-        self._ffi = _create_tvm_module(
-            "mlc.serve.create_threaded_engine",
-            ffi_funcs=[
+        module = tvm.get_global_func("mlc.serve.create_threaded_engine", allow_missing=False)()
+        self._ffi = {
+            key: module[key]
+            for key in [
                 "add_request",
                 "abort_request",
                 "run_background_loop",
+                "init_background_engine",
                 "exit_background_loop",
-            ],
-            creator_args=[
-                self.max_single_sequence_length,
-                tokenizer_path,
-                kv_cache_config.asjson(),
-                self._request_stream_callback,
-                self.trace_recorder,
-                *model_args,
-            ],
-        )
+            ]
+        }
         self.tokenizer = Tokenizer(tokenizer_path)
 
         # The mapping from request ids to request asynchronous stream.
         self._request_tools: Dict[
             str, Tuple[AsyncRequestStream, TextStreamer, StopStringHandler]
         ] = {}
+
+        def _background_loop():
+            self._ffi["init_background_engine"](
+                self.max_single_sequence_length,
+                tokenizer_path,
+                kv_cache_config.asjson(),
+                self._request_stream_callback,
+                self.trace_recorder,
+                *model_args,
+            )
+            self._ffi["run_background_loop"]()
+
         # Create the background engine-driving thread and start the loop.
-        self._background_loop_thread: threading.Thread = threading.Thread(
-            target=self._ffi["run_background_loop"]
-        )
+        self._background_loop_thread: threading.Thread = threading.Thread(target=_background_loop)
         self._background_loop_thread.start()
         # The main thread request handling asyncio event loop, which will
         # be lazily initialized.
