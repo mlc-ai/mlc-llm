@@ -150,11 +150,15 @@ void SetProbWithArgmaxOnCPU(NDArray logits, int token_offset) {
  * \param unit_offset The offset specifying which distribution to sample from.
  * \param top_p The top-p value of sampling.
  * \param uniform_sample The random number in [0, 1] for sampling.
- * \return The sampled value.
+ * \param output_prob_dist Optional pointer to store the corresponding probability distribution of
+ * each token, offset by unit_offset. If nullptr provided, nothing will be stored out.
+ * \return The sampled prob and value.
  * \note This function is an enhancement of SampleTopPFromProb in TVM Unity.
  * We will upstream the enhancement after it gets stable.
  */
-int SampleTopPFromProb(NDArray prob, int unit_offset, double top_p, double uniform_sample) {
+std::pair<float, int64_t> SampleTopPFromProb(NDArray prob, int unit_offset, double top_p,
+                                             double uniform_sample,
+                                             std::vector<NDArray>* output_prob_dist = nullptr) {
   // prob: (*, v)
   // The prob array may have arbitrary ndim and shape.
   // The last dimension corresponds to the prob distribution size.
@@ -175,13 +179,20 @@ int SampleTopPFromProb(NDArray prob, int unit_offset, double top_p, double unifo
       static_cast<float*>(__builtin_assume_aligned(prob->data, 4)) + (unit_offset * ndata);
   constexpr double one = 1.0f - 1e-5f;
 
+  if (output_prob_dist) {
+    if (!(*output_prob_dist)[unit_offset].defined()) {
+      (*output_prob_dist)[unit_offset] = NDArray::Empty({ndata}, prob->dtype, DLDevice{kDLCPU, 0});
+    }
+    (*output_prob_dist)[unit_offset].CopyFromBytes(p_prob, ndata * sizeof(float));
+  }
+
   if (top_p >= one) {
     // Specially handle case where top_p == 1.
     double prob_sum = 0.0f;
     for (int64_t i = 0; i < ndata; ++i) {
       prob_sum += p_prob[i];
       if (prob_sum >= uniform_sample) {
-        return i;
+        return std::make_pair(p_prob[i], i);
       }
     }
     LOG(INFO) << "prob sum = " << prob_sum << ", sample = " << uniform_sample;
@@ -193,7 +204,7 @@ int SampleTopPFromProb(NDArray prob, int unit_offset, double top_p, double unifo
   // high probabilities before we do sort
   thread_local std::vector<std::pair<float, int>> data;
 
-  auto sample_top_p_with_filter = [&](float cuttoff) -> int64_t {
+  auto sample_top_p_with_filter = [&](float cuttoff) -> std::pair<float, int64_t> {
     data.clear();
     // filter the data with cuttoff
     float cutoff_sum = 0.0f;
@@ -208,7 +219,7 @@ int SampleTopPFromProb(NDArray prob, int unit_offset, double top_p, double unifo
         }
       }
     }
-    if (data.size() == 0) return -1;
+    if (data.size() == 0) return std::make_pair(-1, -1);
     auto fcmp = [](const std::pair<float, int>& lhs, const std::pair<float, int>& rhs) {
       return lhs.first > rhs.first;
     };
@@ -220,7 +231,9 @@ int SampleTopPFromProb(NDArray prob, int unit_offset, double top_p, double unifo
     // because top_p_sum guarantees to be smaller than top_p
     // so we can simply return the argmax sample
     // without computing anything
-    if (uniform_sample < data[0].first / top_p) return data[0].second;
+    if (uniform_sample < data[0].first / top_p) {
+      return std::make_pair(data[0].first, data[0].second);
+    }
 
     // compute top_p_sum
     float cum_sum_prob = 0.0f;
@@ -239,14 +252,17 @@ int SampleTopPFromProb(NDArray prob, int unit_offset, double top_p, double unifo
     // we find that the current total sum by the given cutoff
     // is not sufficient to cover everything
     // this means we might need to retry a smaller cutoff pt.
-    if (cum_sum_prob < top_p && cuttoff != 0.0f) return -1;
+    if (cum_sum_prob < top_p && cuttoff != 0.0f) return std::make_pair(-1, -1);
 
+    float last_cum_sum_prob = 0.0;
     for (auto it = data.begin(); it != data.end(); ++it) {
       if (uniform_sample < it->first / top_p_sum) {
-        return it->second;
+        return std::make_pair(it->first - last_cum_sum_prob, it->second);
       }
+      last_cum_sum_prob = it->first;
     }
-    return data[data.size() - 1].second;
+    return std::make_pair(data[data.size() - 1].first - last_cum_sum_prob,
+                          data[data.size() - 1].second);
   };
 
   if (top_p < 1) {
@@ -254,13 +270,13 @@ int SampleTopPFromProb(NDArray prob, int unit_offset, double top_p, double unifo
     // by pigeonhole principle we will get at most 1024 elements
     // usually it is much less by applying this filtering(order of 10 - 20)
     data.reserve(256);
-    int64_t sampled_index = sample_top_p_with_filter(top_p / 1024);
-    if (sampled_index >= 0) return sampled_index;
+    std::pair<float, int64_t> sampled_index = sample_top_p_with_filter(top_p / 1024);
+    if (sampled_index.second >= 0) return sampled_index;
   }
   // fallback via full prob, rare case
   data.reserve(ndata);
-  int64_t sampled_index = sample_top_p_with_filter(0.0f);
-  ICHECK_GE(sampled_index, 0);
+  std::pair<float, int64_t> sampled_index = sample_top_p_with_filter(0.0f);
+  ICHECK_GE(sampled_index.second, 0);
   return sampled_index;
 }
 
@@ -309,50 +325,119 @@ class CPUSampler : public SamplerObj {
     }
   }
 
-  std::vector<int32_t> SampleTokens(NDArray logits_on_device, Model model,
-                                    Array<RequestModelState> request_mstates,
-                                    Array<GenerationConfig> generation_cfg) final {
-    ICHECK(logits_on_device.defined());
-    ICHECK_EQ(logits_on_device->ndim, 3);
-    ICHECK_EQ(logits_on_device->shape[1], 1)
-        << "Multi-token sampling for one sequence is not supported yet.";
-    ICHECK_EQ(logits_on_device->shape[0], generation_cfg.size());
-    ICHECK_EQ(request_mstates.size(), generation_cfg.size());
-
-    Array<String> request_ids =
-        request_mstates.Map([](const RequestModelState& mstate) { return mstate->request->id; });
-
-    int num_sequence = logits_on_device->shape[0];
-    RECORD_EVENT(trace_recorder_, request_ids, "start query need GPU softmax");
-    bool require_gpu_softmax = RequireGPUSoftmax(generation_cfg);
-    RECORD_EVENT(trace_recorder_, request_ids, "finish query need GPU softmax");
-
-    // - Compute probabilities from logits.
-    NDArray logits_or_probs_on_cpu{nullptr};
-    if (require_gpu_softmax) {
-      RECORD_EVENT(trace_recorder_, request_ids, "start GPU softmax");
-      NDArray probs_on_device = model->SoftmaxWithTemperature(logits_on_device, generation_cfg);
-      RECORD_EVENT(trace_recorder_, request_ids, "finish GPU softmax");
-      RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
-      logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(probs_on_device, &logits_or_probs_on_cpu_);
-      RECORD_EVENT(trace_recorder_, request_ids, "finish copy probs to CPU");
-    } else {
-      RECORD_EVENT(trace_recorder_, request_ids, "start copy logits to CPU");
-      logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(logits_on_device, &logits_or_probs_on_cpu_);
-      RECORD_EVENT(trace_recorder_, request_ids, "finish copy logits to CPU");
-      // The "ComputeProbsFromLogitsInplace" function updates
-      // `logits_or_probs_on_cpu` in place.
-      ComputeProbsFromLogitsInplace(logits_or_probs_on_cpu, std::move(request_mstates),
-                                    generation_cfg);
-    }
-    // `CopyLogitsOrProbsToCPU` flattens the first two dimensions.
-    ICHECK_EQ(logits_or_probs_on_cpu->ndim, 2);
-
+  std::vector<int32_t> BatchSampleTokens(NDArray logits_on_device, Model model,
+                                         Array<RequestModelState> request_mstates,
+                                         Array<GenerationConfig> generation_cfg,
+                                         std::vector<NDArray>* output_prob_dist,
+                                         std::vector<float>* output_token_probs) final {
+    NDArray probs_on_cpu = BatchComputeProb(logits_on_device, /*cum_sequence_length=*/nullptr,
+                                            model, request_mstates, generation_cfg);
     // - Sample tokens from probabilities.
     // NOTE: Though we have the probability field in RequestModelState,
     //       we do not save the probabilities right now.
     //       We will handle this in the future when we work on speculation.
-    return SampleTokenFromProbs(logits_or_probs_on_cpu, generation_cfg, request_ids);
+    std::vector<int32_t> output_tokens = SampleTokensFromProbs(
+        probs_on_cpu, request_mstates, generation_cfg, output_prob_dist, output_token_probs);
+    return output_tokens;
+  }
+
+  std::vector<std::vector<int32_t>> BatchVerifyDraftTokens(
+      NDArray logits_on_device, const std::vector<int>& cum_verify_lengths, Model model,
+      const Array<RequestModelState>& request_mstates,
+      const Array<GenerationConfig>& generation_cfg,
+      const std::vector<std::vector<int>>& draft_output_tokens,
+      const std::vector<std::vector<float>>& draft_output_token_prob,
+      const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
+    bool can_compute_prob_in_parallel = CanComputeProbInParallel(generation_cfg);
+    NDArray logits_or_probs_on_cpu{nullptr};
+    Array<String> request_ids =
+        request_mstates.Map([](const RequestModelState& mstate) { return mstate->request->id; });
+    if (can_compute_prob_in_parallel) {
+      logits_or_probs_on_cpu = BatchComputeProb(logits_on_device, &cum_verify_lengths, model,
+                                                request_mstates, generation_cfg);
+    } else {
+      RECORD_EVENT(trace_recorder_, request_ids, "start copy logits to CPU");
+      logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(logits_on_device, &logits_or_probs_on_cpu_);
+      RECORD_EVENT(trace_recorder_, request_ids, "finish copy logits to CPU");
+    }
+    ICHECK(logits_or_probs_on_cpu->device.device_type == kDLCPU);
+    ICHECK_EQ(logits_or_probs_on_cpu->ndim, 2);
+
+    int num_sequence = static_cast<int>(cum_verify_lengths.size()) - 1;
+    CHECK_EQ(draft_output_tokens.size(), num_sequence);
+    CHECK_EQ(draft_output_token_prob.size(), num_sequence);
+    CHECK_EQ(draft_output_prob_dist.size(), num_sequence);
+
+    std::vector<std::vector<int>> accepted_tokens;
+    std::vector<double> random_numbers;
+    accepted_tokens.resize(num_sequence);
+    random_numbers.reserve(num_sequence * 2);
+    for (int i = 0; i < num_sequence; ++i) {
+      random_numbers.push_back(rng_.GetRandomNumber());
+      random_numbers.push_back(rng_.GetRandomNumber());
+    }
+
+    float* __restrict global_p_probs =
+        static_cast<float*>(__builtin_assume_aligned(logits_or_probs_on_cpu->data, 4));
+    int vocab_size = logits_or_probs_on_cpu->shape[1];
+
+    tvm::runtime::parallel_for_with_threading_backend(
+        [&](int i) {
+          int verify_start = cum_verify_lengths[i];
+          int verify_end = cum_verify_lengths[i + 1];
+          for (int cur_token_idx = 0; cur_token_idx < verify_end - verify_start; ++cur_token_idx) {
+            if (!can_compute_prob_in_parallel) {
+              SinglePosComputeProbsFromLogitsInplace(logits_or_probs_on_cpu,
+                                                     verify_start + cur_token_idx,
+                                                     request_mstates[i], generation_cfg[i]);
+            }
+
+            float* p_probs = global_p_probs + (verify_start + cur_token_idx) * vocab_size;
+            int cur_token = draft_output_tokens[i][cur_token_idx];
+            float q_value = draft_output_token_prob[i][cur_token_idx];
+            float p_value = p_probs[cur_token];
+
+            if (p_value >= q_value) {
+              request_mstates[i]->CommitToken(cur_token);
+              accepted_tokens[i].push_back(cur_token);
+              continue;
+            }
+            float r = random_numbers[i * 2];
+            if (r < p_value / (q_value + eps_)) {
+              request_mstates[i]->CommitToken(cur_token);
+              accepted_tokens[i].push_back(cur_token);
+              continue;
+            }
+
+            // normalize a new probability distribution
+            double sum_v = 0.0;
+            NDArray q_dist = draft_output_prob_dist[i][cur_token_idx];
+            ICHECK(q_dist->device.device_type == kDLCPU);
+            ICHECK(q_dist->ndim == 1);
+            ICHECK(vocab_size == q_dist->shape[q_dist->ndim - 1]);
+            const float* __restrict p_qdist =
+                static_cast<float*>(__builtin_assume_aligned(q_dist->data, 4));
+
+            for (int j = 0; j < vocab_size; ++j) {
+              p_probs[j] = std::max(p_probs[j] - p_qdist[j], 0.0f);
+              sum_v += p_probs[j];
+            }
+            for (int j = 0; j < vocab_size; ++j) {
+              p_probs[j] /= sum_v;
+            }
+
+            // sample a new token from the new distribution
+            int32_t new_token =
+                SampleTopPFromProb(logits_or_probs_on_cpu, verify_start + cur_token_idx,
+                                   generation_cfg[i]->top_p, random_numbers[i * 2 + 1])
+                    .second;
+            request_mstates[i]->CommitToken(new_token);
+            accepted_tokens[i].push_back(cur_token);
+            break;
+          }
+        },
+        0, num_sequence);
+    return accepted_tokens;
   }
 
  private:
@@ -380,6 +465,94 @@ class CPUSampler : public SamplerObj {
   }
 
   /*!
+   * \brief Given the generation config of a batch, check if the
+   * probability distributions need to be computed serially.
+   */
+  bool CanComputeProbInParallel(const Array<GenerationConfig>& generation_cfg) {
+    for (const GenerationConfig& cfg : generation_cfg) {
+      if (cfg->frequency_penalty != 0.0 || cfg->presence_penalty != 0.0 ||
+          cfg->repetition_penalty != 1.0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /*!
+   * \brief Compute the probability distribution of the input logits.
+   * \param logits_on_device The logits to compute probability distribution for.
+   * \param model The LLM model which contains the softmax
+   * function on device that might be used to compute probability distribution.
+   * \param request_mstates The request states of each sequence in
+   * the batch with regard to the given model.
+   * \param generation_cfg The generation config of each request
+   * in the input batch.
+   * \return The probability distribution of the input logits.
+   */
+  NDArray BatchComputeProb(NDArray logits_on_device, const std::vector<int>* cum_sequence_length,
+                           Model model, const Array<RequestModelState>& request_mstates,
+                           const Array<GenerationConfig>& generation_cfg) {
+    ICHECK(logits_on_device.defined());
+    ICHECK_EQ(logits_on_device->ndim, 3);
+    int num_sequence;
+    if (cum_sequence_length == nullptr) {
+      ICHECK_EQ(logits_on_device->shape[1], 1)
+          << "Multi-token sampling for one sequence requiring `cum_sequence_length`.";
+      num_sequence = logits_on_device->shape[0];
+    } else {
+      ICHECK(!cum_sequence_length->empty());
+      num_sequence = static_cast<int>(cum_sequence_length->size()) - 1;
+      ICHECK_EQ(logits_on_device->shape[0], 1);
+      ICHECK_EQ(logits_on_device->shape[1], cum_sequence_length->back());
+    }
+    ICHECK_EQ(generation_cfg.size(), num_sequence);
+    ICHECK_EQ(request_mstates.size(), num_sequence);
+
+    Array<String> request_ids =
+        request_mstates.Map([](const RequestModelState& mstate) { return mstate->request->id; });
+
+    RECORD_EVENT(trace_recorder_, request_ids, "start query need GPU softmax");
+    bool require_gpu_softmax = RequireGPUSoftmax(generation_cfg);
+    RECORD_EVENT(trace_recorder_, request_ids, "finish query need GPU softmax");
+
+    // - Compute probabilities from logits.
+    NDArray logits_or_probs_on_cpu{nullptr};
+    if (require_gpu_softmax) {
+      RECORD_EVENT(trace_recorder_, request_ids, "start GPU softmax");
+      Array<GenerationConfig> generation_cfg_for_softmax;
+      if (cum_sequence_length == nullptr) {
+        generation_cfg_for_softmax = generation_cfg;
+      } else {
+        logits_on_device = logits_on_device.CreateView(
+            {logits_on_device->shape[1], 1, logits_on_device->shape[2]}, logits_on_device->dtype);
+        generation_cfg_for_softmax.reserve(logits_on_device->shape[1]);
+        for (int i = 0; i < num_sequence; ++i) {
+          for (int pos = cum_sequence_length->at(i); pos < cum_sequence_length->at(i + 1); ++pos) {
+            generation_cfg_for_softmax.push_back(generation_cfg[i]);
+          }
+        }
+      }
+      NDArray probs_on_device =
+          model->SoftmaxWithTemperature(logits_on_device, generation_cfg_for_softmax);
+      RECORD_EVENT(trace_recorder_, request_ids, "finish GPU softmax");
+      RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
+      logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(probs_on_device, &logits_or_probs_on_cpu_);
+      RECORD_EVENT(trace_recorder_, request_ids, "finish copy probs to CPU");
+    } else {
+      RECORD_EVENT(trace_recorder_, request_ids, "start copy logits to CPU");
+      logits_or_probs_on_cpu = CopyLogitsOrProbsToCPU(logits_on_device, &logits_or_probs_on_cpu_);
+      RECORD_EVENT(trace_recorder_, request_ids, "finish copy logits to CPU");
+      // The "BatchComputeProbsFromLogitsInplace" function updates
+      // `logits_or_probs_on_cpu` in place.
+      BatchComputeProbsFromLogitsInplace(logits_or_probs_on_cpu, cum_sequence_length,
+                                         std::move(request_mstates), generation_cfg);
+    }
+    // `CopyLogitsOrProbsToCPU` flattens the first two dimensions.
+    ICHECK_EQ(logits_or_probs_on_cpu->ndim, 2);
+    return logits_or_probs_on_cpu;
+  }
+
+  /*!
    * \brief Compute the probability distribution from on-cpu logits for
    * a batch of tokens **in place**.
    * \param logits The input logits on CPU.
@@ -387,79 +560,103 @@ class CPUSampler : public SamplerObj {
    * \param generation_cfg The generation config.
    * \note The function returns nothing. It in-place updates the input logits array.
    */
-  void ComputeProbsFromLogitsInplace(NDArray logits, Array<RequestModelState> states,
-                                     Array<GenerationConfig> generation_cfg) {
+  void BatchComputeProbsFromLogitsInplace(NDArray logits,
+                                          const std::vector<int>* cum_sequence_length,
+                                          Array<RequestModelState> states,
+                                          Array<GenerationConfig> generation_cfg) {
     // logits: (n, v)
     CHECK_EQ(logits->ndim, 2);
     CHECK_EQ(logits->device.device_type, kDLCPU);
 
     // - Invoke environment compute function if exists.
     if (flogits_to_probs_inplace_.defined()) {
-      flogits_to_probs_inplace_(logits, states, generation_cfg);
+      IntTuple cum_sequence_length_obj;
+      if (cum_sequence_length != nullptr) {
+        cum_sequence_length_obj =
+            IntTuple{cum_sequence_length->begin(), cum_sequence_length->end()};
+      }
+      flogits_to_probs_inplace_(logits, cum_sequence_length_obj, states, generation_cfg);
       return;
     }
 
     tvm::runtime::parallel_for_with_threading_backend(
-        [this, &logits, &states, &generation_cfg](int i) {
-          // - Apply frequency/presence penalty or repetition penalty (inplace).
-          if (generation_cfg[i]->frequency_penalty != 0.0 ||
-              generation_cfg[i]->presence_penalty != 0.0) {
-            RECORD_EVENT(trace_recorder_, states[i]->request->id,
-                         "start frequency/presence penalty");
-            ApplyFrequencyAndPresencePenaltyOnCPU(logits, i, states[i],
-                                                  generation_cfg[i]->frequency_penalty,
-                                                  generation_cfg[i]->presence_penalty);
-            RECORD_EVENT(trace_recorder_, states[i]->request->id,
-                         "finish frequency/presence penalty");
-          } else if (generation_cfg[i]->repetition_penalty != 1.0) {
-            RECORD_EVENT(trace_recorder_, states[i]->request->id, "start repetition penalty");
-            ApplyRepetitionPenaltyOnCPU(logits, i, states[i],
-                                        generation_cfg[i]->repetition_penalty);
-            RECORD_EVENT(trace_recorder_, states[i]->request->id, "finish repetition penalty");
-          }
-          // - Compute probability (inplace) from logits.
-          //   Using softmax if temperature is non-zero.
-          //   Or set probability of the max-logit position to 1.
-          if (generation_cfg[i]->temperature >= 1e-6) {
-            RECORD_EVENT(trace_recorder_, states[i]->request->id, "start CPU softmax");
-            ApplySoftmaxWithTemperatureOnCPU(logits, i, generation_cfg[i]->temperature);
-            RECORD_EVENT(trace_recorder_, states[i]->request->id, "finish CPU softmax");
-          } else {
-            RECORD_EVENT(trace_recorder_, states[i]->request->id, "start argmax");
-            SetProbWithArgmaxOnCPU(logits, i);
-            RECORD_EVENT(trace_recorder_, states[i]->request->id, "finish argmax");
+        [this, &logits, cum_sequence_length, &states, &generation_cfg](int i) {
+          int offset_start = cum_sequence_length == nullptr ? i : cum_sequence_length->at(i);
+          int offset_end = cum_sequence_length == nullptr ? i + 1 : cum_sequence_length->at(i + 1);
+          for (int offset = offset_start; offset < offset_end; ++offset) {
+            SinglePosComputeProbsFromLogitsInplace(logits, offset, states[i], generation_cfg[i]);
           }
         },
         0, logits->shape[0]);
   }
 
-  /*!
-   * \brief Sample tokens from a batch of input probability distributions.
-   * \param probs The input batch of probability distributions.
-   * \param generation_cfg The generation config.
-   * \return The sampled tokens, one for each instance of the batch.
-   */
-  std::vector<int32_t> SampleTokenFromProbs(NDArray probs, Array<GenerationConfig> generation_cfg,
-                                            const Array<String>& request_ids) {
+  void SinglePosComputeProbsFromLogitsInplace(NDArray logits, int offset,
+                                              const RequestModelState& state,
+                                              const GenerationConfig& generation_cfg) {
+    // - Apply frequency/presence penalty or repetition penalty (inplace).
+    if (generation_cfg->frequency_penalty != 0.0 || generation_cfg->presence_penalty != 0.0) {
+      RECORD_EVENT(trace_recorder_, state->request->id, "start frequency/presence penalty");
+      ApplyFrequencyAndPresencePenaltyOnCPU(logits, offset, state,
+                                            generation_cfg->frequency_penalty,
+                                            generation_cfg->presence_penalty);
+      RECORD_EVENT(trace_recorder_, state->request->id, "finish frequency/presence penalty");
+    } else if (generation_cfg->repetition_penalty != 1.0) {
+      RECORD_EVENT(trace_recorder_, state->request->id, "start repetition penalty");
+      ApplyRepetitionPenaltyOnCPU(logits, offset, state, generation_cfg->repetition_penalty);
+      RECORD_EVENT(trace_recorder_, state->request->id, "finish repetition penalty");
+    }
+    // - Compute probability (inplace) from logits.
+    //   Using softmax if temperature is non-zero.
+    //   Or set probability of the max-logit position to 1.
+    if (generation_cfg->temperature >= 1e-6) {
+      RECORD_EVENT(trace_recorder_, state->request->id, "start CPU softmax");
+      ApplySoftmaxWithTemperatureOnCPU(logits, offset, generation_cfg->temperature);
+      RECORD_EVENT(trace_recorder_, state->request->id, "finish CPU softmax");
+    } else {
+      RECORD_EVENT(trace_recorder_, state->request->id, "start argmax");
+      SetProbWithArgmaxOnCPU(logits, offset);
+      RECORD_EVENT(trace_recorder_, state->request->id, "finish argmax");
+    }
+  }
+
+  std::vector<int32_t> SampleTokensFromProbs(NDArray probs,
+                                             Array<RequestModelState> request_mstates,
+                                             Array<GenerationConfig> generation_cfg,
+                                             std::vector<NDArray>* output_prob_dist,
+                                             std::vector<float>* output_token_probs) {
     // probs: (n, v)
     CHECK_EQ(probs->ndim, 2);
     CHECK_EQ(probs->device.device_type, kDLCPU);
+
+    Array<String> request_ids =
+        request_mstates.Map([](const RequestModelState& mstate) { return mstate->request->id; });
 
     int n = probs->shape[0];
     std::vector<double> random_numbers;
     std::vector<int32_t> sampled_tokens;
     random_numbers.reserve(n);
     sampled_tokens.resize(n);
+    if (output_prob_dist) {
+      output_prob_dist->resize(n);
+    }
+    if (output_token_probs) {
+      output_token_probs->resize(n);
+    }
     for (int i = 0; i < n; ++i) {
       random_numbers.push_back(rng_.GetRandomNumber());
     }
 
     tvm::runtime::parallel_for_with_threading_backend(
-        [this, &sampled_tokens, &probs, &generation_cfg, &random_numbers, &request_ids](int i) {
+        [this, &sampled_tokens, &probs, &generation_cfg, &random_numbers, &request_ids,
+         output_prob_dist, output_token_probs](int i) {
           RECORD_EVENT(this->trace_recorder_, request_ids[i], "start sample token");
           // Sample top p from probability.
-          sampled_tokens[i] =
-              SampleTopPFromProb(probs, i, generation_cfg[i]->top_p, random_numbers[i]);
+          std::pair<float, int64_t> sample_result = SampleTopPFromProb(
+              probs, i, generation_cfg[i]->top_p, random_numbers[i], output_prob_dist);
+          sampled_tokens[i] = sample_result.second;
+          if (output_token_probs) {
+            (*output_token_probs)[i] = sample_result.first;
+          }
           RECORD_EVENT(this->trace_recorder_, request_ids[i], "finish sample token");
         },
         0, n);
@@ -474,6 +671,7 @@ class CPUSampler : public SamplerObj {
   PackedFunc flogits_to_probs_inplace_;
   /*! \brief Shared array for logits and probability distributions on cpu. */
   NDArray logits_or_probs_on_cpu_{nullptr};
+  const float eps_ = 1e-9;
 };
 
 /*********************** Sampler ***********************/

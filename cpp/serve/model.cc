@@ -285,6 +285,55 @@ class ModelImpl : public ModelObj {
     return logits;
   }
 
+  NDArray BatchVerify(const NDArray& embeddings, const std::vector<int64_t>& seq_ids,
+                      const std::vector<int>& lengths) final {
+    CHECK(!seq_ids.empty());
+    CHECK_EQ(seq_ids.size(), lengths.size());
+    int num_sequences = seq_ids.size();
+    int total_length = 0;
+    for (int i = 0; i < num_sequences; ++i) {
+      total_length += lengths[i];
+    }
+
+    // embeddings: (1, n, h)
+    ICHECK_EQ(embeddings->ndim, 3);
+    ICHECK_EQ(embeddings->shape[0], 1);
+    ICHECK_EQ(embeddings->shape[1], total_length);
+    ICHECK_EQ(embeddings->device.device_type, device_.device_type);
+    ICHECK_EQ(embeddings->device.device_id, device_.device_id);
+
+    CHECK(ft_.verify_func_.defined())
+        << "`verify_with_embed` function is not found in the model. Please make sure the model is "
+           "compiled with flag `--sep-embed` and `--enable-batching`";
+    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    ICHECK(ft_.kv_cache_end_forward_func_.defined());
+    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+
+    // Begin forward with the sequence ids and new lengths.
+    IntTuple seq_ids_tuple(seq_ids);
+    IntTuple lengths_tuple(lengths.begin(), lengths.end());
+    ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
+
+    ObjectRef embeddings_dref_or_nd = ft_.CopyToWorker0(embeddings);
+    // args: embeddings, logit_pos, kv_cache, params
+    ObjectRef ret = ft_.verify_func_(embeddings_dref_or_nd, kv_cache_, params_);
+    NDArray logits;
+    if (ft_.use_disco) {
+      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      logits = Downcast<NDArray>(result[0]);
+    } else {
+      logits = Downcast<Array<NDArray>>(ret)[0];
+    }
+    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    ft_.kv_cache_end_forward_func_(kv_cache_);
+
+    // logits: (1, total_length, v)
+    ICHECK_EQ(logits->ndim, 3);
+    ICHECK_EQ(logits->shape[0], 1);
+    ICHECK_EQ(logits->shape[1], total_length);
+    return logits;
+  }
+
   NDArray SoftmaxWithTemperature(NDArray logits, Array<GenerationConfig> generation_cfg) final {
     // logits: (b, n, v)
     CHECK_EQ(logits->ndim, 3);
@@ -335,6 +384,11 @@ class ModelImpl : public ModelObj {
       DRef ret = ft_.kv_cache_get_num_available_pages_func_(kv_cache_);
       return ret->DebugGetFromRemote(0);
     }
+  }
+
+  /*! \brief Pop out N pages from KV cache. */
+  void PopNFromKVCache(int seq_id, int num_tokens) final {
+    ft_.kv_cache_popn_func_(kv_cache_, seq_id, num_tokens);
   }
 
   /*********************** Utilities  ***********************/

@@ -81,6 +81,12 @@ class RequestModelStateNode : public Object {
   int GetInputLength() const;
   /*! \brief Commit a new token into committed_tokens. Update appeared_token_ids. */
   void CommitToken(int32_t token_id);
+  /*! \brief Add a draft token into draft_output_tokens. Update appeared_token_ids. */
+  void AddDraftToken(int32_t token_id);
+  /*! \brief Remove the last token from draft_output_tokens. Update appeared_token_ids. */
+  void RemoveLastDraftToken();
+  /*! \brief Remove all draft tokens from draft_output_tokens. Update appeared_token_ids. */
+  void RemoveAllDraftTokens();
 
   static constexpr const char* _type_key = "mlc.serve.RequestModelState";
   static constexpr const bool _type_has_method_sequal_reduce = false;

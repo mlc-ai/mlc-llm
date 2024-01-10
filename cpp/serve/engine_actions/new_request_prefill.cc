@@ -95,7 +95,7 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     Array<RequestModelState> mstates_for_sample =
         rstates.Map([](RequestState rstate) { return rstate->mstates[0]; });
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
-    std::vector<int32_t> next_tokens = sampler_->SampleTokens(
+    std::vector<int32_t> next_tokens = sampler_->BatchSampleTokens(
         logits_for_sample, models_[0], mstates_for_sample,
         requests.Map([](Request request) { return request->generation_cfg; }));
     RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");

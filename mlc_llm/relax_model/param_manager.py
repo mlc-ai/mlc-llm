@@ -355,7 +355,16 @@ class ParamManager:
                 load_file,  # pylint: disable=import-outside-toplevel
             )
 
-            self.safetensors_load_func = load_file
+            def load_safetensors_func(*args):
+                params = load_file(*args)
+                for name, param in params.items():
+                    dtype = str(param.dtype)
+                    if dtype == "torch.bfloat16":
+                        param = param.float()
+                    params[name] = param
+                return params
+
+            self.safetensors_load_func = load_safetensors_func
 
         pnames_to_load = []
         for param_name in self.param_names:
