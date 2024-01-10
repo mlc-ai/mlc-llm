@@ -67,18 +67,18 @@ class BNFGrammarNode : public Object {
 
   /*! \brief The data type of the content of rule_exprs. */
   enum class DataKind : int32_t {
-    // data: [lower0, upper0, lower1, upper1, ...]
+    // data format: [lower0, upper0, lower1, upper1, ...]
     // to represent a single character, just add the same lower and upper bound.
     kCharacterRange,
-    // data: [lower0, upper0, lower1, upper1, ...]
+    // data format: [lower0, upper0, lower1, upper1, ...]
     kNegCharacterRange,
-    // data: []
+    // data format: []
     kEmptyStr,
-    // data: [rule_id]
+    // data format: [rule_id]
     kRuleRef,
-    // data: [rule_expr_id0, rule_expr_id1, ...]
+    // data format: [rule_expr_id0, rule_expr_id1, ...]
     kSequence,
-    // data: [rule_expr_id0, rule_expr_id1, ...]
+    // data format: [rule_expr_id0, rule_expr_id1, ...]
     kChoices,
   };
 
