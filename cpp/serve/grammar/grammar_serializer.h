@@ -4,8 +4,8 @@
  * \brief The header for printing the AST of a BNF grammar.
  */
 
-#ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_PRINTER_H_
-#define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_PRINTER_H_
+#ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_SERIALIZER_H_
+#define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_SERIALIZER_H_
 
 #include <string>
 
@@ -40,10 +40,8 @@ class BNFGrammarSerializer {
  */
 class BNFGrammarPrinter : public BNFGrammarSerializer {
  private:
-  using TSubruleData = BNFGrammarNode::TSubruleData;
-  using TSubruleId = BNFGrammarNode::TSubruleId;
   using DataKind = BNFGrammarNode::DataKind;
-  using Subrule = BNFGrammarNode::Subrule;
+  using RuleExpr = BNFGrammarNode::RuleExpr;
 
  public:
   /*!
@@ -57,23 +55,23 @@ class BNFGrammarPrinter : public BNFGrammarSerializer {
    */
   String ToString() final;
 
-  /*! \brief Print a subrule corresponding to the given id. */
-  std::string PrintSubrule(TSubruleId subrule_id);
+  /*! \brief Print a rule_expr corresponding to the given id. */
+  std::string PrintRuleExpr(int32_t rule_expr_id);
 
-  /*! \brief Print subrules for character range. */
-  std::string PrintCharacterRange(const Subrule& subrule);
-  /*! \brief Print subrules for empty string. */
-  std::string PrintEmpty(const Subrule& subrule);
-  /*! \brief Print subrules for rule reference. */
-  std::string PrintRuleRef(const Subrule& subrule);
-  /*! \brief Print subrules for subrule sequence. */
-  std::string PrintSequence(const Subrule& subrule);
-  /*! \brief Print subrules for subrule choices. */
-  std::string PrintChoices(const Subrule& subrule);
+  /*! \brief Print rule_exprs for character range. */
+  std::string PrintCharacterRange(const RuleExpr& rule_expr);
+  /*! \brief Print rule_exprs for empty string. */
+  std::string PrintEmptyStr(const RuleExpr& rule_expr);
+  /*! \brief Print rule_exprs for rule reference. */
+  std::string PrintRuleRef(const RuleExpr& rule_expr);
+  /*! \brief Print rule_exprs for rule_expr sequence. */
+  std::string PrintSequence(const RuleExpr& rule_expr);
+  /*! \brief Print rule_exprs for rule_expr choices. */
+  std::string PrintChoices(const RuleExpr& rule_expr);
 
  private:
-  // Only print parentheses when necessary (i.e. when this subrule contains multiple elements
-  // and is nested within another multi-element subrule)
+  // Only print parentheses when necessary (i.e. when this rule_expr contains multiple elements
+  // and is nested within another multi-element rule_expr)
   bool require_parentheses_ = false;
 };
 
@@ -83,11 +81,11 @@ class BNFGrammarPrinter : public BNFGrammarSerializer {
  * \details JSON format:
  *  {
  *    "rules": [
- *      {"name": "...", "subrule": subrule_id},
- *      {"name": "...", "subrule": subrule_id},
+ *      {"name": "...", "rule_expr": rule_expr_id},
+ *      {"name": "...", "rule_expr": rule_expr_id},
  *    ],
- *    "subrule_data": [integers...],
- *    "subrule_indptr": [integers...],
+ *    "rule_expr_data": [integers...],
+ *    "rule_expr_indptr": [integers...],
  *  }
  */
 class BNFGrammarJSONSerializer : public BNFGrammarSerializer {
@@ -113,4 +111,4 @@ class BNFGrammarJSONSerializer : public BNFGrammarSerializer {
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_SERVE_GRAMMAR_GRAMMAR_PRINTER_H_
+#endif  // MLC_LLM_SERVE_GRAMMAR_GRAMMAR_SERIALIZER_H_

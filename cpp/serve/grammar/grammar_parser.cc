@@ -20,26 +20,24 @@ class EBNFParserImpl {
 
  private:
   using Rule = BNFGrammarNode::Rule;
-  using TRuleId = BNFGrammarNode::TRuleId;
-  using TSubruleId = BNFGrammarNode::TSubruleId;
   using ParseError = EBNFParser::ParseError;
 
   // Parsing different parts of the grammar
   std::string ParseName(bool accept_empty = false);
-  TSubruleId ParseCharacterRange();
-  TSubruleId ParseString();
-  TSubruleId ParseRuleRef();
-  TSubruleId ParseElement();
-  TSubruleId ParseQuantifier();
-  TSubruleId ParseSequence();
-  TSubruleId ParseChoices();
+  int32_t ParseCharacterRange();
+  int32_t ParseString();
+  int32_t ParseRuleRef();
+  int32_t ParseElement();
+  int32_t ParseQuantifier();
+  int32_t ParseSequence();
+  int32_t ParseChoices();
   Rule ParseRule();
 
   // Helper functions
   // Helper for ParseQuantifier
-  TRuleId HandleStarQuantifier(TSubruleId subrule_id);
-  TRuleId HandlePlusQuantifier(TSubruleId subrule_id);
-  TRuleId HandleQuestionQuantifier(TSubruleId subrule_id);
+  int32_t HandleStarQuantifier(int32_t rule_expr_id);
+  int32_t HandlePlusQuantifier(int32_t rule_expr_id);
+  int32_t HandleQuestionQuantifier(int32_t rule_expr_id);
 
   // When parsing, we first find the names of all rules, and build the mapping from name to rule id.
   void BuildRuleNameToId();
@@ -133,7 +131,7 @@ std::string EBNFParserImpl::ParseName(bool accept_empty) {
 // [\-] means -
 // [\]] means ]
 // Character range should not contain newlines.
-EBNFParserImpl::TSubruleId EBNFParserImpl::ParseCharacterRange() {
+int32_t EBNFParserImpl::ParseCharacterRange() {
   static const std::unordered_map<std::string, TCodepoint> kCustomEscapeMap = {{"\\-", '-'},
                                                                                {"\\]", ']'}};
 
@@ -189,8 +187,8 @@ EBNFParserImpl::TSubruleId EBNFParserImpl::ParseCharacterRange() {
 }
 
 // parse a c style string with utf8 support
-EBNFParserImpl::TSubruleId EBNFParserImpl::ParseString() {
-  std::vector<TSubruleId> character_ranges;
+int32_t EBNFParserImpl::ParseString() {
+  std::vector<int32_t> character_ranges;
   while (Peek() && Peek() != '\"') {
     if (Peek() == '\r' || Peek() == '\n') {
       ThrowParseError("String should not contain newline");
@@ -206,12 +204,12 @@ EBNFParserImpl::TSubruleId EBNFParserImpl::ParseString() {
     character_ranges.push_back(grammar_builder_.InsertCharacterRange({{codepoint, codepoint}}));
   }
   if (character_ranges.empty()) {
-    return grammar_builder_.InsertEmpty();
+    return grammar_builder_.InsertEmptyStr();
   }
   return grammar_builder_.InsertSequence(character_ranges);
 }
 
-EBNFParserImpl::TSubruleId EBNFParserImpl::ParseRuleRef() {
+int32_t EBNFParserImpl::ParseRuleRef() {
   std::string name = ParseName();
   auto rule_id = grammar_builder_.GetRuleId(name);
   if (rule_id == -1) {
@@ -220,39 +218,39 @@ EBNFParserImpl::TSubruleId EBNFParserImpl::ParseRuleRef() {
   return grammar_builder_.InsertRuleRef(rule_id);
 }
 
-EBNFParserImpl::TSubruleId EBNFParserImpl::ParseElement() {
+int32_t EBNFParserImpl::ParseElement() {
   switch (Peek()) {
     case '(': {
       Consume();
       ConsumeSpace();
       auto prev_in_parentheses = in_parentheses_;
       in_parentheses_ = true;
-      auto subrule_id = ParseChoices();
+      auto rule_expr_id = ParseChoices();
       ConsumeSpace();
       if (Peek() != ')') {
         ThrowParseError("Expect )");
       }
       Consume();
       in_parentheses_ = prev_in_parentheses;
-      return subrule_id;
+      return rule_expr_id;
     }
     case '[': {
       Consume();
-      auto subrule_id = ParseCharacterRange();
+      auto rule_expr_id = ParseCharacterRange();
       if (Peek() != ']') {
         ThrowParseError("Expect ]");
       }
       Consume();
-      return subrule_id;
+      return rule_expr_id;
     }
     case '\"': {
       Consume();
-      auto subrule_id = ParseString();
+      auto rule_expr_id = ParseString();
       if (Peek() != '\"') {
         ThrowParseError("Expect \"");
       }
       Consume();
-      return subrule_id;
+      return rule_expr_id;
     }
     default: {
       if (IsNameChar(Peek(), true)) {
@@ -264,71 +262,69 @@ EBNFParserImpl::TSubruleId EBNFParserImpl::ParseElement() {
   return -1;
 }
 
-EBNFParserImpl::TRuleId EBNFParserImpl::HandleStarQuantifier(
-    EBNFParserImpl::TSubruleId subrule_id) {
+int32_t EBNFParserImpl::HandleStarQuantifier(int32_t rule_expr_id) {
   // a*  -->  rule ::= a rule | empty
   auto new_rule_name = grammar_builder_.GetNewRuleName(cur_rule_name_);
   auto new_rule_id = grammar_builder_.InsertEmptyRule(new_rule_name);
   auto new_rule_ref = grammar_builder_.InsertRuleRef(new_rule_id);
-  auto new_subrule =
-      grammar_builder_.InsertChoices({grammar_builder_.InsertSequence({subrule_id, new_rule_ref}),
-                                      grammar_builder_.InsertEmpty()});
-  grammar_builder_.SetRuleBody(new_rule_id, new_subrule);
+  auto new_rule_expr_id =
+      grammar_builder_.InsertChoices({grammar_builder_.InsertSequence({rule_expr_id, new_rule_ref}),
+                                      grammar_builder_.InsertEmptyStr()});
+  grammar_builder_.SetRuleBody(new_rule_id, new_rule_expr_id);
   return new_rule_id;
 }
 
-EBNFParserImpl::TRuleId EBNFParserImpl::HandlePlusQuantifier(
-    EBNFParserImpl::TSubruleId subrule_id) {
+int32_t EBNFParserImpl::HandlePlusQuantifier(int32_t rule_expr_id) {
   // a+  -->  rule ::= a rule | a
-  // We will use subrule a for two times in this case
-  // So first we create a rule for subrule a
+  // We will use rule_expr a for two times in this case
+  // So first we create a rule for rule_expr a
   auto a_rule_name = grammar_builder_.GetNewRuleName(cur_rule_name_);
-  auto a_rule_id = grammar_builder_.InsertRule({a_rule_name, subrule_id});
+  auto a_rule_id = grammar_builder_.InsertRule({a_rule_name, rule_expr_id});
 
-  // Then create the new subrule.
+  // Then create the new rule_expr.
   auto new_rule_name = grammar_builder_.GetNewRuleName(cur_rule_name_);
   auto new_rule_id = grammar_builder_.InsertEmptyRule(new_rule_name);
   auto a_plus_ref = grammar_builder_.InsertRuleRef(new_rule_id);
   auto a_ref1 = grammar_builder_.InsertRuleRef(a_rule_id);
   auto a_ref2 = grammar_builder_.InsertRuleRef(a_rule_id);
-  auto new_subrule = grammar_builder_.InsertChoices(
+  auto new_rule_expr_id = grammar_builder_.InsertChoices(
       {grammar_builder_.InsertSequence({a_ref1, a_plus_ref}), a_ref2});
-  grammar_builder_.SetRuleBody(new_rule_id, new_subrule);
+  grammar_builder_.SetRuleBody(new_rule_id, new_rule_expr_id);
   return new_rule_id;
 }
 
-EBNFParserImpl::TRuleId EBNFParserImpl::HandleQuestionQuantifier(
-    EBNFParserImpl::TSubruleId subrule_id) {
+int32_t EBNFParserImpl::HandleQuestionQuantifier(int32_t rule_expr_id) {
   // a?  -->  rule ::= a | empty
   auto new_rule_name = grammar_builder_.GetNewRuleName(cur_rule_name_);
-  auto new_subrule = grammar_builder_.InsertChoices({subrule_id, grammar_builder_.InsertEmpty()});
-  auto new_rule_id = grammar_builder_.InsertRule({new_rule_name, new_subrule});
+  auto new_rule_expr_id =
+      grammar_builder_.InsertChoices({rule_expr_id, grammar_builder_.InsertEmptyStr()});
+  auto new_rule_id = grammar_builder_.InsertRule({new_rule_name, new_rule_expr_id});
   return new_rule_id;
 }
 
-EBNFParserImpl::TSubruleId EBNFParserImpl::ParseQuantifier() {
-  EBNFParserImpl::TSubruleId subrule_id = ParseElement();
+int32_t EBNFParserImpl::ParseQuantifier() {
+  int32_t rule_expr_id = ParseElement();
   ConsumeSpace(in_parentheses_);
   if (Peek() != '*' && Peek() != '+' && Peek() != '?') {
-    return subrule_id;
+    return rule_expr_id;
   }
   Consume();
 
   // We will transform a*, a+, a? into a rule, and return the reference to this rule
   switch (Peek(-1)) {
     case '*':
-      return grammar_builder_.InsertRuleRef(HandleStarQuantifier(subrule_id));
+      return grammar_builder_.InsertRuleRef(HandleStarQuantifier(rule_expr_id));
     case '+':
-      return grammar_builder_.InsertRuleRef(HandlePlusQuantifier(subrule_id));
+      return grammar_builder_.InsertRuleRef(HandlePlusQuantifier(rule_expr_id));
     case '?':
-      return grammar_builder_.InsertRuleRef(HandleQuestionQuantifier(subrule_id));
+      return grammar_builder_.InsertRuleRef(HandleQuestionQuantifier(rule_expr_id));
     default:
       LOG(FATAL) << "Unreachable";
   }
 }
 
-EBNFParserImpl::TSubruleId EBNFParserImpl::ParseSequence() {
-  std::vector<TSubruleId> elements;
+int32_t EBNFParserImpl::ParseSequence() {
+  std::vector<int32_t> elements;
   elements.push_back(ParseQuantifier());
   ConsumeSpace(in_parentheses_);
   while (Peek() && Peek() != '|' && Peek() != ')' && Peek() != '\n' && Peek() != '\r') {
@@ -338,8 +334,8 @@ EBNFParserImpl::TSubruleId EBNFParserImpl::ParseSequence() {
   return grammar_builder_.InsertSequence(elements);
 }
 
-EBNFParserImpl::TSubruleId EBNFParserImpl::ParseChoices() {
-  std::vector<TSubruleId> choices;
+int32_t EBNFParserImpl::ParseChoices() {
+  std::vector<int32_t> choices;
 
   choices.push_back(ParseSequence());
   ConsumeSpace();
@@ -402,7 +398,7 @@ BNFGrammar EBNFParserImpl::DoParse(String ebnf_string) {
   ConsumeSpace();
   while (Peek()) {
     auto new_rule = ParseRule();
-    grammar_builder_.SetRuleBody(new_rule.name, new_rule.subrule);
+    grammar_builder_.SetRuleBody(new_rule.name, new_rule.rule_expr_id);
 
     ConsumeSpace();
   }
@@ -430,17 +426,17 @@ BNFGrammar BNFJSONParser::Parse(String json_string) {
   for (const auto& rule_json : rules_json) {
     auto rule_json_obj = rule_json.get<picojson::object>();
     auto name = json::Lookup<std::string>(rule_json.get<picojson::object>(), "name");
-    auto subrule =
-        static_cast<int32_t>(json::Lookup<int64_t>(rule_json.get<picojson::object>(), "subrule"));
-    node->rules.push_back(BNFGrammarNode::Rule({name, subrule}));
+    auto rule_expr = static_cast<int32_t>(
+        json::Lookup<int64_t>(rule_json.get<picojson::object>(), "rule_expr_id"));
+    node->rules_.push_back(BNFGrammarNode::Rule({name, rule_expr}));
   }
-  auto subrule_data_json = json::Lookup<picojson::array>(grammar_json, "subrule_data");
-  for (const auto& data_json : subrule_data_json) {
-    node->subrule_data.push_back(static_cast<int32_t>(data_json.get<int64_t>()));
+  auto rule_expr_data_json = json::Lookup<picojson::array>(grammar_json, "rule_expr_data");
+  for (const auto& data_json : rule_expr_data_json) {
+    node->rule_expr_data_.push_back(static_cast<int32_t>(data_json.get<int64_t>()));
   }
-  auto subrule_indptr_json = json::Lookup<picojson::array>(grammar_json, "subrule_indptr");
-  for (const auto& index_ptr_json : subrule_indptr_json) {
-    node->subrule_indptr.push_back(static_cast<int32_t>(index_ptr_json.get<int64_t>()));
+  auto rule_expr_indptr_json = json::Lookup<picojson::array>(grammar_json, "rule_expr_indptr");
+  for (const auto& index_ptr_json : rule_expr_indptr_json) {
+    node->rule_expr_indptr_.push_back(static_cast<int32_t>(index_ptr_json.get<int64_t>()));
   }
   return BNFGrammar(std::move(node));
 }

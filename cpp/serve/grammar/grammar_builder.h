@@ -23,20 +23,16 @@ using namespace tvm::runtime;
  */
 class BNFGrammarBuilder {
  public:
-  using TRuleId = BNFGrammarNode::TRuleId;
-  using TSubruleId = BNFGrammarNode::TSubruleId;
-  using TSubruleData = BNFGrammarNode::TSubruleData;
-  using DataKind = BNFGrammarNode::DataKind;
   using Rule = BNFGrammarNode::Rule;
-  using Subrule = BNFGrammarNode::Subrule;
+  using DataKind = BNFGrammarNode::DataKind;
+  using RuleExpr = BNFGrammarNode::RuleExpr;
 
   /*! \brief Default constructor. Creates a new grammar object. */
   BNFGrammarBuilder() : grammar_(make_object<BNFGrammarNode>()) {}
 
   /*!
-   * \brief Create grammar containing the rules and subrules of an existing grammar. The old grammar
-   * remains unchanged.
-   * \param grammar The existing grammar.
+   * \brief Create grammar containing the rules and rule_exprs of an existing grammar. The old
+   * grammar remains unchanged. \param grammar The existing grammar.
    */
   explicit BNFGrammarBuilder(const BNFGrammar& grammar)
       : grammar_(make_object<BNFGrammarNode>(*grammar.get())) {}
@@ -44,14 +40,15 @@ class BNFGrammarBuilder {
   /*! \brief Finalize the grammar building and return the built grammar. */
   BNFGrammar Finalize() { return BNFGrammar(grammar_); }
 
-  /****************** Subrule handling ******************/
+  /****************** RuleExpr handling ******************/
 
-  /*! \brief Insert a subrule and return the subrule id. */
-  TSubruleId InsertSubrule(const Subrule& subrule) {
-    grammar_->subrule_indptr.push_back(grammar_->subrule_data.size());
-    grammar_->subrule_data.insert(grammar_->subrule_data.end(), subrule.data,
-                                  subrule.data + subrule.size);
-    return grammar_->subrule_indptr.size() - 1;
+  /*! \brief Insert a rule_expr and return the rule_expr id. */
+  int32_t InsertRuleExpr(const RuleExpr& rule_expr) {
+    grammar_->rule_expr_indptr_.push_back(grammar_->rule_expr_data_.size());
+    grammar_->rule_expr_data_.push_back(static_cast<int32_t>(rule_expr.kind));
+    grammar_->rule_expr_data_.insert(grammar_->rule_expr_data_.end(), rule_expr.data,
+                                     rule_expr.data + rule_expr.data_len);
+    return grammar_->rule_expr_indptr_.size() - 1;
   }
 
   /*!
@@ -63,100 +60,91 @@ class BNFGrammarBuilder {
     int32_t upper;
   };
 
-  /*! \brief Insert subrules for character range.*/
-  TSubruleId InsertCharacterRange(const std::vector<CharacterRangeElement>& elements) {
-    std::vector<TSubruleData> data;
-    data.push_back(static_cast<TSubruleData>(DataKind::kCharacterRange));
+  /*! \brief Insert rule_exprs for character range.*/
+  int32_t InsertCharacterRange(const std::vector<CharacterRangeElement>& elements) {
+    std::vector<int32_t> data;
     for (const auto& range : elements) {
       data.push_back(range.lower);
       data.push_back(range.upper);
     }
-    return InsertSubrule({data.data(), data.size()});
+    return InsertRuleExpr({DataKind::kCharacterRange, data.data(), data.size()});
   }
 
-  /*! \brief Insert subrules for character range negation.*/
-  TSubruleId InsertNotCharacterRange(const std::vector<CharacterRangeElement>& elements) {
-    std::vector<TSubruleData> data;
-    data.push_back(static_cast<TSubruleData>(DataKind::kNotCharacterRange));
+  /*! \brief Insert rule_exprs for character range negation.*/
+  int32_t InsertNegCharacterRange(const std::vector<CharacterRangeElement>& elements) {
+    std::vector<int32_t> data;
     for (const auto& range : elements) {
       data.push_back(range.lower);
       data.push_back(range.upper);
     }
-    return InsertSubrule({data.data(), data.size()});
+    return InsertRuleExpr({DataKind::kNegCharacterRange, data.data(), data.size()});
   }
 
-  /*! \brief Insert subrules for empty string.*/
-  TSubruleId InsertEmpty() {
-    std::vector<TSubruleData> data;
-    data.push_back(static_cast<TSubruleData>(DataKind::kEmpty));
-    return InsertSubrule({data.data(), data.size()});
-  }
+  /*! \brief Insert rule_exprs for empty string.*/
+  int32_t InsertEmptyStr() { return InsertRuleExpr({DataKind::kEmptyStr, nullptr, 0}); }
 
-  /*! \brief Insert subrules for rule reference.*/
-  TSubruleId InsertRuleRef(TRuleId rule_id) {
-    std::vector<TSubruleData> data;
-    data.push_back(static_cast<TSubruleData>(DataKind::kRuleRef));
+  /*! \brief Insert rule_exprs for rule reference.*/
+  int32_t InsertRuleRef(int32_t rule_id) {
+    std::vector<int32_t> data;
     data.push_back(rule_id);
-    return InsertSubrule({data.data(), data.size()});
+    return InsertRuleExpr({DataKind::kRuleRef, data.data(), data.size()});
   }
 
-  /*! \brief Insert subrules for subrule sequence.*/
-  TSubruleId InsertSequence(const std::vector<TSubruleId>& elements) {
-    std::vector<TSubruleData> data;
-    data.push_back(static_cast<TSubruleData>(DataKind::kSequence));
+  /*! \brief Insert rule_exprs for rule_expr sequence.*/
+  int32_t InsertSequence(const std::vector<int32_t>& elements) {
+    std::vector<int32_t> data;
     data.insert(data.end(), elements.begin(), elements.end());
-    return InsertSubrule({data.data(), data.size()});
+    return InsertRuleExpr({DataKind::kSequence, data.data(), data.size()});
   }
 
-  /*! \brief Insert subrules for subrule choices.*/
-  TSubruleId InsertChoices(const std::vector<TSubruleId>& choices) {
-    std::vector<TSubruleData> data;
-    data.push_back(static_cast<TSubruleData>(DataKind::kChoices));
+  /*! \brief Insert rule_exprs for rule_expr choices.*/
+  int32_t InsertChoices(const std::vector<int32_t>& choices) {
+    std::vector<int32_t> data;
     data.insert(data.end(), choices.begin(), choices.end());
-    return InsertSubrule({data.data(), data.size()});
+    return InsertRuleExpr({DataKind::kChoices, data.data(), data.size()});
   }
 
-  /*! \brief Get the subrule with the given id. */
-  Subrule GetSubrule(TSubruleId subrule_id) { return grammar_->GetSubrule(subrule_id); }
+  /*! \brief Get the rule_expr with the given id. */
+  RuleExpr GetRuleExpr(int32_t rule_expr_id) { return grammar_->GetRuleExpr(rule_expr_id); }
 
   /****************** Rule handling ******************/
 
   /*! \brief Insert a rule and return the rule id. */
-  TRuleId InsertRule(const Rule& rule) {
-    TRuleId id = grammar_->rules.size();
-    auto rules = grammar_->rules;
-    grammar_->rules.push_back(rule);
+  int32_t InsertRule(const Rule& rule) {
+    int32_t id = grammar_->rules_.size();
+    auto rules = grammar_->rules_;
+    grammar_->rules_.push_back(rule);
     rule_name_to_id_[rule.name] = id;
     return id;
   }
 
   /*! \brief Get the rule with the given id. */
-  Rule& GetRule(TRuleId rule_id) { return grammar_->rules[rule_id]; }
+  Rule& GetRule(int32_t rule_id) { return grammar_->rules_[rule_id]; }
 
   /*!
    * \brief Insert an rule without body, and return the rule id. The rule body should be set later
    * with BNFGrammarBuilder::SetRuleBody. This method is useful for cases where the rule id is
    * required to build the rule body.
    */
-  TRuleId InsertEmptyRule(const std::string& name) { return InsertRule({name, -1}); }
+  int32_t InsertEmptyRule(const std::string& name) { return InsertRule({name, -1}); }
 
   /*!
    * \brief Set the rule body of the given rule, specified by rule id.
    * \sa BNFGrammarBuilder::InsertEmptyRule
    */
-  void SetRuleBody(TRuleId rule_id, TSubruleId subrule_id) {
-    ICHECK(grammar_->rules[rule_id].subrule == -1);
-    grammar_->rules[rule_id].subrule = subrule_id;
+  void SetRuleBody(int32_t rule_id, int32_t rule_expr_id) {
+    ICHECK(grammar_->rules_[rule_id].rule_expr_id == -1);
+    grammar_->rules_[rule_id].rule_expr_id = rule_expr_id;
   }
 
   /*!
    * \brief Set the rule body of the given rule, specified by rule name.
    * \sa BNFGrammarBuilder::InsertEmptyRule
    */
-  void SetRuleBody(std::string rule_name, TSubruleId subrule_id) {
-    TRuleId rule_id = GetRuleId(rule_name);
+  void SetRuleBody(std::string rule_name, int32_t rule_expr_id) {
+    int32_t rule_id = GetRuleId(rule_name);
     ICHECK(rule_id != -1);
-    SetRuleBody(rule_id, subrule_id);
+    SetRuleBody(rule_id, rule_expr_id);
   }
 
   /*!
@@ -178,7 +166,7 @@ class BNFGrammarBuilder {
   /*!
    * \brief Get the rule id of the rule with the given name. Return -1 if not found.
    */
-  TRuleId GetRuleId(const std::string& name) const {
+  int32_t GetRuleId(const std::string& name) const {
     auto it = rule_name_to_id_.find(name);
     if (it == rule_name_to_id_.end()) {
       return -1;
@@ -191,7 +179,7 @@ class BNFGrammarBuilder {
   // Mutable pointer to the grammar object.
   ObjectPtr<BNFGrammarNode> grammar_;
   // Map from rule name to rule id.
-  std::unordered_map<std::string, TRuleId> rule_name_to_id_;
+  std::unordered_map<std::string, int32_t> rule_name_to_id_;
 };
 
 }  // namespace serve
