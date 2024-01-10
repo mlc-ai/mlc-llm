@@ -80,6 +80,37 @@ class EngineAction : public ObjectRef {
   static EngineAction BatchDecode(Array<Model> models, Sampler sampler,
                                   Optional<EventTraceRecorder> trace_recorder);
 
+  /*!
+   * \brief Create the action that runs one-step speculative draft proposal for
+   * requests in the `running_queue` of engine state. Preempt low-priority requests
+   * accordingly when it is impossible to decode all the running requests.
+   * \param models The model to run decode in. When there are multiple
+   * models, the `Step` function of the created action will not take effect.
+   * \param sampler The sampler to sample new tokens.
+   * \param trace_recorder The event trace recorder for requests.
+   * \param draft_length The number of draft proposal rounds.
+   * \return The created action object.
+   */
+  static EngineAction BatchDraft(Array<Model> models, Sampler sampler,
+                                 Optional<EventTraceRecorder> trace_recorder, int draft_length = 4);
+
+  /*!
+   * \brief Create the action that runs one-step speculative verification for requests in the
+   * `running_queue` of engine state. Preempt low-priority requests
+   * accordingly when it is impossible to decode all the running requests.
+   * \param models The model to run decode in. When there are multiple
+   * models, the `Step` function of the created action will not take effect.
+   * \param sampler The sampler to sample new tokens.
+   * \param kv_cache_config The KV cache config to help decide verify is doable.
+   * \param max_single_sequence_length The max single sequence length to help
+   * decide if verify is doable.
+   * \param trace_recorder The event trace recorder for requests.
+   * \return The created action object.
+   */
+  static EngineAction BatchVerify(Array<Model> models, Sampler sampler,
+                                  KVCacheConfig kv_cache_config, int max_single_sequence_length,
+                                  Optional<EventTraceRecorder> trace_recorder);
+
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineAction, ObjectRef, EngineActionObj);
 };
 

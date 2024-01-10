@@ -63,6 +63,7 @@ struct FunctionTable {
   PackedFunc embed_func_;
   PackedFunc prefill_func_;
   PackedFunc decode_func_;
+  PackedFunc verify_func_;
   PackedFunc softmax_func_;
   PackedFunc create_kv_cache_func_;
   PackedFunc reset_kv_cache_func_;

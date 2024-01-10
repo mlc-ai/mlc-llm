@@ -332,6 +332,10 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
+    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
+        logits = self.batch_forward(input_embeds, paged_kv_cache)
+        return logits, paged_kv_cache
+
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
         return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
 
@@ -392,6 +396,14 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             },
             "batch_decode": {
                 "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_verify": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

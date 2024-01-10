@@ -80,6 +80,19 @@ class ModelObj : public Object {
   virtual NDArray BatchDecode(const NDArray& embeddings, const std::vector<int64_t>& seq_ids) = 0;
 
   /*!
+   * \brief Batch verify function. Embedding in, logits out.
+   * \param embeddings The embedding of the input to be verified.
+   * \param seq_id The id of the sequence in the KV cache.
+   * \param lengths The length of each sequence to verify.
+   * \return The logits for the draft token for each sequence in the batch.
+   * \note The function runs for **every** sequence in the batch.
+   * That is to say, it does not accept "running a verify step for a subset
+   * of the full batch".
+   */
+  virtual NDArray BatchVerify(const NDArray& embeddings, const std::vector<int64_t>& seq_ids,
+                              const std::vector<int>& lengths) = 0;
+
+  /*!
    * \brief Computing probabilities from logits with softmax and temperatures.
    * \param logits The logits to compute from.
    * \param generation_cfg The generation config which contains the temperatures.
@@ -104,6 +117,9 @@ class ModelObj : public Object {
 
   /*! \brief Get the number of available pages in KV cache. */
   virtual int GetNumAvailablePages() const = 0;
+
+  /*! \brief Pop out N pages from KV cache. */
+  virtual void PopNFromKVCache(int seq_id, int num_tokens) = 0;
 
   /*********************** Utilities  ***********************/
 

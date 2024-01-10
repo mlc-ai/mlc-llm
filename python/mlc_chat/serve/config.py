@@ -93,3 +93,29 @@ class KVCacheConfig:
     def from_json(json_str: str) -> "KVCacheConfig":
         """Construct a config from JSON string."""
         return KVCacheConfig(**json.loads(json_str))
+
+
+@dataclass
+class EngineMode:
+    """The Engine execution mode.
+
+    Parameters
+    ----------
+    enable_speculative : bool
+        Whether the speculative decoding mode is enabled, default False.
+
+    spec_draft_length : int
+        The number of tokens to generate in speculative proposal (draft), default 4.
+    """
+
+    enable_speculative: bool = False
+    spec_draft_length: int = 4
+
+    def asjson(self) -> str:
+        """Return the config in string of JSON format."""
+        return json.dumps(asdict(self))
+
+    @staticmethod
+    def from_json(json_str: str) -> "EngineMode":
+        """Construct a config from JSON string."""
+        return EngineMode(**json.loads(json_str))

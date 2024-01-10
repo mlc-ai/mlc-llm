@@ -9,6 +9,7 @@
 #include "../../tokenizers.h"
 #include "../engine.h"
 #include "../engine_state.h"
+#include "../event_trace_recorder.h"
 #include "../model.h"
 
 namespace mlc {
@@ -41,6 +42,17 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<M
 void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
                            FRequestStreamCallback request_stream_callback,
                            int max_single_sequence_length);
+
+/*!
+ * \brief Preempt the last running requests from `running_queue`,
+ * moving it from running request set to the foremost of waiting
+ * request queue.
+ * \param estate The engine state to update due to preemption.
+ * \param models The models to remove preempted requests from.
+ * \param trace_recorder The event trace recorder for requests.
+ */
+void PreemptLastRunningRequest(EngineState estate, const Array<Model>& models,
+                               Optional<EventTraceRecorder> trace_recorder);
 
 }  // namespace serve
 }  // namespace llm
