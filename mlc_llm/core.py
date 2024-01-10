@@ -539,6 +539,17 @@ def validate_config(model_path: str):
         ), f"Model type {config['model_type']} not supported."
 
 
+def get_cuda_sm_version():
+    major, minor = parse_compute_version(tvm.cuda(0).compute_version)
+
+    if major == 8:
+        sm = 80
+    else:
+        sm = 10 * major + minor
+
+    return sm
+
+
 def mod_transform_before_build(
     mod: tvm.IRModule,
     param_manager: param_manager.ParamManager,
@@ -633,13 +644,7 @@ def mod_transform_before_build(
         if len(patterns) > 0:
             os.makedirs("./tmp", exist_ok=True)
 
-            major, minor = parse_compute_version(tvm.cuda(0).compute_version)
-
-            if major == 8:
-                sm = 80
-            else:
-                sm = 10 * major + minor
-
+            sm = get_cuda_sm_version()
             options = {"cutlass": {"sm": sm, "find_first_valid": False}}
 
             if hasattr(config, "rms_norm_eps"):
@@ -786,15 +791,28 @@ def build_model_from_args(args: argparse.Namespace):
             "WARNING: q4f16_1 is preferred to q4f16_0, "
             "and it is highly recommended to use q4f16_1 instead"
         )
+
+    use_ft_quant = args.quantization.name in [
+        "q4f16_ft",
+        "q8f16_ft",
+        "q4f16_ft_group",
+        "q8f16_ft_group",
+    ]
+
     if args.num_shards > 1:
         if (not args.build_model_only) and (not args.convert_weights_only):
             raise ValueError(
                 "`num_shards` should be used together with "
                 "`--build-model-only` and `--convert-weight-only`"
             )
-        use_ft_quant = args.quantization.name in ["q4f16_ft", "q8f16_ft"]
-        if use_ft_quant:
-            raise ValueError("Multi-GPU deployments are not available for ft quantization.")
+
+        if use_ft_quant and not args.use_presharded_weights:
+            print(
+                "WARNING: FT quantization with multi-gpus requires presharding weights."
+                "Forcing --use-presharded-weights."
+            )
+            args.use_presharded_weights = True
+
     os.makedirs(args.artifact_path, exist_ok=True)
     if args.debug_dump:
         os.makedirs(os.path.join(args.artifact_path, "debug"), exist_ok=True)
@@ -882,6 +900,21 @@ def build_model_from_args(args: argparse.Namespace):
             mod_transform = seq(mod_transform)
 
             params = utils.convert_weights(mod_transform, param_manager, params, args)
+
+            if args.num_shards > 1 and use_ft_quant:
+                preprocessed = []
+                weight_preprocess_func = tvm.get_global_func("cutlass.ft_preprocess_weight")
+                is_int4 = args.quantization.name in ["q4f16_ft", "q4f16_ft_group"]
+                sm = get_cuda_sm_version()
+
+                for p in params:
+                    if p.dtype == "int8":
+                        preprocessed.append(weight_preprocess_func(p, sm, is_int4))
+                    else:
+                        preprocessed.append(p)
+
+                params = preprocessed
+
             utils.save_params(
                 params, args.artifact_path, args.num_shards if args.use_presharded_weights else 1
             )

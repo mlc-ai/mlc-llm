@@ -32,6 +32,8 @@ class FTQuantizationSpec(QuantizationSpec):
         else:
             self.sm = None
 
+        self.do_preprocess = True
+
     def get_quantize_func(self, param_info: relax.TensorStructInfo) -> Optional[FQuantize]:
         assert self.sm is not None
 
@@ -46,16 +48,22 @@ class FTQuantizationSpec(QuantizationSpec):
                 inputs[0],
                 primfunc_name_hint="encode",
             )
+
             packed_weight = bb.normalize(encoded_data[0])
-            encoded_weight = bb.emit(
-                relax.call_pure_packed(
-                    "cutlass.ft_preprocess_weight",
-                    packed_weight,
-                    self.sm,
-                    self.nbit == 4,
-                    sinfo_args=packed_weight.struct_info,
+
+            if self.do_preprocess:
+                encoded_weight = bb.emit(
+                    relax.call_pure_packed(
+                        "cutlass.ft_preprocess_weight",
+                        packed_weight,
+                        self.sm,
+                        self.nbit == 4,
+                        sinfo_args=packed_weight.struct_info,
+                    )
                 )
-            )
+            else:
+                encoded_weight = packed_weight
+
             return bb.emit(relax.Tuple([encoded_weight, encoded_data[1]]))
 
         return f_quantize
