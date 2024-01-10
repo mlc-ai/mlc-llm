@@ -8,7 +8,7 @@ use tvm_rt::{function::Function, Module};
 use super::config::*;
 
 extern "C" {
-    fn llm_chat_dummy_func();
+    fn LLMChatDummyLinkFunc();
 }
 
 #[derive(Debug)]
@@ -344,7 +344,7 @@ impl ChatModule {
         };
 
         unsafe {
-            llm_chat_dummy_func();
+            LLMChatDummyLinkFunc();
         }
 
         static GLOBAL_FUNC_NAME: &str = "mlc.llm_chat_create";
