@@ -10,7 +10,7 @@ import tvm
 from ..streamer import StopStringHandler, TextStreamer
 from ..tokenizer import Tokenizer
 from . import data
-from .config import GenerationConfig, KVCacheConfig
+from .config import EngineMode, GenerationConfig, KVCacheConfig
 from .engine import ModelInfo, _process_model_args
 from .event_trace_recorder import EventTraceRecorder
 from .request import Request, RequestStreamOutput
@@ -92,6 +92,9 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
     kv_cache_config : KVCacheConfig
         The configuration of the paged KV cache.
 
+    engine_mode : Optional[EngineMode]
+        The Engine execution mode.
+
     enable_tracing : bool
         A boolean indicating if to enable event logging for requests.
     """
@@ -100,6 +103,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
         self,
         models: Union[ModelInfo, List[ModelInfo]],
         kv_cache_config: KVCacheConfig,
+        engine_mode: Optional[EngineMode] = None,
         enable_tracing: bool = False,
     ) -> None:
         (
@@ -121,6 +125,9 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             ]
         }
         self.tokenizer = Tokenizer(tokenizer_path)
+        if engine_mode is None:
+            # The default engine mode: non-speculative
+            engine_mode = EngineMode()
 
         # The mapping from request ids to request asynchronous stream.
         self._request_tools: Dict[
@@ -132,6 +139,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
                 self.max_single_sequence_length,
                 tokenizer_path,
                 kv_cache_config.asjson(),
+                engine_mode.asjson(),
                 self._request_stream_callback,
                 self.trace_recorder,
                 *model_args,

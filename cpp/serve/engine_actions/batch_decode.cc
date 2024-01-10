@@ -38,7 +38,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     // Preempt requests when decode cannot apply.
     int num_available_pages = models_[0]->GetNumAvailablePages();
     while (!CanDecode(estate->running_queue.size())) {
-      PreemptLastRunningRequest(estate);
+      PreemptLastRunningRequest(estate, models_, trace_recorder_);
     }
 
     auto tstart = std::chrono::high_resolution_clock::now();
@@ -91,7 +91,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     // - Sample tokens.
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
     std::vector<int32_t> next_tokens =
-        sampler_->SampleTokens(logits, models_[0], mstates, generation_cfg);
+        sampler_->BatchSampleTokens(logits, models_[0], mstates, generation_cfg);
     RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
     ICHECK_EQ(next_tokens.size(), num_requests);
 
@@ -111,48 +111,6 @@ class BatchDecodeActionObj : public EngineActionObj {
   bool CanDecode(int num_requests) {
     int num_available_pages = models_[0]->GetNumAvailablePages();
     return num_requests <= num_available_pages;
-  }
-
-  /*!
-   * \brief Preempt the last running requests from `running_queue`,
-   * moving it from running request set to the foremost of waiting
-   * request queue.
-   */
-  void PreemptLastRunningRequest(EngineState estate) {
-    Request request = estate->running_queue.back();
-
-    // Remove from models.
-    // - Clear model speculation draft.
-    // - Update `inputs` for future prefill.
-    RequestState rstate = estate->GetRequestState(request);
-    RECORD_EVENT(trace_recorder_, rstate->request->id, "preempt");
-    estate->stats.current_total_seq_len -=
-        request->input_total_length + rstate->mstates[0]->committed_tokens.size() - 1;
-    for (RequestModelState mstate : rstate->mstates) {
-      mstate->draft_output_tokens.clear();
-      mstate->draft_output_token_prob.clear();
-      mstate->draft_output_prob_dist.clear();
-      ICHECK(mstate->inputs.empty());
-      ICHECK(!mstate->committed_tokens.empty());
-
-      Array<Data> inputs = request->inputs;
-      if (const auto* token_input = inputs.back().as<TokenDataNode>()) {
-        // Merge the TokenData so that a single time TokenEmbed is needed.
-        std::vector<int> token_ids{token_input->token_ids->data,
-                                   token_input->token_ids->data + token_input->token_ids.size()};
-        token_ids.insert(token_ids.end(), mstate->committed_tokens.begin(),
-                         mstate->committed_tokens.end());
-        inputs.Set(inputs.size() - 1, TokenData(token_ids));
-      } else {
-        inputs.push_back(TokenData(mstate->committed_tokens));
-      }
-      mstate->inputs = std::move(inputs);
-    }
-    RemoveRequestFromModel(estate, rstate->mstates[0]->internal_id, models_);
-
-    // Move from running queue to the front of waiting queue.
-    estate->running_queue.erase(estate->running_queue.end() - 1);
-    estate->waiting_queue.insert(estate->waiting_queue.begin(), request);
   }
 
   /*!

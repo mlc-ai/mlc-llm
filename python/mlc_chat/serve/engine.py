@@ -14,7 +14,7 @@ from ..chat_module import _get_chat_config, _get_lib_module_path, _get_model_pat
 from ..streamer import StopStringHandler, TextStreamer
 from ..tokenizer import Tokenizer
 from . import data
-from .config import GenerationConfig, KVCacheConfig
+from .config import EngineMode, GenerationConfig, KVCacheConfig
 from .event_trace_recorder import EventTraceRecorder
 from .request import Request, RequestStreamOutput
 
@@ -159,14 +159,18 @@ class Engine:
         the `set_request_stream_callback` method. Otherwise, the engine will raise
         exception.
 
+    engine_mode : Optional[EngineMode]
+        The Engine execution mode.
+
     enable_tracing : bool
         A boolean indicating if to enable event logging for requests.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         models: Union[ModelInfo, List[ModelInfo]],
         kv_cache_config: KVCacheConfig,
+        engine_mode: Optional[EngineMode] = None,
         request_stream_callback: Optional[Callable[[List[RequestStreamOutput]], None]] = None,
         enable_tracing: bool = False,
     ):
@@ -190,10 +194,16 @@ class Engine:
             ],
         )
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
+
+        if engine_mode is None:
+            # The default engine mode: non-speculative
+            engine_mode = EngineMode()
+
         self._ffi["init"](
             self.max_single_sequence_length,
             tokenizer_path,
             kv_cache_config.asjson(),
+            engine_mode.asjson(),
             request_stream_callback,
             self.trace_recorder,
             *model_args,

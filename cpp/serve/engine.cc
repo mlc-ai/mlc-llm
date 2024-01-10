@@ -40,7 +40,7 @@ class EngineImpl : public Engine {
   /********************** Engine Management **********************/
 
   explicit EngineImpl(int max_single_sequence_length, const String& tokenizer_path,
-                      const String& kv_cache_config_json_str,
+                      const String& kv_cache_config_json_str, const String& engine_mode_json_str,
                       Optional<PackedFunc> request_stream_callback,
                       Optional<EventTraceRecorder> trace_recorder,
                       const std::vector<std::tuple<TVMArgValue, String, DLDevice>>& model_infos) {
@@ -49,6 +49,7 @@ class EngineImpl : public Engine {
     this->estate_->Reset();
     this->max_single_sequence_length_ = max_single_sequence_length;
     this->kv_cache_config_ = KVCacheConfig(kv_cache_config_json_str, max_single_sequence_length);
+    this->engine_mode_ = EngineMode(engine_mode_json_str);
     this->request_stream_callback_ = std::move(request_stream_callback);
     this->trace_recorder_ = trace_recorder;
     this->sampler_ = Sampler::Create(/*sampler_kind=*/"cpu", trace_recorder_);
@@ -68,12 +69,26 @@ class EngineImpl : public Engine {
       this->models_.push_back(model);
     }
     // Step 3. Initialize engine actions that represent state transitions.
-    this->actions_ = {
-        EngineAction::NewRequestPrefill(this->models_,           //
-                                        this->sampler_,          //
-                                        this->kv_cache_config_,  //
-                                        this->max_single_sequence_length_, this->trace_recorder_),
-        EngineAction::BatchDecode(this->models_, this->sampler_, this->trace_recorder_)};
+    if (this->engine_mode_->enable_speculative) {
+      // Speculative decoding is only possible for more than one model.
+      ICHECK_GT(this->models_.size(), 1U);
+      this->actions_ = {
+          EngineAction::NewRequestPrefill(this->models_,           //
+                                          this->sampler_,          //
+                                          this->kv_cache_config_,  //
+                                          this->max_single_sequence_length_, this->trace_recorder_),
+          EngineAction::BatchDraft(this->models_, this->sampler_, this->trace_recorder_,
+                                   this->engine_mode_->spec_draft_length),
+          EngineAction::BatchVerify(this->models_, this->sampler_, this->kv_cache_config_,
+                                    this->max_single_sequence_length_, this->trace_recorder_)};
+    } else {
+      this->actions_ = {
+          EngineAction::NewRequestPrefill(this->models_,           //
+                                          this->sampler_,          //
+                                          this->kv_cache_config_,  //
+                                          this->max_single_sequence_length_, this->trace_recorder_),
+          EngineAction::BatchDecode(this->models_, this->sampler_, this->trace_recorder_)};
+    }
   }
 
   void Reset() final {
@@ -162,6 +177,7 @@ class EngineImpl : public Engine {
   EngineState estate_;
   // Configurations and singletons
   KVCacheConfig kv_cache_config_;
+  EngineMode engine_mode_;
   int max_single_sequence_length_;
   Sampler sampler_;
   Tokenizer tokenizer_;
@@ -177,12 +193,12 @@ class EngineImpl : public Engine {
 
 std::unique_ptr<Engine> Engine::Create(
     int max_single_sequence_length, const String& tokenizer_path,
-    const String& kv_cache_config_json_str, Optional<PackedFunc> request_stream_callback,
-    Optional<EventTraceRecorder> trace_recorder,
+    const String& kv_cache_config_json_str, const String& engine_mode_json_str,
+    Optional<PackedFunc> request_stream_callback, Optional<EventTraceRecorder> trace_recorder,
     const std::vector<std::tuple<TVMArgValue, String, DLDevice>>& model_infos) {
-  return std::make_unique<EngineImpl>(max_single_sequence_length, tokenizer_path,
-                                      kv_cache_config_json_str, request_stream_callback,
-                                      std::move(trace_recorder), model_infos);
+  return std::make_unique<EngineImpl>(
+      max_single_sequence_length, tokenizer_path, kv_cache_config_json_str, engine_mode_json_str,
+      request_stream_callback, std::move(trace_recorder), model_infos);
 }
 
 /*! \brief Clear global memory manager */
@@ -196,14 +212,15 @@ void ClearGlobalMemoryManager() {
 std::unique_ptr<Engine> CreateEnginePacked(TVMArgs args) {
   static const char* kErrorMessage =
       "With `n` models, engine initialization "
-      "takes (5 + 4 * n) arguments. The first 5 arguments should be: "
+      "takes (6 + 4 * n) arguments. The first 6 arguments should be: "
       "1) (int) maximum length of a sequence, which must be equal or smaller than the context "
       "window size of each model; "
       "2) (string) path to tokenizer configuration files, which in MLC LLM, usually in a model "
       "weights directory; "
       "3) (string) JSON configuration for the KVCache; "
-      "4) (packed function, optional) global request stream callback function. "
-      "5) (EventTraceRecorder, optional) the event trace recorder for requests."
+      "4) (string) JSON mode for Engine;"
+      "5) (packed function, optional) global request stream callback function. "
+      "6) (EventTraceRecorder, optional) the event trace recorder for requests."
       "The following (4 * n) arguments, 4 for each model, should be: "
       "1) (tvm.runtime.Module) The model library loaded into TVM's RelaxVM; "
       "2) (string) Model path which includes weights and mlc-chat-config.json; "
@@ -211,33 +228,40 @@ std::unique_ptr<Engine> CreateEnginePacked(TVMArgs args) {
       "4) (int) Device id, i.e. the ordinal index of the device that exists locally.";
 
   ClearGlobalMemoryManager();
-  int num_models = (args.size() - 4) / 4;
+  const int num_non_model_args = 6;
+  const int num_model_args = 4;
+  int num_models = (args.size() - num_non_model_args) / num_model_args;
   int max_single_sequence_length;
   std::string tokenizer_path;
   std::string kv_cache_config_json_str;
+  std::string engine_mode_json_str;
   Optional<PackedFunc> request_stream_callback;
   Optional<EventTraceRecorder> trace_recorder;
   std::vector<std::tuple<TVMArgValue, String, DLDevice>> model_infos;
   model_infos.reserve(num_models);
   try {
-    CHECK_EQ(num_models * 4 + 5, args.size()) << "Incorrect number of arguments.";
+    CHECK_LE(num_models * num_model_args + num_non_model_args, args.size())
+        << "Incorrect number of arguments.";
     max_single_sequence_length = args.At<int>(0);
     tokenizer_path = args.At<std::string>(1);
     kv_cache_config_json_str = args.At<std::string>(2);
-    request_stream_callback = args.At<Optional<PackedFunc>>(3);
-    trace_recorder = args.At<Optional<EventTraceRecorder>>(4);
+    engine_mode_json_str = args.At<std::string>(3);
+    request_stream_callback = args.At<Optional<PackedFunc>>(4);
+    trace_recorder = args.At<Optional<EventTraceRecorder>>(5);
     for (int i = 0; i < num_models; ++i) {
-      TVMArgValue model_lib = args[i * 4 + 5];
-      std::string model_path = args.At<std::string>(i * 4 + 6);
-      DLDeviceType device_type = static_cast<DLDeviceType>(args.At<int>(i * 4 + 7));
-      int device_id = args.At<int>(i * 4 + 8);
+      TVMArgValue model_lib = args[i * num_model_args + num_non_model_args];
+      std::string model_path = args.At<std::string>(i * num_model_args + num_non_model_args + 1);
+      DLDeviceType device_type =
+          static_cast<DLDeviceType>(args.At<int>(i * num_model_args + num_non_model_args + 2));
+      int device_id = args.At<int>(i * num_model_args + num_non_model_args + 3);
       model_infos.emplace_back(model_lib, model_path, DLDevice{device_type, device_id});
     }
   } catch (const dmlc::Error& e) {
     LOG(FATAL) << "ValueError: " << e.what() << kErrorMessage;
   }
   return Engine::Create(max_single_sequence_length, tokenizer_path, kv_cache_config_json_str,
-                        request_stream_callback, std::move(trace_recorder), model_infos);
+                        engine_mode_json_str, request_stream_callback, std::move(trace_recorder),
+                        model_infos);
 }
 
 class EngineModule : public ModuleNode {
