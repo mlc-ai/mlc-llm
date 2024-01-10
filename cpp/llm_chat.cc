@@ -1755,5 +1755,10 @@ TVM_REGISTER_GLOBAL("mlc.random.set_seed").set_body_typed([](int seed) {
   RandomGenerator::GetInstance().SetSeed(seed);
 });
 
+// for MLC RUST API: to force the Rust compiler to link the whole translation unit
+extern "C" {
+void LLMChatDummyLinkFunc() {}
+}
+
 }  // namespace llm
 }  // namespace mlc
