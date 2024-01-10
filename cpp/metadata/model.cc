@@ -71,7 +71,11 @@ ModelMetadata ModelMetadata::FromModule(tvm::runtime::Module module) {
   std::string json_str = "";
   try {
     TypedPackedFunc<String()> pf = module.GetFunction("_metadata");
-    ICHECK(pf != nullptr) << "Unable to find `_metadata` function.";
+    if (pf == nullptr) {
+      // legacy path
+      // TODO: remove this after full SLMify
+      return ModelMetadata();
+    }
     json_str = pf();
   } catch (...) {
     return ModelMetadata();  // TODO: add a warning message about legacy usecases
