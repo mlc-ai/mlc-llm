@@ -146,7 +146,7 @@ def sample(
 
 
 def load_disco_module(artifact_path, lib_path, num_shards):
-    sess = di.ProcessSession(num_workers=num_shards)
+    sess = di.ProcessSession(num_workers=num_shards, entrypoint="tvm.exec.disco_worker")
     devices = range(num_shards)
     sess.init_ccl("nccl", *devices)
     module = sess.load_vm_module(lib_path)
