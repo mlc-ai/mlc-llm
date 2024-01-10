@@ -5,7 +5,7 @@ import json
 import math
 import os
 import shutil
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import tvm
@@ -136,7 +136,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
     args.quantization = quantization_schemes[args.quantization]
 
 
-def debug_dump_script(mod, name, args: argparse.Namespace, show_meta=True):
+def debug_dump_script(mod, name, args: argparse.Namespace, show_meta=False):
     """Debug dump mode"""
     if not args.debug_dump:
         return
@@ -328,7 +328,34 @@ def load_params(artifact_path: str, device) -> List[tvm.nd.NDArray]:
     return plist
 
 
+def split_transform_deploy_mod(
+    mod: tvm.IRModule, model_names: List[str]
+) -> Tuple[tvm.IRModule, tvm.IRModule]:
+    mod_transform = tvm.IRModule()
+    mod_deploy = tvm.IRModule()
+    transform_func_name = "transform_params"
+    transform_func_names=[]
+
+    for gv in mod.functions:
+        func = mod[gv]
+        if isinstance(func, tvm.tir.PrimFunc):
+            mod_transform[gv] = func
+            mod_deploy[gv] = func
+        elif transform_func_name in gv.name_hint:
+            mod_transform[gv] = func
+            transform_func_names.append(gv.name_hint)
+        else:
+            mod_deploy[gv] = func
+
+    mod_transform = relax.transform.DeadCodeElimination(transform_func_names)(mod_transform)
+    mod_deploy = relax.transform.DeadCodeElimination(model_names)(mod_deploy)
+    return mod_transform, mod_deploy
+
+
 def copy_tokenizer(args: argparse.Namespace) -> None:
+    params_dir = os.path.join(args.artifact_path, "params")
+    if not os.path.exists(params_dir):
+        os.makedirs(params_dir)
     for filename in os.listdir(args.model_path):
         if filename in [
             "tokenizer.model",
@@ -338,10 +365,7 @@ def copy_tokenizer(args: argparse.Namespace) -> None:
             "added_tokens.json",
             "tokenizer_config.json",
         ]:
-            shutil.copy(
-                os.path.join(args.model_path, filename),
-                os.path.join(args.artifact_path, "params"),
-            )
+            shutil.copy(os.path.join(args.model_path, filename), params_dir)
 
     # If we have `tokenizer.model` but not `tokenizer.json`, try convert it to
     # `tokenizer.json` with `transformers`.
