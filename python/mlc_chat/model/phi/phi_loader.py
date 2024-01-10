@@ -70,7 +70,7 @@ def huggingface(model_config: PhiConfig, quantization: Quantization) -> ExternMa
         _add("lm_head.linear.bias", f"{prefix}.linear.bias")
 
     elif model_config.model_type == "phi-msft":
-        _add("transformer.embd.weight", "transformer.wte.weight")
+        _add("transformer.embd.weight", "transformer.embd.wte.weight")
         for mlc_name, _ in named_parameters.items():
             if mlc_name not in mapping.param_map:
                 _add(mlc_name, mlc_name)
