@@ -71,7 +71,7 @@ std::string BNFGrammarPrinter::PrintRuleRef(const RuleExpr& rule_expr) {
 std::string BNFGrammarPrinter::PrintSequence(const RuleExpr& rule_expr) {
   std::string result;
   auto prev_require_parentheses = require_parentheses_;
-  // If the sequence contains >= 2 elements, and is nested in another rule_expr with >= 2 elements,
+  // If the sequence contains > 1 elements, and is nested in another rule_expr with > 1 elements,
   // we need to print parentheses.
   auto now_require_parentheses = require_parentheses_ && rule_expr.data_len > 1;
   require_parentheses_ = require_parentheses_ || rule_expr.data_len > 1;

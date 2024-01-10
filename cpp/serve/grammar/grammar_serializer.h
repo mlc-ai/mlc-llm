@@ -26,9 +26,7 @@ class BNFGrammarSerializer {
    */
   explicit BNFGrammarSerializer(const BNFGrammar& grammar) : grammar_(grammar) {}
 
-  /*!
-   * \brief Serialize the grammar to string.
-   */
+  /*! \brief Serialize the grammar to string. */
   virtual String ToString() = 0;
 
  protected:
@@ -50,9 +48,7 @@ class BNFGrammarPrinter : public BNFGrammarSerializer {
    */
   explicit BNFGrammarPrinter(const BNFGrammar& grammar) : BNFGrammarSerializer(grammar) {}
 
-  /*!
-   * \brief Print the complete grammar.
-   */
+  /*! \brief Print the complete grammar. */
   String ToString() final;
 
   /*! \brief Print a rule_expr corresponding to the given id. */

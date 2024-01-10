@@ -20,11 +20,12 @@ using namespace tvm::runtime;
 
 /*!
  * \brief This class parses a BNF/EBNF grammar string into an BNF abstract syntax tree (AST).
- * \details This function accepts the EBNF notation from the W3C XML Specification, which is a
- * popular standard, with the following changes:
+ * \details This function accepts the EBNF notation from the W3C XML Specification
+ * (https://www.w3.org/TR/xml/#sec-notation), which is a popular standard, with the following
+ * changes:
  * - Using # as comment mark instead of /**\/
- * - Using C-style unicode escape sequence \u01AB, \U000001AB, \xAB instead of #x0123
- * - Do not support A-B (match A and not match B) yet
+ * - Accept C-style unicode escape sequence \u01AB, \U000001AB, \xAB instead of #x0123
+ * - Rule A-B (match A and not match B) is not supported yet
  *
  * See tests/python/serve/json.ebnf for an example.
  */

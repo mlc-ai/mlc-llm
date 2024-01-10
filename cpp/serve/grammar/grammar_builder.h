@@ -32,7 +32,8 @@ class BNFGrammarBuilder {
 
   /*!
    * \brief Create grammar containing the rules and rule_exprs of an existing grammar. The old
-   * grammar remains unchanged. \param grammar The existing grammar.
+   * grammar remains unchanged.
+   * \param grammar The existing grammar.
    */
   explicit BNFGrammarBuilder(const BNFGrammar& grammar)
       : grammar_(make_object<BNFGrammarNode>(*grammar.get())) {}
@@ -60,7 +61,7 @@ class BNFGrammarBuilder {
     int32_t upper;
   };
 
-  /*! \brief Insert rule_exprs for character range.*/
+  /*! \brief Insert a RuleExpr for character range.*/
   int32_t InsertCharacterRange(const std::vector<CharacterRangeElement>& elements) {
     std::vector<int32_t> data;
     for (const auto& range : elements) {
@@ -70,7 +71,7 @@ class BNFGrammarBuilder {
     return InsertRuleExpr({DataKind::kCharacterRange, data.data(), data.size()});
   }
 
-  /*! \brief Insert rule_exprs for character range negation.*/
+  /*! \brief Insert a RuleExpr for character range negation.*/
   int32_t InsertNegCharacterRange(const std::vector<CharacterRangeElement>& elements) {
     std::vector<int32_t> data;
     for (const auto& range : elements) {
@@ -80,24 +81,24 @@ class BNFGrammarBuilder {
     return InsertRuleExpr({DataKind::kNegCharacterRange, data.data(), data.size()});
   }
 
-  /*! \brief Insert rule_exprs for empty string.*/
+  /*! \brief Insert a RuleExpr for empty string.*/
   int32_t InsertEmptyStr() { return InsertRuleExpr({DataKind::kEmptyStr, nullptr, 0}); }
 
-  /*! \brief Insert rule_exprs for rule reference.*/
+  /*! \brief Insert a RuleExpr for rule reference.*/
   int32_t InsertRuleRef(int32_t rule_id) {
     std::vector<int32_t> data;
     data.push_back(rule_id);
     return InsertRuleExpr({DataKind::kRuleRef, data.data(), data.size()});
   }
 
-  /*! \brief Insert rule_exprs for rule_expr sequence.*/
+  /*! \brief Insert a RuleExpr for RuleExpr sequence.*/
   int32_t InsertSequence(const std::vector<int32_t>& elements) {
     std::vector<int32_t> data;
     data.insert(data.end(), elements.begin(), elements.end());
     return InsertRuleExpr({DataKind::kSequence, data.data(), data.size()});
   }
 
-  /*! \brief Insert rule_exprs for rule_expr choices.*/
+  /*! \brief Insert a RuleExpr for RuleExpr choices.*/
   int32_t InsertChoices(const std::vector<int32_t>& choices) {
     std::vector<int32_t> data;
     data.insert(data.end(), choices.begin(), choices.end());
@@ -149,7 +150,7 @@ class BNFGrammarBuilder {
 
   /*!
    * \brief Find a name for a new rule starting with the given name hint. Some integer suffix (_1,
-   * _2, ...) will be added to avoid name conflict.
+   * _2, ...) may be added to avoid name conflict.
    */
   std::string GetNewRuleName(const std::string& name_hint) {
     if (rule_name_to_id_.count(name_hint) == 0) {
