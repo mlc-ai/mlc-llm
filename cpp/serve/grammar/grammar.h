@@ -65,7 +65,7 @@ class BNFGrammarNode : public Object {
   /*! \brief Get the rule with the given id. */
   const Rule& GetRule(int32_t rule_id) const { return rules_[rule_id]; }
 
-  /*! \brief The data type of the content of rule_exprs. */
+  /*! \brief The data kind of the content of rule_exprs. */
   enum class DataKind : int32_t {
     // data format: [lower0, upper0, lower1, upper1, ...]
     // to represent a single character, just add the same lower and upper bound.
@@ -82,11 +82,16 @@ class BNFGrammarNode : public Object {
     kChoices,
   };
 
+  /*! \brief The object representing a rule expr. */
   struct RuleExpr {
+    /*! \brief The data kind. */
     DataKind kind;
+    /*! \brief The data of the RuleExpr. A variable-length array. */
     const int32_t* data;
+    /*! \brief The length of the data array. */
     size_t data_len;
 
+    /*! \brief Get the i-th element of the data array. */
     const int32_t& operator[](int i) const { return data[i]; }
   };
 
