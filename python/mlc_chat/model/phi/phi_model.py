@@ -3,7 +3,7 @@ Implementation for Phi architecture.
 TODO: add docstring
 """
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from tvm import te, tir
 from tvm.relax.frontend import nn
@@ -27,7 +27,7 @@ class Phi1Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     num_hidden_layers: int = 24
     num_attention_heads: int = 32
     layer_norm_eps: float = 1e-5
-    position_embedding_base: float = 0
+    position_embedding_base: int = 0
     partial_rotary_factor: float = 0.5
     num_key_value_heads: int = 0
     context_window_size: int = 0
@@ -274,7 +274,7 @@ class PhiModel(nn.Module):
 
 
 class PhiForCausalLM(nn.Module):
-    def __init__(self, config: PhiConfig) -> None:
+    def __init__(self, config: Union[PhiConfig, Phi1Config]) -> None:
         super().__init__()
 
         if isinstance(config, Phi1Config):
