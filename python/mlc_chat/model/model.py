@@ -152,4 +152,17 @@ MODELS: Dict[str, Model] = {
             "group-quant": phi_quantization.group_quant,
         },
     ),
+    "phi": Model(
+        name="phi",
+        model=phi_model.PhiForCausalLM,
+        config=phi_model.Phi1Config,
+        source={
+            "huggingface-torch": phi_loader.phi1_huggingface,
+            "huggingface-safetensor": phi_loader.phi1_huggingface,
+        },
+        quantize={
+            "no-quant": phi_quantization.no_quant,
+            "group-quant": phi_quantization.group_quant,
+        },
+    ),
 }
