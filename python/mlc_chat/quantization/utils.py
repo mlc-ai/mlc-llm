@@ -10,26 +10,29 @@ def convert_uint_to_float(  # pylint: disable=too-many-arguments
     num_elem_per_storage: int,
     storage_dtype: str,
     model_dtype: str,
+    axis: int = -1,
     out_shape: Optional[List[tir.PrimExpr]] = None,
     ft_reorder: Optional[bool] = False,
 ) -> te.Tensor:
     """Convert a quantized uint weight to an unquantized float weight."""
     tir_bin_mask = tir.const((1 << bits) - 1, storage_dtype)
+    if out_shape is None:
+        out_shape = weight.shape
+        out_shape[axis] *= num_elem_per_storage
+    axis = axis if axis >= 0 else len(out_shape) + axis
     return te.compute(
-        shape=[*weight.shape[:-1], weight.shape[-1] * num_elem_per_storage]
-        if out_shape is None
-        else out_shape,
+        shape=out_shape,
         fcompute=lambda *idx: tir.bitwise_and(
             tir.shift_right(
-                weight[idx[:-1] + (idx[-1] // num_elem_per_storage,)],
+                weight(*idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]),
                 (
                     (
-                        (idx[-1] % num_elem_per_storage) % 2 * 4
-                        + (idx[-1] % num_elem_per_storage) // 2
+                        (idx[axis] % num_elem_per_storage) % 2 * 4
+                        + (idx[axis] % num_elem_per_storage) // 2
                     )
                     * bits
                     if ft_reorder
-                    else (idx[-1] % num_elem_per_storage) * bits
+                    else (idx[axis] % num_elem_per_storage) * bits
                 ).astype(storage_dtype),
             ),
             tir_bin_mask,

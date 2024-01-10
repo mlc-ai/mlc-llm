@@ -137,6 +137,14 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             and model_config.tensor_parallel_shards > 1
         ):
             raise NotImplementedError
+        if (
+            args.quantization.linear_weight_layout == "KN"
+            and hasattr(model_config, "tensor_parallel_shards")
+            and model_config.tensor_parallel_shards > 1
+        ):
+            raise NotImplementedError(
+                "KN layout (q3f16_0 and q4f16_0) is not supported for tensor parallelism"
+            )
         model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
         kv_cache_bytes = _find_kv_cache_bytes(model, model_config)
         # Step 2. Exporting the model to TVM Unity

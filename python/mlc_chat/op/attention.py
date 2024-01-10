@@ -101,7 +101,8 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
             if not WARN_FLASHINFER_GROUP_SIZE:
                 WARN_FLASHINFER_GROUP_SIZE = True
                 logger.warning(
-                    "FlashInfer only supports group size in [1, 4, 8], but got %d",
+                    "FlashInfer only supports group size in [1, 4, 8], but got %d. Skip and "
+                    "fallback to default implementation.",
                     group_size,
                 )
             return _fallback()
@@ -110,7 +111,8 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
             if not WARN_FLASHINFER_HEAD_DIM:
                 WARN_FLASHINFER_HEAD_DIM = True
                 logger.warning(
-                    "FlashInfer only head_dim in [128], but got %d",
+                    "FlashInfer only supports head_dim in [128], but got %d. Skip and fallback to "
+                    "default implementation.",
                     d,
                 )
             return _fallback()
