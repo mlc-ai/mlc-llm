@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 class PhiConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the Phi model."""
 
+    model_type: str  # "phi", "phi-msft", "mixformer-sequential"
     vocab_size: int = 51200
     n_positions: int = 2048
     n_embd: int = 2560

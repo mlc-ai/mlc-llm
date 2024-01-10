@@ -34,26 +34,42 @@ def huggingface(model_config: PhiConfig, quantization: Quantization) -> ExternMa
         spec=model.get_default_spec()
     )
     named_parameters = dict(_named_params)
-
     mapping = ExternMapping()
 
-    mapping.add_mapping(
-        "transformer.embd.weight",
-        ["transformer.embd.wte.weight"],
-        functools.partial(
-            lambda x, dtype: x.astype(dtype),
-            dtype=named_parameters["transformer.embd.weight"].dtype,
-        ),
-    )
+    def _add(mlc_name, hf_name):
+        mapping.add_mapping(
+            mlc_name,
+            [hf_name],
+            functools.partial(
+                lambda x, dtype: x.astype(dtype),
+                dtype=named_parameters[mlc_name].dtype,
+            ),
+        )
 
-    for mlc_name, mlc_param in named_parameters.items():
-        if mlc_name not in mapping.param_map:
-            mapping.add_mapping(
-                mlc_name,
-                [mlc_name],
-                functools.partial(
-                    lambda x, dtype: x.astype(dtype),
-                    dtype=mlc_param.dtype,
-                ),
-            )
+    if model_config.model_type == "mixformer-sequential":
+        _add("transformer.embd.weight", "layers.0.wte.weight")
+        prefix = "transformer.h"
+        for i in range(model_config.n_layer):
+            _add(f"{prefix}.{i}.ln.weight", f"layers.{i + 1}.ln.weight")
+            _add(f"{prefix}.{i}.ln.bias", f"layers.{i + 1}.ln.bias")
+            _add(f"{prefix}.{i}.mixer.Wqkv.weight", f"layers.{i + 1}.mixer.Wqkv.weight")
+            _add(f"{prefix}.{i}.mixer.Wqkv.bias", f"layers.{i + 1}.mixer.Wqkv.bias")
+            _add(f"{prefix}.{i}.mixer.out_proj.weight", f"layers.{i + 1}.mixer.out_proj.weight")
+            _add(f"{prefix}.{i}.mixer.out_proj.bias", f"layers.{i + 1}.mixer.out_proj.bias")
+            _add(f"{prefix}.{i}.mlp.fc1.weight", f"layers.{i + 1}.mlp.fc1.weight")
+            _add(f"{prefix}.{i}.mlp.fc1.bias", f"layers.{i + 1}.mlp.fc1.bias")
+            _add(f"{prefix}.{i}.mlp.fc2.weight", f"layers.{i + 1}.mlp.fc2.weight")
+            _add(f"{prefix}.{i}.mlp.fc2.bias", f"layers.{i + 1}.mlp.fc2.bias")
+            mapping.add_unused(f"layers.{i + 1}.mixer.rotary_emb.inv_freq")
+        prefix = f"layers.{model_config.n_layer + 1}"
+        _add("lm_head.ln.weight", f"{prefix}.ln.weight")
+        _add("lm_head.ln.bias", f"{prefix}.ln.bias")
+        _add("lm_head.linear.weight", f"{prefix}.linear.weight")
+        _add("lm_head.linear.bias", f"{prefix}.linear.bias")
+
+    elif model_config.model_type == "phi-msft":
+        _add("transformer.embd.weight", "transformer.wte.weight")
+        for mlc_name, _ in named_parameters.items():
+            if mlc_name not in mapping.param_map:
+                _add(mlc_name, mlc_name)
     return mapping
