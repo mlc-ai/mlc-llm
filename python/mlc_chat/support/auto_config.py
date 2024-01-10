@@ -148,7 +148,7 @@ def detect_model_type(model_type: str, config: Path) -> "Model":
                 f"Please explicitly specify `--model-type` instead."
             )
         model_type = cfg["model_type"] if "model_type" in cfg else cfg["model_config"]["model_type"]
-    if model_type in ["mixformer-sequential", "phi"]:
+    if model_type in ["mixformer-sequential"]:
         model_type = "phi-msft"
     logger.info("%s model type: %s. Use `--model-type` to override.", FOUND, bold(model_type))
     if model_type not in MODELS:

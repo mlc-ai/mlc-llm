@@ -3,7 +3,7 @@ Implementation for Phi architecture.
 TODO: add docstring
 """
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from tvm import te, tir
 from tvm.relax.frontend import nn
@@ -18,8 +18,64 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
+class Phi1Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
+    """Configuration of the Phi-1/Phi-1.5 model."""
+
+    vocab_size: int = 51200
+    hidden_size: int = 2048
+    intermediate_size: int = 8192
+    num_hidden_layers: int = 24
+    num_attention_heads: int = 32
+    layer_norm_eps: float = 1e-5
+    position_embedding_base: int = 0
+    partial_rotary_factor: float = 0.5
+    num_key_value_heads: int = 0
+    context_window_size: int = 0
+    prefill_chunk_size: int = 0
+    head_dim: int = 0
+    tensor_parallel_shards: int = 1
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+
+    def __post_init__(self):
+        if self.position_embedding_base == 0:
+            if "rope_theta" in self.kwargs:
+                self.position_embedding_base = self.kwargs.pop("rope_theta")
+            else:
+                self.position_embedding_base = 10000
+        if self.context_window_size == 0:
+            for name in ["max_position_embeddings", "max_sequence_length"]:
+                if name in self.kwargs:
+                    self.context_window_size = self.kwargs.pop(name)
+                    logger.info(
+                        "%s not found in config.json. Falling back to %s (%d)",
+                        bold("context_window_size"),
+                        bold(name),
+                        self.context_window_size,
+                    )
+                    break
+            else:
+                raise ValueError(
+                    "Unable to determine the maxmimum sequence length, because none of "
+                    "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
+                    "provided in `config.json`."
+                )
+        if self.prefill_chunk_size == 0:
+            self.prefill_chunk_size = self.context_window_size
+        if self.prefill_chunk_size > self.context_window_size:
+            self.prefill_chunk_size = self.context_window_size
+        if self.num_key_value_heads == 0 or self.num_key_value_heads is None:
+            self.num_key_value_heads = self.num_attention_heads
+        if self.intermediate_size == 0 or self.intermediate_size is None:
+            self.intermediate_size = 4 * self.hidden_size
+        if self.head_dim == 0:
+            self.head_dim = self.hidden_size // self.num_attention_heads
+        assert self.head_dim * self.num_attention_heads == self.hidden_size
+        assert self.num_attention_heads % self.num_key_value_heads == 0
+
+
+@dataclasses.dataclass
 class PhiConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
-    """Configuration of the Phi model."""
+    """Configuration of the Phi-2 model."""
 
     model_type: str  # "phi", "phi-msft", "mixformer-sequential"
     vocab_size: int = 51200
@@ -75,6 +131,28 @@ class PhiConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.head_dim = self.n_embd // self.n_head
         assert self.head_dim * self.n_head == self.n_embd
         assert self.n_head % self.n_head_kv == 0
+
+    @staticmethod
+    def from_phi1(config: Phi1Config) -> "PhiConfig":
+        "Build PhiConig from a Phi1Config."
+        return PhiConfig(
+            model_type="phi",
+            vocab_size=config.vocab_size,
+            n_positions=config.context_window_size,
+            n_embd=config.hidden_size,
+            n_layer=config.num_hidden_layers,
+            n_inner=config.intermediate_size,
+            n_head=config.num_attention_heads,
+            rotary_dim=int(config.partial_rotary_factor * config.head_dim),
+            position_embedding_base=config.position_embedding_base,
+            layer_norm_epsilon=config.layer_norm_eps,
+            context_window_size=config.context_window_size,
+            prefill_chunk_size=config.prefill_chunk_size,
+            n_head_kv=config.num_key_value_heads,
+            head_dim=config.head_dim,
+            tensor_parallel_shards=config.tensor_parallel_shards,
+            kwargs=config.kwargs,
+        )
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -196,8 +274,11 @@ class PhiModel(nn.Module):
 
 
 class PhiForCausalLM(nn.Module):
-    def __init__(self, config: PhiConfig) -> None:
+    def __init__(self, config: Union[PhiConfig, Phi1Config]) -> None:
         super().__init__()
+
+        if isinstance(config, Phi1Config):
+            config = PhiConfig.from_phi1(config)
 
         self.transformer = PhiModel(config)
         self.lm_head = PhiCausalLMHead(config)
