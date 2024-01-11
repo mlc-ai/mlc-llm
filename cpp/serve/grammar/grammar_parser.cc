@@ -72,7 +72,7 @@ class EBNFParserImpl {
   }
 
   // The grammar builder
-  BNFGrammarBuilder grammar_builder_;
+  BNFGrammarBuilder builder_;
   // A pointer to the current parse position in the string
   const char* cur_ = nullptr;
   // The current line and column number
@@ -183,7 +183,7 @@ int32_t EBNFParserImpl::ParseCharacterRange() {
     }
   }
 
-  return grammar_builder_.InsertCharacterRange(elements);
+  return builder_.InsertCharacterRange(elements);
 }
 
 // parse a c style string with utf8 support
@@ -201,21 +201,21 @@ int32_t EBNFParserImpl::ParseString() {
       ThrowParseError("Invalid escape sequence");
     }
     Consume(len);
-    character_ranges.push_back(grammar_builder_.InsertCharacterRange({{codepoint, codepoint}}));
+    character_ranges.push_back(builder_.InsertCharacterRange({{codepoint, codepoint}}));
   }
   if (character_ranges.empty()) {
-    return grammar_builder_.InsertEmptyStr();
+    return builder_.InsertEmptyStr();
   }
-  return grammar_builder_.InsertSequence(character_ranges);
+  return builder_.InsertSequence(character_ranges);
 }
 
 int32_t EBNFParserImpl::ParseRuleRef() {
   std::string name = ParseName();
-  auto rule_id = grammar_builder_.GetRuleId(name);
+  auto rule_id = builder_.GetRuleId(name);
   if (rule_id == -1) {
     ThrowParseError("Rule " + name + " is not defined");
   }
-  return grammar_builder_.InsertRuleRef(rule_id);
+  return builder_.InsertRuleRef(rule_id);
 }
 
 int32_t EBNFParserImpl::ParseElement() {
@@ -264,13 +264,12 @@ int32_t EBNFParserImpl::ParseElement() {
 
 int32_t EBNFParserImpl::HandleStarQuantifier(int32_t rule_expr_id) {
   // a*  -->  rule ::= a rule | empty
-  auto new_rule_name = grammar_builder_.GetNewRuleName(cur_rule_name_);
-  auto new_rule_id = grammar_builder_.InsertEmptyRule(new_rule_name);
-  auto new_rule_ref = grammar_builder_.InsertRuleRef(new_rule_id);
-  auto new_rule_expr_id =
-      grammar_builder_.InsertChoices({grammar_builder_.InsertSequence({rule_expr_id, new_rule_ref}),
-                                      grammar_builder_.InsertEmptyStr()});
-  grammar_builder_.SetRuleBody(new_rule_id, new_rule_expr_id);
+  auto new_rule_name = builder_.GetNewRuleName(cur_rule_name_);
+  auto new_rule_id = builder_.InsertEmptyRule(new_rule_name);
+  auto new_rule_ref = builder_.InsertRuleRef(new_rule_id);
+  auto new_rule_expr_id = builder_.InsertChoices(
+      {builder_.InsertSequence({rule_expr_id, new_rule_ref}), builder_.InsertEmptyStr()});
+  builder_.SetRuleBody(new_rule_id, new_rule_expr_id);
   return new_rule_id;
 }
 
@@ -278,27 +277,26 @@ int32_t EBNFParserImpl::HandlePlusQuantifier(int32_t rule_expr_id) {
   // a+  -->  rule ::= a rule | a
   // We will use rule_expr a for two times in this case
   // So first we create a rule for rule_expr a
-  auto a_rule_name = grammar_builder_.GetNewRuleName(cur_rule_name_);
-  auto a_rule_id = grammar_builder_.InsertRule({a_rule_name, rule_expr_id});
+  auto a_rule_name = builder_.GetNewRuleName(cur_rule_name_);
+  auto a_rule_id = builder_.InsertRule({a_rule_name, rule_expr_id});
 
   // Then create the new rule_expr.
-  auto new_rule_name = grammar_builder_.GetNewRuleName(cur_rule_name_);
-  auto new_rule_id = grammar_builder_.InsertEmptyRule(new_rule_name);
-  auto a_plus_ref = grammar_builder_.InsertRuleRef(new_rule_id);
-  auto a_ref1 = grammar_builder_.InsertRuleRef(a_rule_id);
-  auto a_ref2 = grammar_builder_.InsertRuleRef(a_rule_id);
-  auto new_rule_expr_id = grammar_builder_.InsertChoices(
-      {grammar_builder_.InsertSequence({a_ref1, a_plus_ref}), a_ref2});
-  grammar_builder_.SetRuleBody(new_rule_id, new_rule_expr_id);
+  auto new_rule_name = builder_.GetNewRuleName(cur_rule_name_);
+  auto new_rule_id = builder_.InsertEmptyRule(new_rule_name);
+  auto a_plus_ref = builder_.InsertRuleRef(new_rule_id);
+  auto a_ref1 = builder_.InsertRuleRef(a_rule_id);
+  auto a_ref2 = builder_.InsertRuleRef(a_rule_id);
+  auto new_rule_expr_id =
+      builder_.InsertChoices({builder_.InsertSequence({a_ref1, a_plus_ref}), a_ref2});
+  builder_.SetRuleBody(new_rule_id, new_rule_expr_id);
   return new_rule_id;
 }
 
 int32_t EBNFParserImpl::HandleQuestionQuantifier(int32_t rule_expr_id) {
   // a?  -->  rule ::= a | empty
-  auto new_rule_name = grammar_builder_.GetNewRuleName(cur_rule_name_);
-  auto new_rule_expr_id =
-      grammar_builder_.InsertChoices({rule_expr_id, grammar_builder_.InsertEmptyStr()});
-  auto new_rule_id = grammar_builder_.InsertRule({new_rule_name, new_rule_expr_id});
+  auto new_rule_name = builder_.GetNewRuleName(cur_rule_name_);
+  auto new_rule_expr_id = builder_.InsertChoices({rule_expr_id, builder_.InsertEmptyStr()});
+  auto new_rule_id = builder_.InsertRule({new_rule_name, new_rule_expr_id});
   return new_rule_id;
 }
 
@@ -313,11 +311,11 @@ int32_t EBNFParserImpl::ParseQuantifier() {
   // We will transform a*, a+, a? into a rule, and return the reference to this rule
   switch (Peek(-1)) {
     case '*':
-      return grammar_builder_.InsertRuleRef(HandleStarQuantifier(rule_expr_id));
+      return builder_.InsertRuleRef(HandleStarQuantifier(rule_expr_id));
     case '+':
-      return grammar_builder_.InsertRuleRef(HandlePlusQuantifier(rule_expr_id));
+      return builder_.InsertRuleRef(HandlePlusQuantifier(rule_expr_id));
     case '?':
-      return grammar_builder_.InsertRuleRef(HandleQuestionQuantifier(rule_expr_id));
+      return builder_.InsertRuleRef(HandleQuestionQuantifier(rule_expr_id));
     default:
       LOG(FATAL) << "Unreachable";
   }
@@ -331,7 +329,7 @@ int32_t EBNFParserImpl::ParseSequence() {
     elements.push_back(ParseQuantifier());
     ConsumeSpace(in_parentheses_);
   }
-  return grammar_builder_.InsertSequence(elements);
+  return builder_.InsertSequence(elements);
 }
 
 int32_t EBNFParserImpl::ParseChoices() {
@@ -345,7 +343,7 @@ int32_t EBNFParserImpl::ParseChoices() {
     choices.push_back(ParseSequence());
     ConsumeSpace();
   }
-  return grammar_builder_.InsertChoices(choices);
+  return builder_.InsertChoices(choices);
 }
 
 EBNFParserImpl::Rule EBNFParserImpl::ParseRule() {
@@ -370,10 +368,10 @@ void EBNFParserImpl::BuildRuleNameToId() {
         ThrowParseError("Expect rule name");
       }
       Consume(3);
-      if (grammar_builder_.GetRuleId(name) != -1) {
+      if (builder_.GetRuleId(name) != -1) {
         ThrowParseError("Rule " + name + " is defined multiple times");
       }
-      grammar_builder_.InsertEmptyRule(name);
+      builder_.InsertEmptyRule(name);
     }
     while (Peek() && Peek() != '\n' && Peek() != '\r') {
       Consume();
@@ -398,16 +396,16 @@ BNFGrammar EBNFParserImpl::DoParse(String ebnf_string) {
   ConsumeSpace();
   while (Peek()) {
     auto new_rule = ParseRule();
-    grammar_builder_.SetRuleBody(new_rule.name, new_rule.rule_expr_id);
+    builder_.SetRuleBody(new_rule.name, new_rule.rule_expr_id);
 
     ConsumeSpace();
   }
 
-  if (grammar_builder_.GetRuleId("main") == -1) {
+  if (builder_.GetRuleId("main") == -1) {
     ThrowParseError("There must be a rule named main");
   }
 
-  return grammar_builder_.Finalize();
+  return builder_.Finalize();
 }
 
 BNFGrammar EBNFParser::Parse(String ebnf_string) {
