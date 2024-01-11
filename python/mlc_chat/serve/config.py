@@ -36,6 +36,10 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
         or None, in which case the generation will not stop
         until exceeding model capability or hit any stop criteria.
 
+    seed : Optional[int]
+        The random seed of the generation.
+        The seed will be a random value if not specified.
+
     stop_strs : List[str]
         The list of strings that mark the end of generation.
 
@@ -50,6 +54,7 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     repetition_penalty: float = 1.0
 
     max_tokens: Optional[int] = 128
+    seed: Optional[int] = None
     stop_strs: List[str] = field(default_factory=list)
     stop_token_ids: List[int] = field(default_factory=list)
 

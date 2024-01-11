@@ -208,7 +208,6 @@ def openai_api_get_unsupported_fields(
         ("logit_bias", None),
         ("logprobs", None),
         ("n", 1),
-        ("seed", None),
         ("response_format", "text"),
         ("tools", None),
         ("tool_choice", None),
@@ -226,7 +225,14 @@ def openai_api_get_generation_config(
 ) -> Dict[str, Any]:
     """Create the generation config from the given request."""
     kwargs: Dict[str, Any] = {}
-    arg_names = ["temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"]
+    arg_names = [
+        "temperature",
+        "top_p",
+        "max_tokens",
+        "frequency_penalty",
+        "presence_penalty",
+        "seed",
+    ]
     for arg_name in arg_names:
         kwargs[arg_name] = getattr(request, arg_name)
     if kwargs["max_tokens"] is None:

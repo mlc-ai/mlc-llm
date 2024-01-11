@@ -58,12 +58,14 @@ class BatchVerifyActionObj : public EngineActionObj {
     std::vector<int32_t> all_tokens_to_verify;
     Array<RequestModelState> verify_request_mstates;
     Array<GenerationConfig> generation_cfg;
+    std::vector<RandomGenerator*> rngs;
     std::vector<std::vector<int>> draft_output_tokens;
     std::vector<std::vector<float>> draft_output_token_prob;
     std::vector<std::vector<NDArray>> draft_output_prob_dist;
     request_internal_ids.reserve(num_requests);
     all_tokens_to_verify.reserve(total_draft_length);
     verify_request_mstates.reserve(num_requests);
+    rngs.reserve(num_requests);
     generation_cfg.reserve(num_requests);
     draft_output_tokens.reserve(num_requests);
     draft_output_token_prob.reserve(num_requests);
@@ -84,6 +86,7 @@ class BatchVerifyActionObj : public EngineActionObj {
                                   draft_mstate->draft_output_tokens.end() - 1);
       verify_request_mstates.push_back(verify_mstate);
       generation_cfg.push_back(requests[i]->generation_cfg);
+      rngs.push_back(&rstates[i]->rng);
       draft_output_tokens.push_back(draft_mstate->draft_output_tokens);
       draft_output_token_prob.push_back(draft_mstate->draft_output_token_prob);
       draft_output_prob_dist.push_back(draft_mstate->draft_output_prob_dist);
@@ -108,7 +111,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     }
     std::vector<std::vector<int32_t>> accepted_tokens_arr = sampler_->BatchVerifyDraftTokens(
         logits, cum_verify_lengths, models_[verify_model_id_], verify_request_mstates,
-        generation_cfg, draft_output_tokens, draft_output_token_prob, draft_output_prob_dist);
+        generation_cfg, rngs, draft_output_tokens, draft_output_token_prob, draft_output_prob_dist);
     ICHECK_EQ(accepted_tokens_arr.size(), num_requests);
 
     for (int i = 0; i < num_requests; ++i) {

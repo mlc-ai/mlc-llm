@@ -10,6 +10,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 
+#include "../random.h"
 #include "config.h"
 #include "request.h"
 
@@ -111,6 +112,8 @@ class RequestStateNode : public Object {
    * \sa RequestModelState
    */
   Array<RequestModelState> mstates;
+  /*! \brief The random number generator of this request. */
+  RandomGenerator rng;
   /*!
    * \brief The start position of the committed tokens in the
    * next request stream callback invocation.
