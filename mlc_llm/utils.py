@@ -258,23 +258,13 @@ def convert_weights(
     target = detect_local_target()
     print(f"Automatically using target for weight quantization: {target}")
     device = tvm.device(target.kind.default_keys[0])
-    device_cpu = tvm.cpu()
 
     loaded_params: List[tvm.nd.NDArray] = []
-    loaded_idx_set: Set[int] = set()
-    loaded_torch_bins: Set[str] = set()
-    cached_relax_params: Dict[int, tvm.nd.NDArray] = {}
-    cached_torch_params: Dict[str, Any] = {}
 
     get_item, set_item = param_mgr.get_param_loading_functions(
         model_params,
         loaded_params,
-        loaded_idx_set,
-        loaded_torch_bins,
-        cached_relax_params,
-        cached_torch_params,
         device,
-        device_cpu,
     )
 
     get_item = wrap_tqdm_counter(
