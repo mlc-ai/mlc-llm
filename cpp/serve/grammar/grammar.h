@@ -103,12 +103,12 @@ class BNFGrammarNode : public Object {
     DataKind kind = static_cast<DataKind>(rule_expr_data_[start_index]);
     ++start_index;
     int end_index;
-    if (rule_expr_id == rule_expr_indptr_.size() - 1) {
+    if (rule_expr_id == static_cast<int32_t>(rule_expr_indptr_.size()) - 1) {
       end_index = rule_expr_data_.size();
     } else {
       end_index = rule_expr_indptr_[rule_expr_id + 1];
     }
-    ICHECK(end_index >= start_index);
+    ICHECK_GE(end_index, start_index);
     return {kind, rule_expr_data_.data() + start_index,
             static_cast<size_t>(end_index - start_index)};
   }

@@ -49,7 +49,7 @@ class BNFGrammarBuilder {
     grammar_->rule_expr_data_.push_back(static_cast<int32_t>(rule_expr.kind));
     grammar_->rule_expr_data_.insert(grammar_->rule_expr_data_.end(), rule_expr.data,
                                      rule_expr.data + rule_expr.data_len);
-    return grammar_->rule_expr_indptr_.size() - 1;
+    return static_cast<int32_t>(grammar_->rule_expr_indptr_.size()) - 1;
   }
 
   /*!
@@ -115,6 +115,7 @@ class BNFGrammarBuilder {
     int32_t id = grammar_->rules_.size();
     auto rules = grammar_->rules_;
     grammar_->rules_.push_back(rule);
+    ICHECK_EQ(rule_name_to_id_.count(rule.name), 0);
     rule_name_to_id_[rule.name] = id;
     return id;
   }
@@ -134,7 +135,7 @@ class BNFGrammarBuilder {
    * \sa BNFGrammarBuilder::InsertEmptyRule
    */
   void SetRuleBody(int32_t rule_id, int32_t rule_expr_id) {
-    ICHECK(grammar_->rules_[rule_id].rule_expr_id == -1);
+    ICHECK_EQ(grammar_->rules_[rule_id].rule_expr_id, -1);
     grammar_->rules_[rule_id].rule_expr_id = rule_expr_id;
   }
 

@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file serve/grammar/grammar_printer.cc
+ * \file serve/grammar/grammar_serializer.cc
  */
 
 #include "grammar_serializer.h"
