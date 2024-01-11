@@ -259,13 +259,11 @@ def convert_weights(
     print(f"Automatically using target for weight quantization: {target}")
     device = tvm.device(target.kind.default_keys[0])
 
-    loaded_params: List[tvm.nd.NDArray] = []
-
-    get_item, set_item = param_mgr.get_param_loading_functions(
-        model_params,
-        loaded_params,
+    get_item = param_mgr.get_param_get_item(
         device,
+        model_params,
     )
+    set_item, loaded_params = param_mgr.get_param_set_item()
 
     get_item = wrap_tqdm_counter(
         get_item, desc="Get old param", position=0, unit="tensors", total=num_original_params

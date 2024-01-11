@@ -508,25 +508,43 @@ class ParamManager:
 
         return quantized_params
 
-    def get_param_loading_functions(
-        self,
-        model_params: List[Optional[tvm.nd.NDArray]],
-        loaded_params: List[tvm.nd.NDArray],
-        device: Device,
-    ) -> Tuple[Callable, Callable]:
-        """A wrapper function which returns the `get_item` and `set_item`
+    def get_param_get_item(
+        self, device: Device, model_params: List[Optional[tvm.nd.NDArray]] = []
+    ) -> Callable:
+        """A wrapper function which returns the `get_item`
         functions for parameter lazy loading.
+
+        The return value of this function is intended to be registered
+        as `"get_item"`, for use in a module built with
+        `LazyTransformParams`.
+
+        .. code-block:: python
+
+            get_item = manager.get_param_get_item(tvm.cuda())
+            tvm.register_func(func_name="get_item", f=get_item, override=True)
+            compiled_function()
 
         Parameters
         ----------
-        model_params : List[Optional[tvm.nd.NDArray]]
-            The pre-loaded model parameters, for which we skip lazy loading.
-
-        loaded_params : List[tvm.nd.NDArray]
-            The parameter loading result, storing all the loaded parameters.
-
         device : Device
-            The device onto which we load the parameters.
+
+            The device onto which tensor parameters should be loaded.
+
+        model_params : List[Optional[tvm.nd.NDArray]]
+
+            Any pre-loaded model parameters.  For parameter at index
+            `i`, if `model_params[i]` already contains an array, that
+            array will be returned from `get_item`.  Otherwise, the
+            parameter will be loaded either from disk, or from an
+            internal cache.
+
+        Returns
+        -------
+        get_item: Callable[[int], tvm.nd.NDArray]
+
+            A function that accepts an index, and returns the tensor
+            parameter located at that index, loaded onto `device`.
+
         """
         import torch  # pylint: disable=import-outside-toplevel
 
@@ -591,7 +609,7 @@ class ParamManager:
         def get_item(i):
             # If the weight is already provided by `model_params`, directly use it
             # and no need to load from binary file.
-            if model_params[i] is not None:
+            if model_params and len(model_params) > i and model_params[i] is not None:
                 assert i not in cached_relax_params
                 return tvm.nd.array(model_params[i], device=device)
 
@@ -626,12 +644,47 @@ class ParamManager:
             del cached_relax_params[i]
             return param_on_device
 
-        def set_item(i, computed_param):
+        return get_item
+
+    def get_param_set_item(self) -> Tuple[Callable, List[tvm.nd.NDArray]]:
+        """A wrapper function which returns the `set_item`
+        functions for parameter lazy loading.
+
+        The return value of this function is intended to be registered
+        as `"set_item"`, for use in a module built with
+        `LazyTransformParams`.
+
+        .. code-block:: python
+
+            set_item,loaded_params = manager.get_param_set_item()
+            tvm.register_func(func_name="set_item", f=set_item, override=True)
+            compiled_function()
+            # `loaded_params` is now fully populated
+
+        Returns
+        -------
+        set_item: Callable[[int,tvm.nd.NDArray]]
+
+            A function that accepts an index and the return value at
+            that index.
+
+        loaded_params: List[tvm.nd.NDArray]
+
+            A list of loaded parameters, populated by `set_item`.
+            When initially returned, this list is empty.  After
+            executing the compiled function with
+            `LazyTransformParams`, `loaded_params` will be
+            populated.
+        """
+        device_cpu = tvm.cpu()
+        loaded_params: List[tvm.nd.NDArray] = []
+
+        def set_item(i: int, computed_param: tvm.nd.NDArray):
             if len(loaded_params) <= i:
                 loaded_params.extend([None for _ in range(i - len(loaded_params) + 1)])
             loaded_params[i] = tvm.nd.array(computed_param, device=device_cpu)
 
-        return get_item, set_item
+        return set_item, loaded_params
 
     #################### Below are internally called methods ####################
 
