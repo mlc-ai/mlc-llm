@@ -338,8 +338,6 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
     def create_flashinfer_paged_kv_cache(
         self, max_batch_size: tir.Var, max_total_seq_len: tir.Var, page_size: tir.Var
     ) -> PagedKVCache:
-        num_qo_heads = self.num_attention_heads // self.tensor_parallel_shards
-        num_kv_heads = self.num_key_value_heads // self.tensor_parallel_shards
         # Note: Right now we only have FlashInfer-based KV cache supported.
         # TIR version will be introduced soon.
         return FlashInferPagedKVCache(
@@ -347,8 +345,8 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             max_total_seq_len=max_total_seq_len,
             page_size=page_size,
             num_hidden_layers=self.num_hidden_layers,
-            num_attention_heads=num_qo_heads,
-            num_key_value_heads=num_kv_heads,
+            num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
+            num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
             head_dim=self.head_dim,
             rope_scale=1,
             rope_theta=self.rope_theta,
@@ -358,15 +356,13 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
     def create_tir_paged_kv_cache(
         self, max_batch_size: tir.Var, max_total_seq_len: tir.Var, page_size: tir.Var
     ) -> PagedKVCache:
-        num_qo_heads = self.num_attention_heads // self.tensor_parallel_shards
-        num_kv_heads = self.num_key_value_heads // self.tensor_parallel_shards
         return TIRPagedKVCache(
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             page_size=page_size,
             num_hidden_layers=self.num_hidden_layers,
-            num_attention_heads=num_qo_heads,
-            num_key_value_heads=num_kv_heads,
+            num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
+            num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
             head_dim=self.head_dim,
             rope_scale=1,
             rope_theta=self.rope_theta,
