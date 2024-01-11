@@ -138,7 +138,8 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         ):
             raise NotImplementedError
         if (
-            args.quantization.linear_weight_layout == "KN"
+            hasattr(args.quantization, "linear_weight_layout")
+            and args.quantization.linear_weight_layout == "KN"
             and hasattr(model_config, "tensor_parallel_shards")
             and model_config.tensor_parallel_shards > 1
         ):
