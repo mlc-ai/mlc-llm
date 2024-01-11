@@ -10,7 +10,7 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_chat import op as op_ext
-from mlc_chat.nn import FlashInferPagedKVCache, PagedKVCache
+from mlc_chat.nn import FlashInferPagedKVCache, PagedKVCache, TIRPagedKVCache
 from mlc_chat.support import logging
 from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
@@ -342,8 +342,6 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
     def create_flashinfer_paged_kv_cache(
         self, max_batch_size: tir.Var, max_total_seq_len: tir.Var, page_size: tir.Var
     ) -> PagedKVCache:
-        num_qo_heads = self.num_attention_heads // self.tensor_parallel_shards
-        num_kv_heads = self.num_key_value_heads // self.tensor_parallel_shards
         # Note: Right now we only have FlashInfer-based KV cache supported.
         # TIR version will be introduced soon.
         return FlashInferPagedKVCache(
@@ -351,8 +349,24 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             max_total_seq_len=max_total_seq_len,
             page_size=page_size,
             num_hidden_layers=self.num_hidden_layers,
-            num_attention_heads=num_qo_heads,
-            num_key_value_heads=num_kv_heads,
+            num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
+            num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
+            head_dim=self.head_dim,
+            rope_scale=1,
+            rope_theta=self.rope_theta,
+            dtype=self.dtype,
+        )
+
+    def create_tir_paged_kv_cache(
+        self, max_batch_size: tir.Var, max_total_seq_len: tir.Var, page_size: tir.Var
+    ) -> PagedKVCache:
+        return TIRPagedKVCache(
+            max_batch_size=max_batch_size,
+            max_total_seq_len=max_total_seq_len,
+            page_size=page_size,
+            num_hidden_layers=self.num_hidden_layers,
+            num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
+            num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
             head_dim=self.head_dim,
             rope_scale=1,
             rope_theta=self.rope_theta,
@@ -428,4 +442,15 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
         }
+        if self.dtype == "float16":
+            # "create_tir_paged_kv_cache" does not support dtype other than fp16 right now.
+            mod_spec["create_tir_paged_kv_cache"] = {
+                "max_batch_size": int,
+                "max_total_seq_len": int,
+                "page_size": int,
+                "$": {
+                    "param_mode": "none",
+                    "effect_mode": "none",
+                },
+            }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)
