@@ -1,12 +1,13 @@
 """The Python API for MLC chat."""
 #! pylint: disable=too-many-lines
+import dataclasses
 import inspect
 import json
 import os
 import subprocess
 import sys
 import warnings
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, fields
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
@@ -209,7 +210,7 @@ class ChatConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     attention_sink_size: Optional[int] = None
     max_batch_size: Optional[int] = None
     opt: Optional[str] = None
-    kwargs: Dict[str, Any] = field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     @classmethod
     def _from_json(cls, json_obj: dict):
@@ -292,7 +293,7 @@ class GenerationConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     frequency_penalty: Optional[float] = 0.0
     n: Optional[int] = None  # pylint: disable=invalid-name
     stop: Optional[Union[str, List[str]]] = None
-    kwargs: Dict[str, Any] = field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     @classmethod
     def _from_chat_config(cls, chat_config_obj: ChatConfig):

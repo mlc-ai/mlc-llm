@@ -2,15 +2,49 @@
 import dataclasses
 from typing import List, Optional, Union
 
-from prompt_toolkit import prompt as get_prompt
-from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit import prompt as get_prompt  # pylint: disable=import-error
+from prompt_toolkit.key_binding import KeyBindings  # pylint: disable=import-error
 
 from mlc_chat.callback import StreamToStdout
 from mlc_chat.chat_module import ChatConfig, ChatModule, GenerationConfig
 from mlc_chat.support import argparse
 from mlc_chat.support.config import ConfigOverrideBase
 
-from .compiler_flags import ModelConfigOverride
+
+@dataclasses.dataclass
+class ChatConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-instance-attributes
+    """Flags for overriding chat config."""
+
+    conv_template: Optional[str] = None
+    context_window_size: Optional[int] = None
+    sliding_window_size: Optional[int] = None
+    prefill_chunk_size: Optional[int] = None
+    attention_sink_size: Optional[int] = None
+    max_batch_size: Optional[int] = None
+    tensor_parallel_shards: Optional[int] = None
+
+    @staticmethod
+    def from_str(source: str) -> "ChatConfigOverride":
+        """Parse model config override values from a string."""
+        parser = argparse.ArgumentParser(description="chat config override values")
+        parser.add_argument("--conv_template", type=str, default=None)
+        parser.add_argument("--tensor_parallel_shards", type=int, default=None)
+        parser.add_argument("--context_window_size", type=int, default=None)
+        parser.add_argument("--sliding_window_size", type=int, default=None)
+        parser.add_argument("--prefill_chunk_size", type=int, default=None)
+        parser.add_argument("--attention_sink_size", type=int, default=None)
+        parser.add_argument("--max_batch_size", type=int, default=None)
+
+        results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
+        return ChatConfigOverride(
+            conv_template=results.conv_template,
+            tensor_parallel_shards=results.tensor_parallel_shards,
+            context_window_size=results.context_window_size,
+            sliding_window_size=results.sliding_window_size,
+            prefill_chunk_size=results.prefill_chunk_size,
+            attention_sink_size=results.attention_sink_size,
+            max_batch_size=results.max_batch_size,
+        )
 
 
 @dataclasses.dataclass
@@ -28,9 +62,9 @@ class GenerationConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-
     stop: Optional[Union[str, List[str]]] = None
 
     @staticmethod
-    def from_str(source: str) -> "ModelConfigOverride":
+    def from_str(source: str) -> "GenerationConfigOverride":
         """Parse model config override values from a string."""
-        parser = argparse.ArgumentParser(description="model config override values")
+        parser = argparse.ArgumentParser(description="generation config override values")
         parser.add_argument("--temperature", type=float, default=None)
         parser.add_argument("--repetition_penalty", type=float, default=None)
         parser.add_argument("--top_p", type=float, default=None)
@@ -86,7 +120,7 @@ def chat(
     model: str,
     device: str,
     opt: str,
-    overrides: ModelConfigOverride,
+    overrides: ChatConfigOverride,
     model_lib_path: Optional[str],
 ):
     """chat with a model."""

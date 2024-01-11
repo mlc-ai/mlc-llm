@@ -122,6 +122,12 @@ Model configuration override. Configurations to override `mlc-chat-config.json`.
 `max_batch_size` and `tensor_parallel_shards`. Meanwhile, model config could be explicitly
 specified via details knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
 """.strip(),
+    "chatconfig_overrides": """
+Chat configuration override. Configurations to override ChatConfig. Supports `conv_template`,
+`context_window_size`, `prefill_chunk_size`, `sliding_window_size`, `attention_sink_size`,
+`max_batch_size` and `tensor_parallel_shards`. Meanwhile, model chat could be explicitly
+specified via details knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
+""".strip(),
     "debug_dump": """
 Specifies the directory where the compiler will store its IRs for debugging purposes
 during various phases of compilation. By default, this is set to `None`, indicating
