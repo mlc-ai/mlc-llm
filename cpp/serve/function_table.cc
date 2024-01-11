@@ -182,6 +182,10 @@ void FunctionTable::_InitFunctions() {
   this->verify_func_ = mod_get_func("batch_verify");
   this->softmax_func_ = mod_get_func("softmax_with_temperature");
   this->create_kv_cache_func_ = mod_get_func("create_flashinfer_paged_kv_cache");
+  if (!this->create_kv_cache_func_.defined()) {
+    this->create_kv_cache_func_ = mod_get_func("create_tir_paged_kv_cache");
+    ICHECK(this->create_kv_cache_func_.defined());
+  }
   this->reset_kv_cache_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_clear");
   this->kv_cache_add_sequence_func_ =
       get_global_func("vm.builtin.paged_attention_kv_cache_add_sequence");

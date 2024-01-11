@@ -51,6 +51,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
     theta: float,
     num_q_heads: int,
     num_kv_heads: int,
+    scale: float = 1.0,
     rotary_dim: int = None,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """Llama-style RoPE. Given a fused QKV tensor, it returns three tensors, Q, K, and V, where Q
@@ -65,8 +66,11 @@ def llama_rope(  # pylint: disable=too-many-arguments
         The total sequence length after being concatenated with KVCache. It is used to compute the
         offset of RoPE.
 
-    theta: float
+    theta : float
         The theta value, or "base" in RoPE, which controls the frequency.
+
+    scale : float
+        The RoPE scaling factor.
 
     num_q_heads : int
         The number of query heads.
@@ -94,6 +98,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
     if rotary_dim is None:
         rotary_dim = head_dim
     dtype = qkv.dtype
+    scale = tir.const(scale, dtype)
 
     def _rope(  # pylint: disable=too-many-arguments
         x: T.Buffer,
@@ -103,7 +108,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
         d: tir.Var,
         offset: tir.Var,
     ):
-        cos_freq, sin_freq = rope_freq(s + offset, d, rotary_dim, theta, dtype)
+        cos_freq, sin_freq = rope_freq((s + offset) * scale, d, rotary_dim, theta, dtype)
         cos = cos_freq * x[b, s, h, d]
         sin = sin_freq * tir.if_then_else(
             d < rotary_dim // 2,
@@ -136,17 +141,17 @@ def llama_rope(  # pylint: disable=too-many-arguments
             with T.block("llama_fused_rope"):
                 b, s, h, d = T.axis.remap("SSSS", iters)
                 if h < num_q_heads:
-                    if d < rotary_dim:
-                        q[b, s, h, d] = _rope(qkv, b, s, h, d, total_seq_len - seq_len)
-                    else:
-                        q[b, s, h, d] = qkv[b, s, h, d]
+                    q[b, s, h, d] = (
+                        _rope(qkv, b, s, h, d, total_seq_len - seq_len)
+                        if d < rotary_dim
+                        else qkv[b, s, h, d]
+                    )
                 elif h < num_q_heads + num_kv_heads:
-                    if d < rotary_dim:
-                        k[b, s, h - num_q_heads, d] = _rope(
-                            qkv, b, s, h, d, total_seq_len - seq_len
-                        )
-                    else:
-                        k[b, s, h - num_q_heads, d] = qkv[b, s, h, d]
+                    k[b, s, h - num_q_heads, d] = (
+                        _rope(qkv, b, s, h, d, total_seq_len - seq_len)
+                        if d < rotary_dim
+                        else qkv[b, s, h, d]
+                    )
                 else:
                     v[b, s, h - (num_q_heads + num_kv_heads), d] = qkv[b, s, h, d]
 
