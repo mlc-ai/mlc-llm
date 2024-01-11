@@ -25,6 +25,7 @@ class GenerationConfigNode : public Object {
   double frequency_penalty = 0.0;
   double presence_penalty = 0.0;
   double repetition_penalty = 1.0;
+  int seed;
 
   int max_tokens = 128;
   Array<String> stop_strs;

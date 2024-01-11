@@ -3,6 +3,7 @@
  * \file serve/engine_actions/batch_decode.cc
  */
 
+#include "../../random.h"
 #include "../config.h"
 #include "../model.h"
 #include "../sampler.h"
@@ -56,11 +57,13 @@ class BatchDecodeActionObj : public EngineActionObj {
     std::vector<int64_t> request_internal_ids;
     Array<RequestModelState> mstates;
     Array<GenerationConfig> generation_cfg;
+    std::vector<RandomGenerator*> rngs;
     input_tokens.reserve(num_requests);
     request_ids.reserve(num_requests);
     request_internal_ids.reserve(num_requests);
     mstates.reserve(num_requests);
     generation_cfg.reserve(num_requests);
+    rngs.reserve(num_requests);
     for (Request request : estate->running_queue) {
       RequestState rstate = estate->GetRequestState(request);
       input_tokens.push_back(rstate->mstates[0]->committed_tokens.back());
@@ -68,6 +71,7 @@ class BatchDecodeActionObj : public EngineActionObj {
       request_internal_ids.push_back(rstate->mstates[0]->internal_id);
       mstates.push_back(rstate->mstates[0]);
       generation_cfg.push_back(request->generation_cfg);
+      rngs.push_back(&rstate->rng);
     }
 
     // - Compute embeddings.
@@ -91,7 +95,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     // - Sample tokens.
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
     std::vector<int32_t> next_tokens =
-        sampler_->BatchSampleTokens(logits, models_[0], mstates, generation_cfg);
+        sampler_->BatchSampleTokens(logits, models_[0], mstates, generation_cfg, rngs);
     RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
     ICHECK_EQ(next_tokens.size(), num_requests);
 

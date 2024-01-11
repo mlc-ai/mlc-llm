@@ -316,7 +316,7 @@ NDArray CopyLogitsOrProbsToCPU(NDArray arr_on_device, NDArray* arr_on_cpu) {
 class CPUSampler : public SamplerObj {
  public:
   explicit CPUSampler(Optional<EventTraceRecorder> trace_recorder)
-      : trace_recorder_(std::move(trace_recorder)), rng_(RandomGenerator::GetInstance()) {
+      : trace_recorder_(std::move(trace_recorder)) {
     // Set customized "logits -> prob" function.
     const PackedFunc* f_logits_to_probs =
         Registry::Get("mlc.llm.compute_probs_from_logits_inplace");
@@ -328,6 +328,7 @@ class CPUSampler : public SamplerObj {
   std::vector<int32_t> BatchSampleTokens(NDArray logits_on_device, Model model,
                                          Array<RequestModelState> request_mstates,
                                          Array<GenerationConfig> generation_cfg,
+                                         const std::vector<RandomGenerator*>& rngs,
                                          std::vector<NDArray>* output_prob_dist,
                                          std::vector<float>* output_token_probs) final {
     NDArray probs_on_cpu = BatchComputeProb(logits_on_device, /*cum_sequence_length=*/nullptr,
@@ -337,14 +338,14 @@ class CPUSampler : public SamplerObj {
     //       we do not save the probabilities right now.
     //       We will handle this in the future when we work on speculation.
     std::vector<int32_t> output_tokens = SampleTokensFromProbs(
-        probs_on_cpu, request_mstates, generation_cfg, output_prob_dist, output_token_probs);
+        probs_on_cpu, request_mstates, generation_cfg, rngs, output_prob_dist, output_token_probs);
     return output_tokens;
   }
 
   std::vector<std::vector<int32_t>> BatchVerifyDraftTokens(
       NDArray logits_on_device, const std::vector<int>& cum_verify_lengths, Model model,
       const Array<RequestModelState>& request_mstates,
-      const Array<GenerationConfig>& generation_cfg,
+      const Array<GenerationConfig>& generation_cfg, const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<int>>& draft_output_tokens,
       const std::vector<std::vector<float>>& draft_output_token_prob,
       const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
@@ -364,18 +365,13 @@ class CPUSampler : public SamplerObj {
     ICHECK_EQ(logits_or_probs_on_cpu->ndim, 2);
 
     int num_sequence = static_cast<int>(cum_verify_lengths.size()) - 1;
+    CHECK_EQ(rngs.size(), num_sequence);
     CHECK_EQ(draft_output_tokens.size(), num_sequence);
     CHECK_EQ(draft_output_token_prob.size(), num_sequence);
     CHECK_EQ(draft_output_prob_dist.size(), num_sequence);
 
     std::vector<std::vector<int>> accepted_tokens;
-    std::vector<double> random_numbers;
     accepted_tokens.resize(num_sequence);
-    random_numbers.reserve(num_sequence * 2);
-    for (int i = 0; i < num_sequence; ++i) {
-      random_numbers.push_back(rng_.GetRandomNumber());
-      random_numbers.push_back(rng_.GetRandomNumber());
-    }
 
     float* __restrict global_p_probs =
         static_cast<float*>(__builtin_assume_aligned(logits_or_probs_on_cpu->data, 4));
@@ -402,7 +398,7 @@ class CPUSampler : public SamplerObj {
               accepted_tokens[i].push_back(cur_token);
               continue;
             }
-            float r = random_numbers[i * 2];
+            float r = rngs[i]->GetRandomNumber();
             if (r < p_value / (q_value + eps_)) {
               request_mstates[i]->CommitToken(cur_token);
               accepted_tokens[i].push_back(cur_token);
@@ -429,7 +425,7 @@ class CPUSampler : public SamplerObj {
             // sample a new token from the new distribution
             int32_t new_token =
                 SampleTopPFromProb(logits_or_probs_on_cpu, verify_start + cur_token_idx,
-                                   generation_cfg[i]->top_p, random_numbers[i * 2 + 1])
+                                   generation_cfg[i]->top_p, rngs[i]->GetRandomNumber())
                     .second;
             request_mstates[i]->CommitToken(new_token);
             accepted_tokens[i].push_back(cur_token);
@@ -622,19 +618,21 @@ class CPUSampler : public SamplerObj {
   std::vector<int32_t> SampleTokensFromProbs(NDArray probs,
                                              Array<RequestModelState> request_mstates,
                                              Array<GenerationConfig> generation_cfg,
+                                             const std::vector<RandomGenerator*>& rngs,
                                              std::vector<NDArray>* output_prob_dist,
                                              std::vector<float>* output_token_probs) {
     // probs: (n, v)
     CHECK_EQ(probs->ndim, 2);
     CHECK_EQ(probs->device.device_type, kDLCPU);
+    ICHECK_EQ(probs->shape[0], request_mstates.size());
+    ICHECK_EQ(probs->shape[0], generation_cfg.size());
+    ICHECK_EQ(probs->shape[0], rngs.size());
 
     Array<String> request_ids =
         request_mstates.Map([](const RequestModelState& mstate) { return mstate->request->id; });
 
     int n = probs->shape[0];
-    std::vector<double> random_numbers;
     std::vector<int32_t> sampled_tokens;
-    random_numbers.reserve(n);
     sampled_tokens.resize(n);
     if (output_prob_dist) {
       output_prob_dist->resize(n);
@@ -642,17 +640,14 @@ class CPUSampler : public SamplerObj {
     if (output_token_probs) {
       output_token_probs->resize(n);
     }
-    for (int i = 0; i < n; ++i) {
-      random_numbers.push_back(rng_.GetRandomNumber());
-    }
 
     tvm::runtime::parallel_for_with_threading_backend(
-        [this, &sampled_tokens, &probs, &generation_cfg, &random_numbers, &request_ids,
-         output_prob_dist, output_token_probs](int i) {
+        [this, &sampled_tokens, &probs, &generation_cfg, &rngs, &request_ids, output_prob_dist,
+         output_token_probs](int i) {
           RECORD_EVENT(this->trace_recorder_, request_ids[i], "start sample token");
           // Sample top p from probability.
           std::pair<float, int64_t> sample_result = SampleTopPFromProb(
-              probs, i, generation_cfg[i]->top_p, random_numbers[i], output_prob_dist);
+              probs, i, generation_cfg[i]->top_p, rngs[i]->GetRandomNumber(), output_prob_dist);
           sampled_tokens[i] = sample_result.second;
           if (output_token_probs) {
             (*output_token_probs)[i] = sample_result.first;
@@ -665,8 +660,6 @@ class CPUSampler : public SamplerObj {
 
   /*! \brief The event trace recorder for requests. */
   Optional<EventTraceRecorder> trace_recorder_;
-  /*! \brief The random generator. */
-  RandomGenerator& rng_;
   /*! \brief Customized function which computes prob distribution from logits */
   PackedFunc flogits_to_probs_inplace_;
   /*! \brief Shared array for logits and probability distributions on cpu. */
