@@ -18,9 +18,9 @@ class RandomGenerator {
   std::mt19937 gen;
   std::uniform_real_distribution<> dis;
 
-  RandomGenerator(int seed) : gen(seed), dis(0.0, 1.0) {}
-
  public:
+  RandomGenerator(int seed = std::random_device{}()) : gen(seed), dis(0.0, 1.0) {}
+
   static RandomGenerator& GetInstance(int seed = std::random_device{}()) {
     static RandomGenerator instance(seed);
     return instance;

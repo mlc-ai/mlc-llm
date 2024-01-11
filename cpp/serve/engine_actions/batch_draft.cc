@@ -48,6 +48,7 @@ class BatchDraftActionObj : public EngineActionObj {
     std::vector<int64_t> request_internal_ids;
     Array<GenerationConfig> generation_cfg;
     Array<RequestState> rstates;
+    std::vector<RandomGenerator*> rngs;
     request_ids.reserve(num_requests);
     request_internal_ids.reserve(num_requests);
     generation_cfg.reserve(num_requests);
@@ -58,6 +59,7 @@ class BatchDraftActionObj : public EngineActionObj {
       rstates.push_back(rstate);
       request_internal_ids.push_back(rstate->mstates[0]->internal_id);
       generation_cfg.push_back(request->generation_cfg);
+      rngs.push_back(&rstate->rng);
     }
 
     // The first model doesn't get involved in draft proposal.
@@ -105,7 +107,7 @@ class BatchDraftActionObj : public EngineActionObj {
         std::vector<NDArray> prob_dist;
         std::vector<float> token_probs;
         std::vector<int32_t> next_tokens = sampler_->BatchSampleTokens(
-            logits, models_[model_id], mstates, generation_cfg, &prob_dist, &token_probs);
+            logits, models_[model_id], mstates, generation_cfg, rngs, &prob_dist, &token_probs);
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal sampling");
         ICHECK_EQ(next_tokens.size(), num_requests);
 

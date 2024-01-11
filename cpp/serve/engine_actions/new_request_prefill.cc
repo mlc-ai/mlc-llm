@@ -92,12 +92,18 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     ICHECK(logits_for_sample.defined());
     logits_for_sample = logits_for_sample.CreateView({num_requests, 1, logits_for_sample->shape[2]},
                                                      logits_for_sample->dtype);
-    Array<RequestModelState> mstates_for_sample =
-        rstates.Map([](RequestState rstate) { return rstate->mstates[0]; });
+    Array<RequestModelState> mstates_for_sample;
+    std::vector<RandomGenerator*> rngs;
+    mstates_for_sample.reserve(num_requests);
+    rngs.reserve(num_requests);
+    for (int i = 0; i < num_requests; ++i) {
+      mstates_for_sample.push_back(rstates[i]->mstates[0]);
+      rngs.push_back(&rstates[i]->rng);
+    }
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
     std::vector<int32_t> next_tokens = sampler_->BatchSampleTokens(
         logits_for_sample, models_[0], mstates_for_sample,
-        requests.Map([](Request request) { return request->generation_cfg; }));
+        requests.Map([](Request request) { return request->generation_cfg; }), rngs);
     RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
     ICHECK_EQ(next_tokens.size(), num_requests);
 
