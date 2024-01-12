@@ -513,8 +513,8 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         self.quantize_dtype = config.quantize_dtype
         self.group_size = config.group_size
         self.dtype = config.model_dtype
-        if config.linear_weight_layout == "NK":
-            raise NotImplementedError("GroupQuantizeMixtralExperts does not support NK layout now.")
+        if config.linear_weight_layout == "KN":
+            raise NotImplementedError("GroupQuantizeMixtralExperts does not support KN layout now.")
 
     @staticmethod
     def from_mixtral_experts(
