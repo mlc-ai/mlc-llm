@@ -153,7 +153,7 @@ class ChatCompletionRequest(BaseModel):
     tools: Optional[List[ChatFunction]] = None
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None
     user: Optional[str] = None
-    ignore_eos: Optional[bool] = None
+    ignore_eos: bool = False
 
 
 class ChatCompletionResponseChoice(BaseModel):

@@ -138,8 +138,9 @@ def check_openai_stream_response(
             if completion_tokens is not None:
                 assert usage["completion_tokens"] <= completion_tokens
 
-    if completion_tokens is not None:
-        assert responses[-1]["usage"]["completion_tokens"] == completion_tokens
+    if not is_chat_completion:
+        if completion_tokens is not None:
+            assert responses[-1]["usage"]["completion_tokens"] == completion_tokens
 
     for output in outputs:
         if echo_prompt is not None:
@@ -758,10 +759,12 @@ def test_openai_v1_chat_completions_openai_package(
 
 
 @pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("ignore_eos", [False, True])
 def test_openai_v1_chat_completions_max_tokens(
     served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
     stream: bool,
+    ignore_eos: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
@@ -773,6 +776,7 @@ def test_openai_v1_chat_completions_max_tokens(
         "messages": messages,
         "stream": stream,
         "max_tokens": max_tokens,
+        "ignore_eos": ignore_eos,
     }
 
     response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=60)
@@ -784,7 +788,7 @@ def test_openai_v1_chat_completions_max_tokens(
             object_str="chat.completion",
             num_choices=1,
             finish_reason="length",
-            completion_tokens=max_tokens,
+            completion_tokens=max_tokens if ignore_eos else None,
         )
     else:
         responses = []
@@ -799,6 +803,7 @@ def test_openai_v1_chat_completions_max_tokens(
             object_str="chat.completion.chunk",
             num_choices=1,
             finish_reason="length",
+            completion_tokens=max_tokens if ignore_eos else None,
         )
 
 
