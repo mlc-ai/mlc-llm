@@ -133,4 +133,10 @@ Specifies the directory where the compiler will store its IRs for debugging purp
 during various phases of compilation. By default, this is set to `None`, indicating
 that debug dumping is disabled.
 """.strip(),
+    "prompt": """
+The prompt of the text generation.
+""".strip(),
+    "generate_length": """
+The target length of the text generation.
+""".strip(),
 }
