@@ -138,8 +138,9 @@ def check_openai_stream_response(
             if completion_tokens is not None:
                 assert usage["completion_tokens"] <= completion_tokens
 
-    if completion_tokens is not None:
-        assert responses[-1]["usage"]["completion_tokens"] == completion_tokens
+    if not is_chat_completion:
+        if completion_tokens is not None:
+            assert responses[-1]["usage"]["completion_tokens"] == completion_tokens
 
     for output in outputs:
         if echo_prompt is not None:
@@ -799,6 +800,54 @@ def test_openai_v1_chat_completions_max_tokens(
             object_str="chat.completion.chunk",
             num_choices=1,
             finish_reason="length",
+            completion_tokens=max_tokens,
+        )
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_openai_v1_chat_completions_ignore_eos(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    messages = [{"role": "user", "content": "Write a sentence with less than 20 words."}]
+    max_tokens = 128
+    payload = {
+        "model": served_model[0],
+        "messages": messages,
+        "stream": stream,
+        "max_tokens": max_tokens,
+        "ignore_eos": True,
+    }
+
+    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=60)
+    if not stream:
+        check_openai_nonstream_response(
+            response.json(),
+            is_chat_completion=True,
+            model=served_model[0],
+            object_str="chat.completion",
+            num_choices=1,
+            finish_reason="length",
+            completion_tokens=max_tokens,
+        )
+    else:
+        responses = []
+        for chunk in response.iter_lines(chunk_size=512):
+            if not chunk or chunk == b"data: [DONE]":
+                continue
+            responses.append(json.loads(chunk.decode("utf-8")[6:]))
+        check_openai_stream_response(
+            responses,
+            is_chat_completion=True,
+            model=served_model[0],
+            object_str="chat.completion.chunk",
+            num_choices=1,
+            finish_reason="length",
+            completion_tokens=max_tokens,
         )
 
 
@@ -911,6 +960,8 @@ if __name__ == "__main__":
         test_openai_v1_chat_completions_openai_package(MODEL, None, stream=True, messages=msg)
     test_openai_v1_chat_completions_max_tokens(MODEL, None, stream=False)
     test_openai_v1_chat_completions_max_tokens(MODEL, None, stream=True)
+    test_openai_v1_chat_completions_ignore_eos(MODEL, None, stream=False)
+    test_openai_v1_chat_completions_ignore_eos(MODEL, None, stream=True)
     test_openai_v1_chat_completions_system_prompt_wrong_pos(MODEL, None, stream=False)
     test_openai_v1_chat_completions_system_prompt_wrong_pos(MODEL, None, stream=True)
     test_openai_v1_chat_completions_unsupported_args(MODEL, None)
