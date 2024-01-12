@@ -40,7 +40,7 @@ def main(argv):
     )
     parser.add_argument(
         "--generate-length",
-        type=str,
+        type=int,
         default=256,
         help=HELP["generate_length"] + ' (default: "%(default)s")',
     )
