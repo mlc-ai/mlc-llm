@@ -1,5 +1,6 @@
 """The Python API for MLC chat."""
 #! pylint: disable=too-many-lines
+import dataclasses
 import inspect
 import json
 import os
@@ -9,13 +10,14 @@ import warnings
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm.runtime import disco  # pylint: disable=unused-import
 
 from mlc_chat.support import logging
 from mlc_chat.support.auto_device import detect_device
+from mlc_chat.support.config import ConfigBase
 
 from . import base as _
 
@@ -96,7 +98,7 @@ class ConvConfig:  # pylint: disable=too-many-instance-attributes
 
 
 @dataclass
-class ChatConfig:  # pylint: disable=too-many-instance-attributes
+class ChatConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     r"""A dataclass that represents user-defined partial configuration for the
     chat config file.
 
@@ -208,6 +210,7 @@ class ChatConfig:  # pylint: disable=too-many-instance-attributes
     attention_sink_size: Optional[int] = None
     max_batch_size: Optional[int] = None
     opt: Optional[str] = None
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     @classmethod
     def _from_json(cls, json_obj: dict):
@@ -215,7 +218,7 @@ class ChatConfig:  # pylint: disable=too-many-instance-attributes
 
 
 @dataclass
-class GenerationConfig:  # pylint: disable=too-many-instance-attributes
+class GenerationConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     r"""A dataclass that represents user-defined generation configuration.
 
     An instance of ``GenerationConfig`` can be passed in to the generate function
@@ -290,6 +293,7 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     frequency_penalty: Optional[float] = 0.0
     n: Optional[int] = None  # pylint: disable=invalid-name
     stop: Optional[Union[str, List[str]]] = None
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     @classmethod
     def _from_chat_config(cls, chat_config_obj: ChatConfig):

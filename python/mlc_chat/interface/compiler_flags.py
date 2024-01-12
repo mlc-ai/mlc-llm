@@ -4,7 +4,7 @@ from io import StringIO
 from typing import Optional
 
 from mlc_chat.support import argparse, logging
-from mlc_chat.support.style import bold, red
+from mlc_chat.support.config import ConfigOverrideBase
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ class OptimizationFlags:
 
 
 @dataclasses.dataclass
-class ModelConfigOverride:
+class ModelConfigOverride(ConfigOverrideBase):
     """Flags for overriding model config."""
 
     context_window_size: Optional[int] = None
@@ -98,31 +98,6 @@ class ModelConfigOverride:
         print(f";max_batch_size={self.max_batch_size}", file=out, end="")
         print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
         return out.getvalue().rstrip()
-
-    def apply(self, model_config):
-        """Apply the overrides to the given model config."""
-        updated = model_config.asdict()
-        for field in dataclasses.fields(self):
-            key = field.name
-            value = getattr(self, key)
-            if value is None:
-                continue
-            if key not in updated:
-                logger.warning(
-                    "%s: Cannot override %s, because %s does not have this field",
-                    red("Warning"),
-                    bold(key),
-                    bold(type(model_config).__name__),
-                )
-            else:
-                logger.info(
-                    "Overriding %s from %d to %d",
-                    bold(key),
-                    updated[key],
-                    value,
-                )
-                updated[key] = value
-        return type(model_config).from_dict(updated)
 
     @staticmethod
     def from_str(source: str) -> "ModelConfigOverride":

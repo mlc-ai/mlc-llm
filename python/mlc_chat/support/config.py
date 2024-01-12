@@ -9,10 +9,16 @@ the model's hyperparameters. For instance, Vicuna-13b-v1.5-16k contains the foll
 The base class allows us to load the configuration from this JSON file, moving irrelevant fields
 into `kwargs`, such as `transformers_version` and `use_cache`.
 """
+# pylint: disable=too-few-public-methods
 import dataclasses
 import json
 from pathlib import Path
 from typing import Any, Dict, Type, TypeVar
+
+from . import logging
+from .style import bold, red
+
+logger = logging.getLogger(__name__)
 
 ConfigClass = TypeVar("ConfigClass", bound="ConfigBase")
 
@@ -75,4 +81,32 @@ class ConfigBase:
         return result
 
 
-__all__ = ["ConfigBase"]
+class ConfigOverrideBase:
+    """Base class for ConfigOverride, providing a common interface for overriding configs.
+    It requires the subclasses to be dataclasses.
+    """
+
+    def apply(self, config):
+        """Apply the overrides to the given config."""
+        updated = config.asdict()
+        for field in dataclasses.fields(self):
+            key = field.name
+            value = getattr(self, key)
+            if value is None:
+                continue
+            if key not in updated:
+                logger.warning(
+                    "%s: Cannot override %s, because %s does not have this field",
+                    red("Warning"),
+                    bold(key),
+                    bold(type(config).__name__),
+                )
+            else:
+                logger.info(  # pylint: disable=logging-fstring-interpolation
+                    f"Overriding {bold(key)} from {updated[key]} to {value}"
+                )
+                updated[key] = value
+        return type(config).from_dict(updated)
+
+
+__all__ = ["ConfigBase", "ConfigOverrideBase"]

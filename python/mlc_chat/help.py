@@ -23,6 +23,10 @@ The quantization mode we use to compile. If unprovided, will infer from `model`.
     "model": """
 A path to ``mlc-chat-config.json``, or an MLC model directory that contains `mlc-chat-config.json`.
 """.strip(),
+    "model_lib_path": """
+The full path to the model library file to use (e.g. a ``.so`` file). If unspecified, we will use
+the provided ``model`` to search over possible paths.
+""".strip(),
     "model_type": """
 Model architecture such as "llama". If not set, it is inferred from `mlc-chat-config.json`.
 """.strip(),
@@ -32,6 +36,10 @@ The GPU device to compile the model to. If not set, it is inferred from GPUs ava
     "device_quantize": """
 The device used to do quantization such as "cuda" or "cuda:0". Will detect from local available GPUs
 if not specified.
+""".strip(),
+    "device_deploy": """
+The device used to deploy the model such as "cuda" or "cuda:0". Will detect from local
+available GPUs if not specified.
 """.strip(),
     "host": """
 The host LLVM triple to compile the model to. If not set, it is inferred from the local CPU and OS.
@@ -112,6 +120,12 @@ Number of shards to split the model into in tensor parallelism multi-gpu inferen
 Model configuration override. Configurations to override `mlc-chat-config.json`. Supports
 `context_window_size`, `prefill_chunk_size`, `sliding_window_size`, `attention_sink_size`,
 `max_batch_size` and `tensor_parallel_shards`. Meanwhile, model config could be explicitly
+specified via details knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
+""".strip(),
+    "chatconfig_overrides": """
+Chat configuration override. Configurations to override ChatConfig. Supports `conv_template`,
+`context_window_size`, `prefill_chunk_size`, `sliding_window_size`, `attention_sink_size`,
+`max_batch_size` and `tensor_parallel_shards`. Meanwhile, model chat could be explicitly
 specified via details knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
 """.strip(),
     "debug_dump": """
