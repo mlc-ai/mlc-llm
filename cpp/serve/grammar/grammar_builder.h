@@ -121,7 +121,7 @@ class BNFGrammarBuilder {
   }
 
   /*! \brief Get the rule with the given id. */
-  const Rule& GetRule(int32_t rule_id) { return grammar_->rules_[rule_id]; }
+  const Rule& GetRule(int32_t rule_id) const { return grammar_->rules_[rule_id]; }
 
   /*!
    * \brief Insert an rule without body, and return the rule id. The rule body should be set later
