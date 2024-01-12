@@ -141,16 +141,16 @@ def llama_rope(  # pylint: disable=too-many-arguments
             with T.block("llama_fused_rope"):
                 b, s, h, d = T.axis.remap("SSSS", iters)
                 if h < num_q_heads:
-                    q[b, s, h, d] = (
-                        _rope(qkv, b, s, h, d, total_seq_len - seq_len)
-                        if d < rotary_dim
-                        else qkv[b, s, h, d]
+                    q[b, s, h, d] = T.if_then_else(
+                        d < rotary_dim,
+                        _rope(qkv, b, s, h, d, total_seq_len - seq_len),
+                        qkv[b, s, h, d],
                     )
                 elif h < num_q_heads + num_kv_heads:
-                    k[b, s, h - num_q_heads, d] = (
-                        _rope(qkv, b, s, h, d, total_seq_len - seq_len)
-                        if d < rotary_dim
-                        else qkv[b, s, h, d]
+                    k[b, s, h - num_q_heads, d] = T.if_then_else(
+                        d < rotary_dim,
+                        _rope(qkv, b, s, h, d, total_seq_len - seq_len),
+                        qkv[b, s, h, d],
                     )
                 else:
                     v[b, s, h - (num_q_heads + num_kv_heads), d] = qkv[b, s, h, d]
