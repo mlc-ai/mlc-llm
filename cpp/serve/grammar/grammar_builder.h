@@ -132,15 +132,16 @@ class BNFGrammarBuilder {
   int32_t InsertEmptyRule(const std::string& name) { return InsertRule({name, -1}); }
 
   /*!
-   * \brief Set the rule body of the given rule, specified by rule id.
+   * \brief Update the rule body of the given rule, specified by rule id. Can be used to set the
+   * rule body of a rule inserted by BNFGrammarBuilder::InsertEmptyRule.
    */
   void UpdateRuleBody(int32_t rule_id, int32_t rule_expr_id) {
     grammar_->rules_[rule_id].rule_expr_id = rule_expr_id;
   }
 
   /*!
-   * \brief Set the rule body of the given rule, specified by rule name.
-   * \sa BNFGrammarBuilder::InsertEmptyRule
+   * \brief Update the rule body of the given rule, specified by rule name. Can be used to set the
+   * rule body of a rule inserted by BNFGrammarBuilder::InsertEmptyRule.
    */
   void UpdateRuleBody(std::string rule_name, int32_t rule_expr_id) {
     int32_t rule_id = GetRuleId(rule_name);
