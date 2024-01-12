@@ -89,8 +89,8 @@ Optional<String> RequestStateNode::GenerationFinished(int max_single_sequence_le
   // Case 1. Any of the stop tokens appears in the committed tokens ===> Finished
   // `stop_token_ids` includes the stop tokens from conversation template and user-provided tokens.
   // This check will be ignored when `ignore_eos` is set for the benchmarking purpopse.
-  if (
-    !request->generation_cfg->ignore_eos && std::any_of(
+  if (!request->generation_cfg->ignore_eos &&
+      std::any_of(
           request->generation_cfg->stop_token_ids.begin(),
           request->generation_cfg->stop_token_ids.end(),
           [&committed_tokens](int32_t token) { return token == committed_tokens.back(); })) {
