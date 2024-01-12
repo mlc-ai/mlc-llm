@@ -139,7 +139,4 @@ The prompt of the text generation.
     "generate_length": """
 The target length of the text generation.
 """.strip(),
-    "device_deploy": """
-""",
-    "model_lib_path": "",
 }
