@@ -121,21 +121,20 @@ class BNFGrammarBuilder {
   }
 
   /*! \brief Get the rule with the given id. */
-  Rule& GetRule(int32_t rule_id) { return grammar_->rules_[rule_id]; }
+  const Rule& GetRule(int32_t rule_id) { return grammar_->rules_[rule_id]; }
 
   /*!
    * \brief Insert an rule without body, and return the rule id. The rule body should be set later
-   * with BNFGrammarBuilder::SetRuleBody. This method is useful for cases where the rule id is
+   * with BNFGrammarBuilder::UpdateRuleBody. This method is useful for cases where the rule id is
    * required to build the rule body.
+   * \sa BNFGrammarBuilder::UpdateRuleBody
    */
   int32_t InsertEmptyRule(const std::string& name) { return InsertRule({name, -1}); }
 
   /*!
    * \brief Set the rule body of the given rule, specified by rule id.
-   * \sa BNFGrammarBuilder::InsertEmptyRule
    */
-  void SetRuleBody(int32_t rule_id, int32_t rule_expr_id) {
-    ICHECK_EQ(grammar_->rules_[rule_id].rule_expr_id, -1);
+  void UpdateRuleBody(int32_t rule_id, int32_t rule_expr_id) {
     grammar_->rules_[rule_id].rule_expr_id = rule_expr_id;
   }
 
@@ -143,10 +142,10 @@ class BNFGrammarBuilder {
    * \brief Set the rule body of the given rule, specified by rule name.
    * \sa BNFGrammarBuilder::InsertEmptyRule
    */
-  void SetRuleBody(std::string rule_name, int32_t rule_expr_id) {
+  void UpdateRuleBody(std::string rule_name, int32_t rule_expr_id) {
     int32_t rule_id = GetRuleId(rule_name);
-    ICHECK(rule_id != -1);
-    SetRuleBody(rule_id, rule_expr_id);
+    CHECK(rule_id != -1) << "Rule " << rule_name << " is not found.";
+    UpdateRuleBody(rule_id, rule_expr_id);
   }
 
   /*!

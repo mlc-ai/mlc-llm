@@ -269,7 +269,7 @@ int32_t EBNFParserImpl::HandleStarQuantifier(int32_t rule_expr_id) {
   auto new_rule_ref = builder_.InsertRuleRef(new_rule_id);
   auto new_rule_expr_id = builder_.InsertChoices(
       {builder_.InsertSequence({rule_expr_id, new_rule_ref}), builder_.InsertEmptyStr()});
-  builder_.SetRuleBody(new_rule_id, new_rule_expr_id);
+  builder_.UpdateRuleBody(new_rule_id, new_rule_expr_id);
   return new_rule_id;
 }
 
@@ -288,7 +288,7 @@ int32_t EBNFParserImpl::HandlePlusQuantifier(int32_t rule_expr_id) {
   auto a_ref2 = builder_.InsertRuleRef(a_rule_id);
   auto new_rule_expr_id =
       builder_.InsertChoices({builder_.InsertSequence({a_ref1, a_plus_ref}), a_ref2});
-  builder_.SetRuleBody(new_rule_id, new_rule_expr_id);
+  builder_.UpdateRuleBody(new_rule_id, new_rule_expr_id);
   return new_rule_id;
 }
 
@@ -396,7 +396,7 @@ BNFGrammar EBNFParserImpl::DoParse(String ebnf_string) {
   ConsumeSpace();
   while (Peek()) {
     auto new_rule = ParseRule();
-    builder_.SetRuleBody(new_rule.name, new_rule.rule_expr_id);
+    builder_.UpdateRuleBody(new_rule.name, new_rule.rule_expr_id);
 
     ConsumeSpace();
   }
