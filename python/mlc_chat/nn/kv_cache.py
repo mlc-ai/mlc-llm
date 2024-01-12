@@ -329,23 +329,24 @@ def _inplace_rope(
         k = T.match_buffer(var_k, (total_len, num_kv_heads, head_dim), dtype)
         rope_offsets = T.match_buffer(var_rope_offsets, (batch_size,), "int32")
         append_len_indptr = T.match_buffer(var_append_len_indptr, (batch_size + 1,), "int32")
-        for b_h in T.thread_binding(batch_size * (num_q_heads + num_kv_heads), thread="blockIdx.x"):
-            b: T.int32 = b_h // (num_q_heads + num_kv_heads)
-            h: T.int32 = b_h % (num_q_heads + num_kv_heads)
-            instance_offset: T.int32 = append_len_indptr[b]
-            rope_offset: T.int32 = rope_offsets[b]
-            append_len: T.int32 = append_len_indptr[b + 1] - append_len_indptr[b]
-            for s0 in range(T.ceildiv(append_len, 32)):
-                for s1 in T.thread_binding(32, thread="threadIdx.y"):
-                    for d0 in T.thread_binding(T.ceildiv(head_dim, 4), thread="threadIdx.x"):
-                        for d1 in T.vectorized(4):
-                            s: T.int32 = s0 * 32 + s1
-                            d: T.int32 = d0 * 4 + d1
-                            if s < append_len and d < head_dim:
-                                if h < num_q_heads:
-                                    q[s + instance_offset, h, d] = _rope(q, s, h, d, rope_offset, instance_offset)
-                                else:
-                                    k[s + instance_offset, h - num_q_heads, d] = _rope(k, s, h - num_q_heads, d, rope_offset, instance_offset)
+        with T.block():
+            for b_h in T.thread_binding(batch_size * (num_q_heads + num_kv_heads), thread="blockIdx.x"):
+                b: T.int32 = b_h // (num_q_heads + num_kv_heads)
+                h: T.int32 = b_h % (num_q_heads + num_kv_heads)
+                instance_offset: T.int32 = append_len_indptr[b]
+                rope_offset: T.int32 = rope_offsets[b]
+                append_len: T.int32 = append_len_indptr[b + 1] - append_len_indptr[b]
+                for s0 in range(T.ceildiv(append_len, 32)):
+                    for s1 in T.thread_binding(32, thread="threadIdx.y"):
+                        for d0 in T.thread_binding(T.ceildiv(head_dim, 4), thread="threadIdx.x"):
+                            for d1 in T.vectorized(4):
+                                s: T.int32 = s0 * 32 + s1
+                                d: T.int32 = d0 * 4 + d1
+                                if s < append_len and d < head_dim:
+                                    if h < num_q_heads:
+                                        q[s + instance_offset, h, d] = _rope(q, s, h, d, rope_offset, instance_offset)
+                                    else:
+                                        k[s + instance_offset, h - num_q_heads, d] = _rope(k, s, h - num_q_heads, d, rope_offset, instance_offset)
     return tir_rotary
 
 
@@ -380,7 +381,7 @@ def _attention_prefill(h_kv, h_q, d, dtype):
     assert dtype == "float16", f"TIR attention kernel does not support dtype {dtype} right now"
     # pylint: disable=invalid-name
     NUM_BLKS = 16
-    LOAD_VEC = 8 // (DataType(dtype).bits + 7) / 8  # 8 bytes
+    LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
     group_size = h_q // h_kv
     sm_scale = 1.0 / math.sqrt(float(d)) * math.log2(math.exp(1))
 
