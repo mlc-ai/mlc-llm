@@ -72,6 +72,7 @@ class CompletionRequest(BaseModel):
     temperature: float = 1.0
     top_p: float = 1.0
     user: Optional[str] = None
+    ignore_eos: bool = False
 
     @field_validator("frequency_penalty", "presence_penalty")
     @classmethod

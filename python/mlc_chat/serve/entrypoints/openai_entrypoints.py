@@ -284,7 +284,6 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
         extra_stop_token_ids=conv_template.stop_token_ids,
         extra_stop_str=conv_template.stop_str,
     )
-    request_id = f"chatcmpl-{entrypoint_utils.random_uuid()}"
 
     # Streaming response.
     if request.stream:
