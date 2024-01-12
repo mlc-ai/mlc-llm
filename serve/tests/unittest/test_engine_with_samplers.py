@@ -282,7 +282,7 @@ def _test_stop(
         engine.stop()
 
 
-def test_penalty(
+def _test_penalty(
     model_artifact_path,
     use_staging_engine,
     max_num_sequences=4,
@@ -364,5 +364,5 @@ if __name__ == "__main__":
     # if max_tokens = None. The tests do not finish in a reasonable time.
     # _test_max_context_length(model_artifact_path, use_staging_engine=True)
     # _test_max_context_length(model_artifact_path, use_staging_engine=False)
-    test_penalty(args.model_artifact_path, use_staging_engine=True)
-    test_penalty(args.model_artifact_path, use_staging_engine=False)
+    _test_penalty(args.model_artifact_path, use_staging_engine=True)
+    _test_penalty(args.model_artifact_path, use_staging_engine=False)

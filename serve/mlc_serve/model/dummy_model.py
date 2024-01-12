@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, List
 
 from mlc_serve.engine import (
     ChatMessage,
@@ -16,15 +16,28 @@ from mlc_serve.engine.model_module import (
 )
 
 class DummyTokenizer:
+    is_fast = True
     @property
     def eos_token_id(self):
-        return 2
+        return 1000
 
     def encode(self, text: str, **kwargs) -> list[int]:
         return [1] * len(text.split())
 
     def decode(self, tokens: list[int], **kwargs) -> str:
         return "test " * len(tokens)
+
+    def convert_ids_to_tokens(self, token_ids: List[int]) -> List[str]:
+        r = []
+        for i in token_ids:
+            r.append(f"_test{i}")
+        return r
+
+    def convert_tokens_to_string(self, tokens: List[str]) -> str:
+        ret = ""
+        for a in tokens:
+            ret += a + " "
+        return ret
 
 
 class DummyConversationTemplate:
@@ -45,7 +58,7 @@ class DummyCacheManager:
     def get_cache(self) -> KVCache:
         return self.cache
 
-    def allocate(self, request_id: RequestId, num_tokens: int) -> bool:
+    def allocate(self, request_id: RequestId, num_tokens: int, num_sequences: int) -> bool:
         seq_id = SequenceId(request_id, 0)
         self.cache.cached_requests[seq_id] = num_tokens
         if self.get_free_space() < 0:
@@ -107,7 +120,8 @@ class DummyTextGenerator:
                         request_id=request_id,
                         sequence_index=0,
                     ),
-                    generated_tokens=[1],
+                    generated_tokens=[req.token_ids[-1] + 1],
+                    # generated_tokens=[1],
                     error=None,
                 )
             )

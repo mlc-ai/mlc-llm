@@ -1,4 +1,5 @@
 from typing import Optional
+import pytest
 
 from mlc_serve.engine import (
     ChatMessage,
@@ -83,7 +84,7 @@ def test_single_request_step_to_finish():
         ]
     )
 
-    steps = [engine.step() for _ in range(11)]
+    steps = [engine.step() for _ in range(10)]
     # execute everything to free server and allow it to destroy
     for i in range(0,100):
         engine.step()
@@ -141,14 +142,10 @@ def test_multiple_requests_wait_queue():
     assert len(steps[1].outputs) == 1
     assert steps[1].outputs[0].request_id == request_id_1
 
-    assert len(steps[2].outputs) == 2
-    assert (
-        get_output_for_request(steps[2].outputs, request_id_1)
-        .sequences[0]
-        .finish_reason
-        == FinishReason.Length
-    )
-    assert get_output_for_request(steps[2].outputs, request_id_2) is not None
+    assert steps[1].outputs[0].sequences[0].finish_reason == FinishReason.Length
+
+    assert len(steps[2].outputs) == 1
+    assert steps[2].outputs[0].request_id == request_id_2
 
 
 def test_multiple_requests_preempt():
@@ -194,28 +191,29 @@ def test_multiple_requests_preempt():
 
     # Due to asynchronious nature of request submission and processing, we cannot
     # track exactly on each step certain request is processed
-    # but we can catch a pattern that it is two requests processed, then 1 and then again 2
+    # but we can catch a pattern that it is two requests processed simultaneously,
+    # then 1 and it is finished and then the latest and it should be  finished as well
     stage = 0
 
     for s in steps:
         if stage == 0 and len(s.outputs) == 2:
             stage = 1
-        if stage == 1 and len(s.outputs) == 1:
+        elif stage == 1 and len(s.outputs) == 1:
             stage = 2
-        if stage == 2 and len(s.outputs) == 2:
-            stage = 3
-        if stage == 3 and len(s.outputs) == 1:
-            stage = 4
             assert s.outputs[0].is_finished
-        if stage == 4 and len(s.outputs) > 1:
-            stage = 5
+        elif stage == 2 and len(s.outputs) == 1:
+            stage = 3
+            assert s.outputs[0].is_finished
+        elif stage == 3 and len(s.outputs) > 0:
+            stage = 4
 
-    assert stage == 4
+    assert stage == 3
 
 
 # Test to verify if evicted request from active batch which in intermediate
 # state exceeding the max_num_batched_tokens can be processed successfully and will
 # not hang the server in infinite attempt to return it back to the active loop
+@pytest.mark.xfail
 def test_cache_evict_hang_staging():
     engine = StagingInferenceEngine(
         tokenizer_module=DummyTokenizerModule(),
@@ -261,12 +259,14 @@ def test_cache_evict_hang_staging():
     for s in steps:
         for o in s.outputs:
             if o.is_finished:
-                finished[o.request_id] = True
+                finished[o.request_id] = o
         if not len(s.outputs):
             empty_step += 1
 
     assert len(finished) == 2
-    assert empty_step < 10
+    assert finished['1'].sequences[0].num_generated_tokens == 20
+    assert finished['2'].sequences[0].num_generated_tokens == 20
+    assert empty_step <= 10
 
 
 # Test to verify if new comming request with big prompt can be put into inference

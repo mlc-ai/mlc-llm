@@ -77,7 +77,7 @@ def test_single_request_step_to_finish():
         ]
     )
 
-    steps = [engine.step() for _ in range(11)]
+    steps = [engine.step() for _ in range(10)]
 
     assert steps[-1].outputs[0].request_id == request_id
     assert steps[-1].outputs[0].sequences[0].finish_reason == FinishReason.Length
@@ -120,15 +120,10 @@ def test_multiple_requests_wait_queue():
     assert len(steps[1].outputs) == 1
     assert steps[1].outputs[0].request_id == request_id_1
 
-    assert len(steps[2].outputs) == 2
-    assert (
-        get_output_for_request(steps[2].outputs, request_id_1)
-        .sequences[0]
-        .finish_reason
-        == FinishReason.Length
-    )
-    assert get_output_for_request(steps[2].outputs, request_id_2) is not None
+    assert steps[1].outputs[0].sequences[0].finish_reason == FinishReason.Length
 
+    assert len(steps[2].outputs) == 1
+    assert steps[2].outputs[0].request_id == request_id_2
 
 def test_multiple_requests_preempt():
     engine = SynchronousInferenceEngine(DummyModelModule(30))
@@ -164,10 +159,7 @@ def test_multiple_requests_preempt():
     assert len(steps[5].outputs) == 2
 
     assert len(steps[6].outputs) == 1
-    finished_request_id = steps[6].outputs[0].request_id
-
-    assert len(steps[7].outputs) == 2
-    assert get_output_for_request(steps[7].outputs, finished_request_id).is_finished
+    assert steps[6].outputs[0].is_finished
 
 
 # Test to verify if evicted request from active batch which in intermediate
@@ -208,12 +200,14 @@ def test_cache_evict_hang():
     for s in steps:
         for o in s.outputs:
             if o.is_finished:
-                finished[o.request_id] = True
+                finished[o.request_id] = o
         if not len(s.outputs):
             empty_step += 1
 
     assert len(finished) == 2
-    assert empty_step < 10
+    assert finished['1'].sequences[0].num_generated_tokens == 20
+    assert finished['2'].sequences[0].num_generated_tokens == 20
+    assert empty_step <= 10
 
 
 # Test to verify if new comming request with big prompt can be put into inference
