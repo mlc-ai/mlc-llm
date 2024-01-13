@@ -923,13 +923,14 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
 
 
 def _merge_state_inplace(num_heads, head_dim, v_dtype):
+    # pylint: disable=invalid-name
     v_dtype_bytes = 2
     VEC_SIZE = max(8 // v_dtype_bytes, head_dim // 32)
     bdx = head_dim // VEC_SIZE
     bdy = num_heads
 
     @T.prim_func
-    def merge_state_inplace(  # pylint: disable=invalid-name
+    def merge_state_inplace(  
         v: T.handle,
         s: T.handle,
         v_other: T.handle,
