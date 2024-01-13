@@ -2,7 +2,7 @@
 Required interfaces for the actual inference capability in InferenceEngine.
 """
 from dataclasses import dataclass
-from typing import Optional, Protocol, Union, List
+from typing import Optional, Protocol, Union, List, Sequence
 
 from .base import ChatMessage, RequestId, MLCServeEngineConfig, RequestState, SequenceId
 from ..model.base import ModelArtifactConfig
@@ -117,8 +117,8 @@ class TextGenerator(Protocol):
 
     def generate(
         self,
-        requests: List[Union[PrefillRequest, DecodeRequest]],
-        kv_cache: KVCache,
+        requests: Sequence[Union[PrefillRequest, DecodeRequest]],
+        kv_cache,
     ) -> List[TextGenerationResult]:
         """
         A unified entrypoint for text generation.
