@@ -593,6 +593,7 @@ def mod_transform_before_build(
             # This is equivalent to prefill but without KV cache. It is used for
             # determining the number of paged cache blocks that can be allocated.
             model_names.append("evaluate")
+            model_names.append("evaluate_multi_query")
 
         if args.sep_embed:
             model_names = ["embed", "prefill_with_embed"] + model_names[1:]
