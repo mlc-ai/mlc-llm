@@ -914,7 +914,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
                                 # store O to global memory
                                 for vec in T.vectorized(VEC_SIZE):
                                     output[batch_idx, by * GROUP_SIZE + ty, tx * VEC_SIZE + vec] = O_local[vec]
-                                    
+
                                 # store lse to global memory
                                 lse[batch_idx, by * GROUP_SIZE + ty] = st_m[0] + T.log2(st_d[0])
     # fmt: on
