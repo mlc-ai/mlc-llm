@@ -929,7 +929,7 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype):
     bdy = num_heads
 
     @T.prim_func
-    def merge_state_inplace(
+    def merge_state_inplace(  # pylint: disable=invalid-name
         v: T.handle,
         s: T.handle,
         v_other: T.handle,
@@ -982,4 +982,5 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype):
                         # store s
                         S[bx, ty] = T.log2(s_val + s_other_val) + s_max
 
+    # pylint: enable=invalid-name
     return merge_state_inplace
