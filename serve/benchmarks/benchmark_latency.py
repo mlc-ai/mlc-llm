@@ -1,5 +1,7 @@
 """Benchmark latency offline."""
 import argparse
+import cuda
+import cuda.cudart
 import time, numpy as np
 from mlc_serve.engine import (
     DebugOptions,
@@ -15,47 +17,55 @@ from mlc_serve.utils import (
 from utils import add_sampling_flags, postproc_sampling_args
 
 
+request_counter = 0
+
+
+def create_request(request_id):
+    global request_counter
+    request_counter += 1
+    return Request(
+        request_id=str(request_counter),
+        messages=None,  # Provide prompt as `DebugOption` to bypass the conv template
+        sampling_params=SamplingParams(
+            temperature=args.temperature,
+            top_p=(1 if args.temperature == 0.0 else args.sampling_setting["top_p"]),
+            top_k=(-1 if args.temperature == 0.0 else args.sampling_setting["top_k"]),
+            repetition_penalty=args.sampling_setting["repetition_penalty"],
+            frequency_penalty=args.sampling_setting["frequency_penalty"],
+            presence_penalty=args.sampling_setting["presence_penalty"],
+            logit_bias=args.sampling_setting["logit_bias"],
+        ),
+        stopping_criteria=StoppingCriteria(
+            max_tokens=args.num_output_tokens, stop_sequences=None
+        ),
+        debug_options=DebugOptions(
+            ignore_eos=True, prompt_token_ids=[3] * args.num_input_tokens
+        ),
+        num_sequences=args.num_sequences_to_sample,
+    )
+
+
 def main(args: argparse.Namespace):
     print(args)
 
     engine = create_mlc_engine(args)
-    engine.add(
-        [
-            Request(
-                request_id="0",
-                messages=None,  # Provide prompt as `DebugOption` to bypass the conv template
-                sampling_params=SamplingParams(
-                    temperature=args.temperature,
-                    top_p=(
-                        1 if args.temperature == 0.0 else args.sampling_setting["top_p"]
-                    ),
-                    top_k=(
-                        -1
-                        if args.temperature == 0.0
-                        else args.sampling_setting["top_k"]
-                    ),
-                    repetition_penalty=args.sampling_setting["repetition_penalty"],
-                    frequency_penalty=args.sampling_setting["frequency_penalty"],
-                    presence_penalty=args.sampling_setting["presence_penalty"],
-                    logit_bias=args.sampling_setting["logit_bias"],
-                ),
-                stopping_criteria=StoppingCriteria(
-                    max_tokens=args.num_output_tokens, stop_sequences=None
-                ),
-                debug_options=DebugOptions(
-                    ignore_eos=True, prompt_token_ids=[3] * args.num_input_tokens
-                ),
-                num_sequences=args.num_sequences_to_sample,
-            )
-        ]
-    )
+
+    # warm up
+    engine.add([create_request(args)])
+
+    while engine.has_pending_requests():
+        engine.step()
 
     latencies = []
+    engine.add([create_request(args)])
+
+    cuda.cudart.cudaProfilerStart()
     while engine.has_pending_requests():
         t0 = time.perf_counter()
         engine.step()
         t1 = time.perf_counter()
         latencies.append(t1 - t0)
+    cuda.cudart.cudaProfilerStop()
 
     if args.use_staging_engine:
         engine.stop()

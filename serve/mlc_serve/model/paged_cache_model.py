@@ -66,6 +66,7 @@ def sample(
             == 0
         )
 
+    torch.cuda.nvtx.range_push(f"sample {logits.shape}")
     logits = torch.from_dlpack(logits)
     num_seq = len(sampling_params)
 
@@ -81,6 +82,7 @@ def sample(
         res_greedy = torch.argmax(logits_greedy, -1).cpu().numpy()
 
         if logits_greedy.shape[0] == num_seq:
+            torch.cuda.nvtx.range_pop()
             return res_greedy
 
     temperatures = []
@@ -129,11 +131,13 @@ def sample(
     probs = torch.softmax(logits_random, dim=-1)
 
     if check_safety and not _is_safe_to_sample(probs):
+        torch.cuda.nvtx.range_pop()
         return None
 
     res_random = torch.multinomial(probs, 1, True).cpu().numpy()[:, 0]
 
     if logits_random.shape[0] == num_seq:
+        torch.cuda.nvtx.range_pop()
         return res_random
 
     res = np.empty((num_seq,), dtype=np.int32)
@@ -142,6 +146,7 @@ def sample(
     if logits_greedy.shape[0] > 0:
         res[mask_greedy] = res_greedy
 
+    torch.cuda.nvtx.range_pop()
     return res
 
 
