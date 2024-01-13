@@ -456,7 +456,7 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                             m_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
                             m_prev_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
                             d_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
-                            
+
                             m_new = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
                             m_prev = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
                             d_new = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
