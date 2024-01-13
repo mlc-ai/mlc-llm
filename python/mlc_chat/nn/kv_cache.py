@@ -620,6 +620,13 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                                             if L_start + i // group_size < q_indptr[b_idx + 1]:
                                                 output[L_start + i // group_size, H_qo_start + i % group_size, j] = O_local[i, j] / d_smem[i]
 
+                                    # Store LSE to gmem
+                                    for li in T.grid(tile_x):
+                                        with T.block("lse_store"):
+                                            i = T.axis.remap("SS", [li])
+                                            if L_start + i // group_size < q_indptr[b_idx + 1]:
+                                                lse[L_start + i // group_size, H_qo_start + i % group_size] = m_smem[i] + T.log(d_smem[i])
+
                                     # move to next tile
                                     tile_id[0] += NUM_BLKS
     # fmt: on
@@ -680,6 +687,12 @@ def _attention_prefill(h_kv, h_q, d, dtype):
             sch.reorder(ko, ki, xi, yi)
         sch.decompose_reduction(block, ty)
 
+    def apply_to_md(sch, block):
+        loop = sch.get_loops(block)[-1]
+        _, ty, tx = sch.split(loop, factors=[None, num_warps, 32])
+        sch.bind(ty, "threadIdx.y")
+        sch.bind(tx, "threadIdx.x")
+
     tile_s = get_tile_size(tile_x, tile_z, 32 * num_warps)
     tile_o = get_tile_size(tile_x, tile_y, 32 * num_warps)
     apply_to_gemm(sch, sch.get_block("S_gemm"), tile_s, 0, 1, k_major=True)
@@ -690,6 +703,8 @@ def _attention_prefill(h_kv, h_q, d, dtype):
     apply_to_qkv_load(sch, sch.get_block("Q_load"))
     apply_to_qkv_load(sch, sch.get_block("K_load"))
     apply_to_qkv_load(sch, sch.get_block("V_load"))
+
+    apply_to_md(sch, sch.get_block("lse_store"))
     return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
 
@@ -899,6 +914,9 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
                                 # store O to global memory
                                 for vec in T.vectorized(VEC_SIZE):
                                     output[batch_idx, by * GROUP_SIZE + ty, tx * VEC_SIZE + vec] = O_local[vec]
+
+                                # store lse to global memory
+                                lse[batch_idx, by * GROUP_SIZE + ty] = st_m[0] + T.log2(st_d[0])
     # fmt: on
     # pylint: enable=line-too-long,invalid-name,too-many-arguments,too-many-branches
     return batch_decode_paged_kv
