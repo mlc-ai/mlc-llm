@@ -1,5 +1,5 @@
 """Attention KV cache modeling."""
-# pylint: disable=too-many-statements
+# pylint: disable=too-many-statements,too-many-lines
 import math
 from typing import Tuple
 
@@ -1063,14 +1063,14 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
                             m_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
                             m_prev_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
                             d_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
-                            
+
                             m_new = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
                             m_prev = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
                             d_new = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
 
                             ## get tile_no, batch_idx, batch_tiles, batch_rows
                             batch_size = batch_size_inc1 - 1
-                            
+
                             tile_id[0] = bx
                             batch_idx[0] = 0
                             batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
