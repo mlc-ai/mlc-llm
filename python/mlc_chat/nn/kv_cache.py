@@ -1008,6 +1008,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
             col < kv_len,
         )
 
+    # pylint: disable=line-too-long,too-many-arguments,too-many-branches
     # fmt: off
     @T.prim_func
     def batch_prefill_ragged_kv(
