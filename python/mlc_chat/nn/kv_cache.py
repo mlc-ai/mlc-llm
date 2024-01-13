@@ -623,9 +623,9 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                                     # Store LSE to gmem
                                     for li in T.grid(tile_x):
                                         with T.block("lse_store"):
-                                            i = T.axis.remap("SS", [li])
+                                            i = T.axis.remap("S", [li])
                                             if L_start + i // group_size < q_indptr[b_idx + 1]:
-                                                lse[L_start + i // group_size, H_qo_start + i % group_size] = m_smem[i] + T.log(d_smem[i])
+                                                lse[L_start + i // group_size, H_qo_start + i % group_size] = m_smem[i] + T.log2(d_smem[i])
 
                                     # move to next tile
                                     tile_id[0] += NUM_BLKS
