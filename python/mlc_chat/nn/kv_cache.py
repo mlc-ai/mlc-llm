@@ -990,9 +990,7 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype):
 
 
 def _attention_prefill_ragged(h_kv, h_q, d, dtype):
-    assert (
-        dtype == "float16"
-    ), f"TIR attention kernel does not support dtype {dtype} right now"
+    assert dtype == "float16", f"TIR attention kernel does not support dtype {dtype} right now"
     # pylint: disable=invalid-name
     NUM_BLKS = 16
     LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
@@ -1065,9 +1063,9 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
                             m_prev_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
                             d_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
                             
-                            m_new = T.alloc_buffer((ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
-                            m_prev = T.alloc_buffer((ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
-                            d_new = T.alloc_buffer((ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
+                            m_new = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
+                            m_prev = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
+                            d_new = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
 
                             ## get tile_no, batch_idx, batch_tiles, batch_rows
                             batch_size = batch_size_inc1 - 1
