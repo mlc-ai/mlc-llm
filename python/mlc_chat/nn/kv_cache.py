@@ -920,3 +920,70 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
     # fmt: on
     # pylint: enable=line-too-long,invalid-name,too-many-arguments,too-many-branches
     return batch_decode_paged_kv
+
+
+def _merge_state_inplace(num_heads, head_dim, v_dtype):
+    # pylint: disable=invalid-name
+    v_dtype_bytes = 2
+    VEC_SIZE = max(8 // v_dtype_bytes, head_dim // 32)
+    bdx = head_dim // VEC_SIZE
+    bdy = num_heads
+
+    @T.prim_func
+    def merge_state_inplace(
+        v: T.handle,
+        s: T.handle,
+        v_other: T.handle,
+        s_other: T.handle,
+    ):
+        T.func_attr({"tir.is_scheduled": 1})
+        N = T.int32(is_size_var=True)
+        H = T.int32(is_size_var=True)
+        D = T.int32(is_size_var=True)
+
+        V = T.match_buffer(v, (N, H, D), v_dtype)
+        S = T.match_buffer(s, (N, H), "float32")
+        V_other = T.match_buffer(v_other, (N, H, D), v_dtype)
+        S_other = T.match_buffer(s_other, (N, H), "float32")
+
+        for bx in T.thread_binding(N, thread="blockIdx.x"):
+            for ty in T.thread_binding(bdy, thread="threadIdx.y"):
+                for tx in T.thread_binding(bdx, thread="threadIdx.x"):
+                    with T.block("merge"):
+                        s_val = _var("float32")
+                        s_other_val = _var("float32")
+                        s_max = _var("float32")
+                        scale = _var("float32")
+                        other_scale = _var("float32")
+
+                        v_vec = T.alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
+                        v_other_vec = T.alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
+
+                        s_val[0] = S[bx, ty]
+                        s_other_val[0] = S_other[bx, ty]
+                        s_max[0] = T.max(s_val[0], s_other_val[0])
+                        s_val[0] = T.exp2(s_val[0] - s_max[0])
+                        s_other_val[0] = T.exp2(s_other_val[0] - s_max[0])
+                        scale[0] = s_val[0] / (s_val[0] + s_other_val[0])
+                        other_scale[0] = s_other_val[0] / (s_val[0] + s_other_val[0])
+
+                        # load v
+                        for vec in T.vectorized(VEC_SIZE):
+                            v_vec[vec] = V[bx, ty, tx * VEC_SIZE + vec]
+                        # load v_other
+                        for vec in T.vectorized(VEC_SIZE):
+                            v_other_vec[vec] = V_other[bx, ty, tx * VEC_SIZE + vec]
+
+                        # merge
+                        for vec in T.serial(VEC_SIZE):
+                            v_vec[vec] = v_vec[vec] * scale[0] + v_other_vec[vec] * other_scale[0]
+
+                        # store v
+                        for vec in T.vectorized(VEC_SIZE):
+                            V[bx, ty, tx * VEC_SIZE + vec] = v_vec[vec]
+
+                        # store s
+                        S[bx, ty] = T.log2(s_val[0] + s_other_val[0]) + s_max[0]
+
+    # pylint: enable=invalid-name
+    return merge_state_inplace
