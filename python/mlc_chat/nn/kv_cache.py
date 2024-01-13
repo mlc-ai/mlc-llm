@@ -444,9 +444,6 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                             batch_rows = _var("int32")
                             iterator = _var("int32")
                             kv_chunk_len = _var("int32")
-                            m_new = _var("float32")
-                            m_prev = _var("float32")
-                            d_new = _var("float32")
 
                             Q_smem = T.alloc_buffer((tile_x, d), dtype, scope="shared")
                             K_smem = T.alloc_buffer((tile_z, d), dtype, scope="shared")
@@ -459,6 +456,10 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                             m_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
                             m_prev_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
                             d_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
+
+                            m_new = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
+                            m_prev = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
+                            d_new = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)), ), "float32", scope="local")
 
                             ## get tile_no, batch_idx, batch_tiles, batch_rows
                             tile_id[0] = bx
@@ -566,8 +567,8 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                                             row: T.int32 = i * 32 * num_warps + ty * 32 + tx
                                             if row < tile_x:
                                                 with T.block("update1"):
-                                                    m_prev[0] = m_smem[row]
-                                                    m_new[0] = m_smem[row]
+                                                    m_prev[i] = m_smem[row]
+                                                    m_new[i] = m_smem[row]
                                                     # mask out of kv_chunk_len S
                                                     for j in T.serial(tile_z):
                                                         if mask(causal,
@@ -575,8 +576,8 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                                                                 col=L_kv_start + j,
                                                                 kv_len=kv_chunk_len[0],
                                                                 qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx]):
-                                                            m_new[0] = T.max(m_new[0], S_smem[row, j])
-                                                    d_new[0] = d_smem[row] * T.exp2(m_prev[0] - m_new[0])
+                                                            m_new[i] = T.max(m_new[i], S_smem[row, j])
+                                                    d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
 
                                         for i in T.serial(T.ceildiv(tile_x, 32 * num_warps)):
                                             row: T.int32 = i * 32 * num_warps + ty * 32 + tx
@@ -589,19 +590,19 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                                                                 col=L_kv_start + j,
                                                                 kv_len=kv_chunk_len[0],
                                                                 qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx]):
-                                                            S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[0])
+                                                            S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[i])
                                                         else:
-                                                            S_smem[row, j] = T.exp2(-5e4 - m_new[0])
+                                                            S_smem[row, j] = T.exp2(-5e4 - m_new[i])
 
                                         for i in T.serial(T.ceildiv(tile_x, 32 * num_warps)):
                                             row: T.int32 = i * 32 * num_warps + ty * 32 + tx
                                             if row < tile_x:
                                                 with T.block("update"):
                                                     for j in T.serial(tile_z):
-                                                        d_new[0] += S_smem[row, j]
-                                                    m_smem[row] = m_new[0]
-                                                    d_smem[row] = d_new[0]
-                                                    m_prev_smem[row] = m_prev[0]
+                                                        d_new[i] += S_smem[row, j]
+                                                    m_smem[row] = m_new[i]
+                                                    d_smem[row] = d_new[i]
+                                                    m_prev_smem[row] = m_prev[i]
                                         T.tvm_storage_sync("shared")
 
                                         # Update O
