@@ -930,7 +930,7 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype):
     bdy = num_heads
 
     @T.prim_func
-    def merge_state_inplace(  
+    def merge_state_inplace(
         v: T.handle,
         s: T.handle,
         v_other: T.handle,
@@ -959,11 +959,13 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype):
                         v_vec = T.alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
                         v_other_vec = T.alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
 
-                        s_val = S[bx, ty]
-                        s_other_val = S_other[bx, ty]
-                        s_max = T.max(s_val, s_other_val)
-                        scale = s_val / (s_val + s_other_val)
-                        other_scale = s_other_val / (s_val + s_other_val)
+                        s_val[0] = S[bx, ty]
+                        s_other_val[0] = S_other[bx, ty]
+                        s_max[0] = T.max(s_val[0], s_other_val[0])
+                        s_val[0] = T.exp2(s_val[0] - s_max[0])
+                        s_other_val[0] = T.exp2(s_other_val[0] - s_max[0])
+                        scale[0] = s_val[0] / (s_val[0] + s_other_val[0])
+                        other_scale[0] = s_other_val[0] / (s_val[0] + s_other_val[0])
 
                         # load v
                         for vec in T.vectorized(VEC_SIZE):
@@ -974,14 +976,14 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype):
 
                         # merge
                         for vec in T.serial(VEC_SIZE):
-                            v_vec[vec] = v_vec[vec] * scale + v_other_vec[vec] * other_scale
+                            v_vec[vec] = v_vec[vec] * scale[0] + v_other_vec[vec] * other_scale[0]
 
                         # store v
                         for vec in T.vectorized(VEC_SIZE):
                             V[bx, ty, tx * VEC_SIZE + vec] = v_vec[vec]
 
                         # store s
-                        S[bx, ty] = T.log2(s_val + s_other_val) + s_max
+                        S[bx, ty] = T.log2(s_val[0] + s_other_val[0]) + s_max[0]
 
     # pylint: enable=invalid-name
     return merge_state_inplace
