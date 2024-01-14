@@ -10,7 +10,11 @@ from tvm.relax.frontend import nn
 
 from mlc_chat.support import logging
 
-from .attach_to_ir_module import AttachAdditionalPrimFuncs, AttachVariableBounds
+from .attach_to_ir_module import (
+    AttachAdditionalPrimFuncs,
+    AttachMemoryPlanAttr,
+    AttachVariableBounds,
+)
 from .clean_up_tir_attrs import CleanUpTIRAttrs
 from .cublas_dispatch import CublasDispatch
 from .estimate_memory_usage import AttachMetadataWithMemoryUsage
@@ -81,6 +85,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 PruneRelaxFunc(flashinfer=flashinfer),
                 AttachVariableBounds(variable_bounds),
                 AttachAdditionalPrimFuncs(additional_tirs),
+                AttachMemoryPlanAttr(),
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
