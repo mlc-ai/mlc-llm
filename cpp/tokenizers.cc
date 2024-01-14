@@ -35,7 +35,7 @@ std::string TokenizerObj::Decode(const std::vector<int32_t>& token_ids) const {
 }
 
 Tokenizer Tokenizer::FromPath(const String& _path) {
-  std::filesystem::path path(_path);
+  std::filesystem::path path(_path.operator std::string());
   std::filesystem::path sentencepiece;
   std::filesystem::path huggingface;
   std::filesystem::path rwkvworld;
