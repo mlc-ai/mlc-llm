@@ -12,7 +12,7 @@ from ..streamer import StopStringHandler, TextStreamer
 from ..tokenizer import Tokenizer
 from . import data
 from .config import EngineMode, GenerationConfig, KVCacheConfig
-from .engine import ModelInfo, _process_model_args
+from .engine import ModelInfo, _estimate_max_total_sequence_length, _process_model_args
 from .event_trace_recorder import EventTraceRecorder
 from .request import Request, RequestStreamOutput
 
@@ -110,13 +110,22 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
         engine_mode: Optional[EngineMode] = None,
         enable_tracing: bool = False,
     ) -> None:
+        if isinstance(models, ModelInfo):
+            models = [models]
         (
             model_args,
+            config_file_paths,
             tokenizer_path,
             self.max_single_sequence_length,
             self.conv_template_name,
         ) = _process_model_args(models)
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
+
+        if kv_cache_config.max_total_sequence_length is None:
+            kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
+                models, config_file_paths
+            )
+
         module = tvm.get_global_func("mlc.serve.create_threaded_engine", allow_missing=False)()
         self._ffi = {
             key: module[key]

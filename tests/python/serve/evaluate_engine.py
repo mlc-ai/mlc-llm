@@ -14,7 +14,7 @@ def _parse_args():
     args.add_argument("--device", type=str, default="auto")
     args.add_argument("--batch-size", type=int, default=80)
     args.add_argument("--page-size", type=int, default=16)
-    args.add_argument("--max-total-seq-length", type=int, default=16000)
+    args.add_argument("--max-total-seq-length", type=int)
     args.add_argument("--seed", type=int, default=0)
 
     parsed = args.parse_args()

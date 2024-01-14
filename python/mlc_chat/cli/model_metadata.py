@@ -66,7 +66,7 @@ def _read_dynamic_shape(shape: List[Union[int, str]], config: Dict) -> List[int]
     return param_shape
 
 
-def _report_memory_usage(metadata: Dict[str, Any], config: Dict) -> None:
+def _compute_memory_usage(metadata: Dict[str, Any], config: Dict):
     params_bytes = 0.0
     for param in metadata["params"]:
         if all(isinstance(v, int) for v in param["shape"]):
@@ -81,6 +81,11 @@ def _report_memory_usage(metadata: Dict[str, Any], config: Dict) -> None:
         temp_func_bytes = max(temp_func_bytes, func_bytes)
     kv_cache_bytes = metadata["kv_cache_bytes"]
 
+    return params_bytes, temp_func_bytes, kv_cache_bytes
+
+
+def _report_memory_usage(metadata: Dict[str, Any], config: Dict) -> None:
+    params_bytes, temp_func_bytes, kv_cache_bytes = _compute_memory_usage(metadata, config)
     total_size = params_bytes + temp_func_bytes + kv_cache_bytes
     logger.info(
         "%s: %.2f MB (Parameters: %.2f MB. KVCache: %.2f MB. Temporary buffer: %.2f MB)",
@@ -94,6 +99,19 @@ def _report_memory_usage(metadata: Dict[str, Any], config: Dict) -> None:
     logger.info(
         "To reduce memory usage, "
         "tweak `prefill_chunk_size`, `context_window_size` and `sliding_window_size`"
+    )
+
+
+def _print_memory_usage_in_json(metadata: Dict[str, Any], config: Dict) -> None:
+    params_bytes, temp_func_bytes, kv_cache_bytes = _compute_memory_usage(metadata, config)
+    print(
+        json.dumps(
+            {
+                "params_bytes": params_bytes,
+                "temp_func_bytes": temp_func_bytes,
+                "kv_cache_bytes": kv_cache_bytes,
+            }
+        )
     )
 
 
@@ -111,7 +129,7 @@ def main():
     parser.add_argument(
         "--mlc-chat-config",
         type=Path,
-        help="""The `mlc-chat-cnofig.json` file specific to a model variant. This is only required
+        help="""The `mlc-chat-config.json` file specific to a model variant. This is only required
         when `memory-only` is true and `model_lib` contains a dynamic parameter shape (i.e. using
         a variable to represent the shape). For instance, `model.embed_tokens.q_weight` can have
         shape `["vocab_size", 512]`. In these cases, we look up the concrete value in
@@ -125,6 +143,11 @@ def main():
         Otherwise, the tool will load all the metadata from the model library file but only print
         the basic information in JSON.
         """,
+    )
+    parser.add_argument(
+        "--print-memory-usage-in-json-only",
+        action="store_true",
+        help="""If set, only inspect the metadata in memory usage and print usage in raw JSON.""",
     )
     parsed = parser.parse_args()
     # Load metadata from model lib
@@ -142,7 +165,9 @@ def main():
         with open(mlc_chat_config_path, "r", encoding="utf-8") as config_file:
             cfg = json.load(config_file)
     # Main body
-    if parsed.memory_only:
+    if parsed.print_memory_usage_in_json_only:
+        _print_memory_usage_in_json(metadata, cfg)
+    elif parsed.memory_only:
         _report_memory_usage(metadata, cfg)
     else:
         _report_all(metadata)

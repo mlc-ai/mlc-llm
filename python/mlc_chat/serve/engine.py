@@ -1,5 +1,8 @@
 """The MLC LLM Serving Engine."""
 import json
+import os
+import subprocess
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
@@ -8,7 +11,9 @@ import tvm
 from tvm.runtime import Device
 
 from mlc_chat.serve import data
+from mlc_chat.support import logging
 from mlc_chat.support.auto_device import detect_device
+from mlc_chat.support.style import green
 
 from ..chat_module import _get_chat_config, _get_lib_module_path, _get_model_path
 from ..streamer import StopStringHandler, TextStreamer
@@ -17,6 +22,9 @@ from . import data
 from .config import EngineMode, GenerationConfig, KVCacheConfig
 from .event_trace_recorder import EventTraceRecorder
 from .request import Request, RequestStreamOutput
+
+logging.enable_logging()
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -62,18 +70,20 @@ def _create_tvm_module(
 
 
 def _process_model_args(
-    models: Union[ModelInfo, List[ModelInfo]]
-) -> Tuple[List[Any], str, int, Optional[str]]:
+    models: List[ModelInfo],
+) -> Tuple[List[Any], List[str], str, int, Optional[str]]:
     """Process the input ModelInfo to get the engine initialization arguments."""
     max_single_sequence_length = int(1e9)
     tokenizer_path: Optional[str] = None
     conv_template_name: Optional[str] = None
+    config_file_paths: List[str] = []
 
     def _convert_model_info(model: ModelInfo) -> List[Any]:
         nonlocal max_single_sequence_length, tokenizer_path, conv_template_name
 
         device = model.device
         model_path, config_file_path = _get_model_path(model.model)
+        config_file_paths.append(config_file_path)
         chat_config = _get_chat_config(config_file_path, user_chat_config=None)
         if chat_config.context_window_size:
             max_single_sequence_length = min(
@@ -108,15 +118,98 @@ def _process_model_args(
             )
         return [model_lib_path, model_path, device.device_type, device.device_id]
 
-    if isinstance(models, list):
-        model_args: List[Any] = sum(
-            (_convert_model_info(model) for model in models),
-            start=[],
-        )
-    else:
-        model_args = _convert_model_info(models)
+    model_args: List[Any] = sum(
+        (_convert_model_info(model) for model in models),
+        start=[],
+    )
 
-    return model_args, tokenizer_path, max_single_sequence_length, conv_template_name
+    return (
+        model_args,
+        config_file_paths,
+        tokenizer_path,
+        max_single_sequence_length,
+        conv_template_name,
+    )
+
+
+def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
+    models: List[ModelInfo], config_file_paths: List[str]
+) -> int:
+    """Estimate the max total sequence length (capacity) of the KV cache."""
+    assert len(models) != 0
+
+    kv_bytes_per_token = 0
+    params_bytes = 0
+    temp_func_bytes = 0
+
+    for model, config_file_path in zip(models, config_file_paths):
+        # Read metadata for the parameter size and the temporary memory size.
+        cmd = [
+            sys.executable,
+            "-m",
+            "mlc_chat.cli.model_metadata",
+            model.model_lib_path,
+            "--print-memory-usage-in-json",
+            "--mlc-chat-config",
+            config_file_path,
+        ]
+        usage_str = subprocess.check_output(cmd, universal_newlines=True)
+        usage_json = json.loads(usage_str)
+        params_bytes += usage_json["params_bytes"]
+        temp_func_bytes = max(temp_func_bytes, usage_json["temp_func_bytes"])
+
+        # Read model config and compute the kv size per token.
+        with open(config_file_path, mode="rt", encoding="utf-8") as file:
+            json_object = json.load(file)
+            model_config = json_object["model_config"]
+            num_layers = model_config["num_hidden_layers"]
+            hidden_size = model_config["hidden_size"]
+            num_qo_heads = model_config["num_attention_heads"]
+            num_kv_heads = model_config["num_key_value_heads"]
+            tensor_parallel_shards = model_config["tensor_parallel_shards"]
+        kv_bytes_per_token += (
+            (hidden_size / num_qo_heads)
+            * (num_kv_heads / tensor_parallel_shards)  # on single GPU
+            * num_layers
+            * 4  # key, value, fp16
+            * 1.10  # over estimation to guarantee safety
+        )
+
+    # Get single-card GPU size.
+    gpu_size_bytes = os.environ.get("MLC_GPU_SIZE_BYTES", default=None)
+    if gpu_size_bytes is None:
+        gpu_size_bytes = models[0].device.total_global_memory
+        if gpu_size_bytes is None:
+            raise ValueError(
+                "Cannot read total GPU global memory from device. "
+                'Please the GPU memory size in bytes through "MLC_GPU_SIZE_BYTES" env variable.'
+            )
+
+    max_total_sequence_length = int(
+        (int(gpu_size_bytes) * 0.98 - params_bytes * 1.04 - temp_func_bytes) / kv_bytes_per_token
+    )
+    assert max_total_sequence_length > 0, (
+        "Cannot estimate KV cache capacity. "
+        f"The model weight size {params_bytes} may be larger than GPU memory size {gpu_size_bytes}"
+    )
+
+    total_size = (
+        params_bytes * 1.04 + temp_func_bytes + kv_bytes_per_token * max_total_sequence_length
+    )
+    logger.info(
+        "%s: %d.",
+        green('Estimated KVCacheConfig "max_total_sequence_length"'),
+        max_total_sequence_length,
+    )
+    logger.info(
+        "%s: %.2f MB (Parameters: %.2f MB. KVCache: %.2f MB. Temporary buffer: %.2f MB)",
+        green("Estimated total single GPU memory usage"),
+        total_size / 1024 / 1024,
+        params_bytes / 1024 / 1024,
+        kv_bytes_per_token * max_total_sequence_length / 1024 / 1024,
+        temp_func_bytes / 1024 / 1024,
+    )
+    return int(max_total_sequence_length)
 
 
 class Engine:
@@ -174,8 +267,11 @@ class Engine:
         request_stream_callback: Optional[Callable[[List[RequestStreamOutput]], None]] = None,
         enable_tracing: bool = False,
     ):
+        if isinstance(models, ModelInfo):
+            models = [models]
         (
             model_args,
+            config_file_paths,
             tokenizer_path,
             self.max_single_sequence_length,
             self.conv_template_name,
@@ -194,6 +290,11 @@ class Engine:
             ],
         )
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
+
+        if kv_cache_config.max_total_sequence_length is None:
+            kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
+                models, config_file_paths
+            )
 
         if engine_mode is None:
             # The default engine mode: non-speculative
