@@ -32,3 +32,15 @@ class AttachAdditionalPrimFuncs:  # pylint: disable=too-few-public-methods
         for func_name, func in self.functions.items():
             mod[func_name] = func.with_attr("global_symbol", func_name)
         return mod
+
+
+@tvm.transform.module_pass(opt_level=0, name="AttachMemoryPlanAttr")
+class AttachMemoryPlanAttr:  # pylint: disable=too-few-public-methods
+    """Attach memory planning attribute for dynamic function output planning to Relax functions."""
+
+    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+        """Entrypoint"""
+        for g_var, func in mod.functions_items():
+            if isinstance(func, relax.Function):
+                mod[g_var] = func.with_attr("relax.memory_plan_dynamic_func_output", True)
+        return mod
