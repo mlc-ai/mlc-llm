@@ -163,7 +163,7 @@ KVCacheConfig::KVCacheConfig(const std::string& config_str, int max_single_seque
   if (config.count("page_size")) {
     CHECK(config["page_size"].is<int64_t>());
     page_size = config["page_size"].get<int64_t>();
-    CHECK_GE(page_size, 16) << "KV cache page size smaller than 16 is not supported.";
+    CHECK_EQ(page_size, 16) << "KV cache page size other than 16 is not supported.";
   } else {
     LOG(FATAL) << "Key \"page_size\" not found.";
   }
