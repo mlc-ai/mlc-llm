@@ -212,13 +212,22 @@ ObjectRef FunctionTable::Empty(ShapeTuple shape, DataType dtype, Device device) 
   }
 }
 
-ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array) {
+ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String tensor_name,
+                                       ShapeTuple max_reserved_shape) {
   Device null_device{DLDeviceType(0), 0};
   if (this->use_disco) {
-    DRef array =
-        Downcast<DRef>(this->Empty(host_array.Shape(), host_array.DataType(), null_device));
-    sess->CopyToWorker0(host_array, array);
-    return array;
+    DRef buffer(nullptr);
+    if (this->disco_buffers.count(tensor_name)) {
+      buffer = this->disco_buffers[tensor_name];
+    } else {
+      buffer = Downcast<DRef>(this->Empty(max_reserved_shape, host_array.DataType(), null_device));
+      this->disco_buffers.Set(tensor_name, buffer);
+    }
+    DRef view_func = sess->GetGlobalFunc("vm.builtin.reshape");
+    ShapeTuple real_shape = host_array.Shape();
+    DRef buffer_view = sess->CallPacked(view_func, buffer, real_shape);
+    sess->CopyToWorker0(host_array, buffer_view);
+    return buffer_view;
   } else {
     return host_array;
   }
