@@ -2,14 +2,10 @@ cmake_minimum_required(VERSION 3.18)
 project(mlc_llm C CXX)
 
 include(CheckCXXCompilerFlag)
-if(NOT MSVC)
-  check_cxx_compiler_flag("-std=c++17" SUPPORT_CXX17)
-  set(CMAKE_CXX_FLAGS "-std=c++17 -O3 -ffast-math -march=native ${CMAKE_CXX_FLAGS}")
-  set(CMAKE_CUDA_STANDARD 17)
+if(MSVC)
+  set(CMAKE_CXX_FLAGS "/fp:fast ${CMAKE_CXX_FLAGS}")
 else()
-  check_cxx_compiler_flag("/std:c++17" SUPPORT_CXX17)
-  set(CMAKE_CXX_FLAGS "/std:c++17 -O3 -ffast-math -march=native ${CMAKE_CXX_FLAGS}")
-  set(CMAKE_CUDA_STANDARD 17)
+  set(CMAKE_CXX_FLAGS "-ffast-math ${CMAKE_CXX_FLAGS}")
 endif()
 
 if(EXISTS ${CMAKE_BINARY_DIR}/config.cmake)
@@ -44,6 +40,8 @@ endif()
 
 option(BUILD_CPP_TEST "Build cpp unittests" OFF)
 
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # tvm runtime config: minimize runtime components

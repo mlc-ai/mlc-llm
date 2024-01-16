@@ -104,9 +104,11 @@ class RequestModelState : public ObjectRef {
 };
 
 #ifdef __APPLE__
-typedef std::chrono::steady_clock::time_point MLCTimePoint;
+using MLCTimePoint = std::chrono::steady_clock::time_point;
 #elif defined(__linux__)
-typedef std::chrono::_V2::system_clock::time_point MLCTimePoint;
+using MLCTimePoint = std::chrono::_V2::system_clock::time_point;
+#elif defined(_WIN32) || defined(_WIN64)
+using MLCTimePoint = std::chrono::steady_clock::time_point;
 #else
 #error "Unsupported platform"
 #endif
