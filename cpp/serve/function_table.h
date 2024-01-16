@@ -48,11 +48,13 @@ struct FunctionTable {
 
   ObjectRef Empty(ShapeTuple shape, DataType dtype, Device device) const;
 
-  ObjectRef CopyToWorker0(const NDArray& host_array);
+  ObjectRef CopyToWorker0(const NDArray& host_array, String tensor_name,
+                          ShapeTuple max_reserved_shape);
 
   bool use_disco = false;
   Session sess{nullptr};
   DRef disco_mod{nullptr};
+  Map<String, DRef> disco_buffers;
   tvm::runtime::Module local_vm{nullptr};
 
   TypedPackedFunc<PackedFunc(const std::string&)> mod_get_func;
@@ -75,6 +77,7 @@ struct FunctionTable {
   PackedFunc kv_cache_attention_func_;
   PackedFunc kv_cache_popn_func_;
   PackedFunc kv_cache_get_num_available_pages_func_;
+  PackedFunc view_func_;
 };
 
 }  // namespace serve

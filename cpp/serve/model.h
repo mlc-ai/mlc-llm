@@ -143,9 +143,11 @@ class Model : public ObjectRef {
    * file or an executable module that is pre-loaded.
    * \param model_path The path to the model weight parameters.
    * \param device The device to run the model on.
+   * \param max_num_sequence The maximum number of sequences to be processed
    * \return The created runtime module.
    */
-  TVM_DLL static Model Create(TVMArgValue reload_lib, String model_path, DLDevice device);
+  TVM_DLL static Model Create(TVMArgValue reload_lib, String model_path, DLDevice device,
+                              int max_num_sequence);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Model, ObjectRef, ModelObj);
 };
