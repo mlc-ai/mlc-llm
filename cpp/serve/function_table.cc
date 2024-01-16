@@ -199,6 +199,7 @@ void FunctionTable::_InitFunctions() {
   this->kv_cache_popn_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_popn");
   this->kv_cache_get_num_available_pages_func_ =
       get_global_func("vm.builtin.paged_attention_kv_cache_get_num_available_pages");
+  this->view_func_ = get_global_func("vm.builtin.reshape");
   support_backtracking_kv_ = true;
 }
 
@@ -223,9 +224,8 @@ ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String tensor_
       buffer = Downcast<DRef>(this->Empty(max_reserved_shape, host_array.DataType(), null_device));
       this->disco_buffers.Set(tensor_name, buffer);
     }
-    DRef view_func = sess->GetGlobalFunc("vm.builtin.reshape");
     ShapeTuple real_shape = host_array.Shape();
-    DRef buffer_view = sess->CallPacked(view_func, buffer, real_shape);
+    DRef buffer_view = view_func_(buffer, real_shape);
     sess->CopyToWorker0(host_array, buffer_view);
     return buffer_view;
   } else {

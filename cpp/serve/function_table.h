@@ -77,6 +77,7 @@ struct FunctionTable {
   PackedFunc kv_cache_attention_func_;
   PackedFunc kv_cache_popn_func_;
   PackedFunc kv_cache_get_num_available_pages_func_;
+  PackedFunc view_func_;
 };
 
 }  // namespace serve
