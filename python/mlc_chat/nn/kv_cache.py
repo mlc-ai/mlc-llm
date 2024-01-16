@@ -788,7 +788,6 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
                                 O_allreduce = T.alloc_buffer((bdz, bdy, D), "float32", scope="shared")
                                 md_allreduce = T.alloc_buffer((bdz, bdy, 2), "float32", scope="shared")
                                 S_reduce_local = T.alloc_buffer((1,), "float32", scope="local")
-                                mask = T.alloc_buffer((1,), "uint32", scope="local")
                                 t0 = T.alloc_buffer((1,), "float32", scope="local")
 
                                 S_local = T.alloc_buffer((bdy * tile_size_per_bdx), "float32", scope="local")
@@ -872,19 +871,17 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
                                             for vec in T.serial(VEC_SIZE):
                                                 S_reduce_local[0] += Q_local[vec] * K_local[vec] * sm_scale
 
-                                            t0[0] = T.tvm_warp_shuffle_down(mask[0], S_reduce_local[0], 16, 32, 32)
-                                            S_reduce_local[0] = S_reduce_local[0] + t0[0]
-                                            t0[0] = T.tvm_warp_shuffle_down(mask[0], S_reduce_local[0], 8, 32, 32)
-                                            S_reduce_local[0] = S_reduce_local[0] + t0[0]
-                                            t0[0] = T.tvm_warp_shuffle_down(mask[0], S_reduce_local[0], 4, 32, 32)
-                                            S_reduce_local[0] = S_reduce_local[0] + t0[0]
-                                            t0[0] = T.tvm_warp_shuffle_down(mask[0], S_reduce_local[0], 2, 32, 32)
-                                            S_reduce_local[0] = S_reduce_local[0] + t0[0]
-                                            t0[0] = T.tvm_warp_shuffle_down(mask[0], S_reduce_local[0], 1, 32, 32)
-                                            S_reduce_local[0] = S_reduce_local[0] + t0[0]
-                                            S_reduce_local[0] = T.tvm_warp_shuffle(mask[0], S_reduce_local[0], 0, 32, 32)
+                                            with T.block("block_cross_thread"):
+                                                T.reads(S_reduce_local[0])
+                                                T.writes(t0[0])
+                                                T.attr(
+                                                    T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+                                                    "reduce_scope",
+                                                    T.reinterpret("handle", T.uint64(0)),
+                                                )
+                                                T.tvm_thread_allreduce(T.uint32(1), S_reduce_local[0], True, t0[0], tx, dtype="handle")
 
-                                            S_local[j] = S_reduce_local[0]
+                                            S_local[j] = t0[0]
                                         # update st_m
                                         st_m[0] = T.max(st_m[0], S_local[j])
 
