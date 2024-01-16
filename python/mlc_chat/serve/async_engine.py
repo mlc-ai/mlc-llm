@@ -2,6 +2,7 @@
 Acknowledgment: Part of the code was adapted from the vLLM project.
 """
 import asyncio
+import sys
 import threading
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
@@ -33,9 +34,12 @@ class AsyncRequestStream:
     #   delta output text, the number of delta tokens, the optional
     #   finish reason respectively,
     # - or an exception.
-    _queue: asyncio.Queue[  # pylint: disable=unsubscriptable-object
-        Union[Tuple[str, int, Optional[str]], Exception]
-    ]
+    if sys.version_info >= (3, 9):
+        _queue: asyncio.Queue[  # pylint: disable=unsubscriptable-object
+            Union[Tuple[str, int, Optional[str]], Exception]
+        ]
+    else:
+        _queue: asyncio.Queue
     # The finish flag.
     _finished: bool
 
