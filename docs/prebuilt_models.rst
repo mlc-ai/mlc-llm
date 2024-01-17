@@ -466,7 +466,7 @@ Mistral
     - 
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-metal.so>`__
     - 
-    - 
+    - `q3f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q3f16_1-iphone.tar>`__
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-android.tar>`__
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-webgpu.wasm>`__
     -
@@ -513,7 +513,7 @@ GPT-NeoX (RedPajama-INCITE)
   
       `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f32_1-metal.so>`__
     - 
-    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar>`__
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar>`__
 
       `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f32_1-android.tar>`__
@@ -739,7 +739,8 @@ Conversation template: ``mistral_default``
   * - Size
     - Hugging Face Repo Link
   * - 7B
-    - * `q4f16_1 (Instruct) <https://huggingface.co/mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC>`__
+    - * `q3f16_1 (Instruct) <https://huggingface.co/mlc-ai/Mistral-7B-Instruct-v0.2-q3f16_1-MLC>`__
+      * `q4f16_1 (Instruct) <https://huggingface.co/mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC>`__
 
 .. _neuralhermes_variant_table:
 
