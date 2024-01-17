@@ -32,6 +32,9 @@ class Stats:
 
     max_memory_gb : float
         The maximum RAM usage in GB.
+
+    total_param_num: int
+        Total number of parameters (original non-MLC model weights), excluding unused params.
     """
 
     load_time_sec: float = 0.0
@@ -41,6 +44,8 @@ class Stats:
     current_memory_gb: float = 0.0
     total_memory_gb: float = 0.0
     max_memory_gb: float = 0.0
+
+    total_param_num: int = 0
 
     def timer(self, attr):
         """A context manager to time the scope and add the time to the attribute."""

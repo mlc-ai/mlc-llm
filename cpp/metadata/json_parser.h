@@ -51,8 +51,14 @@ inline tvm::runtime::ShapeTuple ShapeTupleFromArray(const picojson::array& shape
   std::vector<int64_t> result;
   result.reserve(shape.size());
   for (const picojson::value& dim : shape) {
-    CHECK(dim.is<int64_t>()) << "ValueError: shape has unexpected type";
-    result.push_back(dim.get<int64_t>());
+    if (dim.is<std::string>()) {
+      // TODO: Get concrete value of dynamic shape instead of using -1 by passing in a dictionary
+      // from llm_chat.cc (concrete values are stored in mlc-chat-config.json).
+      result.push_back(-1);
+    } else {
+      CHECK(dim.is<int64_t>()) << "ValueError: shape has unexpected type";
+      result.push_back(dim.get<int64_t>());
+    }
   }
   return tvm::runtime::ShapeTuple(std::move(result));
 }

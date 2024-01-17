@@ -101,7 +101,8 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
     def _get_param_metadata(name: str, param: nn.Parameter) -> Dict[str, Any]:
         return {
             "name": name,
-            "shape": list(param.shape),
+            # Record dynamic shape as -1 (e.g. vocab_size)
+            "shape": [s if isinstance(s, int) else s.name for s in param.shape],
             "dtype": param.dtype,
             "preprocs": param.attrs["preprocs"],
         }

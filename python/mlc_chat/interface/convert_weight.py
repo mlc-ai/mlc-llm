@@ -5,8 +5,8 @@ from io import StringIO
 from pathlib import Path
 
 import numpy as np
+from tvm import tir
 from tvm.contrib import tvmjs
-from tvm.relax.frontend import nn
 from tvm.runtime import Device, NDArray
 from tvm.runtime import cpu as cpu_device
 from tvm.target import Target
@@ -50,17 +50,6 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
         print(out.getvalue().rstrip())
 
 
-def _calc_total_params(model: nn.Module) -> int:
-    _, named_params, _ = model.export_tvm(  # type: ignore[misc]
-        spec=model.get_default_spec(),  # type: ignore[attr-defined]
-        allow_extern=True,
-    )
-    total_params = 0
-    for _, param in named_params:
-        total_params += math.prod(param.shape)
-    return total_params
-
-
 def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-locals
     # model config & quantization config
     model_config = args.model.config.from_file(args.config)
@@ -85,14 +74,26 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
             raise ValueError(f"Parameter not found in model: {name}")
         if name in param_dict:
             raise ValueError(f"Duplication: Parameter {name} already computed")
-        expect_shape = tuple(int(x) for x in named_params[name].shape)
-        expect_dtype = named_params[name].dtype
-        actual_shape = tuple(int(x) for x in param.shape)
-        actual_dtype = param.dtype
-        if actual_shape != expect_shape:
+
+        # Check shape (possibly dynamic)
+        def _check_shape(actual: tuple, expect: tuple):  # expect can have tir.Var
+            if len(actual) != len(expect):
+                return False
+            for actual_i, expect_i in zip(actual, expect):
+                assert isinstance(expect_i, (int, tir.Var))
+                if isinstance(expect_i, int) and actual_i != expect_i:
+                    return False
+            return True
+
+        expect_shape = named_params[name].shape
+        actual_shape = param.shape
+        if not _check_shape(actual_shape, expect_shape):
             raise ValueError(
                 f"Parameter {name} has shape {param.shape}, but expected {expect_shape}"
             )
+        # Check dtype
+        actual_dtype = param.dtype
+        expect_dtype = named_params[name].dtype
         if actual_dtype != expect_dtype:
             raise ValueError(
                 f"Parameter {name} has dtype {param.dtype}, but expected {expect_dtype}"
@@ -101,18 +102,19 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
 
     # load and quantize
     param_dict = {}
-    total_params = _calc_total_params(args.model.model(model_config))
     total_bytes = 0.0
     with Target.from_device(args.device), tqdm.redirect():
-        for name, param in LOADER[args.source_format](
+        loader = LOADER[args.source_format](
             path=args.source,
             extern_param_map=args.model.source[args.source_format](model_config, args.quantization),
             quantize_param_map=quantize_map,
-        ).load(device=args.device):
+        )
+        for name, param in loader.load(device=args.device):
             _check_param(name, param)
             param = param.copyto(cpu_device())
             param_dict[name] = param
             total_bytes += math.prod(param.shape) * np.dtype(param.dtype).itemsize
+    total_params = loader.stats.total_param_num
     if named_params:
         raise ValueError(f"Parameter not found in source: {', '.join(named_params.keys())}")
     # Log necessary statistics

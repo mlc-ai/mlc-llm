@@ -1,7 +1,7 @@
 """The group quantization config"""
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Callable, List, Literal, Optional, Tuple
+from typing import Any, Callable, List, Literal, Optional, Tuple, Union
 
 from tvm import DataType, DataTypeCode, IRModule
 from tvm import dlight as dl
@@ -312,7 +312,7 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
     def __init__(  # pylint: disable=too-many-arguments
         self,
         in_features: int,
-        out_features: int,
+        out_features: Union[int, tir.Var],
         config: GroupQuantize,
         bias: bool = True,
         out_dtype: Optional[str] = None,
@@ -358,9 +358,11 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         ret : GroupQuantizeLinear
             The group quantized GroupQuantizeLinear layer.
         """
+        # For dynamic shape, src.out_features is `"name"`; src.weight.shape[0] is `tir.Var("name")`
+        out_features, in_features = src.weight.shape
         quantized_linear = GroupQuantizeLinear(
-            in_features=src.in_features,
-            out_features=src.out_features,
+            in_features=in_features,
+            out_features=out_features,
             config=config,
             bias=getattr(src, "bias", None) is not None,
             out_dtype=src.out_dtype,
@@ -387,17 +389,24 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         ret : nn.Tensor
             The output tensor for the group quantized linear layer.
         """
-        out_shape = (
-            [tir.IntImm("int64", self.out_features), tir.IntImm("int64", self.in_features)]
-            if self.config.linear_weight_layout == "NK"
-            else [tir.IntImm("int64", self.in_features), tir.IntImm("int64", self.out_features)]
-        )
         w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
             lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
                 weight,
                 scale,
                 axis=self.config.linear_quant_axis,
-                out_shape=out_shape,
+                out_shape=[
+                    tir.IntImm("int64", self.out_features)
+                    if isinstance(self.out_features, int)
+                    else weight.shape[0],  # Reuse same tir.Var for symbolic shape (after Exporter)
+                    tir.IntImm("int64", self.in_features),
+                ]
+                if self.config.linear_weight_layout == "NK"
+                else [
+                    tir.IntImm("int64", self.in_features),
+                    tir.IntImm("int64", self.out_features)
+                    if isinstance(self.out_features, int)
+                    else weight.shape[1],  # Reuse same tir.Var for symbolic shape (after Exporter)
+                ],
             ),
             name_hint="dequantize",
             args=[self.q_weight, self.q_scale],
@@ -425,7 +434,7 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
 class GroupQuantizeEmbedding(nn.Module):
     """An nn.Embedding module with group quantization"""
 
-    def __init__(self, num: int, dim: int, config: GroupQuantize):
+    def __init__(self, num: Union[int, tir.Var], dim: int, config: GroupQuantize):
         self.num = num
         self.dim = dim
         self.config = config
@@ -475,7 +484,12 @@ class GroupQuantizeEmbedding(nn.Module):
                 weight,
                 scale,
                 axis=-1,
-                out_shape=[tir.IntImm("int64", self.num), tir.IntImm("int64", self.dim)],
+                out_shape=[
+                    tir.IntImm("int64", self.num)
+                    if isinstance(self.num, int)
+                    else weight.shape[0],  # Reuse same tir.Var for symbolic shape (after Exporter)
+                    tir.IntImm("int64", self.dim),
+                ],
             ),
             name_hint="dequantize",
             args=[self.q_weight, self.q_scale],

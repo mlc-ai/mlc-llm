@@ -155,7 +155,7 @@ class GPT2Block(nn.Module):
 class GPT2Model(nn.Module):
     def __init__(self, config: GPT2Config):
         assert config.n_embd % config.n_head == 0
-        self.wte = nn.Embedding(config.vocab_size, config.n_embd)
+        self.wte = nn.Embedding("vocab_size", config.n_embd)
         self.wpe = nn.Embedding(config.context_window_size, config.n_embd)
         self.h = nn.ModuleList([GPT2Block(config, layer_idx=i) for i in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
@@ -192,8 +192,7 @@ class GPT2Model(nn.Module):
 class GPT2LMHeadModel(nn.Module):
     def __init__(self, config: GPT2Config):
         self.transformer = GPT2Model(config)
-        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
-        self.vocab_size = config.vocab_size
+        self.lm_head = nn.Linear(config.n_embd, "vocab_size", bias=False)
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):

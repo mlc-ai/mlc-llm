@@ -353,7 +353,7 @@ class MistralModel(nn.Module):
     def __init__(self, config: MistralConfig):
         assert config.hidden_size % config.num_attention_heads == 0
         rotary_embedding = RotaryEmbedding(config)
-        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.embed_tokens = nn.Embedding("vocab_size", config.hidden_size)
         self.layers = nn.ModuleList(
             [MistralDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
         )
@@ -385,8 +385,7 @@ class MistralForCasualLM(nn.Module):
 
     def __init__(self, config: MistralConfig):
         self.model = MistralModel(config)
-        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-        self.vocab_size = config.vocab_size
+        self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
         self.sliding_window_size = config.sliding_window_size
         self.dtype = "float32"
 
