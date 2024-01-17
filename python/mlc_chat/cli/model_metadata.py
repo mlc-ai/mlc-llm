@@ -2,7 +2,7 @@
 import json
 import math
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 
 import numpy as np
 
@@ -41,11 +41,41 @@ def _report_all(metadata: Dict[str, Any]) -> None:
     print(beautified_json)
 
 
-def _report_memory_usage(metadata: Dict[str, Any]) -> None:
+def _read_dynamic_shape(shape: List[Union[int, str]], config: Dict) -> List[int]:
+    param_shape = []
+    for s in shape:
+        if isinstance(s, int):
+            param_shape.append(s)
+        else:
+            if config is None:
+                logger.error(
+                    "%s: Encountered dynamic shape %s, need to specify `--mlc-chat-config` for "
+                    + "memory usage calculation.",
+                    red("FAILED"),
+                    red(s),
+                )
+                raise AttributeError
+            if not s in config:
+                logger.error(
+                    "%s to retrieve concrete %s for dynamic shape from `mlc-chat-config`.",
+                    red("FAILED"),
+                    red(s),
+                )
+                raise KeyError
+            param_shape.append(config[s])
+    return param_shape
+
+
+def _report_memory_usage(metadata: Dict[str, Any], config: Dict) -> None:
     params_bytes = 0.0
     for param in metadata["params"]:
-        if all(v > 0 for v in param["shape"]):
-            params_bytes += math.prod(param["shape"]) * np.dtype(param["dtype"]).itemsize
+        if all(isinstance(v, int) for v in param["shape"]):
+            assert all(v > 0 for v in param["shape"]), "All shapes should be strictly positive."
+            param_shape = param["shape"]
+        else:
+            # Contains dynamic shape; use config to look up concrete values
+            param_shape = _read_dynamic_shape(param["shape"], config)
+        params_bytes += math.prod(param_shape) * np.dtype(param["dtype"]).itemsize
     temp_func_bytes = 0.0
     for _func_name, func_bytes in metadata["memory_usage"].items():
         temp_func_bytes = max(temp_func_bytes, func_bytes)
@@ -79,6 +109,16 @@ def main():
         """,
     )
     parser.add_argument(
+        "--mlc-chat-config",
+        type=Path,
+        help="""The `mlc-chat-cnofig.json` file specific to a model variant. This is only required
+        when `memory-only` is true and `model_lib` contains a dynamic parameter shape (i.e. using
+        a variable to represent the shape). For instance, `model.embed_tokens.q_weight` can have
+        shape `["vocab_size", 512]`. In these cases, we look up the concrete value in
+        `mlc-chat-config.json`.
+        """,
+    )
+    parser.add_argument(
         "--memory-only",
         action="store_true",
         help="""If set, only inspect the metadata in memory usage and print richer analysis.
@@ -87,13 +127,23 @@ def main():
         """,
     )
     parsed = parser.parse_args()
+    # Load metadata from model lib
     try:
         metadata = _extract_metadata(parsed.model_lib)
     except:  # pylint: disable=bare-except
         logger.exception("%s to read metadata section in legacy model lib.", red("FAILED"))
         return
+    # Load mlc_chat_config if provided
+    cfg = None
+    if parsed.mlc_chat_config:
+        mlc_chat_config_path = Path(parsed.mlc_chat_config)
+        if not mlc_chat_config_path.exists():
+            raise ValueError(f"{mlc_chat_config_path} does not exist.")
+        with open(mlc_chat_config_path, "r", encoding="utf-8") as config_file:
+            cfg = json.load(config_file)
+    # Main body
     if parsed.memory_only:
-        _report_memory_usage(metadata)
+        _report_memory_usage(metadata, cfg)
     else:
         _report_all(metadata)
 
