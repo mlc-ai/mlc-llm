@@ -1,9 +1,9 @@
 #!/bin/bash
-export NUM_THREADS=$(nproc)
-export PYTHONPATH="./python:$PYTHONPATH"
-
 set -eo pipefail
 set -x
+: ${NUM_THREADS:=$(nproc)}
+: ${WORKSPACE_CWD:=$(pwd)}
+: ${GPU:="cpu"}
 
 INPLACE_FORMAT=${INPLACE_FORMAT:=false}
 LINT_ALL_FILES=true
