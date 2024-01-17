@@ -20,8 +20,7 @@ def _test(args: argparse.Namespace):
     engine_config = get_engine_config(
         {
             "use_staging_engine": args.use_staging_engine,
-            "max_num_sequences": args.max_num_sequences,
-            "max_input_len": args.max_input_len,
+            "max_num_batched_tokens": args.max_num_batched_tokens,
             "min_decode_steps": args.min_decode_steps,
             "max_decode_steps": args.max_decode_steps,
         }
@@ -134,8 +133,7 @@ if __name__ == "__main__":
     postproc_mlc_serve_args(args)
 
     if args.long_prompt:
-        args.max_input_len = 10000
-        args.max_num_sequences = 5
+        args.max_num_batched_tokens = 50000
 
     if args.num_sequences_to_sample > 1:
         args.use_random_sampling = True

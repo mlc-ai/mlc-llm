@@ -17,14 +17,12 @@ from mlc_serve.utils import get_default_mlc_serve_argparser, postproc_mlc_serve_
 def create_engine(
     model_artifact_path,
     use_staging_engine,
-    max_num_sequences,
-    max_input_len,
+    max_num_batched_tokens,
 ):
     engine_config = get_engine_config(
         {
             "use_staging_engine": use_staging_engine,
-            "max_num_sequences": max_num_sequences,
-            "max_input_len": max_input_len,
+            "max_num_batched_tokens": max_num_batched_tokens,
             # Use defaults for "min_decode_steps", "max_decode_steps"
         }
     )
@@ -69,8 +67,7 @@ def create_request(
 def _test_max_tokens(
     model_artifact_path,
     use_staging_engine,
-    max_num_sequences=4,
-    max_input_len=512,
+    max_num_batched_tokens=2048,
     num_requests=5,
     ignore_eos=False,
 ):
@@ -78,8 +75,7 @@ def _test_max_tokens(
     engine = create_engine(
         model_artifact_path,
         use_staging_engine,
-        max_num_sequences,
-        max_input_len,
+        max_num_batched_tokens,
     )
 
     requests = [
@@ -131,8 +127,7 @@ def _test_max_context_length(
     engine = create_engine(
         model_artifact_path,
         use_staging_engine,
-        max_num_sequences,
-        max_input_len=max_context_length,
+        max_num_batched_tokens=max_context_length * max_num_sequences,
     )
     prompt = "hi " * (max_context_length - 15)
 
@@ -171,16 +166,14 @@ def _test_max_context_length(
 def _test_ignore_eos(
     model_artifact_path,
     use_staging_engine,
-    max_num_sequences=4,
-    max_input_len=512,
+    max_num_batched_tokens=2048,
     num_requests=5,
 ):
     prompt = "hi"
     engine = create_engine(
         model_artifact_path,
         use_staging_engine,
-        max_num_sequences,
-        max_input_len,
+        max_num_batched_tokens,
     )
     s = 113
     requests = [
@@ -222,16 +215,14 @@ def _test_ignore_eos(
 def _test_stop(
     model_artifact_path,
     use_staging_engine,
-    max_num_sequences=4,
-    max_input_len=512,
+    max_num_batched_tokens=2048,
     num_requests=5,
 ):
     prompt = "Write a merge sort program in Python."
     engine = create_engine(
         model_artifact_path,
         use_staging_engine,
-        max_num_sequences,
-        max_input_len,
+        max_num_batched_tokens,
     )
     requests = []
     for n, stop in enumerate(["\n", ["\n"], "\n\n", "!", ["n", "!"]]):
@@ -285,8 +276,7 @@ def _test_stop(
 def _test_penalty(
     model_artifact_path,
     use_staging_engine,
-    max_num_sequences=4,
-    max_input_len=512,
+    max_num_batched_tokens=2048,
     num_requests=5,
     ignore_eos=False,
 ):
@@ -294,8 +284,7 @@ def _test_penalty(
     engine = create_engine(
         model_artifact_path,
         use_staging_engine,
-        max_num_sequences,
-        max_input_len,
+        max_num_batched_tokens,
     )
 
     random_requests = [

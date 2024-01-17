@@ -220,8 +220,7 @@ def test_cache_evict_hang_staging():
         model_module_loader=DummyModelModule,
         model_module_loader_kwargs = {
             "max_cached_tokens": 40,
-            "max_input_len": 10,
-            "max_num_sequences": 2
+            "max_num_batched_tokens": 20,
         }
         )
     engine.start()
@@ -277,8 +276,7 @@ def test_big_prompt_fit_to_cache_staging():
         model_module_loader=DummyModelModule,
         model_module_loader_kwargs = {
             "max_cached_tokens": 40,
-            "max_input_len": 30,
-            "max_num_sequences": 1
+            "max_num_batched_tokens": 30,
         }
         )
     engine.start()
@@ -319,8 +317,7 @@ def test_big_prompt_not_fit_to_cache():
         model_module_loader=DummyModelModule,
         model_module_loader_kwargs = {
             "max_cached_tokens": 29,
-            "max_input_len": 30,
-            "max_num_sequences": 1
+            "max_num_batched_tokens": 30,
         }
         )
     engine.start()

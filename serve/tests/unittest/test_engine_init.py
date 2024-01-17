@@ -16,8 +16,7 @@ def _test_insufficient_cache_blocks_fail(artifact_path):
         engine_config = get_engine_config(
             {
                 "use_staging_engine": False,
-                "max_num_sequences": max_num_seqs,
-                "max_input_len": 16384,
+                "max_num_batched_tokens": 16384 * max_num_seqs,
                 "min_decode_steps": 12,
                 "max_decode_steps": 16,
             }

@@ -166,7 +166,7 @@ def test_multiple_requests_preempt():
 # state exceeding the max_num_batched_tokens can be processed successfully and will
 # not hang the server in infinite attempt to return it back to the active loop
 def test_cache_evict_hang():
-    engine = SynchronousInferenceEngine(DummyModelModule(40, 10, 2))
+    engine = SynchronousInferenceEngine(DummyModelModule(40, 20))
 
     request_id_1 = "1"
     request_id_2 = "2"
@@ -213,7 +213,7 @@ def test_cache_evict_hang():
 # Test to verify if new comming request with big prompt can be put into inference
 # and does not have issues with cache size limits verification
 def test_big_prompt_fit_to_cache():
-    engine = SynchronousInferenceEngine(DummyModelModule(40, 30, 1))
+    engine = SynchronousInferenceEngine(DummyModelModule(40, 30))
 
     request_id_1 = "1"
 
@@ -245,7 +245,7 @@ def test_big_prompt_fit_to_cache():
 
 # Test to verify if new comming request with big prompt is handled properly
 def test_big_prompt_not_fit_to_cache():
-    engine = SynchronousInferenceEngine(DummyModelModule(29, 30, 1))
+    engine = SynchronousInferenceEngine(DummyModelModule(29, 30))
 
     request_id_1 = "1"
 

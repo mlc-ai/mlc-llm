@@ -23,7 +23,7 @@ def parse_args():
     # /opt/bin/cuda-reserve.py  --num-gpus 2 python -m mlc_serve --local-id vicuna-v1-7b-q0f16 --num-shards 2
     #
     # Profile the gpu memory usage, and use the maximum number of cache blocks possible:
-    # /opt/bin/cuda-reserve.py  --num-gpus 2 python -m mlc_serve --local-id vicuna-v1-7b-q0f16 --num-shards 2 --max-num-batched-tokens 2560 --max-input-len 256
+    # /opt/bin/cuda-reserve.py  --num-gpus 2 python -m mlc_serve --local-id vicuna-v1-7b-q0f16 --num-shards 2 --max-num-batched-tokens 2560
 
     # TODO(@sunggg): replace this with `utils.get_default_mlc_serve_argparser`
     # Since this will require the change in ollm side as well, revisit this after octocalm.
@@ -33,8 +33,7 @@ def parse_args():
     args.add_argument("--local-id", type=str, required=True)
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument("--use-staging-engine", action="store_true")
-    args.add_argument("--max-num-sequences", type=int, default=8)
-    args.add_argument("--max-input-len", type=int, default=512)
+    args.add_argument("--max-num-batched-tokens", type=int, default=4096)
     args.add_argument("--min-decode-steps", type=int, default=12)
     args.add_argument("--max-decode-steps", type=int, default=16)
     args.add_argument("--debug-logging", action="store_true")
@@ -61,8 +60,7 @@ def create_engine(
     engine_config = get_engine_config(
         {
             "use_staging_engine": args.use_staging_engine,
-            "max_num_sequences": args.max_num_sequences,
-            "max_input_len": args.max_input_len,
+            "max_num_batched_tokens": args.max_num_batched_tokens,
             "min_decode_steps": args.min_decode_steps,
             "max_decode_steps": args.max_decode_steps,
         }

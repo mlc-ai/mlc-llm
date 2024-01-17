@@ -129,7 +129,7 @@ class DummyTextGenerator:
 
 
 class DummyModelModule:
-    def __init__(self, max_cached_tokens: int, max_input_len = 512, max_num_sequences = 8):
+    def __init__(self, max_cached_tokens: int, max_num_batched_tokens = 4096):
         self.tokenizer = DummyTokenizer()
         self.conversation_template = DummyConversationTemplate()
         self.text_generator = DummyTextGenerator()
@@ -141,8 +141,7 @@ class DummyModelModule:
             "max_decode_steps": 2,
             "min_decode_steps": 1,
             "use_staging_engine" : False,
-            "max_input_len": max_input_len,
-            "max_num_sequences": max_num_sequences
+            "max_num_batched_tokens": max_num_batched_tokens,
         })
 
 

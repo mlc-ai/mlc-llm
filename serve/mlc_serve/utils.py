@@ -23,9 +23,7 @@ def get_default_mlc_serve_argparser(description="", allow_override=False):
     parser.add_argument("--local-id", type=str, required=True)
     parser.add_argument("--artifact-path", type=str, default="dist")
     parser.add_argument("--use-sync-engine", action="store_true")
-    parser.add_argument("--max-num-sequences", type=int, default=8)
-    parser.add_argument("--num-sequences-to-sample", type=int, default=1)
-    parser.add_argument("--max-input-len", type=int, default=512)
+    parser.add_argument("--max-num-batched-tokens", type=int, default=4096)
     parser.add_argument("--min-decode-steps", type=int, default=32)
     parser.add_argument("--max-decode-steps", type=int, default=56)
     parser.add_argument("--debug-logging", action="store_true")
@@ -51,8 +49,7 @@ def create_mlc_engine(args: argparse.Namespace):
     engine_config = get_engine_config(
         {
             "use_staging_engine": args.use_staging_engine,
-            "max_num_sequences": args.max_num_sequences,
-            "max_input_len": args.max_input_len,
+            "max_num_batched_tokens": args.max_num_batched_tokens,
             "min_decode_steps": args.min_decode_steps,
             "max_decode_steps": args.max_decode_steps,
         }
