@@ -29,6 +29,22 @@ def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
 }
 
+def pack_lib(name, libs) {
+  sh """
+     echo "Packing ${libs} into ${name}"
+     echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
+     """
+  stash includes: libs, name: name
+}
+
+def unpack_lib(name, libs) {
+  unstash name
+  sh """
+     echo "Unpacked ${libs} from ${name}"
+     echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
+     """
+}
+
 def init_git(submodule = false) {
   cleanWs()
   checkout scm
@@ -108,6 +124,7 @@ stage('Build') {
           sh(script: "${pkg_cuda} conda run -n py38 ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
           sh(script: "${pkg_cuda} conda run -n py38 ./ci/task/build_clean.sh", label: 'Clean up after build')
           sh(script: "ls -alh ./wheels/", label: 'Build artifact')
+          pack_lib('mlc_wheel_cuda', 'wheels/*.whl')
         }
       }
     },
@@ -121,6 +138,7 @@ stage('Build') {
           sh(script: "${pkg_rocm} conda run -n py38 ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
           sh(script: "${pkg_rocm} conda run -n py38 ./ci/task/build_clean.sh", label: 'Clean up after build')
           sh(script: "ls -alh ./wheels/", label: 'Build artifact')
+          pack_lib('mlc_wheel_rocm', 'wheels/*.whl')
         }
       }
     },
@@ -134,6 +152,45 @@ stage('Build') {
           sh(script: "${pkg_cpu} conda run -n py38 ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
           sh(script: "${pkg_cpu} conda run -n py38 ./ci/task/build_clean.sh", label: 'Clean up after build')
           sh(script: "ls -alh ./wheels/", label: 'Build artifact')
+          pack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
+        }
+      }
+    }
+  )
+}
+
+stage('Model Compilation') {
+  parallel(
+    'CUDA': {
+      node('CPU-SMALL') {
+        ws(per_exec_ws('mlc-llm-compile-cuda')) {
+          init_git(false)
+          sh(script: "ls -alh", label: 'Show work directory')
+          unpack_lib('mlc_wheel_cuda', 'wheels/*.whl')
+          sh(script: "${run_cuda} conda env export --name ci-unittest", label: 'Checkout version')
+          sh(script: "${run_cuda} conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
+        }
+      }
+    },
+    'ROCm': {
+      node('CPU-SMALL') {
+        ws(per_exec_ws('mlc-llm-compile-rocm')) {
+          init_git(false)
+          sh(script: "ls -alh", label: 'Show work directory')
+          unpack_lib('mlc_wheel_rocm', 'wheels/*.whl')
+          sh(script: "${run_rocm} conda env export --name ci-unittest", label: 'Checkout version')
+          // sh(script: "${run_rocm} conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
+        }
+      }
+    },
+    'Vulkan': {
+      node('CPU-SMALL') {
+        ws(per_exec_ws('mlc-llm-compile-vulkan')) {
+          init_git(false)
+          sh(script: "ls -alh", label: 'Show work directory')
+          unpack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
+          sh(script: "${run_cpu} conda env export --name ci-unittest", label: 'Checkout version')
+          // sh(script: "${run_cpu} conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
         }
       }
     }
