@@ -57,19 +57,19 @@ in the root directory of the MLC-LLM.
 
    cd dist/prebuilt
    git lfs install
-   git clone https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
+   git clone https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
    cd ../..
 
 Validate that the files and directories exist:
 
 .. code:: bash
 
-   >>> ls -l ./dist/prebuilt/lib/*-iphone.tar
-   ./dist/prebuilt/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar
-   ./dist/prebuilt/lib/Llama-2-7b-chat-hf-q3f16_1-iphone.tar
+   >>> ls -l ./dist/prebuilt/lib/*/*-iphone.tar
+   ./dist/prebuilt/lib/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar
+   ./dist/prebuilt/lib/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q3f16_1-iphone.tar
    ...
 
-   >>> ls -l ./dist/prebuilt/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1
+   >>> ls -l ./dist/prebuilt/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
    # chat config:
    mlc-chat-config.json
    # model weights:
@@ -148,18 +148,30 @@ Customize the App
 
 We can customize the iOS app in several ways.
 `MLCChat/app-config.json <https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/app-config.json>`_
-controls the list of model URLs and model libs to be packaged into the app.
+controls the list of local and remote models to be packaged into the app, given a local path or a URL respectively. Only models in ``model_list`` will have their libraries brought into the app when running `./prepare_libs` to package them into ``libmodel_iphone.a``. Each model defined in `app-config.json` contain the following fields:
 
-``model_libs``
-  List of model libraries to be packaged into the app. ``./prepare_libs.sh``
-  will look at this field, find compiled or prebuilt model libraries, and package them into ``libmodel_iphone.a``.
+``model_path``
+   (Required if local model) Name of the local folder containing the weights.
 
-``model_list``
-  List of models that can be downloaded from the Internet. These models
-  **must** use the model lib packaged in the app.
+``model_url``
+   (Required if remote model) URL to the repo containing the weights.
 
-``add_model_samples``
-  A list of example URLs that show up when the user clicks add model.
+``model_id``
+  (Required) Unique local identifier to identify the model.
+
+``model_lib``
+   (Required) Matches the system-lib-prefix, generally set during ``mlc_chat compile`` which can be specified using 
+   ``--system-lib-prefix`` argument. By default, it is set to ``"${model_type}_${quantization}"`` e.g. ``gpt_neox_q4f16_1`` 
+   for the RedPajama-INCITE-Chat-3B-v1 model. If the ``--system-lib-prefix`` argument is manually specified during 
+   ``mlc_chat compile``, the ``model_lib`` field should be updated accordingly.
+
+``model_lib_path``
+   (Required) Path to the model library (``.tar`` file) in the repo.
+
+``required_vram_bytes``
+   (Required) Estimated requirements of VRAM to run the model.
+
+````
 
 Additionally, the app prepackages the models under ``./ios/dist``.
 This built-in list can be controlled by editing ``prepare_params.sh``.
