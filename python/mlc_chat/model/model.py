@@ -85,6 +85,7 @@ MODELS: Dict[str, Model] = {
         },
         quantize={
             "group-quant": mistral_quantization.group_quant,
+            "no-quant": mistral_quantization.no_quant,
         },
     ),
     "gpt2": Model(

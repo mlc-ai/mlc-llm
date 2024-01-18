@@ -5,7 +5,7 @@ from typing import Tuple
 from tvm.relax.frontend import nn
 
 from mlc_chat.loader import QuantizeMapping
-from mlc_chat.quantization import AWQQuantize, GroupQuantize
+from mlc_chat.quantization import AWQQuantize, GroupQuantize, NoQuantize
 
 from .mistral_model import MistralConfig, MistralForCasualLM
 
@@ -39,4 +39,15 @@ def awq_quant(
         quant_map,
         "",
     )
+    return model, quant_map
+
+
+def no_quant(
+    model_config: MistralConfig,
+    quantization: NoQuantize,
+) -> Tuple[nn.Module, QuantizeMapping]:
+    """Quantize a Llama2 model without quantization."""
+    model: nn.Module = MistralForCasualLM(model_config)
+    model.to(quantization.model_dtype)
+    quant_map = QuantizeMapping({}, {})
     return model, quant_map
