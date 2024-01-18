@@ -171,8 +171,6 @@ controls the list of local and remote models to be packaged into the app, given 
 ``required_vram_bytes``
    (Required) Estimated requirements of VRAM to run the model.
 
-````
-
 Additionally, the app prepackages the models under ``./ios/dist``.
 This built-in list can be controlled by editing ``prepare_params.sh``.
 You can package new prebuilt models or compiled models by changing the above fields and then repeating the steps above.
