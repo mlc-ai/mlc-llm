@@ -1,8 +1,6 @@
 #!/bin/bash
-export NUM_THREADS=$(nproc)
-export PYTHONPATH="./python:$PYTHONPATH"
-
-set -eo pipefail
-set -x
+: ${NUM_THREADS:=$(nproc)}
+: ${WORKSPACE_CWD:=$(pwd)}
+: ${GPU:="cpu"}
 
 mypy --install-types --non-interactive ./python/ ./tests/python/

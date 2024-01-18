@@ -1,13 +1,13 @@
 #!/bin/bash
-export NUM_THREADS=$(nproc)
-export PYTHONPATH="./python:$PYTHONPATH"
-
 set -eo pipefail
 set -x
+: ${NUM_THREADS:=$(nproc)}
+: ${WORKSPACE_CWD:=$(pwd)}
+: ${GPU:="cpu"}
+export PYTHONPATH="./python":${PYTHONPATH:-""}
 
 # TVM Unity is a dependency to this testing
-pip install --quiet --pre -U -f https://mlc.ai/wheels mlc-ai-nightly requests
-pip install --quiet --pre -U pydantic fastapi uvicorn shortuuid openai
+pip install --quiet --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
 
 pylint --jobs $NUM_THREADS ./python/
 pylint --jobs $NUM_THREADS --recursive=y ./tests/python/
