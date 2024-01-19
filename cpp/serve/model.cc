@@ -3,9 +3,6 @@
  * \file serve/model.cc
  * \brief The implementation of runtime module of LLM functions (prefill/decode/etc.)
  */
-#define PICOJSON_USE_INT64
-#define __STDC_FORMAT_MACROS
-
 #include "model.h"
 
 #include <picojson.h>
@@ -137,18 +134,19 @@ class ModelImpl : public ModelObj {
                      int max_num_sequence)
       : device_(device) {
     // Step 1. Process model config json string.
+    picojson::object model_config;
     {
       std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
       std::ostringstream config_ostream;
       ICHECK(config_istream);
       config_ostream << config_istream.rdbuf();
       std::string config_str = config_ostream.str();
-      LoadModelConfigJSON(config_str);
+      model_config = LoadModelConfigJSON(config_str);
     }
     // Step 2. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
-    this->ft_.Init(reload_lib, device_, num_shards_);
+    this->ft_.Init(reload_lib, device_, model_config);
     // Step 3. Load params in nd-array cache.
     this->params_ = ft_.LoadParams(model_path, device_);
     // Step 4. Set max_num_sequence
@@ -416,7 +414,7 @@ class ModelImpl : public ModelObj {
 
  private:
   /*! \brief Load model configuration from JSON. */
-  void LoadModelConfigJSON(const std::string& config_str) {
+  picojson::object LoadModelConfigJSON(const std::string& config_str) {
     picojson::value config_json;
     std::string err = picojson::parse(config_json, config_str);
     if (!err.empty()) {
@@ -425,24 +423,18 @@ class ModelImpl : public ModelObj {
 
     // Get json fields.
     picojson::object config = config_json.get<picojson::object>();
-    if (config.count("tensor_parallel_shards")) {
-      CHECK(config["tensor_parallel_shards"].is<int64_t>());
-      this->num_shards_ = config["tensor_parallel_shards"].get<int64_t>();
-    } else {
-      this->num_shards_ = 1;
-    }
     if (config.count("context_window_size")) {
       CHECK(config["context_window_size"].is<int64_t>());
       this->max_window_size_ = config["context_window_size"].get<int64_t>();
     } else {
       LOG(FATAL) << "Key \"context_window_size\" not found.";
     }
+    return config;
   }
 
   //----------------------------
   // Model configurations
   //----------------------------
-  int num_shards_ = -1;
   int max_window_size_ = -1;
   int max_num_sequence_ = -1;
   //----------------------------

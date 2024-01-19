@@ -635,13 +635,15 @@ def _convert_generation_config_to_json_str(generation_config: Optional[Generatio
     return json.dumps(asdict(generation_config))
 
 
-def _inspect_model_lib_metadata_memory_usage(model_lib_path):
+def _inspect_model_lib_metadata_memory_usage(model_lib_path, config_file_path):
     cmd = [
         sys.executable,
         "-m",
         "mlc_chat.cli.model_metadata",
         model_lib_path,
         "--memory-only",
+        "--mlc-chat-config",
+        config_file_path,
     ]
     subprocess.run(cmd, check=False)
 
@@ -769,7 +771,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
                     device=self.device,
                 )
             )
-        _inspect_model_lib_metadata_memory_usage(self.model_lib_path)
+        _inspect_model_lib_metadata_memory_usage(self.model_lib_path, self.config_file_path)
 
         # 5. Call reload
         user_chat_config_json_str = _convert_chat_config_to_json_str(

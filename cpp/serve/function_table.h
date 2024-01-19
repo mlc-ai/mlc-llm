@@ -7,6 +7,7 @@
 #ifndef MLC_LLM_SERVE_FUNCTION_TABLE_H_
 #define MLC_LLM_SERVE_FUNCTION_TABLE_H_
 
+#include <picojson.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
@@ -40,7 +41,7 @@ using namespace tvm::runtime;
 struct FunctionTable {
   static PackedFunc SessionFuncAsPackedFunc(Session sess, DRef sess_func, String name);
 
-  void Init(TVMArgValue reload_lib, Device device, int num_shards);
+  void Init(TVMArgValue reload_lib, Device device, picojson::object model_config);
 
   ObjectRef LoadParams(const std::string& model_path, Device device);
 
@@ -56,6 +57,7 @@ struct FunctionTable {
   DRef disco_mod{nullptr};
   Map<String, DRef> disco_buffers;
   tvm::runtime::Module local_vm{nullptr};
+  picojson::object model_config;
 
   TypedPackedFunc<PackedFunc(const std::string&)> mod_get_func;
   TypedPackedFunc<PackedFunc(const std::string&)> get_global_func;

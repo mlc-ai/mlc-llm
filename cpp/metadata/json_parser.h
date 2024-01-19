@@ -39,6 +39,30 @@ ValueType Lookup(const picojson::object& json, const std::string& key);
 template <typename ValueType>
 ValueType Lookup(const picojson::array& json, int index);
 
+/*! \brief ShapeTuple extension to incorporate symbolic shapes. */
+struct SymShapeTuple {
+  tvm::runtime::ShapeTuple shape_values;
+  std::vector<std::string> sym_names;
+
+  /*! \brief Convert symbolic shape tuple to static shape tuple with model config. */
+  tvm::runtime::ShapeTuple ToStatic(const picojson::object& model_config) {
+    std::vector<int64_t> shape;
+    shape.reserve(shape_values.size());
+    for (int i = 0; i < static_cast<int>(shape_values.size()); ++i) {
+      if (shape_values[i] != -1) {
+        shape.push_back(shape_values[i]);
+      } else {
+        CHECK(model_config.at(sym_names[i]).is<int64_t>())
+            << "ValueError: model config is expected to contain \"" << sym_names[i]
+            << "\" as an integer. However, the given config has unexpected type for \""
+            << sym_names[i] << "\".";
+        shape.push_back(model_config.at(sym_names[i]).get<int64_t>());
+      }
+    }
+    return tvm::runtime::ShapeTuple(std::move(shape));
+  }
+};
+
 // Implementation details
 
 namespace details {
@@ -47,20 +71,23 @@ inline tvm::runtime::DataType DTypeFromString(const std::string& s) {
   return tvm::runtime::DataType(tvm::runtime::String2DLDataType(s));
 }
 
-inline tvm::runtime::ShapeTuple ShapeTupleFromArray(const picojson::array& shape) {
+inline SymShapeTuple SymShapeTupleFromArray(const picojson::array& shape) {
   std::vector<int64_t> result;
+  std::vector<std::string> sym_names;
   result.reserve(shape.size());
-  for (const picojson::value& dim : shape) {
+  sym_names.reserve(shape.size());
+  for (int i = 0; i < static_cast<int>(shape.size()); ++i) {
+    const picojson::value& dim = shape[i];
     if (dim.is<std::string>()) {
-      // TODO: Get concrete value of dynamic shape instead of using -1 by passing in a dictionary
-      // from llm_chat.cc (concrete values are stored in mlc-chat-config.json).
       result.push_back(-1);
+      sym_names.push_back(dim.get<std::string>());
     } else {
       CHECK(dim.is<int64_t>()) << "ValueError: shape has unexpected type";
       result.push_back(dim.get<int64_t>());
+      sym_names.push_back("");
     }
   }
-  return tvm::runtime::ShapeTuple(std::move(result));
+  return SymShapeTuple{tvm::runtime::ShapeTuple(std::move(result)), sym_names};
 }
 
 }  // namespace details
@@ -93,13 +120,13 @@ inline tvm::runtime::DataType Lookup(const picojson::array& json, int index) {
 }
 
 template <>
-inline tvm::runtime::ShapeTuple Lookup(const picojson::object& json, const std::string& key) {
-  return details::ShapeTupleFromArray(Lookup<picojson::array>(json, key));
+inline SymShapeTuple Lookup(const picojson::object& json, const std::string& key) {
+  return details::SymShapeTupleFromArray(Lookup<picojson::array>(json, key));
 }
 
 template <>
-inline tvm::runtime::ShapeTuple Lookup(const picojson::array& json, int index) {
-  return details::ShapeTupleFromArray(Lookup<picojson::array>(json, index));
+inline SymShapeTuple Lookup(const picojson::array& json, int index) {
+  return details::SymShapeTupleFromArray(Lookup<picojson::array>(json, index));
 }
 
 inline picojson::object ParseToJsonObject(const std::string& json_str) {

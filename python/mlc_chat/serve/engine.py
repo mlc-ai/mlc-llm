@@ -186,7 +186,7 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
             )
 
     max_total_sequence_length = int(
-        (int(gpu_size_bytes) * 0.98 - params_bytes * 1.04 - temp_func_bytes) / kv_bytes_per_token
+        (int(gpu_size_bytes) * 0.97 - params_bytes * 1.04 - temp_func_bytes) / kv_bytes_per_token
     )
     assert max_total_sequence_length > 0, (
         "Cannot estimate KV cache capacity. "
@@ -194,7 +194,7 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
     )
 
     total_size = (
-        params_bytes * 1.04 + temp_func_bytes + kv_bytes_per_token * max_total_sequence_length
+        params_bytes * 1.05 + temp_func_bytes + kv_bytes_per_token * max_total_sequence_length
     )
     logger.info(
         "%s: %d.",

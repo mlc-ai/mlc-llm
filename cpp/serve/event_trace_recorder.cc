@@ -2,8 +2,6 @@
  *  Copyright (c) 2023 by Contributors
  * \file serve/event_trace_recorder.cc
  */
-#define PICOJSON_USE_INT64
-
 #include "event_trace_recorder.h"
 
 #include <picojson.h>
