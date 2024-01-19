@@ -26,7 +26,6 @@ def launch_server(served_model):  # pylint: disable=redefined-outer-name
     server = PopenServer(
         model=served_model[0],
         model_lib_path=served_model[1],
-        max_total_sequence_length=5120,
         enable_tracing=True,
     )
     server.start()

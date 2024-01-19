@@ -24,14 +24,13 @@ def _parse_args():
     args.add_argument("--num-prompts", type=int, default=500)
     args.add_argument("--batch-size", type=int, default=80)
     args.add_argument("--page-size", type=int, default=16)
-    args.add_argument("--max-total-seq-length", type=int, default=16800)
+    args.add_argument("--max-total-seq-length", type=int)
     args.add_argument("--seed", type=int, default=0)
 
     parsed = args.parse_args()
     parsed.model = os.path.dirname(parsed.model_lib_path)
     assert parsed.batch_size % 16 == 0
     assert parsed.page_size == 16
-    assert parsed.max_total_seq_length >= 2048
     return parsed
 
 

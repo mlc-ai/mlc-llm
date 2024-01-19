@@ -20,7 +20,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         device: str = "auto",
         *,
         max_batch_size: int = 80,
-        max_total_sequence_length: int = 16800,
+        max_total_sequence_length: Optional[int] = None,
         enable_tracing: bool = False,
         host: str = "127.0.0.1",
         port: int = 8000,
@@ -47,7 +47,8 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         cmd += ["--model-lib-path", self.model_lib_path]
         cmd += ["--device", self.device]
         cmd += ["--max-batch-size", str(self.max_batch_size)]
-        cmd += ["--max-total-seq-length", str(self.max_total_sequence_length)]
+        if self.max_total_sequence_length is not None:
+            cmd += ["--max-total-seq-length", str(self.max_total_sequence_length)]
         if self.enable_tracing:
             cmd += ["--enable-tracing"]
 
