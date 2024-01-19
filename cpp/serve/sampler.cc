@@ -3,8 +3,6 @@
  * \file serve/sampler.cc
  * \brief The implementation for runtime module of sampler functions.
  */
-#define __STDC_FORMAT_MACROS
-
 #include "sampler.h"
 
 #include <tvm/runtime/ndarray.h>

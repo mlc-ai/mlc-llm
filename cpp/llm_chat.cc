@@ -89,8 +89,19 @@ struct FunctionTable {
     });
   }
 
-  void Init(TVMArgValue reload_lib, Device device, int num_shards) {
+  void Init(TVMArgValue reload_lib, Device device, picojson::object model_config) {
     Device null_device{DLDeviceType(0), 0};
+    int num_shards;
+    {
+      if (model_config.count("tensor_parallel_shards")) {
+        CHECK(model_config["tensor_parallel_shards"].is<int64_t>());
+        num_shards = model_config["tensor_parallel_shards"].get<int64_t>();
+      } else {
+        num_shards = 1;
+      }
+    }
+    this->model_config = model_config;
+
     if (num_shards > 1) {
       String lib_path{nullptr};
       try {
@@ -142,7 +153,7 @@ struct FunctionTable {
       {
         Module mod = this->disco_mod->DebugGetFromRemote(0);
         this->softmax_func_ = mod->GetFunction("softmax_with_temperature");
-        this->model_metadata_ = ModelMetadata::FromModule(mod);
+        this->model_metadata_ = ModelMetadata::FromModule(mod, std::move(model_config));
       }
     } else {
       Module executable{nullptr};
@@ -169,7 +180,7 @@ struct FunctionTable {
         CHECK(f != nullptr) << "ValueError: Cannot find function " << name;
         return *f;
       };
-      this->model_metadata_ = ModelMetadata::FromModule(this->local_vm);
+      this->model_metadata_ = ModelMetadata::FromModule(this->local_vm, std::move(model_config));
       this->_InitFunctions();
     }
   }
@@ -193,7 +204,8 @@ struct FunctionTable {
         params = loader_load_all(loader);
       } else {
         PackedFunc loader = this->get_global_func("mlc.loader.LoadMultiGPU");
-        params = loader(model_path, this->disco_mod);
+        params =
+            loader(model_path, this->disco_mod, picojson::value(this->model_config).serialize());
       }
       return params;
     } else {
@@ -276,6 +288,7 @@ struct FunctionTable {
   Session sess{nullptr};
   DRef disco_mod{nullptr};
   tvm::runtime::Module local_vm{nullptr};
+  picojson::object model_config;
 
   TypedPackedFunc<PackedFunc(const std::string&)> mod_get_func;
   TypedPackedFunc<PackedFunc(const std::string&)> get_global_func;
@@ -416,12 +429,6 @@ class LLMChat {
     } else {
       CHECK(partial_update) << "Key \"vocab_size\" not found.";
     }
-    if (config.count("tensor_parallel_shards")) {
-      CHECK(config["tensor_parallel_shards"].is<int64_t>());
-      this->num_shards_ = config["tensor_parallel_shards"].get<int64_t>();
-    } else {
-      this->num_shards_ = 1;
-    }
     if (config.count("use_presharded_weights")) {
       CHECK(config["use_presharded_weights"].is<bool>());
       this->use_presharded_weights_ = config["use_presharded_weights"].get<bool>();
@@ -515,14 +522,14 @@ class LLMChat {
    *        options must be provided.
    * \note This function overrides existing configurations.
    */
-  void LoadJSONOverride(const std::string& config_str, bool partial_update = false) {
+  picojson::object LoadJSONOverride(const std::string& config_str, bool partial_update = false) {
     picojson::value config_json;
     std::string err = picojson::parse(config_json, config_str);
     if (!err.empty()) {
       LOG(FATAL) << err;
-      return;
     }
     LoadJSONOverride(config_json, partial_update);
+    return config_json.get<picojson::object>();
   }
 
   std::string GetConfigJSON() const { return SerializeConfigToJSONValue().serialize(true); }
@@ -536,13 +543,14 @@ class LLMChat {
    */
   void Reload(TVMArgValue reload_lib, String model_path, String app_config_json = "") {
     // Step 1. Process config json string.
+    picojson::object model_config;
     {
       std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
       std::ostringstream config_ostream;
       ICHECK(config_istream);
       config_ostream << config_istream.rdbuf();
       std::string config_str = config_ostream.str();
-      LoadJSONOverride(config_str, false);
+      model_config = LoadJSONOverride(config_str, false);
       if (!app_config_json.empty()) {
         // Override configuration from app_config_json.
         LoadJSONOverride(app_config_json, true);
@@ -553,7 +561,7 @@ class LLMChat {
     // Step 3. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
-    this->ft_.Init(reload_lib, device_, this->num_shards_);
+    this->ft_.Init(reload_lib, device_, model_config);
     UpdateConfigFromMetadata();
     if (this->sliding_window_size_ == -1) {
       CHECK(max_window_size_ != std::numeric_limits<int64_t>::max())
@@ -1444,8 +1452,6 @@ class LLMChat {
       max_gen_len_{512}, sliding_window_size_{-1}, prefill_chunk_size_{-1}, attention_sink_size_{0};
   // size of the vocab table
   int64_t vocab_size_;
-  // number of shards in distributed inference
-  int64_t num_shards_;
   // Load weights that were saved in sharded form
   bool use_presharded_weights_;
   // shift window fill factor

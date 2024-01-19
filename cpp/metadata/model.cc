@@ -11,31 +11,36 @@ namespace llm {
 
 using namespace tvm::runtime;
 
-ModelMetadata::Param::Preproc ModelMetadata::Param::Preproc::FromJSON(const picojson::object& js) {
+ModelMetadata::Param::Preproc ModelMetadata::Param::Preproc::FromJSON(
+    const picojson::object& js, const picojson::object& model_config) {
   Preproc preproc;
   CHECK_EQ(js.size(), 3) << "ValueError: Invalid preprocessing info in JSON";
   preproc.func_name = json::Lookup<std::string>(js, "func_name");
-  preproc.out_shape = json::Lookup<ShapeTuple>(js, "out_shape");
+  json::SymShapeTuple sym_out_shape = json::Lookup<json::SymShapeTuple>(js, "out_shape");
+  preproc.out_shape = sym_out_shape.ToStatic(model_config);
   preproc.out_dtype = json::Lookup<DataType>(js, "out_dtype");
   return preproc;
 }
 
-ModelMetadata::Param ModelMetadata::Param::FromJSON(const picojson::object& param) {
+ModelMetadata::Param ModelMetadata::Param::FromJSON(const picojson::object& param,
+                                                    const picojson::object& model_config) {
   Param result;
   result.name = json::Lookup<std::string>(param, "name");
   result.dtype = json::Lookup<DataType>(param, "dtype");
   // A shape being `-1` means that it is dynamic
-  result.shape = json::Lookup<ShapeTuple>(param, "shape");
+  json::SymShapeTuple sym_shape = json::Lookup<json::SymShapeTuple>(param, "shape");
+  result.shape = sym_shape.ToStatic(model_config);
   picojson::array preprocs = json::Lookup<picojson::array>(param, "preprocs");
   result.preprocs.reserve(preprocs.size());
   for (int i = 0; i < preprocs.size(); i++) {
-    result.preprocs.emplace_back(
-        ModelMetadata::Param::Preproc::FromJSON(json::Lookup<picojson::object>(preprocs, i)));
+    result.preprocs.emplace_back(ModelMetadata::Param::Preproc::FromJSON(
+        json::Lookup<picojson::object>(preprocs, i), model_config));
   }
   return result;
 }
 
-ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata) {
+ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
+                                      const picojson::object& model_config) {
   ModelMetadata result;
   result.model_type = json::Lookup<std::string>(metadata, "model_type");
   result.quantization = json::Lookup<std::string>(metadata, "quantization");
@@ -53,8 +58,8 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata) {
     picojson::array json_params = json::Lookup<picojson::array>(metadata, "params");
     params.reserve(json_params.size());
     for (int i = 0, n = json_params.size(); i < n; ++i) {
-      params.emplace_back(
-          ModelMetadata::Param::FromJSON(json::Lookup<picojson::object>(json_params, i)));
+      params.emplace_back(ModelMetadata::Param::FromJSON(
+          json::Lookup<picojson::object>(json_params, i), model_config));
     }
   }
   {
@@ -68,7 +73,8 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata) {
   return result;
 }
 
-ModelMetadata ModelMetadata::FromModule(tvm::runtime::Module module) {
+ModelMetadata ModelMetadata::FromModule(tvm::runtime::Module module,
+                                        const picojson::object& model_config) {
   std::string json_str = "";
   try {
     TypedPackedFunc<String()> pf = module.GetFunction("_metadata");
@@ -83,7 +89,7 @@ ModelMetadata ModelMetadata::FromModule(tvm::runtime::Module module) {
   }
   picojson::object json = json::ParseToJsonObject(json_str);
   try {
-    return ModelMetadata::FromJSON(json);
+    return ModelMetadata::FromJSON(json, model_config);
   } catch (const std::exception& e) {
     LOG(WARNING) << "Failed to parse metadata:\n" << json_str;
     throw e;

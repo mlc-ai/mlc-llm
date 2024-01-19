@@ -2,6 +2,7 @@
  * \file multi_gpu_loader.cc
  * \brief Implementation of a multi-GPU loader with loading-time sharding.
  */
+#include <picojson.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
@@ -118,7 +119,8 @@ NDArray ReceiveBroadcastedOrSharded(Device device, const ModelMetadata::Param& p
   return result;
 }
 
-Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_module) {
+Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_module,
+                            const std::string& model_config_str) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   Device device = worker->default_device;
   int worker_id = worker->worker_id;
@@ -126,7 +128,10 @@ Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_modul
   LOG(INFO) << "[Worker #" << worker_id << "] Loading model to device: " << device;
   // Step 0. Initialize metadata and paths
   NDArrayCacheMetadata ndarray_cache_metadata = NDArrayCacheMetadata::Load(model_path);
-  ModelMetadata model_metadata = ModelMetadata::FromModule(relax_vm_module);
+  picojson::value model_config;
+  picojson::parse(model_config, model_config_str);
+  ModelMetadata model_metadata =
+      ModelMetadata::FromModule(relax_vm_module, model_config.get<picojson::object>());
   CHECK_EQ(model_metadata.tensor_parallel_shards, num_shards)
       << "ValueError: The model is compiled using `--tensor-parallel-shards="
       << model_metadata.tensor_parallel_shards << "`, but ChatModule is configured to use "

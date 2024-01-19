@@ -2,8 +2,6 @@
  *  Copyright (c) 2023 by Contributors
  * \file serve/config.cc
  */
-#define PICOJSON_USE_INT64
-
 #include "config.h"
 
 #include <picojson.h>

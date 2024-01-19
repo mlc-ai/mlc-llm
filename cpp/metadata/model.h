@@ -12,7 +12,7 @@
 
 #include <unordered_map>
 
-// Forward decalre picojson's value, object and array
+// Forward declare picojson's value, object and array
 namespace picojson {
 class value;
 using object = std::unordered_map<std::string, value>;
@@ -28,14 +28,14 @@ struct ModelMetadata {
       tvm::runtime::String func_name;
       tvm::runtime::ShapeTuple out_shape;
       tvm::runtime::DataType out_dtype;
-      static Preproc FromJSON(const picojson::object& js);
+      static Preproc FromJSON(const picojson::object& js, const picojson::object& model_config);
     };
 
     tvm::runtime::String name;
     tvm::runtime::ShapeTuple shape;
     tvm::runtime::DataType dtype;
     std::vector<Preproc> preprocs;
-    static Param FromJSON(const picojson::object& param_obj);
+    static Param FromJSON(const picojson::object& param_obj, const picojson::object& model_config);
   };
 
   std::string model_type;
@@ -48,8 +48,10 @@ struct ModelMetadata {
   std::vector<Param> params;
   std::unordered_map<std::string, int64_t> memory_usage;
 
-  static ModelMetadata FromJSON(const picojson::object& json_str);
-  static ModelMetadata FromModule(tvm::runtime::Module module);
+  static ModelMetadata FromJSON(const picojson::object& json_str,
+                                const picojson::object& model_config);
+  static ModelMetadata FromModule(tvm::runtime::Module module,
+                                  const picojson::object& model_config);
 };
 
 }  // namespace llm
