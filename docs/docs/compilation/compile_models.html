@@ -411,6 +411,16 @@ mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/RedPajama-
 <span class="w">    </span>--device<span class="w"> </span>metal<span class="w"> </span>-o<span class="w"> </span>dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so
 </pre></div>
 </div>
+<p>Cross-Compiling for Intel Mac on M-chip Mac:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>redpajama_chat<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-o<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--device<span class="w"> </span>metal:x86-64<span class="w"> </span>-o<span class="w"> </span>dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal_x86_64.dylib
+</pre></div>
+</div>
 <p>For Intel Mac:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
 mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span><span class="se">\</span>
@@ -666,6 +676,16 @@ mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/
 <span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
 mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/mlc-chat-config.json<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--device<span class="w"> </span>metal<span class="w"> </span>-o<span class="w"> </span>dist/libs/Llama-2-7b-chat-hf-q4f16_1-metal.so
+</pre></div>
+</div>
+<p>Cross-Compiling for Intel Mac on M-chip Mac:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
+mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Chat-3B-v1/<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>redpajama_chat<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-o<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/
+<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--device<span class="w"> </span>metal:x86-64<span class="w"> </span>-o<span class="w"> </span>dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal_x86_64.dylib
 </pre></div>
 </div>
 <p>For Intel Mac:</p>
