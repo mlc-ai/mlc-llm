@@ -7,6 +7,7 @@ import sys
 import tempfile
 from itertools import product
 
+import mlc_chat
 import tvm
 
 from mlc_chat.model import MODEL_PRESETS
