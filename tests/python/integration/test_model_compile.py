@@ -57,13 +57,7 @@ DEVICE2SUFFIX = {
     "vulkan": "so",
 }
 MODELS = list(MODEL_PRESETS.keys())
-QUANTS = [  # TODO(@junrushao): use `list(mlc_chat.quantization.QUANTIZATION.keys())`
-    "q0f16",
-    "q0f32",
-    "q3f16_1",
-    "q4f16_1",
-    "q4f32_1",
-]
+QUANTS = list(mlc_chat.quantization.QUANTIZATION.keys())
 TENSOR_PARALLEL_SHARDS = [
     1,
 ]
