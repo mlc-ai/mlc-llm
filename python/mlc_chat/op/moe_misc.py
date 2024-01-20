@@ -70,7 +70,7 @@ def topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
         local_top_k = T.alloc_buffer((SCAN_LEN,), dtype=dtype, scope="local")
         local_top_k_index = T.alloc_buffer((SCAN_LEN,), dtype=index_dtype, scope="local")
         for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
-            for ii in T.thread_binding(0, T.min(batch_size, TX), "threadIdx.x"):
+            for ii in T.thread_binding(0, TX, "threadIdx.x"):
                 with T.block("top_k"):
                     vi = T.axis.spatial(batch_size, io * TX + ii)
                     T.where(io * TX + ii < batch_size)
