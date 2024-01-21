@@ -137,7 +137,7 @@ fun ModelView(
                 .wrapContentHeight()
         ) {
             Text(
-                text = modelState.modelConfig.localId,
+                text = modelState.modelConfig.modelId,
                 textAlign = TextAlign.Left,
                 modifier = Modifier
                     .wrapContentHeight()
