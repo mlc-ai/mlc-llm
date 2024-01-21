@@ -103,16 +103,6 @@ class RequestModelState : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestModelState, ObjectRef, RequestModelStateNode);
 };
 
-#ifdef __APPLE__
-using MLCTimePoint = std::chrono::steady_clock::time_point;
-#elif defined(__linux__)
-using MLCTimePoint = std::chrono::_V2::system_clock::time_point;
-#elif defined(_WIN32) || defined(_WIN64)
-using MLCTimePoint = std::chrono::steady_clock::time_point;
-#else
-#error "Unsupported platform"
-#endif
-
 class RequestStateNode : public Object {
  public:
   /*! \brief The request that this state corresponds to. */
@@ -131,9 +121,9 @@ class RequestStateNode : public Object {
   int next_callback_token_pos;
 
   /*! \brief The time of adding the request to engine. */
-  MLCTimePoint tadd;
+  std::chrono::high_resolution_clock::time_point tadd;
   /*! \brief The time of finishing prefill stage. */
-  MLCTimePoint tprefill_finish;
+  std::chrono::high_resolution_clock::time_point tprefill_finish;
 
   /*!
    * \brief Check if the request generation is finished and return the
