@@ -50,11 +50,13 @@ DEVICE2TARGET = {
             "supports_float16": 1,
         }
     ),
+    "wasm": "webgpu",
 }
 DEVICE2SUFFIX = {
     "cuda": "so",
     "rocm": "so",
     "vulkan": "so",
+    "wasm": "wasm",
 }
 MODELS = list(MODEL_PRESETS.keys())
 QUANTS = [  # TODO(@junrushao): use `list(mlc_chat.quantization.QUANTIZATION.keys())`
