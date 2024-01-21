@@ -16,12 +16,13 @@ WARN_FLASHINFER_GROUP_SIZE = False
 WARN_FLASHINFER_HEAD_DIM = False
 
 
-def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statements
+def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statements,too-many-arguments
     q: nn.Tensor,
     k: nn.Tensor,
     v: nn.Tensor,
     casual_mask: nn.Tensor,
     attn_score_scaling_factor: float = 1.0,
+    qk_dtype: str = None,
 ) -> nn.Tensor:
     """Attention with casual mask.
 
@@ -52,6 +53,10 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
         attn = softmax_with_mask(attn, casual_mask, axis=-1)
         o = attn @ v  # [b, h, s, d]
         o -> [b, s, h * d]
+
+    --- Other params ---
+    qk_dtype: if set, `matmul(Q, K, out_dtype=qk_dtype)`, (otherwise use `q.dtype` as `out_dtype`).
+        For FlashInfer, if "float32", sets `allow_fp16_qk_reduction` to False; otherwise no effect.
     """
     assert q.ndim == 4 and k.ndim in [3, 4] and v.ndim in [3, 4]
     b, s, h_q, d = q.shape
@@ -60,7 +65,7 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
     assert b == 1, "batch size must be 1"
 
     def _fallback():
-        nonlocal q, k, v
+        nonlocal q, k, v, qk_dtype
         if k.ndim == 3:
             k = op.reshape(k, [b, t, h_kv, d])
         if v.ndim == 3:
@@ -71,18 +76,20 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
         q = op.permute_dims(q, [0, 2, 1, 3])
         k = op.permute_dims(k, [0, 2, 1, 3])
         v = op.permute_dims(v, [0, 2, 1, 3])
+        model_dtype = q.dtype
+        if qk_dtype is None:
+            qk_dtype = model_dtype
         attn_weights = op.matmul(  # [b, h, s, t]
             q,  # [b, h, s, d]
             op.permute_dims(k, [0, 1, 3, 2]),  # [b, h, d, t]
+            out_dtype=qk_dtype,
         ) / math.sqrt(d)
         if attn_score_scaling_factor != 1.0:
             attn_weights = attn_weights * attn_score_scaling_factor
-        dtype = attn_weights.dtype
-        attn_weights = attn_weights.maximum(tir.min_value(dtype)).minimum(casual_mask)
-        if dtype == "float32":
-            attn_weights = op.softmax(attn_weights, axis=-1)
-        else:
-            attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(dtype)
+        attn_weights = attn_weights.maximum(tir.min_value(model_dtype)).minimum(
+            casual_mask.astype(qk_dtype)
+        )
+        attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(model_dtype)
         output = op.matmul(attn_weights, v)  # [b, h, s, d] <= [b, h, s, t] x [b, h, t, d]
         output = op.permute_dims(output, [0, 2, 1, 3])  #  [b, s, h, d]
         output = op.reshape(output, [b, s, h_q * d])  # [b, s, h * d]
@@ -122,6 +129,8 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
         rotary_mode = 0  # "kNone"
         casual = 1  # True
         fp16_qk = 1  # True
+        if qk_dtype == "float32":
+            fp16_qk = 0  # False
 
         # 32MB scratchpad
         scratch = op.empty([8192 * 1024], dtype="float32")  # pylint: disable=no-member
