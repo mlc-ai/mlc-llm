@@ -12,7 +12,29 @@ DOCKER_BINARY="docker"
 DOCKER_ENV="-e ENV_USER_ID=$(id -u) -e ENV_GROUP_ID=$(id -g)"
 DOCKER_VOLUMNS="-v ${WORKSPACE}:/workspace -v ${SCRIPT_DIR}:/docker"
 
-if [ "$#" -eq 1 ]; then
+shift 1
+while [[ $# -gt 0 ]]; do
+	cmd="$1"
+	if [[ $cmd == "-e" ]]; then
+		env_key=$2
+		env_value=$3
+		shift 3
+		DOCKER_ENV="${DOCKER_ENV} -e ${env_key}=${env_value}"
+	elif [[ $cmd == "-v" ]]; then
+		volumn_key=$2
+		volumn_value=$3
+		shift 3
+		DOCKER_VOLUMNS="${DOCKER_VOLUMNS} -v ${volumn_key}:${volumn_value}"
+	elif [[ $cmd == "-j" ]]; then
+		num_threads=$2
+		shift 2
+		DOCKER_ENV="${DOCKER_ENV} -e NUM_THREADS=${num_threads} --cpus ${num_threads}"
+	else
+		break
+	fi
+done
+
+if [ "$#" -eq 0 ]; then
 	COMMAND="bash"
 	if [[ $(uname) == "Darwin" ]]; then
 		# Docker's host networking driver isn't supported on macOS.
@@ -22,23 +44,6 @@ if [ "$#" -eq 1 ]; then
 		DOCKER_EXTRA_PARAMS=("-it --net=host")
 	fi
 else
-	shift 1
-	while [[ $# -gt 0 ]]; do
-		cmd="$1"
-		if [[ $cmd == "-e" ]]; then
-			env_key=$2
-			env_value=$3
-			shift 3
-			DOCKER_ENV="${DOCKER_ENV} -e ${env_key}=${env_value}"
-		elif [[ $cmd == "-v" ]]; then
-			volumn_key=$2
-			volumn_value=$3
-			shift 3
-			DOCKER_VOLUMNS="${DOCKER_VOLUMNS} -v ${volumn_key}:${volumn_value}"
-		else
-			break
-		fi
-	done
 	COMMAND=("$@")
 fi
 
@@ -49,8 +54,9 @@ fi
 
 # Print arguments.
 echo "WORKSPACE: ${WORKSPACE}"
-echo "DOCKER CONTAINER NAME: ${DOCKER_IMAGE_NAME}"
-echo "ENVIRONMENT VARIABLES: ${DOCKER_ENV}"
+echo "IMAGE NAME: ${DOCKER_IMAGE_NAME}"
+echo "ENV VARIABLES: ${DOCKER_ENV}"
+echo "VOLUMES: ${DOCKER_VOLUMNS}"
 echo "COMMANDS: '${COMMAND[@]}'"
 
 # By default we cleanup - remove the container once it finish running (--rm)

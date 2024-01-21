@@ -5,8 +5,6 @@ set -x
 : ${WORKSPACE_CWD:=$(pwd)}
 : ${GPU:="cpu"}
 
-NUM_THREADS=8
-
 pip install wheels/*.whl
 
 if [[ ${GPU} == cuda* ]]; then
@@ -21,6 +19,10 @@ elif [[ ${GPU} == wasm* ]]; then
 	pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
 	export TVM_HOME=$(dirname $(python -c 'import tvm; print(tvm.__file__)'))
 	cd $TVM_HOME/web/ && make -j${NUM_THREADS} && cd -
+elif [[ ${GPU} == android* ]]; then
+	TARGET=android
+	pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
+	source /android_env_vars.sh
 else
 	TARGET=vulkan
 	pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
