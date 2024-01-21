@@ -17,9 +17,9 @@
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
-run_cpu = "bash ci/bash.sh mlcaidev/ci-cpu:561ceee -e GPU cpu"
-run_cuda = "bash ci/bash.sh mlcaidev/ci-cu121:561ceee -e GPU cuda-12.1"
-run_rocm = "bash ci/bash.sh mlcaidev/ci-rocm57:561ceee -e GPU rocm-5.7"
+run_cpu = "bash ci/bash.sh mlcaidev/ci-cpu:4d61e5d -e GPU cpu"
+run_cuda = "bash ci/bash.sh mlcaidev/ci-cu121:4d61e5d -e GPU cuda-12.1"
+run_rocm = "bash ci/bash.sh mlcaidev/ci-rocm57:4d61e5d -e GPU rocm-5.7"
 
 pkg_cpu = "bash ci/bash.sh mlcaidev/package-rocm57:561ceee -e GPU cpu"
 pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu121:561ceee -e GPU cuda-12.1"
@@ -65,7 +65,7 @@ stage('Lint') {
           init_git()
           sh(script: "ls -alh", label: 'Show work directory')
           sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${run_cpu} conda run -n ci-lint ci/task/isort.sh", label: 'Lint')
+          sh(script: "${run_cpu} -j 1 conda run -n ci-lint ci/task/isort.sh", label: 'Lint')
         }
       }
     },
@@ -75,7 +75,7 @@ stage('Lint') {
           init_git()
           sh(script: "ls -alh", label: 'Show work directory')
           sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${run_cpu} conda run -n ci-lint ci/task/black.sh", label: 'Lint')
+          sh(script: "${run_cpu} -j 1 conda run -n ci-lint ci/task/black.sh", label: 'Lint')
         }
       }
     },
@@ -85,7 +85,7 @@ stage('Lint') {
           init_git()
           sh(script: "ls -alh", label: 'Show work directory')
           sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${run_cpu} conda run -n ci-lint ci/task/mypy.sh", label: 'Lint')
+          sh(script: "${run_cpu} -j 1 conda run -n ci-lint ci/task/mypy.sh", label: 'Lint')
         }
       }
     },
@@ -95,7 +95,7 @@ stage('Lint') {
           init_git()
           sh(script: "ls -alh", label: 'Show work directory')
           sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${run_cpu} conda run -n ci-lint ci/task/pylint.sh", label: 'Lint')
+          sh(script: "${run_cpu} -j 4 conda run -n ci-lint ci/task/pylint.sh", label: 'Lint')
         }
       }
     },
@@ -105,7 +105,7 @@ stage('Lint') {
           init_git()
           sh(script: "ls -alh", label: 'Show work directory')
           sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${run_cpu} conda run -n ci-lint ci/task/clang-format.sh", label: 'Lint')
+          sh(script: "${run_cpu} -j 1 conda run -n ci-lint ci/task/clang-format.sh", label: 'Lint')
         }
       }
     },
@@ -120,9 +120,9 @@ stage('Build') {
           init_git(true)
           sh(script: "ls -alh", label: 'Show work directory')
           sh(script: "${pkg_cuda} conda env export --name py38", label: 'Checkout version')
-          sh(script: "${pkg_cuda} -v \$HOME/.ccache /ccache conda run -n py38 ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
-          sh(script: "${pkg_cuda} conda run -n py38 ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
-          sh(script: "${pkg_cuda} conda run -n py38 ./ci/task/build_clean.sh", label: 'Clean up after build')
+          sh(script: "${pkg_cuda} -j 8 -v \$HOME/.ccache /ccache conda run -n py38 ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
+          sh(script: "${pkg_cuda} -j 8 conda run -n py38 ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
+          sh(script: "${pkg_cuda} -j 1 conda run -n py38 ./ci/task/build_clean.sh", label: 'Clean up after build')
           sh(script: "ls -alh ./wheels/", label: 'Build artifact')
           pack_lib('mlc_wheel_cuda', 'wheels/*.whl')
         }
@@ -134,9 +134,9 @@ stage('Build') {
           init_git(true)
           sh(script: "ls -alh", label: 'Show work directory')
           sh(script: "${pkg_rocm} conda env export --name py38", label: 'Checkout version')
-          sh(script: "${pkg_rocm} conda run -n py38 ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
-          sh(script: "${pkg_rocm} conda run -n py38 ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
-          sh(script: "${pkg_rocm} conda run -n py38 ./ci/task/build_clean.sh", label: 'Clean up after build')
+          sh(script: "${pkg_rocm} -j 8 conda run -n py38 ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
+          sh(script: "${pkg_rocm} -j 8 conda run -n py38 ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
+          sh(script: "${pkg_rocm} -j 1 conda run -n py38 ./ci/task/build_clean.sh", label: 'Clean up after build')
           sh(script: "ls -alh ./wheels/", label: 'Build artifact')
           pack_lib('mlc_wheel_rocm', 'wheels/*.whl')
         }
@@ -148,9 +148,9 @@ stage('Build') {
           init_git(true)
           sh(script: "ls -alh", label: 'Show work directory')
           sh(script: "${pkg_cpu} conda env export --name py38", label: 'Checkout version')
-          sh(script: "${pkg_cpu} conda run -n py38 ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
-          sh(script: "${pkg_cpu} conda run -n py38 ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
-          sh(script: "${pkg_cpu} conda run -n py38 ./ci/task/build_clean.sh", label: 'Clean up after build')
+          sh(script: "${pkg_cpu} -j 8 conda run -n py38 ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
+          sh(script: "${pkg_cpu} -j 8 conda run -n py38 ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
+          sh(script: "${pkg_cpu} -j 1 conda run -n py38 ./ci/task/build_clean.sh", label: 'Clean up after build')
           sh(script: "ls -alh ./wheels/", label: 'Build artifact')
           pack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
         }
@@ -168,7 +168,7 @@ stage('Model Compilation') {
           sh(script: "ls -alh", label: 'Show work directory')
           unpack_lib('mlc_wheel_cuda', 'wheels/*.whl')
           sh(script: "${run_cuda} conda env export --name ci-unittest", label: 'Checkout version')
-          sh(script: "${run_cuda} conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
+          sh(script: "${run_cuda} -j 4 conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
         }
       }
     },
@@ -179,7 +179,7 @@ stage('Model Compilation') {
           sh(script: "ls -alh", label: 'Show work directory')
           unpack_lib('mlc_wheel_rocm', 'wheels/*.whl')
           sh(script: "${run_rocm} conda env export --name ci-unittest", label: 'Checkout version')
-          sh(script: "${run_rocm} conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
+          sh(script: "${run_rocm} -j 4 conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
         }
       }
     },
@@ -190,7 +190,7 @@ stage('Model Compilation') {
           sh(script: "ls -alh", label: 'Show work directory')
           unpack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
           sh(script: "${run_cpu} conda env export --name ci-unittest", label: 'Checkout version')
-          // sh(script: "${run_cpu} conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
+          // sh(script: "${run_cpu} -j 4 conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
         }
       }
     },
@@ -201,7 +201,18 @@ stage('Model Compilation') {
           sh(script: "ls -alh", label: 'Show work directory')
           unpack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
           sh(script: "${run_cpu} conda env export --name ci-unittest", label: 'Checkout version')
-          sh(script: "${run_cpu} -e GPU wasm conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
+          sh(script: "${run_cpu} -j 8 -e GPU wasm conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
+        }
+      }
+    },
+    'Android-OpenCL': {
+      node('CPU-SMALL') {
+        ws(per_exec_ws('mlc-llm-compile-android')) {
+          init_git(false)
+          sh(script: "ls -alh", label: 'Show work directory')
+          unpack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
+          sh(script: "${run_cpu} conda env export --name ci-unittest", label: 'Checkout version')
+          sh(script: "${run_cpu} -j 4 -e GPU android conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
         }
       }
     }
