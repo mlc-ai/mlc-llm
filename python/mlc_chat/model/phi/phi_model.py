@@ -178,7 +178,9 @@ class PhiCrossAttention(nn.Module):
         super().__init__()
 
     def forward(self, q: Tensor, k: Tensor, v: Tensor, attention_mask: Tensor):
-        output = op_ext.attention(q, k, v, casual_mask=attention_mask)
+        output = op_ext.attention(
+            q, k, v, casual_mask=attention_mask, attn_weights_out_dtype="float32"
+        )
         return output
 
 
