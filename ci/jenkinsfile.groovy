@@ -17,13 +17,13 @@
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
-run_cpu = "bash ci/bash.sh mlcaidev/ci-cpu:78ce6f5 -e GPU cpu"
-run_cuda = "bash ci/bash.sh mlcaidev/ci-cu121:78ce6f5 -e GPU cuda-12.1"
-run_rocm = "bash ci/bash.sh mlcaidev/ci-rocm57:78ce6f5 -e GPU rocm-5.7"
+run_cpu = "bash ci/bash.sh mlcaidev/ci-cpu:561ceee -e GPU cpu"
+run_cuda = "bash ci/bash.sh mlcaidev/ci-cu121:561ceee -e GPU cuda-12.1"
+run_rocm = "bash ci/bash.sh mlcaidev/ci-rocm57:561ceee -e GPU rocm-5.7"
 
-pkg_cpu = "bash ci/bash.sh mlcaidev/package-rocm57:ab1296a -e GPU cpu"
-pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu121:ab1296a -e GPU cuda-12.1"
-pkg_rocm = "bash ci/bash.sh mlcaidev/package-rocm57:ab1296a -e GPU rocm-5.7"
+pkg_cpu = "bash ci/bash.sh mlcaidev/package-rocm57:561ceee -e GPU cpu"
+pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu121:561ceee -e GPU cuda-12.1"
+pkg_rocm = "bash ci/bash.sh mlcaidev/package-rocm57:561ceee -e GPU rocm-5.7"
 
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
@@ -179,7 +179,7 @@ stage('Model Compilation') {
           sh(script: "ls -alh", label: 'Show work directory')
           unpack_lib('mlc_wheel_rocm', 'wheels/*.whl')
           sh(script: "${run_rocm} conda env export --name ci-unittest", label: 'Checkout version')
-          // sh(script: "${run_rocm} conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
+          sh(script: "${run_rocm} conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
         }
       }
     },
@@ -191,6 +191,17 @@ stage('Model Compilation') {
           unpack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
           sh(script: "${run_cpu} conda env export --name ci-unittest", label: 'Checkout version')
           // sh(script: "${run_cpu} conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
+        }
+      }
+    },
+    'WASM': {
+      node('CPU-SMALL') {
+        ws(per_exec_ws('mlc-llm-compile-wasm')) {
+          init_git(false)
+          sh(script: "ls -alh", label: 'Show work directory')
+          unpack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
+          sh(script: "${run_cpu} conda env export --name ci-unittest", label: 'Checkout version')
+          sh(script: "${run_cpu} -e GPU wasm conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
         }
       }
     }
