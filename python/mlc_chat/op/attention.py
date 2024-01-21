@@ -22,7 +22,7 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
     v: nn.Tensor,
     casual_mask: nn.Tensor,
     attn_score_scaling_factor: float = 1.0,
-    attn_weights_out_dtype: str = None,
+    qk_dtype: str = None,
 ) -> nn.Tensor:
     """Attention with casual mask.
 
@@ -55,7 +55,7 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
         o -> [b, s, h * d]
 
     --- Other params ---
-    attn_weights_out_dtype: if set, matmul(Q, K) will have it as out_dtype (o/w use default dtype).
+    qk_dtype: if set, matmul(Q, K) will have it as out_dtype (o/w use default dtype).
         Only useful for fallback implementation.
     """
     assert q.ndim == 4 and k.ndim in [3, 4] and v.ndim in [3, 4]
@@ -65,7 +65,7 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
     assert b == 1, "batch size must be 1"
 
     def _fallback():
-        nonlocal q, k, v, attn_weights_out_dtype
+        nonlocal q, k, v, qk_dtype
         if k.ndim == 3:
             k = op.reshape(k, [b, t, h_kv, d])
         if v.ndim == 3:
@@ -77,17 +77,17 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
         k = op.permute_dims(k, [0, 2, 1, 3])
         v = op.permute_dims(v, [0, 2, 1, 3])
         model_dtype = q.dtype
-        if attn_weights_out_dtype is None:
-            attn_weights_out_dtype = model_dtype
+        if qk_dtype is None:
+            qk_dtype = model_dtype
         attn_weights = op.matmul(  # [b, h, s, t]
             q,  # [b, h, s, d]
             op.permute_dims(k, [0, 1, 3, 2]),  # [b, h, d, t]
-            out_dtype=attn_weights_out_dtype,
+            out_dtype=qk_dtype,
         ) / math.sqrt(d)
         if attn_score_scaling_factor != 1.0:
             attn_weights = attn_weights * attn_score_scaling_factor
         attn_weights = attn_weights.maximum(tir.min_value(model_dtype)).minimum(
-            casual_mask.astype(attn_weights_out_dtype)
+            casual_mask.astype(qk_dtype)
         )
         attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(model_dtype)
         output = op.matmul(attn_weights, v)  # [b, h, s, d] <= [b, h, s, t] x [b, h, t, d]
