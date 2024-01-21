@@ -55,8 +55,8 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
         o -> [b, s, h * d]
 
     --- Other params ---
-    qk_dtype: if set, matmul(Q, K) will have it as out_dtype (o/w use default dtype).
-        Only useful for fallback implementation.
+    qk_dtype: if set, `matmul(Q, K, out_dtype=qk_dtype)`, (otherwise use `q.dtype` as `out_dtype`).
+        For FlashInfer, if "float32", sets `allow_fp16_qk_reduction` to False; otherwise no effect.
     """
     assert q.ndim == 4 and k.ndim in [3, 4] and v.ndim in [3, 4]
     b, s, h_q, d = q.shape
@@ -129,6 +129,8 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
         rotary_mode = 0  # "kNone"
         casual = 1  # True
         fp16_qk = 1  # True
+        if qk_dtype == "float32":
+            fp16_qk = 0  # False
 
         # 32MB scratchpad
         scratch = op.empty([8192 * 1024], dtype="float32")  # pylint: disable=no-member
