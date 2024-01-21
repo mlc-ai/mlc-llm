@@ -336,6 +336,21 @@ def load_params(artifact_path: str, device) -> List[tvm.nd.NDArray]:
     return plist
 
 
+def load_params_SLM(
+    model_weight_path: str, device, model_metadata: Dict[str, Any]
+) -> List[tvm.nd.NDArray]:
+    from tvm.contrib import tvmjs  # pylint: disable=import-outside-toplevel
+
+    params, meta = tvmjs.load_ndarray_cache(model_weight_path, device)
+    param_names = [param["name"] for param in model_metadata["params"]]
+    assert len(param_names) == meta["ParamSize"]
+
+    plist = []
+    for param_name in param_names:
+        plist.append(params[param_name])
+    return plist
+
+
 def copy_tokenizer(args: argparse.Namespace) -> None:
     for filename in os.listdir(args.model_path):
         if filename in [
