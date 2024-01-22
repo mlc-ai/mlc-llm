@@ -26,6 +26,8 @@ supported_model_types = set(
         "chatglm",
         "mistral",
         "stablelm_epoch",
+        "gpt2",
+        "qwen"
     ]
 )
 
@@ -122,6 +124,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "tinyllama": "chatml",
         "openhermes-2.5-mistral": "open_hermes_mistral",
         "neuralhermes-2.5-mistral": "neural_hermes_mistral",
+        "qwen": "qwen"
     }
 
     for prefix, conv_template in model_conv_templates.items():
