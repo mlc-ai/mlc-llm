@@ -14,6 +14,7 @@ from .llama import llama_loader, llama_model, llama_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
 from .phi import phi_loader, phi_model, phi_quantization
+from .qwen import qwen_loader, qwen_model, qwen_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -164,6 +165,19 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": phi_quantization.no_quant,
             "group-quant": phi_quantization.group_quant,
+        },
+    ),
+    "qwen": Model(
+        name="qwen",
+        model=qwen_model.QWenLMHeadModel,
+        config=qwen_model.QWenConfig,
+        source={
+            "huggingface-torch": qwen_loader.huggingface,
+            "huggingface-safetensor": qwen_loader.huggingface,
+        },
+        quantize={
+            "no-quant": qwen_quantization.no_quant,
+            "group-quant": qwen_quantization.group_quant,
         },
     ),
 }
