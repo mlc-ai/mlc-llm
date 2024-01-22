@@ -553,7 +553,10 @@ class LLMChat {
       model_config = LoadJSONOverride(config_str, false);
       if (!app_config_json.empty()) {
         // Override configuration from app_config_json.
-        LoadJSONOverride(app_config_json, true);
+        picojson::object app_config = LoadJSONOverride(app_config_json, true);
+        if (app_config.count("tensor_parallel_shards")) {
+          model_config["tensor_parallel_shards"] = app_config["tensor_parallel_shards"];
+        }
       }
     }
     // Step 2. Set tokenizer.
