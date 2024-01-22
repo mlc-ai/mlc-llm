@@ -11,6 +11,7 @@ from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_chat import op as op_ext
 from mlc_chat.support import logging
+from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
 from mlc_chat.support.style import bold
 
@@ -161,9 +162,9 @@ class PhiConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 class PhiMLP(nn.Module):
     def __init__(self, config: PhiConfig):
         super().__init__()
-
-        self.fc1 = nn.Linear(config.n_embd, config.n_inner)
-        self.fc2 = nn.Linear(config.n_inner, config.n_embd)
+        self.intermediate_size = config.n_inner // config.tensor_parallel_shards
+        self.fc1 = nn.Linear(config.n_embd, self.intermediate_size)
+        self.fc2 = nn.Linear(self.intermediate_size, config.n_embd)
 
     def forward(self, hidden_states: Tensor):
         hidden_states = self.fc1(hidden_states)
@@ -186,14 +187,20 @@ class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: PhiConfig):
         self.rope_theta = config.position_embedding_base
         self.rotary_dim = config.rotary_dim
-        self.n_head = config.n_head
-        self.n_head_kv = config.n_head_kv
+        self.n_head = config.n_head // config.tensor_parallel_shards
+        assert (
+            config.n_head % config.tensor_parallel_shards == 0
+        ), f"n_head({config.n_head}) must be divisible by tensor_parallel_shards"
+        self.n_head_kv = config.n_head_kv // config.tensor_parallel_shards
+        assert (
+            config.n_head_kv % config.tensor_parallel_shards == 0
+        ), f"n_head({config.n_head_kv}) must be divisible by tensor_parallel_shards"
         self.head_dim = config.head_dim
         op_size = self.head_dim * (self.n_head + 2 * self.n_head_kv)
         hidden_size = config.n_embd
 
         self.Wqkv = nn.Linear(hidden_size, op_size, bias=True)
-        self.out_proj = nn.Linear(hidden_size, hidden_size, bias=True)
+        self.out_proj = nn.Linear(self.n_head * self.head_dim, hidden_size, bias=True)
         self.inner_cross_attn = PhiCrossAttention(config)
         self.k_cache = nn.KVCache(config.context_window_size, [self.n_head_kv, self.head_dim])
         self.v_cache = nn.KVCache(config.context_window_size, [self.n_head_kv, self.head_dim])
@@ -226,19 +233,50 @@ class PhiParallelBlock(nn.Module):
         self.mixer = PhiMHA(config)
         self.mlp = PhiMLP(config)
 
+        def _set_tp():
+            def _set(param, hint):
+                param.attrs["shard_strategy"] = hint
+
+            hd = config.head_dim
+            q = self.mixer.n_head * hd
+            k = self.mixer.n_head_kv * hd
+            v = self.mixer.n_head_kv * hd
+            _set(
+                self.mixer.Wqkv.weight,
+                tp.ShardSingleDim("_shard_qkv_weight", segs=[q, k, v], dim=0),
+            )
+            _set(self.mixer.Wqkv.bias, tp.ShardSingleDim("_shard_qkv_bias", segs=[q, k, v], dim=0))
+            _set(self.mixer.out_proj.weight, tp.ShardSingleDim("_shard_o_weight", dim=1))
+            _set(self.mlp.fc1.weight, tp.ShardSingleDim("_shard_mlp_fc1_weight", dim=0))
+            _set(self.mlp.fc1.bias, tp.ShardSingleDim("_shard_mlp_fc1_bias", dim=0))
+            _set(self.mlp.fc2.weight, tp.ShardSingleDim("_shard_mlp_fc2_weight", dim=1))
+
+        self.tensor_parallel_shards = config.tensor_parallel_shards
+        _set_tp()
+
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
         residual = hidden_states
         hidden_states = self.ln(hidden_states)
 
-        attn_outputs = self.mixer(
-            hidden_states,
-            attention_mask,
-            total_seq_len,
-        )
+        with tp.shard_bias(self.mixer.out_proj, self.tensor_parallel_shards), tp.shard_bias(
+            self.mlp.fc2, self.tensor_parallel_shards
+        ):
+            attn_outputs = self.mixer(
+                hidden_states,
+                attention_mask,
+                total_seq_len,
+            )
 
-        feed_forward_hidden_states = self.mlp(hidden_states)
+            feed_forward_hidden_states = self.mlp(hidden_states)
 
-        hidden_states = attn_outputs + feed_forward_hidden_states + residual
+        def _apply_parallel_residual(attn_out, mlp_out, residual):
+            if self.tensor_parallel_shards > 1:
+                return op.ccl_allreduce(
+                    attn_out + mlp_out + residual / self.tensor_parallel_shards, "sum"
+                )
+            return attn_out + mlp_out + residual
+
+        hidden_states = _apply_parallel_residual(attn_outputs, feed_forward_hidden_states, residual)
 
         return hidden_states
 
@@ -264,8 +302,11 @@ class PhiModel(nn.Module):
         super().__init__()
         self.embd = nn.Embedding("vocab_size", config.n_embd)
         self.h = nn.ModuleList([PhiParallelBlock(config) for i in range(config.n_layer)])
+        self.tensor_parallel_shards = config.tensor_parallel_shards
 
     def forward(self, input_ids: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
+        if self.tensor_parallel_shards > 1:
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
         hidden_states = self.embd(input_ids)
         for layer in self.h:
             hidden_states = layer(hidden_states, attention_mask, total_seq_len)

@@ -133,7 +133,7 @@ class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         k = self.k_cache.view(total_seq_len)
         v = self.v_cache.view(total_seq_len)
 
-        output = op_ext.attention(q, k, v, casual_mask=attention_mask)
+        output = op_ext.attention(q, k, v, casual_mask=attention_mask, qk_dtype="float32")
         attn_output = self.dense(output)
         return attn_output
 
@@ -207,29 +207,29 @@ class GPTNeoXLayer(nn.Module):
         attention_mask: Tensor,
         total_seq_len: tir.Var,
     ):
-        def _apply_residual(out, residual, bias):
+        def _apply_residual(out, residual):
             if self.tensor_parallel_shards > 1:
-                return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum") - bias
+                return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum")
             return out + residual
 
         dtype = hidden_states.dtype
         attn_input = self.input_layernorm(hidden_states)
-        attn_output = self.attention(
-            attn_input,
-            attention_mask,
-            total_seq_len,
-        )
+        with tp.shard_bias(self.attention.dense, self.tensor_parallel_shards):
+            attn_output = self.attention(
+                attn_input,
+                attention_mask,
+                total_seq_len,
+            )
         if self.use_parallel_residual:
             mlp_input = self.post_attention_layernorm(hidden_states)
             mlp_output = self.mlp(mlp_input)
             hidden_states = mlp_output + attn_output + hidden_states
         else:
-            attn_output = _apply_residual(attn_output, hidden_states, self.attention.dense.bias)
+            attn_output = _apply_residual(attn_output, hidden_states)
             mlp_input = self.post_attention_layernorm(attn_output)
-            mlp_output = self.mlp(mlp_input)
-            hidden_states = _apply_residual(
-                mlp_output.astype(dtype), attn_output, self.mlp.dense_4h_to_h.bias.astype(dtype)
-            )
+            with tp.shard_bias(self.mlp.dense_4h_to_h, self.tensor_parallel_shards):
+                mlp_output = self.mlp(mlp_input)
+            hidden_states = _apply_residual(mlp_output.astype(dtype), attn_output)
         return hidden_states
 
 

@@ -1,5 +1,6 @@
 """Sharding operators for tensor parallelism."""
 import dataclasses
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
 from tvm import te, tir, topi
@@ -73,3 +74,24 @@ class ShardSingleDim:
             "out_shape": (shards, *weight.shape),
             "out_dtype": weight.dtype,
         }
+
+
+@contextmanager
+def shard_bias(linear: nn.Linear, tensor_parallel_shards: int):
+    """
+    A context manager to shard the bias of a linear into `tensor_parallel_shards` shards.
+
+
+    Parameters
+    ----------
+    linear : nn.Linear
+        The linear layer whose bias would be sharded.
+
+    tensor_parallel_shards : int
+        The number of shards.
+    """
+    original_bias = linear.bias
+    if tensor_parallel_shards > 1:
+        linear.bias = linear.bias / tensor_parallel_shards
+    yield
+    linear.bias = original_bias
