@@ -77,21 +77,21 @@ class ShardSingleDim:
 
 
 @contextmanager
-def shard_bias(bias, tensor_parallel_shards):
+def shard_bias(linear: nn.Linear, tensor_parallel_shards: int):
     """
-    A context manager to shard a bias by dividing it into `tensor_parallel_shards` shards.
+    A context manager to shard the bias of a linear into `tensor_parallel_shards` shards.
 
 
     Parameters
     ----------
-    bias : Tensor
-        The bias to be sharded.
+    linear : nn.Linear
+        The linear layer whose bias would be sharded.
 
     tensor_parallel_shards : int
         The number of shards.
     """
-    original_bias = bias
+    original_bias = linear.bias
     if tensor_parallel_shards > 1:
-        bias = bias / tensor_parallel_shards
+        linear.bias = linear.bias / tensor_parallel_shards
     yield
-    bias = original_bias
+    linear.bias = original_bias
