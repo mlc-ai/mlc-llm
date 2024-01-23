@@ -55,6 +55,7 @@ class KVCacheConfigNode : public Object {
   int page_size;
   int max_num_sequence;
   int max_total_sequence_length;
+  int prefill_chunk_size;
 
   String AsJSONString() const;
 
@@ -66,7 +67,8 @@ class KVCacheConfigNode : public Object {
 
 class KVCacheConfig : public ObjectRef {
  public:
-  explicit KVCacheConfig(int page_size, int max_num_sequence, int max_total_sequence_length);
+  explicit KVCacheConfig(int page_size, int max_num_sequence, int max_total_sequence_length,
+                         int prefill_chunk_size);
 
   explicit KVCacheConfig(const std::string& config_str, int max_single_sequence_length);
 

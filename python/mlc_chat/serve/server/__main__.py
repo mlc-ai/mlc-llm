@@ -19,6 +19,7 @@ def parse_args_and_initialize() -> argparse.Namespace:
     args.add_argument("--device", type=str, default="auto")
     args.add_argument("--max-batch-size", type=int, default=80)
     args.add_argument("--max-total-seq-length", type=int)
+    args.add_argument("--prefill-chunk-size", type=int)
     args.add_argument("--enable-tracing", action="store_true")
 
     args.add_argument("--host", type=str, default="127.0.0.1", help="host name")
@@ -39,6 +40,7 @@ def parse_args_and_initialize() -> argparse.Namespace:
     kv_cache_config = config.KVCacheConfig(
         max_num_sequence=parsed.max_batch_size,
         max_total_sequence_length=parsed.max_total_seq_length,
+        prefill_chunk_size=parsed.prefill_chunk_size,
     )
     # Create engine and start the background loop
     engine = async_engine.AsyncThreadedEngine(

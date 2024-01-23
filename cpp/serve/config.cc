@@ -137,11 +137,13 @@ String GenerationConfigNode::AsJSONString() const {
 
 TVM_REGISTER_OBJECT_TYPE(KVCacheConfigNode);
 
-KVCacheConfig::KVCacheConfig(int page_size, int max_num_sequence, int max_total_sequence_length) {
+KVCacheConfig::KVCacheConfig(int page_size, int max_num_sequence, int max_total_sequence_length,
+                             int prefill_chunk_size) {
   ObjectPtr<KVCacheConfigNode> n = make_object<KVCacheConfigNode>();
   n->page_size = page_size;
   n->max_num_sequence = max_num_sequence;
   n->max_total_sequence_length = max_total_sequence_length;
+  n->prefill_chunk_size = prefill_chunk_size;
   data_ = std::move(n);
 }
 
@@ -149,6 +151,7 @@ KVCacheConfig::KVCacheConfig(const std::string& config_str, int max_single_seque
   int page_size;
   int max_total_sequence_length;
   int max_num_sequence = -1;
+  int prefill_chunk_size;
 
   picojson::value config_json;
   std::string err = picojson::parse(config_json, config_str);
@@ -171,6 +174,12 @@ KVCacheConfig::KVCacheConfig(const std::string& config_str, int max_single_seque
   } else {
     LOG(FATAL) << "Key \"max_total_sequence_length\" not found.";
   }
+  if (config.count("prefill_chunk_size")) {
+    CHECK(config["prefill_chunk_size"].is<int64_t>());
+    prefill_chunk_size = config["prefill_chunk_size"].get<int64_t>();
+  } else {
+    LOG(FATAL) << "Key \"prefill_chunk_size\" not found.";
+  }
   if (config.count("max_num_sequence")) {
     CHECK(config["max_num_sequence"].is<int64_t>());
     max_num_sequence = config["max_num_sequence"].get<int64_t>();
@@ -184,6 +193,7 @@ KVCacheConfig::KVCacheConfig(const std::string& config_str, int max_single_seque
   n->page_size = page_size;
   n->max_num_sequence = max_num_sequence;
   n->max_total_sequence_length = max_total_sequence_length;
+  n->prefill_chunk_size = prefill_chunk_size;
   data_ = std::move(n);
 }
 
@@ -193,6 +203,7 @@ String KVCacheConfigNode::AsJSONString() const {
   config["max_num_sequence"] = picojson::value(static_cast<int64_t>(this->max_num_sequence));
   config["max_total_sequence_length"] =
       picojson::value(static_cast<int64_t>(this->max_total_sequence_length));
+  config["prefill_chunk_size"] = picojson::value(static_cast<int64_t>(this->prefill_chunk_size));
   return picojson::value(config).serialize(true);
 }
 
