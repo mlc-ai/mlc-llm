@@ -71,7 +71,7 @@ def _read_dynamic_shape(shape: List[Union[int, str]], config: Union[Dict, Config
     return param_shape
 
 
-def _compute_memory_usage(metadata: Dict[str, Any], config: Dict):
+def _compute_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBase]):
     params_bytes = 0.0
     for param in metadata["params"]:
         if all(isinstance(v, int) for v in param["shape"]):
