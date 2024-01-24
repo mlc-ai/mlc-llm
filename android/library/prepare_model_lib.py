@@ -9,7 +9,6 @@ def main():
     tar_list = []
 
     for model_lib_path in app_config["model_lib_path_for_prepare_libs"].values():
-        print(model_lib_path)
         path = os.path.join(artifact_path, model_lib_path)
         if not os.path.isfile(path):
             raise RuntimeError(f"Cannot find android library {path}")
