@@ -1,9 +1,10 @@
-"""Helper functioms for target auto-detection."""
+"""Helper functions for target auto-detection."""
+import os
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
 from tvm import IRModule, relax
 from tvm._ffi import get_global_func, register_func
-from tvm.contrib import tar, xcode
+from tvm.contrib import ndk, tar, xcode
 from tvm.ir.transform import Pass
 from tvm.target import Target
 
@@ -201,6 +202,25 @@ def _build_webgpu():
     return build
 
 
+def _build_mali():
+    def build(mod: IRModule, args: "CompileArgs", pipeline=None):
+        output = args.output
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
+        assert output.suffix == ".so"
+        mod = relax.build(
+            mod,
+            target=args.target,
+            pipeline=pipeline,
+            system_lib=True,
+        )
+        if "TVM_NDK_CC" in os.environ:
+            mod.export_library(str(output), fcompile=ndk.create_shared)
+        else:
+            mod.export_library(str(output))
+
+    return build
+
+
 def _build_default():
     def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
@@ -289,7 +309,7 @@ def detect_system_lib_prefix(
             bold(prefix),
         )
         return prefix
-    if not target_hint in ["iphone", "android"]:
+    if target_hint not in ["iphone", "android"]:
         return ""
     return prefix_hint
 
@@ -351,6 +371,7 @@ PRESET = {
                 "mtriple": "aarch64-linux-gnu",
             },
         },
+        "build": _build_mali,
     },
     "metal:generic": {
         "target": {
