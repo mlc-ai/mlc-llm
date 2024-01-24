@@ -133,7 +133,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             updateAppConfig {
                 appConfig.modelList.add(ModelRecord(
                     modelUrl,
-                    modelConfig.modelPath,
                     modelConfig.modelId,
                     modelConfig.estimatedVramBytes,
                     modelConfig.modelLib)
@@ -729,7 +728,6 @@ data class AppConfig(
 
 data class ModelRecord(
     @SerializedName("model_url") val modelUrl: String,
-    @SerializedName("model_path") val modelPath: String?,
     @SerializedName("model_id") val modelId: String,
     @SerializedName("estimated_vram_bytes") val estimatedVramBytes: Long?,
     @SerializedName("model_lib") val modelLib: String
@@ -737,7 +735,6 @@ data class ModelRecord(
 
 data class ModelConfig(
     @SerializedName("model_lib") var modelLib: String,
-    @SerializedName("model_path") val modelPath: String?,
     @SerializedName("model_id") var modelId: String,
     @SerializedName("estimated_vram_bytes") var estimatedVramBytes: Long?,
     @SerializedName("tokenizer_files") val tokenizerFiles: List<String>
