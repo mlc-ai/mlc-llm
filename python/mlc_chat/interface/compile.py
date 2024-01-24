@@ -13,6 +13,7 @@ from tvm.target import Target
 
 from mlc_chat import compiler_pass as _
 from mlc_chat import op as op_ext
+from mlc_chat.cli.model_metadata import _report_memory_usage
 from mlc_chat.model import Model
 from mlc_chat.quantization import Quantization
 from mlc_chat.support import logging
@@ -185,6 +186,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
                 debug_dump=args.debug_dump,
             ),
         )
+        _report_memory_usage(metadata=metadata, config=model_config)
     logger.info("Generated: %s", bold(str(args.output)))
 
 

@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 ConfigClass = TypeVar("ConfigClass", bound="ConfigBase")
 
 
+@dataclasses.dataclass
 class ConfigBase:
     """Base class for configurations, providing a common interface for loading configs from a
     JSON file or a dict. It requires the subclasses to be dataclasses, and has an `kwargs` field

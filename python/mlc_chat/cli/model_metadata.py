@@ -1,6 +1,7 @@
 """A tool that inspects the metadata of a model lib."""
 import json
 import math
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
@@ -8,6 +9,7 @@ import numpy as np
 
 from mlc_chat.support import logging
 from mlc_chat.support.argparse import ArgumentParser
+from mlc_chat.support.config import ConfigBase
 from mlc_chat.support.style import green, red
 
 logging.enable_logging()
@@ -41,7 +43,9 @@ def _report_all(metadata: Dict[str, Any]) -> None:
     print(beautified_json)
 
 
-def _read_dynamic_shape(shape: List[Union[int, str]], config: Dict) -> List[int]:
+def _read_dynamic_shape(shape: List[Union[int, str]], config: Union[Dict, ConfigBase]) -> List[int]:
+    if isinstance(config, ConfigBase):
+        config = asdict(config)
     param_shape = []
     for s in shape:
         if isinstance(s, int):
@@ -57,16 +61,17 @@ def _read_dynamic_shape(shape: List[Union[int, str]], config: Dict) -> List[int]
                 raise AttributeError
             if not s in config:
                 logger.error(
-                    "%s to retrieve concrete %s for dynamic shape from `mlc-chat-config`.",
+                    "%s to retrieve concrete %s for dynamic shape from %s.",
                     red("FAILED"),
                     red(s),
+                    config,
                 )
                 raise KeyError
             param_shape.append(config[s])
     return param_shape
 
 
-def _compute_memory_usage(metadata: Dict[str, Any], config: Dict):
+def _compute_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBase]):
     params_bytes = 0.0
     for param in metadata["params"]:
         if all(isinstance(v, int) for v in param["shape"]):
@@ -84,7 +89,7 @@ def _compute_memory_usage(metadata: Dict[str, Any], config: Dict):
     return params_bytes, temp_func_bytes, kv_cache_bytes
 
 
-def _report_memory_usage(metadata: Dict[str, Any], config: Dict) -> None:
+def _report_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBase]) -> None:
     params_bytes, temp_func_bytes, kv_cache_bytes = _compute_memory_usage(metadata, config)
     total_size = params_bytes + temp_func_bytes + kv_cache_bytes
     logger.info(
