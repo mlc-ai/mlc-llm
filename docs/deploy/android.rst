@@ -165,6 +165,6 @@ Instructions have been provided to build an Android App with MLC LLM in previous
 .. code-block:: bash
 
   adb install android/app/release/app-release.apk
-  adb push dist/${MODEL_NAME}-${QUANTIZATION}-MLC/params /data/local/tmp/${MODEL_NAME}-${QUANTIZATION}-MLC/
+  adb push dist/${MODEL_NAME}-${QUANTIZATION}-MLC /data/local/tmp/${MODEL_NAME}-${QUANTIZATION}/
   adb shell "mkdir -p /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/"
-  adb shell "mv /data/local/tmp/${MODEL_NAME}-${QUANTIZATION}-MLC /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/"
+  adb shell "mv /data/local/tmp/${MODEL_NAME}-${QUANTIZATION} /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/"

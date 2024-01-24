@@ -1,20 +1,32 @@
 {
-  "model_libs": [
-    "llama_q4f16_1",
-    "gpt_neox_q4f16_1"
-  ],
   "model_list": [
     {
       "model_url": "https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC/",
-      "local_id": "Llama-2-7b-chat-hf-q4f16_1",
+      "model_lib": "llama_q4f16_1",
+      "estimated_vram_bytes": 4348727787,
       "model_lib_path": "libs/Llama-2-7b-chat-hf-q4f16_1-android.tar",
-      "model_lib": "llama_q4f16_1"
+      "model_id": "Llama-2-7b-chat-hf-q4f16_1"
     },
     {
       "model_url": "https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/",
-      "local_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1",
-      "model_lib_path": "libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar",
-      "model_lib": "gpt_neox_q4f16_1"
+      "model_lib": "gpt_neox_q4f16_1",
+      "estimated_vram_bytes": 1948348579,
+      "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1",
+      "model_lib_path": "libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar"
+    },
+    {
+      "model_url": "https://huggingface.co/mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC",
+      "model_lib": "mistral_q4f16_1",
+      "estimated_vram_bytes": 4275453296,
+      "model_id": "Mistral-7B-Instruct-v0.2-q4f16_1",
+      "model_lib_path": "libs/Mistral-7B-Instruct-v0.2-q4f16_1-android.tar"
+    },
+    {
+      "model_url": "https://huggingface.co/mlc-ai/phi-2-q4f16_1-MLC",
+      "model_lib": "phi-msft_q4f16_1",
+      "estimated_vram_bytes": 2036816936,
+      "model_id": "phi-2-q4f16_1",
+      "model_lib_path": "libs/phi-2-q4f16_1-android.tar"
     }
   ]
 }

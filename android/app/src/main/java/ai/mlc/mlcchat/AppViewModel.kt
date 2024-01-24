@@ -29,13 +29,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var showAlert = mutableStateOf(false)
     private var alertMessage = mutableStateOf("")
     private var appConfig = AppConfig(
-        emptyList(),
+        emptyList<String>().toMutableList(),
         emptyList<ModelRecord>().toMutableList()
     )
     private val application = getApplication<Application>()
     private val appDirFile = application.getExternalFilesDir("")
     private val gson = Gson()
-    private val localIdSet = emptySet<String>().toMutableSet()
+    private val modelIdSet = emptySet<String>().toMutableSet()
 
     companion object {
         const val AppConfigFilename = "app-config.json"
@@ -73,9 +73,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         alertMessage.value = error
     }
 
-    fun requestDeleteModel(localId: String) {
-        deleteModel(localId)
-        issueAlert("Model: $localId has been deleted")
+    fun requestDeleteModel(modelId: String) {
+        deleteModel(modelId)
+        issueAlert("Model: $modelId has been deleted")
     }
 
 
@@ -87,17 +87,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             appConfigFile.readText()
         }
         appConfig = gson.fromJson(jsonString, AppConfig::class.java)
+        appConfig.modelLibs = emptyList<String>().toMutableList()
         modelList.clear()
-        localIdSet.clear()
+        modelIdSet.clear()
         modelSampleList.clear()
         for (modelRecord in appConfig.modelList) {
-            val modelDirFile = File(appDirFile, modelRecord.localId)
+            appConfig.modelLibs.add(modelRecord.modelLib)
+            val modelDirFile = File(appDirFile, modelRecord.modelId)
             val modelConfigFile = File(modelDirFile, ModelConfigFilename)
             if (modelConfigFile.exists()) {
                 val modelConfigString = modelConfigFile.readText()
                 val modelConfig = gson.fromJson(modelConfigString, ModelConfig::class.java)
-                modelConfig.localId = modelRecord.localId
+                modelConfig.modelId = modelRecord.modelId
                 modelConfig.modelLib = modelRecord.modelLib
+                modelConfig.estimatedVramBytes = modelRecord.estimatedVramBytes
                 addModelConfig(modelConfig, modelRecord.modelUrl, true)
             } else {
                 downloadModelConfig(
@@ -117,30 +120,36 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun addModelConfig(modelConfig: ModelConfig, modelUrl: String, isBuiltin: Boolean) {
-        require(!localIdSet.contains(modelConfig.localId))
-        localIdSet.add(modelConfig.localId)
+        require(!modelIdSet.contains(modelConfig.modelId))
+        modelIdSet.add(modelConfig.modelId)
         modelList.add(
             ModelState(
                 modelConfig,
-                modelUrl,
-                File(appDirFile, modelConfig.localId)
+                modelUrl + if (modelUrl.endsWith("/")) "" else "/",
+                File(appDirFile, modelConfig.modelId)
             )
         )
         if (!isBuiltin) {
             updateAppConfig {
-                appConfig.modelList.add(ModelRecord(modelUrl, modelConfig.localId, modelConfig.modelLib))
+                appConfig.modelList.add(ModelRecord(
+                    modelUrl,
+                    modelConfig.modelPath,
+                    modelConfig.modelId,
+                    modelConfig.estimatedVramBytes,
+                    modelConfig.modelLib)
+                )
             }
         }
     }
 
-    private fun deleteModel(localId: String) {
-        val modelDirFile = File(appDirFile, localId)
+    private fun deleteModel(modelId: String) {
+        val modelDirFile = File(appDirFile, modelId)
         modelDirFile.deleteRecursively()
         require(!modelDirFile.exists())
-        localIdSet.remove(localId)
-        modelList.removeIf { modelState -> modelState.modelConfig.localId == localId }
+        modelIdSet.remove(modelId)
+        modelList.removeIf { modelState -> modelState.modelConfig.modelId == modelId }
         updateAppConfig {
-            appConfig.modelList.removeIf { modelRecord -> modelRecord.localId == localId }
+            appConfig.modelList.removeIf { modelRecord -> modelRecord.modelId == modelId }
         }
     }
 
@@ -174,18 +183,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     try {
                         val modelConfigString = tempFile.readText()
                         val modelConfig = gson.fromJson(modelConfigString, ModelConfig::class.java)
-                        modelConfig.localId = modelRecord.localId
+                        modelConfig.modelId = modelRecord.modelId
                         modelConfig.modelLib = modelRecord.modelLib
-                        if (localIdSet.contains(modelConfig.localId)) {
+                        modelConfig.estimatedVramBytes = modelRecord.estimatedVramBytes
+                        if (modelIdSet.contains(modelConfig.modelId)) {
                             tempFile.delete()
-                            issueAlert("${modelConfig.localId} has been used, please consider another local ID")
+                            issueAlert("${modelConfig.modelId} has been used, please consider another local ID")
                             return@launch
                         }
                         if (!isModelConfigAllowed(modelConfig)) {
                             tempFile.delete()
                             return@launch
                         }
-                        val modelDirFile = File(appDirFile, modelConfig.localId)
+                        val modelDirFile = File(appDirFile, modelConfig.modelId)
                         val modelConfigFile = File(modelDirFile, ModelConfigFilename)
                         tempFile.copyTo(modelConfigFile, overwrite = true)
                         tempFile.delete()
@@ -289,7 +299,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 clear()
             } else if (modelInitState.value == ModelInitState.Finished) {
                 modelInitState.value = ModelInitState.Clearing
-                if (chatState.modelName.value == modelConfig.localId) {
+                if (chatState.modelName.value == modelConfig.modelId) {
                     chatState.requestTerminateChat { clear() }
                 } else {
                     clear()
@@ -314,7 +324,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 delete()
             } else if (modelInitState.value == ModelInitState.Finished) {
                 modelInitState.value = ModelInitState.Deleting
-                if (chatState.modelName.value == modelConfig.localId) {
+                if (chatState.modelName.value == modelConfig.modelId) {
                     chatState.requestTerminateChat { delete() }
                 } else {
                     delete()
@@ -455,7 +465,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private fun delete() {
             modelDirFile.deleteRecursively()
             require(!modelDirFile.exists())
-            requestDeleteModel(modelConfig.localId)
+            requestDeleteModel(modelConfig.modelId)
         }
 
         private fun switchToPausing() {
@@ -473,7 +483,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         fun startChat() {
             chatState.requestReloadChat(
-                modelConfig.localId,
+                modelConfig.modelId,
                 modelConfig.modelLib,
                 modelDirFile.absolutePath
             )
@@ -713,19 +723,23 @@ data class DownloadTask(val url: URL, val file: File)
 data class MessageData(val role: MessageRole, val text: String, val id: UUID = UUID.randomUUID())
 
 data class AppConfig(
-    @SerializedName("model_libs") val modelLibs: List<String>,
+    @SerializedName("model_libs") var modelLibs: MutableList<String>,
     @SerializedName("model_list") val modelList: MutableList<ModelRecord>,
 )
 
 data class ModelRecord(
     @SerializedName("model_url") val modelUrl: String,
-    @SerializedName("local_id") val localId: String,
+    @SerializedName("model_path") val modelPath: String?,
+    @SerializedName("model_id") val modelId: String,
+    @SerializedName("estimated_vram_bytes") val estimatedVramBytes: Long?,
     @SerializedName("model_lib") val modelLib: String
 )
 
 data class ModelConfig(
     @SerializedName("model_lib") var modelLib: String,
-    @SerializedName("local_id") var localId: String,
+    @SerializedName("model_path") val modelPath: String?,
+    @SerializedName("model_id") var modelId: String,
+    @SerializedName("estimated_vram_bytes") var estimatedVramBytes: Long?,
     @SerializedName("tokenizer_files") val tokenizerFiles: List<String>
 )
 
