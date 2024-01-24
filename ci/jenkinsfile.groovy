@@ -142,6 +142,20 @@ stage('Build') {
         }
       }
     },
+    'Metal': {
+      node('MAC') {
+        ws(per_exec_ws('mlc-llm-build-metal')) {
+          init_git(true)
+          sh(script: "ls -alh", label: 'Show work directory')
+          sh(script: "conda env export --name mlc-llm-ci", label: 'Checkout version')
+          sh(script: "NUM_THREADS=6 GPU=metal conda run -n mlc-llm-ci ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
+          sh(script: "NUM_THREADS=6 GPU=metal conda run -n mlc-llm-ci ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
+          sh(script: "NUM_THREADS=6 GPU=metal conda run -n mlc-llm-ci ./ci/task/build_clean.sh", label: 'Clean up after build')
+          sh(script: "ls -alh ./wheels/", label: 'Build artifact')
+          pack_lib('mlc_wheel_metal', 'wheels/*.whl')
+        }
+      }
+    },
     'Vulkan': {
       node('CPU-SMALL') {
         ws(per_exec_ws('mlc-llm-build-vulkan')) {
@@ -183,6 +197,17 @@ stage('Model Compilation') {
         }
       }
     },
+    'Metal': {
+      node('MAC') {
+        ws(per_exec_ws('mlc-llm-compile-metal')) {
+          init_git(false)
+          sh(script: "ls -alh", label: 'Show work directory')
+          unpack_lib('mlc_wheel_metal', 'wheels/*.whl')
+          sh(script: "conda env export --name mlc-llm-ci", label: 'Checkout version')
+          sh(script: "NUM_THREADS=6 GPU=metal conda run -n mlc-llm-ci ./ci/task/test_model_compile.sh", label: 'Testing')
+        }
+      }
+    },
     'Vulkan': {
       node('CPU-SMALL') {
         ws(per_exec_ws('mlc-llm-compile-vulkan')) {
@@ -202,6 +227,17 @@ stage('Model Compilation') {
           unpack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
           sh(script: "${run_cpu} conda env export --name ci-unittest", label: 'Checkout version')
           sh(script: "${run_cpu} -j 8 -e GPU wasm conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
+        }
+      }
+    },
+    'iOS': {
+      node('MAC') {
+        ws(per_exec_ws('mlc-llm-compile-ios')) {
+          init_git(false)
+          sh(script: "ls -alh", label: 'Show work directory')
+          unpack_lib('mlc_wheel_metal', 'wheels/*.whl')
+          sh(script: "conda env export --name mlc-llm-ci", label: 'Checkout version')
+          sh(script: "NUM_THREADS=6 GPU=ios conda run -n mlc-llm-ci ./ci/task/test_model_compile.sh", label: 'Testing')
         }
       }
     },
