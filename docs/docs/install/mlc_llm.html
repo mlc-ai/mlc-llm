@@ -422,7 +422,8 @@ conda<span class="w"> </span>env<span class="w"> </span>remove<span class="w"> <
 conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>mlc-chat-venv<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span><span class="s2">&quot;cmake&gt;=3.24&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>rust<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>git
+<span class="w">    </span>git<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.11
 <span class="c1"># enter the build environment</span>
 conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 </pre></div>
@@ -466,7 +467,7 @@ There are two ways to do so:</p>
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-4-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-4-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" name="SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-own-env
-conda<span class="w"> </span>install<span class="w"> </span>python<span class="w"> </span><span class="c1"># make sure python is installed</span>
+which<span class="w"> </span>python<span class="w"> </span><span class="c1"># make sure python is installed, expected output: path_to_conda/envs/your-own-env/bin/python</span>
 <span class="nb">cd</span><span class="w"> </span>/path-to-mlc-llm/python
 pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 </pre></div>

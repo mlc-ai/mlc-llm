@@ -345,15 +345,6 @@ or <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-fro
 the models you compiled yourself.</p>
 <p><strong>Step 1: Download prebuilt model weights and libraries</strong></p>
 <p>Skip this step if you have already obtained the model weights and libraries.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download pre-conveted weights</span>
-git<span class="w"> </span>lfs<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>dist/
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC<span class="w"> </span><span class="se">\</span>
-<span class="w">                                   </span>dist/Llama-2-7b-chat-hf-q4f16_1-MLC
-
-<span class="c1"># Download pre-compiled model library</span>
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt_libs
-</pre></div>
-</div>
 <p><strong>Step 2: Run the model in Python</strong></p>
 <p>Use the conda environment you used to install <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code>.
 From the <code class="docutils literal notranslate"><span class="pre">mlc-llm</span></code> directory, you can create a Python
