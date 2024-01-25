@@ -166,8 +166,9 @@ controls the list of local and remote models to be packaged into the app, given 
    ``mlc_chat compile``, the ``model_lib`` field should be updated accordingly.
 
 ``model_lib_path``
-   (Required) Path to the model library (``.tar`` file) in the repo. Only used while running ``prepare_libs.sh`` to determine
-   which model library to use during runtime. Useful when selecting a library with different settings (e.g. ``prefill_chunk_size``,
+   (Required) Path to the model library in the repo (``.tar`` file, relative path in the ``dist`` artifact folder or
+   full path to the library). Only used while running ``prepare_libs.sh`` to determine which model library to
+   use during runtime. Useful when selecting a library with different settings (e.g. ``prefill_chunk_size``, 
    ``context_window_size``, and ``sliding_window_size``).
 
 ``required_vram_bytes``

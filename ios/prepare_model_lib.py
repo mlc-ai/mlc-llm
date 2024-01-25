@@ -13,6 +13,7 @@ def main():
         paths = [
             os.path.join(artifact_path, model_data["model_lib_path"]),
             os.path.join(artifact_path, "prebuilt", model_data["model_lib_path"]),
+            os.path.join(model_data["model_lib_path"]),
         ]
         valid_paths = [p for p in paths if os.path.isfile(p)]
         if not valid_paths:
