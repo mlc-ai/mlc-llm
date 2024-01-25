@@ -8,8 +8,8 @@ def main():
     artifact_path = os.path.abspath(os.path.join("../..", "dist"))
     tar_list = []
 
-    for model_data in app_config["model_list"]:
-        path = os.path.join(artifact_path, model_data["model_lib_path"])
+    for model_lib_path in app_config["model_lib_path_for_prepare_libs"].values():
+        path = os.path.join(artifact_path, model_lib_path)
         if not os.path.isfile(path):
             raise RuntimeError(f"Cannot find android library {path}")
         tar_list.append(path)
