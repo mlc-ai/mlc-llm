@@ -77,17 +77,17 @@ class EngineImpl : public Engine {
           EngineAction::NewRequestPrefill(this->models_,           //
                                           this->sampler_,          //
                                           this->kv_cache_config_,  //
-                                          this->max_single_sequence_length_, this->trace_recorder_),
+                                          this->trace_recorder_),
           EngineAction::BatchDraft(this->models_, this->sampler_, this->trace_recorder_,
                                    this->engine_mode_->spec_draft_length),
           EngineAction::BatchVerify(this->models_, this->sampler_, this->kv_cache_config_,
-                                    this->max_single_sequence_length_, this->trace_recorder_)};
+                                    this->trace_recorder_)};
     } else {
       this->actions_ = {
           EngineAction::NewRequestPrefill(this->models_,           //
                                           this->sampler_,          //
                                           this->kv_cache_config_,  //
-                                          this->max_single_sequence_length_, this->trace_recorder_),
+                                          this->trace_recorder_),
           EngineAction::BatchDecode(this->models_, this->sampler_, this->trace_recorder_)};
     }
   }

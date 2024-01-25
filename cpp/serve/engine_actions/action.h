@@ -55,14 +55,11 @@ class EngineAction : public ObjectRef {
    * \param models The models to run prefill in.
    * \param sampler The sampler to sample new tokens.
    * \param kv_cache_config The KV cache config to help decide prefill is doable.
-   * \param max_single_sequence_length The max single sequence length to help
-   * decide if prefill is doable.
    * \param trace_recorder The event trace recorder for requests.
    * \return The created action object.
    */
   static EngineAction NewRequestPrefill(Array<Model> models, Sampler sampler,
                                         KVCacheConfig kv_cache_config,
-                                        int max_single_sequence_length,
                                         Optional<EventTraceRecorder> trace_recorder);
   /*!
    * \brief Create the action that runs one-step decode for requests in the
@@ -102,13 +99,11 @@ class EngineAction : public ObjectRef {
    * models, the `Step` function of the created action will not take effect.
    * \param sampler The sampler to sample new tokens.
    * \param kv_cache_config The KV cache config to help decide verify is doable.
-   * \param max_single_sequence_length The max single sequence length to help
-   * decide if verify is doable.
    * \param trace_recorder The event trace recorder for requests.
    * \return The created action object.
    */
   static EngineAction BatchVerify(Array<Model> models, Sampler sampler,
-                                  KVCacheConfig kv_cache_config, int max_single_sequence_length,
+                                  KVCacheConfig kv_cache_config,
                                   Optional<EventTraceRecorder> trace_recorder);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineAction, ObjectRef, EngineActionObj);

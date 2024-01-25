@@ -10,7 +10,7 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_chat import op as op_ext
-from mlc_chat.nn import FlashInferPagedKVCache, PagedKVCache, TIRPagedKVCache
+from mlc_chat.nn import FlashInferPagedKVCache, PagedKVCache, RopeMode, TIRPagedKVCache
 from mlc_chat.support import logging
 from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
@@ -160,8 +160,10 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         qkv = self.qkv_proj(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         # Attention
-        q, k, v = op.split(qkv, indices_or_sections=[h_q, h_q + h_kv], axis=2)
-        output = op.reshape(paged_kv_cache.attention(layer_id, q, k, v), (b, s, h_q * d))
+        output = op.reshape(
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
+            (b, s, h_q * d),
+        )
         return self.o_proj(output)
 
 
@@ -340,34 +342,46 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
 
     def create_flashinfer_paged_kv_cache(
-        self, max_batch_size: tir.Var, max_total_seq_len: tir.Var, page_size: tir.Var
+        self,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
     ) -> PagedKVCache:
         # Note: Right now we only have FlashInfer-based KV cache supported.
         # TIR version will be introduced soon.
         return FlashInferPagedKVCache(
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
+            prefill_chunk_size=prefill_chunk_size,
             page_size=page_size,
             num_hidden_layers=self.num_hidden_layers,
             num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
             num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
             head_dim=self.head_dim,
+            rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
             dtype=self.dtype,
         )
 
     def create_tir_paged_kv_cache(
-        self, max_batch_size: tir.Var, max_total_seq_len: tir.Var, page_size: tir.Var
+        self,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
     ) -> PagedKVCache:
         return TIRPagedKVCache(
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
+            prefill_chunk_size=prefill_chunk_size,
             page_size=page_size,
             num_hidden_layers=self.num_hidden_layers,
             num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
             num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
             head_dim=self.head_dim,
+            rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
             dtype=self.dtype,
@@ -435,6 +449,7 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             "create_flashinfer_paged_kv_cache": {
                 "max_batch_size": int,
                 "max_total_seq_len": int,
+                "prefill_chunk_size": int,
                 "page_size": int,
                 "$": {
                     "param_mode": "none",
@@ -447,6 +462,7 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             mod_spec["create_tir_paged_kv_cache"] = {
                 "max_batch_size": int,
                 "max_total_seq_len": int,
+                "prefill_chunk_size": int,
                 "page_size": int,
                 "$": {
                     "param_mode": "none",

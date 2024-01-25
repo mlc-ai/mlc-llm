@@ -1,5 +1,6 @@
 """Attention KV cache modeling."""
 # pylint: disable=too-many-statements,too-many-lines
+import enum
 import math
 from typing import Tuple
 
@@ -9,7 +10,11 @@ from tvm.relax.frontend.nn import Object, Tensor
 from tvm.runtime import DataType
 from tvm.script import tir as T
 
-from mlc_chat.op.position_embedding import rope_freq
+from mlc_chat.op.position_embedding import (
+    llama_inplace_rope,
+    llama_rope_with_position_map,
+    rope_freq,
+)
 
 
 class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
@@ -34,6 +39,10 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         k/v tensors have shape (batch_size, 1, num_key_value_heads, head_dim).
         """
         # pylint: disable=protected-access
+        q_shape = q.shape
+        q = q.reshape(q.shape[0] * q.shape[1], q.shape[2], q.shape[3])
+        k = k.reshape(k.shape[0] * k.shape[1], k.shape[2], k.shape[3])
+        v = v.reshape(v.shape[0] * v.shape[1], v.shape[2], v.shape[3])
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
                 rx.call_dps_packed(
@@ -48,22 +57,68 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     out_sinfo=q._expr.struct_info,
                 )
             )
-        )
+        ).reshape(*q_shape)
         # pylint: enable=protected-access
+
+    def attention_with_fused_qkv(  # pylint: disable=invalid-name
+        self, layer_id: int, qkv: Tensor, num_qo_heads: int
+    ) -> Tensor:
+        """Compute attention with the given fused q/k/v data and in-cache k/v data
+        on the specified layer. Rotary position embeddings are applied to k/v
+        within this function.
+
+        - For prefill, the input qkv and output tensor have shape
+        (1, total_seq_len) for the first two dimensions.
+        - For decode, the input qkv and output tensor have shape
+        (batch_size, 1) for the first two dimensions.
+        - The input qkv have `2 * num_qo_heads + num_kv_heads` at the third dim.
+        - The output tensor have `num_qo_heads` at the third dim.
+        - The input qkv and output tensor have `head_dim` at the last dim.
+        """
+        # pylint: disable=protected-access
+        b, s, _, d = qkv._expr.struct_info.shape
+        qkv = qkv.reshape(b * s, qkv.shape[2], d)
+        return Tensor(
+            _expr=rx.BlockBuilder.current().emit(
+                rx.call_dps_packed(
+                    "vm.builtin.paged_attention_kv_cache_attention_with_fused_qkv",
+                    [
+                        self._expr,
+                        rx.PrimValue(layer_id),  # type: ignore[arg-type]
+                        qkv._expr,
+                    ],
+                    out_sinfo=rx.TensorStructInfo((b * s, num_qo_heads, d), qkv.dtype),
+                )
+            )
+        ).reshape(b, s, num_qo_heads, d)
+
+    # pylint: enable=protected-access
+
+
+class RopeMode(enum.IntEnum):
+    """The RoPE mode of the Paged KV cache.
+    If it is normal, RoPE will be applied to k before adding k to cache.
+    Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
+    """
+
+    NORMAL = 0
+    INLINE = 1
 
 
 class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
     """Paged KV cache using FlashInfer (CUDA) kernels."""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
         page_size: tir.Var,
         num_hidden_layers: int,
         num_attention_heads: int,
         num_key_value_heads: int,
         head_dim: int,
+        rope_mode: RopeMode,
         rope_scale: int,
         rope_theta: int,
         dtype: str,
@@ -81,10 +136,18 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             The maximum allowed total sequence length of the KV cache.
             It is a symbolic variable whose concrete value is specified
             at runtime.
+        prefill_chunk_size : tir.Var
+            The maximum total sequence length in a prefill.
+            It is a symbolic variable whose concrete value is specified
+            at runtime.
         page_size : tir.Var
             The size (a.k.a. number of tokens) of each page.
             It is a symbolic variable whose concrete value is specified
             at runtime.
+        rope_mode : RopeMode
+            The RoPE mode of the Paged KV cache.
+            If it is normal, RoPE will be applied to k before adding k to cache.
+            Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
         rope_scale : int
             The scale of rotary position embedding.
         rope_theta : int
@@ -93,11 +156,12 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
 
         bb = rx.BlockBuilder.current()  # pylint: disable=invalid-name
         args = [
-            rx.ShapeExpr([max_batch_size, max_total_seq_len, page_size]),
+            rx.ShapeExpr([max_batch_size, max_total_seq_len, prefill_chunk_size, page_size]),
             rx.PrimValue(num_hidden_layers),
             rx.PrimValue(num_attention_heads),
             rx.PrimValue(num_key_value_heads),
             rx.PrimValue(head_dim),
+            rx.PrimValue(rope_mode),
             rx.PrimValue(rope_scale),
             rx.PrimValue(rope_theta),
             rx.op.zeros((), dtype),
@@ -114,6 +178,8 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             rx.extern("paged_kv_cache.attention_kernel_decode_begin_forward"),
             rx.extern("paged_kv_cache.attention_kernel_decode_end_forward"),
             rx.extern("flashinfer.merge_state_in_place"),
+            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, head_dim), "tir_split_rotary"),
+            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype), "tir_qk_rotary_inplace"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             # fmt: on
             # pylint: enable=line-too-long
@@ -131,14 +197,16 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
 class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
     """Paged KV cache using TIR kernels."""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
         page_size: tir.Var,
         num_hidden_layers: int,
         num_attention_heads: int,
         num_key_value_heads: int,
+        rope_mode: RopeMode,
         head_dim: int,
         rope_scale: int,
         rope_theta: int,
@@ -157,10 +225,18 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             The maximum allowed total sequence length of the KV cache.
             It is a symbolic variable whose concrete value is specified
             at runtime.
+        prefill_chunk_size : tir.Var
+            The maximum total sequence length in a prefill.
+            It is a symbolic variable whose concrete value is specified
+            at runtime.
         page_size : tir.Var
             The size (a.k.a. number of tokens) of each page.
             It is a symbolic variable whose concrete value is specified
             at runtime.
+        rope_mode : RopeMode
+            The RoPE mode of the Paged KV cache.
+            If it is normal, RoPE will be applied to k before adding k to cache.
+            Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
         rope_scale : int
             The scale of rotary position embedding.
         rope_theta : int
@@ -169,11 +245,12 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
 
         bb = rx.BlockBuilder.current()
         args = [
-            rx.ShapeExpr([max_batch_size, max_total_seq_len, page_size]),
+            rx.ShapeExpr([max_batch_size, max_total_seq_len, prefill_chunk_size, page_size]),
             rx.PrimValue(num_hidden_layers),
             rx.PrimValue(num_attention_heads),
             rx.PrimValue(num_key_value_heads),
             rx.PrimValue(head_dim),
+            rx.PrimValue(rope_mode),
             rx.PrimValue(rope_scale),
             rx.PrimValue(rope_theta),
             rx.op.zeros((), dtype),
@@ -184,6 +261,8 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, head_dim, dtype), "tir_attention_decode"),
             bb.add_func(_attention_prefill_ragged(num_key_value_heads, num_attention_heads, head_dim, dtype), "tir_attention_prefill_ragged"),
             bb.add_func(_merge_state_inplace(num_key_value_heads, head_dim, dtype), "tir_attention_merge_state"),
+            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, head_dim), "tir_split_rotary"),
+            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype), "tir_qk_rotary_inplace"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             # fmt: on
             # pylint: enable=line-too-long
@@ -273,83 +352,6 @@ def _kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dty
     # pylint: enable=line-too-long,invalid-name
 
     return tir_kv_cache_debug_get_kv
-
-
-# pylint: disable=line-too-long,too-many-arguments,too-many-nested-blocks,invalid-name
-
-
-def _inplace_rope(
-    theta: float,
-    scale: float,
-    head_dim: int,
-    num_q_heads: int,
-    num_kv_heads: int,
-    dtype: str,
-):
-    assert head_dim <= 128, "Rotary embedding currently only supports head_dim <= 128"
-    rotary_dim = head_dim
-
-    def _rope(
-        x: T.Buffer,
-        s: tir.Var,
-        h: tir.Var,
-        d: tir.Var,
-        rope_offset: tir.Var,
-        instance_offset: tir.Var,
-    ):
-        cos_freq, sin_freq = rope_freq((s + rope_offset) * scale, d, rotary_dim, theta, dtype)
-        cos = cos_freq * x[s + instance_offset, h, d]
-        sin = sin_freq * tir.if_then_else(
-            d < rotary_dim // 2,
-            -x[s + instance_offset, h, d + rotary_dim // 2],
-            x[s + instance_offset, h, d - rotary_dim // 2],
-        )
-        return cos + sin
-
-    # fmt: off
-    @T.prim_func
-    def tir_rotary(
-        var_q: T.handle,
-        var_k: T.handle,
-        var_append_len_indptr: T.handle,
-        var_rope_offsets: T.handle,
-        _0: T.int32,
-        _1: T.int32,
-        _2: T.int32,
-        _3: T.int32,
-        _4: T.int32,
-        _5: T.float32,
-        _6: T.float32,
-    ):
-        T.func_attr({"tir.is_scheduled": 1})
-        total_len = T.int32()
-        batch_size = T.int32()
-        q = T.match_buffer(var_q, (total_len, num_q_heads, head_dim), dtype)
-        k = T.match_buffer(var_k, (total_len, num_kv_heads, head_dim), dtype)
-        rope_offsets = T.match_buffer(var_rope_offsets, (batch_size,), "int32")
-        append_len_indptr = T.match_buffer(var_append_len_indptr, (batch_size + 1,), "int32")
-        with T.block():
-            for b_h in T.thread_binding(batch_size * (num_q_heads + num_kv_heads), thread="blockIdx.x"):
-                b: T.int32 = b_h // (num_q_heads + num_kv_heads)
-                h: T.int32 = b_h % (num_q_heads + num_kv_heads)
-                instance_offset: T.int32 = append_len_indptr[b]
-                rope_offset: T.int32 = rope_offsets[b]
-                append_len: T.int32 = append_len_indptr[b + 1] - append_len_indptr[b]
-                for s0 in range(T.ceildiv(append_len, 32)):
-                    for s1 in T.thread_binding(32, thread="threadIdx.y"):
-                        for d0 in T.thread_binding(T.ceildiv(head_dim, 4), thread="threadIdx.x"):
-                            for d1 in T.vectorized(4):
-                                s: T.int32 = s0 * 32 + s1
-                                d: T.int32 = d0 * 4 + d1
-                                if s < append_len and d < head_dim:
-                                    if h < num_q_heads:
-                                        q[s + instance_offset, h, d] = _rope(q, s, h, d, rope_offset, instance_offset)
-                                    else:
-                                        k[s + instance_offset, h - num_q_heads, d] = _rope(k, s, h - num_q_heads, d, rope_offset, instance_offset)
-    return tir_rotary
-
-
-# pylint: enable=line-too-long,too-many-arguments,too-many-nested-blocks,invalid-name
 
 
 def _rope(  # pylint: disable=too-many-arguments

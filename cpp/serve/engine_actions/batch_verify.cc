@@ -27,12 +27,10 @@ namespace serve {
 class BatchVerifyActionObj : public EngineActionObj {
  public:
   explicit BatchVerifyActionObj(Array<Model> models, Sampler sampler, KVCacheConfig kv_cache_config,
-                                int max_single_sequence_length,
                                 Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         sampler_(std::move(sampler)),
         kv_cache_config_(std::move(kv_cache_config)),
-        max_single_sequence_length_(max_single_sequence_length),
         trace_recorder_(std::move(trace_recorder)),
         rng_(RandomGenerator::GetInstance()) {}
 
@@ -164,11 +162,11 @@ class BatchVerifyActionObj : public EngineActionObj {
     }
 
     // NOTE: The conditions are heuristic and can be revised.
-    // Cond 1: total input length <= max allowed single sequence length.
+    // Cond 1: total input length <= prefill chunk size.
     // Cond 2: at least one verify can be performed.
     // Cond 3: number of total tokens does not exceed the limit
     int new_batch_size = num_running_requests + num_verify_req;
-    return total_draft_length <= max_single_sequence_length_ &&
+    return total_draft_length <= kv_cache_config_->prefill_chunk_size &&
            num_required_pages <= num_available_pages &&
            estate->stats.current_total_seq_len + total_draft_length <=
                kv_cache_config_->max_total_sequence_length;
@@ -228,8 +226,6 @@ class BatchVerifyActionObj : public EngineActionObj {
   Sampler sampler_;
   /*! \brief The kv cache config. */
   KVCacheConfig kv_cache_config_;
-  /*! \brief The maximum allowed length of a single sequence. */
-  int max_single_sequence_length_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
   /*! \brief Random number generator. */
@@ -242,11 +238,10 @@ class BatchVerifyActionObj : public EngineActionObj {
 
 EngineAction EngineAction::BatchVerify(Array<Model> models, Sampler sampler,
                                        KVCacheConfig kv_cache_config,
-                                       int max_single_sequence_length,
                                        Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<BatchVerifyActionObj>(
-      std::move(models), std::move(sampler), std::move(kv_cache_config),
-      std::move(max_single_sequence_length), std::move(trace_recorder)));
+  return EngineAction(make_object<BatchVerifyActionObj>(std::move(models), std::move(sampler),
+                                                        std::move(kv_cache_config),
+                                                        std::move(trace_recorder)));
 }
 
 }  // namespace serve

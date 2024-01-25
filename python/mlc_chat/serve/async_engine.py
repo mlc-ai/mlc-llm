@@ -117,6 +117,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             config_file_paths,
             tokenizer_path,
             self.max_single_sequence_length,
+            prefill_chunk_size,
             self.conv_template_name,
         ) = _process_model_args(models)
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
@@ -124,6 +125,14 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
         if kv_cache_config.max_total_sequence_length is None:
             kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
                 models, config_file_paths
+            )
+        if kv_cache_config.prefill_chunk_size is None:
+            kv_cache_config.prefill_chunk_size = prefill_chunk_size
+        elif kv_cache_config.prefill_chunk_size > prefill_chunk_size:
+            raise ValueError(
+                f"The specified prefill chunk size {kv_cache_config.prefill_chunk_size} is "
+                f"larger than the maximum prefill chunk size {prefill_chunk_size} supported by "
+                "models. Please specify a smaller prefill chunk size."
             )
 
         module = tvm.get_global_func("mlc.serve.create_threaded_engine", allow_missing=False)()

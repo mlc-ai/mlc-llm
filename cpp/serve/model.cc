@@ -372,8 +372,10 @@ class ModelImpl : public ModelObj {
   void CreateKVCache(KVCacheConfig kv_cache_config) final {
     IntTuple max_num_sequence{kv_cache_config->max_num_sequence};
     IntTuple max_total_sequence_length{kv_cache_config->max_total_sequence_length};
+    IntTuple prefill_chunk_size{kv_cache_config->prefill_chunk_size};
     IntTuple page_size{kv_cache_config->page_size};
-    kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence, max_total_sequence_length, page_size);
+    kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence, max_total_sequence_length,
+                                          prefill_chunk_size, page_size);
   }
 
   void AddNewSequence(int64_t seq_id) final { ft_.kv_cache_add_sequence_func_(kv_cache_, seq_id); }

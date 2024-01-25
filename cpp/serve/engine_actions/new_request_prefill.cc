@@ -19,12 +19,11 @@ namespace serve {
 class NewRequestPrefillActionObj : public EngineActionObj {
  public:
   explicit NewRequestPrefillActionObj(Array<Model> models, Sampler sampler,
-                                      KVCacheConfig kv_cache_config, int max_single_sequence_length,
+                                      KVCacheConfig kv_cache_config,
                                       Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         sampler_(std::move(sampler)),
         kv_cache_config_(std::move(kv_cache_config)),
-        max_single_sequence_length_(max_single_sequence_length),
         trace_recorder_(std::move(trace_recorder)) {}
 
   Array<Request> Step(EngineState estate) final {
@@ -186,13 +185,13 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     }
 
     // NOTE: The conditions are heuristic and can be revised.
-    // Cond 1: total input length <= max allowed single sequence length.
+    // Cond 1: total input length <= prefill chunk size.
     // Cond 2: at least one decode can be performed after prefill.
     // Cond 3: number of total tokens after 8 times of decode does not
     // exceed the limit, where 8 is a watermark number can
     // be configured and adjusted in the future.
     int new_batch_size = num_running_requests + num_prefill_req;
-    return total_input_length <= max_single_sequence_length_ &&
+    return total_input_length <= kv_cache_config_->prefill_chunk_size &&
            num_required_pages + new_batch_size <= num_available_pages &&
            estate->stats.current_total_seq_len + total_input_length + 8 * new_batch_size <=
                kv_cache_config_->max_total_sequence_length;
@@ -204,19 +203,16 @@ class NewRequestPrefillActionObj : public EngineActionObj {
   Sampler sampler_;
   /*! \brief The KV cache config to help decide prefill is doable. */
   KVCacheConfig kv_cache_config_;
-  /*! \brief The max single sequence length to help decide if prefill is doable. */
-  int max_single_sequence_length_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
 };
 
 EngineAction EngineAction::NewRequestPrefill(Array<Model> models, Sampler sampler,
                                              KVCacheConfig kv_cache_config,
-                                             int max_single_sequence_length,
                                              Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<NewRequestPrefillActionObj>(
-      std::move(models), std::move(sampler), std::move(kv_cache_config), max_single_sequence_length,
-      std::move(trace_recorder)));
+  return EngineAction(make_object<NewRequestPrefillActionObj>(std::move(models), std::move(sampler),
+                                                              std::move(kv_cache_config),
+                                                              std::move(trace_recorder)));
 }
 
 }  // namespace serve

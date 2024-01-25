@@ -71,15 +71,16 @@ def _create_tvm_module(
 
 def _process_model_args(
     models: List[ModelInfo],
-) -> Tuple[List[Any], List[str], str, int, Optional[str]]:
+) -> Tuple[List[Any], List[str], str, int, int, Optional[str]]:
     """Process the input ModelInfo to get the engine initialization arguments."""
     max_single_sequence_length = int(1e9)
+    prefill_chunk_size = int(1e9)
     tokenizer_path: Optional[str] = None
     conv_template_name: Optional[str] = None
     config_file_paths: List[str] = []
 
     def _convert_model_info(model: ModelInfo) -> List[Any]:
-        nonlocal max_single_sequence_length, tokenizer_path, conv_template_name
+        nonlocal max_single_sequence_length, prefill_chunk_size, tokenizer_path, conv_template_name
 
         device = model.device
         model_path, config_file_path = _get_model_path(model.model)
@@ -90,6 +91,8 @@ def _process_model_args(
                 max_single_sequence_length,
                 chat_config.context_window_size,
             )
+        if chat_config.prefill_chunk_size:
+            prefill_chunk_size = min(prefill_chunk_size, chat_config.prefill_chunk_size)
         if tokenizer_path is None:
             tokenizer_path = model_path
         if conv_template_name is None:
@@ -128,6 +131,7 @@ def _process_model_args(
         config_file_paths,
         tokenizer_path,
         max_single_sequence_length,
+        prefill_chunk_size,
         conv_template_name,
     )
 
@@ -274,6 +278,7 @@ class Engine:
             config_file_paths,
             tokenizer_path,
             self.max_single_sequence_length,
+            prefill_chunk_size,
             self.conv_template_name,
         ) = _process_model_args(models)
         self._ffi = _create_tvm_module(
@@ -294,6 +299,14 @@ class Engine:
         if kv_cache_config.max_total_sequence_length is None:
             kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
                 models, config_file_paths
+            )
+        if kv_cache_config.prefill_chunk_size is None:
+            kv_cache_config.prefill_chunk_size = prefill_chunk_size
+        elif kv_cache_config.prefill_chunk_size > prefill_chunk_size:
+            raise ValueError(
+                f"The specified prefill chunk size {kv_cache_config.prefill_chunk_size} is "
+                f"larger than the maximum prefill chunk size {prefill_chunk_size} supported by "
+                "models. Please specify a smaller prefill chunk size."
             )
 
         if engine_mode is None:
