@@ -37,7 +37,9 @@ Prerequisite
 
 **JDK**, such as OpenJDK >= 17, to compile Java bindings of TVM Unity runtime. It could be installed via Homebrew on macOS, apt on Ubuntu or other package managers. Set up the following environment variable:
 
-- ``JAVA_HOME`` so that Java is available in ``$JAVA_HOME/bin/java``.
+- ``JAVA_HOME`` so that Java is available in ``$JAVA_HOME/bin/java``. 
+  
+Please ensure that the JDK versions for Android Studio and JAVA_HOME are the same. We recommended setting the `JAVA_HOME` to the JDK bundled with Android Studio. e.g. `export JAVA_HOME=/Applications/Android\ Studio.app/Contents/jbr/Contents/Home` for macOS.
 
 **TVM Unity runtime** is placed under `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`__ in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:
 
