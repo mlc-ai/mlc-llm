@@ -331,6 +331,7 @@ TVM_NDK_CC:<span class="w"> </span><span class="nv">$ANDROID_NDK</span>/toolchai
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">JAVA_HOME</span></code> so that Java is available in <code class="docutils literal notranslate"><span class="pre">$JAVA_HOME/bin/java</span></code>.</p></li>
 </ul>
+<p>Please ensure that the JDK versions for Android Studio and JAVA_HOME are the same. We recommended setting the <cite>JAVA_HOME</cite> to the JDK bundled with Android Studio. e.g. <cite>export JAVA_HOME=/Applications/AndroidStudio.app/Contents/jbr/Contents/Home</cite> for macOS.</p>
 <p><strong>TVM Unity runtime</strong> is placed under <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a> in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">TVM_HOME</span></code> so that its headers are available under <code class="docutils literal notranslate"><span class="pre">$TVM_HOME/include/tvm/runtime</span></code>.</p></li>
@@ -385,6 +386,10 @@ mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/<span clas
 </pre></div>
 </div>
 <p>This generates the directory <code class="docutils literal notranslate"><span class="pre">./dist/$MODEL_NAME-$QUANTIZATION-MLC</span></code> which contains the necessary components to run the model, as explained below.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>❗ To run 7B models like llama-2-7B, Mistral-7B, it is recommended to use smaller values of parameter <code class="docutils literal notranslate"><span class="pre">--context-window-size</span></code> (<code class="docutils literal notranslate"><span class="pre">--sliding-window-size</span></code> and <code class="docutils literal notranslate"><span class="pre">--prefill-chunk-size</span></code> for sliding window attention) to reduce the memory footprint of the model. Default configurations for certains models can be found under the Android tab in the <a class="reference external" href="https://llm.mlc.ai/docs/compilation/compile_models.html">Compile Models</a> section.</p>
+</div>
 <p><strong>Expected output format</strong>. By default models are placed under <code class="docutils literal notranslate"><span class="pre">./dist/${MODEL_NAME}-${QUANTIZATION}-MLC</span></code>, and the result consists of 3 major components:</p>
 <ul class="simple">
 <li><p>Runtime configuration: It configures conversation templates including system prompts, repetition penalty, sampling including temperature and top-p probability, maximum sequence length, etc. It is usually named as <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> alongside with tokenizer configurations.</p></li>
@@ -398,13 +403,21 @@ mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/<span clas
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>./android/library
 </pre></div>
 </div>
-<p><strong>Build necessary dependencies.</strong> Configure the list of models the app comes with using the JSON file <code class="docutils literal notranslate"><span class="pre">app-config.json</span></code>. The <code class="docutils literal notranslate"><span class="pre">model_libs</span></code> field contains the list of model libraries that are bundled with and supported by the apk. The <code class="docutils literal notranslate"><span class="pre">model_list</span></code> field contains data for models that are not bundled with the apk, but downloaded from the Internet at run-time. By default, it is configured to use both Llama2-7B and RedPajama-3B models. To change the configuration, edit <code class="docutils literal notranslate"><span class="pre">app-config.json</span></code>:</p>
+<p><strong>Build necessary dependencies.</strong> Configure the list of models the app comes with using the JSON file <code class="docutils literal notranslate"><span class="pre">app-config.json</span></code> which contains two properties <cite>model_list</cite> and <cite>model_lib_path_for_prepare_libs</cite> <code class="docutils literal notranslate"><span class="pre">model_lib_path_for_prepare_libs</span></code> contains list of model library paths under <cite>./dist/</cite> that will be bundled with the apk. The <code class="docutils literal notranslate"><span class="pre">model_list</span></code> property contains data for models that are not bundled with the apk, but downloaded from the internet at run-time. Each model defined in <cite>model_list</cite> contain the following fields:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">model_url</span></code></dt><dd><p>(Required) URL to the repo containing the weights.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">model_id</span></code></dt><dd><p>(Required) Unique local identifier to identify the model.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">model_lib</span></code></dt><dd><p>(Required) Matches the system-lib-prefix, generally set during <code class="docutils literal notranslate"><span class="pre">mlc_chat</span> <span class="pre">compile</span></code> which can be specified using
+<code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument. By default, it is set to <code class="docutils literal notranslate"><span class="pre">&quot;${model_type}_${quantization}&quot;</span></code> e.g. <code class="docutils literal notranslate"><span class="pre">gpt_neox_q4f16_1</span></code> for the RedPajama-INCITE-Chat-3B-v1 model. If the <code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument is manually specified during <code class="docutils literal notranslate"><span class="pre">mlc_chat</span> <span class="pre">compile</span></code>, the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field should be updated accordingly.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">estimated_vram_bytes</span></code></dt><dd><p>(Optional) Estimated requirements of VRAM to run the model.</p>
+</dd>
+</dl>
+<p>To change the configuration, edit <code class="docutils literal notranslate"><span class="pre">app-config.json</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>vim<span class="w"> </span>./src/main/assets/app-config.json
 </pre></div>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>❗ The compiled library path specificed using <code class="docutils literal notranslate"><span class="pre">model_lib_path</span></code> field in <code class="docutils literal notranslate"><span class="pre">app-config.json</span></code> expects it to be placed under <code class="docutils literal notranslate"><span class="pre">./dist/</span></code> under the project <code class="docutils literal notranslate"><span class="pre">HOME</span></code> directory. The <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field for each model is the system-lib-prefix set during <code class="docutils literal notranslate"><span class="pre">mlc_chat</span> <span class="pre">compile</span></code> which can be specified using <code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument. By default, it is set to <code class="docutils literal notranslate"><span class="pre">&quot;${model_type}_${quantization}&quot;</span></code> e.g. <code class="docutils literal notranslate"><span class="pre">llama_q4f16_1</span></code>. If the <code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument is manually specified during <code class="docutils literal notranslate"><span class="pre">mlc_chat</span> <span class="pre">compile</span></code>, the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field in <code class="docutils literal notranslate"><span class="pre">app-config.json</span></code> should be updated accordingly.</p>
 </div>
 <p>Then bundle the android library <code class="docutils literal notranslate"><span class="pre">${MODEL_NAME}-${QUANTIZATION}-android.tar</span></code> compiled from <code class="docutils literal notranslate"><span class="pre">mlc_chat</span> <span class="pre">compile</span></code> in the previous steps, with TVM Unity’s Java runtime by running the commands below:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./prepare_libs.sh
