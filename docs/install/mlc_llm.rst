@@ -176,7 +176,8 @@ This step is useful when you want to make modification or obtain a specific vers
     conda create -n mlc-chat-venv -c conda-forge \
         "cmake>=3.24" \
         rust \
-        git
+        git \
+        python=3.11
     # enter the build environment
     conda activate mlc-chat-venv
 
@@ -221,7 +222,7 @@ There are two ways to do so:
        .. code-tab :: bash Install via pip local project
 
           conda activate your-own-env
-          conda install python # make sure python is installed
+          which python # make sure python is installed, expected output: path_to_conda/envs/your-own-env/bin/python
           cd /path-to-mlc-llm/python
           pip install -e .
 

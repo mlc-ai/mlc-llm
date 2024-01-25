@@ -98,7 +98,15 @@ def main():
             ],
         },
         package_dir={"mlc_chat": "mlc_chat"},
-        install_requires=["fastapi", "uvicorn", "shortuuid"],
+        install_requires=[
+            "fastapi",
+            "uvicorn",
+            "shortuuid",
+            "torch",
+            "safetensors",
+            "requests",
+            "tqdm",
+        ],
         distclass=BinaryDistribution,
         **setup_kwargs,
     )
