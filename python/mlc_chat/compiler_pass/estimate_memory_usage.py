@@ -3,7 +3,7 @@ import json
 from typing import Any, Dict
 
 import tvm
-from tvm import relax
+from tvm import relax, tir
 from tvm.ir import IRModule, Op
 from tvm.relax.expr_functor import PyExprVisitor, visitor
 
@@ -79,5 +79,6 @@ class _MemoryEstimator(PyExprVisitor):
 
     def _storage_alloc(self, size: relax.Expr) -> None:
         assert isinstance(size, relax.ShapeExpr)
-        self.planned_mem_num += 1
-        self.planned_alloc_mem += size.values[0].value
+        if isinstance(size.values[0], tir.IntImm):
+            self.planned_mem_num += 1
+            self.planned_alloc_mem += size.values[0].value
