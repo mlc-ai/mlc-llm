@@ -35,10 +35,21 @@ def _get_cache_dir() -> Path:
     return result
 
 
+def _get_dso_suffix() -> str:
+    if "MLC_DSO_SUFFIX" in os.environ:
+        return os.environ["MLC_DSO_SUFFIX"]
+    if sys.platform == "win32":
+        return "dll"
+    if sys.platform == "darwin":
+        return "dylib"
+    return "so"
+
+
 MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
 MLC_MULTI_ARCH = os.environ.get("MLC_MULTI_ARCH", None)
 MLC_CACHE_DIR: Path = _get_cache_dir()
 MLC_JIT_POLICY = os.environ.get("MLC_JIT_POLICY", "ON")
+MLC_DSO_SUFFIX = _get_dso_suffix()
 
 
 _check()
