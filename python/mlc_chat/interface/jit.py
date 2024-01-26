@@ -16,7 +16,12 @@ from tvm.runtime import Device
 from mlc_chat.model import MODELS
 from mlc_chat.support import logging
 from mlc_chat.support.auto_device import device2str
-from mlc_chat.support.constants import MLC_CACHE_DIR, MLC_JIT_POLICY, MLC_TEMP_DIR
+from mlc_chat.support.constants import (
+    MLC_CACHE_DIR,
+    MLC_DSO_SUFFIX,
+    MLC_JIT_POLICY,
+    MLC_TEMP_DIR,
+)
 from mlc_chat.support.style import blue, bold
 
 from .compiler_flags import ModelConfigOverride, OptimizationFlags
@@ -26,6 +31,11 @@ logger = logging.getLogger(__name__)
 
 def jit(model_path: Path, chat_config: Dict[str, Any], device: Device) -> Path:
     """Just-in-time compile a MLC-Chat model."""
+    logger.info(
+        "%s = %s. Can be one of: ON, OFF, REDO, READONLY",
+        bold("MLC_JIT_POLICY"),
+        MLC_JIT_POLICY,
+    )
     if MLC_JIT_POLICY == "OFF":
         raise RuntimeError("JIT is disabled by MLC_JIT_POLICY=OFF")
 
@@ -64,7 +74,7 @@ def jit(model_path: Path, chat_config: Dict[str, Any], device: Device) -> Path:
 
     def _run_jit(opt: str, overrides: str, device: str, dst: str):
         with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir:
-            dso_path = os.path.join(tmp_dir, "lib.so")
+            dso_path = os.path.join(tmp_dir, f"lib.{MLC_DSO_SUFFIX}")
             cmd = [
                 sys.executable,
                 "-m",

@@ -210,7 +210,7 @@ class LlamaDecoderLayer(nn.Module):
 
     def _apply_residual(self, out, residual):
         if self.tensor_parallel_shards > 1:
-            return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum")
+            return op.ccl_allreduce(out, "sum") + residual
         return out + residual
 
 
