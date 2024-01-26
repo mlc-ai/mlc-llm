@@ -75,11 +75,11 @@ final class ModelState: ObservableObject, Identifiable {
 
     func startChat(chatState: ChatState) {
         chatState.requestReloadChat(
-            localID: modelConfig.localID,
-            modelLib: modelConfig.modelLib,
+            modelID: modelConfig.modelID!,
+            modelLib: modelConfig.modelLib!,
             modelPath: modelLocalBaseURL.path(),
-            estimatedVRAMReq: modelConfig.estimatedVRAMReq,
-            displayName: modelConfig.displayName
+            estimatedVRAMReq: modelConfig.estimatedVRAMReq!,
+            displayName: modelConfig.modelID!.components(separatedBy: "-")[0]
         )
     }
     
@@ -340,7 +340,7 @@ private extension ModelState {
             modelDownloadState = .clearing
             clear()
         } else if modelDownloadState == .finished {
-            if chatState.localID == modelConfig.localID {
+            if chatState.modelID == modelConfig.modelID {
                 chatState.requestTerminateChat { [weak self] in
                     self?.clear()
                 }
@@ -357,7 +357,7 @@ private extension ModelState {
             modelDownloadState = .deleting
             delete()
         } else if modelDownloadState == .finished {
-            if chatState.localID == modelConfig.localID {
+            if chatState.modelID == modelConfig.modelID {
                 chatState.requestTerminateChat { [weak self] in
                     self?.delete()
                 }
@@ -406,7 +406,7 @@ private extension ModelState {
         do {
             try fileManager.removeItem(at: modelLocalBaseURL)
             assert(!fileManager.fileExists(atPath: modelLocalBaseURL.path()))
-            startState.requestDeleteModel(localId: modelConfig.localID) // TODO: can it decouple?
+            startState.requestDeleteModel(modelID: modelConfig.modelID!) // TODO: can it decouple?
         } catch {
             print(error.localizedDescription)
         }

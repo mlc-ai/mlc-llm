@@ -2,22 +2,23 @@ import json
 import os
 from tvm.contrib import cc
 
+
 def main():
     app_config = json.load(open("MLCChat/app-config.json", "r"))
-    target = "iphone"
     artifact_path = os.path.abspath(os.path.join("..", "dist"))
 
     tar_list = []
 
-    for local_id in app_config["model_libs"]:
+    for model_data in app_config["model_list"]:
         paths = [
-            os.path.join(artifact_path, local_id, f"{local_id}-{target}.tar"),
-            os.path.join(artifact_path, "prebuilt", "lib", f"{local_id}-{target}.tar")
+            os.path.join(artifact_path, model_data["model_lib_path"]),
+            os.path.join(artifact_path, "prebuilt", model_data["model_lib_path"]),
+            os.path.join(model_data["model_lib_path"]),
         ]
         valid_paths = [p for p in paths if os.path.isfile(p)]
         if not valid_paths:
             raise RuntimeError(
-                f"Cannot find lib for {local_id} in the following candidate path: {paths}"
+                f"Cannot find iOS lib for {model_data['model_lib']} from the following candidate paths: {paths}"
             )
         tar_list.append(valid_paths[0])
 

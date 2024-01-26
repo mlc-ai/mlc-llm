@@ -92,122 +92,47 @@ For more, please see :doc:`the CLI page </deploy/cli>`, and the :doc:`the Python
 
 |
 
-.. POPULATE BELOW AFTER IOS RUNTIME DOCUMENTATION IS SLM-IFIED
-.. .. _using-prebuilt-models-ios:
+.. _using-prebuilt-models-ios:
 
-.. **Prebuilt Models on iOS**
+**Prebuilt Models on iOS**
 
-.. For more, please see :doc:`the iOS page </deploy/ios>`.
+For more, please see :doc:`the iOS page </deploy/ios>`.
 
-.. .. collapse:: Click to show details
+.. collapse:: Click to show details
 
-..   The `iOS app <https://apps.apple.com/us/app/mlc-chat/id6448482937>`_ has builtin RedPajama-3B and Llama-2-7b support. 
+  The `iOS app <https://apps.apple.com/us/app/mlc-chat/id6448482937>`_ has builtin RedPajama-3B and Mistral-7B-Instruct-v0.2 support. 
 
-..   All prebuilt models with an entry in ``iOS`` in the :ref:`model library table <model-library-tables>` are supported by iOS. Namely, we have:
+  All prebuilt models with an entry in ``iOS`` in the :ref:`model library table <model-library-tables>` are supported by iOS. Namely, we have:
 
-..   .. list-table:: Prebuilt model libraries integrated in the iOS app
-..     :widths: 15 15 15
-..     :header-rows: 1
+  .. list-table:: Prebuilt Models for iOS
+    :widths: 15 15 15 15
+    :header-rows: 1
 
-..     * - Model library name
-..       - Model Family
-..       - Quantization Mode
-..     * - `Llama-2-7b-chat-hf-q3f16_1`
-..       - LLaMA
-..       - * Weight storage data type: int3
-..         * Running data type: float16
-..         * Symmetric quantization
-..     * - `vicuna-v1-7b-q3f16_0`
-..       - LLaMA
-..       - * Weight storage data type: int3
-..         * Running data type: float16
-..         * Symmetric quantization
-..     * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
-..       - GPT-NeoX
-..       - * Weight storage data type: int4
-..         * Running data type: float16
-..         * Symmetric quantization
+    * - Model Code
+      - Model Series
+      - Quantization Mode
+      - MLC HuggingFace Weights Repo
+    * - `Mistral-7B-Instruct-v0.2-q3f16_1`
+      - `Mistral <https://mistral.ai/>`__
+      - * Weight storage data type: int3
+        * Running data type: float16
+        * Symmetric quantization
+      - `link <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC>`__
+    * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
+      - `RedPajama <https://github.com/togethercomputer/RedPajama-Data>`__
+      - * Weight storage data type: int4
+        * Running data type: float16
+        * Symmetric quantization
+      - `link <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC>`__
+    * - `phi-2-q4f16_1`
+      - `Microsoft Phi-2 <https://www.microsoft.com/en-us/research/blog/phi-2-the-surprising-power-of-small-language-models/>`__
+      - * Weight storage data type: int4
+        * Running data type: float16
+        * Symmetric quantization
+      - `link <https://huggingface.co/mlc-ai/phi-2-q4f16_1-MLC>`__
+.. for a blank line
 
-..   As for prebuilt model weights, the ones we have integrated into app are listed below:
-
-..   .. list-table:: Tested prebuilt model weights for iOS
-..     :widths: 15 15 15 15
-..     :header-rows: 1
-
-..     * - Model code
-..       - Model Series
-..       - Quantization Mode
-..       - Hugging Face repo
-..     * - `Llama-2-7b-q3f16_1`
-..       - `Llama <https://ai.meta.com/llama/>`__
-..       - * Weight storage data type: int3
-..         * Running data type: float16
-..         * Symmetric quantization
-..       - `link <https://huggingface.co/mlc-ai/mlc-chat-Llama-2-7b-chat-hf-q3f16_1>`__
-..     * - `vicuna-v1-7b-q3f16_0`
-..       - `Vicuna <https://lmsys.org/blog/2023-03-30-vicuna/>`__
-..       - * Weight storage data type: int3
-..         * Running data type: float16
-..         * Symmetric quantization
-..       - `link <https://huggingface.co/mlc-ai/mlc-chat-vicuna-v1-7b-q3f16_0>`__
-..     * - `RedPajama-INCITE-Chat-3B-v1-q4f16_1`
-..       - `RedPajama <https://www.together.xyz/blog/redpajama>`__
-..       - * Weight storage data type: int4
-..         * Running data type: float16
-..         * Symmetric quantization
-..       - `link <https://huggingface.co/mlc-ai/mlc-chat-RedPajama-INCITE-Chat-3B-v1-q4f16_1>`__
-  
-..   To run a model variant you compiled on your own, you can directly reuse the above
-..   integrated prebuilt model libraries, as long as the model shares the
-..   architecture and is compiled with the same quantization mode.
-..   For example, if you compile `OpenLLaMA-7B <https://github.com/openlm-research/open_llama>`_
-..   with quantization mode ``q3f16_0``, then you can run the compiled OpenLLaMA model on iPhone
-..   without rebuilding the iOS app by reusing the `vicuna-v1-7b-q3f16_0` model library.
-..   Then you can upload the compiled weights to hugging face so that you can download
-..   the weights in the app as shown below (for more on uploading to hugging face,
-..   please check :ref:`distribute-compiled-models`).
-  
-..   To add a model to the iOS app, follow the steps below:
-
-..   .. tabs::
-
-..       .. tab:: Step 1
-
-..           Open "MLCChat" app, click "Add model variant".
-
-..           .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-1.png
-..               :align: center
-..               :width: 30%
-
-..       .. tab:: Step 2
-
-..           Paste the repository URL of the model built on your own, and click "Add".
-
-..           You can refer to the link in the image as an example.
-
-..           .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-2.png
-..               :align: center
-..               :width: 30%
-
-..       .. tab:: Step 3
-
-..           After adding the model, you can download your model from the URL by clicking the download button.
-
-..           .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-3.png
-..               :align: center
-..               :width: 30%
-
-..       .. tab:: Step 4
-
-..           When the download is finished, click into the model and enjoy.
-
-..           .. image:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/iPhone-custom-4.png
-..               :align: center
-..               :width: 30%
-
-.. .. for a blank line
-
-.. |
+|
 
 .. _prebuilt-models-android:
 
@@ -466,7 +391,7 @@ Mistral
     - 
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-metal.so>`__
     - 
-    - 
+    - `q3f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q3f16_1-iphone.tar>`__
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-android.tar>`__
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-webgpu.wasm>`__
     -
@@ -513,7 +438,7 @@ GPT-NeoX (RedPajama-INCITE)
   
       `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f32_1-metal.so>`__
     - 
-    - 
+    - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar>`__
     - `q4f16_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar>`__
 
       `q4f32_1 <https://github.com/mlc-ai/binary-mlc-llm-libs/blob/main/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f32_1-android.tar>`__
@@ -739,7 +664,8 @@ Conversation template: ``mistral_default``
   * - Size
     - Hugging Face Repo Link
   * - 7B
-    - * `q4f16_1 (Instruct) <https://huggingface.co/mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC>`__
+    - * `q3f16_1 (Instruct) <https://huggingface.co/mlc-ai/Mistral-7B-Instruct-v0.2-q3f16_1-MLC>`__
+      * `q4f16_1 (Instruct) <https://huggingface.co/mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC>`__
 
 .. _neuralhermes_variant_table:
 
