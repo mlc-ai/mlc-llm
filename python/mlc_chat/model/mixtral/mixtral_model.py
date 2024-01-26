@@ -128,6 +128,7 @@ class MixtralDecoderLayer(nn.Module):
         _set_tp()
 
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
+        """Forward pass of a decoder layer; calculate attention, and add an residual connection."""
         out = self.self_attn(self.input_layernorm(hidden_states), attention_mask, total_seq_len)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.moe(self.post_attention_layernorm(hidden_states))
