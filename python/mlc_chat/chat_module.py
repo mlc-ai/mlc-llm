@@ -701,6 +701,9 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         The full path to the model library file to use (e.g. a ``.so`` file).
         If unspecified, we will use the provided ``model`` to search over
         possible paths.
+
+    kv_cache_config : Optional[KVCacheConfig]
+        A ``KVCacheConfig`` instance, used to initialize paged KV cache.
     """
 
     def __init__(  # pylint: disable=too-many-arguments
@@ -709,6 +712,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         device: str = "auto",
         chat_config: Optional[ChatConfig] = None,
         model_lib_path: Optional[str] = None,
+        kv_cache_config: Optional[Any] = None,
     ):
         # 0. Get device:
         # Retrieve device_name and device_id (if any, default 0) from device arg
@@ -777,7 +781,9 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         user_chat_config_json_str = _convert_chat_config_to_json_str(
             self.chat_config, self.chat_config.conv_template
         )
-        self._reload(self.model_lib_path, self.model_path, user_chat_config_json_str)
+        self._reload(
+            self.model_lib_path, self.model_path, user_chat_config_json_str, kv_cache_config
+        )
 
     def generate(
         self,
@@ -979,7 +985,13 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
         return self._raw_generate_func(prompt, generate_length)
 
-    def _reload(self, lib: str, model_path: str, app_config_json: str = ""):
+    def _reload(
+        self,
+        lib: str,
+        model_path: str,
+        app_config_json: str = "",
+        kv_cache_config: Optional[Any] = None,
+    ):
         r"""Reload the chat module from the given library and model path.
 
         Parameters
@@ -991,7 +1003,10 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         app_config_json: str
             The partial config that is used to partially override the model configuration.
         """
-        self._reload_func(lib, model_path, app_config_json)
+        if kv_cache_config:
+            self._reload_func(lib, model_path, app_config_json, kv_cache_config.asjson())
+        else:
+            self._reload_func(lib, model_path, app_config_json)
 
     def _unload(self):
         r"""Unload the chat module and clear memory of all loaded models."""
