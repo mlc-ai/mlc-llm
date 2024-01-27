@@ -147,7 +147,8 @@ KVCacheConfig::KVCacheConfig(int page_size, int max_num_sequence, int max_total_
   data_ = std::move(n);
 }
 
-KVCacheConfig::KVCacheConfig(const std::string& config_str, int max_single_sequence_length) {
+KVCacheConfig::KVCacheConfig(const std::string& config_str, int max_single_sequence_length,
+                             int model_prefill_chunk_size) {
   int page_size;
   int max_total_sequence_length;
   int max_num_sequence = -1;
@@ -174,11 +175,16 @@ KVCacheConfig::KVCacheConfig(const std::string& config_str, int max_single_seque
   } else {
     LOG(FATAL) << "Key \"max_total_sequence_length\" not found.";
   }
-  if (config.count("prefill_chunk_size")) {
-    CHECK(config["prefill_chunk_size"].is<int64_t>());
+  if (config.count("prefill_chunk_size") && config["prefill_chunk_size"].is<int64_t>()) {
     prefill_chunk_size = config["prefill_chunk_size"].get<int64_t>();
+    if (model_prefill_chunk_size > 0) {
+      ICHECK_LE(prefill_chunk_size, model_prefill_chunk_size);
+    }
+  } else if (model_prefill_chunk_size > 0) {
+    prefill_chunk_size = model_prefill_chunk_size;
   } else {
-    LOG(FATAL) << "Key \"prefill_chunk_size\" not found.";
+    LOG(FATAL) << "Key \"prefill_chunk_size\" not found. And no \"prefill_chunk_size\" provided "
+                  "by model.";
   }
   if (config.count("max_num_sequence")) {
     CHECK(config["max_num_sequence"].is<int64_t>());

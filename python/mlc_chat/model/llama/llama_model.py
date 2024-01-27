@@ -108,8 +108,6 @@ class LlamaFFN(nn.Module):
 
 class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: LlamaConfig):
-        self.hidden_size = config.hidden_size
-        self.rope_theta = config.position_embedding_base
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
         assert (
@@ -125,9 +123,6 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
             bias=False,
         )
         self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
-        # KV cache for single sequence
-        self.k_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
-        self.v_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
@@ -136,8 +131,10 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         qkv = self.qkv_proj(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         # Attention
-        q, k, v = op.split(qkv, indices_or_sections=[h_q, h_q + h_kv], axis=2)
-        output = op.reshape(paged_kv_cache.attention(layer_id, q, k, v), (b, s, h_q * d))
+        output = op.reshape(
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
+            (b, s, h_q * d),
+        )
         return self.o_proj(output)
 
     def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
@@ -180,9 +177,7 @@ class LlamaDecoderLayer(nn.Module):
         _set_tp()
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn.batch_forward(
-            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
-        )
+        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = self._apply_residual(out, residual=hidden_states)
@@ -218,7 +213,7 @@ class LlamaModel(nn.Module):
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
         hidden_states = self.embed_tokens(input_ids)
         for layer_id, layer in enumerate(self.layers):
-            hidden_states = layer.batch_forward(hidden_states, paged_kv_cache, layer_id)
+            hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 

@@ -1002,6 +1002,8 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
             The model path.
         app_config_json: str
             The partial config that is used to partially override the model configuration.
+        kv_cache_config : KVCacheConfig
+            The configuration of the paged KV cache.
         """
         if kv_cache_config:
             self._reload_func(lib, model_path, app_config_json, kv_cache_config.asjson())
