@@ -447,12 +447,12 @@ controls the list of local and remote models to be packaged into the app, given 
 for the RedPajama-INCITE-Chat-3B-v1 model. If the <code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument is manually specified during
 <code class="docutils literal notranslate"><span class="pre">mlc_chat</span> <span class="pre">compile</span></code>, the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field should be updated accordingly.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">model_lib_path</span></code></dt><dd><p>(Required) Path to the model library in the repo (<code class="docutils literal notranslate"><span class="pre">.tar</span></code> file, relative path in the <code class="docutils literal notranslate"><span class="pre">dist</span></code> artifact folder or
-full path to the library). Only used while running <code class="docutils literal notranslate"><span class="pre">prepare_libs.sh</span></code> to determine which model library to
-use during runtime. Useful when selecting a library with different settings (e.g. <code class="docutils literal notranslate"><span class="pre">prefill_chunk_size</span></code>,
-<code class="docutils literal notranslate"><span class="pre">context_window_size</span></code>, and <code class="docutils literal notranslate"><span class="pre">sliding_window_size</span></code>).</p>
-</dd>
 <dt><code class="docutils literal notranslate"><span class="pre">required_vram_bytes</span></code></dt><dd><p>(Required) Estimated requirements of VRAM to run the model.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">model_lib_path_for_prepare_libs</span></code></dt><dd><p>(Required) List of paths to the model libraries in the app (respective <code class="docutils literal notranslate"><span class="pre">.tar</span></code> file in the <code class="docutils literal notranslate"><span class="pre">binary-mlc-llm-libs</span></code>
+repo, relative path in the <code class="docutils literal notranslate"><span class="pre">dist</span></code> artifact folder or full path to the library). Only used while running
+<code class="docutils literal notranslate"><span class="pre">prepare_libs.sh</span></code> to determine which model library to use during runtime. Useful when selecting a library with
+different settings (e.g. <code class="docutils literal notranslate"><span class="pre">prefill_chunk_size</span></code>, <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code>, and <code class="docutils literal notranslate"><span class="pre">sliding_window_size</span></code>).</p>
 </dd>
 </dl>
 <p>Additionally, the app prepackages the models under <code class="docutils literal notranslate"><span class="pre">./ios/dist</span></code>.
