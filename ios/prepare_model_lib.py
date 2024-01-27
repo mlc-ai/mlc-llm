@@ -9,16 +9,16 @@ def main():
 
     tar_list = []
 
-    for model_data in app_config["model_list"]:
+    for model, model_lib_path in app_config["model_lib_path_for_prepare_libs"].items():
         paths = [
-            os.path.join(artifact_path, model_data["model_lib_path"]),
-            os.path.join(artifact_path, "prebuilt", model_data["model_lib_path"]),
-            os.path.join(model_data["model_lib_path"]),
+            os.path.join(artifact_path, model_lib_path),
+            os.path.join(artifact_path, "prebuilt", model_lib_path),
+            os.path.join(model_lib_path),
         ]
         valid_paths = [p for p in paths if os.path.isfile(p)]
         if not valid_paths:
             raise RuntimeError(
-                f"Cannot find iOS lib for {model_data['model_lib']} from the following candidate paths: {paths}"
+                f"Cannot find iOS lib for {model} from the following candidate paths: {paths}"
             )
         tar_list.append(valid_paths[0])
 
