@@ -1349,7 +1349,8 @@ class LLMChat {
         if (sliding_window_size_ == -1) {
           if (ft_.use_paged_kv_cache) {
             IntTuple seq_ids_tuple({0});
-            ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, ShapeTuple({1}));
+            IntTuple append_length({1});
+            ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, append_length);
             ret = ft_.decode_func_(input_data, kv_cache_, params_);
             ft_.kv_cache_end_forward_func_(kv_cache_);
           } else {
