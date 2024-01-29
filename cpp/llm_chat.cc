@@ -610,8 +610,7 @@ class LLMChat {
     this->params_ = ft_.LoadParams(model_path, device_, use_presharded_weights_);
     // Step 6. KV cache creation.
     if (ft_.use_paged_kv_cache && !kv_config_json.empty()) {
-      this->kv_cache_config_ =
-          serve::KVCacheConfig(kv_config_json, this->max_window_size_, this->prefill_chunk_size_);
+      this->kv_cache_config_ = serve::KVCacheConfig(kv_config_json, this->max_window_size_);
       IntTuple max_num_sequence{this->kv_cache_config_->max_num_sequence};
       IntTuple max_total_sequence_length{this->kv_cache_config_->max_total_sequence_length};
       IntTuple prefill_chunk_size{this->kv_cache_config_->prefill_chunk_size};

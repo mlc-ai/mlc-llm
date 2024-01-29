@@ -70,8 +70,7 @@ class KVCacheConfig : public ObjectRef {
   explicit KVCacheConfig(int page_size, int max_num_sequence, int max_total_sequence_length,
                          int prefill_chunk_size);
 
-  explicit KVCacheConfig(const std::string& config_str, int max_single_sequence_length,
-                         int model_prefill_chunk_size = 0);
+  explicit KVCacheConfig(const std::string& config_str, int max_single_sequence_length);
 
   TVM_DEFINE_OBJECT_REF_METHODS(KVCacheConfig, ObjectRef, KVCacheConfigNode);
 };
