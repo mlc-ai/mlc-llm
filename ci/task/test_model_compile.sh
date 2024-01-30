@@ -5,7 +5,7 @@ set -x
 : ${WORKSPACE_CWD:=$(pwd)}
 : ${GPU:="cpu"}
 
-pip install wheels/*.whl
+pip install --force-reinstall wheels/*.whl
 
 if [[ ${GPU} == cuda* ]]; then
 	TARGET=cuda
