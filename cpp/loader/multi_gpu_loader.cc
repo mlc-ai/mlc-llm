@@ -83,6 +83,11 @@ class PreprocessorPool {
   std::unordered_map<std::string, TypedPackedFunc<void(DLTensor*, DLTensor*)>> preproc_funcs;
 };
 
+struct ParamInfo {
+  const NDArrayCacheMetadata::FileRecord* file;
+  const NDArrayCacheMetadata::FileRecord::ParamRecord* param;
+};
+
 NDArray BroadcastOrShardAndScatter(NDArray param, const ModelMetadata::Param& param_info,
                                    int num_shards, const PreprocessorPool& preprocs) {
   bool needs_sharding = !param_info.preprocs.empty();
@@ -195,7 +200,55 @@ Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_modul
   return shards;
 }
 
+Array<NDArray> LoadMultiGPUPresharded(const std::string& model_path, Module relax_vm_module,
+                                      const std::string& model_config_str) {
+  DiscoWorker* worker = DiscoWorker::ThreadLocal();
+  Device device = worker->default_device;
+  int worker_id = worker->worker_id;
+  int num_shards = worker->num_workers;
+  LOG(INFO) << "[Worker #" << worker_id << "] Loading model to device: " << device;
+  // Step 0. Initialize metadata and paths
+  NDArrayCacheMetadata ndarray_cache_metadata = NDArrayCacheMetadata::Load(model_path);
+  picojson::value model_config;
+  picojson::parse(model_config, model_config_str);
+  ModelMetadata model_metadata =
+      ModelMetadata::FromModule(relax_vm_module, model_config.get<picojson::object>());
+
+  std::unordered_map<std::string, ParamInfo> param_info_map;
+  for (const NDArrayCacheMetadata::FileRecord& file_record : ndarray_cache_metadata.records) {
+    for (const NDArrayCacheMetadata::FileRecord::ParamRecord& param_record : file_record.records) {
+      const std::string& param_name = param_record.name;
+      param_info_map[param_name] = ParamInfo{&file_record, &param_record};
+    }
+  }
+
+  Array<NDArray> params;
+  const NDArrayCacheMetadata::FileRecord* current_file_;
+  std::string current_file_stream_;
+  params.reserve(model_metadata.params.size());
+  for (const ModelMetadata::Param& param : model_metadata.params) {
+    bool needs_sharding = !param.preprocs.empty();
+    std::string param_name = needs_sharding
+                                 ? static_cast<const std::stringstream&>(
+                                       std::stringstream() << param.name << "_shard-" << worker_id)
+                                       .str()
+                                 : std::string(param.name);
+    const ParamInfo& param_info = param_info_map.at(param_name);
+    const NDArrayCacheMetadata::FileRecord::ParamRecord* param_record = param_info.param;
+    const NDArrayCacheMetadata::FileRecord* file_record = param_info.file;
+
+    if (file_record != current_file_) {
+      current_file_ = file_record;
+      file_record->Load(device, model_path, &current_file_stream_);
+    }
+
+    params.push_back(param_record->Load(device, &current_file_stream_));
+  }
+  return params;
+}
+
 TVM_REGISTER_GLOBAL("mlc.loader.LoadMultiGPU").set_body_typed(LoadMultiGPU);
+TVM_REGISTER_GLOBAL("mlc.loader.LoadMultiGPUPresharded").set_body_typed(LoadMultiGPUPresharded);
 
 }  // namespace loader
 }  // namespace llm
