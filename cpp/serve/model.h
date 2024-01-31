@@ -51,10 +51,14 @@ class ModelObj : public Object {
 
   /*!
    * \brief Compute embeddings for the input token ids.
+   * In-place write the embedding into the input destination array at the given offset.
    * \param token_ids The token ids to compute embedding for.
-   * \return The computed embeddings.
+   * \param dst The destination array of the embedding lookup.
+   * \param offset The token offset where the computed embeddings will be written
+   * into the destination array.
+   * \return The updated dst embedding array.
    */
-  virtual NDArray TokenEmbed(IntTuple batch_token_ids) = 0;
+  virtual ObjectRef TokenEmbed(IntTuple batch_token_ids, ObjectRef dst, int offset) = 0;
 
   /*!
    * \brief Batch prefill function. Embedding in, logits out.
@@ -65,8 +69,7 @@ class ModelObj : public Object {
    * \param lengths The length of each sequence to prefill.
    * \return The logits for the next token.
    */
-  virtual NDArray BatchPrefill(const Array<NDArray>& embedding_arr,
-                               const std::vector<int64_t>& seq_ids,
+  virtual NDArray BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                                const std::vector<int>& lengths) = 0;
 
   /*!
@@ -77,7 +80,7 @@ class ModelObj : public Object {
    * \param seq_id The id of the sequence in the KV cache.
    * \return The logits for the next token for each sequence in the batch.
    */
-  virtual NDArray BatchDecode(const NDArray& embeddings, const std::vector<int64_t>& seq_ids) = 0;
+  virtual NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) = 0;
 
   /*!
    * \brief Batch verify function. Embedding in, logits out.
@@ -89,7 +92,7 @@ class ModelObj : public Object {
    * That is to say, it does not accept "running a verify step for a subset
    * of the full batch".
    */
-  virtual NDArray BatchVerify(const NDArray& embeddings, const std::vector<int64_t>& seq_ids,
+  virtual NDArray BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                               const std::vector<int>& lengths) = 0;
 
   /*!
@@ -125,6 +128,12 @@ class ModelObj : public Object {
 
   /*! \brief Get the max window size of the model. */
   virtual int GetMaxWindowSize() const = 0;
+
+  /*!
+   * \brief Get an embedding array w.r.t. the given length.
+   * \note The returned arrays across different calls may share the same memory.
+   */
+  virtual NDArray GetEmbeddingArray(int length) = 0;
 
   /*! \brief Reset the model KV cache and other statistics. */
   virtual void Reset() = 0;

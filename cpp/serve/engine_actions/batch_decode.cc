@@ -76,20 +76,17 @@ class BatchDecodeActionObj : public EngineActionObj {
 
     // - Compute embeddings.
     RECORD_EVENT(trace_recorder_, request_ids, "start embedding");
-    NDArray embeddings =
-        models_[0]->TokenEmbed({IntTuple{input_tokens.begin(), input_tokens.end()}});
+    ObjectRef embeddings = models_[0]->GetEmbeddingArray(num_requests);
+    embeddings = models_[0]->TokenEmbed({input_tokens.begin(), input_tokens.end()}, embeddings,
+                                        /*offset=*/0);
     RECORD_EVENT(trace_recorder_, request_ids, "finish embedding");
-    ICHECK_EQ(embeddings->ndim, 3);
-    ICHECK_EQ(embeddings->shape[0], 1);
-    ICHECK_EQ(embeddings->shape[1], num_requests);
-    embeddings = embeddings.CreateView({num_requests, 1, embeddings->shape[2]}, embeddings->dtype);
 
     // - Invoke model decode.
     RECORD_EVENT(trace_recorder_, request_ids, "start decode");
     NDArray logits = models_[0]->BatchDecode(embeddings, request_internal_ids);
     RECORD_EVENT(trace_recorder_, request_ids, "finish decode");
     ICHECK_EQ(logits->ndim, 3);
-    ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
+    ICHECK_EQ(logits->shape[0], num_requests);
     ICHECK_EQ(logits->shape[1], 1);
 
     // - Sample tokens.

@@ -40,19 +40,22 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     auto tstart = std::chrono::high_resolution_clock::now();
 
     // - Move requests from waiting queue to running queue.
+    // - Compute the total prefill lengths.
+    int prefill_length_sum = 0;
     for (int i = 0; i < num_requests; ++i) {
       auto it = std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), requests[i]);
       ICHECK(it != estate->waiting_queue.end());
       estate->waiting_queue.erase(it);
       estate->running_queue.push_back(requests[i]);
+      prefill_length_sum += prefill_lengths[i];
     }
 
     // - Get embedding and run prefill for each model.
     NDArray logits_for_sample{nullptr};
     for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
-      Array<NDArray> embeddings;
+      ObjectRef embeddings = models_[model_id]->GetEmbeddingArray(prefill_length_sum);
+      int embedding_offset = 0;
       std::vector<int64_t> request_internal_ids;
-      embeddings.reserve(num_requests);
       request_internal_ids.reserve(num_requests);
       for (int i = 0; i < num_requests; ++i) {
         RequestModelState mstate = rstates[i]->mstates[model_id];
@@ -66,7 +69,9 @@ class NewRequestPrefillActionObj : public EngineActionObj {
         request_internal_ids.push_back(mstate->internal_id);
         RECORD_EVENT(trace_recorder_, requests[i]->id, "start embedding");
         for (int i = 0; i < static_cast<int>(mstate->inputs.size()); ++i) {
-          embeddings.push_back(mstate->inputs[i]->GetEmbedding(models_[model_id]));
+          embeddings =
+              mstate->inputs[i]->GetEmbedding(models_[model_id], embeddings, embedding_offset);
+          embedding_offset += mstate->inputs[i]->GetLength();
         }
         RECORD_EVENT(trace_recorder_, requests[i]->id, "finish embedding");
         // Clean up `inputs` after prefill

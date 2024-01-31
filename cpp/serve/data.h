@@ -26,8 +26,16 @@ class DataNode : public Object {
   /*! \brief Get the length (equivalent number of tokens) of the data. */
   virtual int GetLength() const = 0;
 
-  /*! \brief Compute the embedding of this data with regard to the input model. */
-  virtual NDArray GetEmbedding(Model model) const = 0;
+  /*!
+   * \brief Compute the embedding of this data with regard to the input model.
+   * In-place write the embedding into the input destination array at the given offset.
+   * \param model The model to take embeddings from.
+   * \param dst The destination array of the embedding lookup.
+   * \param offset The token offset where the computed embeddings will be written
+   * into the destination array.
+   * \return The updated dst embedding array.
+   */
+  virtual ObjectRef GetEmbedding(Model model, ObjectRef dst, int offset) const = 0;
 
   static constexpr const char* _type_key = "mlc.serve.Data";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -49,7 +57,7 @@ class TextDataNode : public DataNode {
   String text;
 
   int GetLength() const final;
-  NDArray GetEmbedding(Model model) const final;
+  ObjectRef GetEmbedding(Model model, ObjectRef dst, int offset) const final;
 
   static constexpr const char* _type_key = "mlc.serve.TextData";
   TVM_DECLARE_BASE_OBJECT_INFO(TextDataNode, DataNode);
@@ -71,7 +79,7 @@ class TokenDataNode : public DataNode {
   IntTuple token_ids;
 
   int GetLength() const final;
-  NDArray GetEmbedding(Model model) const final;
+  ObjectRef GetEmbedding(Model model, ObjectRef dst, int offset) const final;
 
   static constexpr const char* _type_key = "mlc.serve.TokenData";
   TVM_DECLARE_BASE_OBJECT_INFO(TokenDataNode, DataNode);

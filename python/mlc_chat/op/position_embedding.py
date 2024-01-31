@@ -330,9 +330,8 @@ def llama_inplace_rope(
         _1: T.int32,
         _2: T.int32,
         _3: T.int32,
-        _4: T.int32,
+        _4: T.float32,
         _5: T.float32,
-        _6: T.float32,
     ):
         T.func_attr({"tir.is_scheduled": 1})
         total_len = T.int32()

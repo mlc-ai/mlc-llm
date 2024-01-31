@@ -73,6 +73,7 @@ class BatchDraftActionObj : public EngineActionObj {
       Array<RequestModelState> mstates =
           rstates.Map([model_id](const RequestState& rstate) { return rstate->mstates[model_id]; });
       input_tokens.reserve(num_requests);
+      ObjectRef embeddings = models_[model_id]->GetEmbeddingArray(num_requests);
       // draft_length_ rounds of draft proposal.
       for (int draft_id = 0; draft_id < draft_length_; ++draft_id) {
         // prepare new input tokens
@@ -85,21 +86,17 @@ class BatchDraftActionObj : public EngineActionObj {
 
         // - Compute embeddings.
         RECORD_EVENT(trace_recorder_, request_ids, "start proposal embedding");
-        NDArray embeddings =
-            models_[model_id]->TokenEmbed({IntTuple{input_tokens.begin(), input_tokens.end()}});
-        RECORD_EVENT(trace_recorder_, request_ids, "finish proposal embedding");
-        ICHECK_EQ(embeddings->ndim, 3);
-        ICHECK_EQ(embeddings->shape[0], 1);
-        ICHECK_EQ(embeddings->shape[1], num_requests);
         embeddings =
-            embeddings.CreateView({num_requests, 1, embeddings->shape[2]}, embeddings->dtype);
+            models_[model_id]->TokenEmbed({input_tokens.begin(), input_tokens.end()}, embeddings,
+                                          /*offset=*/0);
+        RECORD_EVENT(trace_recorder_, request_ids, "finish proposal embedding");
 
         // - Invoke model decode.
         RECORD_EVENT(trace_recorder_, request_ids, "start proposal decode");
         NDArray logits = models_[model_id]->BatchDecode(embeddings, request_internal_ids);
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
         ICHECK_EQ(logits->ndim, 3);
-        ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
+        ICHECK_EQ(logits->shape[0], num_requests);
         ICHECK_EQ(logits->shape[1], 1);
 
         // - Sample tokens.

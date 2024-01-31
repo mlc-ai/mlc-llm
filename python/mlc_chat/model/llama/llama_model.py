@@ -262,8 +262,15 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             logits = logits.astype("float32")
         return logits
 
-    def embed(self, input_ids: Tensor):
-        return self.model.embed_tokens(input_ids)
+    def embed(self, input_ids: Tensor, embedding_dst: Tensor, offset: int):
+        return op_ext.inplace_embedding_take(
+            self.model.embed_tokens.weight,
+            input_ids,
+            embedding_dst,
+            offset,
+            self.hidden_size,
+            self.dtype,
+        )
 
     def prefill(self, input_ids: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
@@ -355,7 +362,9 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         batch_size = 1
         mod_spec = {
             "embed": {
-                "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
+                "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
+                "embedding_dst": nn.spec.Tensor(["total_seq_len", self.hidden_size], self.dtype),
+                "offset": int,
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",

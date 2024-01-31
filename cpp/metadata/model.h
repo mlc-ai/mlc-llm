@@ -40,6 +40,7 @@ struct ModelMetadata {
 
   std::string model_type;
   std::string quantization;
+  DLDataType model_dtype;
   int64_t context_window_size;
   int64_t prefill_chunk_size;
   int64_t sliding_window_size;

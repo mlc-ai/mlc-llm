@@ -39,11 +39,29 @@ ModelMetadata::Param ModelMetadata::Param::FromJSON(const picojson::object& para
   return result;
 }
 
+/*!
+ * \brief Return the model dtype indicated by the quantization.
+ * \param quantization The quantization identifier.
+ * \return The model dtype indicated by the quantization.
+ * \note This method selects float16 as the model dtype
+ * unless the quantization string explicitly indicates other dtype.
+ */
+inline DLDataType QuantizationToDtype(const std::string& quantization) {
+  if (quantization.find("f32") != std::string::npos ||
+      quantization.find("fp32") != std::string::npos ||
+      quantization.find("float32") != std::string::npos) {
+    return String2DLDataType("float32");
+  } else {
+    return String2DLDataType("float16");
+  }
+}
+
 ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
                                       const picojson::object& model_config) {
   ModelMetadata result;
   result.model_type = json::Lookup<std::string>(metadata, "model_type");
   result.quantization = json::Lookup<std::string>(metadata, "quantization");
+  result.model_dtype = QuantizationToDtype(result.quantization);
   result.context_window_size = json::Lookup<int64_t>(metadata, "context_window_size");
   result.prefill_chunk_size = json::Lookup<int64_t>(metadata, "prefill_chunk_size");
   if (metadata.count("sliding_window_size"))
