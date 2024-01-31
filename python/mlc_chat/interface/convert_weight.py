@@ -16,7 +16,7 @@ from mlc_chat.loader import LOADER
 from mlc_chat.model import Model
 from mlc_chat.quantization import Quantization
 from mlc_chat.support import logging, tqdm
-from mlc_chat.support.preshard import _apply_preshard
+from mlc_chat.support.preshard import apply_preshard
 from mlc_chat.support.style import bold, green
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
     named_params = dict(_named_params)
 
     if pre_shards_num is not None:
-        preshard_funcs = _apply_preshard(quantize_map, named_params, int(pre_shards_num), args)
+        preshard_funcs = apply_preshard(quantize_map, named_params, int(pre_shards_num), args)
     else:
         preshard_funcs = None
 

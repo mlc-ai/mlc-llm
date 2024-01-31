@@ -1,3 +1,4 @@
+"""Functions for pre-sharding weights"""
 from typing import Any, Dict
 
 from tvm import IRModule
@@ -36,7 +37,9 @@ def _update_quantize_map(
             named_params[_sharded_param_name(param_name, worker_id)] = param
 
 
-def _create_shard_func(bb: relax.BlockBuilder, param: nn.Parameter, tensor_parallel_shards: int):
+def _create_shard_func(
+    bb: relax.BlockBuilder, param: nn.Parameter, tensor_parallel_shards: int
+):  # pylint: disable=too-many-locals
     shard_strategy = param.attrs.get("shard_strategy", None)
     # generate tir shard function
     tir_func = shard_strategy.gen_tir(shards=tensor_parallel_shards, weight=param)
@@ -86,12 +89,13 @@ def _compile_shard_funcs(mod: IRModule, device: Device):
     return vm
 
 
-def _apply_preshard(
+def apply_preshard(
     quantize_map: Any,
     named_params: Dict[str, nn.Parameter],
     tensor_parallel_shards: int,
     args: Any,
 ):
+    """Update quantize_map and named_params, create shard functions based on shard strategies."""
     model_config = args.model.config.from_file(args.config)
     model_config.tensor_parallel_shards = tensor_parallel_shards
     model = args.model.model(model_config)
