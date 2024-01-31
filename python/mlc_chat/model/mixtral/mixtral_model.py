@@ -6,13 +6,13 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_chat import op as op_ext
-from mlc_chat.model.mistral.mistral_model import (
-    MistralAttention,
-    MistralConfig,
-    MistralForCasualLM,
-    MistralModel,
-    RotaryEmbedding,
+from mlc_chat.model.llama.llama_model import (
+    LlamaAttention,
+    LlamaConfig,
+    LlamaForCasualLM,
+    LlamaModel,
 )
+from mlc_chat.nn import PagedKVCache
 from mlc_chat.nn.expert import MixtralExperts
 from mlc_chat.support import logging
 from mlc_chat.support import tensor_parallel as tp
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class MixtralConfig(MistralConfig):  # pylint: disable=too-many-instance-attributes
+class MixtralConfig(LlamaConfig):  # pylint: disable=too-many-instance-attributes
     """Configuration of the Mixtral model."""
 
     num_local_experts: int = 0
@@ -103,9 +103,9 @@ class MixtralMoE(nn.Module):
 class MixtralDecoderLayer(nn.Module):
     """Mixtral decoder layer"""
 
-    def __init__(self, config: MixtralConfig, rotary_embedding: RotaryEmbedding):
+    def __init__(self, config: MixtralConfig):
         eps = config.rms_norm_eps
-        self.self_attn = MistralAttention(config, rotary_embedding)
+        self.self_attn = LlamaAttention(config)
         self.moe = MixtralMoE(config)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, eps, bias=False)
@@ -127,47 +127,41 @@ class MixtralDecoderLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(  # pylint: disable=too-many-arguments
-        self,
-        hidden_states: Tensor,
-        attention_mask: Tensor,
-        rolling_cache_len: tir.Var,
-        kv_seq_len: tir.Var,
-        cache_offset: tir.Var,
-    ):
+    def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
         """Forward pass of a decoder layer; calculate attention, and add an residual connection."""
-
-        def _apply_residual(out, residual):
-            if self.tensor_parallel_shards > 1:
-                return op.ccl_allreduce(out, "sum") + residual
-            return out + residual
-
-        out = self.self_attn(
-            self.input_layernorm(hidden_states),
-            attention_mask,
-            rolling_cache_len,
-            kv_seq_len,
-            cache_offset,
-        )
-        hidden_states = _apply_residual(out, residual=hidden_states)
+        out = self.self_attn(self.input_layernorm(hidden_states), attention_mask, total_seq_len)
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.moe(self.post_attention_layernorm(hidden_states))
-        hidden_states = _apply_residual(out, residual=hidden_states)
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
 
+    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+        out = self.self_attn.batch_forward(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
+        )
+        hidden_states = self._apply_residual(out, residual=hidden_states)
+        out = self.moe(self.post_attention_layernorm(hidden_states))
+        hidden_states = self._apply_residual(out, residual=hidden_states)
+        return hidden_states
 
-class MixtralModel(MistralModel):
+    def _apply_residual(self, out, residual):
+        if self.tensor_parallel_shards > 1:
+            return op.ccl_allreduce(out, "sum") + residual
+        return out + residual
+
+
+class MixtralModel(LlamaModel):
     """Exact same as LlamaModel."""
 
     def __init__(self, config: MixtralConfig):
         super().__init__(config)
-        rotary_embedding = RotaryEmbedding(config)
         self.layers = nn.ModuleList(
-            [MixtralDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
+            [MixtralDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
 
 
-class MixtralForCasualLM(MistralForCasualLM):
-    """Same as LlamaForCausalLM, except for the use of sliding window attention."""
+class MixtralForCasualLM(LlamaForCasualLM):
+    """Same as LlamaForCausalLM."""
 
     def __init__(self, config: MixtralConfig):
         super().__init__(config)
