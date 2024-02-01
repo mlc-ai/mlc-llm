@@ -256,7 +256,13 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tensor:
     )
 
 
-def get_indptr(cumsum: Tensor, num_local_experts: int, batch_size: Union[int, tir.Var]) -> Tensor:
+def get_indptr(
+    cumsum: Tensor,
+    num_local_experts: int,
+    batch_size: Union[int, tir.Var],
+    inclusive: bool,
+    out_dtype: str,
+) -> Tensor:
     """Extract the `indptr` array from MoE cumsum array. The MoE cumsum array is a flattened tensor
     whose original shape is [num_local_experts, batch_size], and the `indptr` array is a 1D tensor
     of length `num_local_experts + 1`. The range `[indptr[i], indptr[i + 1])` indicates instances in
@@ -285,28 +291,47 @@ def get_indptr(cumsum: Tensor, num_local_experts: int, batch_size: Union[int, ti
         and we name is `batch_size` for simplicity here only because the two dimensions are fused
         in Mixtral.
 
+    inclusive : bool
+        Whether to compute inclusive or exclusive prefix sum as the indptr. If `inclusive` is False,
+        the 0-th element of the `indptr` array, which always equals to 0, will be omitted.
+
+    out_dtype : str
+        The output dtype.
+
     Returns
     -------
     indptr : Tensor
-        The `indptr` array with shape [num_local_experts + 1], int32.
+        The `indptr` array with shape [num_local_experts + 1] if `inclusive` is True, otherwise
+        [num_local_experts]. The `indptr` array is of type `out_dtype`.
     """
+    out_shape = [num_local_experts if inclusive else num_local_experts + 1]
 
     @T.prim_func(private=True)
-    def _func(var_cumsum: T.handle, var_indptr: T.handle, batch_size: T.int32):
+    def _func_exclusive(var_cumsum: T.handle, var_indptr: T.handle, batch_size: T.int32):
         T.func_attr({"tir.noalias": True})
         cumsum = T.match_buffer(var_cumsum, shape=[batch_size * num_local_experts], dtype="int32")
-        indptr = T.match_buffer(var_indptr, shape=[num_local_experts + 1], dtype="int32")
+        indptr = T.match_buffer(var_indptr, shape=out_shape, dtype=out_dtype)
         for vi in T.serial(0, num_local_experts + 1):
             with T.block("indptr"):
                 i = T.axis.spatial(num_local_experts + 1, vi)
                 indptr[i] = T.Select(i > 0, cumsum[i * batch_size - 1], T.int32(0))
 
+    @T.prim_func(private=True)
+    def _func_inclusive(var_cumsum: T.handle, var_indptr: T.handle, batch_size: T.int32):
+        T.func_attr({"tir.noalias": True})
+        cumsum = T.match_buffer(var_cumsum, shape=[batch_size * num_local_experts], dtype="int32")
+        indptr = T.match_buffer(var_indptr, shape=out_shape, dtype=out_dtype)
+        for vi in T.serial(0, num_local_experts):
+            with T.block("indptr"):
+                i = T.axis.spatial(num_local_experts, vi)
+                indptr[i] = cumsum[(i + 1) * batch_size - 1]
+
     assert cumsum.ndim == 1
     return op.tensor_ir_op(
-        _func,
+        _func_inclusive if inclusive else _func_exclusive,
         "get_expert_instance_indptr",
         args=[cumsum, batch_size],  # type: ignore[list-item]
-        out=Tensor.placeholder([num_local_experts + 1], "int32"),
+        out=Tensor.placeholder(out_shape, out_dtype),
     )
 
 

@@ -15,12 +15,14 @@ class OptimizationFlags:
 
     flashinfer: bool = False
     cublas_gemm: bool = False
+    faster_transformer: bool = False
     cudagraph: bool = False
 
     def __repr__(self) -> str:
         out = StringIO()
         print(f"flashinfer={int(self.flashinfer)}", file=out, end="")
         print(f";cublas_gemm={int(self.cublas_gemm)}", file=out, end="")
+        print(f";faster_transformer={int(self.faster_transformer)}", file=out, end="")
         print(f";cudagraph={int(self.cudagraph)}", file=out, end="")
         return out.getvalue().rstrip()
 
@@ -41,11 +43,13 @@ class OptimizationFlags:
         parser = argparse.ArgumentParser(description="optimization flags")
         parser.add_argument("--flashinfer", type=boolean, default=True)
         parser.add_argument("--cublas_gemm", type=boolean, default=False)
+        parser.add_argument("--faster_transformer", type=boolean, default=False)
         parser.add_argument("--cudagraph", type=boolean, default=False)
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
         return OptimizationFlags(
             flashinfer=results.flashinfer,
             cublas_gemm=results.cublas_gemm,
+            faster_transformer=results.faster_transformer,
             cudagraph=results.cudagraph,
         )
 
@@ -74,8 +78,15 @@ class OptimizationFlags:
                 return False
             return self.cublas_gemm
 
+        def _faster_transformer(target) -> bool:
+            """correct faster_transformer flag"""
+            if not target.kind.name == "cuda":
+                return False
+            return self.faster_transformer
+
         self.flashinfer = _flashinfer(target)
         self.cublas_gemm = _cublas_gemm(target, quantization)
+        self.faster_transformer = _faster_transformer(target)
 
 
 @dataclasses.dataclass
@@ -129,16 +140,19 @@ OPT_FLAG_PRESET = {
     "O1": OptimizationFlags(
         flashinfer=False,
         cublas_gemm=True,
+        faster_transformer=True,
         cudagraph=False,
     ),
     "O2": OptimizationFlags(
         flashinfer=True,
         cublas_gemm=True,
+        faster_transformer=True,
         cudagraph=False,
     ),
     "O3": OptimizationFlags(
         flashinfer=True,
         cublas_gemm=True,
+        faster_transformer=True,
         cudagraph=True,
     ),
 }
