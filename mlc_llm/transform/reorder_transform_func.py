@@ -37,11 +37,7 @@ after loading them from the file.
 def analyze_func(
     func: relax.Function,
     pidx2binname: Dict[int, str],
-) -> Tuple[
-    List[relax.Binding],
-    Dict[relax.Var, List[relax.Binding]],
-    Dict[relax.Binding, int],
-]:
+) -> Tuple[List[relax.Binding], Dict[relax.Var, List[relax.Binding]], Dict[relax.Binding, int],]:
     """Binding grouping analysis function.
     It takes the function to be analyzed, and mapping from each raw tensor index
     to the name of the binary file where it resides.
@@ -85,14 +81,19 @@ def analyze_func(
     var_users: Dict[relax.Var, List[relax.Binding]] = {}
     num_depending_vars: Dict[relax.Binding, int] = {}
 
+    if func.attrs is not None and "num_input" in func.attrs:
+        num_input = func.attrs["num_input"].value
+    else:
+        num_input = 0
+
     # Sanity check on the function pattern.
-    assert len(func.params) == 1
+    assert len(func.params) == num_input + 1
     assert isinstance(func.body, relax.SeqExpr)
     assert len(func.body.blocks) == 1
     assert isinstance(func.body.blocks[0], relax.DataflowBlock)
     assert func.body.blocks[0].bindings[-1].var.same_as(func.body.body)
 
-    params = func.params[0]
+    model_param_tuple = func.params[num_input]
     bindings = func.body.blocks[0].bindings
 
     # Go through each binding except the last one. (The last one is the output
@@ -102,7 +103,7 @@ def analyze_func(
         binding_var_set.add(binding.var)
         var_users[binding.var] = []
 
-        if isinstance(value, relax.TupleGetItem) and value.tuple_value.same_as(params):
+        if isinstance(value, relax.TupleGetItem) and value.tuple_value.same_as(model_param_tuple):
             # For weight fetching bindings (`lv = params[idx]`), we group them
             # according to the binary file name.
             pidx = value.index
