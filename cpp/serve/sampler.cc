@@ -375,62 +375,66 @@ class CPUSampler : public SamplerObj {
         static_cast<float*>(__builtin_assume_aligned(logits_or_probs_on_cpu->data, 4));
     int vocab_size = logits_or_probs_on_cpu->shape[1];
 
-    tvm::runtime::parallel_for_with_threading_backend(
-        [&](int i) {
-          int verify_start = cum_verify_lengths[i];
-          int verify_end = cum_verify_lengths[i + 1];
-          for (int cur_token_idx = 0; cur_token_idx < verify_end - verify_start; ++cur_token_idx) {
-            if (!can_compute_prob_in_parallel) {
-              SinglePosComputeProbsFromLogitsInplace(logits_or_probs_on_cpu,
-                                                     verify_start + cur_token_idx,
-                                                     request_mstates[i], generation_cfg[i]);
-            }
+    auto f_task = [&](int i) {
+      int verify_start = cum_verify_lengths[i];
+      int verify_end = cum_verify_lengths[i + 1];
+      for (int cur_token_idx = 0; cur_token_idx < verify_end - verify_start; ++cur_token_idx) {
+        if (!can_compute_prob_in_parallel) {
+          SinglePosComputeProbsFromLogitsInplace(logits_or_probs_on_cpu,
+                                                 verify_start + cur_token_idx, request_mstates[i],
+                                                 generation_cfg[i]);
+        }
 
-            float* p_probs = global_p_probs + (verify_start + cur_token_idx) * vocab_size;
-            int cur_token = draft_output_tokens[i][cur_token_idx];
-            float q_value = draft_output_token_prob[i][cur_token_idx];
-            float p_value = p_probs[cur_token];
+        float* p_probs = global_p_probs + (verify_start + cur_token_idx) * vocab_size;
+        int cur_token = draft_output_tokens[i][cur_token_idx];
+        float q_value = draft_output_token_prob[i][cur_token_idx];
+        float p_value = p_probs[cur_token];
 
-            if (p_value >= q_value) {
-              request_mstates[i]->CommitToken(cur_token);
-              accepted_tokens[i].push_back(cur_token);
-              continue;
-            }
-            float r = rngs[i]->GetRandomNumber();
-            if (r < p_value / (q_value + eps_)) {
-              request_mstates[i]->CommitToken(cur_token);
-              accepted_tokens[i].push_back(cur_token);
-              continue;
-            }
+        if (p_value >= q_value) {
+          request_mstates[i]->CommitToken(cur_token);
+          accepted_tokens[i].push_back(cur_token);
+          continue;
+        }
+        float r = rngs[i]->GetRandomNumber();
+        if (r < p_value / (q_value + eps_)) {
+          request_mstates[i]->CommitToken(cur_token);
+          accepted_tokens[i].push_back(cur_token);
+          continue;
+        }
 
-            // normalize a new probability distribution
-            double sum_v = 0.0;
-            NDArray q_dist = draft_output_prob_dist[i][cur_token_idx];
-            ICHECK(q_dist->device.device_type == kDLCPU);
-            ICHECK(q_dist->ndim == 1);
-            ICHECK(vocab_size == q_dist->shape[q_dist->ndim - 1]);
-            const float* __restrict p_qdist =
-                static_cast<float*>(__builtin_assume_aligned(q_dist->data, 4));
+        // normalize a new probability distribution
+        double sum_v = 0.0;
+        NDArray q_dist = draft_output_prob_dist[i][cur_token_idx];
+        ICHECK(q_dist->device.device_type == kDLCPU);
+        ICHECK(q_dist->ndim == 1);
+        ICHECK(vocab_size == q_dist->shape[q_dist->ndim - 1]);
+        const float* __restrict p_qdist =
+            static_cast<float*>(__builtin_assume_aligned(q_dist->data, 4));
 
-            for (int j = 0; j < vocab_size; ++j) {
-              p_probs[j] = std::max(p_probs[j] - p_qdist[j], 0.0f);
-              sum_v += p_probs[j];
-            }
-            for (int j = 0; j < vocab_size; ++j) {
-              p_probs[j] /= sum_v;
-            }
+        for (int j = 0; j < vocab_size; ++j) {
+          p_probs[j] = std::max(p_probs[j] - p_qdist[j], 0.0f);
+          sum_v += p_probs[j];
+        }
+        for (int j = 0; j < vocab_size; ++j) {
+          p_probs[j] /= sum_v;
+        }
 
-            // sample a new token from the new distribution
-            int32_t new_token =
-                SampleTopPFromProb(logits_or_probs_on_cpu, verify_start + cur_token_idx,
-                                   generation_cfg[i]->top_p, rngs[i]->GetRandomNumber())
-                    .second;
-            request_mstates[i]->CommitToken(new_token);
-            accepted_tokens[i].push_back(cur_token);
-            break;
-          }
-        },
-        0, num_sequence);
+        // sample a new token from the new distribution
+        int32_t new_token = SampleTopPFromProb(logits_or_probs_on_cpu, verify_start + cur_token_idx,
+                                               generation_cfg[i]->top_p, rngs[i]->GetRandomNumber())
+                                .second;
+        request_mstates[i]->CommitToken(new_token);
+        accepted_tokens[i].push_back(cur_token);
+        break;
+      }
+    };
+
+    if (num_sequence == 1) {
+      f_task(0);
+    } else {
+      tvm::runtime::parallel_for_with_threading_backend(std::move(f_task), 0, num_sequence);
+    }
+
     return accepted_tokens;
   }
 
@@ -573,15 +577,19 @@ class CPUSampler : public SamplerObj {
       return;
     }
 
-    tvm::runtime::parallel_for_with_threading_backend(
-        [this, &logits, cum_sequence_length, &states, &generation_cfg](int i) {
-          int offset_start = cum_sequence_length == nullptr ? i : cum_sequence_length->at(i);
-          int offset_end = cum_sequence_length == nullptr ? i + 1 : cum_sequence_length->at(i + 1);
-          for (int offset = offset_start; offset < offset_end; ++offset) {
-            SinglePosComputeProbsFromLogitsInplace(logits, offset, states[i], generation_cfg[i]);
-          }
-        },
-        0, logits->shape[0]);
+    auto f_task = [this, &logits, cum_sequence_length, &states, &generation_cfg](int i) {
+      int offset_start = cum_sequence_length == nullptr ? i : cum_sequence_length->at(i);
+      int offset_end = cum_sequence_length == nullptr ? i + 1 : cum_sequence_length->at(i + 1);
+      for (int offset = offset_start; offset < offset_end; ++offset) {
+        SinglePosComputeProbsFromLogitsInplace(logits, offset, states[i], generation_cfg[i]);
+      }
+    };
+
+    if (logits->shape[0] == 1) {
+      f_task(0);
+    } else {
+      tvm::runtime::parallel_for_with_threading_backend(std::move(f_task), 0, logits->shape[0]);
+    }
   }
 
   void SinglePosComputeProbsFromLogitsInplace(NDArray logits, int offset,
@@ -639,20 +647,25 @@ class CPUSampler : public SamplerObj {
       output_token_probs->resize(n);
     }
 
-    tvm::runtime::parallel_for_with_threading_backend(
-        [this, &sampled_tokens, &probs, &generation_cfg, &rngs, &request_ids, output_prob_dist,
-         output_token_probs](int i) {
-          RECORD_EVENT(this->trace_recorder_, request_ids[i], "start sample token");
-          // Sample top p from probability.
-          std::pair<float, int64_t> sample_result = SampleTopPFromProb(
-              probs, i, generation_cfg[i]->top_p, rngs[i]->GetRandomNumber(), output_prob_dist);
-          sampled_tokens[i] = sample_result.second;
-          if (output_token_probs) {
-            (*output_token_probs)[i] = sample_result.first;
-          }
-          RECORD_EVENT(this->trace_recorder_, request_ids[i], "finish sample token");
-        },
-        0, n);
+    auto f_task = [this, &sampled_tokens, &probs, &generation_cfg, &rngs, &request_ids,
+                   output_prob_dist, output_token_probs](int i) {
+      RECORD_EVENT(this->trace_recorder_, request_ids[i], "start sample token");
+      // Sample top p from probability.
+      std::pair<float, int64_t> sample_result = SampleTopPFromProb(
+          probs, i, generation_cfg[i]->top_p, rngs[i]->GetRandomNumber(), output_prob_dist);
+      sampled_tokens[i] = sample_result.second;
+      if (output_token_probs) {
+        (*output_token_probs)[i] = sample_result.first;
+      }
+      RECORD_EVENT(this->trace_recorder_, request_ids[i], "finish sample token");
+    };
+
+    if (n == 1) {
+      f_task(0);
+    } else {
+      tvm::runtime::parallel_for_with_threading_backend(std::move(f_task), 0, n);
+    }
+
     return sampled_tokens;
   }
 
@@ -676,50 +689,6 @@ Sampler Sampler::Create(std::string sampler_kind, Optional<EventTraceRecorder> t
     LOG(FATAL) << "Unsupported sampler_kind \"" << sampler_kind << "\"";
     throw;
   }
-}
-
-namespace detail {
-
-// The detailed implementation of `parallel_for_with_threading_backend`.
-// To avoid template expansion, the implementation cannot be placed
-// in .cc files.
-
-template <typename T>
-struct ParallelForWithThreadingBackendLambdaInvoker {
-  static int TVMParallelLambdaInvoke(int task_id, TVMParallelGroupEnv* penv, void* cdata) {
-    int num_task = penv->num_task;
-    // Convert void* back to lambda type.
-    T* lambda_ptr = static_cast<T*>(cdata);
-    // Invoke the lambda with the task id (thread id).
-    (*lambda_ptr)(task_id, num_task);
-    return 0;
-  }
-};
-
-template <typename T>
-inline void parallel_launch_with_threading_backend(T flambda) {
-  // Launch the lambda by passing its address.
-  void* cdata = &flambda;
-  TVMBackendParallelLaunch(ParallelForWithThreadingBackendLambdaInvoker<T>::TVMParallelLambdaInvoke,
-                           cdata, /*num_task=*/0);
-}
-
-}  // namespace detail
-
-template <typename T>
-inline void parallel_for_with_threading_backend(T flambda, int64_t begin, int64_t end) {
-  auto flaunch = [begin, end, flambda](int task_id, int num_task) {
-    // For each thread, do static division and call into flambda.
-    int64_t total_len = end - begin;
-    int64_t step = (total_len + num_task - 1) / num_task;
-    int64_t local_begin = std::min(begin + step * task_id, end);
-    int64_t local_end = std::min(local_begin + step, end);
-    for (int64_t i = local_begin; i < local_end; ++i) {
-      flambda(i);
-    }
-  };
-  // Launch with all threads.
-  detail::parallel_launch_with_threading_backend(flaunch);
 }
 
 }  // namespace serve
