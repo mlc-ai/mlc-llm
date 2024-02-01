@@ -1150,7 +1150,7 @@ class LLMChat {
     // update logits
     if (gen_presence_penalty != 0.0f || gen_frequency_penalty != 0.0f) {
       this->UpdateLogitsOrProbOnCPUSync(logits_on_device);
-      this->ApplyPresenceAndFrequencyPenaltyOnCPU(gen_presence_penalty, gen_presence_penalty);
+      this->ApplyPresenceAndFrequencyPenaltyOnCPU(gen_presence_penalty, gen_frequency_penalty);
       if (gen_temperature >= 1e-6f) {
         this->ApplySoftmaxWithTemperatureOnCPU(gen_temperature);
       }
