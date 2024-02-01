@@ -64,9 +64,9 @@ def _load_state(state: Expr, hidden_size: int, dtype: str) -> Expr:
     # Reuse `attention_kv_cache_view`
     f_load_cache = relax.extern("vm.builtin.attention_kv_cache_view")
     cache = nn.emit(
-        relax.Call(
+        relax.call_pure_packed(
             f_load_cache,
-            [state, R.shape([1, hidden_size])],
+            args=[state, R.shape([1, hidden_size])],
             sinfo_args=[R.Tensor((1, hidden_size), dtype)],
         )
     )
@@ -78,9 +78,10 @@ def _store_state(state: Expr, value: Expr):
     f_store_cache = relax.extern("vm.builtin.attention_kv_cache_update")
 
     return nn.emit(
-        relax.Call(
+        relax.op.call_inplace_packed(
             f_store_cache,
-            [state, value],
+            args=[state, value],
+            inplace_indices=[0],
             sinfo_args=[R.Object()],
         )
     )
@@ -516,9 +517,9 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: RWKVConfig) -> None:
                 for name, init_value in conf:
                     caches.append(
                         bb.emit(
-                            relax.Call(
+                            relax.call_pure_packed(
                                 f_kv_cache_create,
-                                [init_value, init_shape, relax.PrimValue(1)],
+                                args=[init_value, init_shape, relax.PrimValue(1)],
                                 sinfo_args=[R.Object()],
                             ),
                             name_hint=f"{name}_state_{i}",

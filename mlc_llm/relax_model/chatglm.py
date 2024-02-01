@@ -284,16 +284,18 @@ class SelfAttention(nn.Module):
         k_cache, v_cache = past_key_value
         f_kv_cache_append = relax.extern("vm.builtin.attention_kv_cache_append")
         k_cache = nn.emit(
-            relax.Call(
+            relax.op.call_inplace_packed(
                 f_kv_cache_append,
                 args=[k_cache, squeezed_k],
+                inplace_indices=[0],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
         )
         v_cache = nn.emit(
-            relax.Call(
+            relax.op.call_inplace_packed(
                 f_kv_cache_append,
                 args=[v_cache, squeezed_v],
+                inplace_indices=[0],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
         )
@@ -304,14 +306,14 @@ class SelfAttention(nn.Module):
         kv_cache_shape = R.shape([kv_sl, n_groups, head_dim])
         f_kv_cache_view = relax.extern("vm.builtin.attention_kv_cache_view")
         k = nn.emit(
-            relax.Call(
+            relax.call_pure_packed(
                 f_kv_cache_view,
                 args=[k_cache, kv_cache_shape],
                 sinfo_args=[R.Tensor(kv_cache_shape, k.struct_info.dtype)],
             )
         )
         v = nn.emit(
-            relax.Call(
+            relax.call_pure_packed(
                 f_kv_cache_view,
                 args=[v_cache, kv_cache_shape],
                 sinfo_args=[R.Tensor(kv_cache_shape, v.struct_info.dtype)],
@@ -703,7 +705,7 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: ChatGLMConfig) -> None:
             for _ in range(config.num_layers * 2):
                 caches.append(
                     bb.emit(
-                        relax.Call(
+                        relax.call_pure_packed(
                             f_kv_cache_create,
                             args=[zeros, init_shape, relax.PrimValue(0)],
                             sinfo_args=[relax.ObjectStructInfo()],

@@ -91,15 +91,12 @@ class LlamaAttentionBatched(LlamaAttentionBase):
                 values_to_cache = nn.emit(take(values, indices_within_window, axis=0))
                 slot_mapping = nn.emit(take(slot_mapping, indices_within_window, axis=0))
 
-            # kv caches are updated inplace, but make it look like a pure operation
+            # kv caches are updated inplace, takes ownership of the arguments
             kv = nn.emit(
-                relax.op.call_pure_packed(
+                relax.op.call_inplace_packed(
                     "tvm.contrib.vllm.reshape_and_cache",
-                    keys_to_cache,
-                    values_to_cache,
-                    k_cache,
-                    v_cache,
-                    slot_mapping,
+                    args=[keys_to_cache, values_to_cache, k_cache, v_cache, slot_mapping],
+                    inplace_indices=[2, 3],
                     sinfo_args=[k_cache.struct_info, v_cache.struct_info],
                 )
             )
