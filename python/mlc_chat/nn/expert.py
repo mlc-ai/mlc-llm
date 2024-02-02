@@ -2,7 +2,7 @@
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor
 
-from mlc_chat.op import moe_matmul, ft_gemm, extern
+from mlc_chat.op import extern, ft_gemm, moe_matmul
 
 
 class MixtralExperts(nn.Module):

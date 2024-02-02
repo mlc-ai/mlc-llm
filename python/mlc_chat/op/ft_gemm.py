@@ -109,8 +109,8 @@ def faster_transformer_moe_gemm(  # pylint: disable=too-many-arguments
         The weight data tensor, with shape of [num_experts, n, k].
 
     total_rows_before : nn.Tensor
-        The total rows before tensor the current expert, with shape of [num_experts]. This is the same
-        as the indptr excluding the first zero element.
+        The total rows before tensor the current expert, with shape of [num_experts]. This is the
+        same as the indptr excluding the first zero element.
 
     Returns
     ------

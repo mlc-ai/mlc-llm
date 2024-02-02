@@ -198,11 +198,13 @@ def moe_cumsum(expert_indices: Tensor, num_local_experts: int) -> Tensor:
 
 def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tensor:
     """Returns a 1D tensor of indices that represents the shuffling plan for each instance in a
-    batch, so that the inputs to each experts are contiguous.
+    batch, so that the inputs to each experts are contiguous and the indices for reverse permutation
+    (scatter) to the original order.
 
-    If `indices[i] = (b, j)`, it means the `b`-th instance in the batch should be moved to the
+    If `reverse_indices[i] = (b, j)`, it means the `b`-th instance in the batch should be moved to the
     `i`-th position in shuffling, and `j` doesn not matter only meaning `expert_indices[b, j]`
-    corresponds to the expert at position `i` in the shuffling plan.
+    corresponds to the expert at position `i` in the shuffling plan. We also compute
+    `token_indices[i] = b` so that we can use `relax.op.take` for shuffling.
 
     Effectively it is equivalent to the following Python code:
 
@@ -211,7 +213,8 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tensor:
         for b in range(batch_size):
             for j in range(experts_per_tok):
                 e = expert_indices[b, j]
-                indices[cumsum[e * batch_size + b] - 1] = b * experts_per_tok + j
+                reverse_indices[cumsum[e * batch_size + b] - 1] = b * experts_per_tok + j
+                token_indices[cumsum[e * batch_size + b] - 1
 
     Parameters
     ----------
@@ -223,36 +226,48 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tensor:
 
     Returns
     -------
-    indices : Tensor
-        The indices of the experts with shape [batch_size * experts_per_tok].
+    reverse_indices : Tensor
+        The indices for scattering with shape [batch_size * experts_per_tok].
+
+    token_indices : Tensor
+        The indices for shuffling with shape [batch_size * experts_per_tok].
     """
     TX = 1024
     batch_size, experts_per_tok = expert_indices.shape
 
     @T.prim_func(private=True)
-    def _func(var_cumsum: T.handle, var_expert_indices: T.handle, var_indices: T.handle):
+    def _func(
+        var_cumsum: T.handle,
+        var_expert_indices: T.handle,
+        var_reverse_indices: T.handle,
+        var_token_indices: T.handle,
+    ):
         T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
         batch_size = T.SizeVar("batch_size", "int32")
         cumsum_len = T.SizeVar("cumsum_len", "int32")  # [experts_per_tok * batch_size]
         cumsum = T.match_buffer(var_cumsum, [cumsum_len], "int32")
         expert_indices = T.match_buffer(var_expert_indices, [batch_size, experts_per_tok], "int32")
-        indices = T.match_buffer(var_indices, [batch_size * experts_per_tok], "int32")
+        reverse_indices = T.match_buffer(
+            var_reverse_indices, [batch_size * experts_per_tok], "int32"
+        )
+        token_indices = T.match_buffer(var_token_indices, [batch_size * experts_per_tok], "int32")
         for bj_o in T.thread_binding(0, T.ceildiv(batch_size * experts_per_tok, TX), "blockIdx.x"):
             for bj_i in T.thread_binding(0, TX, "threadIdx.x"):
                 with T.block("indices"):
                     T.reads(expert_indices[:, :], cumsum[:])
-                    T.writes(indices[:])
+                    T.writes(reverse_indices[:], token_indices[:])
                     if bj_o * TX + bj_i < batch_size * experts_per_tok:
                         b: T.int32 = T.floordiv(bj_o * TX + bj_i, experts_per_tok)
                         j: T.int32 = T.floormod(bj_o * TX + bj_i, experts_per_tok)
                         e: T.int32 = expert_indices[b, j]
-                        indices[cumsum[e * batch_size + b] - 1] = b * experts_per_tok + j
+                        reverse_indices[cumsum[e * batch_size + b] - 1] = b * experts_per_tok + j
+                        token_indices[cumsum[e * batch_size + b] - 1] = b
 
     return op.tensor_ir_op(
         _func,
-        "get_flattened_expert_indices",
+        "get_indices",
         args=[cumsum, expert_indices],
-        out=Tensor.placeholder([batch_size * experts_per_tok], "int32"),
+        out=[Tensor.placeholder([batch_size * experts_per_tok], "int32") for _ in range(2)],
     )
 
 
@@ -304,6 +319,7 @@ def get_indptr(
         The `indptr` array with shape [num_local_experts + 1] if `inclusive` is True, otherwise
         [num_local_experts]. The `indptr` array is of type `out_dtype`.
     """
+
     out_shape = [num_local_experts if inclusive else num_local_experts + 1]
 
     @T.prim_func(private=True)
@@ -311,9 +327,9 @@ def get_indptr(
         T.func_attr({"tir.noalias": True})
         cumsum = T.match_buffer(var_cumsum, shape=[batch_size * num_local_experts], dtype="int32")
         indptr = T.match_buffer(var_indptr, shape=out_shape, dtype=out_dtype)
-        for vi in T.serial(0, num_local_experts + 1):
+        for vi in T.serial(0, out_shape[0]):
             with T.block("indptr"):
-                i = T.axis.spatial(num_local_experts + 1, vi)
+                i = T.axis.spatial(out_shape[0], vi)
                 indptr[i] = T.Select(i > 0, cumsum[i * batch_size - 1], T.int32(0))
 
     @T.prim_func(private=True)
@@ -321,9 +337,9 @@ def get_indptr(
         T.func_attr({"tir.noalias": True})
         cumsum = T.match_buffer(var_cumsum, shape=[batch_size * num_local_experts], dtype="int32")
         indptr = T.match_buffer(var_indptr, shape=out_shape, dtype=out_dtype)
-        for vi in T.serial(0, num_local_experts):
+        for vi in T.serial(0, out_shape[0]):
             with T.block("indptr"):
-                i = T.axis.spatial(num_local_experts, vi)
+                i = T.axis.spatial(out_shape[0], vi)
                 indptr[i] = cumsum[(i + 1) * batch_size - 1]
 
     assert cumsum.ndim == 1
