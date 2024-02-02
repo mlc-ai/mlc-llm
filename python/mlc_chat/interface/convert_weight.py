@@ -1,4 +1,5 @@
 """Python entrypoint of weight conversion."""
+
 import dataclasses
 import math
 import os
@@ -53,7 +54,7 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
 
 
 def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-locals
-    pre_shards_num = os.getenv("PRESHARD_NUM")
+    pre_shards_num = os.getenv("MLC_INTERNAL_PRESHARD_NUM")
     # model config & quantization config
     model_config = args.model.config.from_file(args.config)
     if (
