@@ -735,9 +735,9 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
     bdx = D // VEC_SIZE
     assert bdx == 32
     bdy = GROUP_SIZE
-    threads_per_CTA = max(128, bdx * bdy)
+    threads_per_CTA = max(512, bdx * bdy)
     bdz = threads_per_CTA // (bdx * bdy)
-    tile_size_per_bdx = 4 if GROUP_SIZE == 1 else 1
+    tile_size_per_bdx = 2 if GROUP_SIZE == 1 else 1
     log2e = math.log2(math.exp(1))
 
     # pylint: disable=line-too-long,too-many-arguments,too-many-branches
