@@ -565,17 +565,18 @@ Conversation StableLM3B() {
   Conversation conv;
   conv.name = "stablelm-3b";
   conv.system = "";
-  conv.roles = {"Prompt", "LM"};
+  conv.roles = {"<|user|>", "<|assistant|>"};
   conv.messages = {};
-  conv.separator_style = SeparatorStyle::kLM;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
   conv.offset = 0;
-  conv.seps = {""};
-  conv.role_msg_sep = "";
-  conv.role_empty_sep = "";
+  conv.seps = {"<|endoftext|>", "<|endoftext|>"};
+  conv.role_msg_sep = "\n";
+  conv.role_empty_sep = "\n";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
   // so the same template works for more tokenizers
   conv.stop_tokens = {0};
+  conv.stop_str = "<|endoftext|>";
   conv.add_bos = true;
   return conv;
 }
@@ -680,6 +681,25 @@ Conversation Phi2() {
   return conv;
 }
 
+Conversation StableLM2() {
+  Conversation conv;
+  conv.name = "stablelm-2";
+  conv.system = "";
+  conv.roles = {"<|user|>", "<|assistant|>"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"<|endoftext|>", "<|endoftext|>"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {100257};
+  conv.stop_str = "<|endoftext|>";
+  conv.add_bos = false;
+  return conv;
+}
+
 }  // namespace
 
 using ConvFactory = Conversation (*)();
@@ -716,7 +736,8 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"wizard_coder_or_math", WizardCoderOrMATH},
       {"glm", GLM},
       {"phi-2", Phi2},
-      {"qwen", ChatML}};
+      {"qwen", ChatML},
+      {"stablelm-2", StableLM2}};
   auto it = factory.find(name);
   if (it == factory.end()) {
     LOG(FATAL) << "Unknown conversation template: " << name;
