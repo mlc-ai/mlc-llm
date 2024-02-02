@@ -1,4 +1,5 @@
 """Generator of mlc-chat-config.json and tokenizer configuration."""
+
 import dataclasses
 import json
 import shutil
@@ -7,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from mlc_chat.model import Model
 from mlc_chat.quantization import Quantization
-from mlc_chat.support import logging
+from mlc_chat.support import convert_tiktoken, logging
 from mlc_chat.support.style import bold, green, red
 
 from .compiler_flags import ModelConfigOverride
@@ -150,6 +151,24 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
             logger.info("Succesfully converted `tokenizer.model` to: %s", tokenizer_json_save_dest)
         except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("%s with the exception below. Skipping", FAILED)
+    # 3.3. If we still don't have "tokenizer.json" at this point, try looking for "*.tiktoken" files
+    if (not tokenizer_json_file.exists()) and list(config.parent.glob("*.tiktoken")):
+        try:
+            logger.info(
+                "The model has tiktoken files but not `tokenizer.json`. "
+                "Attempting to convert from tiktoken files"
+            )
+            convert_tiktoken.convert_tiktoken(
+                str(config.parent), str(output), mlc_chat_config.context_window_size
+            )
+            mlc_chat_config.tokenizer_files.append("tokenizer.json")
+            mlc_chat_config.tokenizer_files.append("vocab.json")
+            mlc_chat_config.tokenizer_files.append("merges.txt")
+            mlc_chat_config.tokenizer_files.append("special_tokens_map.json")
+            logger.info("Succesfully converted from tiktoken files to: %s", str(output))
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("%s with the exception below. Skipping", FAILED)
+
     # Step 4. Load system default value
     mlc_chat_config.apply_defaults()
     # Step 5. Dump the configuration file to output directory
