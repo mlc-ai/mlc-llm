@@ -1,6 +1,8 @@
 """Python entrypoint of weight conversion."""
+
 import dataclasses
 import math
+import os
 from io import StringIO
 from pathlib import Path
 
@@ -15,6 +17,7 @@ from mlc_chat.loader import LOADER
 from mlc_chat.model import Model
 from mlc_chat.quantization import Quantization
 from mlc_chat.support import logging, tqdm
+from mlc_chat.support.preshard import apply_preshard
 from mlc_chat.support.style import bold, green
 
 logger = logging.getLogger(__name__)
@@ -51,6 +54,7 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
 
 
 def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-locals
+    pre_shards_num = os.getenv("MLC_INTERNAL_PRESHARD_NUM")
     # model config & quantization config
     model_config = args.model.config.from_file(args.config)
     if (
@@ -59,6 +63,8 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
         and model_config.tensor_parallel_shards > 1
     ):
         raise NotImplementedError
+    if pre_shards_num is not None:
+        model_config.tensor_parallel_shards = int(pre_shards_num)
     model, quantize_map = args.model.quantize[args.quantization.kind](
         model_config, args.quantization
     )
@@ -67,6 +73,11 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
         allow_extern=True,
     )
     named_params = dict(_named_params)
+
+    if pre_shards_num is not None:
+        preshard_funcs = apply_preshard(quantize_map, named_params, int(pre_shards_num), args)
+    else:
+        preshard_funcs = None
 
     def _check_param(name: str, param: NDArray):
         nonlocal named_params
@@ -109,7 +120,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
             extern_param_map=args.model.source[args.source_format](model_config, args.quantization),
             quantize_param_map=quantize_map,
         )
-        for name, param in loader.load(device=args.device):
+        for name, param in loader.load(device=args.device, preshard_funcs=preshard_funcs):
             _check_param(name, param)
             param = param.copyto(cpu_device())
             param_dict[name] = param

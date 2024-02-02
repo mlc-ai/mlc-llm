@@ -204,7 +204,9 @@ struct FunctionTable {
         DRef loader = loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod);
         params = loader_load_all(loader);
       } else {
-        PackedFunc loader = this->get_global_func("mlc.loader.LoadMultiGPU");
+        auto load_func_name = use_presharded_weights ? "mlc.loader.LoadMultiGPUPresharded"
+                                                     : "mlc.loader.LoadMultiGPU";
+        PackedFunc loader = this->get_global_func(load_func_name);
         params =
             loader(model_path, this->disco_mod, picojson::value(this->model_config).serialize());
       }
