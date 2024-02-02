@@ -108,8 +108,6 @@ class LlamaFFN(nn.Module):
 
 class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: LlamaConfig):
-        self.hidden_size = config.hidden_size
-        self.rope_theta = config.position_embedding_base
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
         assert (
@@ -125,32 +123,18 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
             bias=False,
         )
         self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
-        # KV cache for single sequence
-        self.k_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
-        self.v_cache = nn.KVCache(config.context_window_size, [self.num_kv_heads, self.head_dim])
 
-    def forward(  # pylint: disable=too-many-locals
-        self,
-        hidden_states: Tensor,
-        attention_mask: Tensor,
-        total_seq_len: tir.Var,
-    ):
-        d, h_q, h_kv, t = self.head_dim, self.num_q_heads, self.num_kv_heads, total_seq_len
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+        d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
         b, s, _ = hidden_states.shape
-        assert b == 1, "Only support batch size 1 at this moment."
-        # Step 1. QKV Projection
+        # QKV Projection
         qkv = self.qkv_proj(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
-        # Step 2. Apply QK rotary embedding
-        q, k, v = op_ext.llama_rope(qkv, t, self.rope_theta, h_q, h_kv)
-        # Step 3. Query and update KVCache
-        self.k_cache.append(op.squeeze(k, axis=0))
-        self.v_cache.append(op.squeeze(v, axis=0))
-        k = self.k_cache.view(t)
-        v = self.v_cache.view(t)
-        # Step 4. Compute softmax(Q @ K^T / sqrt(d)) @ V
-        output = op_ext.attention(q, k, v, casual_mask=attention_mask)
-        # Step 5. Apply output projection
+        # Attention
+        output = op.reshape(
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
+            (b, s, h_q * d),
+        )
         return self.o_proj(output)
 
     def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
@@ -192,8 +176,8 @@ class LlamaDecoderLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
-        out = self.self_attn(self.input_layernorm(hidden_states), attention_mask, total_seq_len)
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = self._apply_residual(out, residual=hidden_states)
@@ -224,12 +208,12 @@ class LlamaModel(nn.Module):
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.tensor_parallel_shards = config.tensor_parallel_shards
 
-    def forward(self, input_ids: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
+    def forward(self, input_ids: Tensor, paged_kv_cache: PagedKVCache):
         if self.tensor_parallel_shards > 1:
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
         hidden_states = self.embed_tokens(input_ids)
-        for layer in self.layers:
-            hidden_states = layer(hidden_states, attention_mask, total_seq_len)
+        for layer_id, layer in enumerate(self.layers):
+            hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
@@ -262,20 +246,6 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         if dtype is not None:
             self.dtype = dtype
 
-    def forward(self, input_ids: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
-        op_ext.configure()
-
-        def _index(x: te.Tensor):  # x[:-1,:]
-            b, s, d = x.shape
-            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
-
-        hidden_states = self.model(input_ids, total_seq_len, attention_mask)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits
-
     def batch_forward(
         self,
         input_embeds: Tensor,
@@ -295,34 +265,28 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
     def embed(self, input_ids: Tensor):
         return self.model.embed_tokens(input_ids)
 
-    def prefill(self, input_ids: Tensor, total_seq_len: tir.Var):
-        def _attention_mask(batch_size, seq_len, total_seq_len):
-            return te.compute(
-                (batch_size, 1, seq_len, total_seq_len),
-                lambda b, _, i, j: tir.if_then_else(
-                    i < j - (total_seq_len - seq_len),
-                    tir.min_value(self.dtype),
-                    tir.max_value(self.dtype),
-                ),
-                name="attention_mask_prefill",
-            )
+    def prefill(self, input_ids: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
 
-        batch_size, seq_len = input_ids.shape
-        attention_mask = op.tensor_expr_op(
-            _attention_mask,
-            name_hint="attention_mask_prefill",
-            args=[batch_size, seq_len, total_seq_len],
-        )
-        return self.forward(input_ids, total_seq_len, attention_mask)
+        def _index(x: te.Tensor):  # x[:-1,:]
+            b, s, d = x.shape
+            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-    def decode(self, input_ids: Tensor, total_seq_len: tir.Var):
-        batch_size, seq_len = input_ids.shape
-        attention_mask = op.full(
-            shape=[batch_size, 1, seq_len, total_seq_len],
-            fill_value=tir.max_value(self.dtype),
-            dtype=self.dtype,
-        )
-        return self.forward(input_ids, total_seq_len, attention_mask)
+        hidden_states = self.model(input_ids, paged_kv_cache)
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        logits = self.lm_head(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits, paged_kv_cache
+
+    def decode(self, input_ids: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
+        hidden_states = self.model(input_ids, paged_kv_cache)
+        logits = self.lm_head(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits, paged_kv_cache
 
     def batch_prefill(
         self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
@@ -399,18 +363,18 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             },
             "prefill": {
                 "input_ids": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
-                "total_seq_len": int,
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
-                    "effect_mode": "packed",
+                    "effect_mode": "none",
                 },
             },
             "decode": {
                 "input_ids": nn.spec.Tensor([batch_size, 1], "int32"),
-                "total_seq_len": int,
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
-                    "effect_mode": "packed",
+                    "effect_mode": "none",
                 },
             },
             "batch_prefill": {

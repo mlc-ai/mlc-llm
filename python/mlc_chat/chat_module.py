@@ -979,7 +979,12 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
         return self._raw_generate_func(prompt, generate_length)
 
-    def _reload(self, lib: str, model_path: str, app_config_json: str = ""):
+    def _reload(
+        self,
+        lib: str,
+        model_path: str,
+        app_config_json: str = "",
+    ):
         r"""Reload the chat module from the given library and model path.
 
         Parameters
@@ -991,7 +996,16 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         app_config_json: str
             The partial config that is used to partially override the model configuration.
         """
-        self._reload_func(lib, model_path, app_config_json)
+        from mlc_chat.serve.config import (  # pylint: disable=import-outside-toplevel
+            KVCacheConfig,
+        )
+
+        kv_cache_config = KVCacheConfig(
+            max_num_sequence=1,
+            max_total_sequence_length=self.chat_config.context_window_size,
+            prefill_chunk_size=self.chat_config.prefill_chunk_size,
+        )
+        self._reload_func(lib, model_path, app_config_json, kv_cache_config.asjson())
 
     def _unload(self):
         r"""Unload the chat module and clear memory of all loaded models."""

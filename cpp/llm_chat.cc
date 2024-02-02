@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "./metadata/model.h"
+#include "./serve/config.h"
 #include "./support/load_bytes_from_file.h"
 #include "conversation.h"
 #include "random.h"
@@ -248,18 +249,36 @@ struct FunctionTable {
     this->decode_func_ = mod_get_func("decode");
     this->softmax_func_ = mod_get_func("softmax_with_temperature");
     this->encoding_without_cache_func_ = mod_get_func("encoding_without_cache");
-    this->create_kv_cache_func_ = mod_get_func("create_kv_cache");
-    if (this->create_kv_cache_func_ == nullptr) {
-      this->create_kv_cache_func_ = mod_get_func("_initialize_effect");
-    }
-    this->reset_kv_cache_func_ = mod_get_func("reset_kv_cache");
-    if (this->reset_kv_cache_func_ == nullptr) {
-      this->reset_kv_cache_func_ = get_global_func("vm.builtin.attention_kv_cache_array_clear");
-      support_backtracking_kv_ = true;
+    PackedFunc f_flashinfer_paged_kv_cache = mod_get_func("create_flashinfer_paged_kv_cache");
+    PackedFunc f_tir_paged_kv_cache = mod_get_func("create_tir_paged_kv_cache");
+    if (f_flashinfer_paged_kv_cache != nullptr || f_tir_paged_kv_cache != nullptr) {
+      this->use_paged_kv_cache = true;
+      this->create_kv_cache_func_ = f_flashinfer_paged_kv_cache == nullptr
+                                        ? f_tir_paged_kv_cache
+                                        : f_flashinfer_paged_kv_cache;
+      this->reset_kv_cache_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_clear");
+      this->kv_cache_add_sequence_func_ =
+          get_global_func("vm.builtin.paged_attention_kv_cache_add_sequence");
+      this->kv_cache_remove_sequence_func_ =
+          get_global_func("vm.builtin.paged_attention_kv_cache_remove_sequence");
+      this->kv_cache_begin_forward_func_ =
+          get_global_func("vm.builtin.paged_attention_kv_cache_begin_forward");
+      this->kv_cache_end_forward_func_ =
+          get_global_func("vm.builtin.paged_attention_kv_cache_end_forward");
     } else {
-      support_backtracking_kv_ = false;
+      this->create_kv_cache_func_ = mod_get_func("create_kv_cache");
+      if (this->create_kv_cache_func_ == nullptr) {
+        this->create_kv_cache_func_ = mod_get_func("_initialize_effect");
+      }
+      this->reset_kv_cache_func_ = mod_get_func("reset_kv_cache");
+      if (this->reset_kv_cache_func_ == nullptr) {
+        this->reset_kv_cache_func_ = get_global_func("vm.builtin.attention_kv_cache_array_clear");
+        support_backtracking_kv_ = true;
+      } else {
+        support_backtracking_kv_ = false;
+      }
+      this->fkvcache_array_popn_ = get_global_func("vm.builtin.attention_kv_cache_array_popn");
     }
-    this->fkvcache_array_popn_ = get_global_func("vm.builtin.attention_kv_cache_array_popn");
   }
 
   ObjectRef Empty(ShapeTuple shape, DataType dtype, Device device) const {
@@ -285,6 +304,7 @@ struct FunctionTable {
   }
 
   bool use_disco = false;
+  bool use_paged_kv_cache = false;
   Session sess{nullptr};
   DRef disco_mod{nullptr};
   tvm::runtime::Module local_vm{nullptr};
@@ -301,6 +321,10 @@ struct FunctionTable {
   PackedFunc softmax_func_;
   PackedFunc create_kv_cache_func_;
   PackedFunc reset_kv_cache_func_;
+  PackedFunc kv_cache_add_sequence_func_;
+  PackedFunc kv_cache_remove_sequence_func_;
+  PackedFunc kv_cache_begin_forward_func_;
+  PackedFunc kv_cache_end_forward_func_;
   bool support_backtracking_kv_;
   PackedFunc fkvcache_array_popn_;
   ModelMetadata model_metadata_;
@@ -541,7 +565,8 @@ class LLMChat {
    * \param app_config_json The JSON string used to partially override the configuration loaded from
    * disk, default to empty string.
    */
-  void Reload(TVMArgValue reload_lib, String model_path, String app_config_json = "") {
+  void Reload(TVMArgValue reload_lib, String model_path, String app_config_json = "",
+              String kv_config_json = "") {
     // Step 1. Process config json string.
     picojson::object model_config;
     {
@@ -584,7 +609,17 @@ class LLMChat {
     // Step 5. Load params in nd-array cache.
     this->params_ = ft_.LoadParams(model_path, device_, use_presharded_weights_);
     // Step 6. KV cache creation.
-    this->kv_cache_ = ft_.create_kv_cache_func_();
+    if (ft_.use_paged_kv_cache && !kv_config_json.empty()) {
+      this->kv_cache_config_ = serve::KVCacheConfig(kv_config_json, this->max_window_size_);
+      IntTuple max_num_sequence{this->kv_cache_config_->max_num_sequence};
+      IntTuple max_total_sequence_length{this->kv_cache_config_->max_total_sequence_length};
+      IntTuple prefill_chunk_size{this->kv_cache_config_->prefill_chunk_size};
+      IntTuple page_size{this->kv_cache_config_->page_size};
+      this->kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence, max_total_sequence_length,
+                                                  prefill_chunk_size, page_size);
+    } else {
+      this->kv_cache_ = ft_.create_kv_cache_func_();
+    }
     // Step 7. Pre-allocate fixed size ndarray
     this->temperature_arr_ = NDArray::Empty({1}, DataType::Float(32), device_);
     float temperature = static_cast<float>(this->temperature_);
@@ -1279,7 +1314,14 @@ class LLMChat {
       ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray(input_tokens));
       ShapeTuple cur_pos_shape = ShapeTuple({cur_pos});
       if (sliding_window_size_ == -1) {
-        ret = ft_.prefill_func_(input_data, cur_pos_shape, kv_cache_, params_);
+        if (ft_.use_paged_kv_cache) {
+          IntTuple seq_ids_tuple({0});
+          ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, cur_pos_shape);
+          ret = ft_.prefill_func_(input_data, kv_cache_, params_);
+          ft_.kv_cache_end_forward_func_(kv_cache_);
+        } else {
+          ret = ft_.prefill_func_(input_data, cur_pos_shape, kv_cache_, params_);
+        }
       } else {
         // Sliding window attention needs extra shape parameters
         int64_t seq_len = static_cast<int64_t>(input_tokens.size());
@@ -1305,7 +1347,15 @@ class LLMChat {
         int64_t pos = cur_pos + i + 1 - input_tokens.size();
         ShapeTuple pos_shape = ShapeTuple({pos});
         if (sliding_window_size_ == -1) {
-          ret = ft_.decode_func_(input_data, pos_shape, kv_cache_, params_);
+          if (ft_.use_paged_kv_cache) {
+            IntTuple seq_ids_tuple({0});
+            IntTuple append_length({1});
+            ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, append_length);
+            ret = ft_.decode_func_(input_data, kv_cache_, params_);
+            ft_.kv_cache_end_forward_func_(kv_cache_);
+          } else {
+            ret = ft_.decode_func_(input_data, pos_shape, kv_cache_, params_);
+          }
         } else {
           // Sliding window attention needs extra shape parameters
           int64_t seq_len = static_cast<int64_t>(input_tokens.size());
@@ -1409,7 +1459,12 @@ class LLMChat {
   }
 
   // Clear kv cache
-  void ResetKVCache() { ft_.reset_kv_cache_func_(kv_cache_); }
+  void ResetKVCache() {
+    ft_.reset_kv_cache_func_(kv_cache_);
+    if (ft_.use_paged_kv_cache) {
+      ft_.kv_cache_add_sequence_func_(kv_cache_, 0);
+    }
+  }
 
   void ProcessSystemPrompts() {
     this->PrefillStep(/*inp=*/"", /*append_conversation=*/false, /*decode_next_token=*/false);
@@ -1513,6 +1568,8 @@ class LLMChat {
   NDArray logits_on_cpu_{nullptr};
   // pre-allocated ndarray for decode function's input tokens
   DRef input_tokens_decode_{nullptr};
+  // KV cache config
+  serve::KVCacheConfig kv_cache_config_{nullptr};
 };
 
 /*!
@@ -1540,13 +1597,17 @@ class LLMChatModule : public ModuleNode {
         chat_ = nullptr;
         ClearGlobalMemoryManager();
         chat_ = std::make_unique<LLMChat>(LLMChat(device_));
-        ICHECK(2 <= args.size() && args.size() <= 3);
+        ICHECK(2 <= args.size() && args.size() <= 4);
         if (args.size() == 2) {
           // args: reload_lib, model_path
           chat_->Reload(args[0], args[1]);
         } else if (args.size() == 3) {
           // args: reload_lib, model_path, app_config_json (used for overriding config)
           chat_->Reload(args[0], args[1], args[2]);
+        } else if (args.size() == 4) {
+          // args: reload_lib, model_path, app_config_json (used for overriding config),
+          // kv_cache_config
+          chat_->Reload(args[0], args[1], args[2], args[3]);
         }
       });
     } else if (name == "unload") {
