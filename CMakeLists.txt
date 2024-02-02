@@ -96,6 +96,7 @@ set_target_properties(mlc_llm_static PROPERTIES OUTPUT_NAME mlc_llm)
 
 target_link_libraries(mlc_llm PUBLIC tvm_runtime)
 target_link_libraries(mlc_llm PRIVATE tokenizers_cpp)
+target_link_libraries(mlc_llm PUBLIC -lstdc++fs)
 
 find_library(FLASH_ATTN_LIBRARY flash_attn)
 
