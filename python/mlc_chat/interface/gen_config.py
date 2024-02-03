@@ -199,4 +199,5 @@ CONV_TEMPLATES = {
     "glm",
     "custom",  # for web-llm only
     "phi-2",
+    "stablelm-2",
 }
