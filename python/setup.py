@@ -106,6 +106,7 @@ def main():
             "safetensors",
             "requests",
             "tqdm",
+            "tiktoken",
         ],
         distclass=BinaryDistribution,
         **setup_kwargs,
