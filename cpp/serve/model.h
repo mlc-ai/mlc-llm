@@ -123,6 +123,15 @@ class ModelObj : public Object {
 
   /*********************** Utilities  ***********************/
 
+  /*!
+   * \brief Estimate number of CPU units required to drive the model
+   * executing during TP.
+   * \note This normally equals to the number of TP shards (or 0 if
+   * the model does not use TP) and can be used to hint runtime to
+   * avoid overuse cores in other places.
+   */
+  virtual int EstimateHostCPURequirement() const = 0;
+
   /*! \brief Get the max window size of the model. */
   virtual int GetMaxWindowSize() const = 0;
 
