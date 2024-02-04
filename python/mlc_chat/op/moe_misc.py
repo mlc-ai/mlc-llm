@@ -196,7 +196,7 @@ def moe_cumsum(expert_indices: Tensor, num_local_experts: int) -> Tensor:
         return op.tensor_expr_op(inclusive_scan, "cumsum", args=[expert_mask, 0, "int32"])  # type: ignore[list-item]
 
 
-def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tensor:
+def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]:
     """Returns a 1D tensor of indices that represents the shuffling plan for each instance in a
     batch, so that the inputs to each experts are contiguous and the indices for reverse permutation
     (scatter) to the original order.
