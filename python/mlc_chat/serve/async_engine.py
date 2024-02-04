@@ -1,6 +1,7 @@
 """The MLC LLM Asynchronous Serving Engine.
 Acknowledgment: Part of the code was adapted from the vLLM project.
 """
+
 import asyncio
 import sys
 import threading
@@ -8,7 +9,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
 import tvm
 
-from ..streamer import StopStringHandler, TextStreamer
+from ..streamer import TextStreamer
 from ..tokenizer import Tokenizer
 from . import data
 from .config import EngineMode, GenerationConfig, KVCacheConfig
@@ -152,9 +153,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             engine_mode = EngineMode()
 
         # The mapping from request ids to request asynchronous stream.
-        self._request_tools: Dict[
-            str, Tuple[AsyncRequestStream, TextStreamer, StopStringHandler]
-        ] = {}
+        self._request_tools: Dict[str, Tuple[AsyncRequestStream, TextStreamer]] = {}
 
         def _background_loop():
             self._ffi["init_background_engine"](
@@ -227,11 +226,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             )
         else:
             # Record the stream in the tracker
-            self._request_tools[request_id] = (
-                stream,
-                TextStreamer(self.tokenizer),
-                StopStringHandler(generation_config.stop_strs),
-            )
+            self._request_tools[request_id] = (stream, TextStreamer(self.tokenizer))
             self._ffi["add_request"](request)
 
         # Iterate the stream asynchronously and yield the token.
@@ -289,21 +284,13 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
                 continue
 
             self.record_event(request_id, event="start callback")
-            stream, text_streamer, stop_handler = tools
+            stream, text_streamer = tools
 
             self.record_event(request_id, event="start detokenization")
             delta_token_ids = delta_tokens.token_ids
-            delta_text = stop_handler.put(text_streamer.put(delta_token_ids))
-            if stop_handler.stop_triggered:
-                finish_reason = "stop"
-                self._abort(request_id)
-            elif finish_reason is not None:
-                delta_text += stop_handler.put(text_streamer.finish())
-                if stop_handler.stop_triggered:
-                    finish_reason = "stop"
-                    self._abort(request_id)
-                else:
-                    delta_text += stop_handler.finish()
+            delta_text = text_streamer.put(delta_token_ids)
+            if finish_reason is not None:
+                delta_text += text_streamer.finish()
             self.record_event(request_id, event="finish detokenization")
 
             # Push new delta text to the stream.

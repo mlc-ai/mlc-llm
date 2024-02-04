@@ -14,13 +14,15 @@ Here "MLC_LLAMA_TOKENIZER_PATH" can be chosen from
 To directly run the Python file (a.k.a., not using pytest), you also need to
 specify the tokenizer path via environment variable.
 """
+
 # pylint: disable=missing-function-docstring
 import os
+import time
 from typing import List, Tuple
 
 import pytest
 
-from mlc_chat.streamer import StopStringHandler, TextStreamer
+from mlc_chat.streamer import StopStrHandler, TextStreamer
 from mlc_chat.tokenizer import Tokenizer
 
 # fmt: off
@@ -75,28 +77,26 @@ def test_text_streamer(llama_tokenizer_path: str):  # pylint: disable=redefined-
 
 
 def stop_handler_process_tokens(
-    stop_handler: StopStringHandler, text_streamer: TextStreamer, tokens: List[int]
+    stop_handler: StopStrHandler, tokens: List[int], tokenizer: Tokenizer
 ) -> str:
-    total_text = ""
+    returned_tokens = []
     for token in tokens:
-        total_text += stop_handler.put(text_streamer.put([token]))
+        returned_tokens += stop_handler.put(token)
         if stop_handler.stop_triggered:
-            return total_text
+            break
 
-    total_text += stop_handler.put(text_streamer.finish())
-    if stop_handler.stop_triggered:
-        return total_text
+    if not stop_handler.stop_triggered:
+        returned_tokens += stop_handler.finish()
 
-    total_text += stop_handler.finish()
-    return total_text
+    return tokenizer.decode(returned_tokens)
 
 
 def test_stop_str_handler_stop(llama_tokenizer_path: str):  # pylint: disable=redefined-outer-name
     stop_strs = [" 🤔"]
-    text_streamer = TextStreamer(Tokenizer(llama_tokenizer_path))
-    stop_handler = StopStringHandler(stop_strs)
+    tokenizer = Tokenizer(llama_tokenizer_path)
+    stop_handler = StopStrHandler(stop_strs, tokenizer)
 
-    total_text = stop_handler_process_tokens(stop_handler, text_streamer, para_input_tokens)
+    total_text = stop_handler_process_tokens(stop_handler, para_input_tokens, tokenizer)
     expected_text = (
         "Sure, here's a short paragraph about emoji, "
         "where each word is followed by an emoji:\n\n"
@@ -110,11 +110,53 @@ def test_stop_str_handler_not_stop(
     llama_tokenizer_path: str,  # pylint: disable=redefined-outer-name
 ):
     stop_strs = ["^^"]
-    text_streamer = TextStreamer(Tokenizer(llama_tokenizer_path))
-    stop_handler = StopStringHandler(stop_strs)
+    tokenizer = Tokenizer(llama_tokenizer_path)
+    stop_handler = StopStrHandler(stop_strs, tokenizer)
 
-    total_text = stop_handler_process_tokens(stop_handler, text_streamer, para_input_tokens)
+    total_text = stop_handler_process_tokens(stop_handler, para_input_tokens, tokenizer)
     assert total_text == DECODED_PARAGRAPH
+
+
+def test_stop_str_handler_return_cached_tokens(
+    llama_tokenizer_path: str,  # pylint: disable=redefined-outer-name
+):
+    tokens = para_input_tokens[:26]  # until "\n\n"
+    stop_strs = ["\n\n\n"]
+    tokenizer = Tokenizer(llama_tokenizer_path)
+    stop_handler = StopStrHandler(stop_strs, tokenizer)
+
+    total_text = stop_handler_process_tokens(stop_handler, tokens, tokenizer)
+    expected_text = (
+        "Sure, here's a short paragraph about emoji, "
+        "where each word is followed by an emoji:\n\n"
+    )
+
+    assert total_text == expected_text
+
+
+def test_stop_str_handler_throughput(
+    llama_tokenizer_path: str,  # pylint: disable=redefined-outer-name
+):
+    stop_strs = ["[INST]"]
+    tokenizer = Tokenizer(llama_tokenizer_path)
+    stop_handler = StopStrHandler(stop_strs, tokenizer)
+
+    tokens = para_input_tokens * 20
+    returned_tokens = []
+
+    tbegin = time.perf_counter()
+    for token in tokens:
+        returned_tokens += stop_handler.put(token)
+        assert not stop_handler.stop_triggered
+    tend = time.perf_counter()
+
+    throughput = len(tokens) / (tend - tbegin)
+    print(
+        f"num tokens = {len(tokens)}, "
+        f"time elapsed = {tend - tbegin:.5f} sec, "
+        f"throughput = {throughput}"
+    )
+    assert throughput >= 100000
 
 
 emoji_tokens_expected_result = [
@@ -149,6 +191,8 @@ if __name__ == "__main__":
     test_text_streamer(tokenizer_path)
     test_stop_str_handler_stop(tokenizer_path)
     test_stop_str_handler_not_stop(tokenizer_path)
+    test_stop_str_handler_return_cached_tokens(tokenizer_path)
+    test_stop_str_handler_throughput(tokenizer_path)
 
     for tokens_and_res in emoji_tokens_expected_result:
         test_text_streamer_emojis(tokenizer_path, tokens_and_res)

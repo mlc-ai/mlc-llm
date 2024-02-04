@@ -151,120 +151,134 @@ TVM_REGISTER_GLOBAL("mlc.TextStreamerFinish")
 
 /****************** StopStrHandler ******************/
 
-TVM_REGISTER_OBJECT_TYPE(StopStringHandlerObj);
+TVM_REGISTER_OBJECT_TYPE(StopStrHandlerObj);
 
-StopStringHandlerObj::StopStringHandlerObj(std::vector<std::string> stop_strs)
-    : stop_strs_(std::move(stop_strs)) {
-  max_stop_str_length_ = 0;
-  for (const std::string& stop_str : stop_strs_) {
-    max_stop_str_length_ = std::max(max_stop_str_length_, static_cast<int>(stop_str.length()));
-  }
-  if (!stop_strs_.empty()) {
-    CHECK_GT(max_stop_str_length_, 0);
-  }
-}
-
-/*!
- * \brief Find the valid UTF-8 cutoff point in the input string
- * in front of the input position, so that the substring in front
- * of the cutoff point is a valid UTF-8 string.
- */
-inline int FindUTF8CutoffPosition(const std::string& str, int pos) {
-  static constexpr const char* error_msg = "The input string is invalid UTF-8 encoded.";
-  ICHECK_GE(pos, 0);
-  ICHECK_LT(pos, static_cast<int>(str.length()));
-
-  for (int i = 0; i < 4 && pos - i > 0; ++i) {
-    unsigned char byte = static_cast<unsigned char>(str[pos - i - 1]);
-    if (byte <= 0x7F) {
-      // Single-byte character (ASCII)
-      ICHECK_EQ(i, 0);
-      return pos;
-    } else if (byte >= 0xC0 && byte <= 0xDF) {
-      ICHECK_LE(i, 1);
-      return i == 1 ? pos : pos - i - 1;
-    } else if (byte >= 0xE0 && byte <= 0xEF) {
-      ICHECK_LE(i, 2);
-      return i == 2 ? pos : pos - i - 1;
-    } else if (byte >= 0xF0 && byte <= 0xF7) {
-      return i == 3 ? pos : pos - i - 1;
+/*! \brief Create the KMP partial match table for the input string. */
+inline std::vector<int> CreatePartialMatchTable(const String& str) {
+  int length = str.length();
+  std::vector<int> partial_match_table = {-1};
+  partial_match_table.reserve(length);
+  for (int i = 1; i < length; ++i) {
+    int ptr = partial_match_table[i - 1];
+    while (ptr != -1 && str.at(ptr) != str.at(i - 1)) {
+      ptr = partial_match_table[ptr];
     }
+    partial_match_table.push_back(ptr + 1);
   }
-  ICHECK(false) << "Cannot reach here.";
-  throw;
+  return partial_match_table;
 }
 
-std::string StopStringHandlerObj::Put(std::string input_delta_str) {
-  CHECK(!stop_triggered_) << "`put` is not expected to be invoked after stopped.";
-  if (stop_triggered_) {
-    return "";
-  }
+StopStrHandlerObj::StopStrHandlerObj(Array<String> stop_strs,
+                                     const std::unordered_map<int32_t, std::string>& token_table)
+    : stop_strs_(std::move(stop_strs)), token_table_(token_table) {
+  int num_stop_strs = stop_strs_.size();
+  cur_match_lengths_.resize(num_stop_strs, 0);
 
-  // - Decode the new tokens and get the delta string.
-  //   Concatenate to the suffix.
-  if (input_delta_str.empty()) {
-    return "";
+  // Create the KMP partial match table for each stop string.
+  partial_match_tables_.reserve(num_stop_strs);
+  for (const String& stop_str : stop_strs_) {
+    partial_match_tables_.push_back(CreatePartialMatchTable(stop_str));
   }
+}
+
+std::vector<int32_t> StopStrHandlerObj::Put(int32_t token_id) {
+  // Return the input token id if there is no stop string.
   if (stop_strs_.empty()) {
-    return input_delta_str;
-  }
-  pending_str_ += input_delta_str;
-
-  // - Check if any stop strings appear.
-  size_t earliest_occurrence_pos = std::string::npos;
-  for (const std::string& stop_str : stop_strs_) {
-    earliest_occurrence_pos = std::min(earliest_occurrence_pos, pending_str_.find(stop_str));
+    return {token_id};
   }
 
-  // - Return the prefix if any stop strings appear.
-  if (earliest_occurrence_pos != std::string::npos) {
-    stop_triggered_ = true;
-    return pending_str_.substr(0, earliest_occurrence_pos);
+  CHECK(!stop_triggered_) << "Cannot put new token when already stopped.";
+
+  auto it_token = token_table_.find(token_id);
+  ICHECK(it_token != token_table_.end());
+  const std::string& token = it_token->second;
+  pending_token_ids_.push_back(token_id);
+  pending_token_lengths_.push_back(token.length());
+
+  std::vector<int32_t> return_token_ids;
+
+  for (char ch : token) {
+    // The earliest starting point of stop string.
+    int stop_starting_pos = std::numeric_limits<int>::max();
+    // The cutoff length that can be safely return.
+    int cutoff_length = std::numeric_limits<int>::max();
+    // The maximum matched length.
+    int max_match_length = 0;
+
+    for (int str_id = 0; str_id < static_cast<int>(stop_strs_.size()); ++str_id) {
+      // - Run one step of KMP algorithm.
+      const std::vector<int>& partial_match_table = partial_match_tables_[str_id];
+      int& cur_match_length = cur_match_lengths_[str_id];
+      while (cur_match_length != -1 && ch != stop_strs_[str_id].at(cur_match_length)) {
+        cur_match_length = partial_match_table[cur_match_length];
+      }
+      ++cur_match_length;
+
+      // Case 1. The stop string is matched.
+      if (cur_match_length == stop_strs_[str_id].length()) {
+        stop_triggered_ = true;
+        stop_starting_pos =
+            std::min(stop_starting_pos,
+                     pending_string_len_ + 1 - static_cast<int>(stop_strs_[str_id].length()));
+        continue;
+      }
+
+      // Case 2. The stop string is not matched.
+      // - Get the cutoff length that can be safely return.
+      ICHECK_GE(pending_string_len_ + 1, cur_match_length);
+      cutoff_length = std::min(cutoff_length, pending_string_len_ + 1 - cur_match_length);
+      // - Get the updated pending string length.
+      max_match_length = std::max(max_match_length, cur_match_length);
+    }
+
+    // Collect the token ids that can be safely cut off and returned.
+    if (stop_triggered_) {
+      cutoff_length = stop_starting_pos;
+    }
+    ICHECK_NE(cutoff_length, std::numeric_limits<int>::max());
+    ICHECK_GE(cutoff_length, 0);
+    int cum_length = 0;
+    while (!pending_token_ids_.empty() &&
+           cum_length + pending_token_lengths_.front() <= cutoff_length) {
+      cum_length += pending_token_lengths_.front();
+      return_token_ids.push_back(pending_token_ids_.front());
+      pending_token_ids_.erase(pending_token_ids_.begin());
+      pending_token_lengths_.erase(pending_token_lengths_.begin());
+    }
+    if (stop_triggered_) {
+      return return_token_ids;
+    }
+
+    ICHECK_LE(cum_length, cutoff_length);
+    // `cum_length` is the prefix length what we actually cut off.
+    pending_string_len_ = (cutoff_length - cum_length) + max_match_length;
   }
-  // - Update the suffix.
-  int pending_str_length = static_cast<int>(pending_str_.length());
-  if (pending_str_length > max_stop_str_length_ - 1) {
-    // Note that we cannot return UTF-8 invalid strings.
-    // So we always need to find a cutoff position so that
-    // the cut substring is UTF-8 valid.
-    int cutoff_pos =
-        FindUTF8CutoffPosition(pending_str_, pending_str_length - (max_stop_str_length_ - 1));
-    // - Return suffix[:cutoff_pos]
-    // - Update suffix to suffix[cutoff_pos:]
-    std::string output_delta_str = pending_str_.substr(0, cutoff_pos);
-    ICHECK_GE(cutoff_pos, 0);
-    pending_str_ = pending_str_.substr(cutoff_pos);
-    return output_delta_str;
-  } else {
-    // Suffix is not long enough for return.
-    return "";
-  }
+  return return_token_ids;
 }
 
-std::string StopStringHandlerObj::Finish() {
-  std::string ret = pending_str_;
-  pending_str_ = "";
-  return ret;
+StopStrHandler::StopStrHandler(Array<String> stop_strs,
+                               const std::unordered_map<int32_t, std::string>& token_table) {
+  data_ = make_object<StopStrHandlerObj>(std::move(stop_strs), token_table);
 }
 
-StopStringHandler::StopStringHandler(std::vector<std::string> stop_strs) {
-  data_ = make_object<StopStringHandlerObj>(std::move(stop_strs));
-}
-
-TVM_REGISTER_GLOBAL("mlc.StopStringHandler").set_body_typed([](Array<String> stop_strs) {
-  return StopStringHandler({stop_strs.begin(), stop_strs.end()});
-});
-
-TVM_REGISTER_GLOBAL("mlc.StopStringHandlerPut")
-    .set_body_typed([](StopStringHandler handler, String input_delta_str) {
-      return handler->Put(std::move(input_delta_str));
+TVM_REGISTER_GLOBAL("mlc.StopStrHandler")
+    .set_body_typed([](Array<String> stop_strs, const Tokenizer& tokenizer) {
+      return StopStrHandler(std::move(stop_strs), tokenizer->TokenTable());
     });
 
-TVM_REGISTER_GLOBAL("mlc.StopStringHandlerFinish")
-    .set_body_method<StopStringHandler>(&StopStringHandlerObj::Finish);
+TVM_REGISTER_GLOBAL("mlc.StopStrHandlerPut")
+    .set_body_typed([](StopStrHandler handler, int token_id) {
+      std::vector<int32_t> delta_tokens = handler->Put(token_id);
+      return IntTuple(delta_tokens.begin(), delta_tokens.end());
+    });
 
-TVM_REGISTER_GLOBAL("mlc.StopStringHandlerStopTriggered")
-    .set_body_method<StopStringHandler>(&StopStringHandlerObj::StopTriggered);
+TVM_REGISTER_GLOBAL("mlc.StopStringHandlerFinish").set_body_typed([](StopStrHandler handler) {
+  std::vector<int32_t> remaining_token_ids = handler->Finish();
+  return IntTuple(remaining_token_ids.begin(), remaining_token_ids.end());
+});
+
+TVM_REGISTER_GLOBAL("mlc.StopStrHandlerStopTriggered")
+    .set_body_method<StopStrHandler>(&StopStrHandlerObj::StopTriggered);
 
 }  // namespace llm
 }  // namespace mlc

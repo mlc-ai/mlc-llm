@@ -57,24 +57,15 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
   // - Collect new generated tokens and finish reasons for requests.
   for (Request request : requests) {
     RequestState rstate = estate->GetRequestState(request);
-    Optional<String> finish_reason = rstate->GenerationFinished(max_single_sequence_length);
-    int num_committed_tokens = rstate->mstates[0]->committed_tokens.size();
+    auto [delta_token_ids, finish_reason] = rstate->GetReturnTokenIds(max_single_sequence_length);
 
-    // Check if there are new committed tokens.
-    // If so, we will invoke the callback function for it.
-    ICHECK_LE(rstate->next_callback_token_pos, num_committed_tokens);
-    if (rstate->next_callback_token_pos == num_committed_tokens && !finish_reason.defined()) {
+    // When there is no new delta tokens nor a finish reason, no need to invoke callback.
+    if (delta_token_ids.empty() && !finish_reason.defined()) {
       continue;
     }
 
-    callback_delta_outputs.push_back(RequestStreamOutput(
-        request->id,
-        TokenData(
-            IntTuple(rstate->mstates[0]->committed_tokens.begin() + rstate->next_callback_token_pos,
-                     rstate->mstates[0]->committed_tokens.end())),
-        finish_reason));
-    rstate->next_callback_token_pos = num_committed_tokens;
-
+    callback_delta_outputs.push_back(
+        RequestStreamOutput(request->id, TokenData(delta_token_ids), finish_reason));
     if (finish_reason.defined()) {
       finished_requests.push_back(request);
     }
