@@ -147,7 +147,7 @@ class RequestStateNode : public Object {
 class RequestState : public ObjectRef {
  public:
   explicit RequestState(Request request, int num_models, int64_t internal_id,
-                        const std::unordered_map<int32_t, std::string>& token_table);
+                        const std::vector<std::string>& token_table);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestState, ObjectRef, RequestStateNode);
 };

@@ -31,7 +31,7 @@ class TokenizerObj : public Object {
   /*! \brief Decode token ids into text. */
   std::string Decode(const std::vector<int32_t>& token_ids) const;
   /*! \brief Return the token table of the tokenizer. */
-  const std::unordered_map<int32_t, std::string>& TokenTable();
+  const std::vector<std::string>& TokenTable();
 
   static constexpr const char* _type_key = "mlc.Tokenizer";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -40,7 +40,7 @@ class TokenizerObj : public Object {
 
  private:
   /*! \brief The cached token table. */
-  std::unordered_map<int32_t, std::string> token_table_;
+  std::vector<std::string> token_table_;
 };
 
 class Tokenizer : public ObjectRef {

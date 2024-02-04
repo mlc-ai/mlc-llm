@@ -169,7 +169,7 @@ inline std::vector<int> CreatePartialMatchTable(const String& str) {
 }
 
 StopStrHandlerObj::StopStrHandlerObj(Array<String> stop_strs,
-                                     const std::unordered_map<int32_t, std::string>& token_table)
+                                     const std::vector<std::string>& token_table)
     : stop_strs_(std::move(stop_strs)), token_table_(token_table) {
   int num_stop_strs = stop_strs_.size();
   cur_match_lengths_.resize(num_stop_strs, 0);
@@ -189,9 +189,8 @@ std::vector<int32_t> StopStrHandlerObj::Put(int32_t token_id) {
 
   CHECK(!stop_triggered_) << "Cannot put new token when already stopped.";
 
-  auto it_token = token_table_.find(token_id);
-  ICHECK(it_token != token_table_.end());
-  const std::string& token = it_token->second;
+  ICHECK_LT(token_id, static_cast<int>(token_table_.size()));
+  const std::string& token = token_table_[token_id];
   pending_token_ids_.push_back(token_id);
   pending_token_lengths_.push_back(token.length());
 
@@ -257,7 +256,7 @@ std::vector<int32_t> StopStrHandlerObj::Put(int32_t token_id) {
 }
 
 StopStrHandler::StopStrHandler(Array<String> stop_strs,
-                               const std::unordered_map<int32_t, std::string>& token_table) {
+                               const std::vector<std::string>& token_table) {
   data_ = make_object<StopStrHandlerObj>(std::move(stop_strs), token_table);
 }
 

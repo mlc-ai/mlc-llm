@@ -77,8 +77,7 @@ class TextStreamer : public ObjectRef {
  */
 class StopStrHandlerObj : public Object {
  public:
-  explicit StopStrHandlerObj(Array<String> stop_strs,
-                             const std::unordered_map<int32_t, std::string>& token_table);
+  explicit StopStrHandlerObj(Array<String> stop_strs, const std::vector<std::string>& token_table);
 
   /*!
    * \brief Add new input delta token to the handler, return output
@@ -103,7 +102,7 @@ class StopStrHandlerObj : public Object {
   /*! \brief The partial match table for each stop string in the KMP algorithm. */
   std::vector<std::vector<int>> partial_match_tables_;
   /*! \brief The tokenizer token table for token id lookup. */
-  const std::unordered_map<int32_t, std::string>& token_table_;
+  const std::vector<std::string>& token_table_;
 
   /************ Global states across all stop strings. ************/
 
@@ -128,8 +127,7 @@ class StopStrHandlerObj : public Object {
  */
 class StopStrHandler : public ObjectRef {
  public:
-  explicit StopStrHandler(Array<String> stop_strs,
-                          const std::unordered_map<int32_t, std::string>& token_table);
+  explicit StopStrHandler(Array<String> stop_strs, const std::vector<std::string>& token_table);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(StopStrHandler, ObjectRef, StopStrHandlerObj);
 };

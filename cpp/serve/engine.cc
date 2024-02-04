@@ -184,7 +184,7 @@ class EngineImpl : public Engine {
   int max_single_sequence_length_;
   Sampler sampler_;
   Tokenizer tokenizer_;
-  std::unordered_map<int32_t, std::string> token_table_;
+  std::vector<std::string> token_table_;
   // Models
   Array<Model> models_;
   // Request stream callback function
