@@ -3,7 +3,7 @@ import gc
 import json
 from collections import OrderedDict, defaultdict
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
@@ -11,6 +11,7 @@ from tvm.runtime import Device, NDArray
 from tvm.runtime.ndarray import array as as_ndarray
 
 from mlc_chat.support import logging
+from mlc_chat.support.preshard import _sharded_param_name
 from mlc_chat.support.style import bold
 
 from .mapping import ExternMapping, QuantizeMapping
@@ -96,7 +97,9 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
             raise FileNotFoundError(f"Unknown file suffix: {path}")
         check_parameter_usage(extern_param_map, set(self.torch_to_path.keys()))
 
-    def load(self, device: Device) -> Iterator[Tuple[str, NDArray]]:
+    def load(
+        self, device: Device, preshard_funcs: Dict[str, Callable] = None
+    ) -> Iterator[Tuple[str, NDArray]]:
         """Load the parameters and yield the MLC parameter and its value.
 
         Parameters
@@ -112,28 +115,14 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         mlc_names = _loading_order(self.extern_param_map, self.torch_to_path)
         for mlc_name in tqdm(mlc_names):
             param = self._load_mlc_param(mlc_name, device=device)
-            if self.quantize_param_map and mlc_name in self.quantize_param_map.param_map:
-                with self.stats.timer("quant_time_sec"):
-                    q_names = self.quantize_param_map.param_map[mlc_name]
-                    q_params = self.quantize_param_map.map_func[mlc_name](param)
-                    device.sync()
-                for q_name, q_param in zip(q_names, q_params):
-                    logger.info(
-                        '[Quantized] Parameter: "%s", shape: %s, dtype: %s',
-                        bold(q_name),
-                        q_param.shape,
-                        q_param.dtype,
-                    )
-                    yield q_name, q_param
+            if preshard_funcs is not None and mlc_name in preshard_funcs:
+                sharded_params = preshard_funcs[mlc_name](param)
+                for i, sharded_param in enumerate(sharded_params):
+                    sharded_name = _sharded_param_name(mlc_name, i)
+                    yield from self._load_or_quantize(sharded_name, sharded_param, device)
             else:
-                logger.info(
-                    '[Not quantized] Parameter: "%s", shape: %s, dtype: %s',
-                    bold(mlc_name),
-                    param.shape,
-                    param.dtype,
-                )
-                device.sync()
-                yield mlc_name, param
+                yield from self._load_or_quantize(mlc_name, param, device)
+
         cached_files = list(self.cached_files.keys())
         for path in cached_files:
             self._unload_file(path)
@@ -164,6 +153,30 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         if device:
             return as_ndarray(param, device=device)
         return as_ndarray(param)
+
+    def _load_or_quantize(self, mlc_name, param, device: Device):
+        if self.quantize_param_map and mlc_name in self.quantize_param_map.param_map:
+            with self.stats.timer("quant_time_sec"):
+                q_names = self.quantize_param_map.param_map[mlc_name]
+                q_params = self.quantize_param_map.map_func[mlc_name](param)
+                device.sync()
+            for q_name, q_param in zip(q_names, q_params):
+                logger.info(
+                    '[Quantized] Parameter: "%s", shape: %s, dtype: %s',
+                    bold(q_name),
+                    q_param.shape,
+                    q_param.dtype,
+                )
+                yield q_name, q_param
+        else:
+            logger.info(
+                '[Not quantized] Parameter: "%s", shape: %s, dtype: %s',
+                bold(mlc_name),
+                param.shape,
+                param.dtype,
+            )
+            device.sync()
+            yield mlc_name, param
 
     def _load_file(self, path: Path) -> None:
         logger.info("Loading HF parameters from: %s", path)

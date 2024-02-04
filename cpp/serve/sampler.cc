@@ -678,50 +678,6 @@ Sampler Sampler::Create(std::string sampler_kind, Optional<EventTraceRecorder> t
   }
 }
 
-namespace detail {
-
-// The detailed implementation of `parallel_for_with_threading_backend`.
-// To avoid template expansion, the implementation cannot be placed
-// in .cc files.
-
-template <typename T>
-struct ParallelForWithThreadingBackendLambdaInvoker {
-  static int TVMParallelLambdaInvoke(int task_id, TVMParallelGroupEnv* penv, void* cdata) {
-    int num_task = penv->num_task;
-    // Convert void* back to lambda type.
-    T* lambda_ptr = static_cast<T*>(cdata);
-    // Invoke the lambda with the task id (thread id).
-    (*lambda_ptr)(task_id, num_task);
-    return 0;
-  }
-};
-
-template <typename T>
-inline void parallel_launch_with_threading_backend(T flambda) {
-  // Launch the lambda by passing its address.
-  void* cdata = &flambda;
-  TVMBackendParallelLaunch(ParallelForWithThreadingBackendLambdaInvoker<T>::TVMParallelLambdaInvoke,
-                           cdata, /*num_task=*/0);
-}
-
-}  // namespace detail
-
-template <typename T>
-inline void parallel_for_with_threading_backend(T flambda, int64_t begin, int64_t end) {
-  auto flaunch = [begin, end, flambda](int task_id, int num_task) {
-    // For each thread, do static division and call into flambda.
-    int64_t total_len = end - begin;
-    int64_t step = (total_len + num_task - 1) / num_task;
-    int64_t local_begin = std::min(begin + step * task_id, end);
-    int64_t local_end = std::min(local_begin + step, end);
-    for (int64_t i = local_begin; i < local_end; ++i) {
-      flambda(i);
-    }
-  };
-  // Launch with all threads.
-  detail::parallel_launch_with_threading_backend(flaunch);
-}
-
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc
