@@ -295,6 +295,7 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
                 prompt, generation_cfg, request_id
             ):
                 if delta_text == "":
+                    async_engine.record_event(request_id, event="skip empty delta text")
                     # Ignore empty delta text -- do not yield.
                     continue
 
@@ -309,6 +310,7 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
                     model=request.model,
                     system_fingerprint="",
                 )
+                async_engine.record_event(request_id, event=f"yield delta text {delta_text}")
                 yield f"data: {response.model_dump_json()}\n\n"
             async_engine.record_event(request_id, event="finish")
             yield "data: [DONE]\n\n"

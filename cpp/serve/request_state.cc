@@ -57,7 +57,7 @@ void RequestModelStateNode::RemoveAllDraftTokens() {
 TVM_REGISTER_OBJECT_TYPE(RequestStateNode);
 
 RequestState::RequestState(Request request, int num_models, int64_t internal_id,
-                           const std::unordered_map<int32_t, std::string>& token_table) {
+                           const std::vector<std::string>& token_table) {
   ObjectPtr<RequestStateNode> n = make_object<RequestStateNode>();
   Array<RequestModelState> mstates;
   mstates.reserve(num_models);

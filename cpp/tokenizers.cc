@@ -82,10 +82,11 @@ Tokenizer Tokenizer::FromPath(const String& _path) {
 }
 
 /*!
- * \brief Translate a raw token (which may be a raw byte or contain lower
+ * \brief Post-process a raw token (which may be a raw byte or contain lower
  * one eights block) to the actual token.
+ * We do this in order to conform with the tokenizers' setup.
  */
-inline std::string TranslateToken(std::string token) {
+inline std::string PostProcessToken(std::string token) {
   // 1. The token represents a byte.
   if (token.length() == 6 && token.substr(0, 3) == "<0x" && token.back() == '>') {
     int byte = 0;
@@ -108,7 +109,7 @@ inline std::string TranslateToken(std::string token) {
   return token;
 }
 
-const std::unordered_map<int32_t, std::string>& TokenizerObj::TokenTable() {
+const std::vector<std::string>& TokenizerObj::TokenTable() {
   if (!token_table_.empty()) {
     return token_table_;
   }
@@ -117,7 +118,7 @@ const std::unordered_map<int32_t, std::string>& TokenizerObj::TokenTable() {
   token_table_.reserve(vocab_size);
   for (int32_t token_id = 0; token_id < vocab_size; ++token_id) {
     std::string token = tokenizer->IdToToken(token_id);
-    token_table_.emplace(token_id, TranslateToken(token));
+    token_table_.push_back(PostProcessToken(token));
   }
   return token_table_;
 }
