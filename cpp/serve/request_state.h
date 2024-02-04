@@ -11,6 +11,7 @@
 #include <tvm/runtime/object.h>
 
 #include "../random.h"
+#include "../streamer.h"
 #include "config.h"
 #include "request.h"
 
@@ -114,6 +115,8 @@ class RequestStateNode : public Object {
   Array<RequestModelState> mstates;
   /*! \brief The random number generator of this request. */
   RandomGenerator rng;
+  /*! \brief The stop string handler of this request. */
+  StopStrHandler stop_str_handler;
   /*!
    * \brief The start position of the committed tokens in the
    * next request stream callback invocation.
@@ -126,13 +129,14 @@ class RequestStateNode : public Object {
   std::chrono::high_resolution_clock::time_point tprefill_finish;
 
   /*!
-   * \brief Check if the request generation is finished and return the
-   * finish reason if finished.
+   * \brief Get the delta token ids for this request to return since
+   * the last time calling into this function, and return the finish
+   * reason if the request generation has finished.
    * \param max_single_sequence_length The maximum allowed single sequence length.
-   * \return The finish reason in string if the request is finished,
-   * or None if the request has not finished.
+   * \return The delta token ids to return, and the optional finish reason.
    */
-  Optional<String> GenerationFinished(int max_single_sequence_length) const;
+  std::pair<std::vector<int32_t>, Optional<String>> GetReturnTokenIds(
+      int max_single_sequence_length);
 
   static constexpr const char* _type_key = "mlc.serve.RequestState";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -142,7 +146,8 @@ class RequestStateNode : public Object {
 
 class RequestState : public ObjectRef {
  public:
-  explicit RequestState(Request request, int num_models, int64_t internal_id);
+  explicit RequestState(Request request, int num_models, int64_t internal_id,
+                        const std::unordered_map<int32_t, std::string>& token_table);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestState, ObjectRef, RequestStateNode);
 };

@@ -1,4 +1,5 @@
 """Streamers in MLC LLM."""
+
 from typing import List, Union
 
 import tvm
@@ -48,32 +49,36 @@ class TextStreamer(Object):
         return _ffi_api.TextStreamerFinish(self)  # type: ignore  # pylint: disable=no-member
 
 
-@tvm._ffi.register_object("mlc.StopStringHandler")  # pylint: disable=protected-access
-class StopStringHandler(Object):
-    """The stop string handler in MLC LLM, which takes input delta text
-    one at a time, and return the output delta text before stopping due to
+@tvm._ffi.register_object("mlc.StopStrHandler")  # pylint: disable=protected-access
+class StopStrHandler(Object):
+    """The stop string handler in MLC LLM, which takes input delta tokens
+    one at a time, and return the output delta token before stopping due to
     stop strings."""
 
-    def __init__(self, stop_strs: List[str]) -> None:
+    def __init__(self, stop_strs: List[str], tokenizer: Tokenizer) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.StopStringHandler, stop_strs  # type: ignore  # pylint: disable=no-member
+            _ffi_api.StopStrHandler,  # type: ignore  # pylint: disable=no-member
+            stop_strs,
+            tokenizer,
         )
 
-    def put(self, input_delta_text: str) -> str:
-        """Add new input delta text to the handler, return output
-        delta text before stopping. The stop string handler may hold
-        some of the input delta text which may be part of a stop string.
-        The returned string is always guaranteed not to be part of stop string.
+    def put(self, token_id: int) -> List[int]:
+        """Add new input delta token to the handler, return output
+        delta tokens before stopping. The stop string handler may hold
+        some of the input delta token which may be part of a stop string.
+        The returned tokens are always guaranteed not to be part of stop string.
         """
-        return _ffi_api.StopStringHandlerPut(  # type: ignore  # pylint: disable=no-member
-            self, input_delta_text
+        return list(
+            _ffi_api.StopStrHandlerPut(self, token_id)  # type: ignore  # pylint: disable=no-member
         )
 
-    def finish(self) -> str:
-        """Stop string handling has finished, return remaining string."""
-        return _ffi_api.StopStringHandlerFinish(self)  # type: ignore  # pylint: disable=no-member
+    def finish(self) -> List[int]:
+        """Stop string handling has finished, return remaining cached token ids."""
+        return list(
+            _ffi_api.StopStringHandlerFinish(self)  # type: ignore  # pylint: disable=no-member
+        )
 
     @property
     def stop_triggered(self) -> bool:
         """Check if the generation has stopped due to stop string."""
-        return _ffi_api.StopStringHandlerStopTriggered(self)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.StopStrHandlerStopTriggered(self)  # type: ignore  # pylint: disable=no-member

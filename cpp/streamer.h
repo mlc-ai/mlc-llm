@@ -7,6 +7,8 @@
 #ifndef MLC_LLM_STREAMER_H_
 #define MLC_LLM_STREAMER_H_
 
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 
 #include "tokenizers.h"
@@ -69,47 +71,67 @@ class TextStreamer : public ObjectRef {
 /****************** StopStrHandler ******************/
 
 /*!
- * \brief The stop string handler in MLC LLM, which takes input delta text
- * one at a time, and return the output delta text before stopping due to
+ * \brief The stop string handler in MLC LLM, which takes input delta tokens
+ * one at a time, and return the output delta token before stopping due to
  * stop strings.
  */
-class StopStringHandlerObj : public Object {
+class StopStrHandlerObj : public Object {
  public:
-  explicit StopStringHandlerObj(std::vector<std::string> stop_strs);
+  explicit StopStrHandlerObj(Array<String> stop_strs,
+                             const std::unordered_map<int32_t, std::string>& token_table);
 
   /*!
-   * \brief Add new input delta text to the handler, return output
-   * delta text before stopping. The stop string handler may hold
-   * some of the input delta text which may be part of a stop string.
-   * The returned string is always guaranteed not to be part of stop string.
+   * \brief Add new input delta token to the handler, return output
+   * delta tokens before stopping. The stop string handler may hold
+   * some of the input delta token which may be part of a stop string.
+   * The returned tokens are always guaranteed not to be part of stop string.
    */
-  std::string Put(std::string input_delta_str);
+  std::vector<int32_t> Put(int32_t token_id);
 
-  /*! \brief Stop string handling has finished, return remaining string. */
-  std::string Finish();
+  /*! \brief Stop string handling has finished, return remaining cached token ids. */
+  std::vector<int32_t> Finish() const { return pending_token_ids_; };
 
   /*! \brief Check if the generation has stopped due to stop string. */
-  bool StopTriggered() { return stop_triggered_; }
+  bool StopTriggered() const { return stop_triggered_; }
 
-  static constexpr const char* _type_key = "mlc.StopStringHandler";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StopStringHandlerObj, Object);
+  static constexpr const char* _type_key = "mlc.StopStrHandler";
+  TVM_DECLARE_FINAL_OBJECT_INFO(StopStrHandlerObj, Object);
 
  private:
-  std::vector<std::string> stop_strs_;
-  int max_stop_str_length_;
-  std::string pending_str_ = "";
-  bool stop_triggered_ = false;
+  /*! \brief The stop strings. */
+  Array<String> stop_strs_;
+  /*! \brief The partial match table for each stop string in the KMP algorithm. */
+  std::vector<std::vector<int>> partial_match_tables_;
+  /*! \brief The tokenizer token table for token id lookup. */
+  const std::unordered_map<int32_t, std::string>& token_table_;
+
+  /************ Global states across all stop strings. ************/
+
+  /*! \brief The globally pending string length. */
+  int pending_string_len_ = 0;
+  /*! \brief The globally pending token ids. */
+  std::vector<int32_t> pending_token_ids_;
+  /*! \brief The token string length of each pending token id. */
+  std::vector<int> pending_token_lengths_;
+  /*! \brief A boolean flag indicating if stop has been triggered. */
+  bool stop_triggered_;
+
+  /************ Per-stop-string states. ************/
+
+  /*! \brief The current match position of the pending string to each stop string. */
+  std::vector<int> cur_match_lengths_;
 };
 
 /*!
- * \brief Managed reference to StopStringHandlerObj
- * \sa StopStringHandlerObj
+ * \brief Managed reference to StopStrHandlerObj
+ * \sa StopStrHandlerObj
  */
-class StopStringHandler : public ObjectRef {
+class StopStrHandler : public ObjectRef {
  public:
-  explicit StopStringHandler(std::vector<std::string> stop_strs);
+  explicit StopStrHandler(Array<String> stop_strs,
+                          const std::unordered_map<int32_t, std::string>& token_table);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(StopStringHandler, ObjectRef, StopStringHandlerObj);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(StopStrHandler, ObjectRef, StopStrHandlerObj);
 };
 
 }  // namespace llm

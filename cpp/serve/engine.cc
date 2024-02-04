@@ -54,6 +54,7 @@ class EngineImpl : public Engine {
     this->trace_recorder_ = trace_recorder;
     this->sampler_ = Sampler::Create(/*sampler_kind=*/"cpu", trace_recorder_);
     this->tokenizer_ = Tokenizer::FromPath(tokenizer_path);
+    this->token_table_ = tokenizer_->TokenTable();
     // Step 2. Initialize each model independently.
     this->models_.clear();
     for (const auto& model_info : model_infos) {
@@ -119,7 +120,8 @@ class EngineImpl : public Engine {
     // Append to the waiting queue and create the request state.
     estate_->waiting_queue.push_back(request);
     estate_->request_states.emplace(
-        request->id, RequestState(request, models_.size(), estate_->id_manager.GetNewId()));
+        request->id,
+        RequestState(request, models_.size(), estate_->id_manager.GetNewId(), token_table_));
   }
 
   void AbortRequest(const String& request_id) final {
@@ -182,6 +184,7 @@ class EngineImpl : public Engine {
   int max_single_sequence_length_;
   Sampler sampler_;
   Tokenizer tokenizer_;
+  std::unordered_map<int32_t, std::string> token_table_;
   // Models
   Array<Model> models_;
   // Request stream callback function

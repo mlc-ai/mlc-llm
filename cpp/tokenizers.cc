@@ -81,6 +81,47 @@ Tokenizer Tokenizer::FromPath(const String& _path) {
   LOG(FATAL) << "Cannot find any tokenizer under: " << _path;
 }
 
+/*!
+ * \brief Translate a raw token (which may be a raw byte or contain lower
+ * one eights block) to the actual token.
+ */
+inline std::string TranslateToken(std::string token) {
+  // 1. The token represents a byte.
+  if (token.length() == 6 && token.substr(0, 3) == "<0x" && token.back() == '>') {
+    int byte = 0;
+    for (int i = 0; i < 2; ++i) {
+      byte *= 16;
+      byte +=
+          token[3 + i] >= '0' && token[3 + i] <= '9' ? token[3 + i] - '0' : token[3 + i] - 'A' + 10;
+    }
+    ICHECK(byte >= 0 && byte < 256);
+    return std::string(/*n=*/1, static_cast<char>(byte));
+  }
+
+  // 2. The token contains "\u2581" which means space.
+  static const std::string& lower_one_eighth_block = "\u2581";
+  size_t pos = token.find(lower_one_eighth_block);
+  while (pos != std::string::npos) {
+    token.replace(pos, /*n=*/lower_one_eighth_block.length(), /*str=*/" ");
+    pos = token.find(lower_one_eighth_block);
+  }
+  return token;
+}
+
+const std::unordered_map<int32_t, std::string>& TokenizerObj::TokenTable() {
+  if (!token_table_.empty()) {
+    return token_table_;
+  }
+
+  int vocab_size = tokenizer->GetVocabSize();
+  token_table_.reserve(vocab_size);
+  for (int32_t token_id = 0; token_id < vocab_size; ++token_id) {
+    std::string token = tokenizer->IdToToken(token_id);
+    token_table_.emplace(token_id, TranslateToken(token));
+  }
+  return token_table_;
+}
+
 TVM_REGISTER_GLOBAL("mlc.Tokenizer").set_body_typed([](const String& path) {
   return Tokenizer::FromPath(path);
 });

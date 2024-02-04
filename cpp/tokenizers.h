@@ -11,6 +11,8 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 
+#include <unordered_map>
+
 #include "base.h"
 
 namespace mlc {
@@ -28,11 +30,17 @@ class TokenizerObj : public Object {
   std::vector<int32_t> Encode(const std::string& text) const;
   /*! \brief Decode token ids into text. */
   std::string Decode(const std::vector<int32_t>& token_ids) const;
+  /*! \brief Return the token table of the tokenizer. */
+  const std::unordered_map<int32_t, std::string>& TokenTable();
 
   static constexpr const char* _type_key = "mlc.Tokenizer";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(TokenizerObj, Object);
+
+ private:
+  /*! \brief The cached token table. */
+  std::unordered_map<int32_t, std::string> token_table_;
 };
 
 class Tokenizer : public ObjectRef {
@@ -40,7 +48,7 @@ class Tokenizer : public ObjectRef {
   /*! \brief Create a tokenizer from a directory path on disk. */
   MLC_LLM_DLL static Tokenizer FromPath(const String& path);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Tokenizer, ObjectRef, TokenizerObj);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Tokenizer, ObjectRef, TokenizerObj);
 
  private:
   explicit Tokenizer(std::unique_ptr<tokenizers::Tokenizer> tokenizer);

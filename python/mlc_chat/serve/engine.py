@@ -1,4 +1,5 @@
 """The MLC LLM Serving Engine."""
+
 import json
 import os
 import subprocess
@@ -16,7 +17,7 @@ from mlc_chat.support.auto_device import detect_device
 from mlc_chat.support.style import green
 
 from ..chat_module import _get_chat_config, _get_lib_module_path, _get_model_path
-from ..streamer import StopStringHandler, TextStreamer
+from ..streamer import TextStreamer
 from ..tokenizer import Tokenizer
 from . import data
 from .config import EngineMode, GenerationConfig, KVCacheConfig
@@ -377,11 +378,9 @@ class Engine:
         num_finished_requests = 0
         outputs: List[str] = []
         text_streamers: List[TextStreamer] = []
-        stop_handlers: List[StopStringHandler] = []
-        for i in range(num_requests):
+        for _ in range(num_requests):
             outputs.append("")
             text_streamers.append(TextStreamer(self.tokenizer))
-            stop_handlers.append(StopStringHandler(generation_config[i].stop_strs))
 
         # Save a copy of the original function callback since `generate`
         # overrides the callback function.
@@ -395,17 +394,10 @@ class Engine:
                 request_id, delta_tokens, finish_reason = delta_output.unpack()
                 rid = int(request_id)
                 text_streamer = text_streamers[rid]
-                stop_handler = stop_handlers[rid]
 
-                delta_text = stop_handler.put(text_streamer.put(delta_tokens.token_ids))
-                if stop_handler.stop_triggered:
-                    finish_reason = "stop"
-                elif finish_reason is not None:
-                    delta_text += stop_handler.put(text_streamer.finish())
-                    if stop_handler.stop_triggered:
-                        finish_reason = "stop"
-                    else:
-                        delta_text += stop_handler.finish()
+                delta_text = text_streamer.put(delta_tokens.token_ids)
+                if finish_reason is not None:
+                    delta_text += text_streamer.finish()
 
                 outputs[rid] += delta_text
                 if finish_reason is not None:
