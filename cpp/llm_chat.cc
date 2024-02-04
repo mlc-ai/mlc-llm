@@ -1314,14 +1314,15 @@ class LLMChat {
     ObjectRef ret{nullptr};
     if (input_tokens.size() > 1 && ft_.prefill_func_.defined()) {
       ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray(input_tokens));
-      ShapeTuple cur_pos_shape = ShapeTuple({cur_pos});
       if (sliding_window_size_ == -1) {
         if (ft_.use_paged_kv_cache) {
           IntTuple seq_ids_tuple({0});
-          ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, cur_pos_shape);
+          ShapeTuple input_len_shape = ShapeTuple({static_cast<int64_t>(input_tokens.size())});
+          ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, input_len_shape);
           ret = ft_.prefill_func_(input_data, kv_cache_, params_);
           ft_.kv_cache_end_forward_func_(kv_cache_);
         } else {
+          ShapeTuple cur_pos_shape = ShapeTuple({cur_pos});
           ret = ft_.prefill_func_(input_data, cur_pos_shape, kv_cache_, params_);
         }
       } else {
