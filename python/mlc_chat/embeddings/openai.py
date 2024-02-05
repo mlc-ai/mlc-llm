@@ -5,7 +5,7 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 from langchain.embeddings import OpenAIEmbeddings  # pylint: disable=import-error
-from langchain.embeddings.openai import (  # pylint: disable=import-error
+from langchain_community.embeddings.openai import (  # pylint: disable=import-error
     async_embed_with_retry,
     embed_with_retry,
 )
