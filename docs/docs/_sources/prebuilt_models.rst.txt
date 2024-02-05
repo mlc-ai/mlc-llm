@@ -64,25 +64,11 @@ For more, please see :doc:`the CLI page </deploy/cli>`, and the :doc:`the Python
       mkdir dist/
       git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
 
-
-  Download the prebuilt model weights from hugging face for the model variant you want.
-
-    .. code:: shell
-
-      # Say we want to run Llama-2-7b-chat-hf-q4f16_1-MLC
-      git lfs install
-      git clone https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC \
-                                        dist/Llama-2-7b-chat-hf-q4f16_1-MLC
-
   Run the model with CLI:
 
     .. code:: shell
 
-      mlc_chat_cli --model dist/Llama-2-7b-chat-hf-q4f16_1-MLC \
-                  --model-lib-path dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
-                  # CUDA on Linux: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so
-                  # Metal on macOS: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so
-                  # Same rule applies for other platforms
+      mlc_chat chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
 
 
   To run the model with Python API, see :doc:`the Python page </deploy/python>` (all other downloading steps are the same as CLI).

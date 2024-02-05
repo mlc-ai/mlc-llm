@@ -173,7 +173,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="deploy/javascript.html">WebLLM and Javascript API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deploy/rest.html">Rest API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="deploy/cli.html">CLI and C++ API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deploy/cli.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deploy/python.html">Python API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deploy/ios.html">iOS App and Swift API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deploy/android.html">Android App</a></li>
@@ -349,9 +349,7 @@ git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/m
 </pre></div>
 </div>
 <p><strong>Run in command line</strong>.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_chat_cli<span class="w"> </span>--model<span class="w"> </span>dist/Llama-2-7b-chat-hf-q4f16_1-MLC<span class="w"> </span><span class="se">\</span>
-<span class="w">             </span>--model-lib-path<span class="w"> </span>dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
-<span class="w">             </span><span class="c1"># Metal on macOS: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_chat<span class="w"> </span>chat<span class="w"> </span>HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
 </pre></div>
 </div>
 <figure class="align-center" id="id2">

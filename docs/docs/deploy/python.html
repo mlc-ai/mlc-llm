@@ -47,7 +47,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="iOS App and Swift API" href="ios.html" />
-    <link rel="prev" title="CLI and C++ API" href="cli.html" /> 
+    <link rel="prev" title="CLI" href="cli.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -173,7 +173,7 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="javascript.html">WebLLM and Javascript API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rest.html">Rest API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cli.html">CLI and C++ API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">CLI</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Python API</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#verify-installation">Verify Installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#run-mlc-models-w-python">Run MLC Models w/ Python</a></li>
@@ -345,6 +345,18 @@ or <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-fro
 the models you compiled yourself.</p>
 <p><strong>Step 1: Download prebuilt model weights and libraries</strong></p>
 <p>Skip this step if you have already obtained the model weights and libraries.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Activate your conda environment</span>
+conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>git-lfs
+
+<span class="c1"># Download pre-conveted weights</span>
+git<span class="w"> </span>lfs<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>dist/
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC<span class="w"> </span><span class="se">\</span>
+<span class="w">                                 </span>dist/Llama-2-7b-chat-hf-q4f16_1-MLC
+
+<span class="c1"># Download pre-compiled model library</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt_libs
+</pre></div>
+</div>
 <p><strong>Step 2: Run the model in Python</strong></p>
 <p>Use the conda environment you used to install <code class="docutils literal notranslate"><span class="pre">mlc_chat</span></code>.
 From the <code class="docutils literal notranslate"><span class="pre">mlc-llm</span></code> directory, you can create a Python
@@ -606,7 +618,7 @@ The <code class="xref py py-class docutils literal notranslate"><span class="pre
         <a href="ios.html" class="btn btn-neutral float-right" title="iOS App and Swift API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="cli.html" class="btn btn-neutral float-left" title="CLI and C++ API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="cli.html" class="btn btn-neutral float-left" title="CLI" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

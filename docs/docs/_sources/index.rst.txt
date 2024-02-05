@@ -90,9 +90,7 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     .. code:: bash
 
-      mlc_chat_cli --model dist/Llama-2-7b-chat-hf-q4f16_1-MLC \
-                   --model-lib-path dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
-                   # Metal on macOS: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so
+      mlc_chat chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
 
     .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif
       :width: 500
