@@ -107,6 +107,7 @@ def main():
             "requests",
             "tqdm",
             "tiktoken",
+            "prompt_toolkit",
         ],
         distclass=BinaryDistribution,
         **setup_kwargs,
