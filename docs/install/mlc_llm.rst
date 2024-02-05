@@ -152,7 +152,7 @@ Then you can verify installation in command line:
 Option 2. Build from Source
 ---------------------------
 
-We also provide options to build mlc runtime libraries ``mlc_chat`` (Python) and ``mlc_chat_cli`` (CLI) from source.
+We also provide options to build mlc runtime libraries ``mlc_chat`` from source.
 This step is useful when you want to make modification or obtain a specific version of mlc runtime.
 
 
@@ -196,21 +196,11 @@ This step is useful when you want to make modification or obtain a specific vers
     mkdir -p build && cd build
     # generate build configuration
     python3 ../cmake/gen_cmake_config.py
-    # build `mlc_chat_cli`
+    # build mlc_llm libraries
     cmake .. && cmake --build . --parallel $(nproc) && cd ..
 
-**Step 3. Validate installation.** You may validate if MLCChat CLI is compiled successfully using the following command:
-
-.. code-block:: bash
-    :caption: Validate installation
-
-    # expected to see `mlc_chat_cli`, `libmlc_llm.so` and `libtvm_runtime.so`
-    ls -l ./build/
-    # expected to see help message
-    ./build/mlc_chat_cli --help
-
-**Step 4. Install via Python.** Besides the command line interface ``mlc_chat_cli``, you can also install ``mlc_chat`` as a Python package,
-giving you access to both ``mlc_chat.compile`` and ``mlc_chat.ChatModule``.
+**Step 3. Install via Python.** We recommend that you install ``mlc_chat`` as a Python package, giving you 
+access to ``mlc_chat.compile``, ``mlc_chat.ChatModule``, and the CLI.
 There are two ways to do so:
 
     .. tabs ::
@@ -225,6 +215,16 @@ There are two ways to do so:
           which python # make sure python is installed, expected output: path_to_conda/envs/your-own-env/bin/python
           cd /path-to-mlc-llm/python
           pip install -e .
+
+**Step 4. Validate installation.** You may validate if MLC libarires and mlc_chat CLI is compiled successfully using the following command:
+
+.. code-block:: bash
+    :caption: Validate installation
+
+    # expected to see `libmlc_llm.so` and `libtvm_runtime.so`
+    ls -l ./build/
+    # expected to see help message
+    mlc_chat chat -h
 
 Finally, you can verify installation in command line. You should see the path you used to build from source with:
 

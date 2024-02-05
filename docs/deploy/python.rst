@@ -62,16 +62,17 @@ the models you compiled yourself.
 Skip this step if you have already obtained the model weights and libraries.
 
 .. code:: shell
-  # Activate your conda environment
-  conda install -c conda-forge git-lfs
 
-  # Download pre-conveted weights
-  git lfs install && mkdir dist/
-  git clone https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC \
-                                     dist/Llama-2-7b-chat-hf-q4f16_1-MLC
+   # Activate your conda environment
+   conda install -c conda-forge git-lfs
 
-  # Download pre-compiled model library
-  git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
+   # Download pre-conveted weights
+   git lfs install && mkdir dist/
+   git clone https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC \
+                                    dist/Llama-2-7b-chat-hf-q4f16_1-MLC
+
+   # Download pre-compiled model library
+   git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
 
 
 **Step 2: Run the model in Python**

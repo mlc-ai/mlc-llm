@@ -224,7 +224,7 @@ If you're tired of the default system prompt, here's an example of how you can r
   }
 
 
-The next time you run ``mlc_chat_cli``, you will start a chat with Vicuna using a new system prompt.
+The next time you run ``mlc_chat`` CLI, you will start a chat with Vicuna using a new system prompt.
 
 .. _example_resume_chat_history:
 
@@ -251,4 +251,4 @@ The following example demonstrates how to chat with Vicuna and resume from a cha
   }
 
 
-The next time you start ``mlc_chat_cli``, or use Python API, you will initiate a chat with Vicuna and resume from the provided chat history.
+The next time you start ``mlc_chat`` CLI, or use Python API, you will initiate a chat with Vicuna and resume from the provided chat history.
