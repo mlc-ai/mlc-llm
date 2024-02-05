@@ -150,7 +150,6 @@ This would result in something like `RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
 <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/tree/main>`_, but
 for **Instruct** instead of **Chat**.
 
----------------------------------
 Good job, you have successfully distributed the model you compiled.
 Next, we will talk about how we can consume the model weights in applications.
 
