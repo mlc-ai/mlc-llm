@@ -65,8 +65,10 @@ class _DebugDump:  # pylint: disable=too-few-public-methods
 
 @register_pipeline("mlc_llm")
 def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
+    target: tvm.target.Target,
     flashinfer: bool = False,
     cublas_gemm: bool = False,
+    faster_transformer: bool = False,  # pylint: disable=unused-argument
     variable_bounds: Dict[str, int] = None,
     additional_tirs: Dict[str, tvm.tir.PrimFunc] = None,
     metadata: Dict[str, Any] = None,
@@ -123,7 +125,9 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 _DebugDump("debug-phase4.py", debug_dump, show_meta=False),
                 _LogProgress("Lowering to VM bytecode"),
                 LiftTIRGlobalBufferAlloc(),
-                tvm.tir.transform.ForceNarrowIndexToInt32(),
+                tvm.tir.transform.ForceNarrowIndexToInt32()
+                if target.kind.name != "cuda"
+                else tvm.transform.Sequential([]),
                 tvm.relax.transform.RewriteDataflowReshape(),
                 tvm.relax.transform.ToNonDataflow(),
                 tvm.relax.transform.RemovePurityChecking(),

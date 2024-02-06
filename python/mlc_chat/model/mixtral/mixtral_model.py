@@ -74,6 +74,7 @@ class MixtralMoE(nn.Module):
         # expert_indices: [num_tokens, experts_per_tok]
         expert_weights, expert_indices = op_ext.moe_misc.topk(gate, experts_per_tok)
         expert_weights = op.softmax(expert_weights.astype("float32"), axis=-1).astype(self.dtype)
+        use_ft = op_ext.get_store().faster_transformer and self.dtype == "float16"
         if num_tokens == 1:
             # x: [num_tokens * experts_per_tok, hidden_size]
             x = _expert_forward(x, expert_indices)
@@ -81,13 +82,21 @@ class MixtralMoE(nn.Module):
             # cumsum: [num_tokens * local_experts]
             cumsum = op_ext.moe_misc.moe_cumsum(expert_indices, local_experts)
             # indices: [num_tokens * experts_per_tok]
-            indices = op_ext.moe_misc.get_indices(cumsum, expert_indices)
-            # indptr: [num_local_experts + 1]
-            indptr = op_ext.moe_misc.get_indptr(cumsum, local_experts, num_tokens)
+            reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, expert_indices)
+            if use_ft:
+                # indptr: [num_local_experts]
+                indptr = op_ext.moe_misc.get_indptr(
+                    cumsum, local_experts, num_tokens, inclusive=True, out_dtype="int64"
+                )
+            else:
+                # indptr: [num_local_experts + 1]
+                indptr = op_ext.moe_misc.get_indptr(
+                    cumsum, local_experts, num_tokens, inclusive=False, out_dtype="int32"
+                )
             # x: [num_tokens * experts_per_tok, hidden_size]
-            x = op.take(x, indices / experts_per_tok, axis=0)
+            x = op.take(x, token_indices, axis=0)
             x = _expert_forward(x, indptr)
-            x = op_ext.moe_misc.scatter_output(x, indices)
+            x = op_ext.moe_misc.scatter_output(x, reverse_indices)
         # x: [num_tokens, experts_per_tok, hidden_size]
         x = x.reshape(  # pylint: disable=too-many-function-args
             num_tokens, experts_per_tok, hidden_size

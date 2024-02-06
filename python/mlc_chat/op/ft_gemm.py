@@ -90,3 +90,46 @@ def faster_transformer_dequantize_gemm(  # pylint: disable=too-many-arguments
         args=[x, weight, scale, activation, m, n, k, group_size],
         out=nn.Tensor.placeholder((*x.shape[:-1], scale.shape[1]), dtype="float16"),
     )
+
+
+def faster_transformer_moe_gemm(  # pylint: disable=too-many-arguments
+    x: nn.Tensor,
+    weight: nn.Tensor,
+    total_rows_before: nn.Tensor,
+):
+    """
+    Faster Transformer moe gemm inference with CutlassFpAIntB
+
+    Parameters
+    ----------
+    x : nn.Tensor
+        The input tensor, with shape of [*m, k].
+
+    weight : nn.Tensor
+        The weight data tensor, with shape of [num_experts, n, k].
+
+    total_rows_before : nn.Tensor
+        The total rows before tensor the current expert, with shape of [num_experts]. This is the
+        same as the indptr excluding the first zero element.
+
+    Returns
+    ------
+    ret: nn.Tensor
+        The output tensor of deocde matmul, with shape of [*m, n].
+    """
+    assert x.dtype == "float16" and x.ndim >= 1
+    assert weight.dtype == "float16" and weight.ndim == 3
+    assert x.shape[-1] == weight.shape[-1], (
+        "Reduction dimension mismatched between x and weight, "
+        f"{x.shape[-1]} vs {weight.shape[-1]}."
+    )
+    m = reduce(operator.mul, x.shape[:-1], 1)
+    num_experts = weight.shape[0]
+    n = weight.shape[1]
+    k = x.shape[-1]
+
+    return op.extern(
+        name="fastertransformer.moe_gemm_fp16_fp16",
+        args=[x, weight, total_rows_before, m, n, k, num_experts],
+        out=nn.Tensor.placeholder((*x.shape[:-1], n), dtype="float16"),
+    )

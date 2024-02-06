@@ -130,6 +130,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         op_ext.enable(
             target=args.target,
             flashinfer=args.opt.flashinfer,
+            faster_transformer=args.opt.faster_transformer,
         )
         # Step 1. Create the quantized model
         logger.info("Creating model from: %s", args.config)
@@ -177,8 +178,10 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             args,
             pipeline=relax.get_pipeline(  # type: ignore
                 "mlc_llm",
+                target=args.target,
                 flashinfer=args.opt.flashinfer,
                 cublas_gemm=args.opt.cublas_gemm,
+                faster_transformer=args.opt.faster_transformer,
                 variable_bounds=variable_bounds,
                 additional_tirs=additional_tirs,
                 ext_mods=ext_mods,
