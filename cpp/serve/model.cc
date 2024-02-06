@@ -402,6 +402,11 @@ class ModelImpl : public ModelObj {
 
   /*********************** Utilities  ***********************/
 
+  int EstimateHostCPURequirement() const final {
+    CHECK_NE(num_shards_, -1) << "The model has not been initialized";
+    return num_shards_ > 1 ? num_shards_ : 0;
+  }
+
   int GetMaxWindowSize() const final {
     CHECK_NE(max_window_size_, -1) << "The model has not been initialized";
     return max_window_size_;
@@ -431,6 +436,12 @@ class ModelImpl : public ModelObj {
     } else {
       LOG(FATAL) << "Key \"context_window_size\" not found.";
     }
+    if (config.count("tensor_parallel_shards")) {
+      CHECK(config["tensor_parallel_shards"].is<int64_t>());
+      this->num_shards_ = config["tensor_parallel_shards"].get<int64_t>();
+    } else {
+      LOG(FATAL) << "Key \"tensor_parallel_shards\" not found.";
+    }
     return config;
   }
 
@@ -438,6 +449,7 @@ class ModelImpl : public ModelObj {
   // Model configurations
   //----------------------------
   int max_window_size_ = -1;
+  int num_shards_ = -1;
   int max_num_sequence_ = -1;
   //----------------------------
   // TVM related states

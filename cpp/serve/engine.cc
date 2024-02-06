@@ -10,6 +10,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/threading_backend.h>
 
 #include <tuple>
 
@@ -91,6 +92,8 @@ class EngineImpl : public Engine {
                                           this->trace_recorder_),
           EngineAction::BatchDecode(this->models_, this->sampler_, this->trace_recorder_)};
     }
+    // Step 4. Automatically set the threading backend max concurrency.
+    SetThreadMaxConcurrency();
   }
 
   void Reset() final {
@@ -176,6 +179,17 @@ class EngineImpl : public Engine {
   }
 
  private:
+  /*! \brief Set the maximum threading backend concurrency. */
+  void SetThreadMaxConcurrency() {
+    int host_cpu_usage = 1;
+    for (Model model : models_) {
+      host_cpu_usage += model->EstimateHostCPURequirement();
+    }
+    int max_concurrency = tvm::runtime::threading::MaxConcurrency();
+    tvm::runtime::threading::SetMaxConcurrency(std::min(
+        std::max(max_concurrency - host_cpu_usage, 1), kv_cache_config_->max_num_sequence));
+  }
+
   // Engine state, managing requests and request states.
   EngineState estate_;
   // Configurations and singletons
