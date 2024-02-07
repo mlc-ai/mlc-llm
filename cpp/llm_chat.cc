@@ -1319,8 +1319,6 @@ class LLMChat {
           IntTuple seq_ids_tuple({0});
           ShapeTuple input_len_shape = ShapeTuple({static_cast<int64_t>(input_tokens.size())});
           ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, input_len_shape);
-          LOG(INFO) << "prefill";
-          LOG(INFO) << Downcast<NDArray>(input_data).Shape();
           auto embed = ft_.embed_func_(input_data, params_);
           ret = ft_.prefill_func_(embed, kv_cache_, params_);
           ft_.kv_cache_end_forward_func_(kv_cache_);

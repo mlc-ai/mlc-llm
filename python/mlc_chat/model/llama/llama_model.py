@@ -211,8 +211,9 @@ class LlamaModel(nn.Module):
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         if self.tensor_parallel_shards > 1:
             input_embed = op.ccl_broadcast_from_worker0(input_embed)
+        hidden_states = input_embed
         for layer_id, layer in enumerate(self.layers):
-            hidden_states = layer(input_embed, paged_kv_cache, layer_id)
+            hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
