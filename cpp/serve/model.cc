@@ -278,7 +278,7 @@ class ModelImpl : public ModelObj {
 
     // args: embeddings, kv_cache, params
     ObjectRef ret;
-    if(seq_ids.size() == 1){
+    if (seq_ids.size() == 1) {
       ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
     } else {
       ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_);

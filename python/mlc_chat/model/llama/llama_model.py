@@ -352,7 +352,6 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         )
 
     def get_default_spec(self):
-        batch_size = 1
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
