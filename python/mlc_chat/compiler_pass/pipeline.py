@@ -89,6 +89,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 AttachVariableBounds(variable_bounds),
                 AttachAdditionalPrimFuncs(additional_tirs),
                 AttachMemoryPlanAttr(),
+                tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
