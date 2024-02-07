@@ -208,10 +208,10 @@ class LlamaModel(nn.Module):
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.tensor_parallel_shards = config.tensor_parallel_shards
 
-    def forward(self, input_ids: Tensor, paged_kv_cache: PagedKVCache):
+    def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         if self.tensor_parallel_shards > 1:
-            input_ids = op.ccl_broadcast_from_worker0(input_ids)
-        hidden_states = self.embed_tokens(input_ids)
+            input_embed = op.ccl_broadcast_from_worker0(input_embed)
+        hidden_states = input_embed
         for layer_id, layer in enumerate(self.layers):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)
@@ -265,24 +265,24 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
     def embed(self, input_ids: Tensor):
         return self.model.embed_tokens(input_ids)
 
-    def prefill(self, input_ids: Tensor, paged_kv_cache: PagedKVCache):
+    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
         def _index(x: te.Tensor):  # x[:-1,:]
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-        hidden_states = self.model(input_ids, paged_kv_cache)
+        hidden_states = self.model(input_embed, paged_kv_cache)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits, paged_kv_cache
 
-    def decode(self, input_ids: Tensor, paged_kv_cache: PagedKVCache):
+    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
-        hidden_states = self.model(input_ids, paged_kv_cache)
+        hidden_states = self.model(input_embed, paged_kv_cache)
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -352,7 +352,6 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         )
 
     def get_default_spec(self):
-        batch_size = 1
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
@@ -362,7 +361,7 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "prefill": {
-                "input_ids": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -370,7 +369,7 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "decode": {
-                "input_ids": nn.spec.Tensor([batch_size, 1], "int32"),
+                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

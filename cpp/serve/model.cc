@@ -229,8 +229,12 @@ class ModelImpl : public ModelObj {
     ObjectRef logit_pos_dref_or_nd =
         ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
     // args: embeddings, logit_pos, kv_cache, params
-    ObjectRef ret =
-        ft_.prefill_func_(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, params_);
+    ObjectRef ret;
+    if (seq_ids.size() == 1) {
+      ret = ft_.single_batch_prefill_func_(embeddings_dref_or_nd, kv_cache_, params_);
+    } else {
+      ret = ft_.prefill_func_(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, params_);
+    }
     NDArray logits;
     if (ft_.use_disco) {
       Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
@@ -273,7 +277,12 @@ class ModelImpl : public ModelObj {
         embeddings, "embedding_decode", {max_num_sequence_, 1, embeddings.Shape()[2]});
 
     // args: embeddings, kv_cache, params
-    ObjectRef ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
+    ObjectRef ret;
+    if (seq_ids.size() == 1) {
+      ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
+    } else {
+      ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
+    }
     NDArray logits;
     if (ft_.use_disco) {
       Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
