@@ -1,4 +1,5 @@
 """Server context that shared by multiple entrypoint files."""
+
 from typing import Dict, List, Optional
 
 from ...conversation_template import ConvTemplateRegistry

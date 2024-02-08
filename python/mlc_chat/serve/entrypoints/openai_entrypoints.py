@@ -1,7 +1,10 @@
 """OpenAI API-compatible server entrypoints in MLC LLM"""
+
 # pylint: disable=too-many-locals,too-many-return-statements,too-many-statements
 from http import HTTPStatus
-from typing import AsyncGenerator, List, Optional
+from typing import AsyncGenerator, List, Optional, Union, Dict
+import json
+import ast
 
 import fastapi
 
@@ -19,7 +22,10 @@ from ...protocol.openai_api_protocol import (
     ListResponse,
     ModelResponse,
     UsageInfo,
+    ChatToolCall,
+    ChatFunctionCall,
 )
+from ...protocol.conversation_protocol import Conversation
 from ..server import ServerContext
 from . import entrypoint_utils
 
@@ -218,6 +224,66 @@ def chat_completion_check_message_validity(
     return None
 
 
+def check_function_call_usage(request: ChatCompletionRequest, conv_template: Conversation):
+
+    # return if no tools are provided or tool_choice is set to none
+    if request.tools is None or (
+        isinstance(request.tool_choice, str) and request.tool_choice == "none"
+    ):
+        conv_template.use_function_calling = False
+        return
+
+    # select the tool based on the tool_choice if specified
+    if isinstance(request.tool_choice, dict):
+        if request.tool_choice["type"] != "function":
+            return "Only 'function' tool choice is supported"
+
+        if len(request.tool_choice["function"]) > 1:
+            return "Only one tool is supported when tool_choice is specified"
+
+        for tool in request.tools:
+            if tool.function.name == request.tool_choice["function"]["name"]:
+                conv_template.use_function_calling = True
+                conv_template.function_string = tool.function.model_dump_json()
+                return
+
+        return f"The tool_choice function {request.tool_choice['function']['name']} is not found in the tools list"
+
+    if isinstance(request.tool_choice, str) and request.tool_choice != "auto":
+        return f"Invalid tool_choice value: {request.tool_choice}"
+
+    function_list = []
+    for tool in request.tools:
+        if tool.type != "function":
+            return f"Only 'function' tool type is supported"
+        function_list.append(tool.function.model_dump())
+
+    conv_template.use_function_calling = True
+    conv_template.function_string = json.dumps(function_list)
+
+
+def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, None]]:
+    def parse_function_call(call_str: str):
+        node = ast.parse(call_str, mode="eval")
+        call_node = node.body
+        if isinstance(call_node, ast.Call):
+            name = call_node.func.id
+            arguments = {}
+            for keyword in call_node.keywords:
+                arguments[keyword.arg] = ast.literal_eval(keyword.value)
+            return {"name": name, "arguments": arguments}
+        return None
+
+    if (
+        stringified_calls[0] == "[" and stringified_calls[-1] == "]"
+    ):  # hacky way to check if string list
+        calls = ast.literal_eval(stringified_calls)
+    else:
+        calls = [stringified_calls]
+    function_calls_json = [parse_function_call(call_str) for call_str in calls]
+    return function_calls_json
+
+
 @app.post("/v1/chat/completions")
 async def request_chat_completion(request: ChatCompletionRequest, raw_request: fastapi.Request):
     """OpenAI-compatible chat completion API.
@@ -231,6 +297,7 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
         )
     request_id = f"chatcmpl-{entrypoint_utils.random_uuid()}"
     async_engine.record_event(request_id, event="receive request")
+
     # - Check if the model supports chat conversation.
     conv_template = ServerContext.get_conv_template(request.model)
     if conv_template is None:
@@ -251,6 +318,13 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
     error_msg = chat_completion_check_message_validity(request.messages)
     if error_msg is not None:
         return entrypoint_utils.create_error_response(HTTPStatus.BAD_REQUEST, message=error_msg)
+
+    # update conv_template.use_function_calling to True if fn calling
+    # also add function list to the conv templat
+    error_msg = check_function_call_usage(request, conv_template)
+    if error_msg is not None:
+        return entrypoint_utils.create_error_response(HTTPStatus.BAD_REQUEST, message=error_msg)
+
     for message in request.messages:
         role = message.role
         content = message.content
@@ -260,8 +334,8 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
             continue
 
         assert role != "tool", "Internal error: tool role."
-        conv_template.messages.append((conv_template.roles[role == "assistant"], content))
-    conv_template.messages.append((conv_template.roles[1], None))
+        conv_template.messages.append((role, content))
+    conv_template.messages.append(("assistant", None))
 
     # - Get the prompt from template, and encode to token ids.
     # - Check prompt length
@@ -298,6 +372,9 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
                     async_engine.record_event(request_id, event="skip empty delta text")
                     # Ignore empty delta text -- do not yield.
                     continue
+
+                if conv_template.use_function_calling:
+                    finish_reason = "tool_calls"
 
                 response = ChatCompletionStreamResponse(
                     id=request_id,
@@ -341,12 +418,43 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
     assert finish_reason is not None
 
     async_engine.record_event(request_id, event="finish")
+
+    if conv_template.use_function_calling:
+        try:
+            fn_json_list = convert_function_str_to_json(output_text)
+        except Exception as e:
+            return entrypoint_utils.create_error_response(
+                HTTPStatus.BAD_GATEWAY, message="Got an invalid function call output from model"
+            )
+        tool_calls = [
+            ChatToolCall(
+                type="function",
+                function=ChatFunctionCall(
+                    name=fn_json_obj["name"], arguments=fn_json_obj["arguments"]
+                ),
+            )
+            for fn_json_obj in fn_json_list
+            if fn_json_obj is not None
+        ]
+        if len(tool_calls) == 0:
+            return entrypoint_utils.create_error_response(
+                HTTPStatus.BAD_GATEWAY, message="Got an invalid function call output from model"
+            )
+
+        finish_reason = "tool_calls"
+
+    message = (
+        ChatCompletionMessage(role="assistant", content=output_text)
+        if not conv_template.use_function_calling
+        else ChatCompletionMessage(role="assistant", content=None, tool_calls=tool_calls)
+    )
+
     return ChatCompletionResponse(
         id=request_id,
         choices=[
             ChatCompletionResponseChoice(
                 finish_reason=finish_reason,
-                message=ChatCompletionMessage(role="assistant", content=output_text),
+                message=message,
             )
         ],
         model=request.model,
