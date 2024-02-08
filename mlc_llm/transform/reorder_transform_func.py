@@ -218,8 +218,11 @@ class ReorderTransformFunc:
         }
 
     def transform_module(
-        self, mod: IRModule, ctx: tvm.transform.PassContext
+        self,
+        mod: IRModule,
+        ctx: tvm.transform.PassContext,
     ) -> IRModule:
+        mod = mod.clone()
         for gv, func in list(mod.functions.items()):
             if isinstance(func, relax.Function):
                 assert gv.name_hint.endswith("transform_params")
