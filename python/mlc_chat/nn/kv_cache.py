@@ -861,28 +861,28 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
                                     # compute QK
                                     m_prev[0] = st_m[0]
                                     for j in T.serial(bdy * tile_size_per_bdx):
-                                        if (iterator * bdz + tz) * bdy * tile_size_per_bdx + j >= kv_chunk_len[0]:
-                                            S_local[j] = -5e4
-                                        else:
-                                            # load K from shared memory to local memory
-                                            for vec in T.vectorized(VEC_SIZE):
-                                                K_local[vec] = K_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec]
-                                            # compute S = Q * K * sm_scale
-                                            S_reduce_local[0] = 0
-                                            for vec in T.serial(VEC_SIZE):
-                                                S_reduce_local[0] += Q_local[vec] * K_local[vec] * sm_scale
+                                        # load K from shared memory to local memory
+                                        for vec in T.vectorized(VEC_SIZE):
+                                            K_local[vec] = K_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec]
+                                        # compute S = Q * K * sm_scale
+                                        S_reduce_local[0] = 0
+                                        for vec in T.serial(VEC_SIZE):
+                                            S_reduce_local[0] += Q_local[vec] * K_local[vec] * sm_scale
 
-                                            with T.block("block_cross_thread"):
-                                                T.reads(S_reduce_local[0])
-                                                T.writes(t0[0])
-                                                T.attr(
-                                                    T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                                                    "reduce_scope",
-                                                    T.reinterpret("handle", T.uint64(0)),
-                                                )
-                                                T.tvm_thread_allreduce(T.uint32(1), S_reduce_local[0], True, t0[0], tx, dtype="handle")
+                                        with T.block("block_cross_thread"):
+                                            T.reads(S_reduce_local[0])
+                                            T.writes(t0[0])
+                                            T.attr(
+                                                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+                                                "reduce_scope",
+                                                T.reinterpret("handle", T.uint64(0)),
+                                            )
+                                            T.tvm_thread_allreduce(T.uint32(1), S_reduce_local[0], True, t0[0], tx, dtype="handle")
 
+                                        if (iterator * bdz + tz) * bdy * tile_size_per_bdx + j < kv_chunk_len[0]:
                                             S_local[j] = t0[0]
+                                        else:
+                                            S_local[j] = -5e4
                                         # update st_m
                                         st_m[0] = T.max(st_m[0], S_local[j])
 
