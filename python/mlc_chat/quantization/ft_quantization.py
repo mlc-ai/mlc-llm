@@ -1,4 +1,5 @@
 """The FasterTransformer quantization config"""
+
 from dataclasses import dataclass
 from typing import Any, Callable, List, Literal, Optional, Tuple
 
@@ -116,7 +117,9 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                 ret_node: Any
                     The new node to replace current node.
                 """
-                if isinstance(node, nn.Linear):
+                if isinstance(node, nn.Linear) and node.out_features != "vocab_size":
+                    # This skips lm_head in llama; otherwise the quantized shape would be an op
+                    # See https://github.com/mlc-ai/mlc-llm/issues/1723
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
