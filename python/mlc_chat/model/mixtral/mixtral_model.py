@@ -72,8 +72,7 @@ class MixtralMoE(nn.Module):
         gate: Tensor = self.gate(x)
         # expert_weights: [num_tokens, experts_per_tok]
         # expert_indices: [num_tokens, experts_per_tok]
-        expert_weights, expert_indices = op_ext.moe_misc.topk(gate, experts_per_tok)
-        expert_weights = op.softmax(expert_weights.astype("float32"), axis=-1).astype(self.dtype)
+        expert_weights, expert_indices = op_ext.moe_misc.gating_softmax_topk(gate, experts_per_tok)
         use_ft = op_ext.get_store().faster_transformer and self.dtype == "float16"
         if num_tokens == 1:
             # x: [num_tokens * experts_per_tok, hidden_size]

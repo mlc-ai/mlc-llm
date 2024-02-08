@@ -30,8 +30,8 @@ def moe_sum(x: Tensor, dim: int) -> Tensor:
     return op.sum(x, axis=dim)
 
 
-def topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
-    """Top-k operator specialized for MoE usecases.
+def gating_softmax_topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
+    """Compute the softmax score, choose the top-k experts, and renormalize the selected scores.
 
     Parameters
     ----------
@@ -43,11 +43,11 @@ def topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
 
     Returns
     -------
-    values : Tensor
-        The top-k values with shape [batch_size, k].
+    expert_weights: Tensor
+        The renormalized top-k expert scores with shape [batch_size, k].
 
-    indices : Tensor
-        The top-k indices with shape [batch_size, k].
+    expert_indices: Tensor
+        The top-k expert indices with shape [batch_size, k].
     """
     (batch_size, num_local_experts), dtype = x.shape, x.dtype
     index_dtype = "int32"
@@ -57,7 +57,7 @@ def topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
 
     # specialized kernel for top 2 case
     @T.prim_func(private=True)
-    def topk_func(
+    def topk_softmax_func(
         var_x: T.handle,
         var_out: T.handle,
         var_out_index: T.handle,
@@ -69,6 +69,8 @@ def topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
         out_index = T.match_buffer(var_out_index, (batch_size, SCAN_LEN), index_dtype)
         local_top_k = T.alloc_buffer((SCAN_LEN,), dtype=dtype, scope="local")
         local_top_k_index = T.alloc_buffer((SCAN_LEN,), dtype=index_dtype, scope="local")
+        local_top_k_f32 = T.alloc_buffer((SCAN_LEN,), dtype="float32", scope="local")
+        local_top_k_max = T.alloc_buffer((1,), dtype="float32", scope="local")
         for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
             for ii in T.thread_binding(0, TX, "threadIdx.x"):
                 with T.block("top_k"):
@@ -90,22 +92,37 @@ def topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
                                 local_top_k[1] = x[vi, vk]
                                 local_top_k_index[1] = vk
                     for j in T.unroll(SCAN_LEN):
+                        with T.block("cast"):
+                            vj = T.axis.remap("S", [j])
+                            local_top_k_f32[vj] = T.cast(local_top_k[vj], "float32")
+                    with T.block("max"):
+                        local_top_k_max[0] = T.max(local_top_k_f32[0], local_top_k_f32[1])
+                    for j in T.unroll(SCAN_LEN):
                         with T.block("output"):
                             vj = T.axis.remap("S", [j])
-                            out[vi, vj] = local_top_k[vj]
+                            out[vi, vj] = T.cast(
+                                T.exp(local_top_k_f32[j] - local_top_k_max[0])
+                                / (
+                                    T.exp(local_top_k_f32[0] - local_top_k_max[0])
+                                    + T.exp(local_top_k_f32[1] - local_top_k_max[0])
+                                ),
+                                dtype,
+                            )
                             out_index[vi, vj] = local_top_k_index[vj]
 
     if k == 2:
         return op.tensor_ir_op(
-            topk_func,
-            "top2",
+            topk_softmax_func,
+            "top2_softmax",
             args=[x],
             out=(
                 Tensor.placeholder([batch_size, 2], dtype),
                 Tensor.placeholder([batch_size, 2], index_dtype),
             ),
         )
-    return op.tensor_expr_op(topi_topk, "topk", args=[x, k, -1, "both", False, index_dtype])  # type: ignore[list-item]
+    expert_score, expert_indices = op.tensor_expr_op(topi_topk, "topk", args=[x, k, -1, "both", False, index_dtype])  # type: ignore[list-item]
+    expert_score = op.softmax(expert_score.astype("float32"), axis=-1).astype(dtype)
+    return expert_score, expert_indices
 
 
 def moe_cumsum(expert_indices: Tensor, num_local_experts: int) -> Tensor:
