@@ -17,6 +17,7 @@ from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
 from .phi import phi_loader, phi_model, phi_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
+from .llava import llava_loader, llava_model, llava_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -193,6 +194,19 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": stablelm_quantization.no_quant,
             "group-quant": stablelm_quantization.group_quant,
+        },
+    ),
+    "llava": Model(
+        name="llava",
+        model=llava_model.LlavaForCasualLM,
+        config=llava_model.LlavaConfig,
+        source={
+            "huggingface-torch": llava_loader.huggingface,
+            "huggingface-safetensor": llava_loader.huggingface,
+            "awq": llava_loader.awq,
+        },
+        quantize={
+            "group-quant": llava_quantization.group_quant,
         },
     ),
 }

@@ -815,7 +815,7 @@ class LLMChat {
    */
   ObjectRef EmbedStep(std::string inp, bool append_conversation = true,
                       PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
-                      String generation_config_str = "") {
+                      String generation_config_str = "", NDArray pixel_values = NDArray()) {
     // process generation settings
     picojson::object generation_config =
         this->LoadGenerationConfigFromString(generation_config_str);
@@ -833,9 +833,15 @@ class LLMChat {
     auto tstart = std::chrono::high_resolution_clock::now();
 
     NDArray input_data = this->GetInputTokenNDArray(prompt_tokens);
-    ObjectRef embedding = ft_.embed_func_(ft_.CopyToWorker0(input_data), params_);
+    ObjectRef embedding;
+    if (pixel_values.defined()) {
+      embedding =
+          ft_.embed_func_(ft_.CopyToWorker0(pixel_values), ft_.CopyToWorker0(input_data), params_);
+    } else {
+      ObjectRef embedding = ft_.embed_func_(ft_.CopyToWorker0(input_data), params_);
+    }
 
-    int32_t new_seq_len = total_seq_len_ + token_len;
+    int32_t new_seq_len = total_seq_len_ + Downcast<NDArray>(embedding).Shape()[1];
     total_seq_len_ = new_seq_len;
 
     auto tend = std::chrono::high_resolution_clock::now();
@@ -891,20 +897,27 @@ class LLMChat {
    */
   void PrefillStep(std::string inp, bool append_conversation = true, bool decode_next_token = true,
                    PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
-                   String generation_config_str = "") {
+                   String generation_config_str = "", NDArray pixel_values = NDArray()) {
     if (ft_.embed_func_.defined() && ft_.prefill_with_embed_func_.defined()) {
       // Temporarily placed inside `PrefillStep` for compatibility in transition.
       // Will be separated out in the future.
       if (ft_.use_disco) {
         LOG(FATAL) << "NotImplementedError: Distributed inference is not supported for this model";
       }
-      if (this->prefill_chunk_size_ != -1) {
+      if (this->prefill_chunk_size_ != -1 && this->prefill_chunk_size_ != this->max_window_size_) {
+        LOG_DEBUG << this->prefill_chunk_size_ << " " << this->max_window_size_;
         LOG(FATAL) << "NotImplementedError: Separate embedding does not support chunking";
       }
-      NDArray embedding = Downcast<NDArray>(
-          EmbedStep(inp, append_conversation, place_in_prompt, generation_config_str));
+
+      NDArray embedding = Downcast<NDArray>(EmbedStep(inp, append_conversation, place_in_prompt,
+                                                      generation_config_str, pixel_values));
       PrefillWithEmbedStep(embedding, decode_next_token, generation_config_str);
       return;
+    }
+
+    if (pixel_values.defined()) {
+      LOG(FATAL) << "NotImplementedError: When passing pixel values, embed and prefill_with_embed "
+                    "functions must be defined";
     }
 
     picojson::object generation_config =
@@ -1633,7 +1646,7 @@ class LLMChatModule : public ModuleNode {
       });
     } else if (name == "prefill") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        ICHECK(1 <= args.size() && args.size() <= 4);
+        ICHECK(1 <= args.size() && args.size() <= 5);
         if (args.size() == 1) {
           // args: inp (with decode_next_token = true, place_in_prompt = kAll)
           GetChat()->PrefillStep(args[0]);
@@ -1648,6 +1661,10 @@ class LLMChatModule : public ModuleNode {
           // args: inp, decode_next_token, place_in_prompt, generation_config_str
           PlaceInPrompt place_in_prompt = static_cast<PlaceInPrompt>(static_cast<int>(args[2]));
           GetChat()->PrefillStep(args[0], true, args[1], place_in_prompt, args[3]);
+        } else if (args.size() == 5) {
+          // args: inp, decode_next_token, place_in_prompt, generation_config_str, pixel_values
+          PlaceInPrompt place_in_prompt = static_cast<PlaceInPrompt>(static_cast<int>(args[2]));
+          GetChat()->PrefillStep(args[0], true, args[1], place_in_prompt, args[3], args[4]);
         }
       });
     } else if (name == "embed") {

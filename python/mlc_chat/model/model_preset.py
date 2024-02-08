@@ -1,6 +1,7 @@
 """A builtin set of models available in MLC LLM."""
 
 from typing import Any, Dict
+
 """A centralized registry of all existing model architures and their configurations."""
 import dataclasses
 from typing import Any, Callable, Dict, Tuple
@@ -25,8 +26,8 @@ a class method `from_file` with the following signature:
         ...
 """
 
-FuncGetExternMap = Callable[[ModelConfig, Quantization], ExternMapping]
-FuncQuantization = Callable[[ModelConfig, Quantization], Tuple[nn.Module, QuantizeMapping]]
+FuncGetExternMap = Callable[[ModelConfig, QUANTIZATION], ExternMapping]
+FuncQuantization = Callable[[ModelConfig, QUANTIZATION], Tuple[nn.Module, QuantizeMapping]]
 
 
 @dataclasses.dataclass
@@ -74,8 +75,8 @@ MODELS: Dict[str, Model] = {
             "group-quant": llama_quantization.group_quant,
         },
     ),
-    "llava":Model(
-        name='llava',
+    "llava": Model(
+        name="llava",
         model=llava_model.LlavaForCasualLM,
         config=llava_model.LlavaConfig,
         source={
@@ -141,9 +142,9 @@ MODELS: Dict[str, Model] = {
     ),
 }
 MODEL_PRESETS: Dict[str, Any] = {
-    "llava":{
+    "llava": {
         "architectures": ["LlavaForCasualLM"],
-        "model_type":"llava",
+        "model_type": "llava",
         "bos_token_id": 1,
         "eos_token_id": 2,
         "hidden_act": "silu",
@@ -166,7 +167,6 @@ MODEL_PRESETS: Dict[str, Any] = {
         "use_cache": True,
         "vocab_size": 32000,
     },
-
     "llama2_7b": {
         "architectures": ["LlamaForCausalLM"],
         "bos_token_id": 1,
