@@ -733,7 +733,6 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
     GROUP_SIZE = H_qo // H_kv
     VEC_SIZE = max(8 // qkv_dtype_bytes, D // 32)
     bdx = D // VEC_SIZE
-    assert bdx == 32
     bdy = GROUP_SIZE
     threads_per_CTA = max(512, bdx * bdy)
     bdz = threads_per_CTA // (bdx * bdy)
