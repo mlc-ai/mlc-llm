@@ -463,30 +463,32 @@ class LlamaAttention(LlamaAttentionBase):
         k_cache, v_cache = past_key_values
         f_kv_cache_append = relax.extern("vm.builtin.attention_kv_cache_append")
         k_cache = nn.emit(
-            relax.Call(
+            relax.op.call_inplace_packed(
                 f_kv_cache_append,
                 args=[k_cache, squeezed_key],
+                inplace_indices=[0],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
         )
         v_cache = nn.emit(
-            relax.Call(
+            relax.op.call_inplace_packed(
                 f_kv_cache_append,
                 args=[v_cache, squeezed_value],
+                inplace_indices=[0],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
         )
         past_key_values = (k_cache, v_cache)
         f_kv_cache_view = relax.extern("vm.builtin.attention_kv_cache_view")
         k_cache = nn.emit(
-            relax.Call(
+            relax.call_pure_packed(
                 f_kv_cache_view,
                 args=[k_cache, kv_cache_shape],
                 sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
             )
         )
         v_cache = nn.emit(
-            relax.Call(
+            relax.call_pure_packed(
                 f_kv_cache_view,
                 args=[v_cache, kv_cache_shape],
                 sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
@@ -1085,7 +1087,7 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
             for _ in range(config.num_hidden_layers * 2):
                 caches.append(
                     bb.emit(
-                        relax.Call(
+                        relax.call_pure_packed(
                             f_kv_cache_create,
                             args=[zeros, init_shape, relax.PrimValue(0)],
                             sinfo_args=[relax.ObjectStructInfo()],
@@ -1114,7 +1116,7 @@ def create_paged_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> N
             zeros = bb.emit(relax.op.zeros((), config.dtype))
             f_kv_cache_create = relax.extern("vm.builtin.paged_attention_kv_cache_create")
             cache = bb.emit_output(
-                relax.Call(
+                relax.call_pure_packed(
                     f_kv_cache_create,
                     args=[
                         cache_config,
