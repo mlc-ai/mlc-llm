@@ -8,10 +8,8 @@ from tvm.script import tir as T
 # mypy: disable-error-code="attr-defined,valid-type"
 # pylint: disable=too-many-locals,invalid-name
 
-TX = 1024
 
-
-def _get_add_rms_norm_decode(hidden_size: int, eps: float):
+def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int):
     inv_hidden_size = T.float32(1.0 / float(hidden_size))
     eps = T.float32(eps)
     add_local_size = hidden_size // TX
@@ -74,7 +72,7 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float):
     return decode_add_rms
 
 
-def _get_add_rms_norm_prefill(hidden_size: int, eps: float):
+def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int):
     inv_hidden_size = T.float32(1.0 / float(hidden_size))
     eps = T.float32(eps)
     add_local_size = hidden_size // TX
@@ -138,6 +136,19 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float):
 class FuseAddRMSNorm:  # pylint: disable=too-few-public-methods
     """A compiler pass that fuses add + rms_norm."""
 
+    def __init__(self, target: tvm.target.Target) -> None:
+        """Initializer.
+
+        Parameters
+        ----------
+        target : tvm.target.Target
+            Target device.
+        """
+        self.TX = 1024  # default
+
+        if target.max_num_threads < self.TX:
+            self.TX = target.max_num_threads
+
     def transform_module(self, mod: tvm.IRModule, _ctx: tvm.transform.PassContext) -> tvm.IRModule:
         """IRModule-level transformation."""
         with PatternContext() as ctx:
@@ -161,12 +172,12 @@ class FuseAddRMSNorm:  # pylint: disable=too-few-public-methods
 
             if all(gv.name_hint != func_name for gv in mod.functions):
                 h = int(h)
-                if h % TX != 0:
+                if h % self.TX != 0:
                     return {}
                 if n == 1:
-                    func = _get_add_rms_norm_prefill(h, eps)
+                    func = _get_add_rms_norm_prefill(h, eps, self.TX)
                 else:
-                    func = _get_add_rms_norm_decode(h, eps)
+                    func = _get_add_rms_norm_decode(h, eps, self.TX)
                 mod[func_name] = func
                 gvar = mod.get_global_var(func_name)
                 relax.expr._update_struct_info(  # pylint: disable=protected-access
