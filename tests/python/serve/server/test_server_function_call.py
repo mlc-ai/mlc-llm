@@ -1,3 +1,4 @@
+# pylint: disable=line-too-long
 """
 Test script for function call in chat completion. To run this script, use the following command:
 MLC_SERVE_MODEL_LIB=dist/gorilla-openfunctions-v1-q4f16_1_MLC/gorilla-openfunctions-v1-q4f16_1-cuda.so 
@@ -23,10 +24,6 @@ def check_openai_nonstream_response(
     num_choices: int,
     finish_reason: str,
     completion_tokens: Optional[int] = None,
-    echo_prompt: Optional[str] = None,
-    suffix: Optional[str] = None,
-    stop: Optional[List[str]] = None,
-    require_substr: Optional[List[str]] = None,
 ):
     print(response)
     assert response["model"] == model
@@ -48,6 +45,7 @@ def check_openai_nonstream_response(
     assert isinstance(usage, dict)
     assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
     assert usage["prompt_tokens"] > 0
+
     if completion_tokens is not None:
         assert usage["completion_tokens"] == completion_tokens
 
@@ -59,7 +57,6 @@ def check_openai_stream_response(
     object_str: str,
     num_choices: int,
     finish_reason: str,
-    completion_tokens: Optional[int] = None,
     echo_prompt: Optional[str] = None,
     suffix: Optional[str] = None,
     stop: Optional[List[str]] = None,

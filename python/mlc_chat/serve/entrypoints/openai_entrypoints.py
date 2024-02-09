@@ -272,12 +272,13 @@ def check_function_call_usage(
 
 
 def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, None]]:
-    """Convert a (possibly list) of function call string to a list of json objects."""
+    """Convert a (possibly list) of function call string to a list of json objects.
+    Return None for invalid function call string."""
 
     def parse_function_call(call_str: str):
         node = ast.parse(call_str, mode="eval")
         call_node = node.body
-        if isinstance(call_node, ast.Call):
+        if isinstance(call_node, ast.Call) and isinstance(call_node.func, ast.Name):
             name = call_node.func.id
             arguments = {}
             for keyword in call_node.keywords:
