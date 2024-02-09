@@ -40,7 +40,7 @@ class ConvTemplateRegistry:
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="llama-2",
-        system_template=f"[INST] <<SYS>>\n\n{MessagePlaceholders.system.value}\n<</SYS>>\n\n ",
+        system_template=f"[INST] <<SYS>>\n\n{MessagePlaceholders.SYSTEM.value}\n<</SYS>>\n\n ",
         system_message="You are a helpful, respectful and honest assistant.",
         roles={"user": "[INST]", "assistant": "[/INST]", "tool": "[INST]"},
         seps=[" "],
@@ -55,13 +55,17 @@ ConvTemplateRegistry.register_conv_template(
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="gorilla",
-        system_template=f"{MessagePlaceholders.system.value}",
+        system_template=f"{MessagePlaceholders.SYSTEM.value}",
         system_message=(
             "A chat between a curious user and an artificial intelligence assistant. "
-            "The assistant provides helpful, detailed, and polite responses to the user's inquiries."
+            "The assistant provides helpful, detailed, and "
+            "polite responses to the user's inquiries."
         ),
         role_templates={
-            "user": f"<<question>> {MessagePlaceholders.user.value} <<function>> {MessagePlaceholders.function.value}",
+            "user": (
+                f"<<question>> {MessagePlaceholders.USER.value} <<function>> "
+                f"{MessagePlaceholders.FUNCTION.value}"
+            ),
         },
         roles={"user": "USER", "assistant": "ASSISTANT", "tool": "USER"},
         seps=["\n", "</s>"],

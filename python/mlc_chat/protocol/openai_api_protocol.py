@@ -5,9 +5,9 @@ https://github.com/lm-sys/FastChat/blob/main/fastchat/protocol/openai_api_protoc
 
 # pylint: disable=missing-class-docstring
 import time
-import shortuuid
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
+import shortuuid
 from pydantic import BaseModel, Field, field_validator
 
 ################ Commons ################

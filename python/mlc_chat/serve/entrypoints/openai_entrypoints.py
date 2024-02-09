@@ -1,14 +1,15 @@
 """OpenAI API-compatible server entrypoints in MLC LLM"""
 
 # pylint: disable=too-many-locals,too-many-return-statements,too-many-statements
-from http import HTTPStatus
-from typing import AsyncGenerator, List, Optional, Union, Dict
-import json
 import ast
+import json
+from http import HTTPStatus
+from typing import AsyncGenerator, Dict, List, Optional, Union
 
 import fastapi
 
 from ...protocol import protocol_utils
+from ...protocol.conversation_protocol import Conversation
 from ...protocol.openai_api_protocol import (
     ChatCompletionMessage,
     ChatCompletionRequest,
@@ -16,16 +17,15 @@ from ...protocol.openai_api_protocol import (
     ChatCompletionResponseChoice,
     ChatCompletionStreamResponse,
     ChatCompletionStreamResponseChoice,
+    ChatFunctionCall,
+    ChatToolCall,
     CompletionRequest,
     CompletionResponse,
     CompletionResponseChoice,
     ListResponse,
     ModelResponse,
     UsageInfo,
-    ChatToolCall,
-    ChatFunctionCall,
 )
-from ...protocol.conversation_protocol import Conversation
 from ..server import ServerContext
 from . import entrypoint_utils
 
@@ -224,14 +224,19 @@ def chat_completion_check_message_validity(
     return None
 
 
-def check_function_call_usage(request: ChatCompletionRequest, conv_template: Conversation):
+def check_function_call_usage(
+    request: ChatCompletionRequest, conv_template: Conversation
+) -> Optional[str]:
+    """Check if function calling is used and update the conversation template.
+    Return error message if invalid request format for function calling.
+    """
 
     # return if no tools are provided or tool_choice is set to none
     if request.tools is None or (
         isinstance(request.tool_choice, str) and request.tool_choice == "none"
     ):
         conv_template.use_function_calling = False
-        return
+        return None
 
     # select the tool based on the tool_choice if specified
     if isinstance(request.tool_choice, dict):
@@ -245,9 +250,12 @@ def check_function_call_usage(request: ChatCompletionRequest, conv_template: Con
             if tool.function.name == request.tool_choice["function"]["name"]:
                 conv_template.use_function_calling = True
                 conv_template.function_string = tool.function.model_dump_json()
-                return
+                return None
 
-        return f"The tool_choice function {request.tool_choice['function']['name']} is not found in the tools list"
+        return (
+            f"The tool_choice function {request.tool_choice['function']['name']}"
+            " is not found in the tools list"
+        )
 
     if isinstance(request.tool_choice, str) and request.tool_choice != "auto":
         return f"Invalid tool_choice value: {request.tool_choice}"
@@ -255,14 +263,17 @@ def check_function_call_usage(request: ChatCompletionRequest, conv_template: Con
     function_list = []
     for tool in request.tools:
         if tool.type != "function":
-            return f"Only 'function' tool type is supported"
+            return "Only 'function' tool type is supported"
         function_list.append(tool.function.model_dump())
 
     conv_template.use_function_calling = True
     conv_template.function_string = json.dumps(function_list)
+    return None
 
 
 def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, None]]:
+    """Convert a (possibly list) of function call string to a list of json objects."""
+
     def parse_function_call(call_str: str):
         node = ast.parse(call_str, mode="eval")
         call_node = node.body
@@ -285,7 +296,9 @@ def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, Non
 
 
 @app.post("/v1/chat/completions")
-async def request_chat_completion(request: ChatCompletionRequest, raw_request: fastapi.Request):
+async def request_chat_completion(
+    request: ChatCompletionRequest, raw_request: fastapi.Request
+):  # pylint: disable=too-many-branches
     """OpenAI-compatible chat completion API.
     API reference: https://platform.openai.com/docs/api-reference/chat
     """
@@ -319,8 +332,7 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
     if error_msg is not None:
         return entrypoint_utils.create_error_response(HTTPStatus.BAD_REQUEST, message=error_msg)
 
-    # update conv_template.use_function_calling to True if fn calling
-    # also add function list to the conv templat
+    # Check for function calling usage and update the conversation template
     error_msg = check_function_call_usage(request, conv_template)
     if error_msg is not None:
         return entrypoint_utils.create_error_response(HTTPStatus.BAD_REQUEST, message=error_msg)
@@ -422,7 +434,7 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
     if conv_template.use_function_calling:
         try:
             fn_json_list = convert_function_str_to_json(output_text)
-        except Exception as e:
+        except (SyntaxError, ValueError):
             return entrypoint_utils.create_error_response(
                 HTTPStatus.BAD_GATEWAY, message="Got an invalid function call output from model"
             )

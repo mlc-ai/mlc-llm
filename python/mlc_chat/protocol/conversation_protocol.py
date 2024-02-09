@@ -1,19 +1,20 @@
 """The standard conversation protocol in MLC LLM"""
 
 from enum import Enum
-
-from typing import List, Optional, Tuple, Dict
+from typing import Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field, field_validator
 
 
 # The message placeholders in the message prompts according to roles.
 class MessagePlaceholders(Enum):
-    system = "{system_message}"
-    user = "{user_message}"
-    assistant = "{assistant_message}"
-    tool = "{tool_message}"
-    function = "{function_string}"
+    """The message placeholders in the message prompts according to roles."""
+
+    SYSTEM = "{system_message}"
+    USER = "{user_message}"
+    ASSISTANT = "{assistant_message}"
+    TOOL = "{tool_message}"
+    FUNCTION = "{function_string}"
 
 
 class Conversation(BaseModel):
@@ -35,7 +36,7 @@ class Conversation(BaseModel):
     # The system prompt template, it optionally contains the system
     # message placeholder, and the placeholder will be replaced with
     # the system message below.
-    system_template: str = MessagePlaceholders.system.value
+    system_template: str = MessagePlaceholders.SYSTEM.value
     # The content of the system prompt (without the template format).
     system_message: str = ""
     # The system token ids to be prepended at the beginning of tokenized
@@ -47,7 +48,7 @@ class Conversation(BaseModel):
 
     # The roles prompt template, it optionally contains the defaults
     # message placeholders and will be replaced by actual content
-    role_templates: Dict[str, str] = None
+    role_templates: Dict[str, str]
 
     # The conversation history messages.
     # Each message is a pair of strings, denoting "(role, content)".
@@ -78,9 +79,9 @@ class Conversation(BaseModel):
     def __init__(self, role_templates: Optional[Dict[str, str]] = None, **kwargs):
         # Defaults templates which would be overridden by model specific templates
         _role_templates: Dict[str, str] = {
-            "user": MessagePlaceholders.user.value,
-            "assistant": MessagePlaceholders.assistant.value,
-            "tool": MessagePlaceholders.tool.value,
+            "user": MessagePlaceholders.USER.value,
+            "assistant": MessagePlaceholders.ASSISTANT.value,
+            "tool": MessagePlaceholders.TOOL.value,
         }
         if role_templates is not None:
             _role_templates.update(role_templates)
@@ -100,7 +101,7 @@ class Conversation(BaseModel):
         """
         # - Get the system message.
         system_msg = self.system_template.replace(
-            MessagePlaceholders.system.value, self.system_message
+            MessagePlaceholders.SYSTEM.value, self.system_message
         )
 
         # - Get the message strings.
@@ -125,8 +126,9 @@ class Conversation(BaseModel):
 
         prompt = system_msg + separators[0] + "".join(message_list)
 
-        # Replace the last function string placeholder with actual function string and remove the rest
-        prompt = self.function_string.join(prompt.rsplit(MessagePlaceholders.function.value, 1))
-        prompt = prompt.replace(MessagePlaceholders.function.value, "")
+        # Replace the last function string placeholder with actual function string
+        prompt = self.function_string.join(prompt.rsplit(MessagePlaceholders.FUNCTION.value, 1))
+        # Replace with remaining function string placeholders with empty string
+        prompt = prompt.replace(MessagePlaceholders.FUNCTION.value, "")
 
         return prompt
