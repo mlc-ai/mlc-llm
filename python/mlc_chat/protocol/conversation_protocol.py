@@ -117,7 +117,9 @@ class Conversation(BaseModel):
                 message_string = (
                     self.roles[role]
                     + self.role_content_sep
-                    + self.role_templates[role].replace(MessagePlaceholders[role].value, content)
+                    + self.role_templates[role].replace(
+                        MessagePlaceholders[role.upper()].value, content
+                    )
                     + separator
                 )
             else:
