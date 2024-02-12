@@ -68,7 +68,6 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
-
         vision_config_dict: Dict[str, Any]
         if isinstance(self.vision_config, LlavaVisionConfig):
             vision_config_dict = dataclasses.asdict(self.vision_config)
