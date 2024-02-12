@@ -1,35 +1,28 @@
 import dataclasses
-from typing import Optional
-
-from tvm import te, tir
-import tvm.relax as relax
-import tvm.relax.frontend.nn as nn
-from tvm.relax.frontend.nn import op
-
-from tvm.relax.frontend.nn import Tensor, Module
-from tvm.relax.frontend.nn.op import (
-    reshape,
-    permute_dims,
-    broadcast_to,
-    concat,
-    softmax,
-    matmul,
-    wrap_nested,
-)
-
-from tvm.relax.op import strided_slice, arange
-
-import dataclasses
 import logging
 from typing import Any, Dict, Optional
 
+import tvm.relax as relax
+import tvm.relax.frontend.nn as nn
 from tvm import te, tir
+from tvm.relax.frontend.nn import Module, Tensor, op
+from tvm.relax.frontend.nn.op import (
+    broadcast_to,
+    concat,
+    matmul,
+    permute_dims,
+    reshape,
+    softmax,
+    wrap_nested,
+)
+from tvm.relax.op import arange, strided_slice
+
+from mlc_chat import op as op_ext
+from mlc_chat.nn import FlashInferPagedKVCache, PagedKVCache, RopeMode, TIRPagedKVCache
 
 from ...support.config import ConfigBase
 from ...support.style import bold
-
-
-from ..llama.llama_model import LlamaForCasualLM, LlamaConfig
+from ..llama.llama_model import LlamaConfig, LlamaForCasualLM
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +74,7 @@ class LlavaConfig(ConfigBase):
                 text_config["num_attention_heads"] = self.text_config.pop("num_attention_heads", 32)
                 text_config["num_hidden_layers"] = self.text_config.pop("num_hidden_layers", 32)
                 text_config["rms_norm_eps"] = self.text_config.pop("rms_norm_eps", 1e-06)
-                text_config["vocab_size"] = self.text_config.pop("vocab_size", 32000)  # 32064
+                text_config["vocab_size"] = self.text_config.pop("vocab_size", 32064)
                 text_config["context_window_size"] = self.text_config.pop(
                     "context_window_size", 4096
                 )
@@ -230,20 +223,10 @@ class CLIPAttention(Module):
         value_states = reshape(value_states, shape=proj_shape)
 
         trans_key_states = permute_dims(key_states, axes=(0, 2, 1))
-        attn_weights = matmul(query_states, trans_key_states)
 
-        if attn_weights.shape != [bsz * self.num_heads, tgt_len, tgt_len]:
-            raise ValueError(
-                f"Attention weights should be of size {(bsz * self.num_heads, tgt_len, tgt_len)}, but is"
-                f" {attn_weights.shape}"
-            )
+        attn_weights = matmul(query_states, trans_key_states)
         attn_weights = softmax(attn_weights, axis=-1)
         attn_output = matmul(attn_weights, value_states)
-        if attn_output.shape != [bsz * self.num_heads, tgt_len, self.head_dim]:
-            raise ValueError(
-                f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_dim)}, but is"
-                f" {attn_output.shape}"
-            )
         attn_output = reshape(attn_output, shape=(bsz, self.num_heads, tgt_len, self.head_dim))
         attn_output = permute_dims(attn_output, axes=(0, 2, 1, 3))
         attn_output = reshape(attn_output, shape=(bsz, tgt_len, embed_dim))
@@ -351,31 +334,15 @@ class LlavaForCasualLM(Module):
         self.vocab_size = config.vocab_size
         self.dtype = config.dtype
 
-    def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor) -> Tensor:
-        return self.language_model(inputs, total_seq_len, attention_mask)
+    def _embed_input_ids(self, input_ids: Tensor) -> Tensor:
+        return self.language_model.embed(input_ids)
 
-    def to(self, dtype: Optional[str] = None):
-        super().to(dtype=dtype)
-        if dtype is not None:
-            self.dtype = dtype
-
-    def decode(self, inputs: Tensor, total_seq_len: tir.Var):
-        batch_size, seq_len = inputs.shape
-        attention_mask = op.full(
-            shape=[batch_size, 1, seq_len, total_seq_len],
-            fill_value=tir.max_value(self.dtype),
-            dtype=self.dtype,
-        )
-        return self.forward(inputs, total_seq_len, attention_mask)
-
-    def embed(self, pixel_values: Tensor, inputs: Tensor) -> Tensor:
-
+    def _embed_pixel_values_and_input_ids(self, pixel_values: Tensor, input_ids: Tensor) -> Tensor:
         def _index(x, value, batch_size, seq_len):
             return te.compute(
                 (batch_size, seq_len),
                 lambda i, j: tir.if_then_else(
                     x[i, j] == value,
-                    # tir.IntImm("int32", 1),
                     j,
                     tir.IntImm("int32", 0),
                 ),
@@ -396,6 +363,8 @@ class LlavaForCasualLM(Module):
                 ),
             )
 
+        input_embeddings = self._embed_input_ids(input_ids)
+
         image_features_all = self.vision_tower.forward(pixel_values)
         image_features = wrap_nested(
             strided_slice(
@@ -404,16 +373,20 @@ class LlavaForCasualLM(Module):
             name="slice",
         )
         image_features = self.multi_modal_projector(image_features)
-        input_embeddings = self.language_model.model.embed_tokens(inputs)
-        batch_size, seq_len = inputs.shape
+        batch_size, seq_len = input_ids.shape
         image_index_tensor = op.tensor_expr_op(
             _index,
             name_hint="index",
-            args=[inputs, tir.IntImm("int32", self.config.image_token_index), batch_size, seq_len],
+            args=[
+                input_ids,
+                tir.IntImm("int32", self.config.image_token_index),
+                batch_size,
+                seq_len,
+            ],
         ).astype("int32")
         ##! Assume only one <IMAGE> token in input
         ##! Also assume batch_size = 1 for now
-
+        # TODO: Support image_count > 1 and batch_size > 1
         insert_index = op.sum(image_index_tensor, axis=1)
 
         new_shape = (
@@ -429,77 +402,201 @@ class LlavaForCasualLM(Module):
         )
         return combined_embeddings
 
-    def prefill_with_embed(self, embeddings: Tensor, total_seq_len: tir.Var):
-        def _attention_mask(batch_size, seq_len, total_seq_len):
-            return te.compute(
-                (batch_size, 1, seq_len, total_seq_len),
-                lambda b, _, i, j: tir.if_then_else(
-                    i < j - (total_seq_len - seq_len),
-                    tir.min_value(self.dtype),
-                    tir.max_value(self.dtype),
-                ),
-                name="attention_mask_prefill",
-            )
+    def embed(self, input_ids: Tensor) -> Tensor:
+        return self._embed_input_ids(input_ids)
 
-        batch_size, seq_len, embed_dim = embeddings.shape
+    def embed_with_pixel_values(self, pixel_values: Tensor, input_ids: Tensor) -> Tensor:
+        return self._embed_pixel_values_and_input_ids(pixel_values, input_ids)
 
-        attention_mask = op.tensor_expr_op(
-            _attention_mask,
-            name_hint="attention_mask_prefill",
-            args=[batch_size, seq_len, total_seq_len],
-        )
+    def batch_forward(
+        self,
+        input_embeds: Tensor,
+        paged_kv_cache: PagedKVCache,
+        logit_positions: Optional[Tensor] = None,
+    ):
+        op_ext.configure()
 
-        return self.language_model.forward(
-            embeddings, total_seq_len, attention_mask, input_embeddings=embeddings
-        )
+        return self.language_model.batch_forward(input_embeds, paged_kv_cache, logit_positions)
+
+    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
+        return self.language_model.prefill(input_embed, paged_kv_cache)
+
+    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
+        return self.language_model.decode(input_embed, paged_kv_cache)
+
+    def batch_prefill(
+        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+    ):
+        return self.language_model.batch_prefill(input_embeds, logit_positions, paged_kv_cache)
+
+    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
+        return self.language_model.batch_decode(input_embeds, paged_kv_cache)
+
+    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
+        return self.language_model.batch_verify(input_embeds, paged_kv_cache)
 
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
-        return op.softmax(logits / temperature, axis=-1)
+        return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
+
+    def create_flashinfer_paged_kv_cache(
+        self,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+    ) -> PagedKVCache:
+        # Note: Right now we only have FlashInfer-based KV cache supported.
+        # TIR version will be introduced soon.
+        return FlashInferPagedKVCache(
+            max_batch_size=max_batch_size,
+            max_total_seq_len=max_total_seq_len,
+            prefill_chunk_size=prefill_chunk_size,
+            page_size=page_size,
+            num_hidden_layers=self.config.text_config.num_hidden_layers,
+            num_attention_heads=self.config.text_config.num_attention_heads
+            // self.config.tensor_parallel_shards,
+            num_key_value_heads=self.config.text_config.num_key_value_heads
+            // self.config.tensor_parallel_shards,
+            head_dim=self.config.text_config.head_dim,
+            rope_mode=RopeMode.NORMAL,
+            rope_scale=1,
+            rope_theta=self.language_model.rope_theta,
+            dtype=self.dtype,
+        )
+
+    def create_tir_paged_kv_cache(
+        self,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+    ) -> PagedKVCache:
+        return TIRPagedKVCache(
+            max_batch_size=max_batch_size,
+            max_total_seq_len=max_total_seq_len,
+            prefill_chunk_size=prefill_chunk_size,
+            page_size=page_size,
+            num_hidden_layers=self.config.text_config.num_hidden_layers,
+            num_attention_heads=self.config.text_config.num_attention_heads
+            // self.config.tensor_parallel_shards,
+            num_key_value_heads=self.config.text_config.num_key_value_heads
+            // self.config.tensor_parallel_shards,
+            head_dim=self.config.text_config.head_dim,
+            rope_mode=RopeMode.NORMAL,
+            rope_scale=1,
+            rope_theta=self.language_model.rope_theta,
+            dtype=self.dtype,
+        )
 
     def get_default_spec(self):
-        batch_size = 1
         mod_spec = {
-            "decode": {
-                "inputs": nn.spec.Tensor([batch_size, 1], "int32"),
-                "total_seq_len": int,
+            "embed": {
+                "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
                 "$": {
                     "param_mode": "packed",
-                    "effect_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "embed_with_pixel_values": {
+                "pixel_values": nn.spec.Tensor(
+                    [
+                        1,
+                        3,
+                        self.config.vision_config.image_size,
+                        self.config.vision_config.image_size,
+                    ],
+                    self.dtype,
+                ),
+                "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "prefill": {
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.config.text_config.hidden_size], self.dtype
+                ),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "decode": {
+                "input_embed": nn.spec.Tensor(
+                    [1, 1, self.config.text_config.hidden_size], self.dtype
+                ),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_prefill": {
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.config.text_config.hidden_size], self.dtype
+                ),
+                "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_decode": {
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.config.text_config.hidden_size], self.dtype
+                ),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_verify": {
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.config.text_config.hidden_size], self.dtype
+                ),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
                 },
             },
             "softmax_with_temperature": {
-                "logits": nn.spec.Tensor([1, 1, "vocab_size"], "float32"),
-                "temperature": nn.spec.Tensor([], "float32"),
+                "logits": nn.spec.Tensor(["batch_size", 1, "vocab_size"], "float32"),
+                "temperature": nn.spec.Tensor(["batch_size"], "float32"),
                 "$": {
                     "param_mode": "none",
                     "effect_mode": "none",
                 },
             },
-            "embed": {
-                "pixel_values": nn.spec.Tensor(
-                    [
-                        batch_size,
-                        3,
-                        self.config.vision_config.image_size,
-                        self.config.vision_config.image_size,
-                    ],
-                    "float16",
-                ),
-                "inputs": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
+            "create_flashinfer_paged_kv_cache": {
+                "max_batch_size": int,
+                "max_total_seq_len": int,
+                "prefill_chunk_size": int,
+                "page_size": int,
                 "$": {
-                    "param_mode": "packed",
+                    "param_mode": "none",
                     "effect_mode": "none",
                 },
             },
-            "prefill_with_embed": {
-                "embeddings": nn.spec.Tensor(
-                    [batch_size, "seq_len", self.config.text_config.hidden_size], "float16"
-                ),
-                "total_seq_len": int,
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "packed",
-                },
-            },
         }
+        if self.dtype == "float16":
+            # "create_tir_paged_kv_cache" does not support dtype other than fp16 right now.
+            mod_spec["create_tir_paged_kv_cache"] = {
+                "max_batch_size": int,
+                "max_total_seq_len": int,
+                "prefill_chunk_size": int,
+                "page_size": int,
+                "$": {
+                    "param_mode": "none",
+                    "effect_mode": "none",
+                },
+            }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)

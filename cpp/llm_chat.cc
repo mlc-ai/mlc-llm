@@ -247,6 +247,7 @@ struct FunctionTable {
   void _InitFunctions() {
     this->prefill_func_ = mod_get_func("prefill");
     this->embed_func_ = mod_get_func("embed");
+    this->embed_with_pixel_values_func_ = mod_get_func("embed_with_pixel_values");
     this->prefill_with_embed_func_ = mod_get_func("prefill_with_embed");
     this->decode_func_ = mod_get_func("decode");
     this->softmax_func_ = mod_get_func("softmax_with_temperature");
@@ -317,6 +318,7 @@ struct FunctionTable {
 
   PackedFunc prefill_func_;
   PackedFunc embed_func_;
+  PackedFunc embed_with_pixel_values_func_;
   PackedFunc prefill_with_embed_func_;
   PackedFunc decode_func_;
   PackedFunc encoding_without_cache_func_;
@@ -904,20 +906,13 @@ class LLMChat {
       if (ft_.use_disco) {
         LOG(FATAL) << "NotImplementedError: Distributed inference is not supported for this model";
       }
-      if (this->prefill_chunk_size_ != -1 && this->prefill_chunk_size_ != this->max_window_size_) {
-        LOG_DEBUG << this->prefill_chunk_size_ << " " << this->max_window_size_;
+      if (this->prefill_chunk_size_ != -1) {
         LOG(FATAL) << "NotImplementedError: Separate embedding does not support chunking";
       }
-
-      NDArray embedding = Downcast<NDArray>(EmbedStep(inp, append_conversation, place_in_prompt,
-                                                      generation_config_str, pixel_values));
+      NDArray embedding = Downcast<NDArray>(
+          EmbedStep(inp, append_conversation, place_in_prompt, generation_config_str));
       PrefillWithEmbedStep(embedding, decode_next_token, generation_config_str);
       return;
-    }
-
-    if (pixel_values.defined()) {
-      LOG(FATAL) << "NotImplementedError: When passing pixel values, embed and prefill_with_embed "
-                    "functions must be defined";
     }
 
     picojson::object generation_config =
@@ -942,7 +937,7 @@ class LLMChat {
         std::vector<int32_t> chunk =
             std::vector<int32_t>(prompt_tokens.begin() + begin, prompt_tokens.begin() + end);
         new_seq_len += static_cast<int64_t>(chunk.size());
-        logits_on_device = this->ForwardTokens(chunk, new_seq_len);
+        logits_on_device = this->ForwardTokens(chunk, new_seq_len, pixel_values);
 
         // update window cache offset (prefill)
         if (this->sliding_window_size_ != -1) {
@@ -1323,16 +1318,31 @@ class LLMChat {
   }
 
   // run forward compute
-  NDArray ForwardTokens(std::vector<int32_t> input_tokens, int64_t cur_pos) {
+  NDArray ForwardTokens(std::vector<int32_t> input_tokens, int64_t cur_pos,
+                        NDArray pixel_values = NDArray()) {
     ObjectRef ret{nullptr};
     if (input_tokens.size() > 1 && ft_.prefill_func_.defined()) {
       ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray(input_tokens));
       if (sliding_window_size_ == -1) {
         if (ft_.use_paged_kv_cache) {
+          NDArray embed;
+          if (this->conversation_.use_pixel_values) {
+            int image_count = std::count(input_tokens.begin(), input_tokens.end(),
+                                         this->conversation_.image_token_index);
+            if (image_count == 0) {
+              embed = ft_.embed_func_(input_data, params_);
+            } else if (image_count == 1) {
+              embed = ft_.embed_with_pixel_values_func_(ft_.CopyToWorker0(pixel_values), input_data,
+                                                        params_);
+            }
+          } else {
+            embed = ft_.embed_func_(input_data, params_);
+          }
+
           IntTuple seq_ids_tuple({0});
-          ShapeTuple input_len_shape = ShapeTuple({static_cast<int64_t>(input_tokens.size())});
+          ShapeTuple input_len_shape = ShapeTuple({static_cast<int64_t>(embed.Shape()[1])});
           ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, input_len_shape);
-          auto embed = ft_.embed_func_(input_data, params_);
+
           ret = ft_.prefill_func_(embed, kv_cache_, params_);
           ft_.kv_cache_end_forward_func_(kv_cache_);
         } else {
@@ -1365,10 +1375,22 @@ class LLMChat {
         ShapeTuple pos_shape = ShapeTuple({pos});
         if (sliding_window_size_ == -1) {
           if (ft_.use_paged_kv_cache) {
+            NDArray embed;
+            if (this->conversation_.use_pixel_values) {
+              int image_count = std::count(input_tokens.begin(), input_tokens.end(),
+                                           this->conversation_.image_token_index);
+              if (image_count == 0) {
+                embed = ft_.embed_func_(input_data, params_);
+              } else if (image_count == 1) {
+                embed = ft_.embed_with_pixel_values_func_(ft_.CopyToWorker0(pixel_values),
+                                                          input_data, params_);
+              }
+            } else {
+              embed = ft_.embed_func_(input_data, params_);
+            }
             IntTuple seq_ids_tuple({0});
-            IntTuple append_length({1});
+            IntTuple append_length({embed.Shape()[1]});
             ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, append_length);
-            auto embed = ft_.embed_func_(input_data, params_);
             ret = ft_.decode_func_(embed, kv_cache_, params_);
             ft_.kv_cache_end_forward_func_(kv_cache_);
           } else {

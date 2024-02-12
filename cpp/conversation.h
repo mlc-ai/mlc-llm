@@ -71,6 +71,10 @@ class Conversation {
    * \note This option is only used for llama models atm.
    */
   bool add_bos = false;
+  /*! \brief Whether the pixel values are also expected as input*/
+  bool use_pixel_values = false;
+  /*! \brief The image token index (if use_pixel_values is true) */
+  int32_t image_token_index = -1;
 
   Conversation() = default;
 

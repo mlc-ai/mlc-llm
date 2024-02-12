@@ -716,6 +716,8 @@ Conversation Llava() {
   conv.stop_tokens = {2};
   conv.stop_str = "</s>";
   conv.add_bos = true;
+  conv.use_pixel_values = true;
+  conv.image_token_index = 32000;
   return conv;
 }
 
