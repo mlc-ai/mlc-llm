@@ -207,6 +207,8 @@ MODELS: Dict[str, Model] = {
         },
         quantize={
             "group-quant": llava_quantization.group_quant,
+            "no-quant": llava_quantization.no_quant,
+            "awq": llava_quantization.awq_quant,
         },
     ),
 }
