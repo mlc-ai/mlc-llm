@@ -6,6 +6,7 @@ import tvm.relax as relax
 import tvm.relax.frontend.nn as nn
 from tvm import te, tir
 from tvm.relax.frontend.nn import Module, Tensor, op
+from tvm.relax.frontend.nn.modules import Conv2D
 from tvm.relax.frontend.nn.op import (
     broadcast_to,
     concat,
@@ -102,7 +103,7 @@ class CLIPVisionEmbeddings(Module):
         self.image_size = config.image_size
         self.patch_size = config.patch_size
         self.class_embedding = nn.Parameter((self.embed_dim,), dtype=config.dtype)
-        self.patch_embedding = nn.Conv2D(
+        self.patch_embedding = Conv2D(
             in_channels=config.num_channels,
             out_channels=self.embed_dim,
             kernel_size=self.patch_size,

@@ -39,7 +39,7 @@ def huggingface(model_config: LlavaConfig, quantization: Quantization) -> Extern
 
     mapping = ExternMapping()
 
-    for i in range(model_config.num_hidden_layers):
+    for i in range(model_config.text_config.num_hidden_layers):
         # Add QKV in self attention
         attn = f"language_model.model.layers.{i}.self_attn"
         mlc_name = f"{attn}.qkv_proj.weight"
@@ -109,9 +109,9 @@ def awq(model_config: LlavaConfig, quantization: Quantization) -> ExternMapping:
 
     mapping = ExternMapping()
 
-    for i in range(model_config.num_hidden_layers):
+    for i in range(model_config.text_config.num_hidden_layers):
         # Add QKV in self attention
-        attn = f"model.layers.{i}.self_attn"
+        attn = f"language_model.model.layers.{i}.self_attn"
         for quantize_suffix in ["qweight", "qzeros", "scales"]:
             mlc_name = f"{attn}.qkv_proj.{quantize_suffix}"
             assert mlc_name in named_parameters
@@ -130,7 +130,7 @@ def awq(model_config: LlavaConfig, quantization: Quantization) -> ExternMapping:
             )
 
         # Concat gate and up in MLP
-        mlp = f"model.layers.{i}.mlp"
+        mlp = f"language_model.model.layers.{i}.mlp"
         for quantize_suffix in ["qweight", "qzeros", "scales"]:
             mlc_name = f"{mlp}.gate_up_proj.{quantize_suffix}"
             assert mlc_name in named_parameters
