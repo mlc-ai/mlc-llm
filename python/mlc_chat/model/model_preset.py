@@ -2,171 +2,7 @@
 
 from typing import Any, Dict
 
-"""A centralized registry of all existing model architures and their configurations."""
-import dataclasses
-from typing import Any, Callable, Dict, Tuple
-
-from tvm.relax.frontend import nn
-
-from ..loader import ExternMapping, QuantizeMapping
-from ..quantization.quantization import QUANTIZATION
-
-from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
-from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
-from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
-from .llama import llama_loader, llama_model, llama_quantization
-from .mistral import mistral_loader, mistral_model, mistral_quantization
-from .llava import llava_loader, llava_model, llava_quantization
-
-ModelConfig = Any
-"""A ModelConfig is an object that represents a model architecture. It is required to have
-a class method `from_file` with the following signature:
-
-    def from_file(cls, path: Path) -> ModelConfig:
-        ...
-"""
-
-FuncGetExternMap = Callable[[ModelConfig, QUANTIZATION], ExternMapping]
-FuncQuantization = Callable[[ModelConfig, QUANTIZATION], Tuple[nn.Module, QuantizeMapping]]
-
-
-@dataclasses.dataclass
-class Model:
-    """All about a model architecture: its configuration, its parameter loader and quantization.
-
-    Parameters
-    ----------
-    name : str
-        The name of the model.
-
-    model : Callable[[ModelConfig], nn.Module]
-        A method that creates the `nn.Module` that represents the model from `ModelConfig`.
-
-    config : ModelConfig
-        A class that has a `from_file` class method, whose signature is "Path -> ModelConfig".
-
-    source : Dict[str, FuncGetExternMap]
-        A dictionary that maps the name of a source format to parameter mapping.
-
-    quantize: Dict[str, FuncQuantization]
-        A dictionary that maps the name of a quantization method to quantized model and the
-        quantization parameter mapping.
-    """
-
-    name: str
-    config: ModelConfig
-    model: Callable[[ModelConfig], nn.Module]
-    source: Dict[str, FuncGetExternMap]
-    quantize: Dict[str, FuncQuantization]
-
-
-MODELS: Dict[str, Model] = {
-    "llama": Model(
-        name="llama",
-        model=llama_model.LlamaForCasualLM,
-        config=llama_model.LlamaConfig,
-        source={
-            "huggingface-torch": llama_loader.huggingface,
-            "huggingface-safetensor": llama_loader.huggingface,
-            "awq": llama_loader.awq,
-        },
-        quantize={
-            "no-quant": llama_quantization.no_quant,
-            "group-quant": llama_quantization.group_quant,
-        },
-    ),
-    "llava": Model(
-        name="llava",
-        model=llava_model.LlavaForCasualLM,
-        config=llava_model.LlavaConfig,
-        source={
-            "huggingface-torch": llava_loader.huggingface,
-            "huggingface-safetensor": llava_loader.huggingface,
-            "awq": llava_loader.awq,
-        },
-        quantize={
-            "group-quant": llava_quantization.group_quant,
-        },
-    ),
-    "mistral": Model(
-        name="mistral",
-        model=mistral_model.MistralForCasualLM,
-        config=mistral_model.MistralConfig,
-        source={
-            "huggingface-torch": mistral_loader.huggingface,
-            "huggingface-safetensor": mistral_loader.huggingface,
-            "awq": mistral_loader.awq,
-        },
-        quantize={
-            "group-quant": mistral_quantization.group_quant,
-        },
-    ),
-    "gpt2": Model(
-        name="gpt2",
-        model=gpt2_model.GPT2LMHeadModel,
-        config=gpt2_model.GPT2Config,
-        source={
-            "huggingface-torch": gpt2_loader.huggingface,
-            "huggingface-safetensor": gpt2_loader.huggingface,
-        },
-        quantize={
-            "no-quant": gpt2_quantization.no_quant,
-            "group-quant": gpt2_quantization.group_quant,
-        },
-    ),
-    "gpt_neox": Model(
-        name="gpt_neox",
-        model=gpt_neox_model.GPTNeoXForCausalLM,
-        config=gpt_neox_model.GPTNeoXConfig,
-        source={
-            "huggingface-torch": gpt_neox_loader.huggingface,
-            "huggingface-safetensor": gpt_neox_loader.huggingface,
-        },
-        quantize={
-            "no-quant": gpt_neox_quantization.no_quant,
-            "group-quant": gpt_neox_quantization.group_quant,
-        },
-    ),
-    "gpt_bigcode": Model(
-        name="gpt_bigcode",
-        model=gpt_bigcode_model.GPTBigCodeForCausalLM,
-        config=gpt_bigcode_model.GPTBigCodeConfig,
-        source={
-            "huggingface-torch": gpt_bigcode_loader.huggingface,
-            "huggingface-safetensor": gpt_bigcode_loader.huggingface,
-        },
-        quantize={
-            "no-quant": gpt_bigcode_quantization.no_quant,
-            "group-quant": gpt_bigcode_quantization.group_quant,
-        },
-    ),
-}
 MODEL_PRESETS: Dict[str, Any] = {
-    "llava": {
-        "architectures": ["LlavaForCasualLM"],
-        "model_type": "llava",
-        "bos_token_id": 1,
-        "eos_token_id": 2,
-        "hidden_act": "silu",
-        "hidden_size": 5120,
-        "initializer_range": 0.02,
-        "intermediate_size": 13824,
-        "max_position_embeddings": 2048,
-        "context_window_size": 4096,
-        "model_type": "llama",
-        "num_attention_heads": 40,
-        "num_hidden_layers": 40,
-        "num_key_value_heads": 40,
-        "pad_token_id": 0,
-        "pretraining_tp": 2,
-        "rms_norm_eps": 1e-05,
-        "rope_scaling": None,
-        "tie_word_embeddings": False,
-        "torch_dtype": "float16",
-        "transformers_version": "4.31.0.dev0",
-        "use_cache": True,
-        "vocab_size": 32000,
-    },
     "llama2_7b": {
         "architectures": ["LlamaForCausalLM"],
         "bos_token_id": 1,
@@ -558,5 +394,39 @@ MODEL_PRESETS: Dict[str, Any] = {
         "use_cache": True,
         "use_qkv_bias": True,
         "vocab_size": 100352,
+    },
+    "llava": {
+        "architectures": ["LlavaForConditionalGeneration"],
+        "ignore_index": -100,
+        "image_token_index": 32000,
+        "model_type": "llava",
+        "pad_token_id": 32001,
+        "projector_hidden_act": "gelu",
+        "text_config": {
+            "_name_or_path": "meta-llama/Llama-2-7b-hf",
+            "architectures": ["LlamaForCausalLM"],
+            "max_position_embeddings": 4096,
+            "model_type": "llama",
+            "rms_norm_eps": 1e-05,
+            "torch_dtype": "float16",
+            "vocab_size": 32064,
+        },
+        "tie_word_embeddings": False,
+        "torch_dtype": "float16",
+        "transformers_version": "4.36.0.dev0",
+        "vision_config": {
+            "hidden_size": 1024,
+            "image_size": 336,
+            "intermediate_size": 4096,
+            "model_type": "clip_vision_model",
+            "num_attention_heads": 16,
+            "num_hidden_layers": 24,
+            "patch_size": 14,
+            "projection_dim": 768,
+            "vocab_size": 32000,
+        },
+        "vision_feature_layer": -2,
+        "vision_feature_select_strategy": "default",
+        "vocab_size": 32064,
     },
 }

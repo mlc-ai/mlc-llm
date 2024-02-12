@@ -817,7 +817,7 @@ class LLMChat {
    */
   ObjectRef EmbedStep(std::string inp, bool append_conversation = true,
                       PlaceInPrompt place_in_prompt = PlaceInPrompt::kAll,
-                      String generation_config_str = "", NDArray pixel_values = NDArray()) {
+                      String generation_config_str = "") {
     // process generation settings
     picojson::object generation_config =
         this->LoadGenerationConfigFromString(generation_config_str);
@@ -835,15 +835,9 @@ class LLMChat {
     auto tstart = std::chrono::high_resolution_clock::now();
 
     NDArray input_data = this->GetInputTokenNDArray(prompt_tokens);
-    ObjectRef embedding;
-    if (pixel_values.defined()) {
-      embedding =
-          ft_.embed_func_(ft_.CopyToWorker0(pixel_values), ft_.CopyToWorker0(input_data), params_);
-    } else {
-      ObjectRef embedding = ft_.embed_func_(ft_.CopyToWorker0(input_data), params_);
-    }
+    ObjectRef embedding = ft_.embed_func_(ft_.CopyToWorker0(input_data), params_);
 
-    int32_t new_seq_len = total_seq_len_ + Downcast<NDArray>(embedding).Shape()[1];
+    int32_t new_seq_len = total_seq_len_ + token_len;
     total_seq_len_ = new_seq_len;
 
     auto tend = std::chrono::high_resolution_clock::now();
