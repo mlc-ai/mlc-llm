@@ -1,10 +1,14 @@
+"""
+Implementation of LLaVa Model
+Implements the CLIP Vision Encoder. Uses Llama for the Language Encoder.
+"""
+
 import dataclasses
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
-import tvm.relax as relax
-import tvm.relax.frontend.nn as nn
-from tvm import te, tir
+from tvm import relax, te, tir
+from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor, op
 from tvm.relax.frontend.nn.modules import Conv2D
 from tvm.relax.frontend.nn.op import (
@@ -22,14 +26,17 @@ from mlc_chat import op as op_ext
 from mlc_chat.nn import FlashInferPagedKVCache, PagedKVCache, RopeMode, TIRPagedKVCache
 
 from ...support.config import ConfigBase
-from ...support.style import bold
 from ..llama.llama_model import LlamaConfig, LlamaForCasualLM
 
 logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class LlavaVisionConfig(ConfigBase):
+class LlavaVisionConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+    """
+    Config for the vision encoder
+    """
+
     hidden_size: int
     image_size: int
     intermediate_size: int
@@ -45,7 +52,11 @@ class LlavaVisionConfig(ConfigBase):
 
 
 @dataclasses.dataclass
-class LlavaConfig(ConfigBase):
+class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+    """
+    LLaVa Config
+    """
+
     image_token_index: int
     text_config: LlamaConfig
     vision_config: LlavaVisionConfig
@@ -58,35 +69,47 @@ class LlavaConfig(ConfigBase):
 
     def __post_init__(self):
 
-        vision_config = {}
-        for k, v in self.vision_config.items():
-            if k == "kwargs":
-                for kwargs_k, kwargs_v in v.items():
-                    vision_config[kwargs_k] = kwargs_v
-                continue
-            vision_config[k] = v
-        self.vision_config = LlavaVisionConfig.from_dict(vision_config)
+        vision_config_dict: Dict[str, Any]
+        if isinstance(self.vision_config, LlavaVisionConfig):
+            vision_config_dict = dataclasses.asdict(self.vision_config)
+        else:
+            vision_config_dict = dict(self.vision_config)
 
-        text_config = {}
-        if "_name_or_path" in self.text_config:
-            if self.text_config["_name_or_path"] == "meta-llama/Llama-2-7b-hf":
-                text_config["hidden_size"] = self.text_config.pop("hidden_size", 4096)
-                text_config["intermediate_size"] = self.text_config.pop("intermediate_size", 11008)
-                text_config["num_attention_heads"] = self.text_config.pop("num_attention_heads", 32)
-                text_config["num_hidden_layers"] = self.text_config.pop("num_hidden_layers", 32)
-                text_config["rms_norm_eps"] = self.text_config.pop("rms_norm_eps", 1e-06)
-                text_config["vocab_size"] = self.text_config.pop("vocab_size", 32064)
-                text_config["context_window_size"] = self.text_config.pop(
+        for k, v in vision_config_dict.pop("kwargs", {}).items():
+            vision_config_dict[k] = v
+
+        self.vision_config = LlavaVisionConfig.from_dict(vision_config_dict)
+
+        text_config_dict: Dict[str, Any]
+        if isinstance(self.text_config, LlamaConfig):
+            text_config_dict = dataclasses.asdict(self.text_config)
+        else:
+            text_config_dict = dict(self.text_config)
+
+        if "_name_or_path" in text_config_dict:
+            if text_config_dict["_name_or_path"] == "meta-llama/Llama-2-7b-hf":
+                text_config_dict["hidden_size"] = text_config_dict.pop("hidden_size", 4096)
+                text_config_dict["intermediate_size"] = text_config_dict.pop(
+                    "intermediate_size", 11008
+                )
+                text_config_dict["num_attention_heads"] = text_config_dict.pop(
+                    "num_attention_heads", 32
+                )
+                text_config_dict["num_hidden_layers"] = text_config_dict.pop(
+                    "num_hidden_layers", 32
+                )
+                text_config_dict["rms_norm_eps"] = text_config_dict.pop("rms_norm_eps", 1e-06)
+                text_config_dict["vocab_size"] = text_config_dict.pop("vocab_size", 32064)
+                text_config_dict["context_window_size"] = text_config_dict.pop(
                     "context_window_size", 4096
                 )
+            else:
+                raise ValueError("Unsupported text model")
         else:
-            for k, v in self.text_config.items():
-                if k == "kwargs":
-                    for kwargs_k, kwargs_v in v.items():
-                        text_config[kwargs_k] = kwargs_v
-                    continue
-                text_config[k] = v
-        self.text_config = LlamaConfig.from_dict(text_config)
+            for k, v in text_config_dict.pop("kwargs", {}).items():
+                text_config_dict[k] = v
+
+        self.text_config = LlamaConfig.from_dict(text_config_dict)
 
         if self.context_window_size <= 0:
             self.context_window_size = self.text_config.context_window_size
@@ -95,7 +118,10 @@ class LlavaConfig(ConfigBase):
             self.prefill_chunk_size = self.text_config.prefill_chunk_size
 
 
-class CLIPVisionEmbeddings(Module):
+# pylint: disable=missing-docstring
+
+
+class CLIPVisionEmbeddings(Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: LlavaVisionConfig):
         super().__init__()
         self.config = config
@@ -156,14 +182,10 @@ def sigmoid(x: Tensor, name: str = "sigmoid") -> Tensor:
     result : Tensor
         Sigmoid result.
     """
-    return wrap_nested(relax.op.sigmoid(x._expr), name)
+    return wrap_nested(relax.op.sigmoid(x._expr), name)  # pylint: disable=protected-access
 
 
 class LlavaQuickGELU(Module):
-    def __init__(self, config: LlavaConfig):
-        super().__init__()
-        pass
-
     def forward(self, input_tensor: Tensor) -> Tensor:
         return input_tensor * sigmoid(input_tensor * 1.702)
 
@@ -171,7 +193,7 @@ class LlavaQuickGELU(Module):
 class CLIPMLP(Module):
     def __init__(self, config: LlavaVisionConfig):
         super().__init__()
-        self.activation_fn = LlavaQuickGELU(config=config)
+        self.activation_fn = LlavaQuickGELU()
         self.fc1 = nn.Linear(config.hidden_size, config.intermediate_size, dtype=config.dtype)
         self.fc2 = nn.Linear(config.intermediate_size, config.hidden_size, dtype=config.dtype)
 
@@ -182,8 +204,8 @@ class CLIPMLP(Module):
         return hidden_states
 
 
-class CLIPAttention(Module):
-    def __init__(self, config: LlavaConfig):
+class CLIPAttention(Module):  # pylint: disable=too-many-instance-attributes
+    def __init__(self, config: LlavaVisionConfig):
         super().__init__()
         self.embed_dim = config.hidden_size
         self.num_heads = config.num_attention_heads
@@ -272,7 +294,7 @@ class CLIPEncoder(Module):
 
     def forward(self, inputs_embeds: Tensor) -> Tensor:
         hidden_states = inputs_embeds
-        encoder_states = ()
+        encoder_states: Tuple[Any, ...] = ()
         for _, encoder_layer in enumerate(self.layers):
             encoder_states = encoder_states + (hidden_states,)
             layer_outputs = encoder_layer(hidden_states)
@@ -369,7 +391,10 @@ class LlavaForCasualLM(Module):
         image_features_all = self.vision_tower.forward(pixel_values)
         image_features = wrap_nested(
             strided_slice(
-                image_features_all._expr, axes=[1], begin=[1], end=[image_features_all.shape[1]]
+                image_features_all._expr,  # pylint: disable=protected-access
+                axes=[1],
+                begin=[1],
+                end=[image_features_all.shape[1]],
             ),
             name="slice",
         )
@@ -387,7 +412,7 @@ class LlavaForCasualLM(Module):
         ).astype("int32")
         ##! Assume only one <IMAGE> token in input
         ##! Also assume batch_size = 1 for now
-        # TODO: Support image_count > 1 and batch_size > 1
+        # TODO: Support image_count > 1 and batch_size > 1 # pylint: disable=fixme
         insert_index = op.sum(image_index_tensor, axis=1)
 
         new_shape = (

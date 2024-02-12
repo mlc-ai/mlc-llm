@@ -34,7 +34,9 @@ def huggingface(model_config: LlavaConfig, quantization: Quantization) -> Extern
     model = LlavaForCasualLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
-    _, _named_params = model.export_tvm(spec=model.get_default_spec())
+    _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
+        spec=model.get_default_spec(), allow_extern=True
+    )
     named_parameters = dict(_named_params)
 
     mapping = ExternMapping()

@@ -1013,7 +1013,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         r"""Unload the chat module and clear memory of all loaded models."""
         self._unload_func()
 
-    def _prefill(
+    def _prefill(  # pylint: disable=too-many-locals
         self,
         input: Union[str, List["ChatMessage"]],  # pylint: disable=redefined-builtin
         decode_next_token: bool = True,
