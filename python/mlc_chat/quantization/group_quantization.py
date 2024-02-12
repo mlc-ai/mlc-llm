@@ -28,7 +28,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
     name: str
     kind: str
     group_size: int
-    quantize_dtype: Literal["int3", "int4", "int8"]
+    quantize_dtype: Literal["int3", "int4", "int8", "e4m3_float8", "e5m2_float8"]
     storage_dtype: Literal["uint32"]
     model_dtype: Literal["float16", "float32"]
     linear_weight_layout: Literal["KN", "NK"]
@@ -44,7 +44,11 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         quantize_dtype = DataType(self.quantize_dtype)
         storage_dtype = DataType(self.storage_dtype)
         model_dtype = DataType(self.model_dtype)
-        assert quantize_dtype.type_code == DataTypeCode.INT
+        if quantize_dtype.type_code in (DataTypeCode.E4M3Float, DataTypeCode.E5M2Float):
+            self.fp8_quant = True
+        else:
+            self.fp8_quant = False
+            assert quantize_dtype.type_code == DataTypeCode.INT
         assert storage_dtype.type_code == DataTypeCode.UINT
         assert model_dtype.type_code == DataTypeCode.FLOAT
         if storage_dtype.bits < quantize_dtype.bits:
@@ -54,7 +58,15 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         if self.group_size % self.num_elem_per_storage != 0:
             raise ValueError("Group size should be divisible by numbers of elements per storage")
         self.num_storage_per_group = self.group_size // self.num_elem_per_storage
-        self.max_int_value = (2 ** (quantize_dtype.bits - 1)) - 1
+        if self.fp8_quant:
+            if quantize_dtype.type_code == DataTypeCode.E4M3Float:
+                self.max_int_value = 448
+            elif quantize_dtype.type_code == DataTypeCode.E5M2Float:
+                self.max_int_value = 57344
+            else:
+                raise NotImplementedError()
+        else:
+            self.max_int_value = (2 ** (quantize_dtype.bits - 1)) - 1
         self.linear_quant_axis = 0 if self.linear_weight_layout == "KN" else 1
         self._quantize_func_cache = {}
 
@@ -160,7 +172,40 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             fcompute=lambda *idx: tir.multiply(
                 tir.subtract(
                     float_weight(*idx),
-                    tir_max_int,
+                    tir_max_int,  # TODO(jmcmahan): the max_int shift to remove negatives is not necessary for fp8
+                ),
+                scale(*idx[:axis], idx[axis] // self.group_size, *idx[axis + 1 :]),
+            ),
+            name="dequantize",
+        )
+
+    def _dequantize_e4m3(
+        self,
+        weight: te.Tensor,
+        scale: te.Tensor,
+        axis: int,
+        out_shape: Optional[List[tir.PrimExpr]] = None,
+    ):
+        tir_max_int = tir.const(self.max_int_value, self.model_dtype)
+        float_weight = convert_uint_to_float(
+            weight,
+            DataType(self.quantize_dtype).bits,
+            self.num_elem_per_storage,
+            self.storage_dtype,
+            self.model_dtype,
+            axis=axis,
+            out_shape=out_shape,
+        )
+        if out_shape is None:
+            out_shape = weight.shape
+            out_shape[axis] *= self.num_elem_per_storage
+        axis = axis if axis >= 0 else len(out_shape) + axis
+        return te.compute(
+            shape=out_shape,
+            fcompute=lambda *idx: tir.multiply(
+                tir.subtract(
+                    float_weight(*idx),
+                    tir_max_int,  # TODO(jmcmahan): the max_int shift to remove negatives is not necessary for fp8
                 ),
                 scale(*idx[:axis], idx[axis] // self.group_size, *idx[axis + 1 :]),
             ),
@@ -192,13 +237,21 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         device = weight.device
         device_type = device.MASK2STR[device.device_type]
         axis = axis if axis >= 0 else len(weight.shape) + axis
-
+        
         def _create_quantize_func() -> IRModule:
+            if self.fp8_quant:
+                if DataType(self.quantize_dtype).type_code == DataTypeCode.E4M3Float:
+                    quantize_func = self._quantize_e4m3
+                else:
+                    assert NotImplementedError()
+            else:
+                quantize_func = self._quantize
+            
             bb = relax.BlockBuilder()  # pylint: disable=invalid-name
             weight_var = relax.Var("weight", relax.TensorStructInfo(weight.shape, weight.dtype))
             with bb.function(name="main", params=[weight_var]):
                 with bb.dataflow():
-                    lv = bb.emit_te(self._quantize, weight_var, axis, output_transpose)
+                    lv = bb.emit_te(quantize_func, weight_var, axis, output_transpose)
                     gv = bb.emit_output(lv)  # pylint: disable=invalid-name
                 bb.emit_func_output(gv)
             return bb.finalize()
@@ -281,6 +334,82 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 ),
                 max_int * 2,
             ).astype(self.storage_dtype),
+        )
+        # compute quantized weight per storage
+        r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
+        num_storage = self.num_storage_per_group * num_group
+        quantized_weight_shape = (*shape[:axis], num_storage, *shape[axis + 1 :])
+        quantized_weight = te.compute(
+            shape=quantized_weight_shape,
+            fcompute=lambda *idx: tir.sum(
+                tir.if_then_else(
+                    idx[axis] * self.num_elem_per_storage + r < k,
+                    scaled_weight(
+                        *idx[:axis], idx[axis] * self.num_elem_per_storage + r, *idx[axis + 1 :]
+                    )
+                    << (r * quantize_dtype.bits),
+                    0,
+                ),
+                axis=r,
+            ),
+            name="weight",
+        )
+        if output_transpose:
+            if len(quantized_weight.shape) != 2 or len(scale.shape) != 2:
+                raise ValueError(
+                    "Does not support transpose output quantized weight with ndim != 2"
+                )
+            quantized_weight = topi.transpose(quantized_weight)
+            scale = topi.transpose(scale)
+        return quantized_weight, scale
+
+    def _quantize_e4m3(  # pylint: disable=too-many-locals
+        self,
+        weight: te.Tensor,
+        axis: int = -1,
+        output_transpose: bool = False,
+    ) -> Tuple[te.Tensor, te.Tensor]:
+        """Group quantization for weight tensor, defined in tensor expression."""
+        max_int = tir.const(self.max_int_value, self.model_dtype)
+        shape = weight.shape  # pylint: disable=invalid-name
+        axis = axis if axis >= 0 else len(shape) + axis
+        k = shape[axis]
+        quantize_dtype = DataType(self.quantize_dtype)
+        # compute scale per group
+        r = te.reduce_axis((0, self.group_size), name="r")  # pylint: disable=invalid-name
+        num_group = tir.ceildiv(k, self.group_size)
+        scale_shape = (*shape[:axis], num_group, *shape[axis + 1 :])
+        max_abs = te.compute(
+            shape=scale_shape,
+            fcompute=lambda *idx: te.max(
+                tir.if_then_else(
+                    idx[axis] * self.group_size + r < k,
+                    te.abs(weight(*idx[:axis], idx[axis] * self.group_size + r, *idx[axis + 1 :])),
+                    te.min_value(self.model_dtype),
+                ),
+                axis=r,
+            ),
+            name="max_abs_value",
+        )
+        scale = te.compute(
+            scale_shape,
+            lambda *idx: max_abs(*idx).astype(self.model_dtype) / max_int,
+            name="scale",
+        )
+        # compute scaled weight
+        scaled_weight = te.compute(
+            shape=weight.shape,
+            fcompute=lambda *idx: tir.min(
+                tir.max(
+                    tir.round(
+                        weight(*idx)
+                        / scale(*idx[:axis], idx[axis] // self.group_size, *idx[axis + 1 :])
+                        + max_int  # TODO(jmcmahan): the max_int shift to remove negatives is not necessary for fp8
+                    ),
+                    tir.const(0, self.model_dtype),  # for fp8, should be -max_int
+                ),
+                max_int * 2,  # for fp8, should be max_int
+            ).astype(self.storage_dtype),  # we need a T.Reinterpret 
         )
         # compute quantized weight per storage
         r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
@@ -394,8 +523,15 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         ret : nn.Tensor
             The output tensor for the group quantized linear layer.
         """
+        if self.config.fp8_quant:
+            if DataType(self.config.quantize_dtype).type_code == DataTypeCode.E4M3Float:
+                dequant_func = self.config._dequantize_e4m3
+            else:
+                raise NotImplementedError()
+        else:
+            dequant_func = self.confg._dequantize
         w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
+            lambda weight, scale: dequant_func(  # pylint: disable=protected-access
                 weight,
                 scale,
                 axis=self.config.linear_quant_axis,
@@ -490,8 +626,15 @@ class GroupQuantizeEmbedding(nn.Module):
         ret : nn.Tensor
             The output tensor for the embedding layer.
         """
+        if self.config.fp8_quant:
+            if DataType(self.config.quantize_dtype).type_code == DataTypeCode.E4M3Float:
+                dequant_func = self.config._dequantize_e4m3
+            else:
+                raise NotImplementedError()
+        else:
+            dequant_func = self.confg._dequantize
         w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
+            lambda weight, scale: dequant_func(  # pylint: disable=protected-access
                 weight,
                 scale,
                 axis=-1,

@@ -117,4 +117,13 @@ QUANTIZATION: Dict[str, Quantization] = {
         storage_dtype="int8",
         model_dtype="float16",
     ),
+    "qf8f16_0": GroupQuantize(
+        name="qf8f16_0",
+        kind="group-quant",
+        group_size=32,
+        quantize_dtype="e4m3_float8",
+        storage_dtype="uint32",
+        model_dtype="float16",
+        linear_weight_layout="NK",  # TODO: should be transpose?
+    ),
 }

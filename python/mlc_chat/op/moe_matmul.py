@@ -1,6 +1,5 @@
 """Mixture of Experts operators"""
-
-from tvm import DataType, tir
+from tvm import DataType, tir, DataTypeCode
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
 
@@ -124,7 +123,7 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
     num_elem_per_storage = DataType(storage_dtype).bits // quantize_dtype_bits
     num_group = (in_features + group_size - 1) // group_size
     num_storage = group_size // num_elem_per_storage * num_group
-
+    
     def _dequantize(w, s, e, i, j):
         tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
         tir_max_int = tir.const((2 ** (quantize_dtype_bits - 1)) - 1, model_dtype)
@@ -133,6 +132,16 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
         shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
         w = tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask).astype(model_dtype)
         return (w - tir_max_int) * s
+
+    def _dequantize_e4m3(w, s, e, i, j):
+        return _dequantize(w, s, e, i, j)  # placeholder for actual impl
+    
+    if DataType(quantize_dtype).type_code == DataTypeCode.E4M3Float:
+        dequantize_func = _dequantize_e4m3
+    elif DataType(quantize_dtype).type_code == DataTypeCode.E5M2Float:
+        raise NotImplementedError()
+    else:
+        dequantize_func = _dequantize
 
     def access_x(x, e, j):
         return x[0, j] if x_leading_dim == 1 else x[e, j]
@@ -159,7 +168,7 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
                 for i1, i2 in T.grid(out_features, in_features):
                     with T.block("dequantize"):
                         i, j = T.axis.remap("SS", [i1, i2])
-                        y[i, j] = _dequantize(w, scale, indptr[0, e], i, j)
+                        y[i, j] = dequantize_func(w, scale, indptr[0, e], i, j)
                 for i1, i2 in T.grid(out_features, in_features):
                     with T.block("gemv"):
                         i, j = T.axis.remap("SR", [i1, i2])
@@ -407,6 +416,16 @@ def dequantize_group_gemm(
         w = tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask).astype(model_dtype)
         return (w - tir_max_int) * s
 
+    def _dequantize_e4m3(w, s, e, i, j):
+        return _dequantize(w, s, e, i, j)  # placeholder for actual impl
+
+    if DataType(quantize_dtype).type_code == DataTypeCode.E4M3Float:
+        dequantize_func = _dequantize_e4m3
+    elif DataType(quantize_dtype).type_code == DataTypeCode.E5M2Float:
+        raise NotImplementedError()
+    else:
+        dequantize_func = _dequantize
+        
     Ne, N, K = num_local_experts, out_features, in_features
     BLK_M, BLK_N, BLK_K = 8, 128, 32
     TX, TY, CTA_COUNT = 8, 32, 1024
@@ -491,7 +510,7 @@ def dequantize_group_gemm(
                                     i, j = T.axis.remap("SS", [a0, a1])
                                     W_tile[i, j] = T.if_then_else(
                                         n_offset + i < N,
-                                        _dequantize(w, scale, e, n_offset + i, j),
+                                        dequantize_func(w, scale, e, n_offset + i, j),
                                         zero,
                                     )
                             for a0, a1, a2 in T.grid(BLK_M, BLK_N, K):
