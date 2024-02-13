@@ -378,7 +378,11 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         # compute scale per group
         r = te.reduce_axis((0, self.group_size), name="r")  # pylint: disable=invalid-name
         num_group = tir.ceildiv(k, self.group_size)
+        # (4096, 4096) -> quantize axis = 0, group size = 32 -> (128, 4096)
+        # for channel quant group_size = 4096 -> (1, 4096)
         scale_shape = (*shape[:axis], num_group, *shape[axis + 1 :])
+
+        min_scaling_factor = 1.0 / (max_int * 512.0)
         max_abs = te.compute(
             shape=scale_shape,
             fcompute=lambda *idx: te.max(
@@ -393,24 +397,22 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         )
         scale = te.compute(
             scale_shape,
-            lambda *idx: max_abs(*idx).astype(self.model_dtype) / max_int,
+            lambda *idx: te.max(
+                max_abs(*idx).astype(self.model_dtype) / max_int, min_scaling_factor
+            ),
             name="scale",
         )
         # compute scaled weight
+        # TODO(fp8-team): Convince ourselves that we don't need to clip the quantized weight
+        # Need a cast to FP8, then reinerpret cast
         scaled_weight = te.compute(
             shape=weight.shape,
-            fcompute=lambda *idx: tir.min(
-                tir.max(
-                    tir.round(
-                        weight(*idx)
-                        / scale(*idx[:axis], idx[axis] // self.group_size, *idx[axis + 1 :])
-                        + max_int  # TODO(jmcmahan): the max_int shift to remove negatives is not necessary for fp8
-                    ),
-                    tir.const(0, self.model_dtype),  # for fp8, should be -max_int
-                ),
-                max_int * 2,  # for fp8, should be max_int
-            ).astype(self.storage_dtype),  # we need a T.Reinterpret 
+            fcompute=lambda *idx: tir.reinterpret(
+                self.storage_dtype,
+                weight(*idx) / scale(*idx[:axis], idx[axis] // self.group_size, *idx[axis + 1 :]),
+            ),
         )
+
         # compute quantized weight per storage
         r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
         num_storage = self.num_storage_per_group * num_group
@@ -430,6 +432,13 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             ),
             name="weight",
         )
+
+        f = te.create_prim_func([weight, max_abs, scaled_weight, scale, quantized_weight])
+        f.show()
+        import ipdb
+
+        ipdb.set_trace()
+
         if output_transpose:
             if len(quantized_weight.shape) != 2 or len(scale.shape) != 2:
                 raise ValueError(
