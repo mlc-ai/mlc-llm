@@ -16,7 +16,8 @@ from mlc_chat.nn import MixtralExperts
 from mlc_chat.support import logging
 from mlc_chat.support import tensor_parallel as tp
 
-from .utils import convert_uint_to_float, is_final_fc
+
+from .utils import convert_uint_to_float, is_final_fc, convert_uint_to_float_e4m3
 
 logger = logging.getLogger(__name__)
 
@@ -186,8 +187,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         axis: int,
         out_shape: Optional[List[tir.PrimExpr]] = None,
     ):
-        tir_max_int = tir.const(self.max_int_value, self.model_dtype)
-        float_weight = convert_uint_to_float(
+        float_e4m3_weight = convert_uint_to_float_e4m3(
             weight,
             DataType(self.quantize_dtype).bits,
             self.num_elem_per_storage,
@@ -203,10 +203,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         return te.compute(
             shape=out_shape,
             fcompute=lambda *idx: tir.multiply(
-                tir.subtract(
-                    float_weight(*idx),
-                    tir_max_int,  # TODO(jmcmahan): the max_int shift to remove negatives is not necessary for fp8
-                ),
+                float_e4m3_weight(*idx),
                 scale(*idx[:axis], idx[axis] // self.group_size, *idx[axis + 1 :]),
             ),
             name="dequantize",
