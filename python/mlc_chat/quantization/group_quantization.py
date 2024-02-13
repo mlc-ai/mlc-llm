@@ -382,7 +382,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         # for channel quant group_size = 4096 -> (1, 4096)
         scale_shape = (*shape[:axis], num_group, *shape[axis + 1 :])
 
-        min_scaling_factor = 1.0 / (max_int * 512.0)
+        min_scaling_factor = tir.const(1.0 / (self.max_int_value * 512.0), self.model_dtype)
         max_abs = te.compute(
             shape=scale_shape,
             fcompute=lambda *idx: te.max(
@@ -408,11 +408,17 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         scaled_weight = te.compute(
             shape=weight.shape,
             fcompute=lambda *idx: tir.reinterpret(
+                # TODO(csullivan) Change this to a vector type to simplify storage and improving casting
                 self.storage_dtype,
-                weight(*idx) / scale(*idx[:axis], idx[axis] // self.group_size, *idx[axis + 1 :]),
+                tir.Cast(
+                    self.quantize_dtype,
+                    weight(*idx)
+                    / scale(*idx[:axis], idx[axis] // self.group_size, *idx[axis + 1 :]),
+                ),
             ),
         )
 
+        # TODO(csullivan): If using vector type fp8x4 this compute op can be deleted
         # compute quantized weight per storage
         r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
         num_storage = self.num_storage_per_group * num_group
@@ -433,11 +439,11 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             name="weight",
         )
 
-        f = te.create_prim_func([weight, max_abs, scaled_weight, scale, quantized_weight])
-        f.show()
-        import ipdb
+        # f = te.create_prim_func([weight, max_abs, scaled_weight, scale, quantized_weight])
+        # f.show()
+        # import ipdb
 
-        ipdb.set_trace()
+        # ipdb.set_trace()
 
         if output_transpose:
             if len(quantized_weight.shape) != 2 or len(scale.shape) != 2:
