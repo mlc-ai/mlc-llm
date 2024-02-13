@@ -76,9 +76,11 @@ class QWen2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
         assert self.tensor_parallel_shards == 1, "QWEN currently does not support sharding."
 
 
-class QWen2Attention(nn.Module):
+# pylint: disable=invalid-name,missing-docstring,too-many-locals
+
+
+class QWen2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: QWen2Config):
-        # self.hidden_size = config.hidden_size
         head_dim = config.hidden_size // config.num_attention_heads
 
         self.c_attn = nn.Linear(
