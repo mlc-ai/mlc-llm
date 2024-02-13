@@ -5,6 +5,6 @@ set -x
 : ${WORKSPACE_CWD:=$(pwd)}
 : ${GPU:="cpu"}
 
-black --check --workers $NUM_THREADS \
+black --diff --check --workers $NUM_THREADS \
 	./python/ \
 	./tests/python
