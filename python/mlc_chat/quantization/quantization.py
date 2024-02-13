@@ -44,6 +44,8 @@ QUANTIZATION: Dict[str, Quantization] = {
         storage_dtype="uint32",
         model_dtype="float16",
         linear_weight_layout="KN",
+        quantize_embedding=True,
+        quantize_final_fc=True,
     ),
     "q3f16_1": GroupQuantize(
         name="q3f16_1",
@@ -53,6 +55,8 @@ QUANTIZATION: Dict[str, Quantization] = {
         storage_dtype="uint32",
         model_dtype="float16",
         linear_weight_layout="NK",
+        quantize_embedding=True,
+        quantize_final_fc=True,
     ),
     "q4f16_0": GroupQuantize(
         name="q4f16_0",
@@ -62,6 +66,8 @@ QUANTIZATION: Dict[str, Quantization] = {
         storage_dtype="uint32",
         model_dtype="float16",
         linear_weight_layout="KN",
+        quantize_embedding=True,
+        quantize_final_fc=True,
     ),
     "q4f16_1": GroupQuantize(
         name="q4f16_1",
@@ -71,6 +77,8 @@ QUANTIZATION: Dict[str, Quantization] = {
         storage_dtype="uint32",
         model_dtype="float16",
         linear_weight_layout="NK",
+        quantize_embedding=True,
+        quantize_final_fc=True,
     ),
     "q4f32_1": GroupQuantize(
         name="q4f32_1",
@@ -80,6 +88,19 @@ QUANTIZATION: Dict[str, Quantization] = {
         storage_dtype="uint32",
         model_dtype="float32",
         linear_weight_layout="NK",
+        quantize_embedding=True,
+        quantize_final_fc=True,
+    ),
+    "q4f16_2": GroupQuantize(
+        name="q4f16_2",
+        kind="group-quant",
+        group_size=32,
+        quantize_dtype="int4",
+        storage_dtype="uint32",
+        model_dtype="float16",
+        linear_weight_layout="NK",
+        quantize_embedding=False,
+        quantize_final_fc=False,
     ),
     "q4f16_autoawq": AWQQuantize(
         name="q4f16_autoawq",
