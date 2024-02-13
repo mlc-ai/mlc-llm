@@ -1,10 +1,10 @@
 """
-Implementation for QWEN architecture.
-TODO: add docstring
+Implementation for QWEN2 architecture.
 """
+
 import dataclasses
-from typing import Any, Dict, Optional
 from functools import partial
+from typing import Any, Dict, Optional
 
 from tvm import te, tir
 from tvm.relax.frontend import nn
@@ -35,7 +35,7 @@ class QWen2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
-    dtype: str = 'float32'
+    dtype: str = "float32"
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -52,7 +52,7 @@ class QWen2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
                     break
             else:
                 raise ValueError(
-                    "Unable to determine the maxmimum sequence length, because none of "
+                    "Unable to determine the maximum sequence length, because none of "
                     "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
@@ -88,10 +88,16 @@ class QWen2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
             out_features=(2 * config.num_key_value_heads + config.num_attention_heads) * head_dim,
             bias=True,
         )
-        self.o_proj = nn.Linear(config.num_attention_heads * head_dim, config.hidden_size, bias=False)
+        self.o_proj = nn.Linear(
+            config.num_attention_heads * head_dim, config.hidden_size, bias=False
+        )
         # KV cache for single sequence
-        self.k_cache = nn.KVCache(config.context_window_size, [config.num_key_value_heads, head_dim])
-        self.v_cache = nn.KVCache(config.context_window_size, [config.num_attention_heads, head_dim])
+        self.k_cache = nn.KVCache(
+            config.context_window_size, [config.num_key_value_heads, head_dim]
+        )
+        self.v_cache = nn.KVCache(
+            config.context_window_size, [config.num_attention_heads, head_dim]
+        )
 
         self.hidden_size = config.hidden_size
         self.head_dim = head_dim
@@ -104,14 +110,12 @@ class QWen2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
         assert bsz == 1, "Only support batch size 1 at this moment."
         # Step 1. QKV Projection
         qkv = self.c_attn(hidden_states)
-        qkv = op.reshape(qkv, (bsz, sl, (2 * self.num_key_value_heads + self.num_attention_heads), self.head_dim))
+        qkv = op.reshape(
+            qkv, (bsz, sl, (2 * self.num_key_value_heads + self.num_attention_heads), self.head_dim)
+        )
         # Step 2. Apply QK rotary embedding
         q, k, v = op_ext.llama_rope(
-            qkv,
-            total_seq_len,
-            self.rope_theta,
-            self.num_attention_heads,
-            self.num_key_value_heads
+            qkv, total_seq_len, self.rope_theta, self.num_attention_heads, self.num_key_value_heads
         )
         # Step 3. Query and update KVCache
         self.k_cache.append(op.squeeze(k, axis=0))
@@ -153,7 +157,9 @@ class QWen2DecoderLayer(nn.Module):
         self.self_attn = QWen2Attention(config)
         self.mlp = QWen2MLP(config)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
-        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.post_attention_layernorm = nn.RMSNorm(
+            config.hidden_size, -1, config.rms_norm_eps, bias=False
+        )
 
     def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
         out = self.input_layernorm(hidden_states)
@@ -169,7 +175,9 @@ class QWen2DecoderLayer(nn.Module):
 class QWen2Model(nn.Module):
     def __init__(self, config: QWen2Config):
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.layers = nn.ModuleList([QWen2DecoderLayer(config) for _ in range(config.num_hidden_layers)])
+        self.layers = nn.ModuleList(
+            [QWen2DecoderLayer(config) for _ in range(config.num_hidden_layers)]
+        )
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
     def forward(self, input_ids: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):

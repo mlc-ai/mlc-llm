@@ -1,7 +1,8 @@
 """
-This file specifies how MLC's QWen parameter maps from other formats, for example HuggingFace
+This file specifies how MLC's QWen2 parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
+
 import functools
 
 import numpy as np
