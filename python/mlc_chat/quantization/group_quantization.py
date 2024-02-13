@@ -31,6 +31,8 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
     storage_dtype: Literal["uint32"]
     model_dtype: Literal["float16", "float32"]
     linear_weight_layout: Literal["KN", "NK"]
+    quantize_embedding: bool = True
+    quantize_final_fc: bool = True
 
     num_elem_per_storage: int = 0
     num_storage_per_group: int = 0
@@ -87,6 +89,10 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 self.config = config
                 self.quant_map = quant_map
 
+            def _is_final_fc(self, name: str) -> bool:
+                # TODO: use more specious condition to determine final fc  # pylint: disable=fixme
+                return name in ["head", "lm_head"]
+
             def visit_module(self, name: str, node: nn.Module) -> Any:
                 """
                 The visiting method for group quantization of nn.Module nodes.
@@ -104,7 +110,9 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 ret_node: Any
                     The new node to replace current node.
                 """
-                if isinstance(node, nn.Linear):
+                if isinstance(node, nn.Linear) and (
+                    not self._is_final_fc(name) or self.config.quantize_final_fc
+                ):
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
                     self.quant_map.map_func[weight_name] = partial(
@@ -112,7 +120,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                         output_transpose=self.config.linear_weight_layout == "KN",
                     )
                     return GroupQuantizeLinear.from_linear(node, self.config)
-                if isinstance(node, nn.Embedding):
+                if isinstance(node, nn.Embedding) and self.config.quantize_embedding:
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
