@@ -110,9 +110,8 @@ class QWen2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
         assert bsz == 1, "Only support batch size 1 at this moment."
         # Step 1. QKV Projection
         qkv = self.c_attn(hidden_states)
-        qkv = op.reshape(
-            qkv, (bsz, sl, (2 * self.num_key_value_heads + self.num_attention_heads), self.head_dim)
-        )
+        num_heads = 2 * self.num_key_value_heads + self.num_attention_heads
+        qkv = op.reshape(qkv, (bsz, sl, num_heads, self.head_dim))
         # Step 2. Apply QK rotary embedding
         q, k, v = op_ext.llama_rope(
             qkv, total_seq_len, self.rope_theta, self.num_attention_heads, self.num_key_value_heads
