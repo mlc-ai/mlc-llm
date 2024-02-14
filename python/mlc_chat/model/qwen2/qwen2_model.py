@@ -196,7 +196,6 @@ class QWen2LMHeadModel(nn.Module):
             self.dtype = dtype
 
     def forward(self, inputs: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
-
         def _index(x: te.Tensor):  # x[:-1,:]
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
@@ -209,7 +208,6 @@ class QWen2LMHeadModel(nn.Module):
         return logits
 
     def prefill(self, inputs: Tensor, total_seq_len: tir.Var):
-
         def _attention_mask(batch_size, seq_len, total_seq_len):
             return te.compute(
                 (batch_size, 1, seq_len, total_seq_len),
