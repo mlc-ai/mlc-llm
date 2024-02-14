@@ -73,6 +73,7 @@ class GPTJConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
 # pylint: disable=invalid-name,missing-docstring
 
+
 class GPTJAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPTJConfig):
         self.embed_dim = config.n_embd
@@ -117,7 +118,6 @@ class GPTJAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
 
 class GPTJMLP(nn.Module):
     def __init__(self, config: GPTJConfig):  # in MLP: intermediate_size= 4 * embed_dim
-
         embed_dim = config.n_embd
         intermediate_size = 4 * embed_dim // config.tensor_parallel_shards
         self.fc_in = nn.Linear(embed_dim, intermediate_size, bias=True)
@@ -143,6 +143,7 @@ class GPTJBlock(nn.Module):
         feed_forward_hidden_states = self.mlp(hidden_states)
         hidden_states = attn_output + feed_forward_hidden_states + residual
         return hidden_states
+
 
 class GPTJModel(nn.Module):
     def __init__(self, config: GPTJConfig):
@@ -182,7 +183,6 @@ class GPTJForCausalLM(nn.Module):
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
-
 
     def prefill(self, inputs: Tensor, total_seq_len: tir.Var):
         def _attention_mask(batch_size, seq_len, total_seq_len):
