@@ -295,7 +295,7 @@ def _kv_cache_transpose_append(num_key_value_heads, head_dim, dtype):
         var_position_map: T.handle,
     ):
         T.func_attr({"tir.noalias": T.bool(True)})
-        ntoken = T.SizeVar("ntoken", "int64")
+        ntoken = T.SizeVar("num_tokens_excluding_cache", "int64")
         num_pages = T.int64()
         pages = T.match_buffer(var_pages, (num_pages, 2, num_key_value_heads, 16, head_dim), dtype)
         k_data = T.match_buffer(var_k_data, (ntoken, num_key_value_heads, head_dim), dtype)
@@ -334,7 +334,7 @@ def _kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dty
         layer_id: T.int64,
     ):
         T.func_attr({"tir.noalias": T.bool(True)})
-        seqlen = T.SizeVar("seqlen", "int64")
+        seqlen = T.SizeVar("num_tokens_including_cache", "int64")
         page_size = T.SizeVar("page_size", "int64")
         num_pages = T.int64()
         pages = T.match_buffer(var_pages, (num_pages, 2, num_key_value_heads, page_size, head_dim), dtype)
