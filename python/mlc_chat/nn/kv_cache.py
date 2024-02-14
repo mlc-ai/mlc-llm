@@ -10,6 +10,7 @@ from tvm import tir
 from tvm.relax.frontend.nn import Object, Tensor
 from tvm.runtime import DataType
 from tvm.script import tir as T
+from tvm.target import Target
 
 from mlc_chat.op.position_embedding import (
     llama_inplace_rope,
@@ -18,8 +19,58 @@ from mlc_chat.op.position_embedding import (
 )
 
 
+class RopeMode(enum.IntEnum):
+    """The RoPE mode of the Paged KV cache.
+    If it is normal, RoPE will be applied to k before adding k to cache.
+    Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
+    """
+
+    NORMAL = 0
+    INLINE = 1
+
+
 class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
     """The Paged KV Cache used in LLM batching for efficient attention computation."""
+
+    @staticmethod
+    def create_generic(  # pylint: disable=too-many-arguments
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+        num_hidden_layers: int,
+        num_attention_heads: int,
+        num_key_value_heads: int,
+        head_dim: int,
+        rope_mode: RopeMode,
+        rope_scale: int,
+        rope_theta: int,
+        dtype: str,
+        name: str = "paged_kv_cache",
+    ) -> "PagedKVCache":
+        """The generic function of creating a PagedKVCache,
+        which will be rewritten by functions in compilation pipeline.
+        """
+        return PagedKVCache(
+            _expr=rx.Call(
+                rx.extern("mlc.create_paged_kv_cache_generic"),
+                args=[
+                    rx.ShapeExpr(
+                        [max_batch_size, max_total_seq_len, prefill_chunk_size, page_size]
+                    ),
+                    rx.PrimValue(num_hidden_layers),
+                    rx.PrimValue(num_attention_heads),
+                    rx.PrimValue(num_key_value_heads),
+                    rx.PrimValue(head_dim),
+                    rx.PrimValue(rope_mode),
+                    rx.PrimValue(rope_scale),
+                    rx.PrimValue(rope_theta),
+                    rx.DataTypeImm(dtype),
+                ],
+                sinfo_args=[rx.ObjectStructInfo()],
+            ),
+            _name=name,
+        )
 
     def attention(  # pylint: disable=invalid-name
         self,
@@ -96,16 +147,6 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
     # pylint: enable=protected-access
 
 
-class RopeMode(enum.IntEnum):
-    """The RoPE mode of the Paged KV cache.
-    If it is normal, RoPE will be applied to k before adding k to cache.
-    Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
-    """
-
-    NORMAL = 0
-    INLINE = 1
-
-
 class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
     """Paged KV cache using FlashInfer (CUDA) kernels."""
 
@@ -123,6 +164,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         rope_scale: int,
         rope_theta: int,
         dtype: str,
+        target: Target,
         name: str = "paged_kv_cache",
     ) -> None:
         """Create a paged KV cache object with FlashInfer kernels.
@@ -180,7 +222,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             rx.extern("paged_kv_cache.attention_kernel_decode_end_forward"),
             rx.extern("flashinfer.merge_state_in_place"),
             bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, head_dim), "tir_split_rotary"),
-            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype), "tir_qk_rotary_inplace"),
+            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, target), "tir_qk_rotary_inplace"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             # fmt: on
             # pylint: enable=line-too-long
@@ -212,6 +254,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         rope_scale: int,
         rope_theta: int,
         dtype: str,
+        target: Target,
         name: str = "paged_kv_cache",
     ) -> None:
         """Create a paged KV cache object with TIR kernels.
@@ -242,6 +285,8 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             The scale of rotary position embedding.
         rope_theta : int
             The base of rotary position embedding.
+        target : Target
+            The target to build the model to.
         """
 
         bb = rx.BlockBuilder.current()
@@ -258,12 +303,12 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             # pylint: disable=line-too-long
             # fmt: off
             bb.add_func(_kv_cache_transpose_append(num_key_value_heads, head_dim, dtype), "kv_cache_transpose_append"),
-            bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, head_dim, dtype), "tir_attention_prefill"),
-            bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, head_dim, dtype), "tir_attention_decode"),
-            bb.add_func(_attention_prefill_ragged(num_key_value_heads, num_attention_heads, head_dim, dtype), "tir_attention_prefill_ragged"),
-            bb.add_func(_merge_state_inplace(num_key_value_heads, head_dim, dtype), "tir_attention_merge_state"),
+            bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_prefill"),
+            bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_decode"),
+            bb.add_func(_attention_prefill_ragged(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_prefill_ragged"),
+            bb.add_func(_merge_state_inplace(num_key_value_heads, head_dim, dtype, target), "tir_attention_merge_state"),
             bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, head_dim), "tir_split_rotary"),
-            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype), "tir_qk_rotary_inplace"),
+            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, target), "tir_qk_rotary_inplace"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             # fmt: on
             # pylint: enable=line-too-long
@@ -379,7 +424,7 @@ def _var(dtype):
     return T.alloc_buffer((1,), dtype, scope="local")
 
 
-def _attention_prefill(h_kv, h_q, d, dtype):
+def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-argument
     # pylint: disable=invalid-name
     NUM_BLKS = 16
     LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
@@ -715,7 +760,13 @@ def _attention_prefill(h_kv, h_q, d, dtype):
     return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
 
-def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
+def _attention_decode(
+    num_kv_heads,
+    num_qo_heads,
+    head_dim,
+    qkv_dtype,
+    target: Target,  # pylint: disable=unused-argument
+):
     # pylint: disable=invalid-name
     qkv_dtype_bytes = 2
     H_qo = num_qo_heads
@@ -935,7 +986,9 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
     return batch_decode_paged_kv
 
 
-def _merge_state_inplace(num_heads, head_dim, v_dtype):
+def _merge_state_inplace(
+    num_heads, head_dim, v_dtype, target: Target
+):  # pylint: disable=unused-argument
     # pylint: disable=invalid-name
     v_dtype_bytes = 2
     VEC_SIZE = max(8 // v_dtype_bytes, head_dim // 32)
@@ -1002,7 +1055,9 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype):
     return merge_state_inplace
 
 
-def _attention_prefill_ragged(h_kv, h_q, d, dtype):
+def _attention_prefill_ragged(
+    h_kv, h_q, d, dtype, target: Target
+):  # pylint: disable=unused-argument
     # pylint: disable=invalid-name,line-too-long
     NUM_BLKS = 16
     LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
