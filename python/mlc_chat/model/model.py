@@ -18,6 +18,7 @@ from .phi import phi_loader, phi_model, phi_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
 from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
+from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -209,4 +210,17 @@ MODELS: Dict[str, Model] = {
             "group-quant": stablelm_quantization.group_quant,
         },
     ),
+    "baichuan": Model(
+        name="baichuan",
+        model=baichuan_model.BaichuanForCausalLM,
+        config=baichuan_model.BaichuanConfig,
+        source={
+            "huggingface-torch": baichuan_loader.huggingface,
+            "huggingface-safetensor": baichuan_loader.huggingface,
+        },
+        quantize={
+            "no-quant": baichuan_quantization.no_quant,
+            "group-quant": baichuan_quantization.group_quant,
+        },
+    ),    
 }
