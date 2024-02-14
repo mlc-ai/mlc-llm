@@ -404,12 +404,9 @@ class ParamManager:
 
             for gv, func in mod.functions.items():
                 if isinstance(func, relax.Function) and func.attrs and "num_input" in func.attrs:
-                    quantized_param_info = self.get_quantized_param_info(gv.name_hint)
-                    param_vars = [
-                        relax.Var(f"param_{i}", info)
-                        for i, info in enumerate(quantized_param_info.fields)
-                    ]
-                    func_name_to_quantized_params[gv.name_hint] = param_vars
+                    func_name_to_quantized_params[gv.name_hint] = self.get_quantized_params(
+                        gv.name_hint
+                    )
 
             # Cache mapping to avoid duplicate dequantization.
             dequantized_cache: Dict[relax.Var, relax.Var] = {}
@@ -438,11 +435,13 @@ class ParamManager:
 
         return transform_func
 
-    def get_quantized_param_info(self, func_name: str) -> List[relax.TensorStructInfo]:
+    def get_quantized_params(self, func_name: str) -> List[relax.Var]:
+        quantized_params: List[relax.Var] = []
+
         bb = relax.BlockBuilder()
         with bb.function("main", []):
             self.param2qrange = dict()
-            quantized_param_info: List[relax.TensorStructInfo] = []
+
             for name in self.param_names:
                 param = self.params[name]
                 param_info = None
@@ -454,11 +453,14 @@ class ParamManager:
                         param.param_info.dtype,
                     )
 
-                _, loaded_tensor_info = param.quant_spec.get_loaded_tensor_info(name, param_info)
+                loaded_tensor_names, loaded_tensor_info = param.quant_spec.get_loaded_tensor_info(
+                    name, param_info
+                )
 
-                provided_tensor_vars: List[relax.Var] = []
-                for provided_info in loaded_tensor_info:
-                    provided_tensor_vars.append(relax.Var("var", provided_info))
+                provided_tensor_vars: List[relax.Var] = [
+                    relax.Var(name, sinfo)
+                    for name, sinfo in zip(loaded_tensor_names, loaded_tensor_info)
+                ]
 
                 # Get the quantization function of this parameter.
                 f_quantize = param.quant_spec.get_quantize_func(param_info)
@@ -466,10 +468,10 @@ class ParamManager:
                     # If the parameter does not have a quantization function, either it
                     # does not need quantization or it is pre-quantized.
                     self.param2qrange[param] = range(
-                        len(quantized_param_info),
-                        len(quantized_param_info) + len(provided_tensor_vars),
+                        len(quantized_params),
+                        len(quantized_params) + len(provided_tensor_vars),
                     )
-                    quantized_param_info += [var.struct_info for var in provided_tensor_vars]
+                    quantized_params.extend(provided_tensor_vars)
                 else:
                     # If the parameter has a quantization function, it is not expected
                     # to be pre-quantized.
@@ -481,27 +483,30 @@ class ParamManager:
                     # Apply the quantization function.
                     quantized_data = bb.normalize(f_quantize(bb, provided_tensor_vars))
                     if isinstance(quantized_data.struct_info, relax.TupleStructInfo):
-                        n_tensor = len(quantized_data.struct_info.fields)
+                        fields = quantized_data.struct_info.fields
+                        n_tensor = len(fields)
                         assert n_tensor > 1
                         # Record the range of quantized tensors of this parameter.
                         self.param2qrange[param] = range(
-                            len(quantized_param_info),
-                            len(quantized_param_info) + n_tensor,
+                            len(quantized_params),
+                            len(quantized_params) + n_tensor,
                         )
                         # Collect the quantized tensors to return.
-                        for i in range(n_tensor):
-                            quantized_param_info.append(
-                                relax.TupleGetItem(quantized_data, i).struct_info
-                            )
-                    else:
-                        assert isinstance(quantized_data.struct_info, relax.TensorStructInfo)
-                        self.param2qrange[param] = range(
-                            len(quantized_param_info), len(quantized_param_info) + 1
+                        quantized_params.extend(
+                            relax.Var(f"{name}.{field.dtype}.{i}", field)
+                            for i, field in enumerate(fields)
                         )
-                        quantized_param_info.append(quantized_data.struct_info)
+
+                    else:
+                        field = quantized_data.struct_info
+                        assert isinstance(field, relax.TensorStructInfo)
+                        self.param2qrange[param] = range(
+                            len(quantized_params), len(quantized_params) + 1
+                        )
+                        quantized_params.append(relax.Var(f"{name}.{field.dtype}", field))
             bb.emit_func_output(relax.const(0, "int64"))
 
-        return relax.TupleStructInfo(quantized_param_info)
+        return quantized_params
 
     def get_param_loading_functions(
         self,

@@ -218,7 +218,7 @@ def create_shard_info_func(param_manager, args, model_config) -> tvm.IRModule:
 
         shard_info_dict[param_name] = shard_info
 
-    q_params = param_manager.get_quantized_param_info("prefill").fields
+    q_params = [param.struct_info for param in param_manager.get_quantized_params("prefill")]
     for _, param in param_manager.params.items():
         if param.shard_strategy is None:
             pass
@@ -269,7 +269,7 @@ def create_shard_transformation_func(param_manager, args, model_config) -> tvm.I
             param_shape_is_already_sharded=args.build_model_only,
         )
 
-    q_params = param_manager.get_quantized_param_info("prefill").fields
+    q_params = [param.struct_info for param in param_manager.get_quantized_params("prefill")]
 
     # The order of the quantized parameters must be preserved.
     # Therefore, we need to loop over q_params and look up information
