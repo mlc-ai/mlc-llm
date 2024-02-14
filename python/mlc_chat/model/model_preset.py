@@ -376,7 +376,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "hidden_size": 2048,
         "initializer_range": 0.02,
         "intermediate_size": 5504,
-        "max_position_embeddings": 32768,
+        "max_position_embeddings": 4096,
         "max_window_layers": 21,
         "model_type": "qwen2",
         "num_attention_heads": 16,
