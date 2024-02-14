@@ -8,8 +8,7 @@ from mlc_chat.quantization.quantization import Quantization
 from tvm.relax.frontend import nn
 
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
-from .gpt_bigcode import (gpt_bigcode_loader, gpt_bigcode_model,
-                          gpt_bigcode_quantization)
+from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
 from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
 from .gptj import gptj_loader, gptj_model, gptj_quantization
 from .llama import llama_loader, llama_model, llama_quantization
