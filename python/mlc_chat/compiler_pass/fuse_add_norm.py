@@ -1,4 +1,5 @@
 """A compiler pass that fuses add + rms_norm."""
+
 import tvm
 from tvm import relax
 from tvm.relax.dpl import PatternContext, rewrite_bindings
@@ -182,7 +183,7 @@ class FuseAddRMSNorm:  # pylint: disable=too-few-public-methods
                 gvar = mod.get_global_var(func_name)
                 relax.expr._update_struct_info(  # pylint: disable=protected-access
                     gvar,
-                    relax.ObjectStructInfo(),
+                    relax.FuncStructInfo.opaque_func(ret=relax.ObjectStructInfo()),
                 )
             else:
                 gvar = mod.get_global_var(func_name)
