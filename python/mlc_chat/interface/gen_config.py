@@ -150,7 +150,12 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
             mlc_chat_config.tokenizer_files.append("tokenizer.json")
             logger.info("Succesfully converted `tokenizer.model` to: %s", tokenizer_json_save_dest)
         except Exception:  # pylint: disable=broad-exception-caught
-            logger.exception("%s with the exception below. Skipping", FAILED)
+            logger.warning(
+                "Convertion to `tokenizer.json` %s with the exception below. "
+                "Skipping the conversion. Tokenizer will only use `tokenizer.model`",
+                FAILED,
+                exc_info=True,
+            )
     # 3.3. If we still don't have "tokenizer.json" at this point, try looking for "*.tiktoken" files
     if (not tokenizer_json_file.exists()) and list(config.parent.glob("*.tiktoken")):
         try:
