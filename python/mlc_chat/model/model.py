@@ -222,5 +222,5 @@ MODELS: Dict[str, Model] = {
             "no-quant": baichuan_quantization.no_quant,
             "group-quant": baichuan_quantization.group_quant,
         },
-    ),    
+    ),   
 }
