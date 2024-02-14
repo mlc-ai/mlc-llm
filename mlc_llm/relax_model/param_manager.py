@@ -507,12 +507,7 @@ class ParamManager:
         self,
         model_params: List[Optional[tvm.nd.NDArray]],
         loaded_params: List[tvm.nd.NDArray],
-        loaded_idx_set: Set[int],
-        loaded_torch_bins: Set[str],
-        cached_relax_params: Dict[int, tvm.nd.NDArray],
-        cached_torch_params: Dict[str, Any],
         device: Device,
-        device_cpu: Device,
     ) -> Tuple[Callable, Callable]:
         """A wrapper function which returns the `get_item` and `set_item`
         functions for parameter lazy loading.
@@ -525,25 +520,8 @@ class ParamManager:
         loaded_params : List[tvm.nd.NDArray]
             The parameter loading result, storing all the loaded parameters.
 
-        loaded_idx_set : Set[int]
-            The set of indices of loaded parameters, serving for robustness
-            guarantee to avoid one parameter being loaded for multiple times.
-
-        loaded_torch_bins : Set[str]
-            The set of torch binary filenames, serving for robustness guarantee
-            to avoid one torch binary file being loaded for multiple times.
-
-        cached_relax_params : Dict[int, tvm.nd.NDArray]
-            The set of cached Relax parameters.
-
-        cached_torch_params: Dict[str, Any]
-            The set of cached torch parameters. `Any` here stands for numpy.ndarray.
-
         device : Device
-            The device which we load the parameters to.
-
-        device_cpu : Device
-            The CPU device.
+            The device onto which we load the parameters.
         """
         import torch  # pylint: disable=import-outside-toplevel
 
@@ -551,6 +529,24 @@ class ParamManager:
         assert self.f_convert_param_bkwd is not None
         assert self.f_compute_relax_param is not None
         pname2pidx: Dict[str, int] = {pname: pidx for pidx, pname in self.pidx2pname.items()}
+
+        # The set of indices of loaded parameters, serving for
+        # robustness guarantee to avoid one parameter being loaded for
+        # multiple times.
+        loaded_idx_set: Set[int] = set()
+
+        # The set of torch binary filenames, serving for robustness guarantee
+        # to avoid one torch binary file being loaded for multiple times.
+        loaded_torch_bins: Set[str] = set()
+
+        # The set of cached Relax parameters.
+        cached_relax_params: Dict[int, tvm.nd.NDArray] = {}
+
+        # The set of cached torch parameters. `Any` here stands for
+        # numpy.ndarray.
+        cached_torch_params: Dict[str, Any] = {}
+
+        device_cpu = tvm.cpu()
 
         def fetch_torch_param(torch_param):
             if str(torch_param.dtype) == "torch.bfloat16":
