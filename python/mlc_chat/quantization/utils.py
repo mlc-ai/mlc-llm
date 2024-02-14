@@ -63,6 +63,7 @@ def convert_uint_to_float_e4m3(  # pylint: disable=too-many-arguments
     return te.compute(
         shape=out_shape,
         fcompute=lambda *idx: tir.reinterpret(
+            DataType("e4m3_float8"),  # TODO(jmcmahan): bad to have the const string here, should come in as arg from model config
             tir.bitwise_and(
                 tir.shift_right(
                     weight(*idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]),
@@ -71,8 +72,7 @@ def convert_uint_to_float_e4m3(  # pylint: disable=too-many-arguments
                     ).astype(storage_dtype),
                 ),
                 tir_bin_mask,
-            ),
-            DataType("e4m3_float8")  # TODO(jmcmahan): bad to have the const string here, should come in as arg from model config
+            )
         ).astype(model_dtype),
     )
 
