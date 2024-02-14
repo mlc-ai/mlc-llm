@@ -425,7 +425,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "architectures": ["BaichuanForCausalLM"],
         "auto_map": {
             "AutoConfig": "configuration_baichuan.BaichuanConfig",
-            "AutoModelForCausalLM": "modeling_baichuan.BaichuanForCausalLM"
+            "AutoModelForCausalLM": "modeling_baichuan.BaichuanForCausalLM",
         },
         "tokenizer_class": "BaichuanTokenizer",
         "bos_token_id": 1,
@@ -445,6 +445,6 @@ MODEL_PRESETS: Dict[str, Any] = {
         "torch_dtype": "bfloat16",
         "transformers_version": "4.29.2",
         "use_cache": True,
-        "vocab_size": 125696
-    }
+        "vocab_size": 125696,
+    },
 }
