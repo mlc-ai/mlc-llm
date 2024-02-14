@@ -661,6 +661,9 @@ def mod_transform_before_build(
                 ]
             )(mod)
 
+    if args.target_kind == "android":
+        mod = mlc_llm.transform.FuseTranspose1Matmul()(mod)
+        mod = mlc_llm.transform.FuseTranspose2Matmul()(mod)
     mod = mlc_llm.transform.FuseTransposeMatmul()(mod)
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
     mod = mlc_llm.transform.FuseDecodeMatmulEwise()(mod)
@@ -747,6 +750,10 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
             else tvm.target.Target("apple/m1-gpu-restricted")
         )
         with dispatch_target:
+            if args.target_kind == "android":
+                mod_deploy = mlc_llm.dispatch.DispatchTIROperatorAdreno()(  # pylint: disable=not-callable
+                    mod_deploy
+                )
             mod_deploy = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
                 dl.gpu.Matmul(),
                 dl.gpu.GEMV(),

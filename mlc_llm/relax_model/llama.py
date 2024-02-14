@@ -39,6 +39,7 @@ class LlamaConfig:
         build_model_only=False,
         num_shards=1,
         sliding_window=None,
+        target_kind=None,
         **kwargs,
     ):
         self.dtype = dtype
@@ -59,6 +60,7 @@ class LlamaConfig:
         self.position_embedding_base = position_embedding_base
         self.combine_matmul = combine_matmul
         self.sliding_window = sliding_window
+        self.target_kind = target_kind
 
         if build_model_only and num_shards > 1:
             self.num_shards = num_shards
@@ -431,6 +433,7 @@ class LlamaPagedAttention(LlamaAttentionBase):
 class LlamaAttention(LlamaAttentionBase):
     def __init__(self, config: LlamaConfig):
         super().__init__(config)
+        self.config = config
 
     def attention_fwd(
         self,
@@ -510,14 +513,21 @@ class LlamaAttention(LlamaAttentionBase):
             key_states = nn.emit(relax.op.repeat(key_states, n_rep, axis=2))
             value_states = nn.emit(relax.op.repeat(value_states, n_rep, axis=2))
 
-        query_states = nn.emit(permute_dims(query_states, [0, 2, 1, 3]))
-        key_states = nn.emit(permute_dims(key_states, [0, 2, 1, 3]))
-        value_states = nn.emit(permute_dims(value_states, [0, 2, 1, 3]))
+        if self.config.target_kind == "android":
+            attn_weights = nn.emit(
+                matmul(permute_dims(query_states, [0, 2, 1, 3]), permute_dims(key_states, [0, 2, 3, 1]))
+                / relax.const(math.sqrt(self.head_dim), query_states.struct_info.dtype)
+            )
+        else:
+            query_states = nn.emit(permute_dims(query_states, [0, 2, 1, 3]))
+            key_states = nn.emit(permute_dims(key_states, [0, 2, 1, 3]))
+            value_states = nn.emit(permute_dims(value_states, [0, 2, 1, 3]))
 
-        attn_weights = nn.emit(
-            matmul(query_states, permute_dims(key_states, [0, 1, 3, 2]))
-            / relax.const(math.sqrt(self.head_dim), query_states.struct_info.dtype)
-        )
+            attn_weights = nn.emit(
+                matmul(permute_dims(query_states, [0, 2, 1, 3]), permute_dims(key_states, [0, 2, 3, 1]))
+                / relax.const(math.sqrt(self.head_dim), query_states.struct_info.dtype)
+            )
+
 
         tvm.ir.assert_structural_equal(
             attention_mask.struct_info.shape.values,
@@ -541,8 +551,10 @@ class LlamaAttention(LlamaAttentionBase):
         attn_weights = nn.emit(softmax(attn_weights, axis=-1))
         if attn_weights.struct_info.dtype != query_states.struct_info.dtype:
             attn_weights = astype(attn_weights, query_states.struct_info.dtype)
-        attn_output = nn.emit(matmul(attn_weights, value_states))
-
+        if self.config.target_kind == "android":
+            attn_output = nn.emit(matmul(attn_weights, permute_dims(value_states, [0, 2, 1, 3])))
+        else:
+            attn_output = nn.emit(matmul(attn_weights, value_states))
         attn_output = nn.emit(permute_dims(attn_output, [0, 2, 1, 3]))
         return attn_output, past_key_values
 
@@ -1411,6 +1423,7 @@ def get_model(args, hf_config):
             combine_matmul=True,
             num_shards=args.num_shards,
             build_model_only=args.build_model_only,
+            target_kind=args.target_kind,
         )
     elif "max_position_embeddings" in hf_config:
         config = LlamaConfig(
@@ -1421,6 +1434,7 @@ def get_model(args, hf_config):
             combine_matmul=True,
             num_shards=args.num_shards,
             build_model_only=args.build_model_only,
+            target_kind=args.target_kind,
         )
     else:
         raise Exception(
