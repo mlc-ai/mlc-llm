@@ -42,6 +42,7 @@ def huggingface(model_config: QWen2Config, quantization: Quantization) -> Extern
     mapping = ExternMapping()
 
     for i in range(model_config.num_hidden_layers):
+        # map attention weight
         attn = f"model.layers.{i}.self_attn"
         for weight_type in ["weight", "bias"]:
             mlc_name = f"{attn}.c_attn.{weight_type}"
@@ -58,6 +59,21 @@ def huggingface(model_config: QWen2Config, quantization: Quantization) -> Extern
                     dtype=mlc_param.dtype,
                 ),
             )
+        # map mlp weight
+        mlp = f"model.layers.{i}.mlp"
+        mlc_name = f"{mlp}.gate_up_proj.weight"
+        mlc_param = named_parameters[mlc_name]
+        mapping.add_mapping(
+            mlc_name,
+            [
+                f"{mlp}.gate_proj.weight",
+                f"{mlp}.up_proj.weight",
+            ],
+            functools.partial(
+                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
+                dtype=mlc_param.dtype,
+            ),
+        )
 
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:

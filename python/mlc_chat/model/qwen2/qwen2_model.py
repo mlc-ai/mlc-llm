@@ -138,17 +138,14 @@ ACT2FN = {
 
 class QWen2MLP(nn.Module):
     def __init__(self, config: QWen2Config):
-        self.gate_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
-        self.up_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
+        self.gate_up_proj = nn.Linear(config.hidden_size, 2 * config.intermediate_size, bias=False)
         self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
         self.act_fn = ACT2FN[config.hidden_act]
 
     def forward(self, x: Tensor):
-        gate_oup = self.gate_proj(x)
-        act_oup = self.act_fn(gate_oup)
-        up_oup = self.up_proj(x)
-        down_oup = self.down_proj(act_oup * up_oup)
-        return down_oup
+        concat_x1_x2 = self.gate_up_proj(x)
+        x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
+        return self.down_proj(self.act_fn(x1) * x2)
 
 
 class QWen2DecoderLayer(nn.Module):
