@@ -189,6 +189,12 @@ class LlamaMLP(nn.Module):
             self.gate_proj = Linear(hidden_size, intermediate_size, dtype=dtype, bias=False)
             self.down_proj = Linear(intermediate_size, hidden_size, dtype=dtype, bias=False)
             self.up_proj = Linear(hidden_size, intermediate_size, dtype=dtype, bias=False)
+            self.gate_proj.weight.shard_dim = 0
+            self.gate_proj.weight.shard_strategy = "shard_axis_0"
+            self.down_proj.weight.shard_dim = 1
+            self.down_proj.weight.shard_strategy = "shard_axis_1"
+            self.up_proj.weight.shard_dim = 0
+            self.up_proj.weight.shard_strategy = "shard_axis_0"
 
     def forward(self, x):
         if self.combine_matmul:
@@ -292,6 +298,9 @@ class LlamaAttentionBase(nn.Module):
             self.q_proj.weight.shard_dim = 0
             self.k_proj.weight.shard_dim = 0
             self.v_proj.weight.shard_dim = 0
+            self.q_proj.weight.shard_strategy = "shard_axis_0"
+            self.k_proj.weight.shard_strategy = "shard_axis_0"
+            self.v_proj.weight.shard_strategy = "shard_axis_0"
 
         self.o_proj = Linear(
             self.head_dim * self.num_query_heads, self.hidden_size, dtype=dtype, bias=False
