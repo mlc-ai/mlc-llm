@@ -397,9 +397,7 @@ MODEL_PRESETS: Dict[str, Any] = {
     },
     "gptj": {
         "activation_function": "gelu_new",
-        "architectures": [
-            "GPTJForCausalLM"
-        ],
+        "architectures": ["GPTJForCausalLM"],
         "attn_pdrop": 0.0,
         "bos_token_id": 50256,
         "embd_pdrop": 0.0,
@@ -421,16 +419,12 @@ MODEL_PRESETS: Dict[str, Any] = {
         "summary_type": "cls_index",
         "summary_use_proj": True,
         "task_specific_params": {
-            "text-generation": {
-                "do_sample": True,
-                "max_length": 50,
-                "temperature": 1.0
-            }
+            "text-generation": {"do_sample": True, "max_length": 50, "temperature": 1.0
         },
         "tie_word_embeddings": False,
         "tokenizer_class": "GPT2Tokenizer",
         "transformers_version": "4.18.0.dev0",
         "use_cache": True,
-        "vocab_size": 50400
+        "vocab_size": 50400,
     },
 }
