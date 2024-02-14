@@ -86,10 +86,8 @@ class BaichuanAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         self.W_pack = nn.Linear(self.hidden_size, 3 * self.hidden_size, bias=False)
         self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=False)
 
-
         self.k_cache = nn.KVCache(config.context_window_size, [self.num_heads, self.head_dim])
         self.v_cache = nn.KVCache(config.context_window_size, [self.num_heads, self.head_dim])
-
 
     def forward(  # pylint: disable=too-many-locals
         self,
@@ -116,17 +114,14 @@ class BaichuanAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         return self.o_proj(output)
 
 
-
 class BaichuanMLP(nn.Module):
     def __init__(self, config: BaichuanConfig):
         self.gate_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
         self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
         self.up_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
 
-
     def forward(self, x):
         return self.down_proj(op.silu(self.gate_proj(x)) * self.up_proj(x))
-
 
 
 class BaichuanDecoderLayer(nn.Module):
@@ -143,8 +138,6 @@ class BaichuanDecoderLayer(nn.Module):
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = out + hidden_states
         return hidden_states
-
-
 
 
 class BaichuanModel(nn.Module):
