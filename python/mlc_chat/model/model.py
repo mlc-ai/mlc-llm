@@ -16,6 +16,7 @@ from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
 from .phi import phi_loader, phi_model, phi_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
+from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
 
 ModelConfig = Any
@@ -180,6 +181,19 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": qwen_quantization.no_quant,
             "group-quant": qwen_quantization.group_quant,
+        },
+    ),
+    "qwen2": Model(
+        name="qwen2",
+        model=qwen2_model.QWen2LMHeadModel,
+        config=qwen2_model.QWen2Config,
+        source={
+            "huggingface-torch": qwen2_loader.huggingface,
+            "huggingface-safetensor": qwen2_loader.huggingface,
+        },
+        quantize={
+            "no-quant": qwen2_quantization.no_quant,
+            "group-quant": qwen2_quantization.group_quant,
         },
     ),
     "stablelm_epoch": Model(
