@@ -3,21 +3,21 @@
 import dataclasses
 from typing import Any, Callable, Dict, Tuple
 
-from tvm.relax.frontend import nn
-
 from mlc_chat.loader import ExternMapping, QuantizeMapping
 from mlc_chat.quantization.quantization import Quantization
+from tvm.relax.frontend import nn
 
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
-from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
+from .gpt_bigcode import (gpt_bigcode_loader, gpt_bigcode_model,
+                          gpt_bigcode_quantization)
 from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
+from .gptj import gptj_loader, gptj_model, gptj_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
 from .phi import phi_loader, phi_model, phi_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
-from .gptj import gptj_loader, gptj_model, gptj_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
