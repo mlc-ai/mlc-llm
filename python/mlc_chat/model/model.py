@@ -3,9 +3,10 @@
 import dataclasses
 from typing import Any, Callable, Dict, Tuple
 
+from tvm.relax.frontend import nn
+
 from mlc_chat.loader import ExternMapping, QuantizeMapping
 from mlc_chat.quantization.quantization import Quantization
-from tvm.relax.frontend import nn
 
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
