@@ -267,6 +267,8 @@ struct FunctionTable {
           get_global_func("vm.builtin.paged_attention_kv_cache_begin_forward");
       this->kv_cache_end_forward_func_ =
           get_global_func("vm.builtin.paged_attention_kv_cache_end_forward");
+      this->fkvcache_array_popn_ = get_global_func("vm.builtin.paged_attention_kv_cache_popn");
+      support_backtracking_kv_ = true;
     } else {
       this->create_kv_cache_func_ = mod_get_func("create_kv_cache");
       if (this->create_kv_cache_func_ == nullptr) {
@@ -1289,7 +1291,11 @@ class LLMChat {
           output_message_ = tokenizer_->Decode(output_ids_);
         }
         // resize kv to remove the context
-        ft_.fkvcache_array_popn_(kv_cache_, backoff);
+        if (ft_.use_paged_kv_cache) {
+          ft_.fkvcache_array_popn_(kv_cache_, /*seq_id=*/0, backoff);
+        } else {
+          ft_.fkvcache_array_popn_(kv_cache_, backoff);
+        }
         total_seq_len_ -= backoff;
       }
     }
