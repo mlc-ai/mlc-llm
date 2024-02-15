@@ -8,6 +8,7 @@ from tvm.relax.frontend import nn
 from mlc_chat.loader import ExternMapping, QuantizeMapping
 from mlc_chat.quantization.quantization import Quantization
 
+from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
 from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
@@ -18,7 +19,6 @@ from .phi import phi_loader, phi_model, phi_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
 from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
-from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
