@@ -436,29 +436,28 @@ async def request_chat_completion(
         try:
             fn_json_list = convert_function_str_to_json(output_text)
         except (SyntaxError, ValueError):
-            return entrypoint_utils.create_error_response(
-                HTTPStatus.BAD_GATEWAY, message="Got an invalid function call output from model"
-            )
-        tool_calls = [
-            ChatToolCall(
-                type="function",
-                function=ChatFunctionCall(
-                    name=fn_json_obj["name"], arguments=fn_json_obj["arguments"]
-                ),
-            )
-            for fn_json_obj in fn_json_list
-            if fn_json_obj is not None
-        ]
-        if len(tool_calls) == 0:
-            return entrypoint_utils.create_error_response(
-                HTTPStatus.BAD_GATEWAY, message="Got an invalid function call output from model"
-            )
-
-        finish_reason = "tool_calls"
+            output_text = "Got an invalid function call output from model"
+            finish_reason = "error"
+        else:
+            tool_calls = [
+                ChatToolCall(
+                    type="function",
+                    function=ChatFunctionCall(
+                        name=fn_json_obj["name"], arguments=fn_json_obj["arguments"]
+                    ),
+                )
+                for fn_json_obj in fn_json_list
+                if fn_json_obj is not None
+            ]
+            if len(tool_calls) == 0:
+                output_text = "Got an invalid function call output from model"
+                finish_reason = "error"
+            else:
+                finish_reason = "tool_calls"
 
     message = (
         ChatCompletionMessage(role="assistant", content=output_text)
-        if not conv_template.use_function_calling
+        if (not conv_template.use_function_calling or finish_reason == "error")
         else ChatCompletionMessage(role="assistant", content=None, tool_calls=tool_calls)
     )
 

@@ -22,7 +22,7 @@ def check_openai_nonstream_response(
     model: str,
     object_str: str,
     num_choices: int,
-    finish_reason: str,
+    finish_reason: List[str],
     completion_tokens: Optional[int] = None,
 ):
     print(response)
@@ -34,12 +34,17 @@ def check_openai_nonstream_response(
     assert len(choices) == num_choices
     for idx, choice in enumerate(choices):
         assert choice["index"] == idx
-        assert choice["finish_reason"] == finish_reason
+        assert choice["finish_reason"] in finish_reason
 
         # text: str
         message = choice["message"]
         assert message["role"] == "assistant"
-        assert isinstance(message["tool_calls"], list)
+        if choice["finish_reason"] == "tool_calls":
+            assert message["content"] is None
+            assert isinstance(message["tool_calls"], list)
+        else:
+            assert message["tool_calls"] is None
+            assert message["content"] is not None
 
     usage = response["usage"]
     assert isinstance(usage, dict)
@@ -172,7 +177,7 @@ def test_openai_v1_chat_completion_function_call(
             model=served_model[0],
             object_str="chat.completion",
             num_choices=1,
-            finish_reason="tool_calls",
+            finish_reason=["tool_calls", "error"],
         )
     else:
         responses = []

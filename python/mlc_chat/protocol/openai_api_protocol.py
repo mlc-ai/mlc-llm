@@ -165,7 +165,7 @@ class ChatCompletionRequest(BaseModel):
 
 
 class ChatCompletionResponseChoice(BaseModel):
-    finish_reason: Optional[Literal["stop", "length", "tool_calls"]] = None
+    finish_reason: Optional[Literal["stop", "length", "tool_calls", "error"]] = None
     index: int = 0
     message: ChatCompletionMessage
 
