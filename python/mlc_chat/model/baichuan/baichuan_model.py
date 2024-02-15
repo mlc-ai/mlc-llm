@@ -76,6 +76,9 @@ class BaichuanConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
         assert self.tensor_parallel_shards == 1, "Baichuan currently does not support sharding."
 
 
+# pylint: disable=invalid-name,missing-docstring
+
+
 class BaichuanAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: BaichuanConfig):
         self.hidden_size = config.hidden_size
