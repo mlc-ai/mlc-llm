@@ -116,12 +116,17 @@ class BaichuanAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
 
 class BaichuanMLP(nn.Module):
     def __init__(self, config: BaichuanConfig):
-        self.gate_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
+        self.gate_up_proj = nn.Linear(
+            in_features=config.hidden_size,
+            out_features=2 * config.intermediate_size,
+            bias=False,
+        )
         self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
-        self.up_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
 
     def forward(self, x):
-        return self.down_proj(op.silu(self.gate_proj(x)) * self.up_proj(x))
+        concat_x1_x2 = self.gate_up_proj(x)
+        x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
+        return self.down_proj(op.silu(x1) * x2)
 
 
 class BaichuanDecoderLayer(nn.Module):
