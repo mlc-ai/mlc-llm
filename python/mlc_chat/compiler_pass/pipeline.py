@@ -1,4 +1,5 @@
 """The compilation pipeline for LLM applications."""
+
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -25,7 +26,7 @@ from .fuse_dequantize_transpose import FuseDequantizeTranspose
 from .fuse_ft_dequantize_matmul_epilogue import FuseFTDequantizeEpilogue
 from .fuse_transpose_matmul import FuseTransposeMatmul
 from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
-from .prune_relax_func import PruneRelaxFunc
+from .rewrite_kv_cache_creation import RewriteKVCacheCreation
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
         seq = tvm.transform.Sequential(
             [
                 # Phase 0. Add additional information for compilation and remove unused Relax func
-                PruneRelaxFunc(flashinfer=flashinfer),
+                RewriteKVCacheCreation(target, flashinfer),
                 AttachVariableBounds(variable_bounds),
                 AttachAdditionalPrimFuncs(additional_tirs),
                 AttachMemoryPlanAttr(),
@@ -126,9 +127,11 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 _DebugDump("debug-phase4.py", debug_dump, show_meta=False),
                 _LogProgress("Lowering to VM bytecode"),
                 LiftTIRGlobalBufferAlloc(),
-                tvm.tir.transform.ForceNarrowIndexToInt32()
-                if target.kind.name != "cuda"
-                else tvm.transform.Sequential([]),
+                (
+                    tvm.tir.transform.ForceNarrowIndexToInt32()
+                    if target.kind.name != "cuda"
+                    else tvm.transform.Sequential([])
+                ),
                 tvm.relax.transform.RewriteDataflowReshape(),
                 tvm.relax.transform.ToNonDataflow(),
                 tvm.relax.transform.RemovePurityChecking(),

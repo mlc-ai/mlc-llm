@@ -178,6 +178,7 @@ def test_nn_module_paged_kv_cache():
                 rope_scale=1,
                 rope_theta=10000,
                 dtype="float16",
+                target=tvm.target.Target("cuda"),
             )
 
     export_results = PagedKVCacheTest().export_tvm(

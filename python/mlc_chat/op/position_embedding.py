@@ -1,9 +1,11 @@
 """Operators for positional embeddings, e.g. RoPE."""
+
 from typing import Tuple
 
 from tvm import tir
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
+from tvm.target import Target
 
 # pylint: disable=invalid-name
 
@@ -276,6 +278,7 @@ def llama_inplace_rope(
     num_q_heads: int,
     num_kv_heads: int,
     dtype: str,
+    target: Target,  # pylint: disable=unused-argument
 ):
     """Return the TIR function that inplace computes Llama-style RoPE with q position offset.
 
@@ -298,6 +301,9 @@ def llama_inplace_rope(
 
     dtype : str
         The dtype of qkv data.
+
+    target : Target
+        The target to build the model to.
     """
     assert head_dim <= 128, "Rotary embedding currently only supports head_dim <= 128"
     rotary_dim = head_dim
