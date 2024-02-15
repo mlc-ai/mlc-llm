@@ -737,7 +737,8 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"glm", GLM},
       {"phi-2", Phi2},
       {"qwen", ChatML},
-      {"stablelm-2", StableLM2}};
+      {"stablelm-2", StableLM2},
+      {"baichuan", ChatML}};
   auto it = factory.find(name);
   if (it == factory.end()) {
     LOG(FATAL) << "Unknown conversation template: " << name;

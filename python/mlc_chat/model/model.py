@@ -8,6 +8,7 @@ from tvm.relax.frontend import nn
 from mlc_chat.loader import ExternMapping, QuantizeMapping
 from mlc_chat.quantization.quantization import Quantization
 
+from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
 from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
@@ -207,6 +208,19 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": stablelm_quantization.no_quant,
             "group-quant": stablelm_quantization.group_quant,
+        },
+    ),
+    "baichuan": Model(
+        name="baichuan",
+        model=baichuan_model.BaichuanForCausalLM,
+        config=baichuan_model.BaichuanConfig,
+        source={
+            "huggingface-torch": baichuan_loader.huggingface,
+            "huggingface-safetensor": baichuan_loader.huggingface,
+        },
+        quantize={
+            "no-quant": baichuan_quantization.no_quant,
+            "group-quant": baichuan_quantization.group_quant,
         },
     ),
 }
