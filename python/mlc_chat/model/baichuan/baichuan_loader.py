@@ -56,7 +56,7 @@ def huggingface(model_config: BaichuanConfig, quantization: Quantization) -> Ext
                 dtype=mlc_param.dtype,
             ),
         )
-        
+
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:
             mapping.add_mapping(
