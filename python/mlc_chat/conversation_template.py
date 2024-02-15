@@ -40,7 +40,7 @@ class ConvTemplateRegistry:
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="llama-2",
-        system_template=f"[INST] <<SYS>>\n\n{SYSTEM_MESSAGE_PLACEHOLDER}\n<</SYS>>\n\n ",
+        system_template=f"[INST] <<SYS>>\n{SYSTEM_MESSAGE_PLACEHOLDER}\n<</SYS>>\n\n ",
         system_message="You are a helpful, respectful and honest assistant.",
         roles=("[INST]", "[/INST]"),
         seps=[" "],
