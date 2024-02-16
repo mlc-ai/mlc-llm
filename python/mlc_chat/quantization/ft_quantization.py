@@ -16,6 +16,7 @@ from ..op import faster_transformer_dequantize_gemm
 from ..support import logging
 from ..support.auto_target import detect_cuda_arch_list
 from .group_quantization import GroupQuantize, GroupQuantizeEmbedding, GroupQuantizeLinear
+from .utils import is_final_fc
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,7 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                 if isinstance(node, nn.Linear):
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
-                    if name == "lm_head":
+                    if is_final_fc(name):
                         # Use GroupQuantize to avoid https://github.com/mlc-ai/mlc-llm/issues/1723
                         # If simply not quantizing lm_head leads to performance degradation
                         group_quantize = self.config.fallback_group_quantize()

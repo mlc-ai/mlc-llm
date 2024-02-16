@@ -1,4 +1,5 @@
 """The group quantization config"""
+
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Callable, List, Literal, Optional, Tuple, Union
@@ -15,7 +16,7 @@ from mlc_chat.nn import MixtralExperts
 from mlc_chat.support import logging
 from mlc_chat.support import tensor_parallel as tp
 
-from .utils import convert_uint_to_float
+from .utils import convert_uint_to_float, is_final_fc
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +90,6 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 self.config = config
                 self.quant_map = quant_map
 
-            def _is_final_fc(self, name: str) -> bool:
-                # TODO: use more specious condition to determine final fc  # pylint: disable=fixme
-                return name in ["head", "lm_head"]
-
             def visit_module(self, name: str, node: nn.Module) -> Any:
                 """
                 The visiting method for group quantization of nn.Module nodes.
@@ -111,7 +108,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     The new node to replace current node.
                 """
                 if isinstance(node, nn.Linear) and (
-                    not self._is_final_fc(name) or self.config.quantize_final_fc
+                    not is_final_fc(name) or self.config.quantize_final_fc
                 ):
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
