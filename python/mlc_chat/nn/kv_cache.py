@@ -148,6 +148,30 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
             )
         ).reshape(b, s, num_qo_heads, d)
 
+    def get_query_positions(self, total_length: tir.PrimExpr) -> Tensor:
+        """Get the in-sequence positions of each slot in the query,
+        which are needed for applying positional embeddings in some models.
+
+        Parameters
+        ----------
+        total_length : tir.PrimExpr
+            The summed-up total sequence length of queries in
+            the batch being forwarded.
+
+        Returns
+        -------
+        q_positions : Tensor
+            The in-sequence query positions, in shape `(total_length,)`
+        """
+        return Tensor(
+            _expr=rx.BlockBuilder.current().emit(
+                rx.call_pure_packed(
+                    "vm.builtin.paged_attention_kv_cache_get_query_positions",
+                    sinfo_args=rx.TensorStructInfo((total_length,), "int32"),
+                )
+            )
+        )
+
     # pylint: enable=protected-access
 
 
