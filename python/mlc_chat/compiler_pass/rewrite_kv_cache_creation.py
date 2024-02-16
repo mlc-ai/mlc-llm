@@ -5,7 +5,7 @@ from typing import Any, Dict
 import tvm
 from tvm import IRModule, relax
 
-from mlc_chat.nn import kv_cache
+from mlc_chat.nn import RopeMode, kv_cache
 
 
 def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
@@ -23,13 +23,13 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
     )
 
     args = func.body.blocks[0].bindings[0].value.args
-    assert len(args) == 9
+    assert len(args) == 10
     assert isinstance(args[0], relax.ShapeExpr)
     assert len(args[0].values) == 4
-    for i in range(1, 8):
+    for i in range(1, 9):
         assert isinstance(args[i], relax.PrimValue)
         assert isinstance(args[i].value, (tvm.tir.IntImm, tvm.tir.FloatImm))
-    assert isinstance(args[8], relax.DataTypeImm)
+    assert isinstance(args[9], relax.DataTypeImm)
 
     return {
         "max_batch_size": args[0].values[0],
@@ -43,7 +43,8 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
         "rope_mode": args[5].value.value,
         "rope_scale": args[6].value.value,
         "rope_theta": args[7].value.value,
-        "dtype": args[8].value,
+        "rotary_dim": args[8].value.value,
+        "dtype": args[9].value,
     }
 
 
@@ -87,8 +88,7 @@ class RewriteKVCacheCreation:  # pylint: disable=too-many-instance-attributes
 
         bb = relax.BlockBuilder(new_mod)
         self.create_tir_paged_kv_cache(bb, kwargs)
-        if self.flashinfer and str(kwargs["dtype"]) == "float16" and kwargs["head_dim"] == 128:
-            self.create_flashinfer_paged_kv_cache(bb, kwargs)
+        self.create_flashinfer_paged_kv_cache(bb, kwargs)
         return bb.finalize()
 
     def create_tir_paged_kv_cache(self, bb: relax.BlockBuilder, kwargs: Dict[str, Any]) -> None:
@@ -115,6 +115,18 @@ class RewriteKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         self, bb: relax.BlockBuilder, kwargs: Dict[str, Any]
     ) -> None:
         """Create the FlashInfer-based PagedKVCache"""
+        # Filter the cases which FlashInfer does not support.
+        if (
+            not self.flashinfer
+            or str(kwargs["dtype"]) != "float16"
+            or kwargs["head_dim"] != 128
+            or (
+                kwargs["rope_mode"] == RopeMode.INLINE
+                and kwargs["rotary_dim"] != kwargs["head_dim"]
+            )
+        ):
+            return
+
         max_batch_size = relax.Var(
             "max_batch_size_", relax.ShapeStructInfo([kwargs["max_batch_size"]])
         )
