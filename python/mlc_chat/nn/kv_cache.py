@@ -3,7 +3,7 @@
 # pylint: disable=too-many-statements,too-many-lines
 import enum
 import math
-from typing import Tuple
+from typing import Optional, Tuple
 
 from tvm import relax as rx
 from tvm import tir
@@ -21,12 +21,14 @@ from mlc_chat.op.position_embedding import (
 
 class RopeMode(enum.IntEnum):
     """The RoPE mode of the Paged KV cache.
+    If it is none, the KV cache will not apply RoPE to q and k.
     If it is normal, RoPE will be applied to k before adding k to cache.
     Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
     """
 
-    NORMAL = 0
-    INLINE = 1
+    NONE = 0
+    NORMAL = 1
+    INLINE = 2
 
 
 class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
@@ -46,11 +48,14 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         rope_scale: int,
         rope_theta: int,
         dtype: str,
+        rotary_dim: Optional[int] = None,
         name: str = "paged_kv_cache",
     ) -> "PagedKVCache":
         """The generic function of creating a PagedKVCache,
         which will be rewritten by functions in compilation pipeline.
         """
+        if rotary_dim is None:
+            rotary_dim = head_dim
         return PagedKVCache(
             _expr=rx.Call(
                 rx.extern("mlc.create_paged_kv_cache_generic"),
@@ -65,6 +70,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     rx.PrimValue(rope_mode),
                     rx.PrimValue(rope_scale),
                     rx.PrimValue(rope_theta),
+                    rx.PrimValue(rotary_dim),
                     rx.DataTypeImm(dtype),
                 ],
                 sinfo_args=[rx.ObjectStructInfo()],
@@ -144,6 +150,30 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
             )
         ).reshape(b, s, num_qo_heads, d)
 
+    def get_query_positions(self, total_length: tir.PrimExpr) -> Tensor:
+        """Get the in-sequence positions of each slot in the query,
+        which are needed for applying positional embeddings in some models.
+
+        Parameters
+        ----------
+        total_length : tir.PrimExpr
+            The summed-up total sequence length of queries in
+            the batch being forwarded.
+
+        Returns
+        -------
+        q_positions : Tensor
+            The in-sequence query positions, in shape `(total_length,)`
+        """
+        return Tensor(
+            _expr=rx.BlockBuilder.current().emit(
+                rx.call_pure_packed(
+                    "vm.builtin.paged_attention_kv_cache_get_query_positions",
+                    sinfo_args=rx.TensorStructInfo((total_length,), "int32"),
+                )
+            )
+        )
+
     # pylint: enable=protected-access
 
 
@@ -163,6 +193,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         rope_mode: RopeMode,
         rope_scale: int,
         rope_theta: int,
+        rotary_dim: int,
         dtype: str,
         target: Target,
         name: str = "paged_kv_cache",
@@ -195,7 +226,11 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             The scale of rotary position embedding.
         rope_theta : int
             The base of rotary position embedding.
+        rotary_dim : int
+            The number of dimensions in the embedding that RoPE is applied to.
         """
+        if rope_mode == RopeMode.INLINE:
+            assert rotary_dim == head_dim, "FlashInfer RoPE does not support partial rotary dim."
 
         bb = rx.BlockBuilder.current()  # pylint: disable=invalid-name
         args = [
@@ -221,8 +256,8 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             rx.extern("paged_kv_cache.attention_kernel_decode_begin_forward"),
             rx.extern("paged_kv_cache.attention_kernel_decode_end_forward"),
             rx.extern("flashinfer.merge_state_in_place"),
-            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, head_dim), "tir_split_rotary"),
-            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, target), "tir_qk_rotary_inplace"),
+            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, rotary_dim), "tir_split_rotary"),
+            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, target, rotary_dim), "tir_qk_rotary_inplace"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             # fmt: on
             # pylint: enable=line-too-long
@@ -253,6 +288,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         head_dim: int,
         rope_scale: int,
         rope_theta: int,
+        rotary_dim: int,
         dtype: str,
         target: Target,
         name: str = "paged_kv_cache",
@@ -285,6 +321,8 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             The scale of rotary position embedding.
         rope_theta : int
             The base of rotary position embedding.
+        rotary_dim : int
+            The number of dimensions in the embedding that RoPE is applied to.
         target : Target
             The target to build the model to.
         """
@@ -307,8 +345,8 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_decode"),
             bb.add_func(_attention_prefill_ragged(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_prefill_ragged"),
             bb.add_func(_merge_state_inplace(num_key_value_heads, head_dim, dtype, target), "tir_attention_merge_state"),
-            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, head_dim), "tir_split_rotary"),
-            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, target), "tir_qk_rotary_inplace"),
+            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, rotary_dim), "tir_split_rotary"),
+            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, target, rotary_dim), "tir_qk_rotary_inplace"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             # fmt: on
             # pylint: enable=line-too-long

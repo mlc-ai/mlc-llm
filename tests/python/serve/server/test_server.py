@@ -17,6 +17,7 @@ two steps:
 - start another shell session, run this file
   MLC_SERVE_MODEL_LIB="YOUR_MODEL_LIB" python tests/python/serve/server/test_server.py
 """
+
 # pylint: disable=missing-function-docstring,too-many-arguments,too-many-locals,too-many-branches
 import json
 import os
