@@ -15,7 +15,7 @@ from ..loader import QuantizeMapping
 from ..op import faster_transformer_dequantize_gemm
 from ..support import logging
 from ..support.auto_target import detect_cuda_arch_list
-from .group_quantization import GroupQuantize, GroupQuantizeEmbedding
+from .group_quantization import GroupQuantize, GroupQuantizeEmbedding, GroupQuantizeLinear
 
 logger = logging.getLogger(__name__)
 
@@ -117,11 +117,15 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                 ret_node: Any
                     The new node to replace current node.
                 """
-                if isinstance(node, nn.Linear) and node.out_features != "vocab_size":
-                    # This skips lm_head in llama; otherwise the quantized shape would be an op
-                    # See https://github.com/mlc-ai/mlc-llm/issues/1723
+                if isinstance(node, nn.Linear):
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    if name == "lm_head":
+                        # Use GroupQuantize to avoid https://github.com/mlc-ai/mlc-llm/issues/1723
+                        # If simply not quantizing lm_head leads to performance degradation
+                        group_quantize = self.config.fallback_group_quantize()
+                        self.quant_map.map_func[weight_name] = group_quantize.quantize_weight
+                        return GroupQuantizeLinear.from_linear(node, group_quantize)
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     return FTQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding):
