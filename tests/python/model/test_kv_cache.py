@@ -177,6 +177,7 @@ def test_nn_module_paged_kv_cache():
                 rope_mode=RopeMode.NORMAL,
                 rope_scale=1,
                 rope_theta=10000,
+                rotary_dim=128,
                 dtype="float16",
                 target=tvm.target.Target("cuda"),
             )
