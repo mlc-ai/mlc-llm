@@ -21,12 +21,14 @@ from mlc_chat.op.position_embedding import (
 
 class RopeMode(enum.IntEnum):
     """The RoPE mode of the Paged KV cache.
+    If it is none, the KV cache will not apply RoPE to q and k.
     If it is normal, RoPE will be applied to k before adding k to cache.
     Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
     """
 
-    NORMAL = 0
-    INLINE = 1
+    NONE = 0
+    NORMAL = 1
+    INLINE = 2
 
 
 class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
