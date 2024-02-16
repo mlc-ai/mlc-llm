@@ -2,10 +2,12 @@
 Adapted from FastChat's OpenAI protocol:
 https://github.com/lm-sys/FastChat/blob/main/fastchat/protocol/openai_api_protocol.py
 """
+
 # pylint: disable=missing-class-docstring
 import time
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
+import shortuuid
 from pydantic import BaseModel, Field, field_validator
 
 ################ Commons ################
@@ -114,13 +116,18 @@ class ChatFunction(BaseModel):
     parameters: Dict
 
 
+class ChatTool(BaseModel):
+    type: Literal["function"]
+    function: ChatFunction
+
+
 class ChatFunctionCall(BaseModel):
     name: str
-    arguments: str
+    arguments: Union[None, Dict[str, Any]] = None
 
 
 class ChatToolCall(BaseModel):
-    id: str
+    id: str = Field(default_factory=lambda: f"call_{shortuuid.random()}")
     type: Literal["function"]
     function: ChatFunctionCall
 
@@ -151,14 +158,14 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = False
     temperature: float = 1.0
     top_p: float = 1.0
-    tools: Optional[List[ChatFunction]] = None
+    tools: Optional[List[ChatTool]] = None
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None
     user: Optional[str] = None
     ignore_eos: bool = False
 
 
 class ChatCompletionResponseChoice(BaseModel):
-    finish_reason: Optional[Literal["stop", "length", "tool_calls"]] = None
+    finish_reason: Optional[Literal["stop", "length", "tool_calls", "error"]] = None
     index: int = 0
     message: ChatCompletionMessage
 
@@ -211,8 +218,6 @@ def openai_api_get_unsupported_fields(
         ("logprobs", None),
         ("n", 1),
         ("response_format", "text"),
-        ("tools", None),
-        ("tool_choice", None),
     ]
 
     unsupported_fields: List[str] = []
