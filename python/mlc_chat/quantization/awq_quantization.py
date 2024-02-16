@@ -155,9 +155,11 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
         float_zeros = topi.transpose(float_zeros)
         scale = topi.transpose(scale)
         return te.compute(
-            shape=[weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
-            if out_shape is None
-            else out_shape,
+            shape=(
+                [weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
+                if out_shape is None
+                else out_shape
+            ),
             fcompute=lambda i, j: tir.multiply(
                 tir.subtract(float_weight[i, j], float_zeros[i, j // self.group_size]),
                 scale[i, j // self.group_size],

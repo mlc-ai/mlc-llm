@@ -399,19 +399,25 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
                 weight,
                 scale,
                 axis=self.config.linear_quant_axis,
-                out_shape=[
-                    tir.IntImm("int64", self.out_features)
-                    if isinstance(self.out_features, int)
-                    else weight.shape[0],  # Reuse same tir.Var for symbolic shape (after Exporter)
-                    tir.IntImm("int64", self.in_features),
-                ]
-                if self.config.linear_weight_layout == "NK"
-                else [
-                    tir.IntImm("int64", self.in_features),
-                    tir.IntImm("int64", self.out_features)
-                    if isinstance(self.out_features, int)
-                    else weight.shape[1],  # Reuse same tir.Var for symbolic shape (after Exporter)
-                ],
+                out_shape=(
+                    [
+                        (
+                            tir.IntImm("int64", self.out_features)
+                            if isinstance(self.out_features, int)
+                            else weight.shape[0]
+                        ),  # Reuse same tir.Var for symbolic shape (after Exporter)
+                        tir.IntImm("int64", self.in_features),
+                    ]
+                    if self.config.linear_weight_layout == "NK"
+                    else [
+                        tir.IntImm("int64", self.in_features),
+                        (
+                            tir.IntImm("int64", self.out_features)
+                            if isinstance(self.out_features, int)
+                            else weight.shape[1]
+                        ),  # Reuse same tir.Var for symbolic shape (after Exporter)
+                    ]
+                ),
             ),
             name_hint="dequantize",
             args=[self.q_weight, self.q_scale],
@@ -490,9 +496,11 @@ class GroupQuantizeEmbedding(nn.Module):
                 scale,
                 axis=-1,
                 out_shape=[
-                    tir.IntImm("int64", self.num)
-                    if isinstance(self.num, int)
-                    else weight.shape[0],  # Reuse same tir.Var for symbolic shape (after Exporter)
+                    (
+                        tir.IntImm("int64", self.num)
+                        if isinstance(self.num, int)
+                        else weight.shape[0]
+                    ),  # Reuse same tir.Var for symbolic shape (after Exporter)
                     tir.IntImm("int64", self.dim),
                 ],
             ),

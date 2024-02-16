@@ -15,7 +15,11 @@ from ..loader import QuantizeMapping
 from ..op import faster_transformer_dequantize_gemm
 from ..support import logging
 from ..support.auto_target import detect_cuda_arch_list
-from .group_quantization import GroupQuantize, GroupQuantizeEmbedding, GroupQuantizeLinear
+from .group_quantization import (
+    GroupQuantize,
+    GroupQuantizeEmbedding,
+    GroupQuantizeLinear,
+)
 from .utils import is_final_fc
 
 logger = logging.getLogger(__name__)
