@@ -15,7 +15,13 @@ from ..loader import QuantizeMapping
 from ..op import faster_transformer_dequantize_gemm
 from ..support import logging
 from ..support.auto_target import detect_cuda_arch_list
-from .group_quantization import GroupQuantize, GroupQuantizeEmbedding
+from ..support.style import bold
+from .group_quantization import (
+    GroupQuantize,
+    GroupQuantizeEmbedding,
+    GroupQuantizeLinear,
+)
+from .utils import is_final_fc
 
 logger = logging.getLogger(__name__)
 
@@ -117,11 +123,30 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                 ret_node: Any
                     The new node to replace current node.
                 """
-                if isinstance(node, nn.Linear) and node.out_features != "vocab_size":
-                    # This skips lm_head in llama; otherwise the quantized shape would be an op
-                    # See https://github.com/mlc-ai/mlc-llm/issues/1723
+                if isinstance(node, nn.Linear):
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    if (
+                        # pylint: disable=too-many-boolean-expressions
+                        is_final_fc(name)
+                        or node.out_dtype == "float32"
+                        or (self.config.quantize_dtype == "int4" and node.out_features % 8 != 0)
+                        or (self.config.quantize_dtype == "int8" and node.out_features % 4 != 0)
+                    ):
+                        # Under any of the conditions we fall back to GroupQuantize
+                        # For `is_final_fc()` see https://github.com/mlc-ai/mlc-llm/issues/1723
+                        # If simply skipping lm_head quantization degrades performance
+                        # Other requirements are from CUTLASS
+                        logger.info(
+                            'Fallback to GroupQuantize for nn.Linear: "%s", '
+                            + "weight.shape: %s, out_dtype: %s",
+                            bold(name),
+                            node.weight.shape,
+                            node.out_dtype,
+                        )
+                        group_quantize = self.config.fallback_group_quantize()
+                        self.quant_map.map_func[weight_name] = group_quantize.quantize_weight
+                        return GroupQuantizeLinear.from_linear(node, group_quantize)
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     return FTQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding):

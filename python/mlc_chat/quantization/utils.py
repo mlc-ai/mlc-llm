@@ -1,4 +1,5 @@
 """Common utilities for quantization"""
+
 from typing import List, Optional
 
 from tvm import te, tir
@@ -38,3 +39,9 @@ def convert_uint_to_float(  # pylint: disable=too-many-arguments
             tir_bin_mask,
         ).astype(model_dtype),
     )
+
+
+def is_final_fc(name: str) -> bool:
+    """Determines whether the parameter is the last layer based on its name."""
+    # TODO: use more specious condition to determine final fc  # pylint: disable=fixme
+    return name in ["head", "lm_head"]
