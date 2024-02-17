@@ -127,19 +127,22 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
                     if (
+                        # pylint: disable=too-many-boolean-expressions
                         is_final_fc(name)
-                        or node.weight.dtype == "float32"
-                        or node.out_features % DataType(self.config.storage_dtype).bits != 0
+                        or node.out_dtype == "float32"
+                        or (self.config.quantize_dtype == "int4" and node.out_features % 8 != 0)
+                        or (self.config.quantize_dtype == "int8" and node.out_features % 4 != 0)
                     ):
                         # Under any of the conditions we fall back to GroupQuantize
                         # For `is_final_fc()` see https://github.com/mlc-ai/mlc-llm/issues/1723
                         # If simply skipping lm_head quantization degrades performance
+                        # Other requirements are from CUTLASS
                         logger.info(
                             'Fallback to GroupQuantize for nn.Linear: "%s", '
-                            + "weight.shape: %s, weight.dtype: %s",
+                            + "weight.shape: %s, out_dtype: %s",
                             bold(name),
                             node.weight.shape,
-                            node.weight.dtype,
+                            node.out_dtype,
                         )
                         group_quantize = self.config.fallback_group_quantize()
                         self.quant_map.map_func[weight_name] = group_quantize.quantize_weight
