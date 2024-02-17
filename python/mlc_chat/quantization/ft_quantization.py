@@ -15,6 +15,7 @@ from ..loader import QuantizeMapping
 from ..op import faster_transformer_dequantize_gemm
 from ..support import logging
 from ..support.auto_target import detect_cuda_arch_list
+from ..support.style import bold
 from .group_quantization import (
     GroupQuantize,
     GroupQuantizeEmbedding,
@@ -133,6 +134,13 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                         # Under any of the conditions we fall back to GroupQuantize
                         # For `is_final_fc()` see https://github.com/mlc-ai/mlc-llm/issues/1723
                         # If simply skipping lm_head quantization degrades performance
+                        logger.info(
+                            'Fallback to GroupQuantize for nn.Linear: "%s", '
+                            + "weight.shape: %s, weight.dtype: %s",
+                            bold(name),
+                            node.weight.shape,
+                            node.weight.dtype,
+                        )
                         group_quantize = self.config.fallback_group_quantize()
                         self.quant_map.map_func[weight_name] = group_quantize.quantize_weight
                         return GroupQuantizeLinear.from_linear(node, group_quantize)
