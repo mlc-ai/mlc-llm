@@ -27,6 +27,7 @@ from .fuse_ft_dequantize_matmul_epilogue import FuseFTDequantizeEpilogue
 from .fuse_transpose_matmul import FuseTransposeMatmul
 from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
 from .rewrite_kv_cache_creation import RewriteKVCacheCreation
+from .scatter_tuple_get_item import ScatterTupleGetItem
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +133,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                     if target.kind.name != "cuda"
                     else tvm.transform.Sequential([])
                 ),
+                ScatterTupleGetItem(),
                 tvm.relax.transform.RewriteDataflowReshape(),
                 tvm.relax.transform.ToNonDataflow(),
                 tvm.relax.transform.RemovePurityChecking(),
