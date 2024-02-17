@@ -125,9 +125,14 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                 if isinstance(node, nn.Linear):
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
-                    if is_final_fc(name):
-                        # Use GroupQuantize to avoid https://github.com/mlc-ai/mlc-llm/issues/1723
-                        # If simply not quantizing lm_head leads to performance degradation
+                    if (
+                        is_final_fc(name)
+                        or node.weight.dtype == "float32"
+                        or node.out_features % DataType(self.config.storage_dtype).bits != 0
+                    ):
+                        # Under any of the conditions we fall back to GroupQuantize
+                        # For `is_final_fc()` see https://github.com/mlc-ai/mlc-llm/issues/1723
+                        # If simply skipping lm_head quantization degrades performance
                         group_quantize = self.config.fallback_group_quantize()
                         self.quant_map.map_func[weight_name] = group_quantize.quantize_weight
                         return GroupQuantizeLinear.from_linear(node, group_quantize)
