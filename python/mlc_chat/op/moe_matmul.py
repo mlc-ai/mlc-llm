@@ -1,4 +1,5 @@
 """Mixture of Experts operators"""
+
 from tvm import DataType, tir
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
@@ -354,6 +355,7 @@ def dequantize_group_gemm(
     scale: Tensor,
     indptr: Tensor,
     quantize_dtype: str,
+    indptr_dtype: str,
     group_size: int,
 ):
     """Group GEMM in MoE models but the weight is quantized.
@@ -380,6 +382,9 @@ def dequantize_group_gemm(
 
     quantize_dtype : str
         The quantize dtype of the weight tensor, which is usually int3, int4 or fp8, etc.
+
+    indptr_dtype : str
+        The dtype of the index pointer tensor, which can be int32 or int64.
 
     Returns
     -------
@@ -411,13 +416,14 @@ def dequantize_group_gemm(
     assert BLK_K % 8 == 0
     tiles_per_row = (N + BLK_N - 1) // BLK_N
     zero = tir.const(0, model_dtype)
+    indptr_shape = (Ne + 1,) if indptr_dtype == "int32" else (Ne,)
 
     @T.prim_func(private=True)
     def _func(
         var_x: T.handle,
         w: T.Buffer((Ne, N, num_storage), storage_dtype),
         scale: T.Buffer((Ne, N, num_group), model_dtype),
-        indptr: T.Buffer((Ne + 1), "int32"),
+        indptr: T.Buffer(indptr_shape, indptr_dtype),
         var_o: T.handle,
     ):
         T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
@@ -430,10 +436,10 @@ def dequantize_group_gemm(
                 T.reads(X[:, :], w[:, :, :], scale[:, :, :], indptr[:])
                 T.writes(O[:, :])
                 # pylint: disable=redefined-builtin
-                sum = T.alloc_buffer((2,), "int32", scope="local")
-                row = T.alloc_buffer((2,), "int32", scope="local")
-                cur_e = T.alloc_buffer((1,), "int32", scope="local")
-                tile_id = T.alloc_buffer((1,), "int32", scope="local")
+                sum = T.alloc_buffer((2,), indptr_dtype, scope="local")
+                row = T.alloc_buffer((2,), indptr_dtype, scope="local")
+                cur_e = T.alloc_buffer((1,), indptr_dtype, scope="local")
+                tile_id = T.alloc_buffer((1,), indptr_dtype, scope="local")
                 # pylint: enable=redefined-builtin
                 sum[0] = 0
                 sum[1] = T.ceildiv(indptr[1] - indptr[0], BLK_M) * tiles_per_row
@@ -446,8 +452,8 @@ def dequantize_group_gemm(
                     while sum[1] <= tile_id[0] and cur_e[0] < Ne:
                         cur_e[0] += 1
                         if cur_e[0] < Ne:
-                            e: T.int32 = cur_e[0]
-                            delta: T.int32 = indptr[e + 1] - indptr[e]
+                            e = cur_e[0]
+                            delta = indptr[e + 1] - indptr[e]
                             sum[0] = sum[1]
                             sum[1] += T.ceildiv(delta, BLK_M) * tiles_per_row
                             row[0] = row[1]
@@ -456,10 +462,10 @@ def dequantize_group_gemm(
                     T.tvm_storage_sync("shared")
                     if T.tvm_thread_invariant(cur_e[0] < Ne):  # pylint: disable=no-member
                         # fetch current tile position
-                        e: T.int32 = cur_e[0]  # type: ignore[no-redef]
-                        num_tiles: T.int32 = tile_id[0] - sum[0]
-                        m_offset: T.int32 = T.floordiv(num_tiles, tiles_per_row) * BLK_M + row[0]
-                        n_offset: T.int32 = T.floormod(num_tiles, tiles_per_row) * BLK_N
+                        e = cur_e[0]  # type: ignore[no-redef]
+                        num_tiles = tile_id[0] - sum[0]
+                        m_offset = T.floordiv(num_tiles, tiles_per_row) * BLK_M + row[0]
+                        n_offset = T.floormod(num_tiles, tiles_per_row) * BLK_N
                         with T.block("gemm"):
                             T.reads(
                                 row[1],
