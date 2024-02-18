@@ -614,6 +614,7 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
             self.q_scale,
             indptr,
             quantize_dtype=self.quantize_dtype,
+            indptr_dtype=indptr.dtype,
             group_size=self.group_size,
         )
 
