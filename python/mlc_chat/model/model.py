@@ -91,6 +91,7 @@ MODELS: Dict[str, Model] = {
         quantize={
             "group-quant": mistral_quantization.group_quant,
             "no-quant": mistral_quantization.no_quant,
+            "ft-quant": mistral_quantization.ft_quant,
         },
     ),
     "gpt2": Model(
@@ -104,6 +105,7 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": gpt2_quantization.no_quant,
             "group-quant": gpt2_quantization.group_quant,
+            "ft-quant": gpt2_quantization.ft_quant,
         },
     ),
     "mixtral": Model(
@@ -117,6 +119,7 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": mixtral_quantization.no_quant,
             "group-quant": mixtral_quantization.group_quant,
+            "ft-quant": mixtral_quantization.ft_quant,
         },
     ),
     "gpt_neox": Model(
@@ -130,6 +133,7 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": gpt_neox_quantization.no_quant,
             "group-quant": gpt_neox_quantization.group_quant,
+            "ft-quant": gpt_neox_quantization.ft_quant,
         },
     ),
     "gpt_bigcode": Model(
@@ -143,6 +147,7 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": gpt_bigcode_quantization.no_quant,
             "group-quant": gpt_bigcode_quantization.group_quant,
+            "ft-quant": gpt_bigcode_quantization.ft_quant,
         },
     ),
     "phi-msft": Model(
@@ -156,6 +161,7 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": phi_quantization.no_quant,
             "group-quant": phi_quantization.group_quant,
+            "ft-quant": phi_quantization.ft_quant,
         },
     ),
     "phi": Model(
@@ -169,6 +175,7 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": phi_quantization.no_quant,
             "group-quant": phi_quantization.group_quant,
+            "ft-quant": phi_quantization.ft_quant,
         },
     ),
     "qwen": Model(
@@ -182,6 +189,7 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": qwen_quantization.no_quant,
             "group-quant": qwen_quantization.group_quant,
+            "ft-quant": qwen_quantization.ft_quant,
         },
     ),
     "qwen2": Model(
@@ -195,6 +203,7 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": qwen2_quantization.no_quant,
             "group-quant": qwen2_quantization.group_quant,
+            "ft-quant": qwen2_quantization.ft_quant,
         },
     ),
     "stablelm_epoch": Model(
@@ -208,6 +217,7 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": stablelm_quantization.no_quant,
             "group-quant": stablelm_quantization.group_quant,
+            "ft-quant": stablelm_quantization.ft_quant,
         },
     ),
     "baichuan": Model(
@@ -221,6 +231,7 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": baichuan_quantization.no_quant,
             "group-quant": baichuan_quantization.group_quant,
+            "ft-quant": baichuan_quantization.ft_quant,
         },
     ),
 }
