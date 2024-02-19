@@ -52,7 +52,9 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
 class RewriteKVCacheCreation:  # pylint: disable=too-many-instance-attributes
     """Rewrite KV cache creation functions to IRModule."""
 
-    def __init__(self, target: tvm.target.Target, flashinfer: bool) -> None:
+    def __init__(
+        self, target: tvm.target.Target, flashinfer: bool, metadata: Dict[str, Any]
+    ) -> None:
         """Initializer.
 
         Parameters
@@ -65,6 +67,7 @@ class RewriteKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         """
         self.target = target
         self.flashinfer = flashinfer
+        self.metadata = metadata
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
@@ -116,13 +119,18 @@ class RewriteKVCacheCreation:  # pylint: disable=too-many-instance-attributes
     ) -> None:
         """Create the FlashInfer-based PagedKVCache"""
         # Filter the cases which FlashInfer does not support.
-        if (
+        if (  # pylint: disable=too-many-boolean-expressions
             not self.flashinfer
             or str(kwargs["dtype"]) != "float16"
             or kwargs["head_dim"] != 128
             or (
                 kwargs["rope_mode"] == RopeMode.INLINE
                 and kwargs["rotary_dim"] != kwargs["head_dim"]
+            )
+            or (
+                # bypass GPT-2 since it uses attn_score_scaling_factor
+                "gpt2"
+                in self.metadata["model_type"]
             )
         ):
             return
