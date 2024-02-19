@@ -2,6 +2,7 @@
 Implementation for GPTNeoX architecture.
 TODO: add docstring
 """
+
 import dataclasses
 import logging
 from typing import Any, Dict, Optional
@@ -121,14 +122,12 @@ class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
 
         # Attention
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_attention_heads
-            ),
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_attention_heads),
             (batch_size, seq_len, self.head_dim * self.num_attention_heads),
         )
         attn_output = self.dense(output)
         return attn_output
-    
+
     def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         # hidden_states: [batch_size, seq_len, hidden_size]
         batch_size, seq_len, _ = hidden_states.shape
@@ -139,9 +138,7 @@ class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
 
         # Attention
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_attention_heads
-            ),
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_attention_heads),
             (batch_size, seq_len, self.head_dim * self.num_attention_heads),
         )
         attn_output = self.dense(output)
@@ -231,7 +228,7 @@ class GPTNeoXLayer(nn.Module):
                 mlp_output = self.mlp(mlp_input)
             hidden_states = self._apply_residual(mlp_output.astype(dtype), attn_output)
         return hidden_states
-    
+
     def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         dtype = hidden_states.dtype
         attn_input = self.input_layernorm(hidden_states)
@@ -252,7 +249,7 @@ class GPTNeoXLayer(nn.Module):
                 mlp_output = self.mlp(mlp_input)
             hidden_states = self._apply_residual(mlp_output.astype(dtype), attn_output)
         return hidden_states
-    
+
     def _apply_residual(self, out, residual):
         if self.tensor_parallel_shards > 1:
             return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum")
@@ -275,7 +272,7 @@ class GPTNeoXModel(nn.Module):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.final_layer_norm(hidden_states)
         return hidden_states
-    
+
     def batch_forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
         if self.tensor_parallel_shards > 1:
             inputs = op.ccl_broadcast_from_worker0(inputs)
@@ -287,7 +284,7 @@ class GPTNeoXModel(nn.Module):
         return hidden_states
 
 
-class GPTNeoXForCausalLM(nn.Module):
+class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPTNeoXConfig):
         self.gpt_neox = GPTNeoXModel(config)
         self.embed_out = nn.Linear(
@@ -351,7 +348,7 @@ class GPTNeoXForCausalLM(nn.Module):
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits, paged_kv_cache
-    
+
     def batch_prefill(
         self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
     ):
