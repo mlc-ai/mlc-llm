@@ -2,6 +2,7 @@
 Implementation for Phi architecture.
 TODO: add docstring
 """
+
 import dataclasses
 from typing import Any, Dict, Optional, Union
 
@@ -10,6 +11,7 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_chat import op as op_ext
+from mlc_chat.nn import PagedKVCache, RopeMode
 from mlc_chat.support import logging
 from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
@@ -174,20 +176,9 @@ class PhiMLP(nn.Module):
         return hidden_states
 
 
-class PhiCrossAttention(nn.Module):
-    def __init__(self, config: PhiConfig):  # pylint: disable=unused-argument
-        super().__init__()
-
-    def forward(self, q: Tensor, k: Tensor, v: Tensor, attention_mask: Tensor):
-        output = op_ext.attention(q, k, v, casual_mask=attention_mask, qk_dtype="float32")
-        return output
-
-
 class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: PhiConfig):
-        self.rope_theta = config.position_embedding_base
-        self.rotary_dim = config.rotary_dim
-        self.n_head = config.n_head // config.tensor_parallel_shards
+        self.num_q_heads = config.n_head // config.tensor_parallel_shards
         assert (
             config.n_head % config.tensor_parallel_shards == 0
         ), f"n_head({config.n_head}) must be divisible by tensor_parallel_shards"
@@ -196,32 +187,24 @@ class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
             config.n_head_kv % config.tensor_parallel_shards == 0
         ), f"n_head({config.n_head_kv}) must be divisible by tensor_parallel_shards"
         self.head_dim = config.head_dim
-        op_size = self.head_dim * (self.n_head + 2 * self.n_head_kv)
+        op_size = self.head_dim * (self.num_q_heads + 2 * self.n_head_kv)
         hidden_size = config.n_embd
 
         self.Wqkv = nn.Linear(hidden_size, op_size, bias=True)
-        self.out_proj = nn.Linear(self.n_head * self.head_dim, hidden_size, bias=True)
-        self.inner_cross_attn = PhiCrossAttention(config)
-        self.k_cache = nn.KVCache(config.context_window_size, [self.n_head_kv, self.head_dim])
-        self.v_cache = nn.KVCache(config.context_window_size, [self.n_head_kv, self.head_dim])
+        self.out_proj = nn.Linear(self.num_q_heads * self.head_dim, hidden_size, bias=True)
 
-    def forward(self, x: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
-        d, h_q, h_kv, t = self.head_dim, self.n_head, self.n_head_kv, total_seq_len
-        b, s, _ = x.shape
-        assert b == 1, "Only support batch size 1 at this moment."
-        # Step 1. QKV Projection
-        qkv = self.Wqkv(x)
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+        d, h_q, h_kv = self.head_dim, self.num_q_heads, self.n_head_kv
+        b, s, _ = hidden_states.shape
+        # QKV Projection
+        qkv = self.Wqkv(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
-        # Step 2. Apply QK rotary embedding
-        q, k, v = op_ext.llama_rope(qkv, t, self.rope_theta, h_q, h_kv, rotary_dim=self.rotary_dim)
-        # Step 3. Query and update KVCache
-        self.k_cache.append(op.squeeze(k, axis=0))
-        self.v_cache.append(op.squeeze(v, axis=0))
-        k = self.k_cache.view(t)
-        v = self.v_cache.view(t)
-        # Step 4. Compute softmax(Q @ K^T / sqrt(d)) @ V
-        output = self.inner_cross_attn(q, k, v, attention_mask)
-        # Step 5. Apply output projection
+        # Attention
+        output = op.reshape(
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
+            (b, s, h_q * d),
+        )
+        # Output projection
         return self.out_proj(output)
 
 
@@ -238,14 +221,17 @@ class PhiParallelBlock(nn.Module):
                 param.attrs["shard_strategy"] = hint
 
             hd = config.head_dim
-            q = self.mixer.n_head * hd
+            q = self.mixer.num_q_heads * hd
             k = self.mixer.n_head_kv * hd
             v = self.mixer.n_head_kv * hd
             _set(
                 self.mixer.Wqkv.weight,
                 tp.ShardSingleDim("_shard_qkv_weight", segs=[q, k, v], dim=0),
             )
-            _set(self.mixer.Wqkv.bias, tp.ShardSingleDim("_shard_qkv_bias", segs=[q, k, v], dim=0))
+            _set(
+                self.mixer.Wqkv.bias,
+                tp.ShardSingleDim("_shard_qkv_bias", segs=[q, k, v], dim=0),
+            )
             _set(self.mixer.out_proj.weight, tp.ShardSingleDim("_shard_o_weight", dim=1))
             _set(self.mlp.fc1.weight, tp.ShardSingleDim("_shard_mlp_fc1_weight", dim=0))
             _set(self.mlp.fc1.bias, tp.ShardSingleDim("_shard_mlp_fc1_bias", dim=0))
@@ -254,18 +240,14 @@ class PhiParallelBlock(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         residual = hidden_states
         hidden_states = self.ln(hidden_states)
 
         with tp.shard_bias(self.mixer.out_proj, self.tensor_parallel_shards), tp.shard_bias(
             self.mlp.fc2, self.tensor_parallel_shards
         ):
-            attn_outputs = self.mixer(
-                hidden_states,
-                attention_mask,
-                total_seq_len,
-            )
+            attn_outputs = self.mixer(hidden_states, paged_kv_cache, layer_id)
 
             feed_forward_hidden_states = self.mlp(hidden_states)
 
@@ -300,16 +282,16 @@ class PhiCausalLMHead(nn.Module):
 class PhiModel(nn.Module):
     def __init__(self, config: PhiConfig) -> None:
         super().__init__()
-        self.embd = nn.Embedding("vocab_size", config.n_embd)
-        self.h = nn.ModuleList([PhiParallelBlock(config) for i in range(config.n_layer)])
+        self.embd = nn.Embedding(config.vocab_size, config.n_embd)
+        self.h = nn.ModuleList([PhiParallelBlock(config) for _ in range(config.n_layer)])
         self.tensor_parallel_shards = config.tensor_parallel_shards
 
-    def forward(self, input_ids: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
+    def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         if self.tensor_parallel_shards > 1:
-            input_ids = op.ccl_broadcast_from_worker0(input_ids)
-        hidden_states = self.embd(input_ids)
-        for layer in self.h:
-            hidden_states = layer(hidden_states, attention_mask, total_seq_len)
+            input_embed = op.ccl_broadcast_from_worker0(input_embed)
+        hidden_states = input_embed
+        for layer_id, layer in enumerate(self.h):
+            hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
 
         return hidden_states
 
@@ -323,6 +305,14 @@ class PhiForCausalLM(nn.Module):
 
         self.transformer = PhiModel(config)
         self.lm_head = PhiCausalLMHead(config)
+        self.num_hidden_layers = config.n_layer
+        self.num_attention_heads = config.n_head
+        self.num_key_value_heads = config.n_head_kv
+        self.head_dim = config.head_dim
+        self.hidden_size = config.n_embd
+        self.vocab_size = config.vocab_size
+        self.rope_theta = config.position_embedding_base
+        self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):
@@ -330,71 +320,114 @@ class PhiForCausalLM(nn.Module):
         if dtype is not None:
             self.dtype = dtype
 
-    def forward(self, input_ids: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
+    def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
         def _index(x: te.Tensor):  # x[:-1,:]
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-        hidden_states = self.transformer(input_ids, total_seq_len, attention_mask)
+        hidden_states = self.transformer(input_embed, paged_kv_cache)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         lm_logits = self.lm_head(hidden_states)
 
         return lm_logits
 
-    def prefill(self, inputs: Tensor, total_seq_len: tir.Var):
-        def _attention_mask(batch_size, seq_len, total_seq_len):
-            return te.compute(
-                (batch_size, 1, seq_len, total_seq_len),
-                lambda b, _, i, j: tir.if_then_else(
-                    i < j - (total_seq_len - seq_len),
-                    tir.min_value(self.dtype),
-                    tir.max_value(self.dtype),
-                ),
-                name="attention_mask_prefill",
-            )
+    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
 
-        batch_size, seq_len = inputs.shape
-        attention_mask = op.tensor_expr_op(
-            _attention_mask,
-            name_hint="attention_mask_prefill",
-            args=[batch_size, seq_len, total_seq_len],
-        )
-        return self.forward(inputs, total_seq_len, attention_mask)
+        def _index(x: te.Tensor):  # x[:-1,:]
+            b, s, d = x.shape
+            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-    def decode(self, inputs: Tensor, total_seq_len: tir.Var):
-        batch_size, seq_len = inputs.shape
-        attention_mask = op.full(
-            shape=[batch_size, 1, seq_len, total_seq_len],
-            fill_value=tir.max_value(self.dtype),
-            dtype=self.dtype,
-        )
-        return self.forward(inputs, total_seq_len, attention_mask)
+        hidden_states = self.transformer(input_embed, paged_kv_cache)
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        logits = self.lm_head(hidden_states)
+
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits, paged_kv_cache
+
+    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
+        hidden_states = self.transformer(input_embed, paged_kv_cache)
+        logits = self.lm_head(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits, paged_kv_cache
 
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
         return op.softmax(logits / temperature, axis=-1)
 
+    # def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
+    #     return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
+
+    def embed(self, input_ids: Tensor):
+        embeds = self.transformer.embd(input_ids)
+        op.print_(embeds)
+        return embeds
+
+    def create_paged_kv_cache(
+        self,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+    ) -> PagedKVCache:
+        return PagedKVCache.create_generic(
+            max_batch_size=max_batch_size,
+            max_total_seq_len=max_total_seq_len,
+            prefill_chunk_size=prefill_chunk_size,
+            page_size=page_size,
+            num_hidden_layers=self.num_hidden_layers,
+            num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
+            num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
+            head_dim=self.head_dim,
+            rope_mode=RopeMode.NORMAL,
+            rope_scale=1,
+            rope_theta=self.rope_theta,
+            dtype=self.dtype,
+        )
+
     def get_default_spec(self):
-        batch_size = 1
         mod_spec = {
-            "prefill": {
-                "inputs": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
-                "total_seq_len": int,
+            "embed": {
+                "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
                 "$": {
                     "param_mode": "packed",
-                    "effect_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "prefill": {
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
                 },
             },
             "decode": {
-                "inputs": nn.spec.Tensor([batch_size, 1], "int32"),
-                "total_seq_len": int,
+                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
-                    "effect_mode": "packed",
+                    "effect_mode": "none",
                 },
             },
             "softmax_with_temperature": {
                 "logits": nn.spec.Tensor([1, 1, "vocab_size"], "float32"),
                 "temperature": nn.spec.Tensor([], "float32"),
+                "$": {
+                    "param_mode": "none",
+                    "effect_mode": "none",
+                },
+            },
+            "create_paged_kv_cache": {
+                "max_batch_size": int,
+                "max_total_seq_len": int,
+                "prefill_chunk_size": int,
+                "page_size": int,
                 "$": {
                     "param_mode": "none",
                     "effect_mode": "none",
