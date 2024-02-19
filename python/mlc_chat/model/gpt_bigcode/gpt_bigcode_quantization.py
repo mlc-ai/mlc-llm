@@ -1,5 +1,6 @@
 """This file specifies how MLC's GPTBigCode parameters are quantized using group quantization
 or other formats."""
+
 from typing import Tuple
 
 from tvm.relax.frontend import nn
@@ -24,6 +25,7 @@ def group_quant(
         "",
     )
     return model, quant_map
+
 
 def ft_quant(
     model_config: GPTBigCodeConfig,

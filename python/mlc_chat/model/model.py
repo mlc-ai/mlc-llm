@@ -147,7 +147,7 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": gpt_bigcode_quantization.no_quant,
             "group-quant": gpt_bigcode_quantization.group_quant,
-            "ft-quant": gpt_bigcode_quantization.ft_quant,    
+            "ft-quant": gpt_bigcode_quantization.ft_quant,
         },
     ),
     "phi-msft": Model(
