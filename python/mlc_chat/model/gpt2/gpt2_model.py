@@ -138,7 +138,6 @@ class GPT2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
                 layer_id, qkv, self.num_heads, attn_score_scaling_factor
             ),
             (b, s, h * d),
-            attn_score_scaling_factor,
         )
         return self.c_proj(output)
 
@@ -232,6 +231,7 @@ class GPT2Model(nn.Module):
         if self.tensor_parallel_shards > 1:
             inputs = op.ccl_broadcast_from_worker0(inputs)
         hidden_states = inputs
+
         # Position Embeddings
         # Generate np.arange(offset, offset+seq_len)
         # shape[1] indicates the total query length in the batch
@@ -259,7 +259,7 @@ class GPT2Model(nn.Module):
         # Pass through GPT2Block
         hidden_states = hidden_states + pos_embd
         for layer_id, layer in enumerate(self.h):
-            hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
+            hidden_states = layer.batch_forward(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.ln_f(hidden_states)
         return hidden_states
 
