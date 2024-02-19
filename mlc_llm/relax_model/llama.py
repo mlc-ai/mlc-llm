@@ -477,7 +477,8 @@ class LlamaAttention(LlamaAttentionBase):
         k_cache = nn.emit(
             relax.op.call_inplace_packed(
                 f_kv_cache_append,
-                args=[k_cache, squeezed_key],
+                k_cache,
+                squeezed_key,
                 inplace_indices=[0],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
@@ -485,7 +486,8 @@ class LlamaAttention(LlamaAttentionBase):
         v_cache = nn.emit(
             relax.op.call_inplace_packed(
                 f_kv_cache_append,
-                args=[v_cache, squeezed_value],
+                v_cache,
+                squeezed_value,
                 inplace_indices=[0],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
@@ -495,14 +497,16 @@ class LlamaAttention(LlamaAttentionBase):
         k_cache = nn.emit(
             relax.call_pure_packed(
                 f_kv_cache_view,
-                args=[k_cache, kv_cache_shape],
+                k_cache,
+                kv_cache_shape,
                 sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
             )
         )
         v_cache = nn.emit(
             relax.call_pure_packed(
                 f_kv_cache_view,
-                args=[v_cache, kv_cache_shape],
+                v_cache,
+                kv_cache_shape,
                 sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
             )
         )
@@ -515,7 +519,9 @@ class LlamaAttention(LlamaAttentionBase):
 
         if self.config.target_kind == "android":
             attn_weights = nn.emit(
-                matmul(permute_dims(query_states, [0, 2, 1, 3]), permute_dims(key_states, [0, 2, 3, 1]))
+                matmul(
+                    permute_dims(query_states, [0, 2, 1, 3]), permute_dims(key_states, [0, 2, 3, 1])
+                )
                 / relax.const(math.sqrt(self.head_dim), query_states.struct_info.dtype)
             )
         else:
@@ -524,10 +530,9 @@ class LlamaAttention(LlamaAttentionBase):
             value_states = nn.emit(permute_dims(value_states, [0, 2, 1, 3]))
 
             attn_weights = nn.emit(
-                matmul(permute_dims(query_states, [0, 2, 1, 3]), permute_dims(key_states, [0, 2, 3, 1]))
+                matmul(query_states, permute_dims(key_states, [0, 1, 3, 2]))
                 / relax.const(math.sqrt(self.head_dim), query_states.struct_info.dtype)
             )
-
 
         tvm.ir.assert_structural_equal(
             attention_mask.struct_info.shape.values,
@@ -699,7 +704,9 @@ class LlamaModelBase(nn.Module):
 
 
 class LlamaModelForSingleSequence(LlamaModelBase):
-    def __init__(self, config: LlamaConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool = False):
+    def __init__(
+        self, config: LlamaConfig, vocab_size_var: tvm.tir.SizeVar, sep_embed: bool = False
+    ):
         super().__init__(config, vocab_size_var, sep_embed, enable_batching=False)
 
     def _prepare_decoder_attention_mask(self, input_shape, src_len, dtype):
@@ -824,7 +831,7 @@ class LlamaForCausalLM(nn.Module):
         cache_len = te.var("cached_rotary_embedding_len", "int64")
         self.cos_cached = nn.Parameter((cache_len, head_dim), dtype=config.dtype, name="cos_cached")
         self.sin_cached = nn.Parameter((cache_len, head_dim), dtype=config.dtype, name="sin_cached")
-        
+
         # Mark if output_all_logits is True
         self.output_all_logits = output_all_logits
         ############ End ############
@@ -1054,7 +1061,7 @@ def create_decoding_func_for_batching(
     mod = bb.get()
     gv = mod.get_global_var(func_name)
     bb.update_func(gv, mod[gv].with_attr("num_input", 2))
-    
+
 
 def create_verification_func_for_batching(
     bb: relax.BlockBuilder,
@@ -1063,12 +1070,16 @@ def create_verification_func_for_batching(
     quant_scheme: QuantizationScheme,
 ) -> None:
     func_name = "verify_with_embed"
-    
+
     total_seq_len = tvm.tir.SizeVar("num_tokens_including_cache", "int64")
     hidden_size = config.hidden_size
     with bb.function(func_name):
         model = LlamaForCausalLM(
-            config, tvm.tir.SizeVar("vocab_size", "int64"), sep_embed=True, enable_batching=True, output_all_logits=True
+            config,
+            tvm.tir.SizeVar("vocab_size", "int64"),
+            sep_embed=True,
+            enable_batching=True,
+            output_all_logits=True,
         )
         param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
@@ -1110,7 +1121,9 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: LlamaConfig) -> None:
                     bb.emit(
                         relax.call_pure_packed(
                             f_kv_cache_create,
-                            args=[zeros, init_shape, relax.PrimValue(0)],
+                            zeros,
+                            init_shape,
+                            relax.PrimValue(0),
                             sinfo_args=[relax.ObjectStructInfo()],
                         )
                     )
