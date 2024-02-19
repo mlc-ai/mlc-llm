@@ -34,8 +34,7 @@ Note: Llama-7B takes 4GB of RAM and RedPajama-3B takes 2.2GB to run. We recommen
 
 ### Android
 
-The demo APK is available to [download](https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk).
-The demo is tested on Samsung S23 with Snapdragon 8 Gen 2 chip, Redmi Note 12 Pro with Snapdragon 685 and Google Pixel phones.
+The demo APK is available to [download](https://github.com/mlc-ai/binary-mlc-llm-libs/releases/download/Android/mlc-chat.apk). The demo is tested on Samsung S23 with Snapdragon 8 Gen 2 chip, Redmi Note 12 Pro with Snapdragon 685 and Google Pixel phones.
 Besides the [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html) page,
 [documentation](https://llm.mlc.ai/docs/deploy/android.html) is available for building android apps with MLC LLM.
 
