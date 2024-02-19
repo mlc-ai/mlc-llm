@@ -107,13 +107,15 @@ class GPT2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
         qkv = op.reshape(qkv, (b, s, 3 * h, d))
 
         if self.scale_attn_by_inverse_layer_idx:
-            attn_score_scaling_factor = 1.0 / float(self.layer_idx + 1)
+            attn_score_scaling_factor = 1.0 / float(layer_id + 1)
         else:
             attn_score_scaling_factor = 1.0
 
         # Attention
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads),
+            paged_kv_cache.attention_with_fused_qkv(
+                layer_id, qkv, self.num_heads, attn_score_scaling_factor
+            ),
             (b, s, h * d),
         )
         return self.c_proj(output)
@@ -126,7 +128,7 @@ class GPT2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
         qkv = op.reshape(qkv, (b, s, 3 * h, d))
 
         if self.scale_attn_by_inverse_layer_idx:
-            attn_score_scaling_factor = 1.0 / float(self.layer_idx + 1)
+            attn_score_scaling_factor = 1.0 / float(layer_id + 1)
         else:
             attn_score_scaling_factor = 1.0
 
@@ -262,7 +264,7 @@ class GPT2Model(nn.Module):
         return hidden_states
 
 
-class GPT2LMHeadModel(nn.Module):
+class GPT2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPT2Config):
         self.transformer = GPT2Model(config)
         self.lm_head = nn.Linear(config.n_embd, "vocab_size", bias=False)

@@ -78,7 +78,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
             _name=name,
         )
 
-    def attention(  # pylint: disable=invalid-name
+    def attention(  # pylint: disable=invalid-name, too-many-arguments
         self,
         layer_id: int,
         q: Tensor,
