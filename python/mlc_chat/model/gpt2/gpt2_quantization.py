@@ -5,7 +5,7 @@ from typing import Tuple
 from tvm.relax.frontend import nn
 
 from mlc_chat.loader import QuantizeMapping
-from mlc_chat.quantization import AWQQuantize, GroupQuantize, NoQuantize
+from mlc_chat.quantization import AWQQuantize, FTQuantize, GroupQuantize, NoQuantize
 
 from .gpt2_model import GPT2Config, GPT2LMHeadModel
 
@@ -15,6 +15,22 @@ def group_quant(
     quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a GPT-2-architecture model using group quantization."""
+    model: nn.Module = GPT2LMHeadModel(model_config)
+    model.to(quantization.model_dtype)
+    quant_map = QuantizeMapping({}, {})
+    model = quantization.quantize_model(
+        model,
+        quant_map,
+        "",
+    )
+    return model, quant_map
+
+
+def ft_quant(
+    model_config: GPT2Config,
+    quantization: FTQuantize,
+) -> Tuple[nn.Module, QuantizeMapping]:
+    """Quantize a GPT-2-architecture model using FasterTransformer quantization."""
     model: nn.Module = GPT2LMHeadModel(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})

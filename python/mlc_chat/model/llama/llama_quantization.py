@@ -30,7 +30,7 @@ def ft_quant(
     model_config: LlamaConfig,
     quantization: FTQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
-    """Quantize a Llama-architecture model using group quantization."""
+    """Quantize a Llama-architecture model using FasterTransformer quantization."""
     model: nn.Module = LlamaForCasualLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
