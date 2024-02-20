@@ -2,6 +2,7 @@
 Implementation for GPTNeoX architecture.
 TODO: add docstring
 """
+
 import dataclasses
 import logging
 from typing import Any, Dict, Optional
@@ -11,6 +12,7 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_chat import op as op_ext
+from mlc_chat.nn import PagedKVCache, RopeMode
 from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
 from mlc_chat.support.style import bold
@@ -110,30 +112,35 @@ class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
             config.context_window_size, [self.num_attention_heads, self.head_dim]
         )
 
-    def forward(
-        self,
-        hidden_states: Tensor,
-        attention_mask: Tensor,
-        total_seq_len: tir.Var,
-    ):
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         # hidden_states: [batch_size, seq_len, hidden_size]
         batch_size, seq_len, _ = hidden_states.shape
-        assert batch_size == 1, "Only support batch size 1 at this moment."
 
         # q/k/v states: [batch_size, seq_len, hidden_size]
         qkv = self.query_key_value(hidden_states)
         qkv = op.reshape(qkv, (batch_size, seq_len, 3 * self.num_attention_heads, self.head_dim))
-        # q/k/v states: [batch_size, seq_len, num_attention_heads, head_size]
-        q, k, v = op_ext.llama_rope(
-            qkv, total_seq_len, self.rope_theta, self.num_attention_heads, self.num_attention_heads
+
+        # Attention
+        output = op.reshape(
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_attention_heads),
+            (batch_size, seq_len, self.head_dim * self.num_attention_heads),
         )
-        self.k_cache.append(op.squeeze(k, axis=0))
-        self.v_cache.append(op.squeeze(v, axis=0))
+        attn_output = self.dense(output)
+        return attn_output
 
-        k = self.k_cache.view(total_seq_len)
-        v = self.v_cache.view(total_seq_len)
+    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+        # hidden_states: [batch_size, seq_len, hidden_size]
+        batch_size, seq_len, _ = hidden_states.shape
 
-        output = op_ext.attention(q, k, v, casual_mask=attention_mask, qk_dtype="float32")
+        # q/k/v states: [batch_size, seq_len, hidden_size]
+        qkv = self.query_key_value(hidden_states)
+        qkv = op.reshape(qkv, (batch_size, seq_len, 3 * self.num_attention_heads, self.head_dim))
+
+        # Attention
+        output = op.reshape(
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_attention_heads),
+            (batch_size, seq_len, self.head_dim * self.num_attention_heads),
+        )
         attn_output = self.dense(output)
         return attn_output
 
@@ -201,36 +208,52 @@ class GPTNeoXLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(
-        self,
-        hidden_states: Tensor,
-        attention_mask: Tensor,
-        total_seq_len: tir.Var,
-    ):
-        def _apply_residual(out, residual):
-            if self.tensor_parallel_shards > 1:
-                return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum")
-            return out + residual
-
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         dtype = hidden_states.dtype
         attn_input = self.input_layernorm(hidden_states)
         with tp.shard_bias(self.attention.dense, self.tensor_parallel_shards):
             attn_output = self.attention(
                 attn_input,
-                attention_mask,
-                total_seq_len,
+                paged_kv_cache,
+                layer_id,
             )
         if self.use_parallel_residual:
             mlp_input = self.post_attention_layernorm(hidden_states)
             mlp_output = self.mlp(mlp_input)
             hidden_states = mlp_output + attn_output + hidden_states
         else:
-            attn_output = _apply_residual(attn_output, hidden_states)
+            attn_output = self._apply_residual(attn_output, hidden_states)
             mlp_input = self.post_attention_layernorm(attn_output)
             with tp.shard_bias(self.mlp.dense_4h_to_h, self.tensor_parallel_shards):
                 mlp_output = self.mlp(mlp_input)
-            hidden_states = _apply_residual(mlp_output.astype(dtype), attn_output)
+            hidden_states = self._apply_residual(mlp_output.astype(dtype), attn_output)
         return hidden_states
+
+    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+        dtype = hidden_states.dtype
+        attn_input = self.input_layernorm(hidden_states)
+        with tp.shard_bias(self.attention.dense, self.tensor_parallel_shards):
+            attn_output = self.attention.batch_forward(
+                attn_input,
+                paged_kv_cache,
+                layer_id,
+            )
+        if self.use_parallel_residual:
+            mlp_input = self.post_attention_layernorm(hidden_states)
+            mlp_output = self.mlp(mlp_input)
+            hidden_states = mlp_output + attn_output + hidden_states
+        else:
+            attn_output = self._apply_residual(attn_output, hidden_states)
+            mlp_input = self.post_attention_layernorm(attn_output)
+            with tp.shard_bias(self.mlp.dense_4h_to_h, self.tensor_parallel_shards):
+                mlp_output = self.mlp(mlp_input)
+            hidden_states = self._apply_residual(mlp_output.astype(dtype), attn_output)
+        return hidden_states
+
+    def _apply_residual(self, out, residual):
+        if self.tensor_parallel_shards > 1:
+            return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum")
+        return out + residual
 
 
 class GPTNeoXModel(nn.Module):
@@ -240,18 +263,28 @@ class GPTNeoXModel(nn.Module):
         self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.tensor_parallel_shards = config.tensor_parallel_shards
 
-    def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
+    def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
         if self.tensor_parallel_shards > 1:
             inputs = op.ccl_broadcast_from_worker0(inputs)
-        hidden_states = self.embed_in(inputs)
+        hidden_states = inputs
 
-        for layer in self.layers:
-            hidden_states = layer(hidden_states, attention_mask, total_seq_len)
+        for layer_id, layer in enumerate(self.layers):
+            hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
+        hidden_states = self.final_layer_norm(hidden_states)
+        return hidden_states
+
+    def batch_forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
+        if self.tensor_parallel_shards > 1:
+            inputs = op.ccl_broadcast_from_worker0(inputs)
+        hidden_states = inputs
+
+        for layer_id, layer in enumerate(self.layers):
+            hidden_states = layer.batch_forward(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.final_layer_norm(hidden_states)
         return hidden_states
 
 
-class GPTNeoXForCausalLM(nn.Module):
+class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPTNeoXConfig):
         self.gpt_neox = GPTNeoXModel(config)
         self.embed_out = nn.Linear(
@@ -260,79 +293,166 @@ class GPTNeoXForCausalLM(nn.Module):
             bias=False,
             dtype="float32",
         )
+        self.num_hidden_layers = config.num_hidden_layers
+        self.hidden_size = config.hidden_size
+        self.num_attention_heads = config.num_attention_heads
+        self.head_dim = config.head_dim
+        self.vocab_size = config.vocab_size
+        self.rope_theta = config.position_embedding_base
+        self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
+        self.rotary_pct = config.rotary_pct
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
         if dtype is not None:
             self.dtype = dtype
 
-    def forward(self, inputs: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
-        def _index(x: te.Tensor):  # x[:, -1,:]
-            b, s, d = x.shape
-            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
+    def batch_forward(
+        self,
+        input_embeds: Tensor,
+        paged_kv_cache: PagedKVCache,
+        logit_positions: Optional[Tensor] = None,
+    ):
+        op_ext.configure()
 
-        hidden_states = self.gpt_neox(inputs, total_seq_len, attention_mask)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = self.gpt_neox.batch_forward(input_embeds, paged_kv_cache)
+        if logit_positions is not None:
+            hidden_states = op.take(hidden_states, logit_positions, axis=1)
         logits = self.embed_out(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
 
-    def prefill(self, inputs: Tensor, total_seq_len: tir.Var):
-        def _attention_mask(batch_size, seq_len, total_seq_len):
-            return te.compute(
-                (batch_size, 1, seq_len, total_seq_len),
-                lambda b, _, i, j: tir.if_then_else(
-                    i < j - (total_seq_len - seq_len),
-                    tir.min_value(self.dtype),
-                    tir.max_value(self.dtype),
-                ),
-                name="attention_mask_prefill",
-            )
+    def embed(self, input_ids: Tensor):
+        return self.gpt_neox.embed_in(input_ids)
 
-        batch_size, seq_len = inputs.shape
-        attention_mask = op.tensor_expr_op(
-            _attention_mask,
-            name_hint="attention_mask_prefill",
-            args=[batch_size, seq_len, total_seq_len],
-        )
-        return self.forward(inputs, total_seq_len, attention_mask)
+    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
 
-    def decode(self, inputs: Tensor, total_seq_len: tir.Var):
-        batch_size, seq_len = inputs.shape
-        attention_mask = op.full(
-            shape=[batch_size, 1, seq_len, total_seq_len],
-            fill_value=tir.max_value(self.dtype),
-            dtype=self.dtype,
-        )
-        return self.forward(inputs, total_seq_len, attention_mask)
+        def _index(x: te.Tensor):  # x[:-1,:]
+            b, s, d = x.shape
+            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
+
+        hidden_states = self.gpt_neox(input_embed, paged_kv_cache)
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        logits = self.embed_out(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits, paged_kv_cache
+
+    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
+        hidden_states = self.gpt_neox(input_embed, paged_kv_cache)
+        logits = self.embed_out(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits, paged_kv_cache
+
+    def batch_prefill(
+        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+    ):
+        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
+        return logits, paged_kv_cache
+
+    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
+        logits = self.batch_forward(input_embeds, paged_kv_cache)
+        return logits, paged_kv_cache
+
+    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
+        logits = self.batch_forward(input_embeds, paged_kv_cache)
+        return logits, paged_kv_cache
 
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
-        return op.softmax(logits / temperature, axis=-1)
+        return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
+
+    def create_paged_kv_cache(
+        self,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+    ) -> PagedKVCache:
+        return PagedKVCache.create_generic(
+            max_batch_size=max_batch_size,
+            max_total_seq_len=max_total_seq_len,
+            prefill_chunk_size=prefill_chunk_size,
+            page_size=page_size,
+            num_hidden_layers=self.num_hidden_layers,
+            num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
+            num_key_value_heads=self.num_attention_heads // self.tensor_parallel_shards,
+            head_dim=self.head_dim,
+            rope_mode=RopeMode.NORMAL,
+            rope_scale=1,
+            rope_theta=self.rope_theta,
+            dtype=self.dtype,
+            rotary_dim=int(self.head_dim * self.rotary_pct),
+        )
 
     def get_default_spec(self):
-        batch_size = 1
         mod_spec = {
-            "prefill": {
-                "inputs": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
-                "total_seq_len": int,
+            "embed": {
+                "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
                 "$": {
                     "param_mode": "packed",
-                    "effect_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "prefill": {
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
                 },
             },
             "decode": {
-                "inputs": nn.spec.Tensor([batch_size, 1], "int32"),
-                "total_seq_len": int,
+                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
-                    "effect_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_prefill": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_decode": {
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_verify": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
                 },
             },
             "softmax_with_temperature": {
-                "logits": nn.spec.Tensor([1, 1, "vocab_size"], "float32"),
-                "temperature": nn.spec.Tensor([], "float32"),
+                "logits": nn.spec.Tensor(["batch_size", 1, "vocab_size"], "float32"),
+                "temperature": nn.spec.Tensor(["batch_size"], "float32"),
+                "$": {
+                    "param_mode": "none",
+                    "effect_mode": "none",
+                },
+            },
+            "create_paged_kv_cache": {
+                "max_batch_size": int,
+                "max_total_seq_len": int,
+                "prefill_chunk_size": int,
+                "page_size": int,
                 "$": {
                     "param_mode": "none",
                     "effect_mode": "none",

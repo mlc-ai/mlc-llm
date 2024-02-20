@@ -742,7 +742,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
         cnt = (x * y) // t
         assert (x * y) % t == 0
         tile_y = (int)(math.ceil(math.sqrt(cnt)))
-        while cnt % tile_y != 0 and y % tile_y != 0 and tile_y <= cnt:
+        while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
         tile_x = cnt // tile_y
@@ -1362,7 +1362,7 @@ def _attention_prefill_ragged(
         cnt = (x * y) // t
         assert (x * y) % t == 0
         tile_y = (int)(math.ceil(math.sqrt(cnt)))
-        while cnt % tile_y != 0 and y % tile_y != 0 and tile_y <= cnt:
+        while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
         tile_x = cnt // tile_y
