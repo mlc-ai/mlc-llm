@@ -131,11 +131,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
         if (!isBuiltin) {
             updateAppConfig {
-                appConfig.modelList.add(ModelRecord(
-                    modelUrl,
-                    modelConfig.modelId,
-                    modelConfig.estimatedVramBytes,
-                    modelConfig.modelLib)
+                appConfig.modelList.add(
+                    ModelRecord(
+                        modelUrl,
+                        modelConfig.modelId,
+                        modelConfig.estimatedVramBytes,
+                        modelConfig.modelLib
+                    )
                 )
             }
         }
@@ -161,7 +163,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
-    private fun downloadModelConfig(modelUrl: String, modelRecord: ModelRecord, isBuiltin: Boolean) {
+    private fun downloadModelConfig(
+        modelUrl: String,
+        modelRecord: ModelRecord,
+        isBuiltin: Boolean
+    ) {
         thread(start = true) {
             try {
                 val url = URL("${modelUrl}${ModelUrlSuffix}${ModelConfigFilename}")
@@ -482,9 +488,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         fun startChat() {
             chatState.requestReloadChat(
-                modelConfig.modelId,
-                modelConfig.modelLib,
-                modelDirFile.absolutePath
+                modelConfig,
+                modelDirFile.absolutePath,
             )
         }
 
@@ -613,8 +618,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
 
-        fun requestReloadChat(modelName: String, modelLib: String, modelPath: String) {
-            if (this.modelName.value == modelName && this.modelLib == modelLib && this.modelPath == modelPath) {
+        fun requestReloadChat(modelConfig: ModelConfig, modelPath: String) {
+
+            if (this.modelName.value == modelConfig.modelId && this.modelLib == modelConfig.modelLib && this.modelPath == modelPath) {
                 return
             }
             require(interruptable())
@@ -623,15 +629,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     switchToReloading()
                 },
                 epilogue = {
-                    mainReloadChat(modelName, modelLib, modelPath)
+                    mainReloadChat(modelConfig, modelPath)
                 }
             )
         }
 
-        private fun mainReloadChat(modelName: String, modelLib: String, modelPath: String) {
+        private fun mainReloadChat(modelConfig: ModelConfig, modelPath: String) {
             clearHistory()
-            this.modelName.value = modelName
-            this.modelLib = modelLib
+            this.modelName.value = modelConfig.modelId
+            this.modelLib = modelConfig.modelLib
             this.modelPath = modelPath
             executorService.submit {
                 viewModelScope.launch {
@@ -639,7 +645,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 if (!callBackend {
                         backend.unload()
-                        backend.reload(modelLib, modelPath)
+                        backend.reload(
+                            modelConfig.modelLib,
+                            modelPath, modelConfig.contextWindowSize,
+                            modelConfig.prefillChunkSize
+                        )
                     }) return@submit
                 viewModelScope.launch {
                     Toast.makeText(application, "Ready to chat", Toast.LENGTH_SHORT).show()
@@ -737,7 +747,9 @@ data class ModelConfig(
     @SerializedName("model_lib") var modelLib: String,
     @SerializedName("model_id") var modelId: String,
     @SerializedName("estimated_vram_bytes") var estimatedVramBytes: Long?,
-    @SerializedName("tokenizer_files") val tokenizerFiles: List<String>
+    @SerializedName("tokenizer_files") val tokenizerFiles: List<String>,
+    @SerializedName("context_window_size") val contextWindowSize: Int,
+    @SerializedName("prefill_chunk_size") val prefillChunkSize: Int,
 )
 
 data class ParamsRecord(
