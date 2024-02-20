@@ -78,12 +78,13 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
             _name=name,
         )
 
-    def attention(  # pylint: disable=invalid-name
+    def attention(  # pylint: disable=invalid-name, too-many-arguments
         self,
         layer_id: int,
         q: Tensor,
         k: Tensor,
         v: Tensor,
+        attn_score_scaling_factor: float = 1.0,
     ) -> Tensor:
         """Compute attention with the given q/k/v data and in-cache k/v data
         on the specified layer. Rotary position embeddings are applied to k/v
@@ -108,6 +109,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     [
                         self._expr,
                         rx.PrimValue(layer_id),  # type: ignore[arg-type]
+                        rx.PrimValue(attn_score_scaling_factor),
                         q._expr,
                         k._expr,
                         v._expr,
@@ -119,7 +121,11 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         # pylint: enable=protected-access
 
     def attention_with_fused_qkv(  # pylint: disable=invalid-name
-        self, layer_id: int, qkv: Tensor, num_qo_heads: int
+        self,
+        layer_id: int,
+        qkv: Tensor,
+        num_qo_heads: int,
+        attn_score_scaling_factor: float = 1.0,
     ) -> Tensor:
         """Compute attention with the given fused q/k/v data and in-cache k/v data
         on the specified layer. Rotary position embeddings are applied to k/v
@@ -143,6 +149,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     [
                         self._expr,
                         rx.PrimValue(layer_id),  # type: ignore[arg-type]
+                        rx.PrimValue(attn_score_scaling_factor),
                         qkv._expr,
                     ],
                     out_sinfo=rx.TensorStructInfo((b * s, num_qo_heads, d), qkv.dtype),
@@ -169,6 +176,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
             _expr=rx.BlockBuilder.current().emit(
                 rx.call_pure_packed(
                     "vm.builtin.paged_attention_kv_cache_get_query_positions",
+                    self._expr,
                     sinfo_args=rx.TensorStructInfo((total_length,), "int32"),
                 )
             )
@@ -499,6 +507,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
+        attn_score_scaling_factor: T.float32,
     ):
         batch_size = T.int32(is_size_var=True)
         total_len = T.int32(is_size_var=True)
@@ -649,7 +658,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
                                                     i, j, k = T.axis.remap("SSR", [li, lj, lk])
                                                     with T.init():
                                                         S_local[i, j] = 0.0
-                                                    S_local[i, j] += Q_smem[i, k] * K_smem[j, k] * sm_scale
+                                                    S_local[i, j] += Q_smem[i, k] * K_smem[j, k] * attn_score_scaling_factor * sm_scale
                                         T.tvm_storage_sync("shared")
                                         for li, lj in T.grid(tile_x, tile_z):
                                             with T.block("S_store"):
@@ -837,6 +846,7 @@ def _attention_decode(
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
+        attn_score_scaling_factor: T.float32,
     ):
         T.func_attr({"tir.is_scheduled": 1})
         B = T.int32(is_size_var=True)
@@ -948,7 +958,7 @@ def _attention_decode(
                                         # compute S = Q * K * sm_scale
                                         S_reduce_local[0] = 0
                                         for vec in T.serial(VEC_SIZE):
-                                            S_reduce_local[0] += Q_local[vec] * K_local[vec] * sm_scale
+                                            S_reduce_local[0] += Q_local[vec] * K_local[vec] * attn_score_scaling_factor * sm_scale
 
                                         with T.block("block_cross_thread"):
                                             T.reads(S_reduce_local[0])
@@ -1129,6 +1139,7 @@ def _attention_prefill_ragged(
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
+        attn_score_scaling_factor: T.float32
     ):
         batch_size = T.int32(is_size_var=True)
         qo_len = T.int32(is_size_var=True)
@@ -1267,7 +1278,7 @@ def _attention_prefill_ragged(
                                                     i, j, k = T.axis.remap("SSR", [li, lj, lk])
                                                     with T.init():
                                                         S_local[i, j] = 0.0
-                                                    S_local[i, j] += Q_smem[i, k] * K_smem[j, k] * sm_scale
+                                                    S_local[i, j] += Q_smem[i, k] * K_smem[j, k] * attn_score_scaling_factor * sm_scale
                                         T.tvm_storage_sync("shared")
                                         for li, lj in T.grid(tile_x, tile_z):
                                             with T.block("S_store"):

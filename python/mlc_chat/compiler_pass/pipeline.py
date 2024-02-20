@@ -87,7 +87,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
         seq = tvm.transform.Sequential(
             [
                 # Phase 0. Add additional information for compilation and remove unused Relax func
-                RewriteKVCacheCreation(target, flashinfer),
+                RewriteKVCacheCreation(target, flashinfer, metadata),
                 AttachVariableBounds(variable_bounds),
                 AttachAdditionalPrimFuncs(additional_tirs),
                 AttachMemoryPlanAttr(),

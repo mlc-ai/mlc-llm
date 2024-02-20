@@ -172,8 +172,8 @@ Conversation GPT2() {
   conv.roles = {"USER", "ASSISTANT"};
   conv.messages = {};
   conv.offset = 0;
-  conv.separator_style = SeparatorStyle::kSepRoleMsg;
-  conv.seps = {"<|endoftext|>", "<|endoftext|>"};
+  conv.separator_style = SeparatorStyle::kLM;
+  conv.seps = {" "};
   conv.role_msg_sep = ": ";
   conv.role_empty_sep = ":";
   // TODO(mlc-team): add eos to mlc-chat-config
