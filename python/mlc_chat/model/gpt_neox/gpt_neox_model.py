@@ -301,6 +301,7 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         self.rope_theta = config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
+        self.rotary_pct = config.rotary_pct
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
@@ -386,6 +387,7 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
             rope_scale=1,
             rope_theta=self.rope_theta,
             dtype=self.dtype,
+            rotary_dim=int(self.head_dim * self.rotary_pct),
         )
 
     def get_default_spec(self):
