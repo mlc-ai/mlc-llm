@@ -51,6 +51,23 @@ ConvTemplateRegistry.register_conv_template(
     )
 )
 
+# Gemma
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="gemma_instruction",
+        roles={
+            "user": "<start_of_turn>user",
+            "assistant": "<start_of_turn>model",
+            "tool": "<start_of_turn>user",
+        },
+        seps=["<end_of_turn>\n"],
+        role_content_sep="\n",
+        role_empty_sep="\n",
+        stop_str=["<end_of_turn>"],
+        stop_token_ids=[1, 107],
+    )
+)
+
 # Gorilla
 ConvTemplateRegistry.register_conv_template(
     Conversation(
