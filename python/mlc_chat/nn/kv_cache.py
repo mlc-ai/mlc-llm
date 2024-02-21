@@ -1,14 +1,16 @@
 """Attention KV cache modeling."""
+
 # pylint: disable=too-many-statements,too-many-lines
 import enum
 import math
-from typing import Tuple
+from typing import Optional, Tuple
 
 from tvm import relax as rx
 from tvm import tir
 from tvm.relax.frontend.nn import Object, Tensor
 from tvm.runtime import DataType
 from tvm.script import tir as T
+from tvm.target import Target
 
 from mlc_chat.op.position_embedding import (
     llama_inplace_rope,
@@ -17,15 +19,72 @@ from mlc_chat.op.position_embedding import (
 )
 
 
+class RopeMode(enum.IntEnum):
+    """The RoPE mode of the Paged KV cache.
+    If it is none, the KV cache will not apply RoPE to q and k.
+    If it is normal, RoPE will be applied to k before adding k to cache.
+    Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
+    """
+
+    NONE = 0
+    NORMAL = 1
+    INLINE = 2
+
+
 class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
     """The Paged KV Cache used in LLM batching for efficient attention computation."""
 
-    def attention(  # pylint: disable=invalid-name
+    @staticmethod
+    def create_generic(  # pylint: disable=too-many-arguments
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+        num_hidden_layers: int,
+        num_attention_heads: int,
+        num_key_value_heads: int,
+        head_dim: int,
+        rope_mode: RopeMode,
+        rope_scale: int,
+        rope_theta: int,
+        dtype: str,
+        rotary_dim: Optional[int] = None,
+        name: str = "paged_kv_cache",
+    ) -> "PagedKVCache":
+        """The generic function of creating a PagedKVCache,
+        which will be rewritten by functions in compilation pipeline.
+        """
+        if rotary_dim is None:
+            rotary_dim = head_dim
+        return PagedKVCache(
+            _expr=rx.Call(
+                rx.extern("mlc.create_paged_kv_cache_generic"),
+                args=[
+                    rx.ShapeExpr(
+                        [max_batch_size, max_total_seq_len, prefill_chunk_size, page_size]
+                    ),
+                    rx.PrimValue(num_hidden_layers),
+                    rx.PrimValue(num_attention_heads),
+                    rx.PrimValue(num_key_value_heads),
+                    rx.PrimValue(head_dim),
+                    rx.PrimValue(rope_mode),
+                    rx.PrimValue(rope_scale),
+                    rx.PrimValue(rope_theta),
+                    rx.PrimValue(rotary_dim),
+                    rx.DataTypeImm(dtype),
+                ],
+                sinfo_args=[rx.ObjectStructInfo()],
+            ),
+            _name=name,
+        )
+
+    def attention(  # pylint: disable=invalid-name, too-many-arguments
         self,
         layer_id: int,
         q: Tensor,
         k: Tensor,
         v: Tensor,
+        attn_score_scaling_factor: float = 1.0,
     ) -> Tensor:
         """Compute attention with the given q/k/v data and in-cache k/v data
         on the specified layer. Rotary position embeddings are applied to k/v
@@ -50,6 +109,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     [
                         self._expr,
                         rx.PrimValue(layer_id),  # type: ignore[arg-type]
+                        rx.PrimValue(attn_score_scaling_factor),
                         q._expr,
                         k._expr,
                         v._expr,
@@ -61,7 +121,11 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         # pylint: enable=protected-access
 
     def attention_with_fused_qkv(  # pylint: disable=invalid-name
-        self, layer_id: int, qkv: Tensor, num_qo_heads: int
+        self,
+        layer_id: int,
+        qkv: Tensor,
+        num_qo_heads: int,
+        attn_score_scaling_factor: float = 1.0,
     ) -> Tensor:
         """Compute attention with the given fused q/k/v data and in-cache k/v data
         on the specified layer. Rotary position embeddings are applied to k/v
@@ -85,6 +149,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     [
                         self._expr,
                         rx.PrimValue(layer_id),  # type: ignore[arg-type]
+                        rx.PrimValue(attn_score_scaling_factor),
                         qkv._expr,
                     ],
                     out_sinfo=rx.TensorStructInfo((b * s, num_qo_heads, d), qkv.dtype),
@@ -92,17 +157,32 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
             )
         ).reshape(b, s, num_qo_heads, d)
 
+    def get_query_positions(self, total_length: tir.PrimExpr) -> Tensor:
+        """Get the in-sequence positions of each slot in the query,
+        which are needed for applying positional embeddings in some models.
+
+        Parameters
+        ----------
+        total_length : tir.PrimExpr
+            The summed-up total sequence length of queries in
+            the batch being forwarded.
+
+        Returns
+        -------
+        q_positions : Tensor
+            The in-sequence query positions, in shape `(total_length,)`
+        """
+        return Tensor(
+            _expr=rx.BlockBuilder.current().emit(
+                rx.call_pure_packed(
+                    "vm.builtin.paged_attention_kv_cache_get_query_positions",
+                    self._expr,
+                    sinfo_args=rx.TensorStructInfo((total_length,), "int32"),
+                )
+            )
+        )
+
     # pylint: enable=protected-access
-
-
-class RopeMode(enum.IntEnum):
-    """The RoPE mode of the Paged KV cache.
-    If it is normal, RoPE will be applied to k before adding k to cache.
-    Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
-    """
-
-    NORMAL = 0
-    INLINE = 1
 
 
 class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
@@ -121,7 +201,9 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         rope_mode: RopeMode,
         rope_scale: int,
         rope_theta: int,
+        rotary_dim: int,
         dtype: str,
+        target: Target,
         name: str = "paged_kv_cache",
     ) -> None:
         """Create a paged KV cache object with FlashInfer kernels.
@@ -152,7 +234,11 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             The scale of rotary position embedding.
         rope_theta : int
             The base of rotary position embedding.
+        rotary_dim : int
+            The number of dimensions in the embedding that RoPE is applied to.
         """
+        if rope_mode == RopeMode.INLINE:
+            assert rotary_dim == head_dim, "FlashInfer RoPE does not support partial rotary dim."
 
         bb = rx.BlockBuilder.current()  # pylint: disable=invalid-name
         args = [
@@ -178,8 +264,8 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             rx.extern("paged_kv_cache.attention_kernel_decode_begin_forward"),
             rx.extern("paged_kv_cache.attention_kernel_decode_end_forward"),
             rx.extern("flashinfer.merge_state_in_place"),
-            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, head_dim), "tir_split_rotary"),
-            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype), "tir_qk_rotary_inplace"),
+            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, rotary_dim), "tir_split_rotary"),
+            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, target, rotary_dim), "tir_qk_rotary_inplace"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             # fmt: on
             # pylint: enable=line-too-long
@@ -210,7 +296,9 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         head_dim: int,
         rope_scale: int,
         rope_theta: int,
+        rotary_dim: int,
         dtype: str,
+        target: Target,
         name: str = "paged_kv_cache",
     ) -> None:
         """Create a paged KV cache object with TIR kernels.
@@ -241,6 +329,10 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             The scale of rotary position embedding.
         rope_theta : int
             The base of rotary position embedding.
+        rotary_dim : int
+            The number of dimensions in the embedding that RoPE is applied to.
+        target : Target
+            The target to build the model to.
         """
 
         bb = rx.BlockBuilder.current()
@@ -257,12 +349,12 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             # pylint: disable=line-too-long
             # fmt: off
             bb.add_func(_kv_cache_transpose_append(num_key_value_heads, head_dim, dtype), "kv_cache_transpose_append"),
-            bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, head_dim, dtype), "tir_attention_prefill"),
-            bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, head_dim, dtype), "tir_attention_decode"),
-            bb.add_func(_attention_prefill_ragged(num_key_value_heads, num_attention_heads, head_dim, dtype), "tir_attention_prefill_ragged"),
-            bb.add_func(_merge_state_inplace(num_key_value_heads, head_dim, dtype), "tir_attention_merge_state"),
-            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, head_dim), "tir_split_rotary"),
-            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype), "tir_qk_rotary_inplace"),
+            bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_prefill"),
+            bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_decode"),
+            bb.add_func(_attention_prefill_ragged(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_prefill_ragged"),
+            bb.add_func(_merge_state_inplace(num_key_value_heads, head_dim, dtype, target), "tir_attention_merge_state"),
+            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, rotary_dim), "tir_split_rotary"),
+            bb.add_func(llama_inplace_rope(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, target, rotary_dim), "tir_qk_rotary_inplace"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             # fmt: on
             # pylint: enable=line-too-long
@@ -294,7 +386,7 @@ def _kv_cache_transpose_append(num_key_value_heads, head_dim, dtype):
         var_position_map: T.handle,
     ):
         T.func_attr({"tir.noalias": T.bool(True)})
-        ntoken = T.SizeVar("ntoken", "int64")
+        ntoken = T.SizeVar("num_tokens_excluding_cache", "int64")
         num_pages = T.int64()
         pages = T.match_buffer(var_pages, (num_pages, 2, num_key_value_heads, 16, head_dim), dtype)
         k_data = T.match_buffer(var_k_data, (ntoken, num_key_value_heads, head_dim), dtype)
@@ -333,7 +425,7 @@ def _kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dty
         layer_id: T.int64,
     ):
         T.func_attr({"tir.noalias": T.bool(True)})
-        seqlen = T.SizeVar("seqlen", "int64")
+        seqlen = T.SizeVar("num_tokens_including_cache", "int64")
         page_size = T.SizeVar("page_size", "int64")
         num_pages = T.int64()
         pages = T.match_buffer(var_pages, (num_pages, 2, num_key_value_heads, page_size, head_dim), dtype)
@@ -378,8 +470,7 @@ def _var(dtype):
     return T.alloc_buffer((1,), dtype, scope="local")
 
 
-def _attention_prefill(h_kv, h_q, d, dtype):
-    assert dtype == "float16", f"TIR attention kernel does not support dtype {dtype} right now"
+def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-argument
     # pylint: disable=invalid-name
     NUM_BLKS = 16
     LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
@@ -387,7 +478,7 @@ def _attention_prefill(h_kv, h_q, d, dtype):
     sm_scale = 1.0 / math.sqrt(float(d)) * math.log2(math.exp(1))
 
     num_warps = 4
-    tile_x, tile_y, tile_z = 32, d, 16
+    tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8), d, 16
     L_per_cta = tile_x // group_size
 
     def mask(causal, row, col, kv_len, qo_len):
@@ -416,6 +507,7 @@ def _attention_prefill(h_kv, h_q, d, dtype):
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
+        attn_score_scaling_factor: T.float32,
     ):
         batch_size = T.int32(is_size_var=True)
         total_len = T.int32(is_size_var=True)
@@ -519,7 +611,7 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
                                                     rotary_mode == 1,
-                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j)),
+                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype),
                                                     q[cur_L, cur_H_qo, j]
                                                 )
                                             else:
@@ -535,11 +627,11 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                                                 T.writes()
                                                 cur_L = L_kv_start + i
                                                 if cur_L < kv_chunk_len[0]:
-                                                    page_no: T.int32(is_size_var=True) = page_values[cur_page_indptr_begin + T.floordiv(cur_L, 16)]
-                                                    page_offset: T.int32(is_size_var=True) = T.floormod(cur_L, 16)
+                                                    page_no: T.int32(is_size_var=True) = page_values[cur_page_indptr_begin + T.floordiv(cur_L, 16)]  # type: ignore
+                                                    page_offset: T.int32(is_size_var=True) = T.floormod(cur_L, 16)  # type: ignore
                                                     K_smem[i, j] = T.if_then_else(
                                                         rotary_mode == 1,
-                                                        _rope(pages, k_rope_pos_offset[b_idx] + cur_L, d, rope_theta, rope_scale, (page_no, 0, by, page_offset, j)),
+                                                        _rope(pages, k_rope_pos_offset[b_idx] + cur_L, d, rope_theta, rope_scale, (page_no, 0, by, page_offset, j), dtype),
                                                         pages[page_no, 0, by, page_offset, j]
                                                     )
                                                 else:
@@ -552,8 +644,8 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                                                 T.writes()
                                                 cur_L = L_kv_start + i
                                                 if cur_L < kv_chunk_len[0]:
-                                                    page_no: T.int32(is_size_var=True) = page_values[cur_page_indptr_begin + T.floordiv(cur_L, 16)]
-                                                    page_offset: T.int32(is_size_var=True) = T.floormod(cur_L, 16)
+                                                    page_no: T.int32(is_size_var=True) = page_values[cur_page_indptr_begin + T.floordiv(cur_L, 16)]  # type: ignore
+                                                    page_offset: T.int32(is_size_var=True) = T.floormod(cur_L, 16)  # type: ignore
                                                     V_smem[i, j] = pages[page_no, 1, by, page_offset, j]
                                                 else:
                                                     V_smem[i, j] = 0.0
@@ -566,7 +658,7 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                                                     i, j, k = T.axis.remap("SSR", [li, lj, lk])
                                                     with T.init():
                                                         S_local[i, j] = 0.0
-                                                    S_local[i, j] += Q_smem[i, k] * K_smem[j, k] * sm_scale
+                                                    S_local[i, j] += Q_smem[i, k] * K_smem[j, k] * attn_score_scaling_factor * sm_scale
                                         T.tvm_storage_sync("shared")
                                         for li, lj in T.grid(tile_x, tile_z):
                                             with T.block("S_store"):
@@ -650,7 +742,7 @@ def _attention_prefill(h_kv, h_q, d, dtype):
         cnt = (x * y) // t
         assert (x * y) % t == 0
         tile_y = (int)(math.ceil(math.sqrt(cnt)))
-        while cnt % tile_y != 0 and y % tile_y != 0 and tile_y <= cnt:
+        while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
         tile_x = cnt // tile_y
@@ -666,7 +758,7 @@ def _attention_prefill(h_kv, h_q, d, dtype):
         sch.bind(tx, "threadIdx.x")
         sch.vectorize(vec)
 
-    def apply_to_so_ewise(sch: tir.Schedule, block, tile, vec_len=4):
+    def apply_to_so_ewise(sch: tir.Schedule, block, tile):
         loop_x, loop_y = sch.get_loops(block)[-2:]
         xo, xi = sch.split(loop_x, factors=[None, tile[0]])
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
@@ -675,11 +767,6 @@ def _attention_prefill(h_kv, h_q, d, dtype):
         ty, tx = sch.split(t, factors=[num_warps, 32])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
-        if tile[1] % vec_len == 0:
-            yi, vec = sch.split(yi, factors=[None, vec_len])
-            sch.vectorize(vec)
-        elif tile[1] in [2, 4]:
-            sch.vectorize(yi)
 
     def apply_to_gemm(  # pylint: disable=too-many-arguments,unused-argument
         sch: tir.Schedule, block, tile, read_0, read_1, r_len=8, k_major=False
@@ -720,10 +807,13 @@ def _attention_prefill(h_kv, h_q, d, dtype):
     return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
 
-def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
-    assert (
-        qkv_dtype == "float16"
-    ), f"TIR attention kernel does not support dtype {qkv_dtype} right now"
+def _attention_decode(
+    num_kv_heads,
+    num_qo_heads,
+    head_dim,
+    qkv_dtype,
+    target: Target,  # pylint: disable=unused-argument
+):
     # pylint: disable=invalid-name
     qkv_dtype_bytes = 2
     H_qo = num_qo_heads
@@ -756,6 +846,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
+        attn_score_scaling_factor: T.float32,
     ):
         T.func_attr({"tir.is_scheduled": 1})
         B = T.int32(is_size_var=True)
@@ -823,23 +914,23 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
                                 for vec in T.vectorized(VEC_SIZE):
                                     Q_local[vec] = T.if_then_else(
                                         rotary_mode == 1,
-                                        _rope(Q, q_rope_position[batch_idx], head_dim, rope_theta, rope_scale, (bx, by * GROUP_SIZE + ty, tx * VEC_SIZE + vec)),
+                                        _rope(Q, q_rope_position[batch_idx], head_dim, rope_theta, rope_scale, (bx, by * GROUP_SIZE + ty, tx * VEC_SIZE + vec), qkv_dtype),
                                         Q[bx, by * GROUP_SIZE + ty, tx * VEC_SIZE + vec]
                                     )
 
                                 for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_size_per_bdx * bdy * bdz)):
-                                    tile_start_s: T.int32(is_size_var=True) = (tz * bdy + ty) * tile_size_per_bdx
-                                    tile_start_g: T.int32(is_size_var=True) = ((iterator * bdz + tz) * bdy + ty) * tile_size_per_bdx
+                                    tile_start_s: T.int32(is_size_var=True) = (tz * bdy + ty) * tile_size_per_bdx  # type: ignore
+                                    tile_start_g: T.int32(is_size_var=True) = ((iterator * bdz + tz) * bdy + ty) * tile_size_per_bdx  # type: ignore
                                     # load K from global memory to shared memory
                                     for j in T.serial(tile_size_per_bdx):
-                                        row_g: T.int32(is_size_var=True) = tile_start_g + j
+                                        row_g: T.int32(is_size_var=True) = tile_start_g + j  # type: ignore
                                         if row_g < kv_chunk_len[0]:
-                                            page_no: T.int32(is_size_var=True) = page_table_values[cur_page_indptr_begin + T.floordiv(row_g, 16)]
-                                            page_offset: T.int32(is_size_var=True) = T.floormod(row_g, 16)
+                                            page_no: T.int32(is_size_var=True) = page_table_values[cur_page_indptr_begin + T.floordiv(row_g, 16)]  # type: ignore
+                                            page_offset: T.int32(is_size_var=True) = T.floormod(row_g, 16)  # type: ignore
                                             for vec in T.vectorized(VEC_SIZE):
                                                 K_smem[tile_start_s + j, tx * VEC_SIZE + vec] = T.if_then_else(
                                                     rotary_mode == 1,
-                                                    _rope(pages, k_rope_pos_offset[batch_idx] + row_g, head_dim, rope_theta, rope_scale, (page_no, 0, by, page_offset, tx * VEC_SIZE + vec)),
+                                                    _rope(pages, k_rope_pos_offset[batch_idx] + row_g, head_dim, rope_theta, rope_scale, (page_no, 0, by, page_offset, tx * VEC_SIZE + vec), qkv_dtype),
                                                     pages[page_no, 0, by, page_offset, tx * VEC_SIZE + vec]
                                                 )
                                         else:
@@ -848,10 +939,10 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
                                     T.tvm_storage_sync("shared")
                                     # load V from global memory to shared memory
                                     for j in T.serial(tile_size_per_bdx):
-                                        row_g: T.int32(is_size_var=True) = tile_start_g + j
+                                        row_g: T.int32(is_size_var=True) = tile_start_g + j  # type: ignore
                                         if row_g < kv_chunk_len[0]:
-                                            page_no: T.int32(is_size_var=True) = page_table_values[cur_page_indptr_begin + T.floordiv(row_g, 16)]
-                                            page_offset: T.int32(is_size_var=True) = T.floormod(row_g, 16)
+                                            page_no: T.int32(is_size_var=True) = page_table_values[cur_page_indptr_begin + T.floordiv(row_g, 16)]  # type: ignore
+                                            page_offset: T.int32(is_size_var=True) = T.floormod(row_g, 16)  # type: ignore
                                             for vec in T.vectorized(VEC_SIZE):
                                                 V_smem[tile_start_s + j, tx * VEC_SIZE + vec] = pages[page_no, 1, by, page_offset, tx * VEC_SIZE + vec]
                                         else:
@@ -867,7 +958,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
                                         # compute S = Q * K * sm_scale
                                         S_reduce_local[0] = 0
                                         for vec in T.serial(VEC_SIZE):
-                                            S_reduce_local[0] += Q_local[vec] * K_local[vec] * sm_scale
+                                            S_reduce_local[0] += Q_local[vec] * K_local[vec] * attn_score_scaling_factor * sm_scale
 
                                         with T.block("block_cross_thread"):
                                             T.reads(S_reduce_local[0])
@@ -943,7 +1034,9 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
     return batch_decode_paged_kv
 
 
-def _merge_state_inplace(num_heads, head_dim, v_dtype):
+def _merge_state_inplace(
+    num_heads, head_dim, v_dtype, target: Target
+):  # pylint: disable=unused-argument
     # pylint: disable=invalid-name
     v_dtype_bytes = 2
     VEC_SIZE = max(8 // v_dtype_bytes, head_dim // 32)
@@ -1010,8 +1103,9 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype):
     return merge_state_inplace
 
 
-def _attention_prefill_ragged(h_kv, h_q, d, dtype):
-    assert dtype == "float16", f"TIR attention kernel does not support dtype {dtype} right now"
+def _attention_prefill_ragged(
+    h_kv, h_q, d, dtype, target: Target
+):  # pylint: disable=unused-argument
     # pylint: disable=invalid-name,line-too-long
     NUM_BLKS = 16
     LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
@@ -1019,7 +1113,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
     sm_scale = 1.0 / math.sqrt(float(d)) * math.log2(math.exp(1))
 
     num_warps = 4
-    tile_x, tile_y, tile_z = 32, d, 16
+    tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8), d, 16
     L_per_cta = tile_x // group_size
 
     def mask(causal, row, col, kv_len, qo_len):
@@ -1045,6 +1139,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
+        attn_score_scaling_factor: T.float32
     ):
         batch_size = T.int32(is_size_var=True)
         qo_len = T.int32(is_size_var=True)
@@ -1139,7 +1234,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
                                                     rotary_mode == 1,
-                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j)),
+                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype),
                                                     q[cur_L, cur_H_qo, j]
                                                 )
                                             else:
@@ -1158,7 +1253,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
                                                 if cur_L < kv_chunk_len[0]:
                                                     K_smem[i, j] = T.if_then_else(
                                                         rotary_mode == 1,
-                                                        _rope(k, k_rope_pos_offset[b_idx] + cur_L, d, rope_theta, rope_scale, (L_kv_base + cur_L, by, j)),
+                                                        _rope(k, k_rope_pos_offset[b_idx] + cur_L, d, rope_theta, rope_scale, (L_kv_base + cur_L, by, j), dtype),
                                                         k[L_kv_base + cur_L, by, j]
                                                     )
                                                 else:
@@ -1183,7 +1278,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
                                                     i, j, k = T.axis.remap("SSR", [li, lj, lk])
                                                     with T.init():
                                                         S_local[i, j] = 0.0
-                                                    S_local[i, j] += Q_smem[i, k] * K_smem[j, k] * sm_scale
+                                                    S_local[i, j] += Q_smem[i, k] * K_smem[j, k] * attn_score_scaling_factor * sm_scale
                                         T.tvm_storage_sync("shared")
                                         for li, lj in T.grid(tile_x, tile_z):
                                             with T.block("S_store"):
@@ -1267,7 +1362,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
         cnt = (x * y) // t
         assert (x * y) % t == 0
         tile_y = (int)(math.ceil(math.sqrt(cnt)))
-        while cnt % tile_y != 0 and y % tile_y != 0 and tile_y <= cnt:
+        while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
         tile_x = cnt // tile_y
@@ -1283,7 +1378,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
         sch.bind(tx, "threadIdx.x")
         sch.vectorize(vec)
 
-    def apply_to_so_ewise(sch: tir.Schedule, block, tile, vec_len=4):
+    def apply_to_so_ewise(sch: tir.Schedule, block, tile):
         loop_x, loop_y = sch.get_loops(block)[-2:]
         xo, xi = sch.split(loop_x, factors=[None, tile[0]])
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
@@ -1292,11 +1387,6 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
         ty, tx = sch.split(t, factors=[num_warps, 32])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
-        if tile[1] % vec_len == 0:
-            yi, vec = sch.split(yi, factors=[None, vec_len])
-            sch.vectorize(vec)
-        elif tile[1] in [2, 4]:
-            sch.vectorize(yi)
 
     def apply_to_gemm(  # pylint: disable=too-many-arguments,unused-argument
         sch: tir.Schedule, block, tile, read_0, read_1, r_len=8, k_major=False

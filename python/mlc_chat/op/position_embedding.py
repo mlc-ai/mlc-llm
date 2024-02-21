@@ -1,9 +1,11 @@
 """Operators for positional embeddings, e.g. RoPE."""
-from typing import Tuple
+
+from typing import Optional, Tuple
 
 from tvm import tir
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
+from tvm.target import Target
 
 # pylint: disable=invalid-name
 
@@ -52,7 +54,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
     num_q_heads: int,
     num_kv_heads: int,
     scale: float = 1.0,
-    rotary_dim: int = None,
+    rotary_dim: Optional[int] = None,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """Llama-style RoPE. Given a fused QKV tensor, it returns three tensors, Q, K, and V, where Q
     and K are rotated by RoPE while V remains unchanged.
@@ -78,7 +80,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
     num_kv_heads : int
         The number of key/value heads. It differs from `num_q_heads` in group-query attention.
 
-    rotary_dim : int
+    rotary_dim : Optional[int]
         The number of dimensions in the embedding that RoPE is applied to. By default, the
         rotary_dim is the same as head_dim.
 
@@ -276,6 +278,8 @@ def llama_inplace_rope(
     num_q_heads: int,
     num_kv_heads: int,
     dtype: str,
+    target: Target,  # pylint: disable=unused-argument
+    rotary_dim: Optional[int] = None,
 ):
     """Return the TIR function that inplace computes Llama-style RoPE with q position offset.
 
@@ -298,9 +302,17 @@ def llama_inplace_rope(
 
     dtype : str
         The dtype of qkv data.
+
+    target : Target
+        The target to build the model to.
+
+    rotary_dim : Optional[int]
+        The number of dimensions in the embedding that RoPE is applied to. By default, the
+        rotary_dim is the same as head_dim.
     """
     assert head_dim <= 128, "Rotary embedding currently only supports head_dim <= 128"
-    rotary_dim = head_dim
+    if rotary_dim is None:
+        rotary_dim = head_dim
 
     def _rope(
         x: T.Buffer,
@@ -354,7 +366,7 @@ def llama_inplace_rope(
                             for d1 in T.vectorized(4):
                                 s: T.int32 = s0 * 32 + s1
                                 d: T.int32 = d0 * 4 + d1
-                                if s < append_len and d < head_dim:
+                                if s < append_len and d < rotary_dim:
                                     if h < num_q_heads:
                                         q[s + instance_offset, h, d] = _rope(q, s, h, d, rope_offset, instance_offset)
                                     else:

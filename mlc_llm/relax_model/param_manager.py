@@ -404,12 +404,9 @@ class ParamManager:
 
             for gv, func in mod.functions.items():
                 if isinstance(func, relax.Function) and func.attrs and "num_input" in func.attrs:
-                    quantized_param_info = self.get_quantized_param_info(gv.name_hint)
-                    param_vars = [
-                        relax.Var(f"param_{i}", info)
-                        for i, info in enumerate(quantized_param_info.fields)
-                    ]
-                    func_name_to_quantized_params[gv.name_hint] = param_vars
+                    func_name_to_quantized_params[gv.name_hint] = self.get_quantized_params(
+                        gv.name_hint
+                    )
 
             # Cache mapping to avoid duplicate dequantization.
             dequantized_cache: Dict[relax.Var, relax.Var] = {}
@@ -438,11 +435,13 @@ class ParamManager:
 
         return transform_func
 
-    def get_quantized_param_info(self, func_name: str) -> List[relax.TensorStructInfo]:
+    def get_quantized_params(self, func_name: str) -> List[relax.Var]:
+        quantized_params: List[relax.Var] = []
+
         bb = relax.BlockBuilder()
         with bb.function("main", []):
             self.param2qrange = dict()
-            quantized_param_info: List[relax.TensorStructInfo] = []
+
             for name in self.param_names:
                 param = self.params[name]
                 param_info = None
@@ -454,11 +453,14 @@ class ParamManager:
                         param.param_info.dtype,
                     )
 
-                _, loaded_tensor_info = param.quant_spec.get_loaded_tensor_info(name, param_info)
+                loaded_tensor_names, loaded_tensor_info = param.quant_spec.get_loaded_tensor_info(
+                    name, param_info
+                )
 
-                provided_tensor_vars: List[relax.Var] = []
-                for provided_info in loaded_tensor_info:
-                    provided_tensor_vars.append(relax.Var("var", provided_info))
+                provided_tensor_vars: List[relax.Var] = [
+                    relax.Var(name, sinfo)
+                    for name, sinfo in zip(loaded_tensor_names, loaded_tensor_info)
+                ]
 
                 # Get the quantization function of this parameter.
                 f_quantize = param.quant_spec.get_quantize_func(param_info)
@@ -466,10 +468,10 @@ class ParamManager:
                     # If the parameter does not have a quantization function, either it
                     # does not need quantization or it is pre-quantized.
                     self.param2qrange[param] = range(
-                        len(quantized_param_info),
-                        len(quantized_param_info) + len(provided_tensor_vars),
+                        len(quantized_params),
+                        len(quantized_params) + len(provided_tensor_vars),
                     )
-                    quantized_param_info += [var.struct_info for var in provided_tensor_vars]
+                    quantized_params.extend(provided_tensor_vars)
                 else:
                     # If the parameter has a quantization function, it is not expected
                     # to be pre-quantized.
@@ -481,69 +483,68 @@ class ParamManager:
                     # Apply the quantization function.
                     quantized_data = bb.normalize(f_quantize(bb, provided_tensor_vars))
                     if isinstance(quantized_data.struct_info, relax.TupleStructInfo):
-                        n_tensor = len(quantized_data.struct_info.fields)
+                        fields = quantized_data.struct_info.fields
+                        n_tensor = len(fields)
                         assert n_tensor > 1
                         # Record the range of quantized tensors of this parameter.
                         self.param2qrange[param] = range(
-                            len(quantized_param_info),
-                            len(quantized_param_info) + n_tensor,
+                            len(quantized_params),
+                            len(quantized_params) + n_tensor,
                         )
                         # Collect the quantized tensors to return.
-                        for i in range(n_tensor):
-                            quantized_param_info.append(
-                                relax.TupleGetItem(quantized_data, i).struct_info
-                            )
-                    else:
-                        assert isinstance(quantized_data.struct_info, relax.TensorStructInfo)
-                        self.param2qrange[param] = range(
-                            len(quantized_param_info), len(quantized_param_info) + 1
+                        quantized_params.extend(
+                            relax.Var(f"{name}.{field.dtype}.{i}", field)
+                            for i, field in enumerate(fields)
                         )
-                        quantized_param_info.append(quantized_data.struct_info)
+
+                    else:
+                        field = quantized_data.struct_info
+                        assert isinstance(field, relax.TensorStructInfo)
+                        self.param2qrange[param] = range(
+                            len(quantized_params), len(quantized_params) + 1
+                        )
+                        quantized_params.append(relax.Var(f"{name}.{field.dtype}", field))
             bb.emit_func_output(relax.const(0, "int64"))
 
-        return relax.TupleStructInfo(quantized_param_info)
+        return quantized_params
 
-    def get_param_loading_functions(
-        self,
-        model_params: List[Optional[tvm.nd.NDArray]],
-        loaded_params: List[tvm.nd.NDArray],
-        loaded_idx_set: Set[int],
-        loaded_torch_bins: Set[str],
-        cached_relax_params: Dict[int, tvm.nd.NDArray],
-        cached_torch_params: Dict[str, Any],
-        device: Device,
-        device_cpu: Device,
-    ) -> Tuple[Callable, Callable]:
-        """A wrapper function which returns the `get_item` and `set_item`
+    def get_param_get_item(
+        self, device: Device, model_params: List[Optional[tvm.nd.NDArray]] = []
+    ) -> Callable:
+        """A wrapper function which returns the `get_item`
         functions for parameter lazy loading.
+
+        The return value of this function is intended to be registered
+        as `"get_item"`, for use in a module built with
+        `LazyTransformParams`.
+
+        .. code-block:: python
+
+            get_item = manager.get_param_get_item(tvm.cuda())
+            tvm.register_func(func_name="get_item", f=get_item, override=True)
+            compiled_function()
 
         Parameters
         ----------
-        model_params : List[Optional[tvm.nd.NDArray]]
-            The pre-loaded model parameters, for which we skip lazy loading.
-
-        loaded_params : List[tvm.nd.NDArray]
-            The parameter loading result, storing all the loaded parameters.
-
-        loaded_idx_set : Set[int]
-            The set of indices of loaded parameters, serving for robustness
-            guarantee to avoid one parameter being loaded for multiple times.
-
-        loaded_torch_bins : Set[str]
-            The set of torch binary filenames, serving for robustness guarantee
-            to avoid one torch binary file being loaded for multiple times.
-
-        cached_relax_params : Dict[int, tvm.nd.NDArray]
-            The set of cached Relax parameters.
-
-        cached_torch_params: Dict[str, Any]
-            The set of cached torch parameters. `Any` here stands for numpy.ndarray.
-
         device : Device
-            The device which we load the parameters to.
 
-        device_cpu : Device
-            The CPU device.
+            The device onto which tensor parameters should be loaded.
+
+        model_params : List[Optional[tvm.nd.NDArray]]
+
+            Any pre-loaded model parameters.  For parameter at index
+            `i`, if `model_params[i]` already contains an array, that
+            array will be returned from `get_item`.  Otherwise, the
+            parameter will be loaded either from disk, or from an
+            internal cache.
+
+        Returns
+        -------
+        get_item: Callable[[int], tvm.nd.NDArray]
+
+            A function that accepts an index, and returns the tensor
+            parameter located at that index, loaded onto `device`.
+
         """
         import torch  # pylint: disable=import-outside-toplevel
 
@@ -551,6 +552,24 @@ class ParamManager:
         assert self.f_convert_param_bkwd is not None
         assert self.f_compute_relax_param is not None
         pname2pidx: Dict[str, int] = {pname: pidx for pidx, pname in self.pidx2pname.items()}
+
+        # The set of indices of loaded parameters, serving for
+        # robustness guarantee to avoid one parameter being loaded for
+        # multiple times.
+        loaded_idx_set: Set[int] = set()
+
+        # The set of torch binary filenames, serving for robustness guarantee
+        # to avoid one torch binary file being loaded for multiple times.
+        loaded_torch_bins: Set[str] = set()
+
+        # The set of cached Relax parameters.
+        cached_relax_params: Dict[int, tvm.nd.NDArray] = {}
+
+        # The set of cached torch parameters. `Any` here stands for
+        # numpy.ndarray.
+        cached_torch_params: Dict[str, Any] = {}
+
+        device_cpu = tvm.cpu()
 
         def fetch_torch_param(torch_param):
             if str(torch_param.dtype) == "torch.bfloat16":
@@ -590,7 +609,7 @@ class ParamManager:
         def get_item(i):
             # If the weight is already provided by `model_params`, directly use it
             # and no need to load from binary file.
-            if model_params[i] is not None:
+            if model_params and len(model_params) > i and model_params[i] is not None:
                 assert i not in cached_relax_params
                 return tvm.nd.array(model_params[i], device=device)
 
@@ -625,12 +644,47 @@ class ParamManager:
             del cached_relax_params[i]
             return param_on_device
 
-        def set_item(i, computed_param):
+        return get_item
+
+    def get_param_set_item(self) -> Tuple[Callable, List[tvm.nd.NDArray]]:
+        """A wrapper function which returns the `set_item`
+        functions for parameter lazy loading.
+
+        The return value of this function is intended to be registered
+        as `"set_item"`, for use in a module built with
+        `LazyTransformParams`.
+
+        .. code-block:: python
+
+            set_item,loaded_params = manager.get_param_set_item()
+            tvm.register_func(func_name="set_item", f=set_item, override=True)
+            compiled_function()
+            # `loaded_params` is now fully populated
+
+        Returns
+        -------
+        set_item: Callable[[int,tvm.nd.NDArray]]
+
+            A function that accepts an index and the return value at
+            that index.
+
+        loaded_params: List[tvm.nd.NDArray]
+
+            A list of loaded parameters, populated by `set_item`.
+            When initially returned, this list is empty.  After
+            executing the compiled function with
+            `LazyTransformParams`, `loaded_params` will be
+            populated.
+        """
+        device_cpu = tvm.cpu()
+        loaded_params: List[tvm.nd.NDArray] = []
+
+        def set_item(i: int, computed_param: tvm.nd.NDArray):
             if len(loaded_params) <= i:
                 loaded_params.extend([None for _ in range(i - len(loaded_params) + 1)])
             loaded_params[i] = tvm.nd.array(computed_param, device=device_cpu)
 
-        return get_item, set_item
+        return set_item, loaded_params
 
     #################### Below are internally called methods ####################
 

@@ -6,4 +6,4 @@ from .fuse_split_rotary_embedding import fuse_split_rotary_embedding
 from .lift_tir_global_buffer_alloc import LiftTIRGlobalBufferAlloc
 from .reorder_transform_func import ReorderTransformFunc
 from .rewrite_attention import rewrite_attention
-from .transpose_matmul import FuseTransposeMatmul
+from .transpose_matmul import FuseTransposeMatmul, FuseTranspose1Matmul, FuseTranspose2Matmul

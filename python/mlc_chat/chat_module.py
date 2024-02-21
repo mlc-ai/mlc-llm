@@ -1,4 +1,5 @@
 """The Python API for MLC chat."""
+
 #! pylint: disable=too-many-lines
 import dataclasses
 import inspect

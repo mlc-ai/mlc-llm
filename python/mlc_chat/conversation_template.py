@@ -2,7 +2,7 @@
 
 from typing import Dict, Optional
 
-from .protocol.conversation_protocol import SYSTEM_MESSAGE_PLACEHOLDER, Conversation
+from .protocol.conversation_protocol import Conversation, MessagePlaceholders
 
 
 class ConvTemplateRegistry:
@@ -40,13 +40,38 @@ class ConvTemplateRegistry:
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="llama-2",
-        system_template=f"[INST] <<SYS>>\n\n{SYSTEM_MESSAGE_PLACEHOLDER}\n<</SYS>>\n\n ",
+        system_template=f"[INST] <<SYS>>\n{MessagePlaceholders.SYSTEM.value}\n<</SYS>>\n\n ",
         system_message="You are a helpful, respectful and honest assistant.",
-        roles=("[INST]", "[/INST]"),
+        roles={"user": "[INST]", "assistant": "[/INST]", "tool": "[INST]"},
         seps=[" "],
         role_content_sep=" ",
         role_empty_sep=" ",
         stop_str=["[INST]"],
+        stop_token_ids=[2],
+    )
+)
+
+# Gorilla
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="gorilla",
+        system_template=f"{MessagePlaceholders.SYSTEM.value}",
+        system_message=(
+            "A chat between a curious user and an artificial intelligence assistant. "
+            "The assistant provides helpful, detailed, and "
+            "polite responses to the user's inquiries."
+        ),
+        role_templates={
+            "user": (
+                f"<<question>> {MessagePlaceholders.USER.value} <<function>> "
+                f"{MessagePlaceholders.FUNCTION.value}"
+            ),
+        },
+        roles={"user": "USER", "assistant": "ASSISTANT", "tool": "USER"},
+        seps=["\n", "</s>"],
+        role_content_sep=": ",
+        role_empty_sep=":",
+        stop_str=["</s>"],
         stop_token_ids=[2],
     )
 )

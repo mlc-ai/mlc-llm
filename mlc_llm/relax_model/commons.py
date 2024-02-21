@@ -66,6 +66,27 @@ def _get_shard_strategies(
         func = te.create_prim_func([a, w])
         return func
 
+    def shard_axis_0(weight: relax.TensorStructInfo):
+        (red, spatial), dtype = weight.shape, weight.dtype
+        red, spatial = int(red), int(spatial)
+        if param_shape_is_already_sharded:
+            red *= num_shards
+        a = te.placeholder((red, spatial), dtype=dtype)
+        w = topi.reshape(a, (num_shards, red // num_shards, spatial))
+        func = te.create_prim_func([a, w])
+        return func
+
+    def shard_axis_1(weight: relax.TensorStructInfo):
+        (spatial, red), dtype = weight.shape, weight.dtype
+        spatial, red = int(spatial), int(red)
+        if param_shape_is_already_sharded:
+            red *= num_shards
+        a = te.placeholder((spatial, red), dtype=dtype)
+        w = topi.reshape(a, (spatial, num_shards, red // num_shards))
+        w = topi.transpose(w, (1, 0, 2))
+        func = te.create_prim_func([a, w])
+        return func
+
     def shard_gate_up_weight_scale(weight: relax.TensorStructInfo):
         (spatial, red), dtype = weight.shape, weight.dtype
         spatial, red = int(spatial), int(red)
@@ -88,6 +109,8 @@ def _get_shard_strategies(
         "shard_mlp_k": shard_k_weight_scale,
         "shard_o_proj_k": shard_k_weight_scale,
         "shard_gate_up": shard_gate_up_weight_scale,
+        "shard_axis_0": shard_axis_0,
+        "shard_axis_1": shard_axis_1,
     }
 
 
@@ -127,6 +150,27 @@ def _get_shard_strategies_ft(
         func = te.create_prim_func([a, w])
         return func
 
+    def shard_axis_0(weight: relax.TensorStructInfo):
+        (red, spatial), dtype = weight.shape, weight.dtype
+        red, spatial = int(red), int(spatial)
+        if param_shape_is_already_sharded:
+            red *= num_shards
+        a = te.placeholder((red, spatial), dtype=dtype)
+        w = topi.reshape(a, (num_shards, red // num_shards, spatial))
+        func = te.create_prim_func([a, w])
+        return func
+
+    def shard_axis_1(weight: relax.TensorStructInfo):
+        (spatial, red), dtype = weight.shape, weight.dtype
+        spatial, red = int(spatial), int(red)
+        if param_shape_is_already_sharded:
+            red *= num_shards
+        a = te.placeholder((spatial, red), dtype=dtype)
+        w = topi.reshape(a, (spatial, num_shards, red // num_shards))
+        w = topi.transpose(w, (1, 0, 2))
+        func = te.create_prim_func([a, w])
+        return func
+
     def shard_gate_up_weight_scale(x: relax.TensorStructInfo):
         (red, spatial), dtype = x.shape, x.dtype
         red, spatial = int(red), int(spatial)
@@ -148,6 +192,8 @@ def _get_shard_strategies_ft(
         "shard_mlp_k": shard_k_weight,
         "shard_o_proj_k": shard_k_weight,
         "shard_gate_up": shard_gate_up_weight_scale,
+        "shard_axis_0": shard_axis_0,
+        "shard_axis_1": shard_axis_1,
     }
 
 
@@ -172,7 +218,7 @@ def create_shard_info_func(param_manager, args, model_config) -> tvm.IRModule:
 
         shard_info_dict[param_name] = shard_info
 
-    q_params = param_manager.get_quantized_param_info("prefill").fields
+    q_params = [param.struct_info for param in param_manager.get_quantized_params("prefill")]
     for _, param in param_manager.params.items():
         if param.shard_strategy is None:
             pass
@@ -223,7 +269,7 @@ def create_shard_transformation_func(param_manager, args, model_config) -> tvm.I
             param_shape_is_already_sharded=args.build_model_only,
         )
 
-    q_params = param_manager.get_quantized_param_info("prefill").fields
+    q_params = [param.struct_info for param in param_manager.get_quantized_params("prefill")]
 
     # The order of the quantized parameters must be preserved.
     # Therefore, we need to loop over q_params and look up information

@@ -1,4 +1,5 @@
 """AWQ Quantization"""
+
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
@@ -8,7 +9,7 @@ from tvm.runtime import NDArray
 
 from mlc_chat.loader import QuantizeMapping
 
-from .utils import convert_uint_to_float
+from .utils import convert_uint_to_float, is_final_fc
 
 
 def _make_divisible(c, divisor):  # pylint: disable=invalid-name
@@ -116,7 +117,7 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
                     The new node to replace current node.
                 """
 
-                if isinstance(node, nn.Linear) and name != "lm_head":
+                if isinstance(node, nn.Linear) and not is_final_fc(name):
                     return AWQQuantizeLinear.from_linear(node, self.config)
                 return self.visit(name, node)
 
@@ -154,9 +155,11 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
         float_zeros = topi.transpose(float_zeros)
         scale = topi.transpose(scale)
         return te.compute(
-            shape=[weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
-            if out_shape is None
-            else out_shape,
+            shape=(
+                [weight.shape[0], weight.shape[1] * self.num_elem_per_storage]
+                if out_shape is None
+                else out_shape
+            ),
             fcompute=lambda i, j: tir.multiply(
                 tir.subtract(float_weight[i, j], float_zeros[i, j // self.group_size]),
                 scale[i, j // self.group_size],
