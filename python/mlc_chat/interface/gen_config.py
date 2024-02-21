@@ -40,6 +40,8 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     shift_fill_factor: float = None
     # Configuration of text generation
     temperature: float = None
+    presence_penalty: float = None
+    frequency_penalty: float = None
     repetition_penalty: float = None
     top_p: float = None
     # Conversation template
@@ -58,6 +60,8 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
             "bos_token_id": 1,
             "eos_token_id": 2,
             "temperature": 0.7,
+            "presence_penalty": 0.0,
+            "frequency_penalty": 0.0,
             "repetition_penalty": 1.0,
             "top_p": 0.95,
             "mean_gen_len": 128,
@@ -224,4 +228,5 @@ CONV_TEMPLATES = {
     "custom",  # for web-llm only
     "phi-2",
     "stablelm-2",
+    "gemma_instruction",
 }

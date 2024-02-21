@@ -478,7 +478,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
     sm_scale = 1.0 / math.sqrt(float(d)) * math.log2(math.exp(1))
 
     num_warps = 4
-    tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8), d, 16
+    tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1), d, 16
     L_per_cta = tile_x // group_size
 
     def mask(causal, row, col, kv_len, qo_len):
@@ -821,7 +821,7 @@ def _attention_decode(
     D = head_dim
 
     GROUP_SIZE = H_qo // H_kv
-    VEC_SIZE = max(8 // qkv_dtype_bytes, D // 32)
+    VEC_SIZE = min(max(8 // qkv_dtype_bytes, D // 32), 4)
     bdx = D // VEC_SIZE
     bdy = GROUP_SIZE
     threads_per_CTA = max(512, bdx * bdy)
@@ -1039,7 +1039,7 @@ def _merge_state_inplace(
 ):  # pylint: disable=unused-argument
     # pylint: disable=invalid-name
     v_dtype_bytes = 2
-    VEC_SIZE = max(8 // v_dtype_bytes, head_dim // 32)
+    VEC_SIZE = min(max(8 // v_dtype_bytes, head_dim // 32), 4)
     bdx = head_dim // VEC_SIZE
     bdy = num_heads
 
@@ -1113,7 +1113,7 @@ def _attention_prefill_ragged(
     sm_scale = 1.0 / math.sqrt(float(d)) * math.log2(math.exp(1))
 
     num_warps = 4
-    tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8), d, 16
+    tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1), d, 16
     L_per_cta = tile_x // group_size
 
     def mask(causal, row, col, kv_len, qo_len):

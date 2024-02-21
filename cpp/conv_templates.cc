@@ -700,6 +700,25 @@ Conversation StableLM2() {
   return conv;
 }
 
+Conversation GemmaInstruction() {
+  Conversation conv;
+  conv.name = "gemma_instruction";
+  conv.system = "";
+  conv.roles = {"<start_of_turn>user", "<start_of_turn>model"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"<end_of_turn>\n"};
+  conv.role_msg_sep = "\n";
+  conv.role_empty_sep = "\n";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {1, 107};  // <eos> and <end_of_turn>
+  conv.stop_str = "<end_of_turn>";
+  conv.add_bos = true;
+  return conv;
+}
+
 }  // namespace
 
 using ConvFactory = Conversation (*)();
@@ -738,7 +757,9 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"phi-2", Phi2},
       {"qwen", ChatML},
       {"stablelm-2", StableLM2},
-      {"baichuan", ChatML}};
+      {"baichuan", ChatML},
+      {"gemma_instruction", GemmaInstruction},
+  };
   auto it = factory.find(name);
   if (it == factory.end()) {
     LOG(FATAL) << "Unknown conversation template: " << name;
