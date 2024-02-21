@@ -9,6 +9,7 @@ from mlc_chat.loader import ExternMapping, QuantizeMapping
 from mlc_chat.quantization.quantization import Quantization
 
 from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
+from .gemma import gemma_loader, gemma_model, gemma_quantization
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
 from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
@@ -92,6 +93,19 @@ MODELS: Dict[str, Model] = {
             "group-quant": mistral_quantization.group_quant,
             "no-quant": mistral_quantization.no_quant,
             "ft-quant": mistral_quantization.ft_quant,
+        },
+    ),
+    "gemma": Model(
+        name="gemma",
+        model=gemma_model.GemmaForCausalLM,
+        config=gemma_model.GemmaConfig,
+        source={
+            "huggingface-torch": gemma_loader.huggingface,
+            "huggingface-safetensor": gemma_loader.huggingface,
+        },
+        quantize={
+            "no-quant": gemma_quantization.no_quant,
+            "group-quant": gemma_quantization.group_quant,
         },
     ),
     "gpt2": Model(

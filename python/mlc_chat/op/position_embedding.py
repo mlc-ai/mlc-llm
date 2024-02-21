@@ -310,7 +310,6 @@ def llama_inplace_rope(
         The number of dimensions in the embedding that RoPE is applied to. By default, the
         rotary_dim is the same as head_dim.
     """
-    assert head_dim <= 128, "Rotary embedding currently only supports head_dim <= 128"
     if rotary_dim is None:
         rotary_dim = head_dim
 
