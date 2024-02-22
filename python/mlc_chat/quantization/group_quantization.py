@@ -514,6 +514,40 @@ class GroupQuantizeEmbedding(nn.Module):
             shape=[*x.shape, self.dim],
         )
 
+    def lm_head_forward(self, x: nn.Tensor):
+        """The lm_head forwarding, which dequantizes the weight
+        and multiplies it with the input tensor.
+
+        Parameters
+        ----------
+        x : nn.Tensor
+            The input tensor.
+
+        Returns
+        -------
+        ret : nn.Tensor
+            The output tensor for the lm_head layer.
+        """
+        w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
+                weight,
+                scale,
+                axis=-1,
+                out_shape=[
+                    (
+                        tir.IntImm("int64", self.num)
+                        if isinstance(self.num, int)
+                        else weight.shape[0]
+                    ),
+                    tir.IntImm("int64", self.dim),
+                ],
+            ),
+            name_hint="dequantize",
+            args=[self.q_weight, self.q_scale],
+        )
+        w = nn.op.permute_dims(w)
+        return nn.op.matmul(x, w, out_dtype="float32")
+
 
 class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instance-attributes
     """An MixtralExperts module with group quantization"""
