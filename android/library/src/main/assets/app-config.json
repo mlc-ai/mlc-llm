@@ -1,6 +1,12 @@
 {
   "model_list": [
     {
+      "model_url": "https://huggingface.co/mlc-ai/gemma-2b-it-q4f16_1-MLC",
+      "model_id": "gemma-2b-q4f16_1",
+      "model_lib": "gemma_q4f16_1",
+      "estimated_vram_bytes": 3000000000
+    },
+    {
       "model_url": "https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC/",
       "model_lib": "llama_q4f16_1",
       "estimated_vram_bytes": 4348727787,
@@ -26,9 +32,10 @@
     }
   ],
   "model_lib_path_for_prepare_libs": {
-    "llama_q4f16_1": "libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-android.tar",
-    "gpt_neox_q4f16_1": "libs/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar",
-    "phi_q4f16_1": "libs/phi-2/phi-2-q4f16_1-android.tar",
-    "Mistral-7B-Instruct-v0.2-q4f16_1": "libs/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-android.tar"
+    "gemma_q4f16_1": "prebuilt_libs/gemma-2b-it/gemma-2b-it-q4f16_1-android.tar",
+    "llama_q4f16_1": "prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-android.tar",
+    "gpt_neox_q4f16_1": "prebuilt_libs/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar",
+    "phi_q4f16_1": "prebuilt_libs/phi-2/phi-2-q4f16_1-android.tar",
+    "Mistral-7B-Instruct-v0.2-q4f16_1": "prebuilt_libs/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-android.tar"
   }
 }
