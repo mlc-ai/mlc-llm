@@ -35,23 +35,14 @@ public class ChatModule {
 
     public void reload(
         String modelLib,
-        String modelPath,
-        int contextWindowSize,
-        int prefillChunkSize
+        String modelPath
     ) {
         String libPrefix = modelLib.replace('-', '_') + "_";
         Function systemLibFunc = Function.getFunction("runtime.SystemLib");
         assert systemLibFunc != null;
         systemLibFunc = systemLibFunc.pushArg(libPrefix);
         Module lib = systemLibFunc.invoke().asModule();
-        String kv_cache_config =
-        "{" +
-            "\"page_size\": 16, " +
-            "\"max_num_sequence\": 1, " +
-            "\"max_total_sequence_length\": " + contextWindowSize + ", " +
-            "\"prefill_chunk_size\": " + prefillChunkSize +
-        "}";
-        reloadFunc = reloadFunc.pushArg(lib).pushArg(modelPath).pushArg("").pushArg(kv_cache_config);
+        reloadFunc = reloadFunc.pushArg(lib).pushArg(modelPath);
         reloadFunc.invoke();
     }
 
