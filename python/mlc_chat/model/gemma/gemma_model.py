@@ -88,6 +88,19 @@ class GemmaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 # pylint: disable=invalid-name,missing-docstring
 
 
+class GemmaEmbedding(nn.Embedding):
+    """The embedding module specialized for Gemma so that
+    it can be shared with the final lm_head.
+    """
+
+    def lm_head_forward(self, x: nn.Tensor):
+        """The lm_head forwarding, which transposes the weight and multiplies
+        with the input tensor.
+        """
+        weight = nn.op.permute_dims(self.weight)
+        return nn.op.matmul(x, weight, out_dtype="float32")
+
+
 class GemmaMLP(nn.Module):
     def __init__(self, config: GemmaConfig):
         super().__init__()
@@ -184,7 +197,7 @@ class GemmaModel(nn.Module):
     def __init__(self, config: GemmaConfig):
         self.hidden_size = config.hidden_size
         assert config.hidden_size % config.num_attention_heads == 0
-        self.embed_tokens = nn.Embedding("vocab_size", config.hidden_size)
+        self.embed_tokens = GemmaEmbedding("vocab_size", config.hidden_size)
         self.layers = nn.ModuleList(
             [GemmaDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
@@ -231,7 +244,7 @@ class GemmaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         hidden_states = self.model(input_embeds, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
-        logits = op.matmul(hidden_states, op.permute_dims(self.model.embed_tokens.weight))
+        logits = self.model.embed_tokens.lm_head_forward(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
@@ -248,7 +261,7 @@ class GemmaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
 
         hidden_states = self.model(input_embed, paged_kv_cache)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = op.matmul(hidden_states, op.permute_dims(self.model.embed_tokens.weight))
+        logits = self.model.embed_tokens.lm_head_forward(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits, paged_kv_cache
@@ -257,7 +270,7 @@ class GemmaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         op_ext.configure()
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        logits = op.matmul(hidden_states, op.permute_dims(self.model.embed_tokens.weight))
+        logits = self.model.embed_tokens.lm_head_forward(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits, paged_kv_cache

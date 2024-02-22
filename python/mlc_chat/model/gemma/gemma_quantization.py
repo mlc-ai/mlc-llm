@@ -19,9 +19,6 @@ def group_quant(
     model: nn.Module = GemmaForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
-    # We skip the embedding quantization for Gemma since
-    # Gemma shares the embedding and lm_head weight.
-    quantization.quantize_embedding = False
     model = quantization.quantize_model(
         model,
         quant_map,
