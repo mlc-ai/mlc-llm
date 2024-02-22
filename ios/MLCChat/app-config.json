@@ -29,6 +29,6 @@
     "mistral_q3f16_1": "lib/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q3f16_1-iphone.tar",
     "gpt_neox_q4f16_1": "lib/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar",
     "phi_msft_q4f16_1": "lib/phi-2/phi-2-q4f16_1-iphone.tar",
-    "gemma_q4f16_1": "lib/gemma-2b-it-q4f16_1/gemma-2b-it-q4f16_1-iphone.tar"
+    "gemma_q4f16_1": "lib/gemma-2b-it/gemma-2b-it-q4f16_1-iphone.tar"
   }
 }
