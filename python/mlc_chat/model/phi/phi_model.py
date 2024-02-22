@@ -365,7 +365,6 @@ class PhiForCausalLM(nn.Module):
 
     def embed(self, input_ids: Tensor):
         embeds = self.transformer.embd(input_ids)
-        op.print_(embeds)
         return embeds
 
     def create_paged_kv_cache(
