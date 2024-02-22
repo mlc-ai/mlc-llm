@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional, Union
 from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm import relax
 
 from mlc_chat import op as op_ext
 from mlc_chat.nn import PagedKVCache, RopeMode
@@ -346,6 +347,15 @@ class PhiForCausalLM(nn.Module):
 
         if logits.dtype != "float32":
             logits = logits.astype("float32")
+
+        logits = op.wrap_nested(
+            relax.BlockBuilder.current().emit(
+                relax.op.call_pure_packed(
+                    "print_nd", logits._expr, sinfo_args=logits._expr.struct_info
+                )
+            ),
+            name="print_nd",
+        )
         return logits, paged_kv_cache
 
     def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
