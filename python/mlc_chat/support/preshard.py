@@ -1,5 +1,5 @@
 """Functions for pre-sharding weights"""
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from tvm import IRModule
 from tvm import dlight as dl
@@ -19,19 +19,22 @@ def _update_quantize_map(
     mlc_name: str,
     tensor_parallel_shards: int,
 ):
-    if mlc_name not in quantize_map.param_map:
-        return
-    quantized_params = quantize_map.param_map[mlc_name]
-    quantize_func = quantize_map.map_func[mlc_name]
+    param_names: List[str] = [mlc_name]
 
-    for worker_id in range(tensor_parallel_shards):
-        sharded_mlc_name = _sharded_param_name(mlc_name, worker_id)
-        quantize_map.param_map[sharded_mlc_name] = [
-            _sharded_param_name(param_name, worker_id) for param_name in quantized_params
-        ]
-        quantize_map.map_func[sharded_mlc_name] = quantize_func
+    if mlc_name in quantize_map.param_map:
+        # the parameter is quantized
+        quantized_params = quantize_map.param_map[mlc_name]
+        param_names = quantized_params
+        quantize_func = quantize_map.map_func[mlc_name]
 
-    for param_name in quantized_params:
+        for worker_id in range(tensor_parallel_shards):
+            sharded_mlc_name = _sharded_param_name(mlc_name, worker_id)
+            quantize_map.param_map[sharded_mlc_name] = [
+                _sharded_param_name(param_name, worker_id) for param_name in quantized_params
+            ]
+            quantize_map.map_func[sharded_mlc_name] = quantize_func
+
+    for param_name in param_names:
         param = named_params.pop(param_name)
         for worker_id in range(tensor_parallel_shards):
             named_params[_sharded_param_name(param_name, worker_id)] = param
