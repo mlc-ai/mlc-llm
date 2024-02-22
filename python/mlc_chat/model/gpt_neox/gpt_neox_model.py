@@ -105,12 +105,6 @@ class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.dense = nn.Linear(
             self.num_attention_heads * self.head_dim, self.hidden_size, bias=True
         )
-        self.k_cache = nn.KVCache(
-            config.context_window_size, [self.num_attention_heads, self.head_dim]
-        )
-        self.v_cache = nn.KVCache(
-            config.context_window_size, [self.num_attention_heads, self.head_dim]
-        )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         # hidden_states: [batch_size, seq_len, hidden_size]
