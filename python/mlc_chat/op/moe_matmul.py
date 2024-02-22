@@ -416,14 +416,15 @@ def dequantize_group_gemm(
     assert BLK_K % 8 == 0
     tiles_per_row = (N + BLK_N - 1) // BLK_N
     zero = tir.const(0, model_dtype)
-    indptr_shape = (Ne + 1,) if indptr_dtype == "int32" else (Ne,)
+    if indptr_dtype == "int64":
+        indptr = op.pad(indptr, [1, 0], "constant", 0)
 
     @T.prim_func(private=True)
     def _func(
         var_x: T.handle,
         w: T.Buffer((Ne, N, num_storage), storage_dtype),
         scale: T.Buffer((Ne, N, num_group), model_dtype),
-        indptr: T.Buffer(indptr_shape, indptr_dtype),
+        indptr: T.Buffer((Ne + 1,), indptr_dtype),
         var_o: T.handle,
     ):
         T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
