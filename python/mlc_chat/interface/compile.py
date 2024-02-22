@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 from tvm import IRModule, relax, tir
-from tvm.ir.transform import Pass
+from tvm.ir.transform import Pass, PassContext
 from tvm.relax.frontend import nn
 from tvm.target import Target
 
@@ -173,22 +173,23 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         }
         logger.info("Registering metadata: %s", metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
-        args.build_func(
-            mod,
-            args,
-            pipeline=relax.get_pipeline(  # type: ignore
-                "mlc_llm",
-                target=args.target,
-                flashinfer=args.opt.flashinfer,
-                cublas_gemm=args.opt.cublas_gemm,
-                faster_transformer=args.opt.faster_transformer,
-                variable_bounds=variable_bounds,
-                additional_tirs=additional_tirs,
-                ext_mods=ext_mods,
-                metadata=metadata,
-                debug_dump=args.debug_dump,
-            ),
-        )
+        with PassContext(config={"relax.backend.use_cuda_graph": args.opt.cudagraph}):
+            args.build_func(
+                mod,
+                args,
+                pipeline=relax.get_pipeline(  # type: ignore
+                    "mlc_llm",
+                    target=args.target,
+                    flashinfer=args.opt.flashinfer,
+                    cublas_gemm=args.opt.cublas_gemm,
+                    faster_transformer=args.opt.faster_transformer,
+                    variable_bounds=variable_bounds,
+                    additional_tirs=additional_tirs,
+                    ext_mods=ext_mods,
+                    metadata=metadata,
+                    debug_dump=args.debug_dump,
+                ),
+            )
         _report_memory_usage(metadata=metadata, config=model_config)
     logger.info("Generated: %s", bold(str(args.output)))
 
