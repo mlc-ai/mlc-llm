@@ -135,12 +135,11 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
 
     def _dequantize_e4m3(w, s, e, i, j):
         tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
-        tir_max_int = tir.const(448, model_dtype)
         w = w[e, i, j // num_elem_per_storage]
         s = s[e, i, j // group_size]
         shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
         w = tir.reinterpret(DataType(quantize_dtype), tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask)).astype(model_dtype)
-        return (w - tir_max_int) * s
+        return w * s
     
     if DataType(quantize_dtype).type_code == DataTypeCode.E4M3Float:
         dequantize_func = _dequantize_e4m3
@@ -424,12 +423,11 @@ def dequantize_group_gemm(
 
     def _dequantize_e4m3(w, s, e, i, j):
         tir_bin_mask = tir.const((1 << quantize_dtype_bits) - 1, storage_dtype)
-        tir_max_int = tir.const(448, model_dtype)
         w = w[e, i, j // num_elem_per_storage]
         s = s[e, i, j // group_size]
         shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
         w = tir.reinterpret(DataType(quantize_dtype), tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask)).astype(model_dtype)
-        return (w - tir_max_int) * s
+        return w * s
 
     if DataType(quantize_dtype).type_code == DataTypeCode.E4M3Float:
         dequantize_func = _dequantize_e4m3
