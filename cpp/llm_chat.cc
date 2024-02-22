@@ -451,6 +451,16 @@ class LLMChat {
     } else {
       CHECK(partial_update) << "Key \"repetition_penalty\" not found.";
     }
+    if (config.count("presence_penalty")) {
+      CHECK(config["presence_penalty"].is<double>());
+      this->presence_penalty_ = config["presence_penalty"].get<double>();
+      CHECK(fabs(this->presence_penalty_) <= 2.0) << "Presence penalty must be in [-2, 2]";
+    }
+    if (config.count("frequency_penalty")) {
+      CHECK(config["frequency_penalty"].is<double>());
+      this->frequency_penalty_ = config["frequency_penalty"].get<double>();
+      CHECK(fabs(this->frequency_penalty_) <= 2.0) << "Frequency penalty must be in [-2, 2]";
+    }
     if (config.count("vocab_size")) {
       CHECK(config["vocab_size"].is<int64_t>());
       this->vocab_size_ = config["vocab_size"].get<int64_t>();
@@ -569,8 +579,7 @@ class LLMChat {
    * \param app_config_json The JSON string used to partially override the configuration loaded from
    * disk, default to empty string.
    */
-  void Reload(TVMArgValue reload_lib, String model_path, String app_config_json = "",
-              String kv_config_json = "") {
+  void Reload(TVMArgValue reload_lib, String model_path, String app_config_json = "") {
     // Step 1. Process config json string.
     picojson::object model_config;
     {
@@ -613,12 +622,11 @@ class LLMChat {
     // Step 5. Load params in nd-array cache.
     this->params_ = ft_.LoadParams(model_path, device_, use_presharded_weights_);
     // Step 6. KV cache creation.
-    if (ft_.use_paged_kv_cache && !kv_config_json.empty()) {
-      this->kv_cache_config_ = serve::KVCacheConfig(kv_config_json, this->max_window_size_);
-      IntTuple max_num_sequence{this->kv_cache_config_->max_num_sequence};
-      IntTuple max_total_sequence_length{this->kv_cache_config_->max_total_sequence_length};
-      IntTuple prefill_chunk_size{this->kv_cache_config_->prefill_chunk_size};
-      IntTuple page_size{this->kv_cache_config_->page_size};
+    if (ft_.use_paged_kv_cache) {
+      IntTuple max_num_sequence{1};
+      IntTuple max_total_sequence_length{this->max_window_size_};
+      IntTuple prefill_chunk_size{this->prefill_chunk_size_};
+      IntTuple page_size{16};
       this->kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence, max_total_sequence_length,
                                                   prefill_chunk_size, page_size);
     } else {
@@ -1615,10 +1623,6 @@ class LLMChatModule : public ModuleNode {
         } else if (args.size() == 3) {
           // args: reload_lib, model_path, app_config_json (used for overriding config)
           chat_->Reload(args[0], args[1], args[2]);
-        } else if (args.size() == 4) {
-          // args: reload_lib, model_path, app_config_json (used for overriding config),
-          // kv_cache_config
-          chat_->Reload(args[0], args[1], args[2], args[3]);
         }
       });
     } else if (name == "unload") {
