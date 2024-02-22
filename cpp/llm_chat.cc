@@ -550,6 +550,14 @@ class LLMChat {
     } else {
       CHECK(partial_update) << "Key \"conv_template\" and \"conv_config\" not found.";
     }
+    if (config.count("bos_token_id")) {
+      CHECK(config["bos_token_id"].is<int64_t>());
+      this->bos_token_id_ = config["bos_token_id"].get<int64_t>();
+    }
+    if (config.count("eos_token_id")) {
+      CHECK(config["eos_token_id"].is<int64_t>());
+      this->eos_token_id_ = config["eos_token_id"].get<int64_t>();
+    }
   }
 
   /*!
