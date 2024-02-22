@@ -820,11 +820,16 @@ def _attention_decode(
     H_kv = num_kv_heads
     D = head_dim
 
+    thread_limit = 512 if str(target.kind) != "webgpu" else 256
+
     GROUP_SIZE = H_qo // H_kv
     VEC_SIZE = min(max(8 // qkv_dtype_bytes, D // 32), 4)
     bdx = D // VEC_SIZE
     bdy = GROUP_SIZE
-    threads_per_CTA = max(512, bdx * bdy)
+    while bdx * bdy > thread_limit and bdy > 1:
+        bdy //= 2
+    gdz = GROUP_SIZE // bdy
+    threads_per_CTA = max(thread_limit, bdx * bdy)
     bdz = threads_per_CTA // (bdx * bdy)
     tile_size_per_bdx = 2 if GROUP_SIZE == 1 else 1
     log2e = math.log2(math.exp(1))
@@ -868,7 +873,7 @@ def _attention_decode(
         sm_scale = 1.0 / math.sqrt(float(D)) * log2e
 
         for bx in T.thread_binding(B, thread="blockIdx.x"):
-            for by in T.thread_binding(H_kv, thread="blockIdx.y"):
+            for fused_by_bz in T.thread_binding(H_kv * gdz, thread="blockIdx.y"):
                 for ty in T.thread_binding(bdy, thread="threadIdx.y"):
                     for tx in T.thread_binding(bdx, thread="threadIdx.x"):
                         for tz in T.thread_binding(bdz, thread="threadIdx.z"):
@@ -894,6 +899,8 @@ def _attention_decode(
                                 st_d = T.alloc_buffer((1,), "float32", scope="local")
                                 O_local = T.alloc_buffer((VEC_SIZE,), "float32", scope="local")
 
+                                by: T.int32 = fused_by_bz % H_kv
+                                bz: T.int32 = fused_by_bz // H_kv
                                 batch_idx: T.int32 = bx
                                 cur_page_indptr_begin: T.int32 = page_table_indptr[batch_idx]
                                 cur_page_indptr_end: T.int32 = page_table_indptr[batch_idx + 1]
@@ -914,8 +921,8 @@ def _attention_decode(
                                 for vec in T.vectorized(VEC_SIZE):
                                     Q_local[vec] = T.if_then_else(
                                         rotary_mode == 1,
-                                        _rope(Q, q_rope_position[batch_idx], head_dim, rope_theta, rope_scale, (bx, by * GROUP_SIZE + ty, tx * VEC_SIZE + vec), qkv_dtype),
-                                        Q[bx, by * GROUP_SIZE + ty, tx * VEC_SIZE + vec]
+                                        _rope(Q, q_rope_position[batch_idx], head_dim, rope_theta, rope_scale, (bx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec), qkv_dtype),
+                                        Q[bx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec]
                                     )
 
                                 for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_size_per_bdx * bdy * bdz)):
@@ -1025,10 +1032,10 @@ def _attention_decode(
 
                                 # store O to global memory
                                 for vec in T.vectorized(VEC_SIZE):
-                                    output[batch_idx, by * GROUP_SIZE + ty, tx * VEC_SIZE + vec] = O_local[vec]
+                                    output[batch_idx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec] = O_local[vec]
 
                                 # store lse to global memory
-                                lse[batch_idx, by * GROUP_SIZE + ty] = st_m[0] + T.log2(st_d[0])
+                                lse[batch_idx, by * GROUP_SIZE + bz * bdy + ty] = st_m[0] + T.log2(st_d[0])
     # fmt: on
     # pylint: enable=line-too-long,invalid-name,too-many-arguments,too-many-branches
     return batch_decode_paged_kv
