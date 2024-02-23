@@ -12,7 +12,9 @@
 
 #include "../base.h"
 #include "config.h"
+#include "event_trace_recorder.h"
 #include "function_table.h"
+#include "logit_processor.h"
 
 namespace mlc {
 namespace llm {
@@ -92,15 +94,6 @@ class ModelObj : public Object {
   virtual NDArray BatchVerify(const NDArray& embeddings, const std::vector<int64_t>& seq_ids,
                               const std::vector<int>& lengths) = 0;
 
-  /*!
-   * \brief Computing probabilities from logits with softmax and temperatures.
-   * \param logits The logits to compute from.
-   * \param generation_cfg The generation config which contains the temperatures.
-   * \return The computed probabilities distribution.
-   */
-  virtual NDArray SoftmaxWithTemperature(NDArray logits,
-                                         Array<GenerationConfig> generation_cfg) = 0;
-
   /*********************** KV Cache Management  ***********************/
 
   /*!
@@ -122,6 +115,10 @@ class ModelObj : public Object {
   virtual void PopNFromKVCache(int seq_id, int num_tokens) = 0;
 
   /*********************** Utilities  ***********************/
+
+  /*! \brief Create a logit processor from this model. */
+  virtual LogitProcessor CreateLogitProcessor(int max_num_token,
+                                              Optional<EventTraceRecorder> trace_recorder) = 0;
 
   /*!
    * \brief Estimate number of CPU units required to drive the model

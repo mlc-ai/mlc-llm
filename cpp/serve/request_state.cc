@@ -31,6 +31,11 @@ int RequestModelStateNode::GetInputLength() const {
   return total_length;
 }
 
+std::vector<int> RequestModelStateNode::GetTokenBitmask(int vocab_size) const {
+  // TODO(mlc-team): implement this function.
+  return std::vector<int>();
+}
+
 void RequestModelStateNode::CommitToken(int32_t token_id) {
   committed_tokens.push_back(token_id);
   appeared_token_ids[token_id] += 1;
@@ -43,14 +48,17 @@ void RequestModelStateNode::AddDraftToken(int32_t token_id) {
 
 void RequestModelStateNode::RemoveLastDraftToken() {
   ICHECK(!draft_output_tokens.empty());
-  appeared_token_ids[draft_output_tokens.back()] -= 1;
+  auto it = appeared_token_ids.find(draft_output_tokens.back());
   draft_output_tokens.pop_back();
+  CHECK(it != appeared_token_ids.end());
+  if (--it->second == 0) {
+    appeared_token_ids.erase(it);
+  }
 }
 
 void RequestModelStateNode::RemoveAllDraftTokens() {
   while (!draft_output_tokens.empty()) {
-    appeared_token_ids[draft_output_tokens.back()] -= 1;
-    draft_output_tokens.pop_back();
+    RemoveLastDraftToken();
   }
 }
 

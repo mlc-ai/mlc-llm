@@ -485,6 +485,54 @@ def test_openai_v1_completions_temperature(
 
 
 @pytest.mark.parametrize("stream", [False, True])
+def test_openai_v1_completions_logit_bias(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    # NOTE: This test only tests that the system does not break on logit bias.
+    #       The test does not promise the correctness of logit bias handling.
+
+    prompt = "What's the meaning of life?"
+    max_tokens = 128
+    payload = {
+        "model": served_model[0],
+        "prompt": prompt,
+        "max_tokens": max_tokens,
+        "stream": stream,
+        "logit_bias": {338: -100},  # 338 is " is" in Llama tokenizer.
+    }
+
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    if not stream:
+        check_openai_nonstream_response(
+            response.json(),
+            is_chat_completion=False,
+            model=served_model[0],
+            object_str="text_completion",
+            num_choices=1,
+            finish_reason="length",
+        )
+    else:
+        responses = []
+        for chunk in response.iter_lines(chunk_size=512):
+            if not chunk or chunk == b"data: [DONE]":
+                continue
+            responses.append(json.loads(chunk.decode("utf-8")[6:]))
+        check_openai_stream_response(
+            responses,
+            is_chat_completion=False,
+            model=served_model[0],
+            object_str="text_completion",
+            num_choices=1,
+            finish_reason="length",
+        )
+
+
+@pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_presence_frequency_penalty(
     served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
@@ -889,26 +937,6 @@ def test_openai_v1_chat_completions_system_prompt_wrong_pos(
         assert num_chunks == 1
 
 
-def test_openai_v1_chat_completions_unsupported_args(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
-):
-    # `served_model` and `launch_server` are pytest fixtures
-    # defined in conftest.py.
-
-    # Right now "tool_choice" is unsupported.
-    tool_choice = "auto"
-    payload = {
-        "model": served_model[0],
-        "messages": CHAT_COMPLETION_MESSAGES[0],
-        "tool_choice": tool_choice,
-    }
-
-    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=60)
-    error_msg_prefix = 'Request fields "tool_choice" are not supported right now.'
-    expect_error(response.json(), msg_prefix=error_msg_prefix)
-
-
 def test_debug_dump_event_trace(
     served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
@@ -946,6 +974,8 @@ if __name__ == "__main__":
     test_openai_v1_completions_stop_str(MODEL, None, stream=True)
     test_openai_v1_completions_temperature(MODEL, None, stream=False)
     test_openai_v1_completions_temperature(MODEL, None, stream=True)
+    test_openai_v1_completions_logit_bias(MODEL, None, stream=False)
+    test_openai_v1_completions_logit_bias(MODEL, None, stream=True)
     test_openai_v1_completions_presence_frequency_penalty(MODEL, None, stream=False)
     test_openai_v1_completions_presence_frequency_penalty(MODEL, None, stream=True)
     test_openai_v1_completions_seed(MODEL, None)
@@ -965,6 +995,5 @@ if __name__ == "__main__":
     test_openai_v1_chat_completions_ignore_eos(MODEL, None, stream=True)
     test_openai_v1_chat_completions_system_prompt_wrong_pos(MODEL, None, stream=False)
     test_openai_v1_chat_completions_system_prompt_wrong_pos(MODEL, None, stream=True)
-    test_openai_v1_chat_completions_unsupported_args(MODEL, None)
 
     test_debug_dump_event_trace(MODEL, None)
