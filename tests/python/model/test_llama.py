@@ -4,7 +4,9 @@ import pytest
 from mlc_chat.model import MODEL_PRESETS, MODELS
 
 
-@pytest.mark.parametrize("model_name", ["llama2_7b", "llama2_13b", "llama2_70b"])
+@pytest.mark.parametrize(
+    "model_name", ["llama2_7b", "llama2_13b", "llama2_70b", "tinyllama_1b_chat_v1.0"]
+)
 def test_llama2_creation(model_name: str):
     model_info = MODELS["llama"]
     config = model_info.config.from_dict(MODEL_PRESETS[model_name])

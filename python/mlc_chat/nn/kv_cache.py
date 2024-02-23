@@ -18,6 +18,8 @@ from mlc_chat.op.position_embedding import (
     rope_freq,
 )
 
+from ..support.max_thread_check import check_max_num_threads
+
 
 class RopeMode(enum.IntEnum):
     """The RoPE mode of the Paged KV cache.
@@ -477,9 +479,19 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
     group_size = h_q // h_kv
     sm_scale = 1.0 / math.sqrt(float(d)) * math.log2(math.exp(1))
 
+    bdx = 32
     num_warps = 4
     tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1), d, 16
     L_per_cta = tile_x // group_size
+
+    # Otherwise we would exceed maxComputeWorkgroupStorageSize
+    if (
+        str(target.kind) == "webgpu"
+        and ((d + 127) // 128) * ((DataType(dtype).bits + 15) // 16) >= 4
+    ):
+        tile_z = 8
+        num_warps = 2
+    check_max_num_threads(target, bdx=bdx, bdy=num_warps, bdz=1)
 
     def mask(causal, row, col, kv_len, qo_len):
         return T.if_then_else(
@@ -529,7 +541,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
             for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
                 for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
-                    for ltx in T.thread_binding(32, thread="threadIdx.x"):
+                    for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
                         with T.block("attn"):
                             bx, by, ty, tx = T.axis.remap("SSSS", [lbx, lby, lty, ltx])
                             T.reads()
@@ -553,9 +565,9 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
                             m_prev_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
                             d_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
 
-                            m_new = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)),), "float32", scope="local")
-                            m_prev = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)),), "float32", scope="local")
-                            d_new = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)),), "float32", scope="local")
+                            m_new = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                            m_prev = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                            d_new = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
 
                             ## get tile_no, batch_idx, batch_tiles, batch_rows
                             tile_id[0] = bx
@@ -588,8 +600,8 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
                                     T.tvm_storage_sync("shared")
 
                                     # init states
-                                    for i in T.serial(T.ceildiv(tile_x, 32 * num_warps)):
-                                        row: T.int32 = i * 32 * num_warps + ty * 32 + tx
+                                    for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                        row: T.int32 = i * bdx * num_warps + ty * bdx + tx
                                         if row < tile_x:
                                             m_smem[row] = -5e4
                                             d_smem[row] = 1.0
@@ -667,8 +679,8 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
                                         T.tvm_storage_sync("shared")
 
                                         # Update S, m, d
-                                        for i in T.serial(T.ceildiv(tile_x, 32 * num_warps)):
-                                            row: T.int32 = i * 32 * num_warps + ty * 32 + tx
+                                        for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                            row: T.int32 = i * bdx * num_warps + ty * bdx + tx
                                             if row < tile_x:
                                                 with T.block("update1"):
                                                     m_prev[i] = m_smem[row]
@@ -683,8 +695,8 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
                                                             m_new[i] = T.max(m_new[i], S_smem[row, j])
                                                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
 
-                                        for i in T.serial(T.ceildiv(tile_x, 32 * num_warps)):
-                                            row: T.int32 = i * 32 * num_warps + ty * 32 + tx
+                                        for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                            row: T.int32 = i * bdx * num_warps + ty * bdx + tx
                                             with T.block("update"):
                                                 for j in T.serial(tile_z):
                                                     # this is to avoid sync inside condition branch
@@ -698,8 +710,8 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
                                                         else:
                                                             S_smem[row, j] = T.exp2(-5e4 - m_new[i])
 
-                                        for i in T.serial(T.ceildiv(tile_x, 32 * num_warps)):
-                                            row: T.int32 = i * 32 * num_warps + ty * 32 + tx
+                                        for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                            row: T.int32 = i * bdx * num_warps + ty * bdx + tx
                                             if row < tile_x:
                                                 with T.block("update"):
                                                     for j in T.serial(tile_z):
@@ -752,7 +764,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
         loop_x, loop_y = sch.get_loops(block)[-2:]
         loop = sch.fuse(loop_x, loop_y)
         _, ty, tx, vec = sch.split(
-            loop, factors=[None, num_warps, 32, LOAD_VEC], preserve_unit_iters=True
+            loop, factors=[None, num_warps, bdx, LOAD_VEC], preserve_unit_iters=True
         )
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
@@ -764,7 +776,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
         sch.reorder(xo, yo, xi, yi)
         t = sch.fuse(xo, yo)
-        ty, tx = sch.split(t, factors=[num_warps, 32])
+        ty, tx = sch.split(t, factors=[num_warps, bdx])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
@@ -776,7 +788,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
         sch.reorder(xo, yo, xi, yi)
         t = sch.fuse(xo, yo)
-        ty, tx = sch.split(t, factors=[num_warps, 32])
+        ty, tx = sch.split(t, factors=[num_warps, bdx])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
@@ -789,12 +801,12 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
 
     def apply_to_md(sch, block):
         loop = sch.get_loops(block)[-1]
-        _, ty, tx = sch.split(loop, factors=[None, num_warps, 32])
+        _, ty, tx = sch.split(loop, factors=[None, num_warps, bdx])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
-    tile_s = get_tile_size(tile_x, tile_z, 32 * num_warps)
-    tile_o = get_tile_size(tile_x, tile_y, 32 * num_warps)
+    tile_s = get_tile_size(tile_x, tile_z, bdx * num_warps)
+    tile_o = get_tile_size(tile_x, tile_y, bdx * num_warps)
     apply_to_gemm(sch, sch.get_block("S_gemm"), tile_s, 0, 1, k_major=True)
     apply_to_gemm(sch, sch.get_block("O_gemm"), tile_o, 2, 3, k_major=False)
     apply_to_so_ewise(sch, sch.get_block("S_store"), tile_s)
@@ -833,6 +845,7 @@ def _attention_decode(
     bdz = threads_per_CTA // (bdx * bdy)
     tile_size_per_bdx = 2 if GROUP_SIZE == 1 else 1
     log2e = math.log2(math.exp(1))
+    check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=bdz)
 
     # pylint: disable=line-too-long,too-many-arguments,too-many-branches
     # fmt: off
@@ -1049,6 +1062,9 @@ def _merge_state_inplace(
     VEC_SIZE = min(max(8 // v_dtype_bytes, head_dim // 32), 4)
     bdx = head_dim // VEC_SIZE
     bdy = num_heads
+    while bdx * bdy > target.max_num_threads and bdy > 1:
+        bdy //= 2
+    check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=1)
 
     @T.prim_func
     def merge_state_inplace(
@@ -1119,9 +1135,18 @@ def _attention_prefill_ragged(
     group_size = h_q // h_kv
     sm_scale = 1.0 / math.sqrt(float(d)) * math.log2(math.exp(1))
 
+    bdx = 32
     num_warps = 4
     tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1), d, 16
     L_per_cta = tile_x // group_size
+
+    # Otherwise we would exceed maxComputeWorkgroupStorageSize
+    if (
+        str(target.kind) == "webgpu"
+        and ((d + 127) // 128) * ((DataType(dtype).bits + 15) // 16) >= 4
+    ):
+        tile_z = 8
+        num_warps = 2
 
     def mask(causal, row, col, kv_len, qo_len):
         return T.if_then_else(
@@ -1166,7 +1191,7 @@ def _attention_prefill_ragged(
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
             for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
                 for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
-                    for ltx in T.thread_binding(32, thread="threadIdx.x"):
+                    for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
                         with T.block("attn"):
                             bx, by, ty, tx = T.axis.remap("SSSS", [lbx, lby, lty, ltx])
                             T.reads()
@@ -1190,9 +1215,9 @@ def _attention_prefill_ragged(
                             m_prev_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
                             d_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
 
-                            m_new = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)),), "float32", scope="local")
-                            m_prev = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)),), "float32", scope="local")
-                            d_new = T.alloc_buffer((math.ceil(tile_x / (32 * num_warps)),), "float32", scope="local")
+                            m_new = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                            m_prev = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                            d_new = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
 
                             ## get tile_no, batch_idx, batch_tiles, batch_rows
                             tile_id[0] = bx
@@ -1218,8 +1243,8 @@ def _attention_prefill_ragged(
                                     T.tvm_storage_sync("shared")
 
                                     # init states
-                                    for i in T.serial(T.ceildiv(tile_x, 32 * num_warps)):
-                                        row: T.int32 = i * 32 * num_warps + ty * 32 + tx
+                                    for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                        row: T.int32 = i * bdx * num_warps + ty * bdx + tx
                                         if row < tile_x:
                                             m_smem[row] = -5e4
                                             d_smem[row] = 1.0
@@ -1294,8 +1319,8 @@ def _attention_prefill_ragged(
                                         T.tvm_storage_sync("shared")
 
                                         # Update S, m, d
-                                        for i in T.serial(T.ceildiv(tile_x, 32 * num_warps)):
-                                            row: T.int32 = i * 32 * num_warps + ty * 32 + tx
+                                        for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                            row: T.int32 = i * bdx * num_warps + ty * bdx + tx
                                             if row < tile_x:
                                                 with T.block("update1"):
                                                     m_prev[i] = m_smem[row]
@@ -1310,8 +1335,8 @@ def _attention_prefill_ragged(
                                                             m_new[i] = T.max(m_new[i], S_smem[row, j])
                                                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
 
-                                        for i in T.serial(T.ceildiv(tile_x, 32 * num_warps)):
-                                            row: T.int32 = i * 32 * num_warps + ty * 32 + tx
+                                        for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                            row: T.int32 = i * bdx * num_warps + ty * bdx + tx
                                             with T.block("update"):
                                                 for j in T.serial(tile_z):
                                                     # this is to avoid sync inside condition branch
@@ -1325,8 +1350,8 @@ def _attention_prefill_ragged(
                                                         else:
                                                             S_smem[row, j] = T.exp2(-5e4 - m_new[i])
 
-                                        for i in T.serial(T.ceildiv(tile_x, 32 * num_warps)):
-                                            row: T.int32 = i * 32 * num_warps + ty * 32 + tx
+                                        for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                            row: T.int32 = i * bdx * num_warps + ty * bdx + tx
                                             if row < tile_x:
                                                 with T.block("update"):
                                                     for j in T.serial(tile_z):
@@ -1379,7 +1404,7 @@ def _attention_prefill_ragged(
         loop_x, loop_y = sch.get_loops(block)[-2:]
         loop = sch.fuse(loop_x, loop_y)
         _, ty, tx, vec = sch.split(
-            loop, factors=[None, num_warps, 32, LOAD_VEC], preserve_unit_iters=True
+            loop, factors=[None, num_warps, bdx, LOAD_VEC], preserve_unit_iters=True
         )
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
@@ -1391,7 +1416,7 @@ def _attention_prefill_ragged(
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
         sch.reorder(xo, yo, xi, yi)
         t = sch.fuse(xo, yo)
-        ty, tx = sch.split(t, factors=[num_warps, 32])
+        ty, tx = sch.split(t, factors=[num_warps, bdx])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
@@ -1403,7 +1428,7 @@ def _attention_prefill_ragged(
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
         sch.reorder(xo, yo, xi, yi)
         t = sch.fuse(xo, yo)
-        ty, tx = sch.split(t, factors=[num_warps, 32])
+        ty, tx = sch.split(t, factors=[num_warps, bdx])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
@@ -1416,12 +1441,12 @@ def _attention_prefill_ragged(
 
     def apply_to_md(sch, block):
         loop = sch.get_loops(block)[-1]
-        _, ty, tx = sch.split(loop, factors=[None, num_warps, 32])
+        _, ty, tx = sch.split(loop, factors=[None, num_warps, bdx])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
-    tile_s = get_tile_size(tile_x, tile_z, 32 * num_warps)
-    tile_o = get_tile_size(tile_x, tile_y, 32 * num_warps)
+    tile_s = get_tile_size(tile_x, tile_z, bdx * num_warps)
+    tile_o = get_tile_size(tile_x, tile_y, bdx * num_warps)
     apply_to_gemm(sch, sch.get_block("S_gemm"), tile_s, 0, 1, k_major=True)
     apply_to_gemm(sch, sch.get_block("O_gemm"), tile_o, 2, 3, k_major=False)
     apply_to_so_ewise(sch, sch.get_block("S_store"), tile_s)
