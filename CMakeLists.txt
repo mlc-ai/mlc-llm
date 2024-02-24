@@ -101,6 +101,11 @@ else ()
   target_link_libraries(mlc_llm PUBLIC -Wl,--no-as-needed ${FLASH_ATTN_LIBRARY})
 endif()
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(mlc_llm PRIVATE "TVM_LOG_DEBUG")
+    target_compile_definitions(mlc_llm_objs PRIVATE "TVM_LOG_DEBUG")
+    target_compile_definitions(mlc_llm_static PRIVATE "TVM_LOG_DEBUG")
+endif()
 
 if (BUILD_CPP_TEST)
   message(STATUS "Building cpp unittests")

@@ -20,7 +20,7 @@ using namespace tvm::runtime;
 
 /*!
  * \brief This class parses a BNF/EBNF grammar string into an BNF abstract syntax tree (AST).
- * \details This function accepts the EBNF notation from the W3C XML Specification
+ * \details This function accepts the EBNF notation defined in the W3C XML Specification
  * (https://www.w3.org/TR/xml/#sec-notation), which is a popular standard, with the following
  * changes:
  * - Using # as comment mark instead of /**\/

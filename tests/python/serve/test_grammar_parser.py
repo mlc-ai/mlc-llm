@@ -13,46 +13,45 @@ def test_bnf_simple():
 b ::= "b"
 c ::= "c"
 """
-    expected = """main ::= b c
-b ::= [b]
-c ::= [c]
+    expected = """main ::= ((b c))
+b ::= (([b]))
+c ::= (([c]))
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
 
 def test_ebnf():
     before = """main ::= b c | b main
-b ::= "b"* d
+b ::= "b"*
 c ::= [acep-z]+
 d ::= "d"?
 """
-    expected = """main ::= (b c) | (b main)
-b ::= b_1 d
-c ::= c_2
-d ::= d_1
-b_1 ::= ([b] b_1) | ""
-c_1 ::= [acep-z]
-c_2 ::= (c_1 c_2) | c_1
-d_1 ::= [d] | ""
+    expected = """main ::= ((b c) | (b main))
+b ::= [b]*
+c ::= ((c_2))
+d ::= ((d_1))
+c_1 ::= (([acep-z]))
+c_2 ::= ((c_1 c_2) | (c_1))
+d_1 ::= ("" | ([d]))
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
     after = bnf_grammar.to_string()
-    print(after)
     assert after == expected
 
 
 def test_char():
-    before = r"""main ::= [a-z] [A-z] "\u0234" "\U00000345\xff" [-A-Z] [--] rest
+    before = r"""main ::= [a-z] [A-z] "\u0234" "\U00000345\xff" [-A-Z] [--] [^a] rest
 rest ::= [a-zA-Z0-9-] [\u0234-\U00000345] [测-试] [\--\]]  rest1
 rest1 ::= "\?\"\'测试あc" "👀" ""
 """
-    expected = r"""main ::= [a-z] [A-z] [\u0234] ([\u0345] [\u00ff]) [\-A-Z] [\-\-] rest
-rest ::= [a-zA-Z0-9\-] [\u0234-\u0345] [\u6d4b-\u8bd5] [\--\]] rest1
-rest1 ::= ([\?] [\"] [\'] [\u6d4b] [\u8bd5] [\u3042] [c]) [\U0001f440] ""
+    expected = r"""main ::= (([a-z] [A-z] ([\u0234]) ([\u0345] [\u00ff]) [\-A-Z] [\-\-] [^a] rest))
+rest ::= (([a-zA-Z0-9\-] [\u0234-\u0345] [\u6d4b-\u8bd5] [\--\]] rest1))
+rest1 ::= ((([\?] [\"] [\'] [\u6d4b] [\u8bd5] [\u3042] [c]) ([\U0001f440]) ""))
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before)
+    # Disable unwrap_nesting_rules to expose the result before unwrapping.
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, False, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
@@ -65,9 +64,9 @@ main::="a"  "b" ("c""d"
 
 "f" | "g"
 """
-    expected = """main ::= ([a] [b] ([c] [d] [e])) | [f] | [g]
+    expected = """main ::= (([a] [b] [c] [d] [e]) | ([f]) | ([g]))
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
@@ -75,9 +74,31 @@ main::="a"  "b" ("c""d"
 def test_nest():
     before = """main::= "a" ("b" | "c" "d") | (("e" "f"))
 """
-    expected = """main ::= ([a] ([b] | ([c] [d]))) | ([e] [f])
+    expected = """main ::= (([a] main_choice) | ([e] [f]))
+main_choice ::= (([b]) | ([c] [d]))
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
+    after = bnf_grammar.to_string()
+    assert after == expected
+
+
+def test_flatten():
+    before = """main ::= or_test sequence_test nested_test empty_test
+or_test ::= ([a] | "b") | "de" | "" | or_test | [^a-z]
+sequence_test ::= [a] "a" ("b" ("c" | "d")) ("d" "e") sequence_test ""
+nested_test ::= ("a" ("b" ("c" "d"))) | ("a" | ("b" | "c")) | nested_rest
+nested_rest ::= ("a" | ("b" "c" | ("d" | "e" "f"))) | ((("g")))
+empty_test ::= "d" | (("" | "" "") "" | "a" "") | ("" ("" | "")) "" ""
+"""
+    expected = """main ::= ((or_test sequence_test nested_test empty_test))
+or_test ::= ("" | ([a]) | ([b]) | ([d] [e]) | (or_test) | ([^a-z]))
+sequence_test ::= (([a] [a] [b] sequence_test_choice [d] [e] sequence_test))
+nested_test ::= (([a] [b] [c] [d]) | ([a]) | ([b]) | ([c]) | (nested_rest))
+nested_rest ::= (([a]) | ([b] [c]) | ([d]) | ([e] [f]) | ([g]))
+empty_test ::= ("" | ([d]) | ([a]))
+sequence_test_choice ::= (([c]) | ([d]))
+"""
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
@@ -89,35 +110,39 @@ def test_json():
     with open(json_ebnf_path, "r", encoding="utf-8") as file:
         before = file.read()
 
-    expected = r"""main ::= element
-value ::= object | array | string | number | ([t] [r] [u] [e]) | ([f] [a] [l] [s] [e]) | ([n] [u] [l] [l])
-object ::= ([{] ws [}]) | ([{] members [}])
-members ::= member | (member [,] members)
-member ::= ws string ws [:] element
-array ::= ([[] ws [\]]) | ([[] elements [\]])
-elements ::= element | (element [,] elements)
-element ::= ws value ws
-string ::= [\"] characters [\"]
-characters ::= "" | (character characters)
-character ::= [\"\\] | ([\\] escape)
-escape ::= [\"] | [\\] | [/] | [b] | [f] | [n] | [r] | [t] | ([u] hex hex hex hex)
-hex ::= [A-Fa-f0-9]
-number ::= integer fraction exponent
-integer ::= digit | (onenine digits) | ([\-] digit) | ([\-] onenine digits)
-digits ::= digit | (digit digits)
-digit ::= [0-9]
-onenine ::= [1-9]
-fraction ::= "" | ([.] digits)
-exponent ::= "" | (([e] | [E]) ("" | [+] | [\-]) digits)
-ws ::= "" | ([ ] ws) | ([\n] ws) | ([\r] ws) | ([\t] ws)
+    expected = r"""main ::= ((element))
+value ::= ((object) | (array) | (string) | (number) | ([t] [r] [u] [e]) | ([f] [a] [l] [s] [e]) | ([n] [u] [l] [l]))
+object ::= (([{] ws [}]) | ([{] members [}]))
+members ::= ((member) | (member [,] members))
+member ::= ((ws string ws [:] element))
+array ::= (([[] ws [\]]) | ([[] elements [\]]))
+elements ::= ((element) | (element [,] elements))
+element ::= ((ws value ws))
+string ::= (([\"] characters [\"]))
+characters ::= ("" | (character characters))
+character ::= (([^\"\\]) | ([\\] escape))
+escape ::= (([\"]) | ([\\]) | ([/]) | ([b]) | ([f]) | ([n]) | ([r]) | ([t]) | ([u] hex hex hex hex))
+hex ::= (([A-Fa-f0-9]))
+number ::= ((integer fraction exponent))
+integer ::= ((digit) | (onenine digits) | ([\-] digit) | ([\-] onenine digits))
+digits ::= ((digit) | (digit digits))
+digit ::= (([0-9]))
+onenine ::= (([1-9]))
+fraction ::= ("" | ([.] digits))
+exponent ::= ("" | (exponent_choice exponent_choice_1 digits))
+ws ::= ("" | ([ ] ws) | ([\n] ws) | ([\r] ws) | ([\t] ws))
+exponent_choice ::= (([e]) | ([E]))
+exponent_choice_1 ::= ("" | ([+]) | ([\-]))
 """
 
-    bnf_grammar = BNFGrammar.from_ebnf_string(before)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
 
 def test_to_string_roundtrip():
+    """Checks the printed result can be parsed, and the parsing-printing process is idempotent."""
+
     before = r"""main ::= (b c) | (b main)
 b ::= b_1 d
 c ::= c_1
@@ -127,51 +152,72 @@ c_1 ::= (c_2 c_1) | c_2
 c_2 ::= [acep-z]
 d_1 ::= [d] | ""
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before)
-    string = bnf_grammar.to_string()
-    new_grammar = BNFGrammar.from_ebnf_string(string)
-    new_string = new_grammar.to_string()
-    assert string == new_string
+    bnf_grammar_1 = BNFGrammar.from_ebnf_string(before, True, False)
+    output_string_1 = bnf_grammar_1.to_string()
+    bnf_grammar_2 = BNFGrammar.from_ebnf_string(output_string_1, True, False)
+    output_string_2 = bnf_grammar_2.to_string()
+    assert output_string_1 == output_string_2
 
 
 def test_error():
-    with pytest.raises(TVMError, match="Rule a is not defined at line 1, column 11"):
+    with pytest.raises(
+        TVMError, match='TVMError: EBNF parse error at line 1, column 11: Rule "a" is not defined'
+    ):
         BNFGrammar.from_ebnf_string("main ::= a b")
 
-    with pytest.raises(TVMError, match="Expect element at line 1, column 15"):
+    with pytest.raises(
+        TVMError, match="TVMError: EBNF parse error at line 1, column 15: Expect element"
+    ):
         BNFGrammar.from_ebnf_string('main ::= "a" |')
 
-    with pytest.raises(TVMError, match='Expect " at line 1, column 15'):
+    with pytest.raises(TVMError, match='TVMError: EBNF parse error at line 1, column 15: Expect "'):
         BNFGrammar.from_ebnf_string('main ::= "a" "')
 
-    with pytest.raises(TVMError, match="Expect rule name at line 1, column 1"):
+    with pytest.raises(
+        TVMError, match="TVMError: EBNF parse error at line 1, column 1: Expect rule name"
+    ):
         BNFGrammar.from_ebnf_string('::= "a"')
 
     with pytest.raises(
-        TVMError, match="Character range should not contain newline at line 1, column 12"
+        TVMError,
+        match="TVMError: EBNF parse error at line 1, column 12: Character class should not contain "
+        "newline",
     ):
         BNFGrammar.from_ebnf_string("main ::= [a\n]")
 
-    with pytest.raises(TVMError, match="Invalid escape sequence at line 1, column 11"):
+    with pytest.raises(
+        TVMError, match="TVMError: EBNF parse error at line 1, column 11: Invalid escape sequence"
+    ):
         BNFGrammar.from_ebnf_string(r'main ::= "\@"')
 
-    with pytest.raises(TVMError, match="Invalid escape sequence at line 1, column 11"):
+    with pytest.raises(
+        TVMError, match="TVMError: EBNF parse error at line 1, column 11: Invalid escape sequence"
+    ):
         BNFGrammar.from_ebnf_string(r'main ::= "\uFF"')
 
     with pytest.raises(
         TVMError,
-        match="Invalid character range: lower bound is larger than upper bound at "
-        "line 1, column 14",
+        match="TVMError: EBNF parse error at line 1, column 14: Invalid character class: "
+        "lower bound is larger than upper bound",
     ):
         BNFGrammar.from_ebnf_string(r"main ::= [Z-A]")
 
-    with pytest.raises(TVMError, match="Expect ::= at line 1, column 6"):
+    with pytest.raises(
+        TVMError, match="TVMError: EBNF parse error at line 1, column 6: Expect ::="
+    ):
         BNFGrammar.from_ebnf_string(r'main := "a"')
 
-    with pytest.raises(TVMError, match="Rule main is defined multiple times at line 2, column 9"):
+    with pytest.raises(
+        TVMError,
+        match='TVMError: EBNF parse error at line 2, column 9: Rule "main" is defined multiple '
+        "times",
+    ):
         BNFGrammar.from_ebnf_string('main ::= "a"\nmain ::= "b"')
 
-    with pytest.raises(TVMError, match="There must be a rule named main at line 1, column 10"):
+    with pytest.raises(
+        TVMError,
+        match='TVMError: EBNF parse error at line 1, column 10: There must be a rule named "main"',
+    ):
         BNFGrammar.from_ebnf_string('a ::= "a"')
 
 
@@ -181,34 +227,33 @@ b ::= "bcd"
 c ::= [a-z]
 """
     expected = (
-        '{"rule_expr_indptr":[0,2,4,7,9,11,14,17,20,23,26,30,32,34,37,39],'
-        '"rule_expr_data":[3,1,3,2,4,0,1,3,1,3,0,4,3,4,5,2,5,0,98,98,0,99,99,0,100,'
-        "100,4,7,8,9,4,10,5,11,0,97,122,4,13,5,14],"
-        '"rules":[{"rule_expr_id":6,"name":"main"},{"rule_expr_id":12,"name":"b"},'
-        '{"rule_expr_id":15,"name":"c"}]}'
+        '{"rule_expr_indptr":[0,3,6,10,13,16,20,24,28,32,36,41,44,48,51],"rule_expr_data"'
+        ":[3,1,1,3,1,2,4,2,0,1,3,1,1,3,1,0,4,2,3,4,5,2,2,5,0,2,98,98,0,2,99,99,0,2,100,100,"
+        '4,3,7,8,9,5,1,10,0,2,97,122,4,1,12,5,1,13],"rules":[{"body_expr_id":6,"name":"main"},'
+        '{"body_expr_id":11,"name":"b"},{"body_expr_id":14,"name":"c"}]}'
     )
-    bnf_grammar = BNFGrammar.from_ebnf_string(before)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
     after = bnf_grammar.to_json(False)
     assert after == expected
 
 
 def test_to_json_roundtrip():
-    before = r"""main ::= (b c) | (b main)
-b ::= b_1 d
-c ::= c_1
-d ::= d_1
-b_1 ::= ([b] b_1) | ""
-c_1 ::= (c_2 c_1) | c_2
-c_2 ::= [acep-z]
-d_1 ::= [d] | ""
+    before = r"""main ::= ((b c) | (b main))
+b ::= ((b_1 d))
+c ::= ((c_1))
+d ::= ((d_1))
+b_1 ::= ("" | ([b] b_1))
+c_1 ::= ((c_2 c_1) | (c_2))
+c_2 ::= (([acep-z]))
+d_1 ::= ("" | ([d]))
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before)
-    json = bnf_grammar.to_json(False)
-    new_grammar = BNFGrammar.from_json(json)
-    new_json = new_grammar.to_json(False)
-    after = new_grammar.to_string()
-    assert json == new_json
-    assert after == before
+    bnf_grammar_1 = BNFGrammar.from_ebnf_string(before, True, False)
+    output_json_1 = bnf_grammar_1.to_json(False)
+    bnf_grammar_2 = BNFGrammar.from_json(output_json_1)
+    output_json_2 = bnf_grammar_2.to_json(False)
+    output_str = bnf_grammar_2.to_string()
+    assert output_json_1 == output_json_2
+    assert output_str == before
 
 
 if __name__ == "__main__":

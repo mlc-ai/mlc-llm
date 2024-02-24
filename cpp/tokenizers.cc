@@ -34,6 +34,16 @@ std::string TokenizerObj::Decode(const std::vector<int32_t>& token_ids) const {
   return tokenizer->Decode(token_ids);
 }
 
+size_t TokenizerObj::GetVocabSize() const { return tokenizer->GetVocabSize(); }
+
+std::string TokenizerObj::IdToToken(int32_t token_id) const {
+  return tokenizer->IdToToken(token_id);
+}
+
+int32_t TokenizerObj::TokenToId(const std::string& token) const {
+  return tokenizer->TokenToId(token);
+}
+
 Tokenizer Tokenizer::FromPath(const String& _path) {
   std::filesystem::path path(_path.operator std::string());
   std::filesystem::path sentencepiece;
