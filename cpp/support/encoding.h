@@ -8,10 +8,10 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace mlc {
 namespace llm {
-namespace serve {
 
 /*! \brief Represents a unicode codepoint. */
 using TCodepoint = int32_t;
@@ -42,9 +42,9 @@ std::string CodepointToPrintable(
  */
 enum class CharHandlingError : TCodepoint {
   /*! \brief The UTF-8 string is invalid. */
-  kInvalidUtf8 = -1,
+  kInvalidUtf8 = -10,
   /*! \brief The escape sequence is invalid. */
-  kInvalidEscape = -2,
+  kInvalidEscape = -11,
 };
 
 /*!
@@ -54,6 +54,8 @@ enum class CharHandlingError : TCodepoint {
  * function returns (CharHandlingError::kInvalidUtf8, 0).
  */
 std::pair<TCodepoint, int> Utf8ToCodepoint(const char* utf8);
+
+std::vector<TCodepoint> Utf8StringToCodepoints(const char* utf8);
 
 /*!
  * \brief Convert a UTF-8 string or an escape sequence to a codepoint. By default the function
@@ -69,7 +71,6 @@ std::pair<TCodepoint, int> Utf8ToCodepoint(const char* utf8);
 std::pair<TCodepoint, int> Utf8OrEscapeToCodepoint(
     const char* utf8, const std::unordered_map<std::string, TCodepoint>& custom_escape_map = {});
 
-}  // namespace serve
 }  // namespace llm
 }  // namespace mlc
 
