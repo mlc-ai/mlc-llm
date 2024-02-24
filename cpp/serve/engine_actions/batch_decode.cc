@@ -67,7 +67,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     rngs.reserve(num_requests);
     for (Request request : estate->running_queue) {
       RequestState rstate = estate->GetRequestState(request);
-      input_tokens.push_back(rstate->mstates[0]->committed_tokens.back());
+      input_tokens.push_back(rstate->mstates[0]->committed_tokens.back().sampled_token_id.first);
       request_ids.push_back(request->id);
       request_internal_ids.push_back(rstate->mstates[0]->internal_id);
       mstates.push_back(rstate->mstates[0]);
@@ -102,13 +102,13 @@ class BatchDecodeActionObj : public EngineActionObj {
         logit_processor_->ComputeProbsFromLogits(logits, generation_cfg, request_ids);
 
     // - Sample tokens.
-    std::vector<int32_t> next_tokens =
+    std::vector<SampleResult> sample_results =
         sampler_->BatchSampleTokens(probs_device, request_ids, generation_cfg, rngs);
-    ICHECK_EQ(next_tokens.size(), num_requests);
+    ICHECK_EQ(sample_results.size(), num_requests);
 
     // - Update the committed tokens of states.
     for (int i = 0; i < num_requests; ++i) {
-      mstates[i]->CommitToken(next_tokens[i]);
+      mstates[i]->CommitToken(sample_results[i]);
     }
 
     auto tend = std::chrono::high_resolution_clock::now();

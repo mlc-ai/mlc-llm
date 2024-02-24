@@ -54,7 +54,7 @@ async def test_engine_generate():
     ):
         print(f"generate task for request {request_id}")
         rid = int(request_id)
-        async for delta_text, num_delta_tokens, finish_reason in async_engine.generate(
+        async for delta_text, _, _, _ in async_engine.generate(
             prompt, generation_cfg, request_id=request_id
         ):
             outputs[rid] += delta_text

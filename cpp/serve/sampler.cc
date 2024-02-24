@@ -28,13 +28,12 @@ namespace serve {
  * \param uniform_sample The random number in [0, 1] for sampling.
  * \param output_prob_dist Optional pointer to store the corresponding probability distribution of
  * each token, offset by unit_offset. If nullptr provided, nothing will be stored out.
- * \return The sampled prob and value.
+ * \return The sampled value and probability.
  * \note This function is an enhancement of SampleTopPFromProb in TVM Unity.
  * We will upstream the enhancement after it gets stable.
  */
-std::pair<float, int64_t> SampleTopPFromProb(NDArray prob, int unit_offset, double top_p,
-                                             double uniform_sample,
-                                             std::vector<NDArray>* output_prob_dist = nullptr) {
+TokenProbPair SampleTopPFromProb(NDArray prob, int unit_offset, double top_p, double uniform_sample,
+                                 std::vector<NDArray>* output_prob_dist = nullptr) {
   // prob: (*, v)
   // The prob array may have arbitrary ndim and shape.
   // The last dimension corresponds to the prob distribution size.
@@ -66,10 +65,16 @@ std::pair<float, int64_t> SampleTopPFromProb(NDArray prob, int unit_offset, doub
     // This case is equivalent to doing argmax.
     int argmax_pos = -1;
     float max_prob = 0.0;
+    float sum_prob = 0.0;
     for (int i = 0; i < ndata; ++i) {
       if (p_prob[i] > max_prob) {
         max_prob = p_prob[i];
         argmax_pos = i;
+      }
+      // Early exit.
+      sum_prob += p_prob[i];
+      if (1 - sum_prob <= max_prob) {
+        break;
       }
     }
     if (output_prob_dist) {
@@ -79,7 +84,7 @@ std::pair<float, int64_t> SampleTopPFromProb(NDArray prob, int unit_offset, doub
         p_output_prob[i] = i == argmax_pos ? 1.0 : 0.0;
       }
     }
-    return std::make_pair(1.0, argmax_pos);
+    return {argmax_pos, 1.0};
   }
 
   if (output_prob_dist) {
@@ -92,7 +97,7 @@ std::pair<float, int64_t> SampleTopPFromProb(NDArray prob, int unit_offset, doub
     for (int64_t i = 0; i < ndata; ++i) {
       prob_sum += p_prob[i];
       if (prob_sum >= uniform_sample) {
-        return std::make_pair(p_prob[i], i);
+        return {i, p_prob[i]};
       }
     }
     ICHECK(false) << "Possibly prob distribution contains NAN.";
@@ -170,13 +175,77 @@ std::pair<float, int64_t> SampleTopPFromProb(NDArray prob, int unit_offset, doub
     // usually it is much less by applying this filtering(order of 10 - 20)
     data.reserve(256);
     std::pair<float, int64_t> sampled_index = sample_top_p_with_filter(top_p / 1024);
-    if (sampled_index.second >= 0) return sampled_index;
+    if (sampled_index.second >= 0) return {sampled_index.second, sampled_index.first};
   }
   // fallback via full prob, rare case
   data.reserve(ndata);
   std::pair<float, int64_t> sampled_index = sample_top_p_with_filter(0.0f);
   ICHECK_GE(sampled_index.second, 0);
-  return sampled_index;
+  return {sampled_index.second, sampled_index.first};
+}
+
+namespace detail {
+
+/*! \brief Implementation of getting top probs on CPU. */
+template <int num_top_probs>
+std::vector<TokenProbPair> ComputeTopProbsImpl(const float* p_prob, int ndata) {
+  std::vector<TokenProbPair> top_probs;
+  top_probs.reserve(num_top_probs);
+  for (int i = 0; i < num_top_probs; ++i) {
+    top_probs.emplace_back(-1, -1.0f);
+  }
+
+  float sum_prob = 0.0;
+  // Selection argsort.
+  for (int p = 0; p < ndata; ++p) {
+    int i = num_top_probs - 1;
+    for (; i >= 0; --i) {
+      if (p_prob[p] > top_probs[i].second) {
+        if (i != num_top_probs - 1) {
+          top_probs[i + 1] = top_probs[i];
+        }
+      } else {
+        break;
+      }
+    }
+    if (i != num_top_probs - 1) {
+      top_probs[i + 1] = {p, p_prob[p]};
+    }
+
+    // Early exit.
+    sum_prob += p_prob[p];
+    if (1 - sum_prob <= top_probs[num_top_probs - 1].second) {
+      break;
+    }
+  }
+  return top_probs;
+}
+
+}  // namespace detail
+
+/*! \brief Get the probs of a few number of tokens with top probabilities. */
+inline std::vector<TokenProbPair> ComputeTopProbs(NDArray prob, int unit_offset,
+                                                  int num_top_probs) {
+  ICHECK_LE(num_top_probs, 5);
+  ICHECK_EQ(prob->ndim, 2);
+  int ndata = prob->shape[1];
+  const float* __restrict p_prob =
+      static_cast<float*>(__builtin_assume_aligned(prob->data, 4)) + (unit_offset * ndata);
+  switch (num_top_probs) {
+    case 0:
+      return {};
+    case 1:
+      return detail::ComputeTopProbsImpl<1>(p_prob, ndata);
+    case 2:
+      return detail::ComputeTopProbsImpl<2>(p_prob, ndata);
+    case 3:
+      return detail::ComputeTopProbsImpl<3>(p_prob, ndata);
+    case 4:
+      return detail::ComputeTopProbsImpl<4>(p_prob, ndata);
+    case 5:
+      return detail::ComputeTopProbsImpl<5>(p_prob, ndata);
+  }
+  throw;
 }
 
 /********************* CPU Sampler *********************/
@@ -193,12 +262,11 @@ class CPUSampler : public SamplerObj {
     }
   }
 
-  std::vector<int32_t> BatchSampleTokens(NDArray probs_device,  //
-                                         const Array<String>& request_ids,
-                                         const Array<GenerationConfig>& generation_cfg,
-                                         const std::vector<RandomGenerator*>& rngs,
-                                         std::vector<NDArray>* output_prob_dist,
-                                         std::vector<float>* output_token_probs) final {
+  std::vector<SampleResult> BatchSampleTokens(NDArray probs_device,                           //
+                                              const Array<String>& request_ids,               //
+                                              const Array<GenerationConfig>& generation_cfg,  //
+                                              const std::vector<RandomGenerator*>& rngs,      //
+                                              std::vector<NDArray>* output_prob_dist) final {
     // probs_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
     CHECK_EQ(probs_device->ndim, 2);
@@ -213,40 +281,39 @@ class CPUSampler : public SamplerObj {
     ICHECK_EQ(probs_host->shape[0], rngs.size());
     int n = probs_host->shape[0];
 
-    std::vector<int32_t> sampled_tokens;
-    sampled_tokens.resize(n);
+    std::vector<SampleResult> sample_results;
+    sample_results.resize(n);
     if (output_prob_dist) {
       output_prob_dist->resize(n);
     }
-    if (output_token_probs) {
-      output_token_probs->resize(n);
-    }
 
     tvm::runtime::parallel_for_with_threading_backend(
-        [this, &sampled_tokens, &probs_host, &generation_cfg, &rngs, &request_ids, output_prob_dist,
-         output_token_probs](int i) {
+        [this, &sample_results, &probs_host, &generation_cfg, &rngs, &request_ids,
+         output_prob_dist](int i) {
           RECORD_EVENT(this->trace_recorder_, request_ids[i], "start sample token");
           // Sample top p from probability.
-          std::pair<float, int64_t> sample_result = SampleTopPFromProb(
+          sample_results[i].sampled_token_id = SampleTopPFromProb(
               probs_host, i, generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p,
               rngs[i]->GetRandomNumber(), output_prob_dist);
-          sampled_tokens[i] = sample_result.second;
-          if (output_token_probs) {
-            (*output_token_probs)[i] = sample_result.first;
+          if (output_prob_dist == nullptr) {
+            // When `output_prob_dist` is not nullptr, it means right now
+            // we are sampling for a small model in speculation, in which
+            // case we do not need to get the top probs.
+            sample_results[i].top_prob_tokens =
+                ComputeTopProbs(probs_host, i, generation_cfg[i]->top_logprobs);
           }
           RECORD_EVENT(this->trace_recorder_, request_ids[i], "finish sample token");
         },
         0, n);
     RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
-    return sampled_tokens;
+    return sample_results;
   }
 
-  std::vector<std::vector<int32_t>> BatchVerifyDraftTokens(
+  std::vector<std::vector<SampleResult>> BatchVerifyDraftTokens(
       NDArray probs_device, const Array<String>& request_ids,
-      const std::vector<int>& cum_verify_lengths, const Array<RequestModelState>& request_mstates,
-      const Array<GenerationConfig>& generation_cfg, const std::vector<RandomGenerator*>& rngs,
-      const std::vector<std::vector<int>>& draft_output_tokens,
-      const std::vector<std::vector<float>>& draft_output_token_prob,
+      const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
+      const std::vector<RandomGenerator*>& rngs,
+      const std::vector<std::vector<SampleResult>>& draft_output_tokens,
       const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
     // probs_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
@@ -259,11 +326,10 @@ class CPUSampler : public SamplerObj {
     int num_sequence = static_cast<int>(cum_verify_lengths.size()) - 1;
     CHECK_EQ(rngs.size(), num_sequence);
     CHECK_EQ(draft_output_tokens.size(), num_sequence);
-    CHECK_EQ(draft_output_token_prob.size(), num_sequence);
     CHECK_EQ(draft_output_prob_dist.size(), num_sequence);
 
-    std::vector<std::vector<int>> accepted_tokens;
-    accepted_tokens.resize(num_sequence);
+    std::vector<std::vector<SampleResult>> sample_results;
+    sample_results.resize(num_sequence);
 
     float* __restrict global_p_probs =
         static_cast<float*>(__builtin_assume_aligned(probs_host->data, 4));
@@ -275,19 +341,23 @@ class CPUSampler : public SamplerObj {
           int verify_end = cum_verify_lengths[i + 1];
           for (int cur_token_idx = 0; cur_token_idx < verify_end - verify_start; ++cur_token_idx) {
             float* p_probs = global_p_probs + (verify_start + cur_token_idx) * vocab_size;
-            int cur_token = draft_output_tokens[i][cur_token_idx];
-            float q_value = draft_output_token_prob[i][cur_token_idx];
+            int cur_token = draft_output_tokens[i][cur_token_idx].sampled_token_id.first;
+            float q_value = draft_output_tokens[i][cur_token_idx].sampled_token_id.second;
             float p_value = p_probs[cur_token];
 
             if (p_value >= q_value) {
-              request_mstates[i]->CommitToken(cur_token);
-              accepted_tokens[i].push_back(cur_token);
+              sample_results[i].push_back(
+                  SampleResult{{cur_token, p_value},
+                               ComputeTopProbs(probs_host, verify_start + cur_token_idx,
+                                               generation_cfg[i]->top_logprobs)});
               continue;
             }
             float r = rngs[i]->GetRandomNumber();
             if (r < p_value / (q_value + eps_)) {
-              request_mstates[i]->CommitToken(cur_token);
-              accepted_tokens[i].push_back(cur_token);
+              sample_results[i].push_back(
+                  SampleResult{{cur_token, p_value},
+                               ComputeTopProbs(probs_host, verify_start + cur_token_idx,
+                                               generation_cfg[i]->top_logprobs)});
               continue;
             }
 
@@ -309,20 +379,20 @@ class CPUSampler : public SamplerObj {
             }
 
             // sample a new token from the new distribution
-            int32_t new_token =
-                SampleTopPFromProb(
-                    probs_host, verify_start + cur_token_idx,
-                    generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p,
-                    rngs[i]->GetRandomNumber())
-                    .second;
-            request_mstates[i]->CommitToken(new_token);
-            accepted_tokens[i].push_back(cur_token);
+            SampleResult sample_result;
+            sample_result.sampled_token_id = SampleTopPFromProb(
+                probs_host, verify_start + cur_token_idx,
+                generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p,
+                rngs[i]->GetRandomNumber());
+            sample_result.top_prob_tokens = ComputeTopProbs(
+                probs_host, verify_start + cur_token_idx, generation_cfg[i]->top_logprobs);
+            sample_results[i].push_back(sample_result);
             break;
           }
         },
         0, num_sequence);
     RECORD_EVENT(trace_recorder_, request_ids, "finish draft verification");
-    return accepted_tokens;
+    return sample_results;
   }
 
  private:

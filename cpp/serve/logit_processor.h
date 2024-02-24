@@ -45,11 +45,11 @@ class LogitProcessorObj : public Object {
    * when speculation is enabled, in which case some sequences may have
    * more than one token.
    */
-  virtual void InplaceUpdateLogits(NDArray logits, const Array<GenerationConfig>& generation_cfg,
-                                   const Array<RequestModelState>& mstates,
-                                   const Array<String>& request_ids,
-                                   const std::vector<int>* cum_num_token = nullptr,
-                                   const std::vector<std::vector<int>>* draft_tokens = nullptr) = 0;
+  virtual void InplaceUpdateLogits(
+      NDArray logits, const Array<GenerationConfig>& generation_cfg,
+      const Array<RequestModelState>& mstates, const Array<String>& request_ids,
+      const std::vector<int>* cum_num_token = nullptr,
+      const std::vector<std::vector<SampleResult>>* draft_tokens = nullptr) = 0;
 
   /*!
    * \brief Compute probability distributions for the input batch of logits.

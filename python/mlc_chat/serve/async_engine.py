@@ -15,7 +15,7 @@ from . import data
 from .config import EngineMode, GenerationConfig, KVCacheConfig
 from .engine import ModelInfo, _estimate_max_total_sequence_length, _process_model_args
 from .event_trace_recorder import EventTraceRecorder
-from .request import Request, RequestStreamOutput
+from .request import Request
 
 
 class AsyncRequestStream:
@@ -31,13 +31,13 @@ class AsyncRequestStream:
     """
 
     # The asynchronous queue to hold elements of
-    # - either a tuple of (str, int, Optional[str]), denoting the
-    #   delta output text, the number of delta tokens, the optional
-    #   finish reason respectively,
+    # - either a tuple of (str, int, List[str], Optional[str]), denoting the
+    #   delta output text, the number of delta tokens, the logprob JSON strings
+    #   of delta tokens, and the optional finish reason respectively,
     # - or an exception.
     if sys.version_info >= (3, 9):
         _queue: asyncio.Queue[  # pylint: disable=unsubscriptable-object
-            Union[Tuple[str, int, Optional[str]], Exception]
+            Union[Tuple[str, int, Optional[List[str]], Optional[str]], Exception]
         ]
     else:
         _queue: asyncio.Queue
@@ -48,7 +48,10 @@ class AsyncRequestStream:
         self._queue = asyncio.Queue()
         self._finished = False
 
-    def push(self, item_or_exception: Union[Tuple[str, int, Optional[str]], Exception]) -> None:
+    def push(
+        self,
+        item_or_exception: Union[Tuple[str, int, Optional[List[str]], Optional[str]], Exception],
+    ) -> None:
         """Push a new token to the stream."""
         if self._finished:
             # No new item is expected after finish.
@@ -69,7 +72,7 @@ class AsyncRequestStream:
     def __aiter__(self):
         return self
 
-    async def __anext__(self) -> Tuple[str, int, Optional[str]]:
+    async def __anext__(self) -> Tuple[str, int, Optional[List[str]], Optional[str]]:
         result = await self._queue.get()
         if isinstance(result, StopIteration):
             raise StopAsyncIteration
@@ -183,12 +186,13 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
 
     async def generate(
         self, prompt: Union[str, List[int]], generation_config: GenerationConfig, request_id: str
-    ) -> AsyncGenerator[Tuple[str, int, str], Any]:
+    ) -> AsyncGenerator[Tuple[str, int, Optional[List[str]], Optional[str]], Any]:
         """Asynchronous text generation interface.
         The method is a coroutine that streams a tuple at a time via yield.
         Each tuple is contained of
         - the delta text in type str,
         - the number of delta tokens in type int,
+        - the logprob JSON strings of delta tokens,
         - the optional finish reason in type Optional[str].
 
         Parameters
@@ -252,15 +256,15 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
         self._request_tools.pop(request_id, None)
         self._ffi["abort_request"](request_id)
 
-    def _request_stream_callback(self, delta_outputs: List[RequestStreamOutput]) -> None:
+    def _request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
         """The request stream callback function for engine to stream back
         the request generation results.
 
         Parameters
         ----------
-        delta_outputs : List[RequestStreamOutput]
+        delta_outputs : List[data.RequestStreamOutput]
             The delta output of each requests.
-            Check out RequestStreamOutput for the fields of the outputs.
+            Check out data.RequestStreamOutput for the fields of the outputs.
 
         Note
         ----
@@ -275,10 +279,15 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             self._request_stream_callback_impl, delta_outputs
         )
 
-    def _request_stream_callback_impl(self, delta_outputs: List[RequestStreamOutput]) -> None:
+    def _request_stream_callback_impl(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
         """The underlying implementation of request stream callback."""
         for delta_output in delta_outputs:
-            request_id, delta_tokens, finish_reason = delta_output.unpack()
+            (
+                request_id,
+                delta_token_ids,
+                delta_logprob_json_strs,
+                finish_reason,
+            ) = delta_output.unpack()
             tools = self._request_tools.get(request_id, None)
             if tools is None:
                 continue
@@ -287,14 +296,13 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             stream, text_streamer = tools
 
             self.record_event(request_id, event="start detokenization")
-            delta_token_ids = delta_tokens.token_ids
             delta_text = text_streamer.put(delta_token_ids)
             if finish_reason is not None:
                 delta_text += text_streamer.finish()
             self.record_event(request_id, event="finish detokenization")
 
             # Push new delta text to the stream.
-            stream.push((delta_text, len(delta_token_ids), finish_reason))
+            stream.push((delta_text, len(delta_token_ids), delta_logprob_json_strs, finish_reason))
             if finish_reason is not None:
                 stream.finish()
                 self._request_tools.pop(request_id, None)

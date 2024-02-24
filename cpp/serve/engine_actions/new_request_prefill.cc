@@ -59,7 +59,6 @@ class NewRequestPrefillActionObj : public EngineActionObj {
         RequestModelState mstate = rstates[i]->mstates[model_id];
         ICHECK_EQ(mstate->GetInputLength(), prefill_lengths[i]);
         ICHECK(mstate->draft_output_tokens.empty());
-        ICHECK(mstate->draft_output_token_prob.empty());
         ICHECK(mstate->draft_output_prob_dist.empty());
         ICHECK(!mstate->inputs.empty());
         // Add the sequence to the model.
@@ -111,9 +110,9 @@ class NewRequestPrefillActionObj : public EngineActionObj {
         logit_processor_->ComputeProbsFromLogits(logits_for_sample, generation_cfg, request_ids);
 
     // - Sample tokens.
-    std::vector<int32_t> next_tokens =
+    std::vector<SampleResult> sample_results =
         sampler_->BatchSampleTokens(probs_device, request_ids, generation_cfg, rngs);
-    ICHECK_EQ(next_tokens.size(), num_requests);
+    ICHECK_EQ(sample_results.size(), num_requests);
 
     // - Update the committed tokens of states.
     // - If a request is first-time prefilled, set the prefill finish time.
@@ -122,7 +121,7 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     auto tnow = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < num_requests; ++i) {
       for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
-        rstates[i]->mstates[model_id]->CommitToken(next_tokens[i]);
+        rstates[i]->mstates[model_id]->CommitToken(sample_results[i]);
       }
       if (mstates_for_sample[i]->committed_tokens.size() == 1) {
         rstates[i]->tprefill_finish = tnow;

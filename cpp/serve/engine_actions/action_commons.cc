@@ -46,6 +46,7 @@ void ProcessFinishedRequest(Array<Request> finished_requests, EngineState estate
 }
 
 void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
+                           const Tokenizer& tokenizer,
                            FRequestStreamCallback request_stream_callback,
                            int max_single_sequence_length) {
   Array<Request> finished_requests;
@@ -57,15 +58,18 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
   // - Collect new generated tokens and finish reasons for requests.
   for (Request request : requests) {
     RequestState rstate = estate->GetRequestState(request);
-    auto [delta_token_ids, finish_reason] = rstate->GetReturnTokenIds(max_single_sequence_length);
+    auto [delta_token_ids, delta_logprob_json_strs, finish_reason] =
+        rstate->GetReturnTokenIds(tokenizer, max_single_sequence_length);
 
     // When there is no new delta tokens nor a finish reason, no need to invoke callback.
     if (delta_token_ids.empty() && !finish_reason.defined()) {
       continue;
     }
 
-    callback_delta_outputs.push_back(
-        RequestStreamOutput(request->id, TokenData(delta_token_ids), finish_reason));
+    callback_delta_outputs.push_back(RequestStreamOutput(
+        request->id, delta_token_ids,
+        request->generation_cfg->logprobs > 0 ? delta_logprob_json_strs : Optional<Array<String>>(),
+        finish_reason));
     if (finish_reason.defined()) {
       finished_requests.push_back(request);
     }
@@ -91,21 +95,23 @@ void PreemptLastRunningRequest(EngineState estate, const Array<Model>& models,
       request->input_total_length + rstate->mstates[0]->committed_tokens.size() - 1;
   for (RequestModelState mstate : rstate->mstates) {
     mstate->RemoveAllDraftTokens();
-    mstate->draft_output_token_prob.clear();
-    mstate->draft_output_prob_dist.clear();
     ICHECK(mstate->inputs.empty());
     ICHECK(!mstate->committed_tokens.empty());
+    std::vector<int32_t> committed_token_ids;
+    committed_token_ids.reserve(mstate->committed_tokens.size());
+    for (const SampleResult& committed_token : mstate->committed_tokens) {
+      committed_token_ids.push_back(committed_token.sampled_token_id.first);
+    }
 
     Array<Data> inputs = request->inputs;
     if (const auto* token_input = inputs.back().as<TokenDataNode>()) {
       // Merge the TokenData so that a single time TokenEmbed is needed.
       std::vector<int> token_ids{token_input->token_ids->data,
                                  token_input->token_ids->data + token_input->token_ids.size()};
-      token_ids.insert(token_ids.end(), mstate->committed_tokens.begin(),
-                       mstate->committed_tokens.end());
+      token_ids.insert(token_ids.end(), committed_token_ids.begin(), committed_token_ids.end());
       inputs.Set(inputs.size() - 1, TokenData(token_ids));
     } else {
-      inputs.push_back(TokenData(mstate->committed_tokens));
+      inputs.push_back(TokenData(committed_token_ids));
     }
     mstate->inputs = std::move(inputs);
   }
