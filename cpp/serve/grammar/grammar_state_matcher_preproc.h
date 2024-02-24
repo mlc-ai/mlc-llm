@@ -1,6 +1,7 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file serve/grammar/grammar_state_matcher.cc
+ * \file serve/grammar/grammar_state_matcher_preproc.h
+ * \brief The header for the preprocessing of the grammar state matcher.
  */
 #ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_STATE_MATCHER_PREPROC_H_
 #define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_STATE_MATCHER_PREPROC_H_

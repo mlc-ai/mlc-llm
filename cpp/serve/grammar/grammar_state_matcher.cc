@@ -2,9 +2,6 @@
  *  Copyright (c) 2023 by Contributors
  * \file serve/grammar/grammar_state_matcher.cc
  */
-// #ifndef TVM_LOG_DEBUG
-// #define TVM_LOG_DEBUG 1
-// #endif
 #include "grammar_state_matcher.h"
 
 #include <chrono>

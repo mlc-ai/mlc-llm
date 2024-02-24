@@ -1,7 +1,7 @@
 /*!
  * Copyright (c) 2023 by Contributors
- * \file dynamic_bitset.h
- * \brief The header for the dynamic bitset container.
+ * \file serve/grammar/support.h
+ * \brief The header for utilities used in grammar-guided generation.
  */
 #ifndef MLC_LLM_SERVE_GRAMMAR_SUPPORT_H_
 #define MLC_LLM_SERVE_GRAMMAR_SUPPORT_H_

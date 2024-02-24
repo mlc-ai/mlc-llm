@@ -1,6 +1,7 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file serve/grammar/grammar_state_matcher.cc
+ * \file serve/grammar/grammar_state_matcher_base.h
+ * \brief The base class of GrammarStateMatcher. It implements a character-based matching automata.
  */
 #ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_STATE_MATCHER_BASE_H_
 #define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_STATE_MATCHER_BASE_H_

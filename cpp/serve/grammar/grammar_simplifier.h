@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file serve/grammar/grammar_serializer.h
- * \brief The header for printing the AST of a BNF grammar.
+ * \file serve/grammar/grammar_simplifier.h
+ * \brief The header for the simplification of the BNF AST.
  */
 
 #ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_SIMPLIFIER_H_
