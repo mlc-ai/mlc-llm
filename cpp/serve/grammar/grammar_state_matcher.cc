@@ -493,7 +493,7 @@ IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher) {
             << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us";
 
   auto bitset = BitsetManager(reinterpret_cast<uint32_t*>(dltensor.data), bitset_size);
-  std::vector<long> rejected_ids;
+  std::vector<int64_t> rejected_ids;
   for (int i = 0; i < vocab_size; i++) {
     if (bitset[i] == 0) {
       rejected_ids.push_back(i);
