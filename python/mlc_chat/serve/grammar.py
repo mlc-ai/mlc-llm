@@ -23,7 +23,7 @@ class BNFGrammar(Object):
         r"""Parse a BNF grammar from a string in BNF/EBNF format.
 
         This method accepts the EBNF notation from the W3C XML Specification
-        (https://www.w3.org/TR/xml/#sec-notatPion), which is a popular standard, with the following
+        (https://www.w3.org/TR/xml/#sec-notation), which is a popular standard, with the following
         changes:
         - Using # as comment mark instead of /**/
         - Using C-style unicode escape sequence \u01AB, \U000001AB, \xAB instead of #x0123
