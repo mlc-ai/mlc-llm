@@ -266,8 +266,6 @@ def test_find_rejected_tokens(
         grammar_state_matcher.debug_accept_char(ord(c))
     rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens()
     real_sizes.append(len(rejected_token_ids))
-    print(real_sizes)
-    print(expected_rejected_sizes)
     assert real_sizes == expected_rejected_sizes
 
 
