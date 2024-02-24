@@ -8,7 +8,7 @@ import time
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import shortuuid
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 ################ Commons ################
 
@@ -18,8 +18,21 @@ class ListResponse(BaseModel):
     data: List[Any]
 
 
+class TopLogProbs(BaseModel):
+    token: str
+    logprob: float
+    bytes: Optional[List[int]]
+
+
+class LogProbsContent(BaseModel):
+    token: str
+    logprob: float
+    bytes: Optional[List[int]]
+    top_logprobs: List[TopLogProbs] = []
+
+
 class LogProbs(BaseModel):
-    pass
+    content: List[LogProbsContent]
 
 
 class UsageInfo(BaseModel):
@@ -63,8 +76,9 @@ class CompletionRequest(BaseModel):
     echo: bool = False
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
+    logprobs: bool = False
+    top_logprobs: int = 0
     logit_bias: Optional[Dict[int, float]] = None
-    logprobs: Optional[int] = None
     max_tokens: int = 16
     n: int = 1
     seed: Optional[int] = None
@@ -99,6 +113,15 @@ class CompletionRequest(BaseModel):
                     f"{bias} is given for token id {token_id}"
                 )
         return logit_bias_value
+
+    @model_validator(mode="after")
+    def check_logprobs(self) -> "CompletionRequest":
+        """Check if the logprobs requirements are valid."""
+        if self.top_logprobs < 0 or self.top_logprobs > 5:
+            raise ValueError('"top_logprobs" must be in range [0, 5]')
+        if not self.logprobs and self.top_logprobs > 0:
+            raise ValueError('"logprobs" must be True to support "top_logprobs"')
+        return self
 
 
 class CompletionResponseChoice(BaseModel):
@@ -165,6 +188,8 @@ class ChatCompletionRequest(BaseModel):
     model: str
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
+    logprobs: bool = False
+    top_logprobs: int = 0
     logit_bias: Optional[Dict[int, float]] = None
     max_tokens: Optional[int] = None
     n: int = 1
@@ -203,17 +228,28 @@ class ChatCompletionRequest(BaseModel):
                 )
         return logit_bias_value
 
+    @model_validator(mode="after")
+    def check_logprobs(self) -> "ChatCompletionRequest":
+        """Check if the logprobs requirements are valid."""
+        if self.top_logprobs < 0 or self.top_logprobs > 5:
+            raise ValueError('"top_logprobs" must be in range [0, 5]')
+        if not self.logprobs and self.top_logprobs > 0:
+            raise ValueError('"logprobs" must be True to support "top_logprobs"')
+        return self
+
 
 class ChatCompletionResponseChoice(BaseModel):
     finish_reason: Optional[Literal["stop", "length", "tool_calls", "error"]] = None
     index: int = 0
     message: ChatCompletionMessage
+    logprobs: Optional[LogProbs] = None
 
 
 class ChatCompletionStreamResponseChoice(BaseModel):
     finish_reason: Optional[Literal["stop", "length", "tool_calls"]] = None
     index: int = 0
     delta: ChatCompletionMessage
+    logprobs: Optional[LogProbs] = None
 
 
 class ChatCompletionResponse(BaseModel):
@@ -254,7 +290,6 @@ def openai_api_get_unsupported_fields(
     """Get the unsupported fields in the request."""
     unsupported_field_default_values: List[Tuple[str, Any]] = [
         ("best_of", 1),
-        ("logprobs", None),
         ("n", 1),
         ("response_format", "text"),
     ]
@@ -277,6 +312,8 @@ def openai_api_get_generation_config(
         "max_tokens",
         "frequency_penalty",
         "presence_penalty",
+        "logprobs",
+        "top_logprobs",
         "logit_bias",
         "seed",
         "ignore_eos",

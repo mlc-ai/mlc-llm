@@ -22,7 +22,7 @@ from ..tokenizer import Tokenizer
 from . import data
 from .config import EngineMode, GenerationConfig, KVCacheConfig
 from .event_trace_recorder import EventTraceRecorder
-from .request import Request, RequestStreamOutput
+from .request import Request
 
 logging.enable_logging()
 logger = logging.getLogger(__name__)
@@ -269,7 +269,7 @@ class Engine:
         models: Union[ModelInfo, List[ModelInfo]],
         kv_cache_config: KVCacheConfig,
         engine_mode: Optional[EngineMode] = None,
-        request_stream_callback: Optional[Callable[[List[RequestStreamOutput]], None]] = None,
+        request_stream_callback: Optional[Callable[[List[data.RequestStreamOutput]], None]] = None,
         enable_tracing: bool = False,
     ):
         if isinstance(models, ModelInfo):
@@ -329,7 +329,7 @@ class Engine:
         self,
         prompts: Union[str, List[str], List[int], List[List[int]]],
         generation_config: Union[GenerationConfig, List[GenerationConfig]],
-    ) -> List[str]:
+    ) -> Tuple[List[str], List[Optional[List[str]]]]:
         """Generate texts for a list of input prompts.
         Each prompt can be a string or a list of token ids.
         The generation for each prompt is independent.
@@ -350,8 +350,12 @@ class Engine:
 
         Returns
         -------
-        results : List[str]
+        output_text : List[str]
             The text generation results, one string for each input prompt.
+
+        output_logprobs_str : List[Optional[List[str]]]
+            The logprob strings of each token for each input prompt, or None
+            if an input prompt does not require logprobs.
         """
         if isinstance(prompts, str):
             # `prompts` is a single string.
@@ -362,7 +366,7 @@ class Engine:
                 "str, a list of token ids or multiple lists of token ids."
             )
             if len(prompts) == 0:
-                return []
+                return [], []
             if isinstance(prompts[0], int):
                 # `prompts` is a list of token ids
                 prompts = [prompts]  # type: ignore
@@ -376,10 +380,12 @@ class Engine:
         ), "Number of generation config and number of prompts mismatch"
 
         num_finished_requests = 0
-        outputs: List[str] = []
+        output_texts: List[str] = []
+        output_logprobs_str: List[Optional[List[str]]] = []
         text_streamers: List[TextStreamer] = []
-        for _ in range(num_requests):
-            outputs.append("")
+        for i in range(num_requests):
+            output_texts.append("")
+            output_logprobs_str.append([] if generation_config[i].logprobs else None)
             text_streamers.append(TextStreamer(self.tokenizer))
 
         # Save a copy of the original function callback since `generate`
@@ -388,18 +394,26 @@ class Engine:
         original_callback = self._ffi["get_request_stream_callback"]()
 
         # Define the callback function for request generation results
-        def request_stream_callback(delta_outputs: List[RequestStreamOutput]):
+        def request_stream_callback(delta_outputs: List[data.RequestStreamOutput]):
             nonlocal num_finished_requests
             for delta_output in delta_outputs:
-                request_id, delta_tokens, finish_reason = delta_output.unpack()
+                (
+                    request_id,
+                    delta_token_ids,
+                    delta_logprob_json_strs,
+                    finish_reason,
+                ) = delta_output.unpack()
                 rid = int(request_id)
                 text_streamer = text_streamers[rid]
+                if output_logprobs_str[rid] is not None:
+                    assert delta_logprob_json_strs is not None
+                    output_logprobs_str[rid] += delta_logprob_json_strs
 
-                delta_text = text_streamer.put(delta_tokens.token_ids)
+                delta_text = text_streamer.put(delta_token_ids)
                 if finish_reason is not None:
                     delta_text += text_streamer.finish()
 
-                outputs[rid] += delta_text
+                output_texts[rid] += delta_text
                 if finish_reason is not None:
                     num_finished_requests += 1
 
@@ -426,7 +440,7 @@ class Engine:
 
         # Restore the callback function in engine.
         self._ffi["set_request_stream_callback"](original_callback)
-        return outputs
+        return output_texts, output_logprobs_str
 
     def add_request(self, request: Request) -> None:
         """Add a new request to the engine.

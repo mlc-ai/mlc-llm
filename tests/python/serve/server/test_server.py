@@ -646,6 +646,39 @@ def test_openai_v1_completions_prompt_overlong(
         assert num_chunks == 1
 
 
+@pytest.mark.parametrize("stream", [False, True])
+def test_openai_v1_completions_invalid_logprobs(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    payload = {
+        "model": served_model[0],
+        "prompt": "What is the meaning of life?",
+        "max_tokens": 256,
+        "stream": stream,
+        "logprobs": False,
+        "top_logprobs": 4,
+    }
+
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.json()["detail"][0]["msg"].endswith(
+        '"logprobs" must be True to support "top_logprobs"'
+    )
+
+    payload["logprobs"] = True
+    payload["top_logprobs"] = 6
+
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.json()["detail"][0]["msg"].endswith('"top_logprobs" must be in range [0, 5]')
+
+
 def test_openai_v1_completions_unsupported_args(
     served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
@@ -783,6 +816,8 @@ def test_openai_v1_chat_completions_openai_package(
         model=served_model[0],
         messages=messages,
         stream=stream,
+        logprobs=True,
+        top_logprobs=2,
     )
     if not stream:
         check_openai_nonstream_response(
@@ -981,6 +1016,8 @@ if __name__ == "__main__":
     test_openai_v1_completions_seed(MODEL, None)
     test_openai_v1_completions_prompt_overlong(MODEL, None, stream=False)
     test_openai_v1_completions_prompt_overlong(MODEL, None, stream=True)
+    test_openai_v1_completions_invalid_logprobs(MODEL, None, stream=False)
+    test_openai_v1_completions_invalid_logprobs(MODEL, None, stream=True)
     test_openai_v1_completions_unsupported_args(MODEL, None)
     test_openai_v1_completions_request_cancellation(MODEL, None)
 

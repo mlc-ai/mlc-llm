@@ -67,7 +67,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
                            const Array<RequestModelState>& mstates,        //
                            const Array<String>& request_ids,               //
                            const std::vector<int>* cum_num_token,          //
-                           const std::vector<std::vector<int>>* draft_tokens) final {
+                           const std::vector<std::vector<SampleResult>>* draft_tokens) final {
     CHECK_EQ(logits->ndim, 2);
     CHECK_EQ(logits->shape[1], vocab_size_);
     CHECK(logits.DataType() == DataType::Float(32));
@@ -219,7 +219,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
   void UpdateWithPenalty(NDArray logits, const Array<GenerationConfig>& generation_cfg,
                          const Array<RequestModelState>& mstates,
                          const std::vector<int>* cum_num_token,
-                         const std::vector<std::vector<int>>* draft_tokens) {
+                         const std::vector<std::vector<SampleResult>>* draft_tokens) {
     // Construct:
     // - seq_ids (max_num_token,) int32
     // - pos2seq_id (max_num_token * vocab_size,) int32
@@ -256,7 +256,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
           p_penalties[num_token_for_penalty * 3 + 2] = generation_cfg[i]->repetition_penalty;
           ++num_token_for_penalty;
           if (j > 0) {
-            mstates[i]->AddDraftToken(draft_tokens->at(i)[j - 1]);
+            mstates[i]->AddDraftToken(draft_tokens->at(i)[j - 1], NDArray());
           }
         }
         if (num_token_to_process != 1) {
@@ -301,7 +301,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
   void UpdateWithMask(NDArray logits, const Array<RequestModelState>& mstates,
                       const std::vector<int>* cum_num_token,
-                      const std::vector<std::vector<int>>* draft_tokens) {
+                      const std::vector<std::vector<SampleResult>>* draft_tokens) {
     // Construct:
     // - seq_ids (max_num_token,) int32
     // - bitmask (max_num_token, ceildiv(vocab_size, 32)), int32
@@ -326,7 +326,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
           ++num_token_for_mask;
         }
         if (j > 0) {
-          mstates[i]->AddDraftToken(draft_tokens->at(i)[j - 1]);
+          mstates[i]->AddDraftToken(draft_tokens->at(i)[j - 1], NDArray());
         }
       }
       if (num_token_to_process != 1) {

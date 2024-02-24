@@ -35,11 +35,13 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<M
  * \param requests The requests to process.
  * \param estate The engine state.
  * \param models The models to remove the finished from.
+ * \param tokenizer The tokenizer for logprob process.
  * \param request_stream_callback The request stream callback function.
  * \param max_single_sequence_length The max single sequence length to help decide
  * if a request is finished.
  */
 void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
+                           const Tokenizer& tokenizer,
                            FRequestStreamCallback request_stream_callback,
                            int max_single_sequence_length);
 

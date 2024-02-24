@@ -178,7 +178,7 @@ class EngineImpl : public Engine {
     for (EngineAction action : actions_) {
       Array<Request> processed_requests = action->Step(estate_);
       if (!processed_requests.empty()) {
-        ActionStepPostProcess(processed_requests, estate_, models_,
+        ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
                               request_stream_callback_.value(), max_single_sequence_length_);
         return;
       }

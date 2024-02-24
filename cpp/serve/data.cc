@@ -77,6 +77,88 @@ TVM_REGISTER_GLOBAL("mlc.serve.TokenDataGetTokenIds").set_body_typed([](TokenDat
   return data->token_ids;
 });
 
+/****************** SampleResult ******************/
+
+/*! \brief Convert a single token with probability to JSON string. */
+inline void TokenToLogProbJSON(const Tokenizer& tokenizer, const TokenProbPair& token_prob,
+                               std::ostringstream* os) {
+  const std::string& token = tokenizer->TokenTable()[token_prob.first];
+
+  (*os) << "\"token\": \"";
+  for (char ch : token) {
+    if (ch >= 33 && ch <= 126) {
+      // The character is in ASCII visible range.
+      // Handle escape characters in JSON.
+      if (ch == '"') {
+        (*os) << "\\\"";
+      } else if (ch == '\\') {
+        (*os) << "\\\\";
+      } else {
+        (*os) << ch;
+      }
+    }
+  }
+  (*os) << "\", ";
+  (*os) << "\"logprob\": " << std::log(std::max(token_prob.second, 1e-10f)) << ", ";
+  (*os) << "\"bytes\": [";
+  int token_len = token.size();
+  for (int pos = 0; pos < token_len; ++pos) {
+    (*os) << static_cast<int>(static_cast<u_char>(token[pos]));
+    if (pos != token_len - 1) {
+      (*os) << ", ";
+    }
+  }
+  (*os) << "]";
+}
+
+std::string SampleResult::GetLogProbJSON(const Tokenizer& tokenizer, bool logprob) const {
+  ICHECK(top_prob_tokens.empty() || logprob);
+  if (!logprob) {
+    // Logprob is not needed.
+    return "";
+  }
+
+  std::ostringstream os;
+  os << "{";
+  // - Convert the sampled token to JSON.
+  TokenToLogProbJSON(tokenizer, sampled_token_id, &os);
+  // - Convert the tokens with top probabilities.
+  os << ", \"top_logprobs\": [";
+  int num_top = top_prob_tokens.size();
+  for (int i = 0; i < num_top; ++i) {
+    os << "{";
+    TokenToLogProbJSON(tokenizer, top_prob_tokens[i], &os);
+    os << "}";
+    if (i != num_top - 1) {
+      os << ", ";
+    }
+  }
+  os << "]}";
+  return os.str();
+}
+
+/****************** RequestStreamOutput ******************/
+
+TVM_REGISTER_OBJECT_TYPE(RequestStreamOutputObj);
+
+RequestStreamOutput::RequestStreamOutput(String request_id,
+                                         const std::vector<int32_t>& delta_token_ids,
+                                         Optional<Array<String>> delta_logprob_json_strs,
+                                         Optional<String> finish_reason) {
+  ObjectPtr<RequestStreamOutputObj> n = make_object<RequestStreamOutputObj>();
+  n->request_id = std::move(request_id);
+  n->delta_token_ids = IntTuple{delta_token_ids.begin(), delta_token_ids.end()};
+  n->delta_logprob_json_strs = std::move(delta_logprob_json_strs);
+  n->finish_reason = std::move(finish_reason);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_GLOBAL("mlc.serve.RequestStreamOutputUnpack")
+    .set_body_typed([](RequestStreamOutput output) {
+      return Array<ObjectRef>{output->request_id, output->delta_token_ids,
+                              output->delta_logprob_json_strs, output->finish_reason};
+    });
+
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc
