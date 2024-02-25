@@ -1,4 +1,4 @@
-"""This file specifies how MLC's InternLM2 parameters are quantized using group quantization
+"""This file specifies how MLC's InternLM parameters are quantized using group quantization
 or other formats."""
 from typing import Tuple
 
