@@ -1,5 +1,5 @@
 """
-This file specifies how MLC's StableLM parameter maps from other formats, for example HuggingFace
+This file specifies how MLC's InternLM parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
 
@@ -19,8 +19,8 @@ def huggingface(model_config: InternLMForCausalLM, quantization: Quantization) -
 
     Parameters
     ----------
-    model_config : InternLM2Config
-        The configuration of the InternLM2 model.
+    model_config : InternLMConfig
+        The configuration of the InternLM model.
 
     quantization : Quantization
         The quantization configuration.
