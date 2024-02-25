@@ -248,4 +248,18 @@ MODELS: Dict[str, Model] = {
             "ft-quant": baichuan_quantization.ft_quant,
         },
     ),
+    "internlm": Model(
+        name="internlm",
+        model=internlm_model.InternLMForCausalLM,
+        config=internlm_model.InternLMConfig,
+        source={
+            "huggingface-torch": internlm_loader.huggingface,
+            "huggingface-safetensor": internlm_loader.huggingface,
+        },
+        quantize={
+            "no-quant": internlm_quantization.no_quant,
+            "group-quant": internlm_quantization.group_quant,
+            "ft-quant": internlm_quantization.ft_quant,
+        },
+    ),
 }
