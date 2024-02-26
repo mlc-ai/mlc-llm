@@ -128,7 +128,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
 
         if kv_cache_config.max_total_sequence_length is None:
             kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
-                models, config_file_paths
+                models, config_file_paths, kv_cache_config.max_num_sequence
             )
         if kv_cache_config.prefill_chunk_size is None:
             kv_cache_config.prefill_chunk_size = prefill_chunk_size
