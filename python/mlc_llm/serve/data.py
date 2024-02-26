@@ -5,6 +5,7 @@ from typing import List, Optional, Tuple
 
 import tvm._ffi
 from tvm.runtime import Object
+from tvm.runtime.ndarray import NDArray
 
 from . import _ffi_api
 
@@ -56,6 +57,25 @@ class TokenData(Data):
     def token_ids(self) -> List[int]:
         """Return the token ids of the TokenData."""
         return list(_ffi_api.TokenDataGetTokenIds(self))  # type: ignore  # pylint: disable=no-member
+
+
+@tvm._ffi.register_object("mlc.serve.ImageData")  # type: ignore  # pylint: disable=protected-access
+class ImageData(Data):
+    """The class of image data, containing the image as NDArray.
+
+    Parameters
+    ----------
+    image : tvm.runtime.NDArray
+        The image data.
+    """
+
+    def __init__(self, image: NDArray, embed_size: int):
+        self.__init_handle_by_constructor__(_ffi_api.ImageData, image, embed_size)
+
+    @property
+    def image(self) -> NDArray:
+        """Return the image data."""
+        return _ffi_api.ImageDataGetImage(self)
 
 
 @dataclass
