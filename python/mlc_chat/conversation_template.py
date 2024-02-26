@@ -51,6 +51,23 @@ ConvTemplateRegistry.register_conv_template(
     )
 )
 
+# Mistral default
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="mistral_default",
+        system_template=f"[INST] {MessagePlaceholders.SYSTEM.value}\n\n ",
+        system_message="Always assist with care, respect, and truth. Respond with utmost "
+        "utility yet securely. Avoid harmful, unethical, prejudiced, or negative content. "
+        "Ensure replies promote fairness and positivity.",
+        roles={"user": "[INST]", "assistant": "[/INST]", "tool": "[INST]"},
+        seps=[" "],
+        role_content_sep=" ",
+        role_empty_sep="",
+        stop_str=["</s>"],
+        stop_token_ids=[2],
+    )
+)
+
 # Gorilla
 ConvTemplateRegistry.register_conv_template(
     Conversation(

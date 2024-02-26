@@ -138,12 +138,15 @@ def _process_model_args(
 
 
 def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
-    models: List[ModelInfo], config_file_paths: List[str]
+    models: List[ModelInfo], config_file_paths: List[str], max_num_sequence: int
 ) -> int:
     """Estimate the max total sequence length (capacity) of the KV cache."""
     assert len(models) != 0
 
     kv_bytes_per_token = 0
+    kv_aux_workspace_bytes = 0
+    model_workspace_bytes = 0
+    logit_processor_workspace_bytes = 0
     params_bytes = 0
     temp_func_bytes = 0
 
@@ -169,15 +172,26 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
             model_config = json_object["model_config"]
             num_layers = model_config["num_hidden_layers"]
             hidden_size = model_config["hidden_size"]
-            num_qo_heads = model_config["num_attention_heads"]
-            num_kv_heads = model_config["num_key_value_heads"]
+            head_dim = model_config["head_dim"]
+            vocab_size = model_config["vocab_size"]
             tensor_parallel_shards = model_config["tensor_parallel_shards"]
-        kv_bytes_per_token += (
-            (hidden_size / num_qo_heads)
-            * (num_kv_heads / tensor_parallel_shards)  # on single GPU
-            * num_layers
-            * 4  # key, value, fp16
-            * 1.10  # over estimation to guarantee safety
+            num_qo_heads = model_config["num_attention_heads"] / tensor_parallel_shards
+            num_kv_heads = model_config["num_key_value_heads"] / tensor_parallel_shards
+            prefill_chunk_size = model_config["prefill_chunk_size"]
+        kv_bytes_per_token += head_dim * num_kv_heads * num_layers * 4 + 1.25
+        kv_aux_workspace_bytes += (
+            (max_num_sequence + 1) * 88
+            + prefill_chunk_size * (num_qo_heads + 1) * 8
+            + prefill_chunk_size * head_dim * (num_qo_heads + num_kv_heads) * 4
+            + 48 * 1024 * 1024
+        )
+        model_workspace_bytes += (
+            prefill_chunk_size * 4
+            + max_num_sequence * 4
+            + (prefill_chunk_size * 2 + max_num_sequence) * hidden_size * 2
+        )
+        logit_processor_workspace_bytes += (
+            max_num_sequence * 20 + max_num_sequence * vocab_size * 16.125
         )
 
     # Get single-card GPU size.
@@ -191,7 +205,15 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
             )
 
     max_total_sequence_length = int(
-        (int(gpu_size_bytes) * 0.97 - params_bytes * 1.04 - temp_func_bytes) / kv_bytes_per_token
+        (
+            int(gpu_size_bytes) * 0.85
+            - params_bytes
+            - temp_func_bytes
+            - kv_aux_workspace_bytes
+            - model_workspace_bytes
+            - logit_processor_workspace_bytes
+        )
+        / kv_bytes_per_token
     )
     assert max_total_sequence_length > 0, (
         "Cannot estimate KV cache capacity. "
@@ -199,7 +221,12 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
     )
 
     total_size = (
-        params_bytes * 1.05 + temp_func_bytes + kv_bytes_per_token * max_total_sequence_length
+        params_bytes
+        + temp_func_bytes
+        + kv_aux_workspace_bytes
+        + model_workspace_bytes
+        + logit_processor_workspace_bytes
+        + kv_bytes_per_token * max_total_sequence_length
     )
     logger.info(
         "%s: %d.",
@@ -211,8 +238,8 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
         green("Estimated total single GPU memory usage"),
         total_size / 1024 / 1024,
         params_bytes / 1024 / 1024,
-        kv_bytes_per_token * max_total_sequence_length / 1024 / 1024,
-        temp_func_bytes / 1024 / 1024,
+        (kv_bytes_per_token * max_total_sequence_length + kv_aux_workspace_bytes) / 1024 / 1024,
+        (model_workspace_bytes + logit_processor_workspace_bytes + temp_func_bytes) / 1024 / 1024,
     )
     return int(max_total_sequence_length)
 
@@ -299,7 +326,7 @@ class Engine:
 
         if kv_cache_config.max_total_sequence_length is None:
             kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
-                models, config_file_paths
+                models, config_file_paths, kv_cache_config.max_num_sequence
             )
         if kv_cache_config.prefill_chunk_size is None:
             kv_cache_config.prefill_chunk_size = prefill_chunk_size
