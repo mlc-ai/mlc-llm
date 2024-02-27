@@ -253,17 +253,19 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         device = weight.device
         device_type = device.MASK2STR[device.device_type]
         axis = axis if axis >= 0 else len(weight.shape) + axis
-        
+
         def _create_quantize_func() -> IRModule:
             if self.fp8_quant:
-                if DataType(self.quantize_dtype).type_code == DataTypeCode.E4M3Float or
-                   DataType(self.quantize_dtype).type_code == DataTypeCode.E5M2Flot:
-                   quantize_func = self._quantize_float8
+                if (
+                    DataType(self.quantize_dtype).type_code == DataTypeCode.E4M3Float
+                    or DataType(self.quantize_dtype).type_code == DataTypeCode.E5M2Float
+                ):
+                    quantize_func = self._quantize_float8
                 else:
                     assert NotImplementedError()
             else:
                 quantize_func = self._quantize
-            
+
             bb = relax.BlockBuilder()  # pylint: disable=invalid-name
             weight_var = relax.Var("weight", relax.TensorStructInfo(weight.shape, weight.dtype))
             with bb.function(name="main", params=[weight_var]):
@@ -576,20 +578,20 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         else:
             dequant_func = self.confg._dequantize
 
-        out_shape = [
-            (
-                tir.IntImm("int64", self.out_features) if isinstance(self.out_features, int)
-                else weight.shape[0]
-            ),  # Reuse same tir.Var for symbolic shape (after Exporter)
-            tir.IntImm("int64", self.in_features),
-        ] if self.config.linear_weight_layout == "NK"
-        else [
+        if self.config.linear_weight_layout == "NK":
+            out_shape = [
+                tir.IntImm("int64", self.out_features)
+                if isinstance(self.out_features, int)
+                else weight.shape[0],
                 tir.IntImm("int64", self.in_features),
-                (
-                    tir.IntImm("int64", self.out_features) if isinstance(self.out_features, int)
-                    else weight.shape[1]
-                ),  # Reuse same tir.Var for symbolic shape (after Exporter)
-        ]
+            ]
+        else:
+            out_shape = [
+                tir.IntImm("int64", self.in_features),
+                tir.IntImm("int64", self.out_features)
+                if isinstance(self.out_features, int)
+                else weight.shape[1],
+            ]
 
         if not self.no_scale:
             w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
