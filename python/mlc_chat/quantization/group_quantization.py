@@ -409,7 +409,9 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 fcompute=lambda *idx: te.max(
                     tir.if_then_else(
                         idx[axis] * self.group_size + r < k,
-                        te.abs(weight(*idx[:axis], idx[axis] * self.group_size + r, *idx[axis + 1 :])),
+                        te.abs(
+                            weight(*idx[:axis], idx[axis] * self.group_size + r, *idx[axis + 1 :])
+                        ),
                         te.min_value(self.model_dtype),
                     ),
                     axis=r,
@@ -444,10 +446,9 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 fcompute=lambda *idx: tir.reinterpret(
                     self.storage_dtype,
                     tir.Cast(  # TODO(jmcmahan): verify that this cast (fp16 -> e5m2) does the expected mantissa clip
-                        self.quantize_dtype,
-                        weight(*idx)
-                    )
-                )
+                        self.quantize_dtype, weight(*idx)
+                    ),
+                ),
             )
 
         # TODO(csullivan): If using vector type fp8x4 this compute op can be deleted
@@ -550,7 +551,9 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
             _apply_sharding(shard, f"{shard.name}_q_weight", quantized_linear.q_weight)
-            if not DataType(config.quantize_dtype).type_code == DataTypeCode.E5M2Float:  # no scale for e5m2
+            if (
+                not DataType(config.quantize_dtype).type_code == DataTypeCode.E5M2Float
+            ):  # no scale for e5m2
                 _apply_sharding(shard, f"{shard.name}_q_scale", quantized_linear.q_scale)
         return quantized_linear
 
@@ -612,9 +615,11 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
                     out_shape=out_shape,
                 ),
                 name_hint="dequantize",
-                args=[self.q_weight,]
+                args=[
+                    self.q_weight,
+                ],
             )
-        
+
         if self.config.linear_weight_layout == "NK":
             w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
         x = nn.op.matmul(x, w, out_dtype=self.out_dtype)
@@ -698,9 +703,7 @@ class GroupQuantizeEmbedding(nn.Module):
 
         out_shape = [
             (
-                tir.IntImm("int64", self.num)
-                if isinstance(self.num, int)
-                else weight.shape[0]
+                tir.IntImm("int64", self.num) if isinstance(self.num, int) else weight.shape[0]
             ),  # Reuse same tir.Var for symbolic shape (after Exporter)
             tir.IntImm("int64", self.dim),
         ]
@@ -724,9 +727,11 @@ class GroupQuantizeEmbedding(nn.Module):
                     out_shape=out_shape,
                 ),
                 name_hint="dequantize",
-                args=[self.q_weight,],
+                args=[
+                    self.q_weight,
+                ],
             )
-        
+
         if x.ndim == 1:
             return nn.op.take(w, x, axis=0)
         return nn.op.reshape(
