@@ -41,12 +41,13 @@ def convert_uint_to_float(  # pylint: disable=too-many-arguments
         ).astype(model_dtype),
     )
 
-def convert_uint_to_float_e4m3(  # pylint: disable=too-many-arguments
+def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
     weight: te.Tensor,
     bits: int,
     num_elem_per_storage: int,
     storage_dtype: str,
     model_dtype: str,
+    quant_dtype: str,
     axis: int = -1,
     out_shape: Optional[List[tir.PrimExpr]] = None,
     ft_reorder: Optional[bool] = False,
@@ -55,6 +56,7 @@ def convert_uint_to_float_e4m3(  # pylint: disable=too-many-arguments
     # Does *not* have FT reoder support right now, can add back in (need to verify bit-match for fp8)
     if ft_reorder:
         raise NotImplementedError()
+    assert quant_dtype in ["e4m3_float8"]
     tir_bin_mask = tir.const((1 << bits) - 1, storage_dtype)
     if out_shape is None:
         out_shape = weight.shape
@@ -63,7 +65,7 @@ def convert_uint_to_float_e4m3(  # pylint: disable=too-many-arguments
     return te.compute(
         shape=out_shape,
         fcompute=lambda *idx: tir.reinterpret(
-            DataType("e4m3_float8"),  # TODO(jmcmahan): bad to have the const string here, should come in as arg from model config
+            DataType(quant_dtype),
             tir.bitwise_and(
                 tir.shift_right(
                     weight(*idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]),
