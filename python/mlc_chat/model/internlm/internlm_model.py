@@ -76,7 +76,6 @@ class InternLMConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
             self.prefill_chunk_size = self.context_window_size
 
 
-
 # pylint: disable=invalid-name,missing-docstring
 
 
@@ -87,32 +86,33 @@ class InternLMAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         self.head_dim = self.hidden_size // self.num_heads
         self.max_position_embeddings = config.context_window_size
 
-        self.wqkv_pack = nn.Linear(self.hidden_size, 3 * self.num_heads * self.head_dim, bias=config.bias)
+        self.wqkv_pack = nn.Linear(
+            self.hidden_size, 3 * self.num_heads * self.head_dim, bias=config.bias
+        )
         self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=config.bias)
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        d, h= self.head_dim, self.num_heads
+        d, h = self.head_dim, self.num_heads
         b, s, _ = hidden_states.shape
         qkv = self.wqkv_pack(hidden_states)
         qkv = op.reshape(qkv, (b, s, 3 * h, d))
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads),
-            (b, s, h*d)
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads), (b, s, h*d)
         )
         attn_output = self.o_proj(output)
         return attn_output
 
     def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        d, h= self.head_dim, self.num_heads
+        d, h = self.head_dim, self.num_heads
         b, s, _ = hidden_states.shape
         qkv = self.wqkv_pack(hidden_states)
         qkv = op.reshape(qkv, (b, s, 3 * h, d))
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads),
-            (b, s, h*d)
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads), (b, s, h*d)
         )
         attn_output = self.o_proj(output)
         return attn_output
+
 
 class InternLMMLP(nn.Module):
     def __init__(self, config: InternLMConfig):
@@ -133,7 +133,9 @@ class InternLMDecoderLayer(nn.Module):
     def __init__(self, config: InternLMConfig):
         self.self_attn = InternLMAttention(config)
         self.mlp = InternLMMLP(config)
-        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.input_layernorm = nn.RMSNorm(
+            config.hidden_size, -1, config.rms_norm_eps, bias=False
+        )
         self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
@@ -144,7 +146,9 @@ class InternLMDecoderLayer(nn.Module):
         return hidden_states
 
     def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn.batch_forward(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+        out = self.self_attn.batch_forward(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
+        )
         hidden_states = out + hidden_states
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = out + hidden_states
@@ -187,7 +191,6 @@ class InternLMForCausalLM(nn.Module): # pylint: disable=too-many-instance-attrib
         self.rope_theta = 10000
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
-
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
