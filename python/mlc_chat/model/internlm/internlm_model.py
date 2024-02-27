@@ -97,7 +97,7 @@ class InternLMAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         qkv = self.wqkv_pack(hidden_states)
         qkv = op.reshape(qkv, (b, s, 3 * h, d))
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads), (b, s, h*d)
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads), (b, s, h * d)
         )
         attn_output = self.o_proj(output)
         return attn_output
@@ -108,7 +108,7 @@ class InternLMAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         qkv = self.wqkv_pack(hidden_states)
         qkv = op.reshape(qkv, (b, s, 3 * h, d))
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads), (b, s, h*d)
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads), (b, s, h * d)
         )
         attn_output = self.o_proj(output)
         return attn_output
@@ -133,10 +133,10 @@ class InternLMDecoderLayer(nn.Module):
     def __init__(self, config: InternLMConfig):
         self.self_attn = InternLMAttention(config)
         self.mlp = InternLMMLP(config)
-        self.input_layernorm = nn.RMSNorm(
+        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.post_attention_layernorm = nn.RMSNorm(
             config.hidden_size, -1, config.rms_norm_eps, bias=False
         )
-        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
@@ -178,7 +178,7 @@ class InternLMModel(nn.Module):
         return hidden_states
 
 
-class InternLMForCausalLM(nn.Module): # pylint: disable=too-many-instance-attributes
+class InternLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: InternLMConfig):
         self.model = InternLMModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
