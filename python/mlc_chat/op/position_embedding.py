@@ -7,7 +7,10 @@ from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
 from tvm.target import Target
 
-from ..support.max_thread_check import check_max_num_threads
+from ..support.max_thread_check import (
+    check_max_num_threads,
+    get_max_num_threads_per_block,
+)
 
 # pylint: disable=invalid-name
 
@@ -318,9 +321,10 @@ def llama_inplace_rope(
     VEC_SIZE = 4
     bdx = (head_dim + VEC_SIZE - 1) // VEC_SIZE  # T.ceildiv(head_dim, VEC_SIZE)
     bdy = 32
-    while bdx * bdy > target.max_num_threads and bdy > 1:
+    max_num_threads_per_block = get_max_num_threads_per_block(target)
+    while bdx * bdy > max_num_threads_per_block and bdy > 1:
         bdy //= 2
-    check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=1)
+    check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=1, gdz=1)
 
     def _rope(
         x: T.Buffer,

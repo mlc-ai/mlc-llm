@@ -18,7 +18,10 @@ from mlc_chat.op.position_embedding import (
     rope_freq,
 )
 
-from ..support.max_thread_check import check_max_num_threads
+from ..support.max_thread_check import (
+    check_max_num_threads,
+    get_max_num_threads_per_block,
+)
 
 
 class RopeMode(enum.IntEnum):
@@ -491,7 +494,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
     ):
         tile_z = 8
         num_warps = 2
-    check_max_num_threads(target, bdx=bdx, bdy=num_warps, bdz=1)
+    check_max_num_threads(target, bdx=bdx, bdy=num_warps, bdz=1, gdz=1)
 
     def mask(causal, row, col, kv_len, qo_len):
         return T.if_then_else(
@@ -845,7 +848,7 @@ def _attention_decode(
     bdz = threads_per_CTA // (bdx * bdy)
     tile_size_per_bdx = 2 if GROUP_SIZE == 1 else 1
     log2e = math.log2(math.exp(1))
-    check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=bdz)
+    check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=bdz, gdz=1)
 
     # pylint: disable=line-too-long,too-many-arguments,too-many-branches
     # fmt: off
@@ -1062,9 +1065,10 @@ def _merge_state_inplace(
     VEC_SIZE = min(max(8 // v_dtype_bytes, head_dim // 32), 4)
     bdx = head_dim // VEC_SIZE
     bdy = num_heads
-    while bdx * bdy > target.max_num_threads and bdy > 1:
+    max_num_threads_per_block = get_max_num_threads_per_block(target)
+    while bdx * bdy > max_num_threads_per_block and bdy > 1:
         bdy //= 2
-    check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=1)
+    check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=1, gdz=1)
 
     @T.prim_func
     def merge_state_inplace(

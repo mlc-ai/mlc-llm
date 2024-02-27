@@ -6,6 +6,8 @@ from tvm.relax.dpl import PatternContext, rewrite_bindings
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.script import tir as T
 
+from ..support.max_thread_check import get_max_num_threads_per_block
+
 # mypy: disable-error-code="attr-defined,valid-type"
 # pylint: disable=too-many-locals,invalid-name
 
@@ -147,8 +149,9 @@ class FuseAddRMSNorm:  # pylint: disable=too-few-public-methods
         """
         self.TX = 1024  # default
 
-        if target.max_num_threads < self.TX:
-            self.TX = target.max_num_threads
+        max_num_threads_per_block = get_max_num_threads_per_block(target)
+        if max_num_threads_per_block < self.TX:
+            self.TX = max_num_threads_per_block
 
     def transform_module(self, mod: tvm.IRModule, _ctx: tvm.transform.PassContext) -> tvm.IRModule:
         """IRModule-level transformation."""
