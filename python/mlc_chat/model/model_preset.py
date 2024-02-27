@@ -447,12 +447,12 @@ MODEL_PRESETS: Dict[str, Any] = {
         "use_cache": True,
         "vocab_size": 125696,
     },
-        "internlm": {
+    "internlm": {
         "architectures": ["InternLMForCausalLM"],
         "auto_map": {
             "AutoConfig": "configuration_internlm.InternLMConfig",
             "AutoModel": "modeling_internlm.InternLMForCausalLM",
-            "AutoModelForCausalLM": "modeling_internlm.InternLMForCausalLM"
+            "AutoModelForCausalLM": "modeling_internlm.InternLMForCausalLM",
         },
         "bias": True,
         "bos_token_id": 1,
@@ -471,7 +471,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "torch_dtype": "float16",
         "transformers_version": "4.33.2",
         "use_cache": True,
-        "vocab_size": 103168
+        "vocab_size": 103168,
     },
     # TODO(mlc-team): enable the model presets when stablized.
     # "gemma_2b": {
