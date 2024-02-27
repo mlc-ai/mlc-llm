@@ -820,7 +820,11 @@ def _attention_decode(
     H_kv = num_kv_heads
     D = head_dim
 
-    thread_limit = 512 if str(target.kind) != "webgpu" else 256
+    max_threads = None
+    for name in ["max_threads_per_block", "max_num_threads"]:
+        if max_threads is None:
+            max_threads = target.attrs.get(name, None)
+    thread_limit = 512 if max_threads is None else max_threads
 
     GROUP_SIZE = H_qo // H_kv
     VEC_SIZE = min(max(8 // qkv_dtype_bytes, D // 32), 4)
