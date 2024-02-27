@@ -56,7 +56,7 @@ def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
     # Does *not* have FT reoder support right now, can add back in (need to verify bit-match for fp8)
     if ft_reorder:
         raise NotImplementedError()
-    assert quant_dtype in ["e4m3_float8"]
+    assert quant_dtype in ["e4m3_float8", "e5m2_float8"]
     tir_bin_mask = tir.const((1 << bits) - 1, storage_dtype)
     if out_shape is None:
         out_shape = weight.shape
