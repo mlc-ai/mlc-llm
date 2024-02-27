@@ -454,7 +454,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         # TODO(csullivan): If using vector type fp8x4 this compute op can be deleted
         # compute quantized weight per storage
         r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
-        num_storage = tir.ceildiv(k, self.num_elements_per_storage)
+        num_storage = tir.ceildiv(k, self.num_elem_per_storage)
         quantized_weight_shape = (*shape[:axis], num_storage, *shape[axis + 1 :])
         quantized_weight = te.compute(
             shape=quantized_weight_shape,
