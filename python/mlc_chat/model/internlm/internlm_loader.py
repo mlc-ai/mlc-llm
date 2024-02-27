@@ -13,7 +13,7 @@ from mlc_chat.quantization import Quantization
 from .internlm_model import InternLMConfig, InternLMForCausalLM
 
 
-def huggingface(model_config: InternLMForCausalLM, quantization: Quantization) -> ExternMapping:
+def huggingface(model_config: InternLMConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
