@@ -103,7 +103,7 @@ inline void TokenToLogProbJSON(const Tokenizer& tokenizer, const TokenProbPair& 
   (*os) << "\"bytes\": [";
   int token_len = token.size();
   for (int pos = 0; pos < token_len; ++pos) {
-    (*os) << static_cast<int>(static_cast<u_char>(token[pos]));
+    (*os) << static_cast<int>(static_cast<unsigned char>(token[pos]));
     if (pos != token_len - 1) {
       (*os) << ", ";
     }
