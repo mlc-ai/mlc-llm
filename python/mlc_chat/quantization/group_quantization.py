@@ -129,7 +129,10 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                         self.config.quantize_weight,
                         output_transpose=self.config.linear_weight_layout == "KN",
                     )
-                    return GroupQuantizeLinear.from_linear(node, self.config)
+                    if self.config.quantize_dtype:
+                        return GroupQuantizeLinearFP8E4M3ScaleOnly.from_linear(node, self.config)
+                    else:
+                        return GroupQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding) and self.config.quantize_embedding:
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
@@ -519,8 +522,8 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         else:
             self.bias = None
 
-    @staticmethod
-    def from_linear(src: nn.Linear, config: GroupQuantize) -> "GroupQuantizeLinear":
+    @classmethod
+    def from_linear(cls, src: nn.Linear, config: GroupQuantize) -> "GroupQuantizeLinear":
         """
         Converts a non-quantized nn.Linear to a group quantized GroupQuantizeLinear
 
@@ -539,7 +542,7 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         """
         # For dynamic shape, src.out_features is `"name"`; src.weight.shape[0] is `tir.Var("name")`
         out_features, in_features = src.weight.shape
-        quantized_linear = GroupQuantizeLinear(
+        quantized_linear = cls(
             in_features=in_features,
             out_features=out_features,
             config=config,
@@ -909,3 +912,193 @@ def _apply_sharding(shard, name: str, weight: nn.Parameter):
         )
     else:
         raise NotImplementedError(f"Unknowing sharding strategy: {shard}")
+
+
+class GroupQuantizeLinearFP8E4M3ScaleOnly(
+    GroupQuantizeLinear,
+):  # pylint: disable=too-many-instance-attributes
+    """An nn.Linear module with group quantization"""
+
+    def forward(self, x: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
+        """
+        Forward method for group quantized linear layer.
+
+        Parameters
+        ----------
+        x : nn.Tensor
+            The input tensor.
+
+        Returns
+        -------
+        ret : nn.Tensor
+            The output tensor for the group quantized linear layer.
+        """
+        assert self.config.fp8_quant
+        assert DataType(self.config.quantize_dtype).type_code == DataTypeCode.E4M3Float
+        # For cutlass mixed-dtype gemm activation layout is row major w/ shape (M, K)
+        # and weight layout column major w/ shape (N, K) so no permute dims is needed
+        assert self.config.linear_weight_layout == "NK"
+
+        # TODO(csullivan): Add a workspace for static allocation and planning
+        # tmp_out = op.wrap_nested(
+        #     relax.op.builtin.alloc_tensor(
+        #         relax.ShapeExpr(
+        #             (num_tokens, num_q_heads, self.max_num_partitions, head_dim)
+        #         ),
+        #         dtype=query._expr.struct_info.dtype,
+        #         runtime_device_index=0,
+        #     ),
+        #     "relax.alloc_tensor",
+        # )
+
+        M, K = x.shape
+        N, _ = self.q_weight.shape
+        if self.bias:
+            return nn.op.extern(
+                "cutlass.mixed_dtype_gemm_fp16_fp8_scale",
+                [
+                    x,
+                    self.q_weight,
+                    self.bias,
+                    self.q_scale,
+                    M,
+                    N,
+                    K,
+                    1,
+                    self.config.group_size
+                    # tmp_out,
+                ],
+                x,
+            )
+        else:
+            return nn.op.extern(
+                "cutlass.mixed_dtype_matmul_fp16_fp8_scale",
+                [
+                    x,
+                    self.q_weight,
+                    self.q_scale,
+                    M,
+                    N,
+                    K,
+                    1,
+                    self.config.group_size
+                    # tmp_out,
+                ],
+                out=nn.Tensor.placeholder(
+                    (M, N), dtype=self.out_dtype if self.out_dtype else self.config.model_dtype
+                ),
+            )
+
+
+class GroupQuantizeEmbeddingFP8E4M3(nn.Module):
+    """An nn.Embedding module with group quantization"""
+
+    def __init__(self, num: Union[int, tir.Var], dim: int, config: GroupQuantize):
+        self.num = num
+        self.dim = dim
+        self.config = config
+        num_group = tir.ceildiv(dim, config.group_size)
+        self.q_weight = nn.Parameter(
+            (num, config.num_storage_per_group * num_group), config.storage_dtype
+        )
+        self.q_scale = nn.Parameter((num, num_group), config.model_dtype)
+
+    @staticmethod
+    def from_embedding(embedding: nn.Embedding, config: GroupQuantize) -> "GroupQuantizeEmbedding":
+        """
+        Converts a non-quantized nn.Embedding to a group quantized GroupQuantizeEmbedding
+
+        Parameters
+        ----------
+        linear : nn.Embedding
+            The non-quantized nn.Embedding.
+
+        config : GroupQuantize
+            The group quantization config.
+
+        Returns
+        -------
+        ret : GroupQuantizeEmbedding
+            The group quantized GroupQuantizeEmbedding layer.
+        """
+        num, dim = embedding.weight.shape
+        return GroupQuantizeEmbedding(num, dim, config)
+
+    def forward(self, x: nn.Tensor):  # pylint: disable=invalid-name
+        """
+        Forward method for group quantized embedding layer.
+
+        Parameters
+        ----------
+        x : nn.Tensor
+            The input tensor.
+
+        Returns
+        -------
+        ret : nn.Tensor
+            The output tensor for the embedding layer.
+        """
+        if self.config.fp8_quant:
+            if DataType(self.config.quantize_dtype).type_code == DataTypeCode.E4M3Float:
+                dequant_func = self.config._dequantize_e4m3
+            else:
+                raise NotImplementedError()
+        else:
+            dequant_func = self.confg._dequantize
+        w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+            lambda weight, scale: dequant_func(  # pylint: disable=protected-access
+                weight,
+                scale,
+                axis=-1,
+                out_shape=[
+                    (
+                        tir.IntImm("int64", self.num)
+                        if isinstance(self.num, int)
+                        else weight.shape[0]
+                    ),  # Reuse same tir.Var for symbolic shape (after Exporter)
+                    tir.IntImm("int64", self.dim),
+                ],
+            ),
+            name_hint="dequantize",
+            args=[self.q_weight, self.q_scale],
+        )
+        if x.ndim == 1:
+            return nn.op.take(w, x, axis=0)
+        return nn.op.reshape(
+            nn.op.take(w, nn.op.reshape(x, shape=[-1]), axis=0),
+            shape=[*x.shape, self.dim],
+        )
+
+    def lm_head_forward(self, x: nn.Tensor):
+        """The lm_head forwarding, which dequantizes the weight
+        and multiplies it with the input tensor.
+
+        Parameters
+        ----------
+        x : nn.Tensor
+            The input tensor.
+
+        Returns
+        -------
+        ret : nn.Tensor
+            The output tensor for the lm_head layer.
+        """
+        w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
+                weight,
+                scale,
+                axis=-1,
+                out_shape=[
+                    (
+                        tir.IntImm("int64", self.num)
+                        if isinstance(self.num, int)
+                        else weight.shape[0]
+                    ),
+                    tir.IntImm("int64", self.dim),
+                ],
+            ),
+            name_hint="dequantize",
+            args=[self.q_weight, self.q_scale],
+        )
+        w = nn.op.permute_dims(w)
+        return nn.op.matmul(x, w, out_dtype="float32")
