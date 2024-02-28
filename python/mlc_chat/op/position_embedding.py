@@ -7,6 +7,11 @@ from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
 from tvm.target import Target
 
+from ..support.max_thread_check import (
+    check_thread_limits,
+    get_max_num_threads_per_block,
+)
+
 # pylint: disable=invalid-name
 
 
@@ -313,6 +318,15 @@ def llama_inplace_rope(
     if rotary_dim is None:
         rotary_dim = head_dim
 
+    VEC_SIZE = 4
+    bdx = (head_dim + VEC_SIZE - 1) // VEC_SIZE  # T.ceildiv(head_dim, VEC_SIZE)
+    bdy = 32
+    max_num_threads_per_block = get_max_num_threads_per_block(target)
+    # TODO(mlc-team): Check correctness after `bdy` backoff
+    while bdx * bdy > max_num_threads_per_block and bdy > 1:
+        bdy //= 2
+    check_thread_limits(target, bdx=bdx, bdy=bdy, bdz=1, gdz=1)
+
     def _rope(
         x: T.Buffer,
         s: tir.Var,
@@ -359,12 +373,12 @@ def llama_inplace_rope(
                 instance_offset: T.int32 = append_len_indptr[b]
                 rope_offset: T.int32 = rope_offsets[b]
                 append_len: T.int32 = append_len_indptr[b + 1] - append_len_indptr[b]
-                for s0 in range(T.ceildiv(append_len, 32)):
-                    for s1 in T.thread_binding(32, thread="threadIdx.y"):
-                        for d0 in T.thread_binding(T.ceildiv(head_dim, 4), thread="threadIdx.x"):
-                            for d1 in T.vectorized(4):
-                                s: T.int32 = s0 * 32 + s1
-                                d: T.int32 = d0 * 4 + d1
+                for s0 in range(T.ceildiv(append_len, bdy)):
+                    for s1 in T.thread_binding(bdy, thread="threadIdx.y"):
+                        for d0 in T.thread_binding(bdx, thread="threadIdx.x"):
+                            for d1 in T.vectorized(VEC_SIZE):
+                                s: T.int32 = s0 * bdy + s1
+                                d: T.int32 = d0 * VEC_SIZE + d1
                                 if s < append_len and d < rotary_dim:
                                     if h < num_q_heads:
                                         q[s + instance_offset, h, d] = _rope(q, s, h, d, rope_offset, instance_offset)
