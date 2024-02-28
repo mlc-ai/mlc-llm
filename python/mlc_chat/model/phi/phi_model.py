@@ -205,7 +205,6 @@ class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
             paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
             (b, s, h_q * d),
         )
-        # Output projection
         return self.out_proj(output)
 
 
@@ -314,6 +313,7 @@ class PhiForCausalLM(nn.Module):
         self.vocab_size = config.vocab_size
         self.rope_theta = config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
+        self.rotary_dim = config.rotary_dim
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):
@@ -348,14 +348,6 @@ class PhiForCausalLM(nn.Module):
         if logits.dtype != "float32":
             logits = logits.astype("float32")
 
-        logits = op.wrap_nested(
-            relax.BlockBuilder.current().emit(
-                relax.op.call_pure_packed(
-                    "print_nd", logits._expr, sinfo_args=logits._expr.struct_info
-                )
-            ),
-            name="print_nd",
-        )
         return logits, paged_kv_cache
 
     def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
@@ -369,9 +361,6 @@ class PhiForCausalLM(nn.Module):
 
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
         return op.softmax(logits / temperature, axis=-1)
-
-    # def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
-    #     return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
 
     def embed(self, input_ids: Tensor):
         embeds = self.transformer.embd(input_ids)
@@ -396,6 +385,7 @@ class PhiForCausalLM(nn.Module):
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
+            rotary_dim=self.rotary_dim,
             dtype=self.dtype,
         )
 
