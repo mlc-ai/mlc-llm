@@ -95,8 +95,7 @@ class BaichuanAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         qkv = self.W_pack(hidden_states)
         qkv = op.reshape(qkv, (b, s, 3 * h, d))
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads),
-            (b, s, h*d)
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads), (b, s, h * d)
         )
         attn_output = self.o_proj(output)
         return attn_output
@@ -107,11 +106,11 @@ class BaichuanAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         qkv = self.W_pack(hidden_states)
         qkv = op.reshape(qkv, (b, s, 3 * h, d))
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads),
-            (b, s, h*d)
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads), (b, s, h * d)
         )
         attn_output = self.o_proj(output)
         return attn_output
+
 
 class BaichuanMLP(nn.Module):
     def __init__(self, config: BaichuanConfig):
@@ -144,11 +143,14 @@ class BaichuanDecoderLayer(nn.Module):
         return hidden_states
 
     def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn.batch_forward(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+        out = self.self_attn.batch_forward(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
+        )
         hidden_states = out + hidden_states
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = out + hidden_states
         return hidden_states
+
 
 class BaichuanModel(nn.Module):
     def __init__(self, config: BaichuanConfig):
@@ -187,7 +189,6 @@ class BaichuanForCausalLM(nn.Module):
         self.rope_theta = 10000
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
-
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
