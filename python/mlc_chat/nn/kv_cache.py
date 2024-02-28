@@ -339,6 +339,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         target : Target
             The target to build the model to.
         """
+        print("CREATING TIR PAGED KV CACHE")
 
         bb = rx.BlockBuilder.current()
         args = [
@@ -1068,6 +1069,7 @@ def _merge_state_inplace(
     max_num_threads_per_block = get_max_num_threads_per_block(target)
     while bdx * bdy > max_num_threads_per_block and bdy > 1:
         bdy //= 2
+    gdy = num_heads // bdy
     check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=1, gdz=1)
 
     @T.prim_func
@@ -1088,43 +1090,46 @@ def _merge_state_inplace(
         S_other = T.match_buffer(s_other, (N, H), "float32")
 
         for bx in T.thread_binding(N, thread="blockIdx.x"):
-            for ty in T.thread_binding(bdy, thread="threadIdx.y"):
-                for tx in T.thread_binding(bdx, thread="threadIdx.x"):
-                    with T.block("merge"):
-                        s_val = _var("float32")
-                        s_other_val = _var("float32")
-                        s_max = _var("float32")
-                        scale = _var("float32")
-                        other_scale = _var("float32")
+            for by in T.thread_binding(gdy, thread="blockIdx.y"):
+                for ty in T.thread_binding(bdy, thread="threadIdx.y"):
+                    for tx in T.thread_binding(bdx, thread="threadIdx.x"):
+                        with T.block("merge"):
+                            s_val = _var("float32")
+                            s_other_val = _var("float32")
+                            s_max = _var("float32")
+                            scale = _var("float32")
+                            other_scale = _var("float32")
 
-                        v_vec = T.alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
-                        v_other_vec = T.alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
+                            v_vec = T.alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
+                            v_other_vec = T.alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
 
-                        s_val[0] = S[bx, ty]
-                        s_other_val[0] = S_other[bx, ty]
-                        s_max[0] = T.max(s_val[0], s_other_val[0])
-                        s_val[0] = T.exp2(s_val[0] - s_max[0])
-                        s_other_val[0] = T.exp2(s_other_val[0] - s_max[0])
-                        scale[0] = s_val[0] / (s_val[0] + s_other_val[0])
-                        other_scale[0] = s_other_val[0] / (s_val[0] + s_other_val[0])
+                            s_val[0] = S[bx, ty + by * bdy]
+                            s_other_val[0] = S_other[bx, ty + by * bdy]
+                            s_max[0] = T.max(s_val[0], s_other_val[0])
+                            s_val[0] = T.exp2(s_val[0] - s_max[0])
+                            s_other_val[0] = T.exp2(s_other_val[0] - s_max[0])
+                            scale[0] = s_val[0] / (s_val[0] + s_other_val[0])
+                            other_scale[0] = s_other_val[0] / (s_val[0] + s_other_val[0])
 
-                        # load v
-                        for vec in T.vectorized(VEC_SIZE):
-                            v_vec[vec] = V[bx, ty, tx * VEC_SIZE + vec]
-                        # load v_other
-                        for vec in T.vectorized(VEC_SIZE):
-                            v_other_vec[vec] = V_other[bx, ty, tx * VEC_SIZE + vec]
+                            # load v
+                            for vec in T.vectorized(VEC_SIZE):
+                                v_vec[vec] = V[bx, ty + by * bdy, tx * VEC_SIZE + vec]
+                            # load v_other
+                            for vec in T.vectorized(VEC_SIZE):
+                                v_other_vec[vec] = V_other[bx, ty + by * bdy, tx * VEC_SIZE + vec]
 
-                        # merge
-                        for vec in T.serial(VEC_SIZE):
-                            v_vec[vec] = v_vec[vec] * scale[0] + v_other_vec[vec] * other_scale[0]
+                            # merge
+                            for vec in T.serial(VEC_SIZE):
+                                v_vec[vec] = (
+                                    v_vec[vec] * scale[0] + v_other_vec[vec] * other_scale[0]
+                                )
 
-                        # store v
-                        for vec in T.vectorized(VEC_SIZE):
-                            V[bx, ty, tx * VEC_SIZE + vec] = v_vec[vec]
+                            # store v
+                            for vec in T.vectorized(VEC_SIZE):
+                                V[bx, ty + by * bdy, tx * VEC_SIZE + vec] = v_vec[vec]
 
-                        # store s
-                        S[bx, ty] = T.log2(s_val[0] + s_other_val[0]) + s_max[0]
+                            # store s
+                            S[bx, ty + by * bdy] = T.log2(s_val[0] + s_other_val[0]) + s_max[0]
 
     # pylint: enable=invalid-name
     return merge_state_inplace

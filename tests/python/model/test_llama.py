@@ -23,3 +23,4 @@ if __name__ == "__main__":
     test_llama2_creation("llama2_7b")
     test_llama2_creation("llama2_13b")
     test_llama2_creation("llama2_70b")
+    test_llama2_creation("tinyllama_1b_chat_v1")

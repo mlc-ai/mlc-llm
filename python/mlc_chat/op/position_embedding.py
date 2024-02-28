@@ -322,6 +322,7 @@ def llama_inplace_rope(
     bdx = (head_dim + VEC_SIZE - 1) // VEC_SIZE  # T.ceildiv(head_dim, VEC_SIZE)
     bdy = 32
     max_num_threads_per_block = get_max_num_threads_per_block(target)
+    # TODO(mlc-team): Check correctness after `bdy` backoff
     while bdx * bdy > max_num_threads_per_block and bdy > 1:
         bdy //= 2
     check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=1, gdz=1)
