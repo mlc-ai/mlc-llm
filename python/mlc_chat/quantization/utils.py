@@ -44,4 +44,4 @@ def convert_uint_to_float(  # pylint: disable=too-many-arguments
 def is_final_fc(name: str) -> bool:
     """Determines whether the parameter is the last layer based on its name."""
     # TODO: use more specious condition to determine final fc  # pylint: disable=fixme
-    return name in ["head", "lm_head"]
+    return name in ["head", "lm_head", "lm_head.linear", "embed_out"]
