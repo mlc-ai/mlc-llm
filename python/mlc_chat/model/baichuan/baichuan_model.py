@@ -176,7 +176,7 @@ class BaichuanModel(nn.Module):
         return hidden_states
 
 
-class BaichuanForCausalLM(nn.Module):
+class BaichuanForCausalLM(nn.Module): # pylint: disable=too-many-instance-attributes
     def __init__(self, config: BaichuanConfig):
         self.model = BaichuanModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
