@@ -15,7 +15,7 @@ def get_max_num_threads_per_block(target: Target):
     return max(max_num_threads, max_threads_per_block)
 
 
-def check_max_num_threads(target: Target, bdx: int, bdy: int, bdz: int, gdz: int):
+def check_thread_limits(target: Target, bdx: int, bdy: int, bdz: int, gdz: int):
     """
     Check whether max num threads exceeded given a target.
 

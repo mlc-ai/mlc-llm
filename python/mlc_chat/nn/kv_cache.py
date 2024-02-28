@@ -19,7 +19,7 @@ from mlc_chat.op.position_embedding import (
 )
 
 from ..support.max_thread_check import (
-    check_max_num_threads,
+    check_thread_limits,
     get_max_num_threads_per_block,
 )
 
@@ -494,7 +494,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
     ):
         tile_z = 8
         num_warps = 2
-    check_max_num_threads(target, bdx=bdx, bdy=num_warps, bdz=1, gdz=1)
+    check_thread_limits(target, bdx=bdx, bdy=num_warps, bdz=1, gdz=1)
 
     def mask(causal, row, col, kv_len, qo_len):
         return T.if_then_else(
@@ -849,7 +849,7 @@ def _attention_decode(
     bdz = threads_per_CTA // (bdx * bdy)
     tile_size_per_bdx = 2 if GROUP_SIZE == 1 else 1
     log2e = math.log2(math.exp(1))
-    check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=bdz, gdz=1)
+    check_thread_limits(target, bdx=bdx, bdy=bdy, bdz=bdz, gdz=1)
 
     # pylint: disable=line-too-long,too-many-arguments,too-many-branches
     # fmt: off
@@ -1070,7 +1070,7 @@ def _merge_state_inplace(
     while bdx * bdy > max_num_threads_per_block and bdy > 1:
         bdy //= 2
     gdy = num_heads // bdy
-    check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=1, gdz=1)
+    check_thread_limits(target, bdx=bdx, bdy=bdy, bdz=1, gdz=1)
 
     @T.prim_func
     def merge_state_inplace(

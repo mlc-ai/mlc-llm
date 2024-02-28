@@ -8,7 +8,7 @@ from tvm.script import tir as T
 from tvm.target import Target
 
 from ..support.max_thread_check import (
-    check_max_num_threads,
+    check_thread_limits,
     get_max_num_threads_per_block,
 )
 
@@ -325,7 +325,7 @@ def llama_inplace_rope(
     # TODO(mlc-team): Check correctness after `bdy` backoff
     while bdx * bdy > max_num_threads_per_block and bdy > 1:
         bdy //= 2
-    check_max_num_threads(target, bdx=bdx, bdy=bdy, bdz=1, gdz=1)
+    check_thread_limits(target, bdx=bdx, bdy=bdy, bdz=1, gdz=1)
 
     def _rope(
         x: T.Buffer,
