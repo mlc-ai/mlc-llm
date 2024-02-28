@@ -759,6 +759,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"stablelm-2", StableLM2},
       {"baichuan", ChatML},
       {"gemma_instruction", GemmaInstruction},
+      {"internlm", ChatML},
   };
   auto it = factory.find(name);
   if (it == factory.end()) {

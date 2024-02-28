@@ -1,5 +1,5 @@
 """
-This file specifies how MLC's StableLM parameter maps from other formats, for example HuggingFace
+This file specifies how MLC's BaichuanLM parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
 
@@ -19,8 +19,8 @@ def huggingface(model_config: BaichuanConfig, quantization: Quantization) -> Ext
 
     Parameters
     ----------
-    model_config : GPT2Config
-        The configuration of the GPT-2 model.
+    model_config : BaichuanConfig
+        The configuration of the Baichuan model.
 
     quantization : Quantization
         The quantization configuration.
