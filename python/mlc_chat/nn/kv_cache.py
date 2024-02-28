@@ -339,7 +339,6 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         target : Target
             The target to build the model to.
         """
-        print("CREATING TIR PAGED KV CACHE")
 
         bb = rx.BlockBuilder.current()
         args = [
@@ -836,7 +835,8 @@ def _attention_decode(
     H_kv = num_kv_heads
     D = head_dim
 
-    thread_limit = 512 if str(target.kind) != "webgpu" else 256
+    max_num_threads_per_block = get_max_num_threads_per_block(target)
+    thread_limit = min(max_num_threads_per_block, 512)
 
     GROUP_SIZE = H_qo // H_kv
     VEC_SIZE = min(max(8 // qkv_dtype_bytes, D // 32), 4)
