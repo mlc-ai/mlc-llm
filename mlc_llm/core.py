@@ -761,7 +761,7 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
             mod_deploy["decode"] = mod_deploy["decode"].with_attr({"num_input": 3})
         ex = relax.build(mod_deploy, args.target, system_lib=args.system_lib)
 
-    output_filename = f"{args.model}-{args.quantization.name}-{target_kind}.{args.lib_format}"
+    output_filename = f"{os.path.split(args.model)[1]}-{args.quantization.name}-{target_kind}.{args.lib_format}"
 
     utils.debug_dump_shader(ex, f"{args.model}_{args.quantization.name}_{target_kind}", args)
     args.lib_path = os.path.join(args.artifact_path, output_filename)
