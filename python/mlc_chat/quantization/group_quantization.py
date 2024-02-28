@@ -129,7 +129,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                         self.config.quantize_weight,
                         output_transpose=self.config.linear_weight_layout == "KN",
                     )
-                    if self.config.quantize_dtype:
+                    if False and self.config.quantize_dtype:
                         return GroupQuantizeLinearFP8E4M3ScaleOnly.from_linear(node, self.config)
                     else:
                         return GroupQuantizeLinear.from_linear(node, self.config)
