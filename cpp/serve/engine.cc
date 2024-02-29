@@ -19,6 +19,7 @@
 #include "engine_actions/action_commons.h"
 #include "engine_state.h"
 #include "event_trace_recorder.h"
+#include "logit_processor.h"
 #include "model.h"
 #include "request.h"
 #include "request_state.h"
@@ -53,10 +54,10 @@ class EngineImpl : public Engine {
     this->engine_mode_ = EngineMode(engine_mode_json_str);
     this->request_stream_callback_ = std::move(request_stream_callback);
     this->trace_recorder_ = trace_recorder;
-    this->sampler_ = Sampler::Create(/*sampler_kind=*/"cpu", trace_recorder_);
     this->tokenizer_ = Tokenizer::FromPath(tokenizer_path);
     this->token_table_ = tokenizer_->TokenTable();
     // Step 2. Initialize each model independently.
+    //         Create the logit processor and sampler.
     this->models_.clear();
     for (const auto& model_info : model_infos) {
       TVMArgValue model_lib = std::get<0>(model_info);
@@ -71,26 +72,35 @@ class EngineImpl : public Engine {
           << this->max_single_sequence_length_;
       this->models_.push_back(model);
     }
+    int max_logit_processor_num_token = kv_cache_config_->max_num_sequence;
+    if (engine_mode_->enable_speculative) {
+      max_logit_processor_num_token *= engine_mode_->spec_draft_length;
+    }
+    LogitProcessor logit_processor =
+        this->models_[0]->CreateLogitProcessor(max_logit_processor_num_token, trace_recorder);
+    Sampler sampler = Sampler::Create(/*sampler_kind=*/"cpu", trace_recorder_);
     // Step 3. Initialize engine actions that represent state transitions.
     if (this->engine_mode_->enable_speculative) {
       // Speculative decoding is only possible for more than one model.
       ICHECK_GT(this->models_.size(), 1U);
       this->actions_ = {
           EngineAction::NewRequestPrefill(this->models_,           //
-                                          this->sampler_,          //
+                                          logit_processor,         //
+                                          sampler,                 //
                                           this->kv_cache_config_,  //
                                           this->trace_recorder_),
-          EngineAction::BatchDraft(this->models_, this->sampler_, this->trace_recorder_,
+          EngineAction::BatchDraft(this->models_, logit_processor, sampler, this->trace_recorder_,
                                    this->engine_mode_->spec_draft_length),
-          EngineAction::BatchVerify(this->models_, this->sampler_, this->kv_cache_config_,
+          EngineAction::BatchVerify(this->models_, logit_processor, sampler, this->kv_cache_config_,
                                     this->trace_recorder_)};
     } else {
-      this->actions_ = {
-          EngineAction::NewRequestPrefill(this->models_,           //
-                                          this->sampler_,          //
-                                          this->kv_cache_config_,  //
-                                          this->trace_recorder_),
-          EngineAction::BatchDecode(this->models_, this->sampler_, this->trace_recorder_)};
+      this->actions_ = {EngineAction::NewRequestPrefill(this->models_,           //
+                                                        logit_processor,         //
+                                                        sampler,                 //
+                                                        this->kv_cache_config_,  //
+                                                        this->trace_recorder_),
+                        EngineAction::BatchDecode(this->models_, logit_processor, sampler,
+                                                  this->trace_recorder_)};
     }
     // Step 4. Automatically set the threading backend max concurrency.
     SetThreadMaxConcurrency();
@@ -168,7 +178,7 @@ class EngineImpl : public Engine {
     for (EngineAction action : actions_) {
       Array<Request> processed_requests = action->Step(estate_);
       if (!processed_requests.empty()) {
-        ActionStepPostProcess(processed_requests, estate_, models_,
+        ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
                               request_stream_callback_.value(), max_single_sequence_length_);
         return;
       }
@@ -196,7 +206,6 @@ class EngineImpl : public Engine {
   KVCacheConfig kv_cache_config_;
   EngineMode engine_mode_;
   int max_single_sequence_length_;
-  Sampler sampler_;
   Tokenizer tokenizer_;
   std::vector<std::string> token_table_;
   // Models

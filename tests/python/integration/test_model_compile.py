@@ -65,6 +65,7 @@ QUANTS = [  # TODO(@junrushao): use `list(mlc_chat.quantization.QUANTIZATION.key
     "q3f16_1",
     "q4f16_1",
     "q4f32_1",
+    "q4f16_ft",
 ]
 TENSOR_PARALLEL_SHARDS = [
     1,
@@ -102,6 +103,9 @@ def test_model_compile():  # pylint: disable=too-many-locals
                     TENSOR_PARALLEL_SHARDS,
                 )
             ):
+                if not target.startswith("cuda") and quant == "q4f16_ft":
+                    # FasterTransformer only works with cuda
+                    continue
                 log_file = os.path.join(tmp_dir, f"lib{idx}.log")
                 cmd = [
                     sys.executable,

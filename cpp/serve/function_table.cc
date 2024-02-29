@@ -100,12 +100,9 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
     this->get_global_func = [this](const std::string& name) -> PackedFunc {
       return SessionFuncAsPackedFunc(sess, sess->GetGlobalFunc(name), name);
     };
+    this->model_metadata_ =
+        ModelMetadata::FromModule(this->disco_mod->DebugGetFromRemote(0), std::move(model_config));
     this->_InitFunctions();
-    {
-      Module mod = this->disco_mod->DebugGetFromRemote(0);
-      this->softmax_func_ = mod->GetFunction("softmax_with_temperature");
-      this->model_metadata_ = ModelMetadata::FromModule(mod, std::move(model_config));
-    }
   } else {
     Module executable{nullptr};
     if (reload_lib.type_code() == kTVMModuleHandle) {
@@ -193,7 +190,11 @@ void FunctionTable::_InitFunctions() {
   this->prefill_func_ = mod_get_func("batch_prefill");
   this->decode_func_ = mod_get_func("batch_decode");
   this->verify_func_ = mod_get_func("batch_verify");
-  this->softmax_func_ = mod_get_func("softmax_with_temperature");
+  Module mod = this->use_disco ? this->disco_mod->DebugGetFromRemote(0) : this->local_vm;
+  this->softmax_func_ = mod->GetFunction("softmax_with_temperature", true);
+  this->apply_logit_bias_func_ = mod->GetFunction("apply_logit_bias_inplace", true);
+  this->apply_penalty_func_ = mod->GetFunction("apply_penalty_inplace", true);
+  this->apply_bitmask_func_ = mod->GetFunction("apply_bitmask_inplace", true);
   this->create_kv_cache_func_ = mod_get_func("create_flashinfer_paged_kv_cache");
   if (!this->create_kv_cache_func_.defined()) {
     this->create_kv_cache_func_ = mod_get_func("create_tir_paged_kv_cache");

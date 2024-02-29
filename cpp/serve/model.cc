@@ -11,6 +11,8 @@
 
 #include <fstream>
 
+#include "logit_processor.h"
+
 namespace mlc {
 namespace llm {
 namespace serve {
@@ -350,33 +352,13 @@ class ModelImpl : public ModelObj {
     return logits;
   }
 
-  NDArray SoftmaxWithTemperature(NDArray logits, Array<GenerationConfig> generation_cfg) final {
-    // logits: (b, n, v)
-    CHECK_EQ(logits->ndim, 3);
-    CHECK_EQ(logits->shape[0], generation_cfg.size());
-    CHECK_EQ(logits->device.device_type, device_.device_type);
-    CHECK_EQ(logits->device.device_id, device_.device_id);
-
-    int batch_size = logits->shape[0];
-    std::vector<float> temperatures;
-    temperatures.reserve(batch_size);
-    for (GenerationConfig cfg : generation_cfg) {
-      temperatures.push_back(cfg->temperature);
-    }
-    NDArray temperatures_nd =
-        CopyArrayToDevice(temperatures, &temperature_arr_, logits->dtype, 32, device_);
-    ICHECK_EQ(temperatures_nd->ndim, 1);
-    ICHECK_EQ(temperatures_nd->shape[0], batch_size);
-
-    NDArray probs = ft_.softmax_func_(logits, temperatures_nd);
-    ICHECK_EQ(probs->ndim, 3);
-    ICHECK_EQ(probs->shape[0], logits->shape[0]);
-    ICHECK_EQ(probs->shape[1], logits->shape[1]);
-    ICHECK_EQ(probs->shape[2], logits->shape[2]);
-    return probs;
-  }
-
   /*********************** KV Cache Management  ***********************/
+
+  LogitProcessor CreateLogitProcessor(int max_num_token,
+                                      Optional<EventTraceRecorder> trace_recorder) {
+    return LogitProcessor(max_num_token, vocab_size_, &this->ft_, device_,
+                          std::move(trace_recorder));
+  }
 
   void CreateKVCache(KVCacheConfig kv_cache_config) final {
     IntTuple max_num_sequence{kv_cache_config->max_num_sequence};
@@ -451,6 +433,12 @@ class ModelImpl : public ModelObj {
     } else {
       LOG(FATAL) << "Key \"tensor_parallel_shards\" not found.";
     }
+    if (config.count("vocab_size")) {
+      CHECK(config["vocab_size"].is<int64_t>());
+      this->vocab_size_ = config["vocab_size"].get<int64_t>();
+    } else {
+      LOG(FATAL) << "Key \"vocab_size\" not found.";
+    }
     return config;
   }
 
@@ -460,6 +448,7 @@ class ModelImpl : public ModelObj {
   int max_window_size_ = -1;
   int num_shards_ = -1;
   int max_num_sequence_ = -1;
+  int vocab_size_ = -1;
   //----------------------------
   // TVM related states
   //----------------------------

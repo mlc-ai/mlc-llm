@@ -22,7 +22,7 @@ from ..tokenizer import Tokenizer
 from . import data
 from .config import EngineMode, GenerationConfig, KVCacheConfig
 from .event_trace_recorder import EventTraceRecorder
-from .request import Request, RequestStreamOutput
+from .request import Request
 
 logging.enable_logging()
 logger = logging.getLogger(__name__)
@@ -138,12 +138,15 @@ def _process_model_args(
 
 
 def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
-    models: List[ModelInfo], config_file_paths: List[str]
+    models: List[ModelInfo], config_file_paths: List[str], max_num_sequence: int
 ) -> int:
     """Estimate the max total sequence length (capacity) of the KV cache."""
     assert len(models) != 0
 
     kv_bytes_per_token = 0
+    kv_aux_workspace_bytes = 0
+    model_workspace_bytes = 0
+    logit_processor_workspace_bytes = 0
     params_bytes = 0
     temp_func_bytes = 0
 
@@ -169,15 +172,26 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
             model_config = json_object["model_config"]
             num_layers = model_config["num_hidden_layers"]
             hidden_size = model_config["hidden_size"]
-            num_qo_heads = model_config["num_attention_heads"]
-            num_kv_heads = model_config["num_key_value_heads"]
+            head_dim = model_config["head_dim"]
+            vocab_size = model_config["vocab_size"]
             tensor_parallel_shards = model_config["tensor_parallel_shards"]
-        kv_bytes_per_token += (
-            (hidden_size / num_qo_heads)
-            * (num_kv_heads / tensor_parallel_shards)  # on single GPU
-            * num_layers
-            * 4  # key, value, fp16
-            * 1.10  # over estimation to guarantee safety
+            num_qo_heads = model_config["num_attention_heads"] / tensor_parallel_shards
+            num_kv_heads = model_config["num_key_value_heads"] / tensor_parallel_shards
+            prefill_chunk_size = model_config["prefill_chunk_size"]
+        kv_bytes_per_token += head_dim * num_kv_heads * num_layers * 4 + 1.25
+        kv_aux_workspace_bytes += (
+            (max_num_sequence + 1) * 88
+            + prefill_chunk_size * (num_qo_heads + 1) * 8
+            + prefill_chunk_size * head_dim * (num_qo_heads + num_kv_heads) * 4
+            + 48 * 1024 * 1024
+        )
+        model_workspace_bytes += (
+            prefill_chunk_size * 4
+            + max_num_sequence * 4
+            + (prefill_chunk_size * 2 + max_num_sequence) * hidden_size * 2
+        )
+        logit_processor_workspace_bytes += (
+            max_num_sequence * 20 + max_num_sequence * vocab_size * 16.125
         )
 
     # Get single-card GPU size.
@@ -191,7 +205,15 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
             )
 
     max_total_sequence_length = int(
-        (int(gpu_size_bytes) * 0.97 - params_bytes * 1.04 - temp_func_bytes) / kv_bytes_per_token
+        (
+            int(gpu_size_bytes) * 0.85
+            - params_bytes
+            - temp_func_bytes
+            - kv_aux_workspace_bytes
+            - model_workspace_bytes
+            - logit_processor_workspace_bytes
+        )
+        / kv_bytes_per_token
     )
     assert max_total_sequence_length > 0, (
         "Cannot estimate KV cache capacity. "
@@ -199,7 +221,12 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
     )
 
     total_size = (
-        params_bytes * 1.05 + temp_func_bytes + kv_bytes_per_token * max_total_sequence_length
+        params_bytes
+        + temp_func_bytes
+        + kv_aux_workspace_bytes
+        + model_workspace_bytes
+        + logit_processor_workspace_bytes
+        + kv_bytes_per_token * max_total_sequence_length
     )
     logger.info(
         "%s: %d.",
@@ -211,8 +238,8 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
         green("Estimated total single GPU memory usage"),
         total_size / 1024 / 1024,
         params_bytes / 1024 / 1024,
-        kv_bytes_per_token * max_total_sequence_length / 1024 / 1024,
-        temp_func_bytes / 1024 / 1024,
+        (kv_bytes_per_token * max_total_sequence_length + kv_aux_workspace_bytes) / 1024 / 1024,
+        (model_workspace_bytes + logit_processor_workspace_bytes + temp_func_bytes) / 1024 / 1024,
     )
     return int(max_total_sequence_length)
 
@@ -269,7 +296,7 @@ class Engine:
         models: Union[ModelInfo, List[ModelInfo]],
         kv_cache_config: KVCacheConfig,
         engine_mode: Optional[EngineMode] = None,
-        request_stream_callback: Optional[Callable[[List[RequestStreamOutput]], None]] = None,
+        request_stream_callback: Optional[Callable[[List[data.RequestStreamOutput]], None]] = None,
         enable_tracing: bool = False,
     ):
         if isinstance(models, ModelInfo):
@@ -299,7 +326,7 @@ class Engine:
 
         if kv_cache_config.max_total_sequence_length is None:
             kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
-                models, config_file_paths
+                models, config_file_paths, kv_cache_config.max_num_sequence
             )
         if kv_cache_config.prefill_chunk_size is None:
             kv_cache_config.prefill_chunk_size = prefill_chunk_size
@@ -329,7 +356,7 @@ class Engine:
         self,
         prompts: Union[str, List[str], List[int], List[List[int]]],
         generation_config: Union[GenerationConfig, List[GenerationConfig]],
-    ) -> List[str]:
+    ) -> Tuple[List[str], List[Optional[List[str]]]]:
         """Generate texts for a list of input prompts.
         Each prompt can be a string or a list of token ids.
         The generation for each prompt is independent.
@@ -350,8 +377,12 @@ class Engine:
 
         Returns
         -------
-        results : List[str]
+        output_text : List[str]
             The text generation results, one string for each input prompt.
+
+        output_logprobs_str : List[Optional[List[str]]]
+            The logprob strings of each token for each input prompt, or None
+            if an input prompt does not require logprobs.
         """
         if isinstance(prompts, str):
             # `prompts` is a single string.
@@ -362,7 +393,7 @@ class Engine:
                 "str, a list of token ids or multiple lists of token ids."
             )
             if len(prompts) == 0:
-                return []
+                return [], []
             if isinstance(prompts[0], int):
                 # `prompts` is a list of token ids
                 prompts = [prompts]  # type: ignore
@@ -376,10 +407,12 @@ class Engine:
         ), "Number of generation config and number of prompts mismatch"
 
         num_finished_requests = 0
-        outputs: List[str] = []
+        output_texts: List[str] = []
+        output_logprobs_str: List[Optional[List[str]]] = []
         text_streamers: List[TextStreamer] = []
-        for _ in range(num_requests):
-            outputs.append("")
+        for i in range(num_requests):
+            output_texts.append("")
+            output_logprobs_str.append([] if generation_config[i].logprobs else None)
             text_streamers.append(TextStreamer(self.tokenizer))
 
         # Save a copy of the original function callback since `generate`
@@ -388,18 +421,26 @@ class Engine:
         original_callback = self._ffi["get_request_stream_callback"]()
 
         # Define the callback function for request generation results
-        def request_stream_callback(delta_outputs: List[RequestStreamOutput]):
+        def request_stream_callback(delta_outputs: List[data.RequestStreamOutput]):
             nonlocal num_finished_requests
             for delta_output in delta_outputs:
-                request_id, delta_tokens, finish_reason = delta_output.unpack()
+                (
+                    request_id,
+                    delta_token_ids,
+                    delta_logprob_json_strs,
+                    finish_reason,
+                ) = delta_output.unpack()
                 rid = int(request_id)
                 text_streamer = text_streamers[rid]
+                if output_logprobs_str[rid] is not None:
+                    assert delta_logprob_json_strs is not None
+                    output_logprobs_str[rid] += delta_logprob_json_strs
 
-                delta_text = text_streamer.put(delta_tokens.token_ids)
+                delta_text = text_streamer.put(delta_token_ids)
                 if finish_reason is not None:
                     delta_text += text_streamer.finish()
 
-                outputs[rid] += delta_text
+                output_texts[rid] += delta_text
                 if finish_reason is not None:
                     num_finished_requests += 1
 
@@ -426,7 +467,7 @@ class Engine:
 
         # Restore the callback function in engine.
         self._ffi["set_request_stream_callback"](original_callback)
-        return outputs
+        return output_texts, output_logprobs_str
 
     def add_request(self, request: Request) -> None:
         """Add a new request to the engine.

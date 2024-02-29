@@ -5,10 +5,13 @@
 #ifndef MLC_LLM_SERVE_DATA_H_
 #define MLC_LLM_SERVE_DATA_H_
 
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
+
+#include "../tokenizers.h"
 
 namespace mlc {
 namespace llm {
@@ -84,6 +87,73 @@ class TokenData : public Data {
   explicit TokenData(std::vector<int32_t> token_ids);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TokenData, Data, TokenDataNode);
+};
+
+/****************** SampleResult ******************/
+
+// The pair of a token id and its probability in sampling.
+using TokenProbPair = std::pair<int32_t, float>;
+
+/*!
+ * \brief The class of sampler's sampling result.
+ * It's not a TVM object since it will not be used directly on Python side.
+ */
+struct SampleResult {
+  /*! \brief The token id and probability of the sampled token. */
+  TokenProbPair sampled_token_id;
+  /*! \brief The token id and probability of the tokens with top probabilities. */
+  std::vector<TokenProbPair> top_prob_tokens;
+
+  /*!
+   * \brief Get the logprob JSON string of this token with regard
+   * to OpenAI API at https://platform.openai.com/docs/api-reference/chat/object.
+   * \param tokenizer The tokenizer for token table lookup.
+   * \param logprob A boolean indicating if need to return log probability.
+   * \return A JSON string that conforms to the logprob spec in OpenAI API.
+   */
+  std::string GetLogProbJSON(const Tokenizer& tokenizer, bool logprob) const;
+};
+
+/****************** RequestStreamOutput ******************/
+
+/*!
+ * \brief The generated delta request output that is streamed back
+ * through callback stream function.
+ */
+class RequestStreamOutputObj : public Object {
+ public:
+  /*! \brief The id of the request that the function is invoked for. */
+  String request_id;
+  /*!
+   * \brief The new generated token ids since the last callback invocation
+   * for the input request.
+   */
+  IntTuple delta_token_ids;
+  /*! \brief The logprobs JSON strings of the new generated tokens since last invocation. */
+  Optional<Array<String>> delta_logprob_json_strs;
+  /*!
+   * \brief The finish reason of the request when it is finished,
+   * of None if the request has not finished yet.
+   */
+  Optional<String> finish_reason;
+
+  static constexpr const char* _type_key = "mlc.serve.RequestStreamOutput";
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  TVM_DECLARE_FINAL_OBJECT_INFO(RequestStreamOutputObj, Object);
+};
+
+/*!
+ * \brief Managed reference to RequestStreamOutputObj.
+ * \sa RequestStreamOutputObj
+ */
+class RequestStreamOutput : public ObjectRef {
+ public:
+  explicit RequestStreamOutput(String request_id, const std::vector<int32_t>& delta_token_ids,
+                               Optional<Array<String>> delta_logprob_json_strs,
+                               Optional<String> finish_reason);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(RequestStreamOutput, ObjectRef, RequestStreamOutputObj);
 };
 
 }  // namespace serve

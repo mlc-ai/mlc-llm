@@ -31,26 +31,36 @@ int RequestModelStateNode::GetInputLength() const {
   return total_length;
 }
 
-void RequestModelStateNode::CommitToken(int32_t token_id) {
-  committed_tokens.push_back(token_id);
-  appeared_token_ids[token_id] += 1;
+std::vector<int> RequestModelStateNode::GetTokenBitmask(int vocab_size) const {
+  // TODO(mlc-team): implement this function.
+  return std::vector<int>();
 }
 
-void RequestModelStateNode::AddDraftToken(int32_t token_id) {
-  draft_output_tokens.push_back(token_id);
-  appeared_token_ids[token_id] += 1;
+void RequestModelStateNode::CommitToken(SampleResult sampled_token) {
+  committed_tokens.push_back(std::move(sampled_token));
+  appeared_token_ids[sampled_token.sampled_token_id.first] += 1;
+}
+
+void RequestModelStateNode::AddDraftToken(SampleResult sampled_token, NDArray prob_dist) {
+  draft_output_tokens.push_back(std::move(sampled_token));
+  draft_output_prob_dist.push_back(std::move(prob_dist));
+  appeared_token_ids[sampled_token.sampled_token_id.first] += 1;
 }
 
 void RequestModelStateNode::RemoveLastDraftToken() {
   ICHECK(!draft_output_tokens.empty());
-  appeared_token_ids[draft_output_tokens.back()] -= 1;
+  auto it = appeared_token_ids.find(draft_output_tokens.back().sampled_token_id.first);
   draft_output_tokens.pop_back();
+  draft_output_prob_dist.pop_back();
+  CHECK(it != appeared_token_ids.end());
+  if (--it->second == 0) {
+    appeared_token_ids.erase(it);
+  }
 }
 
 void RequestModelStateNode::RemoveAllDraftTokens() {
   while (!draft_output_tokens.empty()) {
-    appeared_token_ids[draft_output_tokens.back()] -= 1;
-    draft_output_tokens.pop_back();
+    RemoveLastDraftToken();
   }
 }
 
@@ -75,19 +85,20 @@ RequestState::RequestState(Request request, int num_models, int64_t internal_id,
   data_ = std::move(n);
 }
 
-std::pair<std::vector<int32_t>, Optional<String>> RequestStateNode::GetReturnTokenIds(
-    int max_single_sequence_length) {
+DeltaRequestReturn RequestStateNode::GetReturnTokenIds(const Tokenizer& tokenizer,
+                                                       int max_single_sequence_length) {
   // - Case 0. There is remaining draft output ==> Unfinished
   //   All draft outputs are supposed to be processed before finish.
   for (RequestModelState mstate : mstates) {
     if (!mstate->draft_output_tokens.empty()) {
-      return {{}, Optional<String>()};
+      return {{}, {}, Optional<String>()};
     }
   }
 
   std::vector<int32_t> return_token_ids;
+  std::vector<String> logprob_json_strs;
   Optional<String> finish_reason;
-  const std::vector<int32_t>& committed_tokens = mstates[0]->committed_tokens;
+  const std::vector<SampleResult>& committed_tokens = mstates[0]->committed_tokens;
   int num_committed_tokens = committed_tokens.size();
   ICHECK_LE(this->next_callback_token_pos, num_committed_tokens);
 
@@ -95,7 +106,10 @@ std::pair<std::vector<int32_t>, Optional<String>> RequestStateNode::GetReturnTok
   ICHECK(!stop_str_handler->StopTriggered());
   while (next_callback_token_pos < num_committed_tokens) {
     std::vector<int32_t> delta_token_ids =
-        stop_str_handler->Put(committed_tokens[next_callback_token_pos++]);
+        stop_str_handler->Put(committed_tokens[next_callback_token_pos].sampled_token_id.first);
+    logprob_json_strs.push_back(committed_tokens[next_callback_token_pos].GetLogProbJSON(
+        tokenizer, request->generation_cfg->logprobs));
+    ++next_callback_token_pos;
     return_token_ids.insert(return_token_ids.end(), delta_token_ids.begin(), delta_token_ids.end());
     if (stop_str_handler->StopTriggered()) {
       finish_reason = "stop";
@@ -123,25 +137,24 @@ std::pair<std::vector<int32_t>, Optional<String>> RequestStateNode::GetReturnTok
   }
 
   if (finish_reason.defined()) {
-    return {return_token_ids, finish_reason};
+    return {return_token_ids, logprob_json_strs, finish_reason};
   }
 
   // Case 3. Generation reaches the specified max generation length ==> Finished
   // `max_tokens` means the generation length is limited by model capacity.
   if (request->generation_cfg->max_tokens >= 0 &&
-      static_cast<int>(committed_tokens.size()) >= request->generation_cfg->max_tokens) {
+      num_committed_tokens >= request->generation_cfg->max_tokens) {
     std::vector<int32_t> remaining = stop_str_handler->Finish();
     return_token_ids.insert(return_token_ids.end(), remaining.begin(), remaining.end());
-    return {return_token_ids, String("length")};
+    return {return_token_ids, logprob_json_strs, String("length")};
   }
   // Case 4. Total length of the request reaches the maximum single sequence length ==> Finished
-  if (request->input_total_length + static_cast<int>(committed_tokens.size()) >=
-      max_single_sequence_length) {
+  if (request->input_total_length + num_committed_tokens >= max_single_sequence_length) {
     std::vector<int32_t> remaining = stop_str_handler->Finish();
     return_token_ids.insert(return_token_ids.end(), remaining.begin(), remaining.end());
-    return {return_token_ids, String("length")};
+    return {return_token_ids, logprob_json_strs, String("length")};
   }
-  return {return_token_ids, Optional<String>()};
+  return {return_token_ids, logprob_json_strs, Optional<String>()};
 }
 
 }  // namespace serve

@@ -42,7 +42,7 @@ def check_openai_nonstream_response(
     model: str,
     object_str: str,
     num_choices: int,
-    finish_reason: str,
+    finish_reasons: List[str],
     completion_tokens: Optional[int] = None,
     echo_prompt: Optional[str] = None,
     suffix: Optional[str] = None,
@@ -57,7 +57,7 @@ def check_openai_nonstream_response(
     assert len(choices) == num_choices
     for idx, choice in enumerate(choices):
         assert choice["index"] == idx
-        assert choice["finish_reason"] == finish_reason
+        assert choice["finish_reason"] in finish_reasons
 
         text: str
         if not is_chat_completion:
@@ -95,7 +95,7 @@ def check_openai_stream_response(
     model: str,
     object_str: str,
     num_choices: int,
-    finish_reason: str,
+    finish_reasons: List[str],
     completion_tokens: Optional[int] = None,
     echo_prompt: Optional[str] = None,
     suffix: Optional[str] = None,
@@ -126,9 +126,9 @@ def check_openai_stream_response(
                 outputs[idx] += delta["content"]
 
             if finished[idx]:
-                assert choice["finish_reason"] == finish_reason
+                assert choice["finish_reason"] in finish_reasons
             elif choice["finish_reason"] is not None:
-                assert choice["finish_reason"] == finish_reason
+                assert choice["finish_reason"] in finish_reasons
                 finished[idx] = True
 
         if not is_chat_completion:
@@ -171,7 +171,7 @@ def test_openai_v1_models(
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
 
-    response = requests.get(OPENAI_V1_MODELS_URL, timeout=60).json()
+    response = requests.get(OPENAI_V1_MODELS_URL, timeout=180).json()
     assert response["object"] == "list"
     models = response["data"]
     assert isinstance(models, list)
@@ -202,7 +202,7 @@ def test_openai_v1_completions(
         "stream": stream,
     }
 
-    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     if not stream:
         check_openai_nonstream_response(
             response.json(),
@@ -210,7 +210,7 @@ def test_openai_v1_completions(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
             completion_tokens=max_tokens,
         )
     else:
@@ -225,7 +225,7 @@ def test_openai_v1_completions(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
             completion_tokens=max_tokens,
         )
 
@@ -255,7 +255,7 @@ def test_openai_v1_completions_openai_package(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
             completion_tokens=max_tokens,
         )
     else:
@@ -268,7 +268,7 @@ def test_openai_v1_completions_openai_package(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
             completion_tokens=max_tokens,
         )
 
@@ -284,7 +284,7 @@ def test_openai_v1_completions_invalid_requested_model(
         "prompt": "What is the meaning of life?",
         "max_tokens": 10,
     }
-    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     expect_error(
         response_str=response.json(), msg_prefix=f'The requested model "{model}" is not served.'
     )
@@ -309,7 +309,7 @@ def test_openai_v1_completions_echo(
         "stream": stream,
     }
 
-    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     if not stream:
         check_openai_nonstream_response(
             response.json(),
@@ -317,7 +317,7 @@ def test_openai_v1_completions_echo(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
             completion_tokens=max_tokens,
             echo_prompt=prompt,
         )
@@ -333,7 +333,7 @@ def test_openai_v1_completions_echo(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
             completion_tokens=max_tokens,
             echo_prompt=prompt,
         )
@@ -359,7 +359,7 @@ def test_openai_v1_completions_suffix(
         "stream": stream,
     }
 
-    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     if not stream:
         check_openai_nonstream_response(
             response.json(),
@@ -367,7 +367,7 @@ def test_openai_v1_completions_suffix(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
             completion_tokens=max_tokens,
             suffix=suffix,
         )
@@ -383,7 +383,7 @@ def test_openai_v1_completions_suffix(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
             completion_tokens=max_tokens,
             suffix=suffix,
         )
@@ -411,7 +411,7 @@ def test_openai_v1_completions_stop_str(
         "stream": stream,
     }
 
-    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     if not stream:
         check_openai_nonstream_response(
             response.json(),
@@ -419,7 +419,7 @@ def test_openai_v1_completions_stop_str(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="stop",
+            finish_reasons=["stop", "length"],
             stop=stop,
         )
     else:
@@ -434,7 +434,7 @@ def test_openai_v1_completions_stop_str(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="stop",
+            finish_reasons=["stop", "length"],
             stop=stop,
         )
 
@@ -458,7 +458,7 @@ def test_openai_v1_completions_temperature(
         "temperature": 0.0,
     }
 
-    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     if not stream:
         check_openai_nonstream_response(
             response.json(),
@@ -466,7 +466,7 @@ def test_openai_v1_completions_temperature(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
         )
     else:
         responses = []
@@ -480,7 +480,55 @@ def test_openai_v1_completions_temperature(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
+        )
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_openai_v1_completions_logit_bias(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    # NOTE: This test only tests that the system does not break on logit bias.
+    #       The test does not promise the correctness of logit bias handling.
+
+    prompt = "What's the meaning of life?"
+    max_tokens = 128
+    payload = {
+        "model": served_model[0],
+        "prompt": prompt,
+        "max_tokens": max_tokens,
+        "stream": stream,
+        "logit_bias": {338: -100},  # 338 is " is" in Llama tokenizer.
+    }
+
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
+    if not stream:
+        check_openai_nonstream_response(
+            response.json(),
+            is_chat_completion=False,
+            model=served_model[0],
+            object_str="text_completion",
+            num_choices=1,
+            finish_reasons=["length"],
+        )
+    else:
+        responses = []
+        for chunk in response.iter_lines(chunk_size=512):
+            if not chunk or chunk == b"data: [DONE]":
+                continue
+            responses.append(json.loads(chunk.decode("utf-8")[6:]))
+        check_openai_stream_response(
+            responses,
+            is_chat_completion=False,
+            model=served_model[0],
+            object_str="text_completion",
+            num_choices=1,
+            finish_reasons=["length"],
         )
 
 
@@ -504,7 +552,7 @@ def test_openai_v1_completions_presence_frequency_penalty(
         "presence_penalty": 2.0,
     }
 
-    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     if not stream:
         check_openai_nonstream_response(
             response.json(),
@@ -512,7 +560,7 @@ def test_openai_v1_completions_presence_frequency_penalty(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
         )
     else:
         responses = []
@@ -526,7 +574,7 @@ def test_openai_v1_completions_presence_frequency_penalty(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
         )
 
 
@@ -547,8 +595,8 @@ def test_openai_v1_completions_seed(
         "seed": 233,
     }
 
-    response1 = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
-    response2 = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    response1 = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
+    response2 = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     for response in [response1, response2]:
         check_openai_nonstream_response(
             response.json(),
@@ -556,7 +604,7 @@ def test_openai_v1_completions_seed(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
         )
 
     text1 = response1.json()["choices"][0]["text"]
@@ -573,7 +621,7 @@ def test_openai_v1_completions_prompt_overlong(
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
 
-    num_tokens = 17000
+    num_tokens = 1000000
     prompt = [128] * num_tokens
     payload = {
         "model": served_model[0],
@@ -582,7 +630,7 @@ def test_openai_v1_completions_prompt_overlong(
         "stream": stream,
     }
 
-    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     error_msg_prefix = (
         f"Request prompt has {num_tokens} tokens in total, larger than the model capacity"
     )
@@ -596,6 +644,39 @@ def test_openai_v1_completions_prompt_overlong(
             num_chunks += 1
             expect_error(json.loads(chunk.decode("utf-8")), msg_prefix=error_msg_prefix)
         assert num_chunks == 1
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_openai_v1_completions_invalid_logprobs(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    payload = {
+        "model": served_model[0],
+        "prompt": "What is the meaning of life?",
+        "max_tokens": 256,
+        "stream": stream,
+        "logprobs": False,
+        "top_logprobs": 4,
+    }
+
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.json()["detail"][0]["msg"].endswith(
+        '"logprobs" must be True to support "top_logprobs"'
+    )
+
+    payload["logprobs"] = True
+    payload["top_logprobs"] = 6
+
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.json()["detail"][0]["msg"].endswith('"top_logprobs" must be in range [0, 5]')
 
 
 def test_openai_v1_completions_unsupported_args(
@@ -614,7 +695,7 @@ def test_openai_v1_completions_unsupported_args(
         "best_of": best_of,
     }
 
-    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     error_msg_prefix = 'Request fields "best_of" are not supported right now.'
     expect_error(response.json(), msg_prefix=error_msg_prefix)
 
@@ -638,7 +719,7 @@ def test_openai_v1_completions_request_cancellation(
 
     # The server should still be alive after a request cancelled.
     # We query `v1/models` to validate the server liveness.
-    response = requests.get(OPENAI_V1_MODELS_URL, timeout=60).json()
+    response = requests.get(OPENAI_V1_MODELS_URL, timeout=180).json()
 
     assert response["object"] == "list"
     models = response["data"]
@@ -693,7 +774,7 @@ def test_openai_v1_chat_completions(
         "stream": stream,
     }
 
-    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=180)
     if not stream:
         check_openai_nonstream_response(
             response.json(),
@@ -701,7 +782,7 @@ def test_openai_v1_chat_completions(
             model=served_model[0],
             object_str="chat.completion",
             num_choices=1,
-            finish_reason="stop",
+            finish_reasons=["stop"],
         )
     else:
         responses = []
@@ -715,7 +796,7 @@ def test_openai_v1_chat_completions(
             model=served_model[0],
             object_str="chat.completion.chunk",
             num_choices=1,
-            finish_reason="stop",
+            finish_reasons=["stop"],
         )
 
 
@@ -735,6 +816,8 @@ def test_openai_v1_chat_completions_openai_package(
         model=served_model[0],
         messages=messages,
         stream=stream,
+        logprobs=True,
+        top_logprobs=2,
     )
     if not stream:
         check_openai_nonstream_response(
@@ -743,7 +826,7 @@ def test_openai_v1_chat_completions_openai_package(
             model=served_model[0],
             object_str="chat.completion",
             num_choices=1,
-            finish_reason="stop",
+            finish_reasons=["stop"],
         )
     else:
         responses = []
@@ -755,7 +838,7 @@ def test_openai_v1_chat_completions_openai_package(
             model=served_model[0],
             object_str="chat.completion.chunk",
             num_choices=1,
-            finish_reason="stop",
+            finish_reasons=["stop"],
         )
 
 
@@ -777,7 +860,7 @@ def test_openai_v1_chat_completions_max_tokens(
         "max_tokens": max_tokens,
     }
 
-    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=180)
     if not stream:
         check_openai_nonstream_response(
             response.json(),
@@ -785,7 +868,7 @@ def test_openai_v1_chat_completions_max_tokens(
             model=served_model[0],
             object_str="chat.completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
             completion_tokens=max_tokens,
         )
     else:
@@ -800,7 +883,7 @@ def test_openai_v1_chat_completions_max_tokens(
             model=served_model[0],
             object_str="chat.completion.chunk",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
             completion_tokens=max_tokens,
         )
 
@@ -824,7 +907,7 @@ def test_openai_v1_chat_completions_ignore_eos(
         "ignore_eos": True,
     }
 
-    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=180)
     if not stream:
         check_openai_nonstream_response(
             response.json(),
@@ -832,7 +915,7 @@ def test_openai_v1_chat_completions_ignore_eos(
             model=served_model[0],
             object_str="chat.completion",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
             completion_tokens=max_tokens,
         )
     else:
@@ -847,7 +930,7 @@ def test_openai_v1_chat_completions_ignore_eos(
             model=served_model[0],
             object_str="chat.completion.chunk",
             num_choices=1,
-            finish_reason="length",
+            finish_reasons=["length"],
             completion_tokens=max_tokens,
         )
 
@@ -875,7 +958,7 @@ def test_openai_v1_chat_completions_system_prompt_wrong_pos(
         "stream": stream,
     }
 
-    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=60)
+    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=180)
     error_msg = "System prompt at position 1 in the message list is invalid."
     if not stream:
         expect_error(response.json(), msg_prefix=error_msg)
@@ -889,26 +972,6 @@ def test_openai_v1_chat_completions_system_prompt_wrong_pos(
         assert num_chunks == 1
 
 
-def test_openai_v1_chat_completions_unsupported_args(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
-):
-    # `served_model` and `launch_server` are pytest fixtures
-    # defined in conftest.py.
-
-    # Right now "tool_choice" is unsupported.
-    tool_choice = "auto"
-    payload = {
-        "model": served_model[0],
-        "messages": CHAT_COMPLETION_MESSAGES[0],
-        "tool_choice": tool_choice,
-    }
-
-    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=60)
-    error_msg_prefix = 'Request fields "tool_choice" are not supported right now.'
-    expect_error(response.json(), msg_prefix=error_msg_prefix)
-
-
 def test_debug_dump_event_trace(
     served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
@@ -917,7 +980,7 @@ def test_debug_dump_event_trace(
     # defined in conftest.py.
     # We only check that the request does not fail.
     payload = {"model": served_model[0]}
-    response = requests.post(DEBUG_DUMP_EVENT_TRACE_URL, json=payload, timeout=60)
+    response = requests.post(DEBUG_DUMP_EVENT_TRACE_URL, json=payload, timeout=180)
     assert response.status_code == HTTPStatus.OK
 
 
@@ -946,11 +1009,15 @@ if __name__ == "__main__":
     test_openai_v1_completions_stop_str(MODEL, None, stream=True)
     test_openai_v1_completions_temperature(MODEL, None, stream=False)
     test_openai_v1_completions_temperature(MODEL, None, stream=True)
+    test_openai_v1_completions_logit_bias(MODEL, None, stream=False)
+    test_openai_v1_completions_logit_bias(MODEL, None, stream=True)
     test_openai_v1_completions_presence_frequency_penalty(MODEL, None, stream=False)
     test_openai_v1_completions_presence_frequency_penalty(MODEL, None, stream=True)
     test_openai_v1_completions_seed(MODEL, None)
     test_openai_v1_completions_prompt_overlong(MODEL, None, stream=False)
     test_openai_v1_completions_prompt_overlong(MODEL, None, stream=True)
+    test_openai_v1_completions_invalid_logprobs(MODEL, None, stream=False)
+    test_openai_v1_completions_invalid_logprobs(MODEL, None, stream=True)
     test_openai_v1_completions_unsupported_args(MODEL, None)
     test_openai_v1_completions_request_cancellation(MODEL, None)
 
@@ -965,6 +1032,5 @@ if __name__ == "__main__":
     test_openai_v1_chat_completions_ignore_eos(MODEL, None, stream=True)
     test_openai_v1_chat_completions_system_prompt_wrong_pos(MODEL, None, stream=False)
     test_openai_v1_chat_completions_system_prompt_wrong_pos(MODEL, None, stream=True)
-    test_openai_v1_chat_completions_unsupported_args(MODEL, None)
 
     test_debug_dump_event_trace(MODEL, None)

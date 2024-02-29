@@ -33,6 +33,22 @@ class TokenizerObj : public Object {
   /*! \brief Return the token table of the tokenizer. */
   const std::vector<std::string>& TokenTable();
 
+  /*!
+   * \brief Returns the vocabulary size. Special tokens are considered.
+   */
+  size_t GetVocabSize() const;
+
+  /*!
+   * \brief Convert the given id to its corresponding token if it exists. If not, return an
+   * empty string.
+   */
+  std::string IdToToken(int32_t token_id) const;
+
+  /*!
+   * \brief Convert the given token to its corresponding id if it exists. If not, return -1.
+   */
+  int32_t TokenToId(const std::string& token) const;
+
   static constexpr const char* _type_key = "mlc.Tokenizer";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;

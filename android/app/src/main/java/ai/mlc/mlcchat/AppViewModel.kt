@@ -647,8 +647,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         backend.unload()
                         backend.reload(
                             modelConfig.modelLib,
-                            modelPath, modelConfig.contextWindowSize,
-                            modelConfig.prefillChunkSize
+                            modelPath
                         )
                     }) return@submit
                 viewModelScope.launch {

@@ -26,9 +26,11 @@ namespace serve {
  */
 class BatchVerifyActionObj : public EngineActionObj {
  public:
-  explicit BatchVerifyActionObj(Array<Model> models, Sampler sampler, KVCacheConfig kv_cache_config,
+  explicit BatchVerifyActionObj(Array<Model> models, LogitProcessor logit_processor,
+                                Sampler sampler, KVCacheConfig kv_cache_config,
                                 Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
+        logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         kv_cache_config_(std::move(kv_cache_config)),
         trace_recorder_(std::move(trace_recorder)),
@@ -57,8 +59,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     Array<RequestModelState> verify_request_mstates;
     Array<GenerationConfig> generation_cfg;
     std::vector<RandomGenerator*> rngs;
-    std::vector<std::vector<int>> draft_output_tokens;
-    std::vector<std::vector<float>> draft_output_token_prob;
+    std::vector<std::vector<SampleResult>> draft_output_tokens;
     std::vector<std::vector<NDArray>> draft_output_prob_dist;
     request_internal_ids.reserve(num_requests);
     all_tokens_to_verify.reserve(total_draft_length);
@@ -66,7 +67,6 @@ class BatchVerifyActionObj : public EngineActionObj {
     rngs.reserve(num_requests);
     generation_cfg.reserve(num_requests);
     draft_output_tokens.reserve(num_requests);
-    draft_output_token_prob.reserve(num_requests);
     draft_output_prob_dist.reserve(num_requests);
 
     for (int i = 0; i < num_requests; ++i) {
@@ -75,18 +75,16 @@ class BatchVerifyActionObj : public EngineActionObj {
       request_internal_ids.push_back(verify_mstate->internal_id);
       ICHECK(!draft_lengths.empty());
       ICHECK_EQ(draft_lengths[i], draft_mstate->draft_output_tokens.size());
-      ICHECK_EQ(draft_lengths[i], draft_mstate->draft_output_token_prob.size());
       ICHECK_EQ(draft_lengths[i], draft_mstate->draft_output_prob_dist.size());
       // the last committed token + all the draft tokens but the last one.
-      all_tokens_to_verify.push_back(draft_mstate->committed_tokens.back());
-      all_tokens_to_verify.insert(all_tokens_to_verify.end(),
-                                  draft_mstate->draft_output_tokens.begin(),
-                                  draft_mstate->draft_output_tokens.end() - 1);
+      all_tokens_to_verify.push_back(draft_mstate->committed_tokens.back().sampled_token_id.first);
+      for (int j = 0; j < static_cast<int>(draft_mstate->draft_output_tokens.size()) - 1; ++j) {
+        all_tokens_to_verify.push_back(draft_mstate->draft_output_tokens[j].sampled_token_id.first);
+      }
       verify_request_mstates.push_back(verify_mstate);
       generation_cfg.push_back(requests[i]->generation_cfg);
       rngs.push_back(&rstates[i]->rng);
       draft_output_tokens.push_back(draft_mstate->draft_output_tokens);
-      draft_output_token_prob.push_back(draft_mstate->draft_output_token_prob);
       draft_output_prob_dist.push_back(draft_mstate->draft_output_prob_dist);
     }
 
@@ -103,20 +101,30 @@ class BatchVerifyActionObj : public EngineActionObj {
     ICHECK_EQ(logits->shape[0], 1);
     ICHECK_EQ(logits->shape[1], total_draft_length);
 
+    // - Update logits.
     std::vector<int> cum_verify_lengths = {0};
     for (int i = 0; i < num_requests; ++i) {
       cum_verify_lengths.push_back(cum_verify_lengths.back() + draft_lengths[i]);
     }
-    std::vector<std::vector<int32_t>> accepted_tokens_arr = sampler_->BatchVerifyDraftTokens(
-        logits, cum_verify_lengths, models_[verify_model_id_], verify_request_mstates,
-        generation_cfg, rngs, draft_output_tokens, draft_output_token_prob, draft_output_prob_dist);
-    ICHECK_EQ(accepted_tokens_arr.size(), num_requests);
+    logits = logits.CreateView({total_draft_length, logits->shape[2]}, logits->dtype);
+    logit_processor_->InplaceUpdateLogits(logits, generation_cfg, verify_request_mstates,
+                                          request_ids, &cum_verify_lengths, &draft_output_tokens);
+
+    // - Compute probability distributions.
+    NDArray probs_device = logit_processor_->ComputeProbsFromLogits(
+        logits, generation_cfg, request_ids, &cum_verify_lengths);
+
+    std::vector<std::vector<SampleResult>> sample_results_arr = sampler_->BatchVerifyDraftTokens(
+        probs_device, request_ids, cum_verify_lengths, generation_cfg, rngs, draft_output_tokens,
+        draft_output_prob_dist);
+    ICHECK_EQ(sample_results_arr.size(), num_requests);
 
     for (int i = 0; i < num_requests; ++i) {
-      const std::vector<int32_t>& accepted_tokens = accepted_tokens_arr[i];
-      int accept_length = accepted_tokens.size();
-      for (int32_t token_id : accepted_tokens) {
-        rstates[i]->mstates[draft_model_id_]->CommitToken(token_id);
+      const std::vector<SampleResult>& sample_results = sample_results_arr[i];
+      int accept_length = sample_results.size();
+      for (SampleResult sample_result : sample_results) {
+        rstates[i]->mstates[verify_model_id_]->CommitToken(sample_result);
+        rstates[i]->mstates[draft_model_id_]->CommitToken(sample_result);
       }
       estate->stats.current_total_seq_len += accept_length;
       estate->stats.total_accepted_length += accept_length;
@@ -138,8 +146,6 @@ class BatchVerifyActionObj : public EngineActionObj {
     // clear the draft model states
     for (int i = 0; i < num_requests; ++i) {
       rstates[i]->mstates[draft_model_id_]->RemoveAllDraftTokens();
-      rstates[i]->mstates[draft_model_id_]->draft_output_token_prob.clear();
-      rstates[i]->mstates[draft_model_id_]->draft_output_prob_dist.clear();
     }
 
     auto tend = std::chrono::high_resolution_clock::now();
@@ -222,6 +228,8 @@ class BatchVerifyActionObj : public EngineActionObj {
    * models, the `Step` function of the created action will not take effect.
    */
   Array<Model> models_;
+  /*! \brief The logit processor. */
+  LogitProcessor logit_processor_;
   /*! \brief The sampler to sample new tokens. */
   Sampler sampler_;
   /*! \brief The kv cache config. */
@@ -233,15 +241,15 @@ class BatchVerifyActionObj : public EngineActionObj {
   /*! \brief The ids of verify/draft models. */
   const int verify_model_id_ = 0;
   const int draft_model_id_ = 1;
-  const float eps_ = 1e-9;
+  const float eps_ = 1e-5;
 };
 
-EngineAction EngineAction::BatchVerify(Array<Model> models, Sampler sampler,
-                                       KVCacheConfig kv_cache_config,
+EngineAction EngineAction::BatchVerify(Array<Model> models, LogitProcessor logit_processor,
+                                       Sampler sampler, KVCacheConfig kv_cache_config,
                                        Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<BatchVerifyActionObj>(std::move(models), std::move(sampler),
-                                                        std::move(kv_cache_config),
-                                                        std::move(trace_recorder)));
+  return EngineAction(make_object<BatchVerifyActionObj>(
+      std::move(models), std::move(logit_processor), std::move(sampler), std::move(kv_cache_config),
+      std::move(trace_recorder)));
 }
 
 }  // namespace serve

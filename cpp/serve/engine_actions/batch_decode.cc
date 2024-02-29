@@ -24,9 +24,10 @@ namespace serve {
  */
 class BatchDecodeActionObj : public EngineActionObj {
  public:
-  explicit BatchDecodeActionObj(Array<Model> models, Sampler sampler,
-                                Optional<EventTraceRecorder> trace_recorder)
+  explicit BatchDecodeActionObj(Array<Model> models, LogitProcessor logit_processor,
+                                Sampler sampler, Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
+        logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         trace_recorder_(std::move(trace_recorder)) {}
 
@@ -66,7 +67,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     rngs.reserve(num_requests);
     for (Request request : estate->running_queue) {
       RequestState rstate = estate->GetRequestState(request);
-      input_tokens.push_back(rstate->mstates[0]->committed_tokens.back());
+      input_tokens.push_back(rstate->mstates[0]->committed_tokens.back().sampled_token_id.first);
       request_ids.push_back(request->id);
       request_internal_ids.push_back(rstate->mstates[0]->internal_id);
       mstates.push_back(rstate->mstates[0]);
@@ -92,16 +93,22 @@ class BatchDecodeActionObj : public EngineActionObj {
     ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
     ICHECK_EQ(logits->shape[1], 1);
 
+    // - Update logits.
+    logits = logits.CreateView({num_requests, logits->shape[2]}, logits->dtype);
+    logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
+
+    // - Compute probability distributions.
+    NDArray probs_device =
+        logit_processor_->ComputeProbsFromLogits(logits, generation_cfg, request_ids);
+
     // - Sample tokens.
-    RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
-    std::vector<int32_t> next_tokens =
-        sampler_->BatchSampleTokens(logits, models_[0], mstates, generation_cfg, rngs);
-    RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
-    ICHECK_EQ(next_tokens.size(), num_requests);
+    std::vector<SampleResult> sample_results =
+        sampler_->BatchSampleTokens(probs_device, request_ids, generation_cfg, rngs);
+    ICHECK_EQ(sample_results.size(), num_requests);
 
     // - Update the committed tokens of states.
     for (int i = 0; i < num_requests; ++i) {
-      mstates[i]->CommitToken(next_tokens[i]);
+      mstates[i]->CommitToken(sample_results[i]);
     }
 
     auto tend = std::chrono::high_resolution_clock::now();
@@ -122,16 +129,20 @@ class BatchDecodeActionObj : public EngineActionObj {
    * models, the `Step` function of the created action will not take effect.
    */
   Array<Model> models_;
+  /*! \brief The logit processor. */
+  LogitProcessor logit_processor_;
   /*! \brief The sampler to sample new tokens. */
   Sampler sampler_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
 };
 
-EngineAction EngineAction::BatchDecode(Array<Model> models, Sampler sampler,
+EngineAction EngineAction::BatchDecode(Array<Model> models, LogitProcessor logit_processor,
+                                       Sampler sampler,
                                        Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<BatchDecodeActionObj>(std::move(models), std::move(sampler),
-                                                        std::move(trace_recorder)));
+  return EngineAction(
+      make_object<BatchDecodeActionObj>(std::move(models), std::move(logit_processor),
+                                        std::move(sampler), std::move(trace_recorder)));
 }
 
 }  // namespace serve

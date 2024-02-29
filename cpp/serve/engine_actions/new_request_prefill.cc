@@ -18,10 +18,11 @@ namespace serve {
  */
 class NewRequestPrefillActionObj : public EngineActionObj {
  public:
-  explicit NewRequestPrefillActionObj(Array<Model> models, Sampler sampler,
-                                      KVCacheConfig kv_cache_config,
+  explicit NewRequestPrefillActionObj(Array<Model> models, LogitProcessor logit_processor,
+                                      Sampler sampler, KVCacheConfig kv_cache_config,
                                       Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
+        logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         kv_cache_config_(std::move(kv_cache_config)),
         trace_recorder_(std::move(trace_recorder)) {}
@@ -58,7 +59,6 @@ class NewRequestPrefillActionObj : public EngineActionObj {
         RequestModelState mstate = rstates[i]->mstates[model_id];
         ICHECK_EQ(mstate->GetInputLength(), prefill_lengths[i]);
         ICHECK(mstate->draft_output_tokens.empty());
-        ICHECK(mstate->draft_output_token_prob.empty());
         ICHECK(mstate->draft_output_prob_dist.empty());
         ICHECK(!mstate->inputs.empty());
         // Add the sequence to the model.
@@ -87,24 +87,32 @@ class NewRequestPrefillActionObj : public EngineActionObj {
       }
     }
 
-    // - Sample tokens.
+    // - Update logits.
     ICHECK(logits_for_sample.defined());
-    logits_for_sample = logits_for_sample.CreateView({num_requests, 1, logits_for_sample->shape[2]},
-                                                     logits_for_sample->dtype);
+    Array<GenerationConfig> generation_cfg;
     Array<RequestModelState> mstates_for_sample;
     std::vector<RandomGenerator*> rngs;
+    generation_cfg.reserve(num_requests);
     mstates_for_sample.reserve(num_requests);
     rngs.reserve(num_requests);
     for (int i = 0; i < num_requests; ++i) {
+      generation_cfg.push_back(requests[i]->generation_cfg);
       mstates_for_sample.push_back(rstates[i]->mstates[0]);
       rngs.push_back(&rstates[i]->rng);
     }
-    RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
-    std::vector<int32_t> next_tokens = sampler_->BatchSampleTokens(
-        logits_for_sample, models_[0], mstates_for_sample,
-        requests.Map([](Request request) { return request->generation_cfg; }), rngs);
-    RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
-    ICHECK_EQ(next_tokens.size(), num_requests);
+    logits_for_sample = logits_for_sample.CreateView({num_requests, logits_for_sample->shape[2]},
+                                                     logits_for_sample->dtype);
+    logit_processor_->InplaceUpdateLogits(logits_for_sample, generation_cfg, mstates_for_sample,
+                                          request_ids);
+
+    // - Compute probability distributions.
+    NDArray probs_device =
+        logit_processor_->ComputeProbsFromLogits(logits_for_sample, generation_cfg, request_ids);
+
+    // - Sample tokens.
+    std::vector<SampleResult> sample_results =
+        sampler_->BatchSampleTokens(probs_device, request_ids, generation_cfg, rngs);
+    ICHECK_EQ(sample_results.size(), num_requests);
 
     // - Update the committed tokens of states.
     // - If a request is first-time prefilled, set the prefill finish time.
@@ -113,7 +121,7 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     auto tnow = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < num_requests; ++i) {
       for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
-        rstates[i]->mstates[model_id]->CommitToken(next_tokens[i]);
+        rstates[i]->mstates[model_id]->CommitToken(sample_results[i]);
       }
       if (mstates_for_sample[i]->committed_tokens.size() == 1) {
         rstates[i]->tprefill_finish = tnow;
@@ -199,6 +207,8 @@ class NewRequestPrefillActionObj : public EngineActionObj {
 
   /*! \brief The models to run prefill in. */
   Array<Model> models_;
+  /*! \brief The logit processor. */
+  LogitProcessor logit_processor_;
   /*! \brief The sampler to sample new tokens. */
   Sampler sampler_;
   /*! \brief The KV cache config to help decide prefill is doable. */
@@ -207,12 +217,12 @@ class NewRequestPrefillActionObj : public EngineActionObj {
   Optional<EventTraceRecorder> trace_recorder_;
 };
 
-EngineAction EngineAction::NewRequestPrefill(Array<Model> models, Sampler sampler,
-                                             KVCacheConfig kv_cache_config,
+EngineAction EngineAction::NewRequestPrefill(Array<Model> models, LogitProcessor logit_processor,
+                                             Sampler sampler, KVCacheConfig kv_cache_config,
                                              Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<NewRequestPrefillActionObj>(std::move(models), std::move(sampler),
-                                                              std::move(kv_cache_config),
-                                                              std::move(trace_recorder)));
+  return EngineAction(make_object<NewRequestPrefillActionObj>(
+      std::move(models), std::move(logit_processor), std::move(sampler), std::move(kv_cache_config),
+      std::move(trace_recorder)));
 }
 
 }  // namespace serve

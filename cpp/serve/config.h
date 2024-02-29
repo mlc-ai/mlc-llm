@@ -25,6 +25,9 @@ class GenerationConfigNode : public Object {
   double frequency_penalty = 0.0;
   double presence_penalty = 0.0;
   double repetition_penalty = 1.0;
+  bool logprobs = false;
+  int top_logprobs = 0;
+  std::vector<std::pair<int, float>> logit_bias;
   int seed;
   bool ignore_eos = false;
 

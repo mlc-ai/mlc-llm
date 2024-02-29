@@ -20,9 +20,10 @@ namespace serve {
  */
 class BatchDraftActionObj : public EngineActionObj {
  public:
-  explicit BatchDraftActionObj(Array<Model> models, Sampler sampler,
+  explicit BatchDraftActionObj(Array<Model> models, LogitProcessor logit_processor, Sampler sampler,
                                Optional<EventTraceRecorder> trace_recorder, int draft_length)
       : models_(std::move(models)),
+        logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         trace_recorder_(std::move(trace_recorder)),
         draft_length_(draft_length) {
@@ -79,8 +80,9 @@ class BatchDraftActionObj : public EngineActionObj {
         input_tokens.clear();
         for (int i = 0; i < num_requests; ++i) {
           // The first draft proposal uses the last committed token.
-          input_tokens.push_back(draft_id == 0 ? mstates[i]->committed_tokens.back()
-                                               : mstates[i]->draft_output_tokens.back());
+          input_tokens.push_back(
+              draft_id == 0 ? mstates[i]->committed_tokens.back().sampled_token_id.first
+                            : mstates[i]->draft_output_tokens.back().sampled_token_id.first);
         }
 
         // - Compute embeddings.
@@ -102,20 +104,23 @@ class BatchDraftActionObj : public EngineActionObj {
         ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
         ICHECK_EQ(logits->shape[1], 1);
 
-        // - Sample tokens.
-        RECORD_EVENT(trace_recorder_, request_ids, "start proposal sampling");
-        std::vector<NDArray> prob_dist;
-        std::vector<float> token_probs;
-        std::vector<int32_t> next_tokens = sampler_->BatchSampleTokens(
-            logits, models_[model_id], mstates, generation_cfg, rngs, &prob_dist, &token_probs);
-        RECORD_EVENT(trace_recorder_, request_ids, "finish proposal sampling");
-        ICHECK_EQ(next_tokens.size(), num_requests);
+        // - Update logits.
+        logits = logits.CreateView({num_requests, logits->shape[2]}, logits->dtype);
+        logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
 
-        // - Update the draft tokens, prob dist, token probs of states.
+        // - Compute probability distributions.
+        NDArray probs_device =
+            logit_processor_->ComputeProbsFromLogits(logits, generation_cfg, request_ids);
+
+        // - Sample tokens.
+        std::vector<NDArray> prob_dist;
+        std::vector<SampleResult> sample_results = sampler_->BatchSampleTokens(
+            probs_device, request_ids, generation_cfg, rngs, &prob_dist);
+        ICHECK_EQ(sample_results.size(), num_requests);
+
+        // - Add draft token to the state.
         for (int i = 0; i < num_requests; ++i) {
-          mstates[i]->AddDraftToken(next_tokens[i]);
-          mstates[i]->draft_output_prob_dist.push_back(prob_dist[i]);
-          mstates[i]->draft_output_token_prob.push_back(token_probs[i]);
+          mstates[i]->AddDraftToken(sample_results[i], prob_dist[i]);
           estate->stats.total_draft_length += 1;
         }
       }
@@ -143,6 +148,8 @@ class BatchDraftActionObj : public EngineActionObj {
 
   /*! \brief The model to run draft generation in speculative decoding. */
   Array<Model> models_;
+  /*! \brief The logit processor. */
+  LogitProcessor logit_processor_;
   /*! \brief The sampler to sample new tokens. */
   Sampler sampler_;
   /*! \brief Event trace recorder. */
@@ -151,11 +158,12 @@ class BatchDraftActionObj : public EngineActionObj {
   int draft_length_;
 };
 
-EngineAction EngineAction::BatchDraft(Array<Model> models, Sampler sampler,
-                                      Optional<EventTraceRecorder> trace_recorder,
+EngineAction EngineAction::BatchDraft(Array<Model> models, LogitProcessor logit_processor,
+                                      Sampler sampler, Optional<EventTraceRecorder> trace_recorder,
                                       int draft_length) {
-  return EngineAction(make_object<BatchDraftActionObj>(std::move(models), std::move(sampler),
-                                                       std::move(trace_recorder), draft_length));
+  return EngineAction(make_object<BatchDraftActionObj>(
+      std::move(models), std::move(logit_processor), std::move(sampler), std::move(trace_recorder),
+      draft_length));
 }
 
 }  // namespace serve

@@ -38,7 +38,8 @@ class BNFGrammarSerializer {
  */
 class BNFGrammarPrinter : public BNFGrammarSerializer {
  private:
-  using DataKind = BNFGrammarNode::DataKind;
+  using Rule = BNFGrammarNode::Rule;
+  using RuleExprType = BNFGrammarNode::RuleExprType;
   using RuleExpr = BNFGrammarNode::RuleExpr;
 
  public:
@@ -51,24 +52,28 @@ class BNFGrammarPrinter : public BNFGrammarSerializer {
   /*! \brief Print the complete grammar. */
   String ToString() final;
 
-  /*! \brief Print a rule_expr corresponding to the given id. */
+  /*! \brief Print a rule. */
+  std::string PrintRule(const Rule& rule);
+  /*! \brief Print a rule corresponding to the given id. */
+  std::string PrintRule(int32_t rule_id);
+  /*! \brief Print a RuleExpr. */
+  std::string PrintRuleExpr(const RuleExpr& rule_expr);
+  /*! \brief Print a RuleExpr corresponding to the given id. */
   std::string PrintRuleExpr(int32_t rule_expr_id);
 
-  /*! \brief Print rule_exprs for character range. */
-  std::string PrintCharacterRange(const RuleExpr& rule_expr);
-  /*! \brief Print rule_exprs for empty string. */
-  std::string PrintEmptyStr(const RuleExpr& rule_expr);
-  /*! \brief Print rule_exprs for rule reference. */
-  std::string PrintRuleRef(const RuleExpr& rule_expr);
-  /*! \brief Print rule_exprs for rule_expr sequence. */
-  std::string PrintSequence(const RuleExpr& rule_expr);
-  /*! \brief Print rule_exprs for rule_expr choices. */
-  std::string PrintChoices(const RuleExpr& rule_expr);
-
  private:
-  // Only print parentheses when necessary (i.e. when this rule_expr contains multiple elements
-  // and is nested within another multi-element rule_expr)
-  bool require_parentheses_ = false;
+  /*! \brief Print a RuleExpr for character class. */
+  std::string PrintCharacterClass(const RuleExpr& rule_expr);
+  /*! \brief Print a RuleExpr for empty string. */
+  std::string PrintEmptyStr(const RuleExpr& rule_expr);
+  /*! \brief Print a RuleExpr for rule reference. */
+  std::string PrintRuleRef(const RuleExpr& rule_expr);
+  /*! \brief Print a RuleExpr for rule_expr sequence. */
+  std::string PrintSequence(const RuleExpr& rule_expr);
+  /*! \brief Print a RuleExpr for rule_expr choices. */
+  std::string PrintChoices(const RuleExpr& rule_expr);
+  /*! \brief Print a RuleExpr for star quantifier. */
+  std::string PrintStarQuantifier(const RuleExpr& rule_expr);
 };
 
 /*!

@@ -760,6 +760,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"gptj", GPT2},
       {"baichuan", ChatML},
       {"gemma_instruction", GemmaInstruction},
+      {"internlm", ChatML},
   };
 
   auto it = factory.find(name);

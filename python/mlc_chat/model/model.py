@@ -14,6 +14,7 @@ from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
 from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
 from .gptj import gptj_loader, gptj_model, gptj_quantization
+from .internlm import internlm_loader, internlm_model, internlm_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
@@ -249,6 +250,7 @@ MODELS: Dict[str, Model] = {
             "ft-quant": baichuan_quantization.ft_quant,
         },
     ),
+
     "gptj": Model(
         name="gptj",
         model=gptj_model.GPTJForCausalLM,
@@ -260,6 +262,20 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": gptj_quantization.no_quant,
             "group-quant": gptj_quantization.group_quant,
+
+    "internlm": Model(
+        name="internlm",
+        model=internlm_model.InternLMForCausalLM,
+        config=internlm_model.InternLMConfig,
+        source={
+            "huggingface-torch": internlm_loader.huggingface,
+            "huggingface-safetensor": internlm_loader.huggingface,
+        },
+        quantize={
+            "no-quant": internlm_quantization.no_quant,
+            "group-quant": internlm_quantization.group_quant,
+            "ft-quant": internlm_quantization.ft_quant,
+
         },
     ),
 }

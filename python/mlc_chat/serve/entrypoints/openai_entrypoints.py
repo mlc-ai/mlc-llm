@@ -23,6 +23,8 @@ from ...protocol.openai_api_protocol import (
     CompletionResponse,
     CompletionResponseChoice,
     ListResponse,
+    LogProbs,
+    LogProbsContent,
     ModelResponse,
     UsageInfo,
 )
@@ -109,9 +111,12 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             num_completion_tokens = 0
             finish_reason = None
             async_engine.record_event(request_id, event="invoke generate")
-            async for delta_text, num_delta_tokens, finish_reason in async_engine.generate(
-                prompt, generation_cfg, request_id
-            ):
+            async for (
+                delta_text,
+                num_delta_tokens,
+                delta_logprob_json_strs,
+                finish_reason,
+            ) in async_engine.generate(prompt, generation_cfg, request_id):
                 num_completion_tokens += num_delta_tokens
                 if delta_text == "":
                     # Ignore empty delta text -- do not yield.
@@ -123,6 +128,16 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
                         CompletionResponseChoice(
                             finish_reason=finish_reason,
                             text=delta_text,
+                            logprobs=(
+                                LogProbs(
+                                    content=[
+                                        LogProbsContent.model_validate_json(logprob_json_str)
+                                        for logprob_json_str in delta_logprob_json_strs
+                                    ]
+                                )
+                                if delta_logprob_json_strs is not None
+                                else None
+                            ),
                         )
                     ],
                     model=request.model,
@@ -163,10 +178,14 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     output_text = "" if not request.echo else async_engine.tokenizer.decode(prompt)
     num_completion_tokens = 0
     finish_reason: Optional[str] = None
+    logprob_json_strs: Optional[List[str]] = [] if generation_cfg.logprobs else None
     async_engine.record_event(request_id, event="invoke generate")
-    async for delta_text, num_delta_tokens, finish_reason in async_engine.generate(
-        prompt, generation_cfg, request_id
-    ):
+    async for (
+        delta_text,
+        num_delta_tokens,
+        delta_logprob_json_strs,
+        finish_reason,
+    ) in async_engine.generate(prompt, generation_cfg, request_id):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
             # when the request is disconnected.
@@ -178,6 +197,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             )
         output_text += delta_text
         num_completion_tokens += num_delta_tokens
+        if logprob_json_strs is not None:
+            assert delta_logprob_json_strs is not None
+            logprob_json_strs += delta_logprob_json_strs
     assert finish_reason is not None
     suffix = request.suffix if request.suffix is not None else ""
     async_engine.record_event(request_id, event="finish")
@@ -187,6 +209,16 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             CompletionResponseChoice(
                 finish_reason=finish_reason,
                 text=output_text + suffix,
+                logprobs=(
+                    LogProbs(
+                        content=[
+                            LogProbsContent.model_validate_json(logprob_json_str)
+                            for logprob_json_str in logprob_json_strs
+                        ]
+                    )
+                    if logprob_json_strs is not None
+                    else None
+                ),
             )
         ],
         model=request.model,
@@ -378,9 +410,12 @@ async def request_chat_completion(
         async def completion_stream_generator() -> AsyncGenerator[str, None]:
             assert request.n == 1
             async_engine.record_event(request_id, event="invoke generate")
-            async for delta_text, _, finish_reason in async_engine.generate(
-                prompt, generation_cfg, request_id
-            ):
+            async for (
+                delta_text,
+                _,
+                delta_logprob_json_strs,
+                finish_reason,
+            ) in async_engine.generate(prompt, generation_cfg, request_id):
                 if delta_text == "":
                     async_engine.record_event(request_id, event="skip empty delta text")
                     # Ignore empty delta text -- do not yield.
@@ -395,6 +430,16 @@ async def request_chat_completion(
                         ChatCompletionStreamResponseChoice(
                             finish_reason=finish_reason,
                             delta=ChatCompletionMessage(content=delta_text, role="assistant"),
+                            logprobs=(
+                                LogProbs(
+                                    content=[
+                                        LogProbsContent.model_validate_json(logprob_json_str)
+                                        for logprob_json_str in delta_logprob_json_strs
+                                    ]
+                                )
+                                if delta_logprob_json_strs is not None
+                                else None
+                            ),
                         )
                     ],
                     model=request.model,
@@ -413,10 +458,14 @@ async def request_chat_completion(
     output_text = ""
     num_completion_tokens = 0
     finish_reason: Optional[str] = None
+    logprob_json_strs: Optional[List[str]] = [] if generation_cfg.logprobs else None
     async_engine.record_event(request_id, event="invoke generate")
-    async for delta_text, num_delta_tokens, finish_reason in async_engine.generate(
-        prompt, generation_cfg, request_id
-    ):
+    async for (
+        delta_text,
+        num_delta_tokens,
+        delta_logprob_json_strs,
+        finish_reason,
+    ) in async_engine.generate(prompt, generation_cfg, request_id):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
             # when the request is disconnected.
@@ -428,6 +477,9 @@ async def request_chat_completion(
             )
         output_text += delta_text
         num_completion_tokens += num_delta_tokens
+        if logprob_json_strs is not None:
+            assert delta_logprob_json_strs is not None
+            logprob_json_strs += delta_logprob_json_strs
     assert finish_reason is not None
 
     async_engine.record_event(request_id, event="finish")
@@ -467,6 +519,16 @@ async def request_chat_completion(
             ChatCompletionResponseChoice(
                 finish_reason=finish_reason,
                 message=message,
+                logprobs=(
+                    LogProbs(
+                        content=[
+                            LogProbsContent.model_validate_json(logprob_json_str)
+                            for logprob_json_str in logprob_json_strs
+                        ]
+                    )
+                    if logprob_json_strs is not None
+                    else None
+                ),
             )
         ],
         model=request.model,

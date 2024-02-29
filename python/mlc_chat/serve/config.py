@@ -1,7 +1,8 @@
 """Configuration dataclasses used in MLC LLM serving"""
+
 import json
 from dataclasses import asdict, dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -31,6 +32,19 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
         It will be suppressed when any of frequency_penalty and presence_penalty is
         non-zero.
 
+    logprobs : bool
+        Whether to return log probabilities of the output tokens or not.
+        If true, the log probabilities of each output token will be returned.
+
+    top_logprobs : int
+        An integer between 0 and 5 specifying the number of most likely
+        tokens to return at each token position, each with an associated
+        log probability.
+        `logprobs` must be set to True if this parameter is used.
+
+    logit_bias : Optional[Dict[int, float]]
+        The bias logit value added to selected tokens prior to sampling.
+
     max_tokens : Optional[int]
         The maximum number of generated tokens,
         or None, in which case the generation will not stop
@@ -56,6 +70,9 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
     repetition_penalty: float = 1.0
+    logprobs: bool = False
+    top_logprobs: int = 0
+    logit_bias: Optional[Dict[int, float]] = field(default_factory=dict)
 
     max_tokens: Optional[int] = 128
     seed: Optional[int] = None
