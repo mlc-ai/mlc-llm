@@ -841,7 +841,7 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
             _apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
-            if not self.no_scale:
+            if not DataType(config.quantize_dtype).type_code == DataTypeCode.E5M2Float
                 _apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
         return quantized_mistral_experts
 
