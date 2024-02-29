@@ -497,7 +497,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "use_cache": True,
         "vocab_size": 103168,
     },
-    # TODO(mlc-team): enable the model presets when stablized.
+    # TODO(mlc-team): enable the model presets when stabilized.
     # "gemma_2b": {
     #     "architectures": ["GemmaForCausalLM"],
     #     "attention_bias": False,
@@ -542,4 +542,27 @@ MODEL_PRESETS: Dict[str, Any] = {
     #     "transformers_version": "4.38.0.dev0",
     #     "vocab_size": 256000,
     # },
+    "rwkv5_3b": {
+        "architectures": ["RwkvForCausalLM"],
+        "auto_map": {
+            "AutoConfig": "configuration_rwkv5.Rwkv5Config",
+            "AutoModelForCausalLM": "modeling_rwkv5.RwkvForCausalLM",
+        },
+        "attention_hidden_size": 2560,
+        "bos_token_id": 0,
+        "context_length": 4096,
+        "eos_token_id": 0,
+        "head_size": 64,
+        "hidden_size": 2560,
+        "intermediate_size": None,
+        "layer_norm_epsilon": 1e-05,
+        "model_type": "rwkv5",
+        "model_version": "5_2",
+        "num_hidden_layers": 32,
+        "rescale_every": 6,
+        "tie_word_embeddings": True,
+        "transformers_version": "4.34.0",
+        "use_cache": True,
+        "vocab_size": 65536,
+    },
 }

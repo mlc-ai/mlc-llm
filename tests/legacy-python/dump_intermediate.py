@@ -7,10 +7,10 @@ import os
 import numpy as np
 import torch
 import tvm
+from mlc_llm import utils
 from transformers import AutoTokenizer
 from tvm import relax
-
-from mlc_llm import utils
+from tvm.runtime import ShapeTuple
 
 # pylint: disable=redefined-outer-name
 
@@ -120,33 +120,57 @@ def deploy_to_pipeline(args) -> None:
 
     print("Tokenizing...")
     inputs = tokenizer(args.prompt, return_tensors="pt").input_ids.to(torch.int32).numpy()
+    inputs = tvm.nd.array(inputs, device=primary_device)
     first_sampled_token = tvm.nd.array(np.array([[6234]]).astype("int32"), primary_device)
-    seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1]])
-    second_seq_len_shape = tvm.runtime.ShapeTuple([inputs.shape[1] + 1])
-    kv_caches = state.vm["_initialize_effect"]()
+
+    kv_cache_method: str
+    if state.vm.module.implements_function(
+        "create_tir_paged_kv_cache"
+    ) or state.vm.module.implements_function("create_flashinfer_paged_kv_cache"):
+        kv_cache_method = "paged_kv_cache"
+        raise NotImplementedError()
+    elif state.vm.module.implements_function("create_rnn_state"):
+        kv_cache_method = "rnn_state"
+        max_num_seq, history = ShapeTuple([1]), ShapeTuple([1])
+        kv_caches = state.vm.module["create_rnn_state"](max_num_seq, history)
+        f_add_seq = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
+        f_begin_forward = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
+        f_end_forward = tvm.get_global_func("vm.builtin.kv_state_end_forward")
+    elif state.vm.module.implements_function("_initialize_effect"):
+        kv_cache_method = "effect"
+        kv_caches = state.vm.module["_initialize_effect"]()
+    else:
+        raise ValueError("Unknown how to create KVCache")
+
+    def forward(inputs, kv_caches, total_seq_len):
+        hidden = state.vm["embed"](inputs, const_params)
+        if inputs.shape[1] > 1:
+            f_forward = state.vm["prefill"]
+        else:
+            f_forward = state.vm["decode"]
+        if kv_cache_method == "effect":
+            logits, kv_caches = f_forward(
+                hidden, ShapeTuple([total_seq_len]), kv_caches, const_params
+            )
+        else:
+            seq_ids, input_shape = ShapeTuple([0]), ShapeTuple([inputs.shape[1]])
+            f_begin_forward(kv_caches, seq_ids, input_shape)
+            logits, kv_caches = f_forward(hidden, kv_caches, const_params)
+            f_end_forward(kv_caches)
+
+        return logits, kv_caches
 
     print("Running inference...")
-    print("======================= Starts Encoding =======================")
 
-    try:
-        prefill_func = state.vm["prefill"]
-    except AttributeError:
-        prefill_func = None
+    print("======================= Starts Prefilling ======================")
 
-    if inputs.shape[1] > 1 and prefill_func:
-        inputs = tvm.nd.array(inputs, device=primary_device)
-        logits, kv_caches = prefill_func(inputs, seq_len_shape, kv_caches, const_params)
-    else:
-        for i in range(inputs.shape[1]):
-            input_slice = tvm.nd.array(inputs[:, i : i + 1], device=primary_device)
-            logits, kv_caches = state.vm["decode"](
-                input_slice, seq_len_shape, kv_caches, const_params
-            )
+    if kv_cache_method != "effect":
+        f_add_seq(kv_caches, 0)
+    logits, kv_caches = forward(inputs, kv_caches, inputs.shape[1])
 
     print("======================= Starts Decoding =======================")
-    logits, kv_caches = state.vm["decode"](
-        first_sampled_token, second_seq_len_shape, kv_caches, const_params
-    )
+
+    logits, kv_caches = forward(first_sampled_token, kv_caches, inputs.shape[1] + 1)
 
 
 def _parse_args():

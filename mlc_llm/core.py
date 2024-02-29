@@ -581,11 +581,13 @@ def optimize_mod_pipeline(
         if max_seq_len:
             num_key_value_heads = config.get_num_key_value_heads()
             # pylint: disable=no-value-for-parameter
-            seq.append(fuse_split_rotary_embedding(
-                config.num_attention_heads // args.num_shards,
-                num_key_value_heads // args.num_shards,
-                config.hidden_size // args.num_shards,
-                config.position_embedding_base,
+            seq.append(
+                fuse_split_rotary_embedding(
+                    config.num_attention_heads // args.num_shards,
+                    num_key_value_heads // args.num_shards,
+                    config.hidden_size // args.num_shards,
+                    config.position_embedding_base,
+                )
             )
 
     if args.target_kind == "cuda":
