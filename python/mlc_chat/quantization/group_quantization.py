@@ -50,6 +50,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         else:
             self.fp8_quant = False
             assert quantize_dtype.type_code == DataTypeCode.INT
+        self.no_scale = quantize_dtype.type_code == DataTypeCode.E5M2Float
         assert storage_dtype.type_code == DataTypeCode.UINT
         assert model_dtype.type_code == DataTypeCode.FLOAT
         if storage_dtype.bits < quantize_dtype.bits:
@@ -124,7 +125,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     not is_final_fc(name) or self.config.quantize_final_fc
                 ):
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if self.no_scale else [f"{name}.q_weight",]
                     self.quant_map.map_func[weight_name] = partial(
                         self.config.quantize_weight,
                         output_transpose=self.config.linear_weight_layout == "KN",
@@ -137,12 +138,12 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                         return GroupQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding) and self.config.quantize_embedding:
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if self.no_scale else [f"{name}.q_weight",]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     return GroupQuantizeEmbedding.from_embedding(node, self.config)
                 if isinstance(node, MixtralExperts):
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if self.no_scale else [f"{name}.q_weight",]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     return GroupQuantizeMixtralExperts.from_mixtral_experts(node, self.config)
                 return self.visit(name, node)
@@ -506,7 +507,7 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         self.out_features = out_features
         self.out_dtype = out_dtype
         self.config = config
-        self.no_scale = DataType(self.config.quantize_dtype).type_code == DataTypeCode.E5M2Float
+        self.no_scale = self.config.no_scale
         num_group = tir.ceildiv(in_features, config.group_size)
         if config.linear_weight_layout == "KN":
             self.q_weight = nn.Parameter(
@@ -656,7 +657,7 @@ class GroupQuantizeEmbedding(nn.Module):
         self.num = num
         self.dim = dim
         self.config = config
-        self.no_scale = DataType(self.config.quantize_dtype).type_code == DataTypeCode.E5M2Float
+        self.no_scale = self.config.no_scale
         num_group = tir.ceildiv(dim, config.group_size)
         self.q_weight = nn.Parameter(
             (num, config.num_storage_per_group * num_group), config.storage_dtype
@@ -814,7 +815,7 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         self.in_features = in_features
         self.out_features = out_features
         self.config = config
-        self.no_scale = DataType(self.config.quantize_dtype).type_code == DataTypeCode.E5M2Float
+        self.no_scale = self.config.no_scale
         num_group = tir.ceildiv(in_features, config.group_size)
         self.q_weight = nn.Parameter(
             (num_local_experts, out_features, config.num_storage_per_group * num_group),
@@ -859,7 +860,7 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
             _apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
-            if not DataType(config.quantize_dtype).type_code == DataTypeCode.E5M2Float:
+            if not config.no_scale:
                 _apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
         return quantized_mistral_experts
 
