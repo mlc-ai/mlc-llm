@@ -103,9 +103,9 @@ ConvTemplateRegistry.register_conv_template(
             "assistant gives helpful and honest answers."
         ),
         roles={
-            "user": "<|im_start|>user", 
-            "assistant": "<|im_start|>assistant", 
-            "tool": "<|im_start|>user"
+            "user": "<|im_start|>user",
+            "assistant": "<|im_start|>assistant",
+            "tool": "<|im_start|>user",
         },
         seps=["<|im_end|>\n"],
         role_content_sep="\n",
