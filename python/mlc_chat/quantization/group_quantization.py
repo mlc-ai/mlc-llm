@@ -125,7 +125,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     not is_final_fc(name) or self.config.quantize_final_fc
                 ):
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if self.config.no_scale else [f"{name}.q_weight",]
+                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if not self.config.no_scale else [f"{name}.q_weight",]
                     self.quant_map.map_func[weight_name] = partial(
                         self.config.quantize_weight,
                         output_transpose=self.config.linear_weight_layout == "KN",
@@ -138,12 +138,12 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                         return GroupQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding) and self.config.quantize_embedding:
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if self.config.no_scale else [f"{name}.q_weight",]
+                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if not self.config.no_scale else [f"{name}.q_weight",]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     return GroupQuantizeEmbedding.from_embedding(node, self.config)
                 if isinstance(node, MixtralExperts):
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if self.config.no_scale else [f"{name}.q_weight",]
+                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if not self.config.no_scale else [f"{name}.q_weight",]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     return GroupQuantizeMixtralExperts.from_mixtral_experts(node, self.config)
                 return self.visit(name, node)
