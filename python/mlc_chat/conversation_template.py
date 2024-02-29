@@ -92,3 +92,25 @@ ConvTemplateRegistry.register_conv_template(
         stop_token_ids=[2],
     )
 )
+
+# ChatML
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="chatml",
+        system_template=f"<|im_start|>{MessagePlaceholders.SYSTEM.value}<|im_end|> ",
+        system_message=(
+            "system A conversation between a user and an LLM-based AI assistant. The "
+            "assistant gives helpful and honest answers."
+        ),
+        roles={
+            "user": "<|im_start|>user",
+            "assistant": "<|im_start|>assistant",
+            "tool": "<|im_start|>user",
+        },
+        seps=["<|im_end|>\n"],
+        role_content_sep="\n",
+        role_empty_sep="\n",
+        stop_str=["<|im_end|>"],
+        stop_token_ids=[2],
+    )
+)
