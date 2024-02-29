@@ -385,10 +385,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 )
             quantized_weight = topi.transpose(quantized_weight)
             scale = topi.transpose(scale)
-        if quantize_dtype.type_code == DataTypeCode.E4M3Float:
-            return quantized_weight, scale
-        elif quantize_dtype.type_code == DataTypeCode.E5M2Float:
-            return quantized_weight
+        return quantized_weight, scale
 
     def _quantize_float8(  # pylint: disable=too-many-locals
         self,
@@ -487,7 +484,10 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 )
             quantized_weight = topi.transpose(quantized_weight)
             scale = topi.transpose(scale)
-        return quantized_weight, scale
+        if quantize_dtype.type_code == DataTypeCode.E4M3Float:
+            return quantized_weight, scale
+        elif quantize_dtype.type_code == DataTypeCode.E5M2Float:
+            return quantized_weight
 
 
 class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attributes
