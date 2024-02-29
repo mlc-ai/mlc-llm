@@ -15,17 +15,12 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/ndarray_cache_support.h>
 
-#include <cctype>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
-#include <list>
 #include <memory>
-#include <optional>
-#include <random>
 #include <string>
-#include <unordered_set>
 #include <vector>
 
 #include "./metadata/model.h"
@@ -244,6 +239,35 @@ struct FunctionTable {
     }
   }
 
+  void _TryInitKVState() {
+    PackedFunc f_flashinfer_paged_kv_cache = mod_get_func("create_flashinfer_paged_kv_cache");
+    PackedFunc f_tir_paged_kv_cache = mod_get_func("create_tir_paged_kv_cache");
+    PackedFunc f_create_rnn_state = mod_get_func("create_rnn_state");
+
+    if (f_flashinfer_paged_kv_cache.defined() || f_tir_paged_kv_cache.defined() ||
+        f_create_rnn_state.defined()) {
+      // Prefer to use flashinfer paged kv cache, but fall back to tir paged kv cache
+      if (f_flashinfer_paged_kv_cache.defined()) {
+        this->use_kv_state = KVStateKind::kAttention;
+        this->create_kv_cache_func_ = f_flashinfer_paged_kv_cache;
+      } else if (f_tir_paged_kv_cache.defined()) {
+        this->use_kv_state = KVStateKind::kAttention;
+        this->create_kv_cache_func_ = f_tir_paged_kv_cache;
+      } else if (f_create_rnn_state.defined()) {
+        this->use_kv_state = KVStateKind::kRNNState;
+        this->create_kv_cache_func_ = f_create_rnn_state;
+      }
+      this->reset_kv_cache_func_ = get_global_func("vm.builtin.kv_state_clear");
+      this->kv_cache_add_sequence_func_ = get_global_func("vm.builtin.kv_state_add_sequence");
+      this->kv_cache_remove_sequence_func_ = get_global_func("vm.builtin.kv_state_remove_sequence");
+      this->kv_cache_begin_forward_func_ = get_global_func("vm.builtin.kv_state_begin_forward");
+      this->kv_cache_end_forward_func_ = get_global_func("vm.builtin.kv_state_end_forward");
+      this->fkvcache_array_popn_ = get_global_func("vm.builtin.kv_state_popn");
+      // TODO(mlc-team): enable backtracing when using paged kvcache
+      this->support_backtracking_kv_ = true;
+    }
+  }
+
   void _InitFunctions() {
     this->prefill_func_ = mod_get_func("prefill");
     this->embed_func_ = mod_get_func("embed");
@@ -251,25 +275,10 @@ struct FunctionTable {
     this->decode_func_ = mod_get_func("decode");
     this->softmax_func_ = mod_get_func("softmax_with_temperature");
     this->encoding_without_cache_func_ = mod_get_func("encoding_without_cache");
-    PackedFunc f_flashinfer_paged_kv_cache = mod_get_func("create_flashinfer_paged_kv_cache");
-    PackedFunc f_tir_paged_kv_cache = mod_get_func("create_tir_paged_kv_cache");
-    if (f_flashinfer_paged_kv_cache != nullptr || f_tir_paged_kv_cache != nullptr) {
-      this->use_paged_kv_cache = true;
-      this->create_kv_cache_func_ = f_flashinfer_paged_kv_cache == nullptr
-                                        ? f_tir_paged_kv_cache
-                                        : f_flashinfer_paged_kv_cache;
-      this->reset_kv_cache_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_clear");
-      this->kv_cache_add_sequence_func_ =
-          get_global_func("vm.builtin.paged_attention_kv_cache_add_sequence");
-      this->kv_cache_remove_sequence_func_ =
-          get_global_func("vm.builtin.paged_attention_kv_cache_remove_sequence");
-      this->kv_cache_begin_forward_func_ =
-          get_global_func("vm.builtin.paged_attention_kv_cache_begin_forward");
-      this->kv_cache_end_forward_func_ =
-          get_global_func("vm.builtin.paged_attention_kv_cache_end_forward");
-      this->fkvcache_array_popn_ = get_global_func("vm.builtin.paged_attention_kv_cache_popn");
-      support_backtracking_kv_ = true;
-    } else {
+    _TryInitKVState();
+
+    // Fall back to the old way of creating kv cache if neither paged kv cache nor rnn state is used
+    if (!this->use_kv_state) {
       this->create_kv_cache_func_ = mod_get_func("create_kv_cache");
       if (this->create_kv_cache_func_ == nullptr) {
         this->create_kv_cache_func_ = mod_get_func("_initialize_effect");
@@ -308,7 +317,14 @@ struct FunctionTable {
   }
 
   bool use_disco = false;
-  bool use_paged_kv_cache = false;
+
+  enum KVStateKind {
+    kNone = 0,
+    kAttention = 1,
+    kRNNState = 2,
+  };
+
+  KVStateKind use_kv_state = kNone;
   Session sess{nullptr};
   DRef disco_mod{nullptr};
   tvm::runtime::Module local_vm{nullptr};
@@ -630,13 +646,17 @@ class LLMChat {
     // Step 5. Load params in nd-array cache.
     this->params_ = ft_.LoadParams(model_path, device_, use_presharded_weights_);
     // Step 6. KV cache creation.
-    if (ft_.use_paged_kv_cache) {
+    if (ft_.use_kv_state == FunctionTable::KVStateKind::kAttention) {
       IntTuple max_num_sequence{1};
       IntTuple max_total_sequence_length{this->max_window_size_};
       IntTuple prefill_chunk_size{this->prefill_chunk_size_};
       IntTuple page_size{16};
       this->kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence, max_total_sequence_length,
                                                   prefill_chunk_size, page_size);
+    } else if (ft_.use_kv_state == FunctionTable::KVStateKind::kRNNState) {
+      IntTuple max_num_sequence{1};
+      IntTuple max_history_length{1};
+      this->kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence, max_history_length);
     } else {
       this->kv_cache_ = ft_.create_kv_cache_func_();
     }
@@ -1307,7 +1327,7 @@ class LLMChat {
           output_message_ = tokenizer_->Decode(output_ids_);
         }
         // resize kv to remove the context
-        if (ft_.use_paged_kv_cache) {
+        if (ft_.use_kv_state) {
           ft_.fkvcache_array_popn_(kv_cache_, /*seq_id=*/0, backoff);
         } else {
           ft_.fkvcache_array_popn_(kv_cache_, backoff);
@@ -1337,7 +1357,7 @@ class LLMChat {
     if (input_tokens.size() > 1 && ft_.prefill_func_.defined()) {
       ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray(input_tokens));
       if (sliding_window_size_ == -1) {
-        if (ft_.use_paged_kv_cache) {
+        if (ft_.use_kv_state) {
           IntTuple seq_ids_tuple({0});
           ShapeTuple input_len_shape = ShapeTuple({static_cast<int64_t>(input_tokens.size())});
           ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, input_len_shape);
@@ -1373,7 +1393,7 @@ class LLMChat {
         int64_t pos = cur_pos + i + 1 - input_tokens.size();
         ShapeTuple pos_shape = ShapeTuple({pos});
         if (sliding_window_size_ == -1) {
-          if (ft_.use_paged_kv_cache) {
+          if (ft_.use_kv_state) {
             IntTuple seq_ids_tuple({0});
             IntTuple append_length({1});
             ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, append_length);
@@ -1488,7 +1508,7 @@ class LLMChat {
   // Clear kv cache
   void ResetKVCache() {
     ft_.reset_kv_cache_func_(kv_cache_);
-    if (ft_.use_paged_kv_cache) {
+    if (ft_.use_kv_state) {
       ft_.kv_cache_add_sequence_func_(kv_cache_, 0);
     }
   }

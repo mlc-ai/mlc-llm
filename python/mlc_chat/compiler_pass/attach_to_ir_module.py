@@ -12,7 +12,8 @@ class AttachVariableBounds:  # pylint: disable=too-few-public-methods
     """Attach variable bounds to each Relax function, which primarily helps with memory planning."""
 
     def __init__(self, variable_bounds: Dict[str, int]):
-        self.variable_bounds = variable_bounds
+        # Specifically for RWKV workloads, which contains -1 max_seq_len
+        self.variable_bounds = {k: v for k, v in variable_bounds.items() if v > 0}
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
