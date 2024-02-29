@@ -9,18 +9,6 @@ import json
 import os
 from typing import Dict, List, Optional
 
-from transformers import AutoTokenizer
-from transformers.models.gpt2.tokenization_gpt2 import (
-    bytes_to_unicode,
-)
-
-byte_encoder = bytes_to_unicode()
-
-
-def token_bytes_to_string(b):
-    """Convert a token from bytes to a string"""
-    return "".join([byte_encoder[ord(char)] for char in b.decode("latin-1")])
-
 
 def bpe(
     mergeable_ranks: Dict[bytes, int], token: bytes, max_rank: Optional[int] = None
@@ -44,6 +32,17 @@ def bpe(
 
 def generate_vocab_and_merges(encoder, mergeable_ranks):
     """Generate vocab and merges in huggingface tokenizers format"""
+
+    from transformers.models.gpt2.tokenization_gpt2 import (  # pylint: disable=import-outside-toplevel
+        bytes_to_unicode,
+    )
+
+    byte_encoder = bytes_to_unicode()
+
+    def token_bytes_to_string(b):
+        """Convert a token from bytes to a string"""
+        return "".join([byte_encoder[ord(char)] for char in b.decode("latin-1")])
+
     merges = []
     vocab = {}
     for token, rank in mergeable_ranks.items():
@@ -64,6 +63,14 @@ def generate_vocab_and_merges(encoder, mergeable_ranks):
 
 def convert_tiktoken(model_path, output_dir, context_window_size=None):
     """Convert tiktoken tokenizers to huggingface tokenizers style"""
+    try:
+        from transformers import AutoTokenizer  # pylint: disable=import-outside-toplevel
+    except ImportError:
+        raise ImportError(  # pylint: disable=raise-missing-from
+            'Converting tiktoken tokenizer requires the "transformers" package.'
+            'Please install the "transformers" package to convert toktoken tokenizer'
+        )
+
     tiktoken_tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     encoder = tiktoken_tokenizer.tokenizer
 

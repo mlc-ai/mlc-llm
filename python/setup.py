@@ -108,6 +108,7 @@ def main():
             "tqdm",
             "tiktoken",
             "prompt_toolkit",
+            "openai",
         ],
         distclass=BinaryDistribution,
         **setup_kwargs,
