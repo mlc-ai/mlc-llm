@@ -866,7 +866,7 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         assert x.ndim == 2
         if indptr.ndim == 2:  # single-batch
             assert indptr.shape[0] == 1
-            if self.no_scale:
+            if not self.no_scale:
                 return moe_matmul.dequantize_gemv(
                     x,
                     self.q_weight,
@@ -884,7 +884,7 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
                     group_size=self.group_size,
                 )
         assert indptr.ndim == 1
-        if self.no_scale:
+        if not self.no_scale:
             return moe_matmul.dequantize_group_gemm(
                 x,
                 self.q_weight,
