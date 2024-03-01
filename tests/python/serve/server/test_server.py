@@ -64,8 +64,6 @@ def check_openai_nonstream_response(
     choices = response["choices"]
     assert isinstance(choices, list)
     assert len(choices) == num_choices
-    if isinstance(finish_reason, str):
-        finish_reason = [finish_reason]
 
     for idx, choice in enumerate(choices):
         assert choice["index"] == idx
