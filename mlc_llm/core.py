@@ -859,7 +859,7 @@ def build_model_from_args(args: argparse.Namespace):
             # Run pre-sharding if required
             if args.num_shards > 1 and args.use_presharded_weights:
                 mod_shard = create_shard_transformation_func(param_manager, args, model_config)
-                mod_shard = transform_params_for_each_rank(mod_shard, num_shards=args.num_shards)
+                mod_shard = transform_params_for_each_rank(num_shards=args.num_shards)(mod_shard)
                 parameter_transforms.append(mod_shard)
 
             # Chain all parameter transforms together.  This allows
