@@ -7,6 +7,20 @@ from typing import Dict, List, Literal, Optional
 
 @dataclass
 class ResponseFormat:
+    """The response format dataclass.
+
+    Parameters
+    ----------
+    type : Literal["text", "json_object"]
+        The type of response format. Default: "text".
+
+    json_schema : Optional[str]
+        The JSON schema string for the JSON response format. If None, a legal json string without
+        special restrictions will be generated.
+
+        Could be specified when the response format is "json_object". Default: None.
+    """
+
     type: Literal["text", "json_object"] = "text"
     json_schema: Optional[str] = None
 
@@ -73,6 +87,9 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     ignore_eos: bool
         When it is true, ignore the eos token and generate tokens until `max_tokens`.
         Default is set to False.
+
+    response_format : ResponseFormat
+        The response format of the generation output.
     """
 
     temperature: float = 0.8

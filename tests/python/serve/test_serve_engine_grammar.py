@@ -2,18 +2,13 @@
 # pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
 import asyncio
 from typing import List
-from mlc_chat.serve.config import ResponseFormat
 
-import numpy as np
-
-from mlc_chat.serve import (
-    Engine,
-    GenerationConfig,
-    KVCacheConfig,
-)
-from mlc_chat.serve.async_engine import AsyncThreadedEngine
-from mlc_chat.serve.engine import ModelInfo
 import pytest
+
+from mlc_chat.serve import Engine, GenerationConfig, KVCacheConfig
+from mlc_chat.serve.async_engine import AsyncThreadedEngine
+from mlc_chat.serve.config import ResponseFormat
+from mlc_chat.serve.engine import ModelInfo
 
 prompts_list = [
     "Generate a JSON string containing 20 objects:",
