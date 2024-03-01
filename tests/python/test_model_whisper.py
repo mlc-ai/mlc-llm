@@ -1,16 +1,17 @@
 # pylint: disable=invalid-name,missing-docstring
-from typing import Tuple, Any
+from typing import Any, Tuple
 
 import torch
+import tvm
+from datasets import load_dataset
 from transformers import WhisperForConditionalGeneration as hf_Whisper
 from transformers import WhisperProcessor
-from datasets import load_dataset
-import torch
-
-import tvm
 from tvm.relax.frontend.nn import spec
 
-from mlc_llm.models.whisper import WhisperConfig, WhisperForConditionalGeneration
+from mlc_chat.model.whisper.whisper_model import (
+    WhisperConfig,
+    WhisperForConditionalGeneration,
+)
 
 
 def load_whisper_from_hf() -> Tuple[hf_Whisper, WhisperProcessor]:

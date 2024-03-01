@@ -1,4 +1,5 @@
 """Python entrypoint of compilation."""
+
 import dataclasses
 import math
 from io import StringIO

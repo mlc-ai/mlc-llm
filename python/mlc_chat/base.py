@@ -1,4 +1,5 @@
 """Load MLC LLM library and _ffi_api functions."""
+
 import ctypes
 import os
 import sys
@@ -24,5 +25,5 @@ def _load_mlc_llm_lib():
 
 
 # only load once here
-if SKIP_LOADING_MLCLLM_SO == "0":
-    _LIB, _LIB_PATH = _load_mlc_llm_lib()
+# if SKIP_LOADING_MLCLLM_SO == "0":
+#     _LIB, _LIB_PATH = _load_mlc_llm_lib()
