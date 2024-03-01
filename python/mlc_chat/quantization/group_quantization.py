@@ -489,7 +489,8 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     "Does not support transpose output quantized weight with ndim != 2"
                 )
             quantized_weight = topi.transpose(quantized_weight)
-            scale = topi.transpose(scale)
+            if quantize_dtype.type_code == DataTypeCode.E4M3Float:
+                scale = topi.transpose(scale)
         if quantize_dtype.type_code == DataTypeCode.E4M3Float:
             return quantized_weight, scale
         elif quantize_dtype.type_code == DataTypeCode.E5M2Float:
