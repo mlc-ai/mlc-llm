@@ -277,7 +277,12 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             with bb.function(name="main", params=[weight_var]):
                 with bb.dataflow():
                     lv = bb.emit_te(quantize_func, weight_var, axis, output_transpose)
-                    gv = bb.emit_output(lv)  # pylint: disable=invalid-name
+                    if isinstance(lv.struct_info, relax.TupleStructInfo):
+                        tuple_output = bb.emit(lv)
+                    else:
+                        tuple_output = bb.emit((lv,))
+                    gv = bb.emit_output(tuple_output)  # pylint: disable=invalid-name
+
                 bb.emit_func_output(gv)
             return bb.finalize()
 
