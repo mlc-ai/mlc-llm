@@ -145,7 +145,11 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if not self.config.no_scale else [f"{name}.q_weight",]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
-                    return GroupQuantizeMixtralExperts.from_mixtral_experts(node, self.config)
+                    if self.config.quantize_dtype == "e5m2_float8":
+                        return MixtralExpertsFP8E5M2.from_mixtral_experts(node, self.config)
+                    else:
+                        return GroupQuantizeMixtralExperts.from_mixtral_experts(node, self.config)
+
                 return self.visit(name, node)
 
         model.to(dtype=self.model_dtype)
@@ -1030,10 +1034,69 @@ class GroupQuantizeLinearFP8E4M3ScaleOnly(
             )
 
 
-class GroupQuantizeLinearFP8E5M2(
-    GroupQuantizeLinear,
+class MixtralExpertsFP8E5M2(
+    GroupQuantizeMixtralExperts
 ):  # pylint: disable=too-many-instance-attributes
-    """An nn.Linear module with group quantization"""
+    """An MixtralExperts module with group quantization"""
 
-    def forward(self, x: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
-        pass
+    @staticmethod
+    def from_mixtral_experts(
+        src: "MixtralExperts", config: GroupQuantize
+    ) -> "GroupQuantizeMixtralExperts":
+        """
+        Converts a non-quantized MixtralExperts to a group quantized GroupQuantizeMixtralExperts
+
+        Parameters
+        ----------
+        src : MixtralExperts
+            The non-quantized MixtralExperts
+
+        config : GroupQuantize
+            The group quantization config.
+
+        Returns
+        -------
+        ret : GroupQuantizeMixtralExperts
+            The group quantized GroupQuantizeMixtralExperts layer.
+        """
+        quantized_mistral_experts = MixtralExpertsFP8E5M2(
+            num_local_experts=src.num_local_experts,
+            in_features=src.in_features,
+            out_features=src.out_features,
+            config=config,
+        )
+        if "shard_strategy" in src.weight.attrs:
+            shard = src.weight.attrs["shard_strategy"]
+            _apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
+        return quantized_mistral_experts
+
+    def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
+        x = nn.op.astype(x, dtype="e5m2_float8")
+        workspace = nn.op.wrap_nested(
+            relax.op.builtin.alloc_tensor(
+                relax.ShapeExpr((4096 * 1024,)),
+                dtype="uint8",
+                runtime_device_index=0,
+            ),
+            "relax.alloc_tensor",
+        )
+
+        batch_size, in_features = x.shape
+        num_local_experts, out_features, _ = self.q_weight.shape
+        return nn.op.extern(
+            "cutlass.moe_gemm_e5m2_e5m2_fp16",
+            [
+                x,
+                self.q_weight,
+                indptr,
+                workspace,
+                batch_size,
+                out_features,
+                in_features,
+                num_local_experts,
+            ],
+            out=nn.Tensor.placeholder(
+                (batch_size, out_features),
+                dtype=self.config.model_dtype,
+            ),
+        )
