@@ -1081,8 +1081,8 @@ def _create_quantize_func(param_manager: ParamManager) -> tvm.IRModule:
 
 
 def transform_params_for_each_rank(
-    mod: tvm.IRModule, num_shards: int, rank_argument_name: str = "rank_arg"
-) -> tvm.IRModule:
+    num_shards: int, rank_argument_name: str = "rank_arg"
+) -> tvm.ir.transform.Pass:
     """Update a parameter transform to apply across all ranks
 
     For use in generating a pre-sharded set of weights.  Given a
@@ -1113,31 +1113,47 @@ def transform_params_for_each_rank(
 
         The modified parameter transformation
     """
-    generic_transform = mod["transform_params"]
-    tensor_params = generic_transform.params[1:]
 
-    bb = relax.BlockBuilder()
+    @tvm.ir.transform.module_pass(opt_level=0, name="ParamManager.transform_params_for_each_rank")
+    def transform_func(mod: tvm.IRModule, _context) -> tvm.IRModule:
+        generic_transform = mod["transform_params"]
 
-    with bb.function("transform_params", params=tensor_params):
-        output = []
-        for rank in range(num_shards):
-            # TODO(Lunderberg): Implement this in terms of a
-            # generic utility that inlines local functions.
-            func = generic_transform
-            func = func.bind_params({rank_argument_name: relax.ShapeExpr([rank])})
-            func = relax.utils.copy_with_new_vars(func)
-            func = func.bind_params(
-                {var: tensor_param for (var, tensor_param) in zip(func.params, tensor_params)}
-            )
-            shard_tuple = func.body
-            output.extend([shard_tuple[i] for i in range(len(tensor_params))])
+        if generic_transform.attrs is not None and "num_input" in generic_transform.attrs:
+            num_input = generic_transform.attrs["num_input"].value
+        else:
+            num_input = 0
 
-        with bb.dataflow():
-            gv = bb.emit_output(relax.Tuple(output))
-        bb.emit_func_output(gv)
+        if num_input == 0:
+            return mod
 
-    mod["transform_params"] = bb.get()["transform_params"]
-    return mod
+        tensor_params = generic_transform.params[num_input:]
+        attrs = {"num_input": num_input - 1}
+
+        bb = relax.BlockBuilder()
+
+        with bb.function("transform_params", params=tensor_params, attrs=attrs):
+            output = []
+            for rank in range(num_shards):
+                # TODO(Lunderberg): Implement this in terms of a
+                # generic utility that inlines local functions.
+                func = generic_transform
+                func = func.bind_params({rank_argument_name: relax.ShapeExpr([rank])})
+                func = relax.utils.copy_with_new_vars(func)
+                func = func.bind_params(
+                    {var: tensor_param for (var, tensor_param) in zip(func.params, tensor_params)}
+                )
+                shard_tuple = func.body
+                output.extend([shard_tuple[i] for i in range(len(tensor_params))])
+
+            with bb.dataflow():
+                gv = bb.emit_output(relax.Tuple(output))
+            bb.emit_func_output(gv)
+
+        mod = mod.clone()
+        mod["transform_params"] = bb.get()["transform_params"]
+        return mod
+
+    return transform_func
 
 
 def chain_parameter_transforms(mod_a: tvm.IRModule, mod_b: tvm.IRModule) -> tvm.IRModule:
@@ -1181,12 +1197,44 @@ def chain_parameter_transforms(mod_a: tvm.IRModule, mod_b: tvm.IRModule) -> tvm.
 
     bb = relax.BlockBuilder()
 
-    with bb.function("transform_params", params=func_a.params):
+    def get_num_input_attr(func):
+        if func.attrs is None:
+            return 0
+
+        attrs = func.attrs
+        if "num_input" not in attrs:
+            return 0
+        num_input = attrs["num_input"]
+
+        assert isinstance(num_input, tvm.tir.IntImm)
+        return num_input.value
+
+    # Either func_a or func_b may have parameters that are provided at
+    # a later point.  The chaining of parameter transforms assumes
+    # that all model weights accepted by func_b are produced by
+    # func_a.  If func_b accepts non-weight parameters (e.g. the GPU
+    # rank), these must still be provided.
+    func_a_num_input = get_num_input_attr(func_a)
+    func_b_num_input = get_num_input_attr(func_b)
+
+    output_num_input = func_a_num_input + func_b_num_input
+    output_params = [
+        *func_a.params[:func_a_num_input],
+        *func_b.params[:func_b_num_input],
+        *func_a.params[func_a_num_input:],
+    ]
+
+    with bb.function(
+        "transform_params", params=output_params, attrs={"num_input": output_num_input}
+    ):
         with bb.dataflow():
             # TODO(Lunderberg): Implement this in terms of a
             # generic utility that inlines local functions.
             func_a_output = bb.emit(func_a.body)
-            func_b_param_map = {param: expr for (param, expr) in zip(func_b.params, func_a_output)}
+            func_b_param_map = {
+                param: expr
+                for (param, expr) in zip(func_b.params[func_b_num_input:], func_a_output)
+            }
             func_b_output = func_b.bind_params(func_b_param_map).body
             gv = bb.emit_output(func_b_output)
         bb.emit_func_output(gv)
