@@ -762,9 +762,19 @@ class GroupQuantizeEmbedding(nn.Module):
         ret : nn.Tensor
             The output tensor for the lm_head layer.
         """
+        if self.config.fp8_quant:
+            if DataType(self.config.quantize_dtype).type_code == DataTypeCode.E4M3Float:
+                dequant_func = self.config._dequantize_e4m3
+            elif DataType(self.config.quantize_dtype).type_code == DataTypeCode.E5M2Float:
+                dequant_func = self.config._dequantize_e5m2
+            else:
+                raise NotImplementedError()
+        else:
+            dequant_func = self.confg._dequantize
+        
         if not self.no_scale:
             w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-                lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
+                lambda weight, scale: dequant_func(  # pylint: disable=protected-access
                     weight,
                     scale,
                     axis=-1,
@@ -782,7 +792,7 @@ class GroupQuantizeEmbedding(nn.Module):
             )
         else:
             w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-                lambda weight: self.config._dequantize(  # pylint: disable=protected-access
+                lambda weight: dequant_func(  # pylint: disable=protected-access
                     weight,
                     axis=-1,
                     out_shape=[
@@ -795,7 +805,7 @@ class GroupQuantizeEmbedding(nn.Module):
                     ],
                 ),
                 name_hint="dequantize",
-                args=[self.q_weight],
+                args=[self.q_weight,],
             )
         w = nn.op.permute_dims(w)
         return nn.op.matmul(x, w, out_dtype="float32")
