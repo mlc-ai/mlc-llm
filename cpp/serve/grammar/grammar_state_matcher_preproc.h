@@ -55,7 +55,8 @@ struct CatagorizedTokens {
  */
 class GrammarStateInitContext {
  public:
-  BNFGrammar grammar;
+  /******************* Information about the tokenizer *******************/
+
   /*! \brief The vocabulary size of the tokenizer. */
   size_t vocab_size;
   /*! \brief The sorted token and its id. Tokens are sorted to reuse the common prefix during
@@ -69,6 +70,12 @@ class GrammarStateInitContext {
   /*! \brief The special tokens. Currently we will ignore these tokens during grammar-guided
    * matching. */
   std::vector<int32_t> special_token_ids;
+
+  /******************* Information about the grammar *******************/
+
+  BNFGrammar grammar;
+
+  /******************* Grammar-specific tokenizer information *******************/
 
   /*! \brief A sequence id and its position. */
   struct SequenceIdAndPosition {
@@ -232,7 +239,7 @@ inline std::string ReplaceUnderscoreWithSpace(const std::string& str,
   return res;
 }
 
-inline std::shared_ptr<GrammarStateInitContext> CreateInitContext(
+inline std::shared_ptr<GrammarStateInitContext> GrammarStateMatcher::CreateInitContext(
     const BNFGrammar& grammar, const std::vector<std::string>& token_table) {
   using RuleExprType = BNFGrammarNode::RuleExprType;
   auto ptr = std::make_shared<GrammarStateInitContext>();
@@ -252,7 +259,8 @@ inline std::shared_ptr<GrammarStateInitContext> CreateInitContext(
       ptr->stop_token_ids.push_back(i);
     } else if (token.size() == 1 &&
                (static_cast<unsigned char>(token[0]) >= 128 || token[0] == 0)) {
-      // Currently we consider all tokens with one character that >= 128 as special tokens.
+      // Currently we consider all tokens with one character that >= 128 as special tokens,
+      // and will ignore generating them during grammar-guided generation.
       ptr->special_token_ids.push_back(i);
     } else {
       // First replace the special underscore with space.

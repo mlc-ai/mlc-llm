@@ -87,6 +87,7 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
     this->sess->InitCCL(ccl, ShapeTuple(device_ids));
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
                                        lib_path, null_device);
+    this->disco_buffers = Map<String, DRef>();
     this->mod_get_func = [this,
                           fmodule_get_function = sess->GetGlobalFunc("runtime.ModuleGetFunction")](
                              const std::string& name) -> PackedFunc {

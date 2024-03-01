@@ -66,6 +66,14 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
       continue;
     }
 
+    // Update the grammar matcher state if it exists.
+    if (rstate->mstates[0]->grammar_state_matcher) {
+      const auto& grammar_state_matcher = rstate->mstates[0]->grammar_state_matcher.value();
+      for (auto token_id : delta_token_ids) {
+        grammar_state_matcher->AcceptToken(token_id);
+      }
+    }
+
     callback_delta_outputs.push_back(RequestStreamOutput(
         request->id, delta_token_ids,
         request->generation_cfg->logprobs > 0 ? delta_logprob_json_strs : Optional<Array<String>>(),

@@ -13,13 +13,20 @@ namespace serve {
 
 TVM_REGISTER_OBJECT_TYPE(RequestModelStateNode);
 
-RequestModelState::RequestModelState(Request request, int model_id, int64_t internal_id,
-                                     Array<Data> inputs) {
+RequestModelState::RequestModelState(
+    Request request, int model_id, int64_t internal_id, Array<Data> inputs,
+    std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx) {
   ObjectPtr<RequestModelStateNode> n = make_object<RequestModelStateNode>();
-  n->request = std::move(request);
   n->model_id = model_id;
   n->internal_id = internal_id;
   n->inputs = std::move(inputs);
+
+  if (request->generation_cfg->response_format.type == "json_object") {
+    // TODO(yixin): add support for stop_token_ids
+    n->grammar_state_matcher = GrammarStateMatcher(json_grammar_state_init_ctx);
+  }
+
+  n->request = std::move(request);
   data_ = std::move(n);
 }
 
@@ -31,9 +38,12 @@ int RequestModelStateNode::GetInputLength() const {
   return total_length;
 }
 
-std::vector<int> RequestModelStateNode::GetTokenBitmask(int vocab_size) const {
-  // TODO(mlc-team): implement this function.
-  return std::vector<int>();
+bool RequestModelStateNode::RequireNextTokenBitmask() { return grammar_state_matcher.defined(); }
+
+void RequestModelStateNode::FindNextTokenBitmask(DLTensor* bitmask) {
+  ICHECK(grammar_state_matcher.defined());
+
+  grammar_state_matcher.value()->FindNextTokenBitmask(bitmask);
 }
 
 void RequestModelStateNode::CommitToken(SampleResult sampled_token) {
@@ -67,12 +77,14 @@ void RequestModelStateNode::RemoveAllDraftTokens() {
 TVM_REGISTER_OBJECT_TYPE(RequestStateNode);
 
 RequestState::RequestState(Request request, int num_models, int64_t internal_id,
-                           const std::vector<std::string>& token_table) {
+                           const std::vector<std::string>& token_table,
+                           std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx) {
   ObjectPtr<RequestStateNode> n = make_object<RequestStateNode>();
   Array<RequestModelState> mstates;
   mstates.reserve(num_models);
   for (int i = 0; i < num_models; ++i) {
-    mstates.push_back(RequestModelState(request, i, internal_id, request->inputs));
+    mstates.push_back(
+        RequestModelState(request, i, internal_id, request->inputs, json_grammar_state_init_ctx));
   }
   n->rng = RandomGenerator(request->generation_cfg->seed);
   n->stop_str_handler = StopStrHandler(

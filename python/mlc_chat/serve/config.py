@@ -2,7 +2,17 @@
 
 import json
 from dataclasses import asdict, dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
+
+
+@dataclass
+class ResponseFormat:
+    type: Literal["text", "json_object"] = "text"
+    json_schema: Optional[str] = None
+
+    def __post_init__(self):
+        if self.json_schema is not None and self.type != "json_object":
+            raise ValueError("JSON json_schema is only supported in JSON response format")
 
 
 @dataclass
@@ -16,7 +26,7 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
 
     top_p : float
         In sampling, only the most probable tokens with probabilities summed up to
-        `top_k` are kept for sampling.
+        `top_p` are kept for sampling.
 
     frequency_penalty : float
         Positive values penalize new tokens based on their existing frequency
@@ -79,6 +89,8 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     stop_strs: List[str] = field(default_factory=list)
     stop_token_ids: List[int] = field(default_factory=list)
     ignore_eos: bool = False
+
+    response_format: ResponseFormat = ResponseFormat(type="text")
 
     def asjson(self) -> str:
         """Return the config in string of JSON format."""

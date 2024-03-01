@@ -65,6 +65,11 @@ class ModelResponse(BaseModel):
 ################ v1/completions ################
 
 
+class ResponseFormat(BaseModel):
+    type: Literal["text", "json_object"] = "text"
+    json_schema: Optional[str] = None
+
+
 class CompletionRequest(BaseModel):
     """OpenAI completion request protocol.
     API reference: https://platform.openai.com/docs/api-reference/completions/create
@@ -89,6 +94,7 @@ class CompletionRequest(BaseModel):
     top_p: float = 1.0
     user: Optional[str] = None
     ignore_eos: bool = False
+    response_format: ResponseFormat = ResponseFormat()
 
     @field_validator("frequency_penalty", "presence_penalty")
     @classmethod
@@ -193,7 +199,6 @@ class ChatCompletionRequest(BaseModel):
     logit_bias: Optional[Dict[int, float]] = None
     max_tokens: Optional[int] = None
     n: int = 1
-    response_format: Literal["text", "json_object"] = "text"
     seed: Optional[int] = None
     stop: Optional[Union[str, List[str]]] = None
     stream: bool = False
@@ -203,6 +208,7 @@ class ChatCompletionRequest(BaseModel):
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None
     user: Optional[str] = None
     ignore_eos: bool = False
+    response_format: ResponseFormat = ResponseFormat()
 
     @field_validator("frequency_penalty", "presence_penalty")
     @classmethod
@@ -291,7 +297,6 @@ def openai_api_get_unsupported_fields(
     unsupported_field_default_values: List[Tuple[str, Any]] = [
         ("best_of", 1),
         ("n", 1),
-        ("response_format", "text"),
     ]
 
     unsupported_fields: List[str] = []
@@ -326,4 +331,5 @@ def openai_api_get_generation_config(
         kwargs["max_tokens"] = -1
     if request.stop is not None:
         kwargs["stop_strs"] = [request.stop] if isinstance(request.stop, str) else request.stop
+    kwargs["response_format"] = request.response_format.model_dump()
     return kwargs

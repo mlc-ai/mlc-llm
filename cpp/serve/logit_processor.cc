@@ -8,6 +8,7 @@
 #include <picojson.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/threading_backend.h>
 
 namespace mlc {
 namespace llm {
@@ -44,7 +45,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
     token_cnt_host_ = NDArray::Empty({max_num_token * vocab_size}, dtype_i32_, device_cpu);
     token_logit_bias_host_ = NDArray::Empty({max_num_token * vocab_size}, dtype_f32_, device_cpu);
     penalties_host_ = NDArray::Empty({max_num_token, 3}, dtype_f32_, device_cpu);
-    bitmask_host_ = NDArray::Empty({max_num_token, bitmask_size_}, dtype_i32_, device_cpu);
+    bitmask_host_ = NDArray::Empty({max_num_token, bitmask_size_}, dtype_u32_, device_cpu);
     temperature_host_ = NDArray::Empty({max_num_token}, dtype_f32_, device_cpu);
     // Initialize auxiliary arrays on GPU.
     seq_ids_device_ = NDArray::Empty({max_num_token}, dtype_i32_, device);
@@ -99,7 +100,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // Update 3. Vocabulary mask.
     RECORD_EVENT(trace_recorder_, request_ids, "start apply logit mask");
-    UpdateWithMask(logits, mstates, cum_num_token, draft_tokens);
+    UpdateWithMask(logits, mstates, cum_num_token, draft_tokens, request_ids);
     RECORD_EVENT(trace_recorder_, request_ids, "finish apply logit mask");
 
     RECORD_EVENT(trace_recorder_, request_ids, "finish update logits");
@@ -301,37 +302,56 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
   void UpdateWithMask(NDArray logits, const Array<RequestModelState>& mstates,
                       const std::vector<int>* cum_num_token,
-                      const std::vector<std::vector<SampleResult>>* draft_tokens) {
+                      const std::vector<std::vector<SampleResult>>* draft_tokens,
+                      const Array<String>& request_ids) {
     // Construct:
     // - seq_ids (max_num_token,) int32
     // - bitmask (max_num_token, ceildiv(vocab_size, 32)), int32
-    int* p_seq_ids = static_cast<int*>(seq_ids_host_->data);
-    int* p_bitmask = static_cast<int*>(bitmask_host_->data);
+    int32_t* p_seq_ids = static_cast<int32_t*>(seq_ids_host_->data);
+    uint32_t* p_bitmask = static_cast<uint32_t*>(bitmask_host_->data);
 
     // - Set arrays.
-    int num_token_for_mask = 0;
+    ICHECK(mstates.size() == request_ids.size());
+
+    int batch_size = logits->shape[0];
+    ICHECK((cum_num_token == nullptr && batch_size == mstates.size()) ||
+           (cum_num_token != nullptr && batch_size == cum_num_token->size()));
+
+    std::memset(p_seq_ids, 0, batch_size * sizeof(int32_t));
+
     for (int i = 0; i < static_cast<int>(mstates.size()); ++i) {
-      int num_token_to_process =
+      int token_start_offset = cum_num_token == nullptr ? i : cum_num_token->at(i);
+      int token_number =
           cum_num_token == nullptr ? 1 : (cum_num_token->at(i + 1) - cum_num_token->at(i));
-      int token_offset = cum_num_token == nullptr ? i : cum_num_token->at(i);
-      CHECK(num_token_to_process == 1 || mstates[i]->draft_output_tokens.empty());
-      for (int j = 0; j < num_token_to_process; ++j) {
-        std::vector<int> bitmask = mstates[i]->GetTokenBitmask(vocab_size_);
-        if (!bitmask.empty()) {
-          p_seq_ids[num_token_for_mask] = token_offset + j;
-          ICHECK_EQ(bitmask.size(), bitmask_size_);
-          for (int p = 0; p < bitmask_size_; ++p) {
-            p_bitmask[num_token_for_mask * bitmask_size_ + p] = bitmask[p];
-          }
-          ++num_token_for_mask;
+      CHECK(token_number == 1 || mstates[i]->draft_output_tokens.empty());
+      bool require_mask = mstates[i]->RequireNextTokenBitmask();
+      for (int j = 0; j < token_number; ++j) {
+        if (require_mask) {
+          // Find a slice of bitmask_host_: bitmask_host_[num_token_for_mask, :]
+          auto bitmask_dltensor = *bitmask_host_.operator->();
+          int64_t bitmask_shape[] = {bitmask_size_};
+          bitmask_dltensor.data = p_bitmask + (token_start_offset + j) * bitmask_size_;
+          bitmask_dltensor.shape = bitmask_shape;
+          bitmask_dltensor.ndim = 1;
+
+          mstates[i]->FindNextTokenBitmask(&bitmask_dltensor);
+          p_seq_ids[token_start_offset + j] = 1;
         }
         if (j > 0) {
           mstates[i]->AddDraftToken(draft_tokens->at(i)[j - 1], NDArray());
         }
       }
-      if (num_token_to_process != 1) {
+      if (token_number != 1) {
         // Roll back.
         mstates[i]->RemoveAllDraftTokens();
+      }
+    }
+
+    int num_token_for_mask = 0;
+    for (int i = 0; i < batch_size; ++i) {
+      if (p_seq_ids[i] == 1) {
+        p_seq_ids[num_token_for_mask] = i;
+        ++num_token_for_mask;
       }
     }
 
@@ -343,8 +363,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
     int num_seq = num_token_for_mask;
     NDArray seq_ids_host = seq_ids_host_.CreateView({num_seq}, dtype_i32_);
     NDArray seq_ids_device = seq_ids_device_.CreateView({num_seq}, dtype_i32_);
-    NDArray bitmask_host = bitmask_host_.CreateView({num_seq, bitmask_size_}, dtype_i32_);
-    NDArray bitmask_device = bitmask_device_.CreateView({num_seq, bitmask_size_}, dtype_i32_);
+    NDArray bitmask_host = bitmask_host_.CreateView({batch_size, bitmask_size_}, dtype_i32_);
+    NDArray bitmask_device = bitmask_device_.CreateView({batch_size, bitmask_size_}, dtype_i32_);
 
     // - Copy arrays to GPU.
     CopyArray(/*src=*/seq_ids_host, /*dst=*/seq_ids_device);
@@ -362,6 +382,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
   const int vocab_size_;
   const int bitmask_size_;
   const DLDataType dtype_i32_ = DataType::Int(32);
+  const DLDataType dtype_u32_ = DataType::UInt(32);
   const DLDataType dtype_f32_ = DataType::Float(32);
   // Packed functions.
   Device device_;
