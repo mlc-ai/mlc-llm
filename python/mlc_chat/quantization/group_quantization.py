@@ -145,8 +145,22 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if not self.config.no_scale else [f"{name}.q_weight",]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
-                    if self.config.quantize_dtype == "e5m2_float8":
-                        return MixtralExpertsFP8E5M2.from_mixtral_experts(node, self.config)
+                    if self.config.name == "fp8_e5m2_e5m2_0":
+                        return MixtralExpertsFP8.from_mixtral_experts(
+                            node, self.config, activation="e5m2_float8", weight="e5m2_float8"
+                        )
+                    elif self.config.name == "fp8_e4m3_e4m3_0":
+                        return MixtralExpertsFP8.from_mixtral_experts(
+                            node, self.config, activation="e4m3_float8", weight="e4m3_float8"
+                        )
+                    elif self.config.name == "fp8_e4m3_e5m2_0":
+                        return MixtralExpertsFP8.from_mixtral_experts(
+                            node, self.config, activation="e4m3_float8", weight="e5m2_float8"
+                        )
+                    elif self.config.name == "fp8_e5m2_e4m3_0":
+                        return MixtralExpertsFP8.from_mixtral_experts(
+                            node, self.config, activation="e5m2_float8", weight="e4m3_float8"
+                        )
                     else:
                         return GroupQuantizeMixtralExperts.from_mixtral_experts(node, self.config)
 
@@ -1034,14 +1048,30 @@ class GroupQuantizeLinearFP8E4M3ScaleOnly(
             )
 
 
-class MixtralExpertsFP8E5M2(
+class MixtralExpertsFP8(
     GroupQuantizeMixtralExperts
 ):  # pylint: disable=too-many-instance-attributes
     """An MixtralExperts module with group quantization"""
 
+    def __init__(
+        self,
+        num_local_experts,
+        in_features,
+        out_features,
+        config: GroupQuantize,
+        activation=None,
+        weight=None,
+    ):  # pylint: disable=too-many-arguments
+        super().__init__(num_local_experts, in_features, out_features, config)
+        self.activation_dtype = activation
+        self.weight_dtype = weight
+
     @staticmethod
     def from_mixtral_experts(
-        src: "MixtralExperts", config: GroupQuantize
+        src: "MixtralExperts",
+        config: GroupQuantize,
+        activation=None,
+        weight=None,
     ) -> "GroupQuantizeMixtralExperts":
         """
         Converts a non-quantized MixtralExperts to a group quantized GroupQuantizeMixtralExperts
@@ -1059,11 +1089,13 @@ class MixtralExpertsFP8E5M2(
         ret : GroupQuantizeMixtralExperts
             The group quantized GroupQuantizeMixtralExperts layer.
         """
-        quantized_mistral_experts = MixtralExpertsFP8E5M2(
+        quantized_mistral_experts = MixtralExpertsFP8(
             num_local_experts=src.num_local_experts,
             in_features=src.in_features,
             out_features=src.out_features,
             config=config,
+            activation=activation,
+            weight=weight,
         )
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
@@ -1071,7 +1103,7 @@ class MixtralExpertsFP8E5M2(
         return quantized_mistral_experts
 
     def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
-        x = nn.op.astype(x, dtype="e5m2_float8")
+        x = nn.op.astype(x, dtype=self.activation_dtype)
         workspace = nn.op.wrap_nested(
             relax.op.builtin.alloc_tensor(
                 relax.ShapeExpr((4096 * 1024,)),
@@ -1083,8 +1115,10 @@ class MixtralExpertsFP8E5M2(
 
         batch_size, in_features = x.shape
         num_local_experts, out_features, _ = self.q_weight.shape
+        a_format = self.activation_dtype.split("_")[0]
+        w_format = self.weight_dtype.split("_")[0]
         return nn.op.extern(
-            "cutlass.moe_gemm_e5m2_e5m2_fp16",
+            f"cutlass.moe_gemm_{a_format}_{w_format}_fp16",
             [
                 x,
                 self.q_weight,
