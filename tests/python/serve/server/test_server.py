@@ -63,34 +63,33 @@ def check_openai_nonstream_response(
 
     choices = response["choices"]
     assert isinstance(choices, list)
-    assert len(choices) == num_choices
-
-    for idx, choice in enumerate(choices):
-        assert choice["index"] == idx
+    assert len(choices) <= num_choices
+    texts: List[str] = ["" for _ in range(num_choices)]
+    for choice in choices:
+        idx = choice["index"]
         assert choice["finish_reason"] in finish_reasons
 
-        text: str
         if not is_chat_completion:
             assert isinstance(choice["text"], str)
-            text = choice["text"]
+            texts[idx] = choice["text"]
             if echo_prompt is not None:
-                assert text
+                assert texts[idx]
             if suffix is not None:
-                assert text
+                assert texts[idx]
         else:
             message = choice["message"]
             assert message["role"] == "assistant"
             assert isinstance(message["content"], str)
-            text = message["content"]
+            texts[idx] = message["content"]
 
         if stop is not None:
             for stop_str in stop:
-                assert stop_str not in text
+                assert stop_str not in texts[idx]
         if require_substr is not None:
             for substr in require_substr:
-                assert substr in text
+                assert substr in texts[idx]
         if json_mode:
-            assert is_json_or_json_prefix(text)
+            assert is_json_or_json_prefix(texts[idx])
 
     usage = response["usage"]
     assert isinstance(usage, dict)
@@ -125,9 +124,9 @@ def check_openai_stream_response(
 
         choices = response["choices"]
         assert isinstance(choices, list)
-        assert len(choices) == num_choices
-        for idx, choice in enumerate(choices):
-            assert choice["index"] == idx
+        assert len(choices) <= num_choices
+        for choice in choices:
+            idx = choice["index"]
 
             if not is_chat_completion:
                 assert isinstance(choice["text"], str)
@@ -156,7 +155,7 @@ def check_openai_stream_response(
         if completion_tokens is not None:
             assert responses[-1]["usage"]["completion_tokens"] == completion_tokens
 
-    for output in outputs:
+    for i, output in enumerate(outputs):
         if echo_prompt is not None:
             assert output.startswith(echo_prompt)
         if suffix is not None:
@@ -866,6 +865,51 @@ def test_openai_v1_chat_completions(
 
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("messages", CHAT_COMPLETION_MESSAGES)
+def test_openai_v1_chat_completions_n(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+    messages: List[Dict[str, str]],
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    n = 3
+    payload = {
+        "model": served_model[0],
+        "messages": messages,
+        "stream": stream,
+        "n": n,
+    }
+
+    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=180)
+    if not stream:
+        check_openai_nonstream_response(
+            response.json(),
+            is_chat_completion=True,
+            model=served_model[0],
+            object_str="chat.completion",
+            num_choices=n,
+            finish_reasons=["stop"],
+        )
+    else:
+        responses = []
+        for chunk in response.iter_lines(chunk_size=512):
+            if not chunk or chunk == b"data: [DONE]":
+                continue
+            responses.append(json.loads(chunk.decode("utf-8")[6:]))
+        check_openai_stream_response(
+            responses,
+            is_chat_completion=True,
+            model=served_model[0],
+            object_str="chat.completion.chunk",
+            num_choices=n,
+            finish_reasons=["stop"],
+        )
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("messages", CHAT_COMPLETION_MESSAGES)
 def test_openai_v1_chat_completions_openai_package(
     served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
@@ -1135,6 +1179,8 @@ if __name__ == "__main__":
     for msg in CHAT_COMPLETION_MESSAGES:
         test_openai_v1_chat_completions(MODEL, None, stream=False, messages=msg)
         test_openai_v1_chat_completions(MODEL, None, stream=True, messages=msg)
+        test_openai_v1_chat_completions_n(MODEL, None, stream=False, messages=msg)
+        test_openai_v1_chat_completions_n(MODEL, None, stream=True, messages=msg)
         test_openai_v1_chat_completions_openai_package(MODEL, None, stream=False, messages=msg)
         test_openai_v1_chat_completions_openai_package(MODEL, None, stream=True, messages=msg)
     test_openai_v1_chat_completions_max_tokens(MODEL, None, stream=False)

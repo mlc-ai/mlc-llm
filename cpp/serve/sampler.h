@@ -39,15 +39,25 @@ class SamplerObj : public Object {
    * \param generation_cfg The generation config of each request
    * in the input batch.
    * \param rngs The random number generator of each sequence.
+   * \param prob_indices The indices of probability distribution in `probs_device`
+   * that each request in `request_ids` samples from.
+   * It defaults to nullptr, which means each request samples from the
+   * corresponding index in `prob_indices`.
+   * In usual cases, we only sample one token for each prob distribution
+   * in the batch, and `prob_indices` is nullptr in such cases.
+   * When we want to sample multiple tokens from a prob distribution (e.g.,
+   * starting parallel generation after prefill the input), we use `prob_indices`
+   * to represent which distribution a token should be sampled from
    * \param output_prob_dist The output probability distribution
    * \return The batch of sampling results, which contain the sampled token id
    * and other probability info.
    */
   virtual std::vector<SampleResult> BatchSampleTokens(
-      NDArray probs_device,                           //
-      const Array<String>& request_ids,               //
-      const Array<GenerationConfig>& generation_cfg,  //
-      const std::vector<RandomGenerator*>& rngs,      //
+      NDArray probs_device,                            //
+      const Array<String>& request_ids,                //
+      const Array<GenerationConfig>& generation_cfg,   //
+      const std::vector<RandomGenerator*>& rngs,       //
+      const std::vector<int>* prob_indices = nullptr,  //
       std::vector<NDArray>* output_prob_dist = nullptr) = 0;
 
   /*!

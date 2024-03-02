@@ -141,22 +141,22 @@ std::string SampleResult::GetLogProbJSON(const Tokenizer& tokenizer, bool logpro
 
 TVM_REGISTER_OBJECT_TYPE(RequestStreamOutputObj);
 
-RequestStreamOutput::RequestStreamOutput(String request_id,
-                                         const std::vector<int32_t>& delta_token_ids,
-                                         Optional<Array<String>> delta_logprob_json_strs,
-                                         Optional<String> finish_reason) {
+RequestStreamOutput::RequestStreamOutput(
+    String request_id, Array<IntTuple> group_delta_token_ids,
+    Optional<Array<Array<String>>> group_delta_logprob_json_strs,
+    Array<Optional<String>> group_finish_reason) {
   ObjectPtr<RequestStreamOutputObj> n = make_object<RequestStreamOutputObj>();
   n->request_id = std::move(request_id);
-  n->delta_token_ids = IntTuple{delta_token_ids.begin(), delta_token_ids.end()};
-  n->delta_logprob_json_strs = std::move(delta_logprob_json_strs);
-  n->finish_reason = std::move(finish_reason);
+  n->group_delta_token_ids = std::move(group_delta_token_ids);
+  n->group_delta_logprob_json_strs = std::move(group_delta_logprob_json_strs);
+  n->group_finish_reason = std::move(group_finish_reason);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_GLOBAL("mlc.serve.RequestStreamOutputUnpack")
     .set_body_typed([](RequestStreamOutput output) {
-      return Array<ObjectRef>{output->request_id, output->delta_token_ids,
-                              output->delta_logprob_json_strs, output->finish_reason};
+      return Array<ObjectRef>{output->request_id, output->group_delta_token_ids,
+                              output->group_delta_logprob_json_strs, output->group_finish_reason};
     });
 
 }  // namespace serve

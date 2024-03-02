@@ -352,11 +352,11 @@ class Engine:
         )
         self.tokenizer = Tokenizer(tokenizer_path)
 
-    def generate(
+    def generate(  # pylint: disable=too-many-locals
         self,
         prompts: Union[str, List[str], List[int], List[List[int]]],
         generation_config: Union[GenerationConfig, List[GenerationConfig]],
-    ) -> Tuple[List[str], List[Optional[List[str]]]]:
+    ) -> Tuple[List[List[str]], List[Optional[List[List[str]]]]]:
         """Generate texts for a list of input prompts.
         Each prompt can be a string or a list of token ids.
         The generation for each prompt is independent.
@@ -377,10 +377,12 @@ class Engine:
 
         Returns
         -------
-        output_text : List[str]
-            The text generation results, one string for each input prompt.
+        output_text : List[List[str]]
+            The text generation results, one list of strings for each input prompt.
+            The length of each list is the parallel generation `n` in
+            generation config.
 
-        output_logprobs_str : List[Optional[List[str]]]
+        output_logprobs_str : List[Optional[List[List[str]]]]
             The logprob strings of each token for each input prompt, or None
             if an input prompt does not require logprobs.
         """
@@ -406,14 +408,21 @@ class Engine:
             len(generation_config) == num_requests
         ), "Number of generation config and number of prompts mismatch"
 
-        num_finished_requests = 0
-        output_texts: List[str] = []
-        output_logprobs_str: List[Optional[List[str]]] = []
-        text_streamers: List[TextStreamer] = []
+        num_finished_generations = 0
+        output_texts: List[List[str]] = []
+        output_logprobs_str: List[Optional[List[List[str]]]] = []
+        text_streamers: List[List[TextStreamer]] = []
         for i in range(num_requests):
-            output_texts.append("")
+            output_texts.append([])
             output_logprobs_str.append([] if generation_config[i].logprobs else None)
-            text_streamers.append(TextStreamer(self.tokenizer))
+            text_streamers.append([])
+            for _ in range(generation_config[i].n):
+                output_texts[i].append("")
+                text_streamers[i].append(TextStreamer(self.tokenizer))
+                if output_logprobs_str[i] is not None:
+                    output_logprobs_str[i].append([])
+
+        num_total_generations = sum(cfg.n for cfg in generation_config)
 
         # Save a copy of the original function callback since `generate`
         # overrides the callback function.
@@ -422,27 +431,30 @@ class Engine:
 
         # Define the callback function for request generation results
         def request_stream_callback(delta_outputs: List[data.RequestStreamOutput]):
-            nonlocal num_finished_requests
+            nonlocal num_finished_generations
             for delta_output in delta_outputs:
-                (
-                    request_id,
-                    delta_token_ids,
-                    delta_logprob_json_strs,
-                    finish_reason,
-                ) = delta_output.unpack()
+                request_id, stream_outputs = delta_output.unpack()
                 rid = int(request_id)
-                text_streamer = text_streamers[rid]
-                if output_logprobs_str[rid] is not None:
-                    assert delta_logprob_json_strs is not None
-                    output_logprobs_str[rid] += delta_logprob_json_strs
 
-                delta_text = text_streamer.put(delta_token_ids)
-                if finish_reason is not None:
-                    delta_text += text_streamer.finish()
+                assert len(stream_outputs) == generation_config[rid].n
+                for i, (stream_output, text_streamer) in enumerate(
+                    zip(stream_outputs, text_streamers[rid])
+                ):
+                    if output_logprobs_str[rid] is not None:
+                        assert stream_output.delta_logprob_json_strs is not None
+                        output_logprobs_str[rid][i] += stream_output.delta_logprob_json_strs
 
-                output_texts[rid] += delta_text
-                if finish_reason is not None:
-                    num_finished_requests += 1
+                    delta_text = (
+                        text_streamer.put(stream_output.delta_token_ids)
+                        if len(stream_output.delta_token_ids) > 0
+                        else ""
+                    )
+                    if stream_output.finish_reason is not None:
+                        delta_text += text_streamer.finish()
+
+                    output_texts[rid][i] += delta_text
+                    if stream_output.finish_reason is not None:
+                        num_finished_generations += 1
 
         # Override the callback function in engine.
         self._ffi["set_request_stream_callback"](request_stream_callback)
@@ -462,7 +474,7 @@ class Engine:
                 )
             )
 
-        while num_finished_requests != num_requests:
+        while num_finished_generations != num_total_generations:
             self.step()
 
         # Restore the callback function in engine.

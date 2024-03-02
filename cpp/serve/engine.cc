@@ -13,6 +13,7 @@
 #include <tvm/runtime/threading_backend.h>
 
 #include <tuple>
+#include <unordered_set>
 
 #include "../tokenizers.h"
 #include "engine_actions/action.h"
@@ -91,6 +92,7 @@ class EngineImpl : public Engine {
                                           logit_processor,         //
                                           sampler,                 //
                                           this->kv_cache_config_,  //
+                                          this->engine_mode_,      //
                                           this->trace_recorder_),
           EngineAction::BatchDraft(this->models_, logit_processor, sampler, this->trace_recorder_,
                                    this->engine_mode_->spec_draft_length),
@@ -101,6 +103,7 @@ class EngineImpl : public Engine {
                                                         logit_processor,         //
                                                         sampler,                 //
                                                         this->kv_cache_config_,  //
+                                                        this->engine_mode_,      //
                                                         this->trace_recorder_),
                         EngineAction::BatchDecode(this->models_, logit_processor, sampler,
                                                   this->trace_recorder_)};
@@ -135,9 +138,27 @@ class EngineImpl : public Engine {
     ICHECK_NE(request->input_total_length, -1);
     // Append to the waiting queue and create the request state.
     estate_->waiting_queue.push_back(request);
-    estate_->request_states.emplace(
-        request->id, RequestState(request, models_.size(), estate_->id_manager.GetNewId(),
-                                  token_table_, json_grammar_state_init_ctx_));
+
+    int n = request->generation_cfg->n;
+    int rng_seed = request->generation_cfg->seed;
+
+    RequestState rstate;
+    // Create the request state entry for the input.
+    rstate.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(), rng_seed,
+                        token_table_, json_grammar_state_init_ctx_);
+    if (n > 1) {
+      // Then create a request state entry for each parallel generation branch.
+      // We add a offset to the rng seed so that to make generations different.
+      rstate.reserve(n + 1);
+      rstate[0]->children_idx.reserve(n);
+      for (int i = 0; i < n; ++i) {
+        rstate[0]->children_idx.push_back(rstate.size());
+        rstate.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(),
+                            rng_seed + i + 1, token_table_, json_grammar_state_init_ctx_,
+                            /*parent_idx=*/0);
+      }
+    }
+    estate_->request_states.emplace(request->id, rstate);
   }
 
   void AbortRequest(const String& request_id) final {
@@ -148,26 +169,39 @@ class EngineImpl : public Engine {
     }
 
     RequestState rstate = it_rstate->second;
-    Request request = rstate->request;
+    Request request = rstate[0]->request;
 
     // - Check if the request is running or pending.
     auto it_running =
         std::find(estate_->running_queue.begin(), estate_->running_queue.end(), request);
     auto it_waiting =
         std::find(estate_->waiting_queue.begin(), estate_->waiting_queue.end(), request);
-    ICHECK(it_running != estate_->running_queue.end() ||
-           it_waiting != estate_->waiting_queue.end());
 
-    int64_t req_internal_id = rstate->mstates[0]->internal_id;
-    estate_->id_manager.RecycleId(req_internal_id);
+    for (const RequestStateEntry& rsentry : rstate) {
+      estate_->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
+    }
     estate_->request_states.erase(request->id);
     if (it_running != estate_->running_queue.end()) {
       // The request to abort is in running queue
       estate_->running_queue.erase(it_running);
-      estate_->stats.current_total_seq_len -=
-          request->input_total_length + rstate->mstates[0]->committed_tokens.size() - 1;
-      RemoveRequestFromModel(estate_, req_internal_id, models_);
-    } else {
+
+      // Reduce the input length.
+      estate_->stats.current_total_seq_len -= request->input_total_length;
+      // Reduce the generated length.
+      for (int i = 0; i < static_cast<int>(rstate.size()); ++i) {
+        if (rstate[i]->status != RequestStateStatus::kAlive) {
+          continue;
+        }
+        estate_->stats.current_total_seq_len -= rstate[i]->mstates[0]->committed_tokens.size();
+        RemoveRequestFromModel(estate_, rstate[i]->mstates[0]->internal_id, models_);
+        if (rstate[i]->children_idx.empty()) {
+          // For each running leaf state, length 1 is over reduced since the last
+          // token is not added into KV cache. So we add the length back.
+          ++estate_->stats.current_total_seq_len;
+        }
+      }
+    }
+    if (it_waiting != estate_->waiting_queue.end()) {
       // The request to abort is in waiting queue
       estate_->waiting_queue.erase(it_waiting);
     }

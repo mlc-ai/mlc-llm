@@ -16,32 +16,70 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<M
   }
 }
 
-void ProcessFinishedRequest(Array<Request> finished_requests, EngineState estate,
-                            Array<Model> models, int max_single_sequence_length) {
-  // - Remove the finished request.
-  for (Request request : finished_requests) {
-    // Remove from running queue.
-    auto it = std::find(estate->running_queue.begin(), estate->running_queue.end(), request);
-    ICHECK(it != estate->running_queue.end());
-    estate->running_queue.erase(it);
+void ProcessFinishedRequestStateEntries(RequestState finished_rsentries, EngineState estate,
+                                        Array<Model> models, int max_single_sequence_length) {
+  // - Remove the finished request state entries.
+  for (const RequestStateEntry& rsentry : finished_rsentries) {
+    // The finished entry must be a leaf.
+    ICHECK(rsentry->children_idx.empty());
+    // Mark the status of this entry as finished.
+    rsentry->status = RequestStateStatus::kFinished;
+    // Remove the request state entry from all the models.
+    RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
+    estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
+    estate->stats.current_total_seq_len -=
+        static_cast<int>(rsentry->mstates[0]->committed_tokens.size()) - 1;
 
-    // Update engine states.
-    RequestState state = estate->GetRequestState(request);
-    RemoveRequestFromModel(estate, state->mstates[0]->internal_id, models);
-    estate->id_manager.RecycleId(state->mstates[0]->internal_id);
-    estate->request_states.erase(request->id);
+    RequestState rstate = estate->GetRequestState(rsentry->request);
+    int parent_idx = rsentry->parent_idx;
+    while (parent_idx != -1) {
+      bool all_children_finished = true;
+      for (int child_idx : rstate[parent_idx]->children_idx) {
+        if (rstate[child_idx]->status != RequestStateStatus::kFinished) {
+          all_children_finished = false;
+          break;
+        }
+      }
+      if (!all_children_finished) {
+        break;
+      }
 
-    // Update engine statistics.
-    int num_input_tokens = request->input_total_length;
-    int num_output_tokens = state->mstates[0]->committed_tokens.size() - 1;
-    estate->stats.current_total_seq_len -= num_input_tokens + num_output_tokens;
-    auto trequest_finish = std::chrono::high_resolution_clock::now();
-    estate->stats.request_total_prefill_time +=
-        static_cast<double>((state->tprefill_finish - state->tadd).count()) / 1e9;
-    estate->stats.total_prefill_length += num_input_tokens;
-    estate->stats.request_total_decode_time +=
-        static_cast<double>((trequest_finish - state->tprefill_finish).count()) / 1e9;
-    estate->stats.total_decode_length += num_output_tokens;
+      // All the children of the parent request state entry have finished.
+      // So we mark the parent entry as finished.
+      rstate[parent_idx]->status = RequestStateStatus::kFinished;
+      // Remove the request state entry from all the models.
+      RemoveRequestFromModel(estate, rstate[parent_idx]->mstates[0]->internal_id, models);
+      estate->id_manager.RecycleId(rstate[parent_idx]->mstates[0]->internal_id);
+      estate->stats.current_total_seq_len -=
+          static_cast<int>(rstate[parent_idx]->mstates[0]->committed_tokens.size());
+      // Climb up to the parent.
+      parent_idx = rstate[parent_idx]->parent_idx;
+    }
+
+    if (parent_idx == -1) {
+      // All request state entries of the request have been removed.
+      // Reduce the total input length from the engine stats.
+      estate->stats.current_total_seq_len -= rsentry->request->input_total_length;
+      // Remove from running queue and engine state.
+      auto it =
+          std::find(estate->running_queue.begin(), estate->running_queue.end(), rsentry->request);
+      ICHECK(it != estate->running_queue.end());
+      estate->running_queue.erase(it);
+      estate->request_states.erase(rsentry->request->id);
+
+      // Update engine statistics.
+      const RequestStateEntry& root_rsentry = rstate[0];
+      auto trequest_finish = std::chrono::high_resolution_clock::now();
+      estate->stats.request_total_prefill_time +=
+          static_cast<double>((root_rsentry->tprefill_finish - root_rsentry->tadd).count()) / 1e9;
+      estate->stats.total_prefill_length += rsentry->request->input_total_length;
+      estate->stats.request_total_decode_time +=
+          static_cast<double>((trequest_finish - root_rsentry->tprefill_finish).count()) / 1e9;
+      for (const RequestStateEntry& entry : rstate) {
+        estate->stats.total_decode_length += entry->mstates[0]->committed_tokens.size();
+      }
+      estate->stats.total_decode_length -= rsentry->request->generation_cfg->n;
+    }
   }
 }
 
@@ -49,85 +87,137 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
                            const Tokenizer& tokenizer,
                            FRequestStreamCallback request_stream_callback,
                            int max_single_sequence_length) {
-  Array<Request> finished_requests;
-  finished_requests.reserve(requests.size());
+  std::vector<RequestStateEntry> finished_rsentries;
+  finished_rsentries.reserve(requests.size());
 
   Array<RequestStreamOutput> callback_delta_outputs;
   callback_delta_outputs.reserve(requests.size());
 
   // - Collect new generated tokens and finish reasons for requests.
   for (Request request : requests) {
+    int n = request->generation_cfg->n;
     RequestState rstate = estate->GetRequestState(request);
-    auto [delta_token_ids, delta_logprob_json_strs, finish_reason] =
-        rstate->GetReturnTokenIds(tokenizer, max_single_sequence_length);
+    Array<IntTuple> group_delta_token_ids;
+    Array<Array<String>> group_delta_logprob_json_strs;
+    Array<Optional<String>> group_finish_reason;
+    group_delta_token_ids.reserve(n);
+    group_delta_logprob_json_strs.reserve(n);
+    group_finish_reason.reserve(n);
 
-    // When there is no new delta tokens nor a finish reason, no need to invoke callback.
-    if (delta_token_ids.empty() && !finish_reason.defined()) {
-      continue;
-    }
+    bool invoke_callback = false;
+    for (int i = 0; i < n; ++i) {
+      const RequestStateEntry& rsentry = n == 1 ? rstate[0] : rstate[i + 1];
+      const DeltaRequestReturn& delta_request_ret =
+          rsentry->GetReturnTokenIds(tokenizer, max_single_sequence_length);
+      group_delta_token_ids.push_back(IntTuple{delta_request_ret.delta_token_ids.begin(),
+                                               delta_request_ret.delta_token_ids.end()});
+      group_delta_logprob_json_strs.push_back(delta_request_ret.delta_logprob_json_strs);
+      group_finish_reason.push_back(delta_request_ret.finish_reason);
+      if (delta_request_ret.finish_reason.defined()) {
+        invoke_callback = true;
+        finished_rsentries.push_back(rsentry);
+      }
 
-    // Update the grammar matcher state if it exists.
-    if (rstate->mstates[0]->grammar_state_matcher) {
-      const auto& grammar_state_matcher = rstate->mstates[0]->grammar_state_matcher.value();
-      for (auto token_id : delta_token_ids) {
-        grammar_state_matcher->AcceptToken(token_id);
+      if (!delta_request_ret.delta_token_ids.empty()) {
+        invoke_callback = true;
+        // Update the grammar matcher state if it exists.
+        if (rsentry->mstates[0]->grammar_state_matcher) {
+          const auto& grammar_state_matcher = rsentry->mstates[0]->grammar_state_matcher.value();
+          for (int32_t token_id : delta_request_ret.delta_token_ids) {
+            grammar_state_matcher->AcceptToken(token_id);
+          }
+        }
       }
     }
 
-    callback_delta_outputs.push_back(RequestStreamOutput(
-        request->id, delta_token_ids,
-        request->generation_cfg->logprobs > 0 ? delta_logprob_json_strs : Optional<Array<String>>(),
-        finish_reason));
-    if (finish_reason.defined()) {
-      finished_requests.push_back(request);
+    if (invoke_callback) {
+      callback_delta_outputs.push_back(RequestStreamOutput(
+          request->id, std::move(group_delta_token_ids),
+          request->generation_cfg->logprobs > 0 ? std::move(group_delta_logprob_json_strs)
+                                                : Optional<Array<Array<String>>>(),
+          std::move(group_finish_reason)));
     }
   }
 
   // - Invoke the stream callback function once for all collected requests.
   request_stream_callback(callback_delta_outputs);
 
-  ProcessFinishedRequest(std::move(finished_requests), std::move(estate), std::move(models),
-                         max_single_sequence_length);
+  ProcessFinishedRequestStateEntries(std::move(finished_rsentries), std::move(estate),
+                                     std::move(models), max_single_sequence_length);
 }
 
-void PreemptLastRunningRequest(EngineState estate, const Array<Model>& models,
-                               Optional<EventTraceRecorder> trace_recorder) {
+RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
+                                                      const Array<Model>& models,
+                                                      Optional<EventTraceRecorder> trace_recorder) {
+  ICHECK(!estate->running_queue.empty());
   Request request = estate->running_queue.back();
+
+  // Find the last alive request state entry, which is what we want to preempt.
+  RequestState rstate = estate->GetRequestState(request);
+  int preempt_rstate_idx = -1;
+  for (int i = static_cast<int>(rstate.size()) - 1; i >= 0; --i) {
+    if (rstate[i]->status == RequestStateStatus::kAlive) {
+      preempt_rstate_idx = i;
+      break;
+    }
+  }
+  ICHECK_NE(preempt_rstate_idx, -1);
+  RequestStateEntry rsentry = rstate[preempt_rstate_idx];
 
   // Remove from models.
   // - Clear model speculation draft.
   // - Update `inputs` for future prefill.
-  RequestState rstate = estate->GetRequestState(request);
-  RECORD_EVENT(trace_recorder, rstate->request->id, "preempt");
+  RECORD_EVENT(trace_recorder, rsentry->request->id, "preempt");
+  rsentry->status = RequestStateStatus::kPending;
+  estate->stats.current_total_seq_len -= rsentry->mstates[0]->committed_tokens.size();
+  if (rsentry->children_idx.empty()) {
+    // The length was overly decreased by 1 when the entry has no child.
+    ++estate->stats.current_total_seq_len;
+  }
+  if (rsentry->parent_idx == -1) {
+    // Subtract the input length from the total length when the
+    // current entry is the root entry of the request.
+    estate->stats.current_total_seq_len -= request->input_total_length;
+  }
   estate->stats.current_total_seq_len -=
-      request->input_total_length + rstate->mstates[0]->committed_tokens.size() - 1;
-  for (RequestModelState mstate : rstate->mstates) {
+      request->input_total_length + rsentry->mstates[0]->committed_tokens.size() - 1;
+  for (RequestModelState mstate : rsentry->mstates) {
     mstate->RemoveAllDraftTokens();
     ICHECK(mstate->inputs.empty());
-    ICHECK(!mstate->committed_tokens.empty());
     std::vector<int32_t> committed_token_ids;
     committed_token_ids.reserve(mstate->committed_tokens.size());
     for (const SampleResult& committed_token : mstate->committed_tokens) {
       committed_token_ids.push_back(committed_token.sampled_token_id.first);
     }
 
-    Array<Data> inputs = request->inputs;
-    if (const auto* token_input = inputs.back().as<TokenDataNode>()) {
-      // Merge the TokenData so that a single time TokenEmbed is needed.
-      std::vector<int> token_ids{token_input->token_ids->data,
-                                 token_input->token_ids->data + token_input->token_ids.size()};
-      token_ids.insert(token_ids.end(), committed_token_ids.begin(), committed_token_ids.end());
-      inputs.Set(inputs.size() - 1, TokenData(token_ids));
-    } else {
+    Array<Data> inputs;
+    if (rsentry->parent_idx == -1) {
+      inputs = request->inputs;
+      if (const auto* token_input = inputs.back().as<TokenDataNode>()) {
+        // Merge the TokenData so that a single time TokenEmbed is needed.
+        std::vector<int> token_ids{token_input->token_ids->data,
+                                   token_input->token_ids->data + token_input->token_ids.size()};
+        token_ids.insert(token_ids.end(), committed_token_ids.begin(), committed_token_ids.end());
+        inputs.Set(inputs.size() - 1, TokenData(token_ids));
+      } else if (!committed_token_ids.empty()) {
+        inputs.push_back(TokenData(committed_token_ids));
+      }
+    } else if (!committed_token_ids.empty()) {
       inputs.push_back(TokenData(committed_token_ids));
     }
     mstate->inputs = std::move(inputs);
   }
-  RemoveRequestFromModel(estate, rstate->mstates[0]->internal_id, models);
+  RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
 
-  // Move from running queue to the front of waiting queue.
-  estate->running_queue.erase(estate->running_queue.end() - 1);
-  estate->waiting_queue.insert(estate->waiting_queue.begin(), request);
+  if (preempt_rstate_idx == 0) {
+    // Remove from running queue.
+    estate->running_queue.erase(estate->running_queue.end() - 1);
+  }
+  if (preempt_rstate_idx == static_cast<int>(rstate.size()) - 1) {
+    // Add to the front of waiting queue.
+    estate->waiting_queue.insert(estate->waiting_queue.begin(), request);
+  }
+  return rsentry;
 }
 
 }  // namespace serve

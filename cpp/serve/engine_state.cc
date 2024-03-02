@@ -50,7 +50,9 @@ void EngineStateObj::Reset() {
 }
 
 RequestState EngineStateObj::GetRequestState(Request request) {
-  return request_states.at(request->id);
+  auto it = request_states.find(request->id);
+  ICHECK(it != request_states.end());
+  return it->second;
 }
 
 }  // namespace serve

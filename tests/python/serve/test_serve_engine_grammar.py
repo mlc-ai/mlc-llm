@@ -49,9 +49,13 @@ def test_batch_generation_with_grammar():
 
     # Generate output.
     output_texts, _ = engine.generate(prompts, all_generation_configs)
-    for req_id, output in enumerate(output_texts):
+    for req_id, outputs in enumerate(output_texts):
         print(f"Prompt {req_id}: {prompts[req_id]}")
-        print(f"Output {req_id}: {output}\n")
+        if len(outputs) == 1:
+            print(f"Output {req_id}:{outputs[0]}\n")
+        else:
+            for i, output in enumerate(outputs):
+                print(f"Output {req_id}({i}):{output}\n")
 
 
 async def run_async_engine():
@@ -75,7 +79,9 @@ async def run_async_engine():
         response_format=ResponseFormat(type="json_object"),
     )
 
-    outputs: List[str] = ["" for _ in range(len(prompts))]
+    output_texts: List[List[str]] = [
+        ["" for _ in range(generation_config.n)] for _ in range(len(prompts))
+    ]
 
     async def generate_task(
         async_engine: AsyncThreadedEngine,
@@ -85,10 +91,12 @@ async def run_async_engine():
     ):
         print(f"Start generation task for request {request_id}")
         rid = int(request_id)
-        async for delta_text, _, _, _ in async_engine.generate(
+        async for delta_outputs in async_engine.generate(
             prompt, generation_cfg, request_id=request_id
         ):
-            outputs[rid] += delta_text
+            assert len(delta_outputs) == generation_cfg.n
+            for i, delta_output in enumerate(delta_outputs):
+                output_texts[rid][i] += delta_output.delta_text
 
     tasks = [
         asyncio.create_task(
@@ -101,9 +109,13 @@ async def run_async_engine():
 
     # Print output.
     print("All finished")
-    for req_id, output in enumerate(outputs):
+    for req_id, outputs in enumerate(output_texts):
         print(f"Prompt {req_id}: {prompts[req_id]}")
-        print(f"Output {req_id}: {output}\n")
+        if len(outputs) == 1:
+            print(f"Output {req_id}:{outputs[0]}\n")
+        else:
+            for i, output in enumerate(outputs):
+                print(f"Output {req_id}({i}):{output}\n")
 
     print(async_engine.trace_recorder.dump_json(), file=open("tmpfiles/tmp.json", "w"))
 

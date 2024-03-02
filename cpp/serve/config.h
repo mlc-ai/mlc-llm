@@ -27,6 +27,7 @@ struct ResponseFormat {
 /*! \brief The generation configuration of a request. */
 class GenerationConfigNode : public Object {
  public:
+  int n = 1;
   double temperature = 0.8;
   double top_p = 0.95;
   double frequency_penalty = 0.0;

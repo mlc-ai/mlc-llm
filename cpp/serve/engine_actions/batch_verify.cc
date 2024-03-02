@@ -42,15 +42,15 @@ class BatchVerifyActionObj : public EngineActionObj {
       return {};
     }
 
-    const auto& [requests, rstates, draft_lengths, total_draft_length] = GetDraftsToVerify(estate);
-    ICHECK_EQ(requests.size(), rstates.size());
-    ICHECK_EQ(requests.size(), draft_lengths.size());
-    if (requests.empty()) {
+    const auto& [rsentries, draft_lengths, total_draft_length] = GetDraftsToVerify(estate);
+    ICHECK_EQ(rsentries.size(), draft_lengths.size());
+    if (rsentries.empty()) {
       return {};
     }
 
-    int num_requests = requests.size();
-    Array<String> request_ids = requests.Map([](const Request& request) { return request->id; });
+    int num_rsentries = rsentries.size();
+    Array<String> request_ids =
+        rsentries.Map([](const RequestStateEntry& rstate) { return rstate->request->id; });
     auto tstart = std::chrono::high_resolution_clock::now();
 
     // - Get embedding and run verify.
@@ -61,17 +61,17 @@ class BatchVerifyActionObj : public EngineActionObj {
     std::vector<RandomGenerator*> rngs;
     std::vector<std::vector<SampleResult>> draft_output_tokens;
     std::vector<std::vector<NDArray>> draft_output_prob_dist;
-    request_internal_ids.reserve(num_requests);
+    request_internal_ids.reserve(num_rsentries);
     all_tokens_to_verify.reserve(total_draft_length);
-    verify_request_mstates.reserve(num_requests);
-    rngs.reserve(num_requests);
-    generation_cfg.reserve(num_requests);
-    draft_output_tokens.reserve(num_requests);
-    draft_output_prob_dist.reserve(num_requests);
+    verify_request_mstates.reserve(num_rsentries);
+    rngs.reserve(num_rsentries);
+    generation_cfg.reserve(num_rsentries);
+    draft_output_tokens.reserve(num_rsentries);
+    draft_output_prob_dist.reserve(num_rsentries);
 
-    for (int i = 0; i < num_requests; ++i) {
-      RequestModelState verify_mstate = rstates[i]->mstates[verify_model_id_];
-      RequestModelState draft_mstate = rstates[i]->mstates[draft_model_id_];
+    for (int i = 0; i < num_rsentries; ++i) {
+      RequestModelState verify_mstate = rsentries[i]->mstates[verify_model_id_];
+      RequestModelState draft_mstate = rsentries[i]->mstates[draft_model_id_];
       request_internal_ids.push_back(verify_mstate->internal_id);
       ICHECK(!draft_lengths.empty());
       ICHECK_EQ(draft_lengths[i], draft_mstate->draft_output_tokens.size());
@@ -82,8 +82,8 @@ class BatchVerifyActionObj : public EngineActionObj {
         all_tokens_to_verify.push_back(draft_mstate->draft_output_tokens[j].sampled_token_id.first);
       }
       verify_request_mstates.push_back(verify_mstate);
-      generation_cfg.push_back(requests[i]->generation_cfg);
-      rngs.push_back(&rstates[i]->rng);
+      generation_cfg.push_back(rsentries[i]->request->generation_cfg);
+      rngs.push_back(&rsentries[i]->rng);
       draft_output_tokens.push_back(draft_mstate->draft_output_tokens);
       draft_output_prob_dist.push_back(draft_mstate->draft_output_prob_dist);
     }
@@ -103,7 +103,8 @@ class BatchVerifyActionObj : public EngineActionObj {
 
     // - Update logits.
     std::vector<int> cum_verify_lengths = {0};
-    for (int i = 0; i < num_requests; ++i) {
+    cum_verify_lengths.reserve(num_rsentries + 1);
+    for (int i = 0; i < num_rsentries; ++i) {
       cum_verify_lengths.push_back(cum_verify_lengths.back() + draft_lengths[i]);
     }
     logits = logits.CreateView({total_draft_length, logits->shape[2]}, logits->dtype);
@@ -117,14 +118,14 @@ class BatchVerifyActionObj : public EngineActionObj {
     std::vector<std::vector<SampleResult>> sample_results_arr = sampler_->BatchVerifyDraftTokens(
         probs_device, request_ids, cum_verify_lengths, generation_cfg, rngs, draft_output_tokens,
         draft_output_prob_dist);
-    ICHECK_EQ(sample_results_arr.size(), num_requests);
+    ICHECK_EQ(sample_results_arr.size(), num_rsentries);
 
-    for (int i = 0; i < num_requests; ++i) {
+    for (int i = 0; i < num_rsentries; ++i) {
       const std::vector<SampleResult>& sample_results = sample_results_arr[i];
       int accept_length = sample_results.size();
       for (SampleResult sample_result : sample_results) {
-        rstates[i]->mstates[verify_model_id_]->CommitToken(sample_result);
-        rstates[i]->mstates[draft_model_id_]->CommitToken(sample_result);
+        rsentries[i]->mstates[verify_model_id_]->CommitToken(sample_result);
+        rsentries[i]->mstates[draft_model_id_]->CommitToken(sample_result);
       }
       estate->stats.current_total_seq_len += accept_length;
       estate->stats.total_accepted_length += accept_length;
@@ -137,46 +138,32 @@ class BatchVerifyActionObj : public EngineActionObj {
       // it is possible to re-compute prefill for the small models.
       if (rollback_length > 0) {
         models_[verify_model_id_]->PopNFromKVCache(
-            rstates[i]->mstates[verify_model_id_]->internal_id, rollback_length);
-        models_[draft_model_id_]->PopNFromKVCache(rstates[i]->mstates[draft_model_id_]->internal_id,
-                                                  rollback_length);
+            rsentries[i]->mstates[verify_model_id_]->internal_id, rollback_length);
+        models_[draft_model_id_]->PopNFromKVCache(
+            rsentries[i]->mstates[draft_model_id_]->internal_id, rollback_length);
       }
     }
 
-    // clear the draft model states
-    for (int i = 0; i < num_requests; ++i) {
-      rstates[i]->mstates[draft_model_id_]->RemoveAllDraftTokens();
+    // clear the draft model state entries
+    for (int i = 0; i < num_rsentries; ++i) {
+      rsentries[i]->mstates[draft_model_id_]->RemoveAllDraftTokens();
     }
 
     auto tend = std::chrono::high_resolution_clock::now();
     estate->stats.engine_total_decode_time += static_cast<double>((tend - tstart).count()) / 1e9;
 
-    return requests;
+    return estate->running_queue;
   }
 
  private:
-  /*! \brief Check if the drafts can be verified under conditions. */
-  bool CanVerify(EngineState estate, int num_verify_req, int total_draft_length,
-                 int num_required_pages, int num_available_pages) {
-    int num_running_requests = estate->running_queue.size();
-    ICHECK_LE(num_running_requests, kv_cache_config_->max_num_sequence);
-
-    // No exceeding of the maximum allowed requests that can
-    // run simultaneously.
-    if (num_running_requests + num_verify_req > kv_cache_config_->max_num_sequence) {
-      return false;
-    }
-
-    // NOTE: The conditions are heuristic and can be revised.
-    // Cond 1: total input length <= prefill chunk size.
-    // Cond 2: at least one verify can be performed.
-    // Cond 3: number of total tokens does not exceed the limit
-    int new_batch_size = num_running_requests + num_verify_req;
-    return total_draft_length <= kv_cache_config_->prefill_chunk_size &&
-           num_required_pages <= num_available_pages &&
-           estate->stats.current_total_seq_len + total_draft_length <=
-               kv_cache_config_->max_total_sequence_length;
-  }
+  struct DraftRequestStateEntries {
+    /*! \brief The request state entries to verify. */
+    Array<RequestStateEntry> draft_rsentries;
+    /*! \brief The draft length of each request state. */
+    std::vector<int> draft_lengths;
+    /*! \brief The total draft length. */
+    int total_draft_length;
+  };
 
   /*!
    * \brief Decide whether to run verify for the draft of each request.
@@ -184,43 +171,43 @@ class BatchVerifyActionObj : public EngineActionObj {
    * \return The drafts to verify, together with their respective
    * state and input length.
    */
-  std::tuple<Array<Request>, Array<RequestState>, std::vector<int>, int> GetDraftsToVerify(
-      EngineState estate) {
-    // - Try to verify pending requests.
-    std::vector<Request> verify_requests;
-    std::vector<RequestState> rstates;
+  DraftRequestStateEntries GetDraftsToVerify(EngineState estate) {
     std::vector<int> draft_lengths;
     int total_draft_length = 0;
     int total_required_pages = 0;
     int num_available_pages = models_[verify_model_id_]->GetNumAvailablePages();
 
-    int req_id = 1;
-    for (; req_id <= static_cast<int>(estate->running_queue.size()); ++req_id) {
-      Request request = estate->running_queue[req_id - 1];
-      RequestState rstate = estate->GetRequestState(request);
-      int draft_length = rstate->mstates[draft_model_id_]->draft_output_tokens.size();
+    // Preempt the request state entries that cannot fit the large model for verification.
+    std::vector<RequestStateEntry> running_rsentries = GetRunningRequestStateEntries(estate);
+    std::vector<int> num_page_requirement;
+    num_page_requirement.reserve(running_rsentries.size());
+    for (const RequestStateEntry& rsentry : running_rsentries) {
+      int draft_length = rsentry->mstates[draft_model_id_]->draft_output_tokens.size();
       int num_require_pages =
           (draft_length + kv_cache_config_->page_size - 1) / kv_cache_config_->page_size;
+      draft_lengths.push_back(draft_length);
+      num_page_requirement.push_back(num_require_pages);
       total_draft_length += draft_length;
       total_required_pages += num_require_pages;
-      if (CanVerify(estate, req_id, total_draft_length, total_required_pages,
-                    num_available_pages)) {
-        verify_requests.push_back(request);
-        rstates.push_back(rstate);
-        draft_lengths.push_back(draft_length);
-      } else {
-        total_draft_length -= draft_length;
-        total_required_pages -= num_require_pages;
-        break;
+    }
+    while (!CanVerify(total_required_pages)) {
+      RequestStateEntry preempted =
+          PreemptLastRunningRequestStateEntry(estate, models_, trace_recorder_);
+      if (preempted.same_as(running_rsentries.back())) {
+        total_draft_length -= draft_lengths.back();
+        total_required_pages -= num_page_requirement.back();
+        draft_lengths.pop_back();
+        num_page_requirement.pop_back();
+        running_rsentries.pop_back();
       }
     }
-    // preempt all the remaining requests
-    while (req_id <= static_cast<int>(estate->running_queue.size())) {
-      PreemptLastRunningRequest(estate, models_, trace_recorder_);
-      req_id += 1;
-    }
 
-    return {verify_requests, rstates, draft_lengths, total_draft_length};
+    return {running_rsentries, draft_lengths, total_draft_length};
+  }
+
+  bool CanVerify(int num_required_pages) {
+    int num_available_pages = models_[0]->GetNumAvailablePages();
+    return num_required_pages <= num_available_pages;
   }
 
   /*!
