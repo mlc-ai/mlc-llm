@@ -1,5 +1,6 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring
 # pylint: disable=redefined-outer-name,unbalanced-tuple-unpacking
+import sys
 from typing import List
 
 import pytest
@@ -17,7 +18,7 @@ def json_grammar():
 
 (json_input_accepted,) = tvm.testing.parameters(
     ('{"name": "John"}',),
-    ('{ "name" : "John" } \n',),
+    ('{ "name" : "John" }',),
     ("{}",),
     ("[]",),
     ('{"name": "Alice", "age": 30, "city": "New York"}',),
@@ -54,19 +55,17 @@ def test_json_accept(json_grammar: BNFGrammar, json_input_accepted: str):
     assert GrammarStateMatcher(json_grammar).debug_match_complete_string(json_input_accepted)
 
 
-# test_json_accept(json_grammar(), '{"name": "John"}')
-# exit()
-
 (json_input_refused,) = tvm.testing.parameters(
     (r'{ name: "John" }',),
-    (r'{ "name": "John", "age": 30, }',),  # x
+    (r'{ "name": "John" } ',),  # trailing space is not accepted
+    (r'{ "name": "John", "age": 30, }',),
     (r'{ "name": "John", "address": { "street": "123 Main St", "city": "New York" }',),
-    (r'{ "name": "John", "age": 30, "hobbies": ["reading", "traveling",], }',),  # x
+    (r'{ "name": "John", "age": 30, "hobbies": ["reading", "traveling",], }',),
     (r'{ "name": "John", "age": 30.5.7 }',),
     (r'{ "name": "John, "age": 30, "hobbies": ["reading", "traveling"] }',),
     (
         r'{ "name": "John", "age": 30, "hobbies": ["reading", { "type": "outdoor", "list": '
-        r'["hiking", "swimming",]}] }',  #
+        r'["hiking", "swimming",]}] }',
     ),
     (r'{ "name": "John", "age": 30, "status": "\P\J" }',),
     (
@@ -203,7 +202,7 @@ def test_json_refuse(json_grammar: BNFGrammar, json_input_refused):
         "taglib-location": "/WEB-INF/tlds/cofax.tld"
     }
     }
-}    """,
+}""",
     ),
 )
 
@@ -215,11 +214,11 @@ def test_json_pressure(json_grammar: BNFGrammar, json_input_pressure):
 (input_find_rejected_tokens, expected_rejected_sizes) = tvm.testing.parameters(
     (
         # short test
-        '{"id": 1,"name": "Example"} ',
+        '{"id": 1,"name": "Example"}',
         [
             # fmt: off
-            31989, 31907, 278, 278, 278, 31973, 31841, 31841, 31948, 31910, 278, 278, 278, 278,
-            278, 31973, 31841, 31841, 271, 271, 271, 271, 271, 271, 271, 271, 31974, 31980, 31980
+            31989, 31912, 299, 299, 299, 31973, 31846, 31846, 31948, 31915, 299, 299, 299, 299,
+            299, 31973, 31846, 31846, 292, 292, 292, 292, 292, 292, 292, 292, 31974, 31999
             # fmt: on
         ],
     ),
@@ -228,30 +227,29 @@ def test_json_pressure(json_grammar: BNFGrammar, json_input_pressure):
         """{
 "id": 1,
 "na": "ex",
-"ac": True,
+"ac": true,
 "t": ["t1", "t2"],
 "ne": {"lv2": {"val": "dp"}, "arr": [1, 2, 3]},
 "res": "res"
-}
-""",
+}""",
         [
             # fmt: off
-            31989, 31907, 31907, 278, 278, 278, 31973, 31841, 31841, 31948, 31910, 31910, 278, 278,
-            278, 31973, 31841, 31841, 271, 271, 271, 31974, 31910, 31910, 278, 278, 278, 31973,
-            31841, 31841, 31841, 31841, 31841, 31841, 31841, 31841, 271, 271, 31974, 31974, 31974,
-            31974, 31974, 31974, 31974, 31974, 31910, 31910, 278, 278, 278, 31973, 31973, 31973,
-            31973, 31973, 31973, 31973, 31973, 31841, 31841, 31903, 278, 278, 278, 278, 31973,
-            31841, 31841, 31901, 278, 278, 278, 278, 31973, 31841, 31841, 270, 270, 270, 31968,
-            31970, 31910, 31910, 278, 278, 278, 278, 31973, 31841, 31841, 31835, 31943, 31841,
-            31841, 31943, 31841, 31841, 31943, 31970, 31974, 31910, 31910, 278, 278, 278, 278,
-            31973, 31841, 31841, 271, 271, 271, 271, 31974, 31974, 31980, 31980
+            31989, 31912, 31912, 299, 299, 299, 31973, 31846, 31846, 31948, 31915, 31915, 299, 299,
+            299, 31973, 31846, 31846, 292, 292, 292, 31974, 31915, 31915, 299, 299, 299, 31973,
+            31846, 31846, 31997, 31997, 31998, 31974, 31915, 31915, 299, 299, 31973, 31846, 31846,
+            31840, 291, 291, 291, 31969, 31846, 31846, 291, 291, 291, 31969, 31974, 31915, 31915,
+            299, 299, 299, 31973, 31846, 31846, 31908, 299, 299, 299, 299, 31973, 31846, 31846,
+            31906, 299, 299, 299, 299, 31973, 31846, 31846, 291, 291, 291, 31968, 31970, 31915,
+            31915, 299, 299, 299, 299, 31973, 31846, 31846, 31840, 31943, 31846, 31846, 31943,
+            31846, 31846, 31943, 31970, 31974, 31915, 31915, 299, 299, 299, 299, 31973, 31846,
+            31846, 292, 292, 292, 292, 31974, 31974, 31999
             # fmt: on
         ],
     ),
 )
 
 
-def test_find_rejected_tokens(
+def test_find_next_rejected_tokens(
     json_grammar: BNFGrammar, input_find_rejected_tokens: str, expected_rejected_sizes: List[int]
 ):
     tokenizer_path = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
@@ -262,10 +260,11 @@ def test_find_rejected_tokens(
     for c in input_find_rejected_tokens:
         rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens()
         real_sizes.append(len(rejected_token_ids))
-        print("Accepting char:", c)
-        grammar_state_matcher.debug_accept_char(ord(c))
+        print("Accepting char:", c, file=sys.stderr)
+        assert grammar_state_matcher.debug_accept_char(ord(c))
     rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens()
     real_sizes.append(len(rejected_token_ids))
+    print(real_sizes)
     assert real_sizes == expected_rejected_sizes
 
 
@@ -275,7 +274,7 @@ def test_accept_token(json_grammar: BNFGrammar):
         "<s>", "</s>", "a", "abc", 'b"', '"', ':"', "{", "}", ", ", "6", ":", "\n", " ", '"a":true',
         # fmt: on
     ]
-    input_splitted = ["{", '"', "abc", 'b"', ":", "6", ", ", " ", '"a":true', "}", "\n"]
+    input_splitted = ["{", '"', "abc", 'b"', ":", "6", ", ", " ", '"a":true', "}"]
     input_ids = [token_table.index(t) for t in input_splitted]
 
     grammar_state_matcher = GrammarStateMatcher(json_grammar, token_table)
@@ -285,16 +284,15 @@ def test_accept_token(json_grammar: BNFGrammar):
     expected = [
         ["{"],
         ['"', "}", "\n", " ", '"a":true'],
-        ["a", "abc", 'b"', '"', ':"', "{", "}", ", ", "6", ":", "\n", " "],
-        ["a", "abc", 'b"', '"', ':"', "{", "}", ", ", "6", ":", "\n", " "],
+        ["a", "abc", 'b"', '"', ':"', "{", "}", ", ", "6", ":", " "],
+        ["a", "abc", 'b"', '"', ':"', "{", "}", ", ", "6", ":", " "],
         [":", "\n", " ", ':"'],
         ['"', "{", "6", "\n", " "],
         ["}", ", ", "6", "\n", " "],
         [" ", "\n", '"', '"a":true'],
         [" ", "\n", '"', '"a":true'],
         ["}", ", ", "\n", " "],
-        ["</s>", "\n", " "],
-        ["</s>", "\n", " "],
+        ["</s>"],
     ]
 
     for id in input_ids:
@@ -303,7 +301,7 @@ def test_accept_token(json_grammar: BNFGrammar):
         accepted_tokens = [token_table[i] for i in accepted]
         result.append(accepted_tokens)
         assert id in accepted
-        grammar_state_matcher.accept_token(id)
+        assert grammar_state_matcher.accept_token(id)
 
     rejected = grammar_state_matcher.find_next_rejected_tokens()
     accepted = list(set(range(len(token_table))) - set(rejected))
@@ -319,7 +317,7 @@ def test_rollback(json_grammar: BNFGrammar):
         "<s>", "</s>", "a", "abc", 'b"', '"', ':"', "{", "}", ", ", "6", ":", "\n", " ", '"a":true',
         # fmt: on
     ]
-    input_splitted = ["{", '"', "abc", 'b"', ":", "6", ", ", " ", '"a":true', " ", "}", "\n"]
+    input_splitted = ["{", '"', "abc", 'b"', ":", "6", ", ", " ", '"a":true', "}"]
     input_ids = [token_table.index(t) for t in input_splitted]
 
     grammar_state_matcher = GrammarStateMatcher(json_grammar, token_table, 5)
@@ -331,15 +329,15 @@ def test_rollback(json_grammar: BNFGrammar):
     for i_1, i_2 in input_ids_splitted:
         orig_result = []
         orig_result.append(grammar_state_matcher.find_next_rejected_tokens())
-        grammar_state_matcher.accept_token(i_1)
+        assert grammar_state_matcher.accept_token(i_1)
         orig_result.append(grammar_state_matcher.find_next_rejected_tokens())
-        grammar_state_matcher.accept_token(i_2)
+        assert grammar_state_matcher.accept_token(i_2)
         grammar_state_matcher.rollback(2)
         result_after_rollback = []
         result_after_rollback.append(grammar_state_matcher.find_next_rejected_tokens())
-        grammar_state_matcher.accept_token(i_1)
+        assert grammar_state_matcher.accept_token(i_1)
         result_after_rollback.append(grammar_state_matcher.find_next_rejected_tokens())
-        grammar_state_matcher.accept_token(i_2)
+        assert grammar_state_matcher.accept_token(i_2)
         assert orig_result == result_after_rollback
 
 
@@ -349,7 +347,7 @@ def test_reset(json_grammar: BNFGrammar):
         "<s>", "</s>", "a", "abc", 'b"', '"', ':"', "{", "}", ", ", "6", ":", "\n", " ", '"a":true',
         # fmt: on
     ]
-    input_splitted = ["{", '"', "abc", 'b"', ":", "6", ", ", " ", '"a":true', " ", "}", "\n"]
+    input_splitted = ["{", '"', "abc", 'b"', ":", "6", ", ", " ", '"a":true', "}"]
     input_ids = [token_table.index(t) for t in input_splitted]
 
     grammar_state_matcher = GrammarStateMatcher(json_grammar, token_table)
@@ -358,7 +356,7 @@ def test_reset(json_grammar: BNFGrammar):
 
     for i in input_ids:
         orig_result.append(grammar_state_matcher.find_next_rejected_tokens())
-        grammar_state_matcher.accept_token(i)
+        assert grammar_state_matcher.accept_token(i)
 
     grammar_state_matcher.reset_state()
 
@@ -366,20 +364,20 @@ def test_reset(json_grammar: BNFGrammar):
 
     for i in input_ids:
         result_after_reset.append(grammar_state_matcher.find_next_rejected_tokens())
-        grammar_state_matcher.accept_token(i)
+        assert grammar_state_matcher.accept_token(i)
 
     assert orig_result == result_after_reset
 
 
 if __name__ == "__main__":
     # Run a benchmark to show the performance before running tests
-    test_find_rejected_tokens(
+    test_find_next_rejected_tokens(
         BNFGrammar.get_grammar_of_json(),
-        '{"id": 1,"name": "Example"} ',
+        '{"id": 1,"name": "Example"}',
         [
             # fmt: off
-            31989, 31907, 278, 278, 278, 31973, 31841, 31841, 31948, 31910, 278, 278, 278, 278,
-            278, 31973, 31841, 31841, 271, 271, 271, 271, 271, 271, 271, 271, 31974, 31980, 31980
+            31989, 31912, 299, 299, 299, 31973, 31846, 31846, 31948, 31915, 299, 299, 299, 299,
+            299, 31973, 31846, 31846, 292, 292, 292, 292, 292, 292, 292, 292, 31974, 31999
             # fmt: on
         ],
     )

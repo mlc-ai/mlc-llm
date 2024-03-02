@@ -50,7 +50,7 @@ class BitsetManager {
  * \brief Let lhs be the union of lhs and rhs. Suppose that both sets are sorted.
  * \note No additional vectors are allocated, and the time complexity is O(n)
  */
-void IntsetUnion(std::vector<int32_t>* lhs, const std::vector<int32_t>& rhs) {
+inline void IntsetUnion(std::vector<int32_t>* lhs, const std::vector<int32_t>& rhs) {
   int original_lhs_size = lhs->size();
   int rhs_size = rhs.size();
 
@@ -91,7 +91,7 @@ void IntsetUnion(std::vector<int32_t>* lhs, const std::vector<int32_t>& rhs) {
  * \note Support the case where lhs is the universal set by setting lhs to {-1}. The result will be
  * rhs then.
  */
-void IntsetIntersection(std::vector<int32_t>* lhs, const std::vector<int32_t>& rhs) {
+inline void IntsetIntersection(std::vector<int32_t>* lhs, const std::vector<int32_t>& rhs) {
   if (lhs->size() == 1 && (*lhs)[0] == -1) {
     *lhs = rhs;
     return;

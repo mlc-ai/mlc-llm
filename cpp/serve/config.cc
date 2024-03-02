@@ -130,6 +130,26 @@ GenerationConfig::GenerationConfig(String config_json_str) {
     CHECK(config["ignore_eos"].is<bool>());
     n->ignore_eos = config["ignore_eos"].get<bool>();
   }
+
+  if (config.count("response_format")) {
+    CHECK(config["response_format"].is<picojson::object>());
+    picojson::object response_format_json = config["response_format"].get<picojson::object>();
+    ResponseFormat response_format;
+    if (response_format_json.count("type")) {
+      CHECK(response_format_json["type"].is<std::string>());
+      response_format.type = response_format_json["type"].get<std::string>();
+    }
+    if (response_format_json.count("json_schema")) {
+      if (response_format_json["json_schema"].is<picojson::null>()) {
+        response_format.json_schema = NullOpt;
+      } else {
+        CHECK(response_format_json["json_schema"].is<std::string>());
+        response_format.json_schema = response_format_json["json_schema"].get<std::string>();
+      }
+    }
+    n->response_format = response_format;
+  }
+
   data_ = std::move(n);
 }
 
@@ -165,6 +185,13 @@ String GenerationConfigNode::AsJSONString() const {
 
   // Params for benchmarking. Not the part of openai spec.
   config["ignore_eos"] = picojson::value(this->ignore_eos);
+
+  picojson::object response_format;
+  response_format["type"] = picojson::value(this->response_format.type);
+  response_format["json_schema"] = this->response_format.json_schema
+                                       ? picojson::value(this->response_format.json_schema.value())
+                                       : picojson::value();
+  config["response_format"] = picojson::value(response_format);
 
   return picojson::value(config).serialize(true);
 }
