@@ -266,6 +266,7 @@ class CPUSampler : public SamplerObj {
                                               const Array<String>& request_ids,               //
                                               const Array<GenerationConfig>& generation_cfg,  //
                                               const std::vector<RandomGenerator*>& rngs,      //
+                                              const std::vector<int>* prob_indices,           //
                                               std::vector<NDArray>* output_prob_dist) final {
     // probs_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
@@ -276,10 +277,12 @@ class CPUSampler : public SamplerObj {
     RECORD_EVENT(trace_recorder_, request_ids, "finish copy probs to CPU");
 
     // - Sample tokens from probabilities.
-    ICHECK_EQ(probs_host->shape[0], request_ids.size());
-    ICHECK_EQ(probs_host->shape[0], generation_cfg.size());
-    ICHECK_EQ(probs_host->shape[0], rngs.size());
-    int n = probs_host->shape[0];
+    int n = request_ids.size();
+    ICHECK_EQ(generation_cfg.size(), n);
+    ICHECK_EQ(rngs.size(), n);
+    if (prob_indices == nullptr) {
+      ICHECK_EQ(probs_host->shape[0], n);
+    }
 
     std::vector<SampleResult> sample_results;
     sample_results.resize(n);
@@ -288,12 +291,13 @@ class CPUSampler : public SamplerObj {
     }
 
     tvm::runtime::parallel_for_with_threading_backend(
-        [this, &sample_results, &probs_host, &generation_cfg, &rngs, &request_ids,
+        [this, &sample_results, &probs_host, &generation_cfg, &rngs, &request_ids, prob_indices,
          output_prob_dist](int i) {
           RECORD_EVENT(this->trace_recorder_, request_ids[i], "start sample token");
           // Sample top p from probability.
           sample_results[i].sampled_token_id = SampleTopPFromProb(
-              probs_host, i, generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p,
+              probs_host, prob_indices == nullptr ? i : prob_indices->at(i),
+              generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p,
               rngs[i]->GetRandomNumber(), output_prob_dist);
           if (output_prob_dist == nullptr) {
             // When `output_prob_dist` is not nullptr, it means right now

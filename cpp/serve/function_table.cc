@@ -204,6 +204,8 @@ void FunctionTable::_InitFunctions() {
   this->reset_kv_cache_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_clear");
   this->kv_cache_add_sequence_func_ =
       get_global_func("vm.builtin.paged_attention_kv_cache_add_sequence");
+  this->kv_cache_fork_sequence_func_ =
+      get_global_func("vm.builtin.paged_attention_kv_cache_fork_sequence");
   this->kv_cache_remove_sequence_func_ =
       get_global_func("vm.builtin.paged_attention_kv_cache_remove_sequence");
   this->kv_cache_begin_forward_func_ =

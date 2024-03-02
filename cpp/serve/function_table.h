@@ -78,6 +78,7 @@ struct FunctionTable {
   PackedFunc reset_kv_cache_func_;
   bool support_backtracking_kv_;
   PackedFunc kv_cache_add_sequence_func_;
+  PackedFunc kv_cache_fork_sequence_func_;
   PackedFunc kv_cache_remove_sequence_func_;
   PackedFunc kv_cache_begin_forward_func_;
   PackedFunc kv_cache_end_forward_func_;

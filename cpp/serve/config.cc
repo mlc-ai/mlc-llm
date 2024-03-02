@@ -29,6 +29,11 @@ GenerationConfig::GenerationConfig(String config_json_str) {
   ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
 
   picojson::object config = config_json.get<picojson::object>();
+  if (config.count("n")) {
+    CHECK(config["n"].is<int64_t>());
+    n->n = config["n"].get<int64_t>();
+    CHECK_GT(n->n, 0) << "\"n\" should be at least 1";
+  }
   if (config.count("temperature")) {
     CHECK(config["temperature"].is<double>());
     n->temperature = config["temperature"].get<double>();
@@ -155,6 +160,7 @@ GenerationConfig::GenerationConfig(String config_json_str) {
 
 String GenerationConfigNode::AsJSONString() const {
   picojson::object config;
+  config["n"] = picojson::value(static_cast<int64_t>(this->n));
   config["temperature"] = picojson::value(this->temperature);
   config["top_p"] = picojson::value(this->top_p);
   config["frequency_penalty"] = picojson::value(this->frequency_penalty);

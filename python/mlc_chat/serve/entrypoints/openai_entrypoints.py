@@ -91,14 +91,15 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     if request.stream:
 
         async def completion_stream_generator() -> AsyncGenerator[str, None]:
-            assert request.n == 1
-
             # - Echo back the prompt.
             if request.echo:
                 text = async_engine.tokenizer.decode(prompt)
                 response = CompletionResponse(
                     id=request_id,
-                    choices=[CompletionResponseChoice(text=text)],
+                    choices=[
+                        CompletionResponseChoice(index=i, text=text)
+                        for i in range(generation_cfg.n)
+                    ],
                     model=request.model,
                     usage=UsageInfo(
                         prompt_tokens=len(prompt),
@@ -109,37 +110,45 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
 
             # - Generate new tokens.
             num_completion_tokens = 0
-            finish_reason = None
+            finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
             async_engine.record_event(request_id, event="invoke generate")
-            async for (
-                delta_text,
-                num_delta_tokens,
-                delta_logprob_json_strs,
-                finish_reason,
-            ) in async_engine.generate(prompt, generation_cfg, request_id):
-                num_completion_tokens += num_delta_tokens
-                if delta_text == "":
-                    # Ignore empty delta text -- do not yield.
-                    continue
+            async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):
+                assert len(delta_outputs) == generation_cfg.n
+                choices = []
+                for i, delta_output in enumerate(delta_outputs):
+                    finish_reason_updated = False
+                    if delta_output.finish_reason is not None and finish_reasons[i] is None:
+                        finish_reasons[i] = delta_output.finish_reason
+                        finish_reason_updated = True
+                    num_completion_tokens += delta_output.num_delta_tokens
+                    if not finish_reason_updated and delta_output.delta_text == "":
+                        # Ignore empty delta text when finish reason is not updated.
+                        continue
 
-                response = CompletionResponse(
-                    id=request_id,
-                    choices=[
+                    choices.append(
                         CompletionResponseChoice(
-                            finish_reason=finish_reason,
-                            text=delta_text,
+                            index=i,
+                            finish_reason=finish_reasons[i],
+                            text=delta_output.delta_text,
                             logprobs=(
                                 LogProbs(
                                     content=[
                                         LogProbsContent.model_validate_json(logprob_json_str)
-                                        for logprob_json_str in delta_logprob_json_strs
+                                        for logprob_json_str in delta_output.delta_logprob_json_strs
                                     ]
                                 )
-                                if delta_logprob_json_strs is not None
+                                if delta_output.delta_logprob_json_strs is not None
                                 else None
                             ),
                         )
-                    ],
+                    )
+
+                if len(choices) == 0:
+                    # Skip yield when there is no delta output.
+                    continue
+                response = CompletionResponse(
+                    id=request_id,
+                    choices=choices,
                     model=request.model,
                     usage=UsageInfo(
                         prompt_tokens=len(prompt),
@@ -151,14 +160,16 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
 
             # - Echo the suffix.
             if request.suffix is not None:
-                assert finish_reason is not None
+                assert all(finish_reason is not None for finish_reason in finish_reasons)
                 response = CompletionResponse(
                     id=request_id,
                     choices=[
                         CompletionResponseChoice(
+                            index=i,
                             finish_reason=finish_reason,
                             text=request.suffix,
                         )
+                        for i, finish_reason in enumerate(finish_reasons)
                     ],
                     model=request.model,
                     usage=UsageInfo(
@@ -175,17 +186,15 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         )
 
     # Normal response.
-    output_text = "" if not request.echo else async_engine.tokenizer.decode(prompt)
+    init_output_text = "" if not request.echo else async_engine.tokenizer.decode(prompt)
+    output_texts = [init_output_text for _ in range(generation_cfg.n)]
     num_completion_tokens = 0
-    finish_reason: Optional[str] = None
-    logprob_json_strs: Optional[List[str]] = [] if generation_cfg.logprobs else None
+    finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
+    logprob_json_strs_list: Optional[List[List[str]]] = (
+        [[] for _ in range(generation_cfg.n)] if generation_cfg.logprobs else None
+    )
     async_engine.record_event(request_id, event="invoke generate")
-    async for (
-        delta_text,
-        num_delta_tokens,
-        delta_logprob_json_strs,
-        finish_reason,
-    ) in async_engine.generate(prompt, generation_cfg, request_id):
+    async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
             # when the request is disconnected.
@@ -195,31 +204,40 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             return entrypoint_utils.create_error_response(
                 HTTPStatus.BAD_REQUEST, message="The request has disconnected"
             )
-        output_text += delta_text
-        num_completion_tokens += num_delta_tokens
-        if logprob_json_strs is not None:
-            assert delta_logprob_json_strs is not None
-            logprob_json_strs += delta_logprob_json_strs
-    assert finish_reason is not None
+
+        assert len(delta_outputs) == generation_cfg.n
+        for i, delta_output in enumerate(delta_outputs):
+            if delta_output.finish_reason is not None and finish_reasons[i] is None:
+                finish_reasons[i] = delta_output.finish_reason
+            output_texts[i] += delta_output.delta_text
+            num_completion_tokens += delta_output.num_delta_tokens
+            if logprob_json_strs_list is not None:
+                assert delta_output.delta_logprob_json_strs is not None
+                logprob_json_strs_list[i] += delta_output.delta_logprob_json_strs
+    assert all(finish_reason is not None for finish_reason in finish_reasons)
     suffix = request.suffix if request.suffix is not None else ""
     async_engine.record_event(request_id, event="finish")
     response = CompletionResponse(
         id=request_id,
         choices=[
             CompletionResponseChoice(
+                index=i,
                 finish_reason=finish_reason,
                 text=output_text + suffix,
                 logprobs=(
                     LogProbs(
                         content=[
                             LogProbsContent.model_validate_json(logprob_json_str)
-                            for logprob_json_str in logprob_json_strs
+                            for logprob_json_str in logprob_json_strs_list[  # pylint: disable=unsubscriptable-object
+                                i
+                            ]
                         ]
                     )
-                    if logprob_json_strs is not None
+                    if logprob_json_strs_list is not None
                     else None
                 ),
             )
+            for i, (output_text, finish_reason) in enumerate(zip(output_texts, finish_reasons))
         ],
         model=request.model,
         usage=UsageInfo(
@@ -408,44 +426,55 @@ async def request_chat_completion(
     if request.stream:
 
         async def completion_stream_generator() -> AsyncGenerator[str, None]:
-            assert request.n == 1
             async_engine.record_event(request_id, event="invoke generate")
-            async for (
-                delta_text,
-                _,
-                delta_logprob_json_strs,
-                finish_reason,
-            ) in async_engine.generate(prompt, generation_cfg, request_id):
-                if delta_text == "":
-                    async_engine.record_event(request_id, event="skip empty delta text")
-                    # Ignore empty delta text -- do not yield.
-                    continue
+            finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
+            async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):
+                assert len(delta_outputs) == generation_cfg.n
+                choices = []
+                for i, delta_output in enumerate(delta_outputs):
+                    finish_reason_updated = False
+                    if delta_output.finish_reason is not None and finish_reasons[i] is None:
+                        finish_reasons[i] = (
+                            delta_output.finish_reason
+                            if not conv_template.use_function_calling
+                            else "tool_calls"
+                        )
+                        finish_reason_updated = True
+                    if not finish_reason_updated and delta_output.delta_text == "":
+                        # Ignore empty delta text when finish reason is not updated.
+                        async_engine.record_event(request_id, event="skip empty delta text")
+                        continue
 
-                if conv_template.use_function_calling:
-                    finish_reason = "tool_calls"
-
-                response = ChatCompletionStreamResponse(
-                    id=request_id,
-                    choices=[
+                    choices.append(
                         ChatCompletionStreamResponseChoice(
-                            finish_reason=finish_reason,
-                            delta=ChatCompletionMessage(content=delta_text, role="assistant"),
+                            index=i,
+                            finish_reason=finish_reasons[i],
+                            delta=ChatCompletionMessage(
+                                content=delta_output.delta_text, role="assistant"
+                            ),
                             logprobs=(
                                 LogProbs(
                                     content=[
                                         LogProbsContent.model_validate_json(logprob_json_str)
-                                        for logprob_json_str in delta_logprob_json_strs
+                                        for logprob_json_str in delta_output.delta_logprob_json_strs
                                     ]
                                 )
-                                if delta_logprob_json_strs is not None
+                                if delta_output.delta_logprob_json_strs is not None
                                 else None
                             ),
                         )
-                    ],
+                    )
+
+                if len(choices) == 0:
+                    # Skip yield when there is no delta output.
+                    continue
+                response = ChatCompletionStreamResponse(
+                    id=request_id,
+                    choices=choices,
                     model=request.model,
                     system_fingerprint="",
                 )
-                async_engine.record_event(request_id, event=f"yield delta text {delta_text}")
+                async_engine.record_event(request_id, event="yield delta output")
                 yield f"data: {response.model_dump_json()}\n\n"
             async_engine.record_event(request_id, event="finish")
             yield "data: [DONE]\n\n"
@@ -455,17 +484,14 @@ async def request_chat_completion(
         )
 
     # Normal response.
-    output_text = ""
+    output_texts = ["" for _ in range(generation_cfg.n)]
     num_completion_tokens = 0
-    finish_reason: Optional[str] = None
-    logprob_json_strs: Optional[List[str]] = [] if generation_cfg.logprobs else None
+    finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
+    logprob_json_strs_list: Optional[List[List[str]]] = (
+        [[] for _ in range(generation_cfg.n)] if generation_cfg.logprobs else None
+    )
     async_engine.record_event(request_id, event="invoke generate")
-    async for (
-        delta_text,
-        num_delta_tokens,
-        delta_logprob_json_strs,
-        finish_reason,
-    ) in async_engine.generate(prompt, generation_cfg, request_id):
+    async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
             # when the request is disconnected.
@@ -475,60 +501,71 @@ async def request_chat_completion(
             return entrypoint_utils.create_error_response(
                 HTTPStatus.BAD_REQUEST, message="The request has disconnected"
             )
-        output_text += delta_text
-        num_completion_tokens += num_delta_tokens
-        if logprob_json_strs is not None:
-            assert delta_logprob_json_strs is not None
-            logprob_json_strs += delta_logprob_json_strs
-    assert finish_reason is not None
+
+        assert len(delta_outputs) == generation_cfg.n
+        for i, delta_output in enumerate(delta_outputs):
+            if delta_output.finish_reason is not None and finish_reasons[i] is None:
+                finish_reasons[i] = delta_output.finish_reason
+            output_texts[i] += delta_output.delta_text
+            num_completion_tokens += delta_output.num_delta_tokens
+            if logprob_json_strs_list is not None:
+                assert delta_output.delta_logprob_json_strs is not None
+                logprob_json_strs_list[i] += delta_output.delta_logprob_json_strs
+    assert all(finish_reason is not None for finish_reason in finish_reasons)
 
     async_engine.record_event(request_id, event="finish")
 
+    tool_calls_list: List[List[ChatToolCall]] = [[] for _ in range(generation_cfg.n)]
     if conv_template.use_function_calling:
-        try:
-            fn_json_list = convert_function_str_to_json(output_text)
-        except (SyntaxError, ValueError):
-            output_text = "Got an invalid function call output from model"
-            finish_reason = "error"
-        else:
-            tool_calls = [
-                ChatToolCall(
-                    type="function",
-                    function=ChatFunctionCall(
-                        name=fn_json_obj["name"], arguments=fn_json_obj["arguments"]
-                    ),
-                )
-                for fn_json_obj in fn_json_list
-                if fn_json_obj is not None
-            ]
-            if len(tool_calls) == 0:
+        for i, output_text in enumerate(output_texts):
+            try:
+                fn_json_list = convert_function_str_to_json(output_text)
+            except (SyntaxError, ValueError):
                 output_text = "Got an invalid function call output from model"
-                finish_reason = "error"
+                finish_reasons[i] = "error"
             else:
-                finish_reason = "tool_calls"
-
-    message = (
-        ChatCompletionMessage(role="assistant", content=output_text)
-        if (not conv_template.use_function_calling or finish_reason == "error")
-        else ChatCompletionMessage(role="assistant", content=None, tool_calls=tool_calls)
-    )
+                tool_calls_list[i] = [
+                    ChatToolCall(
+                        type="function",
+                        function=ChatFunctionCall(
+                            name=fn_json_obj["name"], arguments=fn_json_obj["arguments"]
+                        ),
+                    )
+                    for fn_json_obj in fn_json_list
+                    if fn_json_obj is not None
+                ]
+                if len(tool_calls_list[i]) == 0:
+                    output_texts[i] = "Got an invalid function call output from model"
+                    finish_reasons[i] = "error"
+                else:
+                    finish_reasons[i] = "tool_calls"
 
     return ChatCompletionResponse(
         id=request_id,
         choices=[
             ChatCompletionResponseChoice(
-                finish_reason=finish_reason,
-                message=message,
+                index=i,
+                finish_reason=finish_reasons[i],
+                message=(
+                    ChatCompletionMessage(role="assistant", content=output_text)
+                    if (not conv_template.use_function_calling or finish_reason == "error")
+                    else ChatCompletionMessage(role="assistant", tool_calls=tool_calls)
+                ),
                 logprobs=(
                     LogProbs(
                         content=[
                             LogProbsContent.model_validate_json(logprob_json_str)
-                            for logprob_json_str in logprob_json_strs
+                            for logprob_json_str in logprob_json_strs_list[  # pylint: disable=unsubscriptable-object
+                                i
+                            ]
                         ]
                     )
-                    if logprob_json_strs is not None
+                    if logprob_json_strs_list is not None
                     else None
                 ),
+            )
+            for i, (output_text, finish_reason, tool_calls) in enumerate(
+                zip(output_texts, finish_reasons, tool_calls_list)
             )
         ],
         model=request.model,

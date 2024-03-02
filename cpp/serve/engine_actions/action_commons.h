@@ -46,15 +46,31 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
                            int max_single_sequence_length);
 
 /*!
- * \brief Preempt the last running requests from `running_queue`,
- * moving it from running request set to the foremost of waiting
- * request queue.
+ * \brief Preempt the last running request state entry from `running_queue`.
+ * If all entries of the the selected request have been preempted,
+ * remove it from running request.
+ * If it is not in the waiting request queue, add it to the waiting queue.
  * \param estate The engine state to update due to preemption.
  * \param models The models to remove preempted requests from.
  * \param trace_recorder The event trace recorder for requests.
+ * \return The preempted request state.
  */
-void PreemptLastRunningRequest(EngineState estate, const Array<Model>& models,
-                               Optional<EventTraceRecorder> trace_recorder);
+RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
+                                                      const Array<Model>& models,
+                                                      Optional<EventTraceRecorder> trace_recorder);
+
+/*! \brief Get the running request entries from the engine state. */
+inline std::vector<RequestStateEntry> GetRunningRequestStateEntries(const EngineState& estate) {
+  std::vector<RequestStateEntry> rsentries;
+  for (const Request& request : estate->running_queue) {
+    for (const RequestStateEntry& rsentry : estate->GetRequestState(request)) {
+      if (rsentry->status == RequestStateStatus::kAlive && rsentry->children_idx.empty()) {
+        rsentries.push_back(rsentry);
+      }
+    }
+  }
+  return rsentries;
+}
 
 }  // namespace serve
 }  // namespace llm

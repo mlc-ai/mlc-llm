@@ -371,6 +371,10 @@ class ModelImpl : public ModelObj {
 
   void AddNewSequence(int64_t seq_id) final { ft_.kv_cache_add_sequence_func_(kv_cache_, seq_id); }
 
+  void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id) final {
+    ft_.kv_cache_fork_sequence_func_(kv_cache_, parent_seq_id, child_seq_id);
+  }
+
   /*! \brief Remove the given sequence from the KV cache in the model. */
   void RemoveSequence(int64_t seq_id) final {
     ft_.kv_cache_remove_sequence_func_(kv_cache_, seq_id);

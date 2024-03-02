@@ -35,6 +35,9 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
 
     Parameters
     ----------
+    n : int
+        How many chat completion choices to generate for each input message.
+
     temperature : float
         The value that applies to logits and modulates the next token probabilities.
 
@@ -92,6 +95,7 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
         The response format of the generation output.
     """
 
+    n: int = 1
     temperature: float = 0.8
     top_p: float = 0.95
     frequency_penalty: float = 0.0

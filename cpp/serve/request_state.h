@@ -119,10 +119,57 @@ struct DeltaRequestReturn {
   Optional<String> finish_reason;
 };
 
-class RequestStateNode : public Object {
+/****************** Request States ******************/
+
+/*!
+ * \brief For each request, we maintain its "request state" in the
+ * engine. Generally, the state of a request contains the information
+ * of the request's generation at the current moment, including
+ * the generated token ids, the grammar handler, etc.
+ *
+ * When a request has multiple parallel generations (e.g., the field
+ * `n` of its generation config is more than 1), each generation will
+ * have different states all the time.
+ *
+ * Therefore, to better support parallel generations, we denote the
+ * state of a single generation as a "RequestStateEntry" instance,
+ * and denote the state of a request's all generations using a vector,
+ * named as a "RequestState" instance.
+ *
+ * A request's all state entries are organized as a tree structure
+ * when there are parallel generations.
+ * - the request input has the root status entry,
+ * - each parallel generation is a child of the root.
+ * This tree structure may be further extended to more complicated
+ * cases in the future. As of now, for the case of `n > 1`, there
+ * will be (n + 1) entries in total. In a "RequestState", the root
+ * entry always has index 0. And we guarantee that the entry order
+ * from the vector begin to the end is always a topological order
+ * of the tree.
+ */
+
+/*! \brief Request state status. */
+enum class RequestStateStatus : int {
+  kPending = 0,
+  kAlive = 1,
+  kFinished = 2,
+};
+
+class RequestStateEntryNode : public Object {
  public:
+  /*! \brief The status of the request state. */
+  RequestStateStatus status;
   /*! \brief The request that this state corresponds to. */
   Request request;
+  /*!
+   * \brief The idx of the parent request state of this state.
+   * Being -1 means the state has no parent and is the foremost
+   * "prefix" state or the only state.
+   */
+  int parent_idx = -1;
+  /*! \brief The children indices of the request state. */
+  std::vector<int> children_idx;
+
   /*!
    * \brief The state with regard to each model.
    * \sa RequestModelState
@@ -154,20 +201,24 @@ class RequestStateNode : public Object {
    */
   DeltaRequestReturn GetReturnTokenIds(const Tokenizer& tokenizer, int max_single_sequence_length);
 
-  static constexpr const char* _type_key = "mlc.serve.RequestState";
+  static constexpr const char* _type_key = "mlc.serve.RequestStateEntry";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_FINAL_OBJECT_INFO(RequestStateNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RequestStateEntryNode, Object);
 };
 
-class RequestState : public ObjectRef {
+class RequestStateEntry : public ObjectRef {
  public:
-  explicit RequestState(Request request, int num_models, int64_t internal_id,
-                        const std::vector<std::string>& token_table,
-                        std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx);
+  explicit RequestStateEntry(Request request, int num_models, int64_t internal_id, int rng_seed,
+                             const std::vector<std::string>& token_table,
+                             std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx,
+                             int parent_idx = -1);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestState, ObjectRef, RequestStateNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestStateEntry, ObjectRef, RequestStateEntryNode);
 };
+
+/*! \brief A request's state, which groups all the request state entries. */
+typedef std::vector<RequestStateEntry> RequestState;
 
 }  // namespace serve
 }  // namespace llm
