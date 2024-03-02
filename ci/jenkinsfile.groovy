@@ -47,7 +47,10 @@ def unpack_lib(name, libs) {
 
 def init_git(submodule = false) {
   cleanWs()
-  checkout scm
+  // add retry in case checkout timeouts
+  retry(5) {
+    checkout scm
+  }
   if (submodule) {
     retry(5) {
       timeout(time: 10, unit: 'MINUTES') {
