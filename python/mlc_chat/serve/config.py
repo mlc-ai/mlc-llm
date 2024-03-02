@@ -2,7 +2,31 @@
 
 import json
 from dataclasses import asdict, dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
+
+
+@dataclass
+class ResponseFormat:
+    """The response format dataclass.
+
+    Parameters
+    ----------
+    type : Literal["text", "json_object"]
+        The type of response format. Default: "text".
+
+    json_schema : Optional[str]
+        The JSON schema string for the JSON response format. If None, a legal json string without
+        special restrictions will be generated.
+
+        Could be specified when the response format is "json_object". Default: None.
+    """
+
+    type: Literal["text", "json_object"] = "text"
+    json_schema: Optional[str] = None
+
+    def __post_init__(self):
+        if self.json_schema is not None and self.type != "json_object":
+            raise ValueError("JSON json_schema is only supported in JSON response format")
 
 
 @dataclass
@@ -16,7 +40,7 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
 
     top_p : float
         In sampling, only the most probable tokens with probabilities summed up to
-        `top_k` are kept for sampling.
+        `top_p` are kept for sampling.
 
     frequency_penalty : float
         Positive values penalize new tokens based on their existing frequency
@@ -63,6 +87,9 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     ignore_eos: bool
         When it is true, ignore the eos token and generate tokens until `max_tokens`.
         Default is set to False.
+
+    response_format : ResponseFormat
+        The response format of the generation output.
     """
 
     temperature: float = 0.8
@@ -79,6 +106,8 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     stop_strs: List[str] = field(default_factory=list)
     stop_token_ids: List[int] = field(default_factory=list)
     ignore_eos: bool = False
+
+    response_format: ResponseFormat = field(default_factory=ResponseFormat)
 
     def asjson(self) -> str:
         """Return the config in string of JSON format."""

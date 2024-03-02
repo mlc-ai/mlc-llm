@@ -19,6 +19,7 @@
 #include "engine_actions/action_commons.h"
 #include "engine_state.h"
 #include "event_trace_recorder.h"
+#include "grammar/grammar_state_matcher.h"
 #include "logit_processor.h"
 #include "model.h"
 #include "request.h"
@@ -56,6 +57,8 @@ class EngineImpl : public Engine {
     this->trace_recorder_ = trace_recorder;
     this->tokenizer_ = Tokenizer::FromPath(tokenizer_path);
     this->token_table_ = tokenizer_->TokenTable();
+    this->json_grammar_state_init_ctx_ =
+        GrammarStateMatcher::CreateInitContext(BNFGrammar::GetGrammarOfJSON(), this->token_table_);
     // Step 2. Initialize each model independently.
     //         Create the logit processor and sampler.
     this->models_.clear();
@@ -133,8 +136,8 @@ class EngineImpl : public Engine {
     // Append to the waiting queue and create the request state.
     estate_->waiting_queue.push_back(request);
     estate_->request_states.emplace(
-        request->id,
-        RequestState(request, models_.size(), estate_->id_manager.GetNewId(), token_table_));
+        request->id, RequestState(request, models_.size(), estate_->id_manager.GetNewId(),
+                                  token_table_, json_grammar_state_init_ctx_));
   }
 
   void AbortRequest(const String& request_id) final {
@@ -208,6 +211,8 @@ class EngineImpl : public Engine {
   int max_single_sequence_length_;
   Tokenizer tokenizer_;
   std::vector<std::string> token_table_;
+  // The initial context for the grammar state matching of JSON.
+  std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx_;
   // Models
   Array<Model> models_;
   // Request stream callback function

@@ -55,7 +55,7 @@ struct FunctionTable {
   bool use_disco = false;
   Session sess{nullptr};
   DRef disco_mod{nullptr};
-  Map<String, DRef> disco_buffers;
+  Map<String, DRef> disco_buffers{nullptr};
   tvm::runtime::Module local_vm{nullptr};
   picojson::object model_config;
 

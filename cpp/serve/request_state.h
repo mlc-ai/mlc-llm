@@ -13,6 +13,7 @@
 #include "../random.h"
 #include "../streamer.h"
 #include "config.h"
+#include "grammar/grammar_state_matcher.h"
 #include "request.h"
 
 namespace mlc {
@@ -70,13 +71,25 @@ class RequestModelStateNode : public Object {
   /*! \brief The appeared committed and draft tokens and their occurrence times. */
   std::unordered_map<int32_t, int32_t> appeared_token_ids;
 
+  /*!
+   * \brief The current state of the generated token matching the grammar. Used in grammar-guided
+   * generation, otherwise it's NullOpt.
+   */
+  Optional<GrammarStateMatcher> grammar_state_matcher;
+
   /*! \brief Return the total length of the input data. */
   int GetInputLength() const;
   /*!
-   * \brief Return the token bitmask induced by the current state.
-   * The returned vector should have size "ceildiv(vocab_size, 32)".
+   * \brief Return whether the next token bitmask is required, i.e. the grammar-guided generation is
+   * enabled.
    */
-  std::vector<int> GetTokenBitmask(int vocab_size) const;
+  bool RequireNextTokenBitmask();
+  /*!
+   * \brief Find the next token bitmask and store it in the given DLTensor.
+   * \param bitmask The DLTensor to store the next token bitmask. The bitmask should be a tensor
+   * with dtype uint32_t and shape (ceildiv(vocab_size, 32),).
+   */
+  void FindNextTokenBitmask(DLTensor* bitmask);
   /*! \brief Commit a new token into committed_tokens. Update appeared_token_ids. */
   void CommitToken(SampleResult sampled_token);
   /*! \brief Add a draft token into draft_output_tokens. Update appeared_token_ids. */
@@ -94,8 +107,8 @@ class RequestModelStateNode : public Object {
 
 class RequestModelState : public ObjectRef {
  public:
-  explicit RequestModelState(Request request, int model_id, int64_t internal_id,
-                             Array<Data> inputs);
+  explicit RequestModelState(Request request, int model_id, int64_t internal_id, Array<Data> inputs,
+                             std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestModelState, ObjectRef, RequestModelStateNode);
 };
@@ -131,13 +144,13 @@ class RequestStateNode : public Object {
   std::chrono::high_resolution_clock::time_point tprefill_finish;
 
   /*!
-   * \brief Get the delta token ids and the logprob JSON strings for this
-   * request to return since the last time calling into this function,
-   * and return the finish reason if the request generation has finished.
+   * \brief Get the delta token ids and the logprob JSON strings for this request to return since
+   * the last time calling into this function, and return the finish reason if the request
+   * generation has finished.
    * \param tokenizer The tokenizer for logprob process.
    * \param max_single_sequence_length The maximum allowed single sequence length.
-   * \return The delta token ids to return, the logprob JSON strings of each
-   * delta token id, and the optional finish reason.
+   * \return The delta token ids to return, the logprob JSON strings of each delta token id, and
+   * the optional finish reason.
    */
   DeltaRequestReturn GetReturnTokenIds(const Tokenizer& tokenizer, int max_single_sequence_length);
 
@@ -150,7 +163,8 @@ class RequestStateNode : public Object {
 class RequestState : public ObjectRef {
  public:
   explicit RequestState(Request request, int num_models, int64_t internal_id,
-                        const std::vector<std::string>& token_table);
+                        const std::vector<std::string>& token_table,
+                        std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestState, ObjectRef, RequestStateNode);
 };

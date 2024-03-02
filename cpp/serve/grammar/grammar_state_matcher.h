@@ -77,7 +77,7 @@ class GrammarStateMatcherNode : public Object {
   virtual void Rollback(int num_tokens) = 0;
 
   /*! \brief Get the maximum number of rollback steps allowed. */
-  virtual int MaxRollbackSteps() = 0;
+  virtual int MaxRollbackSteps() const = 0;
 
   /*! \brief Reset the matcher to the initial state. */
   virtual void ResetState() = 0;
