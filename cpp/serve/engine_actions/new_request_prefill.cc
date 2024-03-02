@@ -7,6 +7,7 @@
 #include "../model.h"
 #include "../sampler.h"
 #include "action.h"
+#include "action_commons.h"
 
 namespace mlc {
 namespace llm {
@@ -20,32 +21,49 @@ class NewRequestPrefillActionObj : public EngineActionObj {
  public:
   explicit NewRequestPrefillActionObj(Array<Model> models, LogitProcessor logit_processor,
                                       Sampler sampler, KVCacheConfig kv_cache_config,
+                                      EngineMode engine_mode,
                                       Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         kv_cache_config_(std::move(kv_cache_config)),
+        engine_mode_(std::move(engine_mode)),
         trace_recorder_(std::move(trace_recorder)) {}
 
   Array<Request> Step(EngineState estate) final {
     // - Find the requests in `waiting_queue` that can prefill in this step.
-    auto [requests, rstates, prefill_lengths] = GetRequestsToPrefill(estate);
-    ICHECK_EQ(requests.size(), rstates.size());
-    ICHECK_EQ(requests.size(), prefill_lengths.size());
-    if (requests.empty()) {
+    auto [rstates, prefill_lengths] = GetRequestStatesToPrefill(estate);
+    ICHECK_EQ(rstates.size(), prefill_lengths.size());
+    if (rstates.empty()) {
       return {};
     }
 
-    int num_requests = requests.size();
-    Array<String> request_ids = requests.Map([](const Request& request) { return request->id; });
+    int num_rstates = rstates.size();
     auto tstart = std::chrono::high_resolution_clock::now();
 
-    // - Move requests from waiting queue to running queue.
-    for (int i = 0; i < num_requests; ++i) {
-      auto it = std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), requests[i]);
-      ICHECK(it != estate->waiting_queue.end());
-      estate->waiting_queue.erase(it);
-      estate->running_queue.push_back(requests[i]);
+    // - Update status of request states from pending to alive.
+    Array<String> request_ids;
+    std::vector<RequestState> rstates_of_requests;
+    request_ids.reserve(num_rstates);
+    rstates_of_requests.reserve(num_rstates);
+    for (RequestStateEntry rstate : rstates) {
+      const Request& request = rstate->request;
+      RequestState request_rstates = estate->GetRequestState(request);
+      request_ids.push_back(request->id);
+      rstate->status = RequestStateStatus::kAlive;
+
+      // - Remove the request from waiting queue if all its request states are now alive.
+      // - Add the request to running queue if all its request states were pending.
+      bool alive_state_existed = false;
+      for (const RequestStateEntry& request_state : request_rstates) {
+        if (request_state->status == RequestStateStatus::kAlive && !request_state.same_as(rstate)) {
+          alive_state_existed = true;
+        }
+      }
+      if (!alive_state_existed) {
+        estate->running_queue.push_back(request);
+      }
+      rstates_of_requests.push_back(std::move(request_rstates));
     }
 
     // - Get embedding and run prefill for each model.
@@ -53,22 +71,28 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
       Array<NDArray> embeddings;
       std::vector<int64_t> request_internal_ids;
-      embeddings.reserve(num_requests);
-      request_internal_ids.reserve(num_requests);
-      for (int i = 0; i < num_requests; ++i) {
+      embeddings.reserve(num_rstates);
+      request_internal_ids.reserve(num_rstates);
+      for (int i = 0; i < num_rstates; ++i) {
         RequestModelState mstate = rstates[i]->mstates[model_id];
         ICHECK_EQ(mstate->GetInputLength(), prefill_lengths[i]);
         ICHECK(mstate->draft_output_tokens.empty());
         ICHECK(mstate->draft_output_prob_dist.empty());
         ICHECK(!mstate->inputs.empty());
-        // Add the sequence to the model.
-        models_[model_id]->AddNewSequence(mstate->internal_id);
+        // Add the sequence to the model, or fork the sequence from its parent.
+        if (rstates[i]->parent_idx == -1) {
+          models_[model_id]->AddNewSequence(mstate->internal_id);
+        } else {
+          models_[model_id]->ForkSequence(
+              rstates_of_requests[i][rstates[i]->parent_idx]->mstates[model_id]->internal_id,
+              mstate->internal_id);
+        }
         request_internal_ids.push_back(mstate->internal_id);
-        RECORD_EVENT(trace_recorder_, requests[i]->id, "start embedding");
+        RECORD_EVENT(trace_recorder_, rstates[i]->request->id, "start embedding");
         for (int i = 0; i < static_cast<int>(mstate->inputs.size()); ++i) {
           embeddings.push_back(mstate->inputs[i]->GetEmbedding(models_[model_id]));
         }
-        RECORD_EVENT(trace_recorder_, requests[i]->id, "finish embedding");
+        RECORD_EVENT(trace_recorder_, rstates[i]->request->id, "finish embedding");
         // Clean up `inputs` after prefill
         mstate->inputs.clear();
       }
@@ -79,7 +103,7 @@ class NewRequestPrefillActionObj : public EngineActionObj {
       RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
       ICHECK_EQ(logits->ndim, 3);
       ICHECK_EQ(logits->shape[0], 1);
-      ICHECK_EQ(logits->shape[1], num_requests);
+      ICHECK_EQ(logits->shape[1], num_rstates);
 
       if (model_id == 0) {
         // We only need to sample for model 0 in prefill.
@@ -90,19 +114,16 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     // - Update logits.
     ICHECK(logits_for_sample.defined());
     Array<GenerationConfig> generation_cfg;
-    Array<RequestModelState> mstates_for_sample;
-    std::vector<RandomGenerator*> rngs;
-    generation_cfg.reserve(num_requests);
-    mstates_for_sample.reserve(num_requests);
-    rngs.reserve(num_requests);
-    for (int i = 0; i < num_requests; ++i) {
-      generation_cfg.push_back(requests[i]->generation_cfg);
-      mstates_for_sample.push_back(rstates[i]->mstates[0]);
-      rngs.push_back(&rstates[i]->rng);
+    Array<RequestModelState> mstates_for_logitproc;
+    generation_cfg.reserve(num_rstates);
+    mstates_for_logitproc.reserve(num_rstates);
+    for (int i = 0; i < num_rstates; ++i) {
+      generation_cfg.push_back(rstates[i]->request->generation_cfg);
+      mstates_for_logitproc.push_back(rstates[i]->mstates[0]);
     }
-    logits_for_sample = logits_for_sample.CreateView({num_requests, logits_for_sample->shape[2]},
+    logits_for_sample = logits_for_sample.CreateView({num_rstates, logits_for_sample->shape[2]},
                                                      logits_for_sample->dtype);
-    logit_processor_->InplaceUpdateLogits(logits_for_sample, generation_cfg, mstates_for_sample,
+    logit_processor_->InplaceUpdateLogits(logits_for_sample, generation_cfg, mstates_for_logitproc,
                                           request_ids);
 
     // - Compute probability distributions.
@@ -110,85 +131,172 @@ class NewRequestPrefillActionObj : public EngineActionObj {
         logit_processor_->ComputeProbsFromLogits(logits_for_sample, generation_cfg, request_ids);
 
     // - Sample tokens.
+    //   For rstates which are depended by other states, sample
+    //   one token for each rstate that is depending.
+    //   Otherwise, sample a token for the current rstate.
+    std::vector<int> prob_indices;
+    RequestState rstates_for_sample;
+    std::vector<RandomGenerator*> rngs;
+    prob_indices.reserve(num_rstates);
+    rstates_for_sample.reserve(num_rstates);
+    rngs.reserve(num_rstates);
+    request_ids.clear();
+    generation_cfg.clear();
+    for (int i = 0; i < num_rstates; ++i) {
+      estate->stats.current_total_seq_len += prefill_lengths[i];
+      const RequestStateEntry& rstate = rstates[i];
+      for (int child_idx : rstate->children_idx) {
+        if (rstates_of_requests[i][child_idx]->mstates[0]->committed_tokens.empty()) {
+          // If rstates_of_requests[i][child_idx] has no committed token,
+          // the prefill of the current rstate will unblock rstates_of_requests[i][child_idx],
+          // and thus we want to sample a token for rstates_of_requests[i][child_idx].
+          prob_indices.push_back(i);
+          rstates_for_sample.push_back(rstates_of_requests[i][child_idx]);
+          request_ids.push_back(rstate->request->id);
+          generation_cfg.push_back(rstate->request->generation_cfg);
+          rngs.push_back(&rstates_of_requests[i][child_idx]->rng);
+
+          ICHECK(rstates_of_requests[i][child_idx]->status == RequestStateStatus::kPending);
+          rstates_of_requests[i][child_idx]->status = RequestStateStatus::kAlive;
+          for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
+            models_[model_id]->ForkSequence(
+                rstate->mstates[model_id]->internal_id,
+                rstates_of_requests[i][child_idx]->mstates[model_id]->internal_id);
+          }
+        }
+      }
+      if (rstate->children_idx.empty()) {
+        // If rstate has no child, we sample a token for itself.
+        prob_indices.push_back(i);
+        rstates_for_sample.push_back(rstate);
+        request_ids.push_back(rstate->request->id);
+        generation_cfg.push_back(rstate->request->generation_cfg);
+        rngs.push_back(&rstate->rng);
+      }
+    }
     std::vector<SampleResult> sample_results =
-        sampler_->BatchSampleTokens(probs_device, request_ids, generation_cfg, rngs);
-    ICHECK_EQ(sample_results.size(), num_requests);
+        sampler_->BatchSampleTokens(probs_device, request_ids, generation_cfg, rngs, &prob_indices);
+    ICHECK_EQ(sample_results.size(), rstates_for_sample.size());
 
     // - Update the committed tokens of states.
     // - If a request is first-time prefilled, set the prefill finish time.
-    // - Accumulate the sequence length in engine statistics.
-    int sum_prefill_lengths = 0;
     auto tnow = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < num_requests; ++i) {
-      for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
-        rstates[i]->mstates[model_id]->CommitToken(sample_results[i]);
+    for (int i = 0; i < static_cast<int>(rstates_for_sample.size()); ++i) {
+      for (const RequestModelState& mstate : rstates_for_sample[i]->mstates) {
+        mstate->CommitToken(sample_results[i]);
       }
-      if (mstates_for_sample[i]->committed_tokens.size() == 1) {
-        rstates[i]->tprefill_finish = tnow;
+      if (rstates_for_sample[i]->mstates[0]->committed_tokens.size() == 1) {
+        rstates_for_sample[i]->tprefill_finish = tnow;
       }
-      sum_prefill_lengths += prefill_lengths[i];
     }
-    estate->stats.current_total_seq_len += sum_prefill_lengths;
 
     auto tend = std::chrono::high_resolution_clock::now();
     estate->stats.engine_total_prefill_time += static_cast<double>((tend - tstart).count()) / 1e9;
 
-    return requests;
+    std::vector<Request> processed_requests;
+    {
+      processed_requests.reserve(num_rstates);
+      std::unordered_set<const RequestNode*> dedup_map;
+      for (int i = 0; i < static_cast<int>(rstates.size()); ++i) {
+        const RequestStateEntry& rstate = rstates[i];
+        if (dedup_map.find(rstate->request.get()) != dedup_map.end()) {
+          continue;
+        }
+        dedup_map.insert(rstate->request.get());
+        processed_requests.push_back(rstate->request);
+
+        bool pending_state_exists = false;
+        for (const RequestStateEntry& request_state : rstates_of_requests[i]) {
+          if (request_state->status == RequestStateStatus::kPending) {
+            pending_state_exists = true;
+            break;
+          }
+        }
+        if (!pending_state_exists) {
+          auto it = std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(),
+                              rstate->request);
+          ICHECK(it != estate->waiting_queue.end());
+          estate->waiting_queue.erase(it);
+        }
+      }
+    }
+    return processed_requests;
   }
 
  private:
   /*!
-   * \brief Find one or multiple requests to run prefill.
+   * \brief Find one or multiple request states to run prefill.
    * \param estate The engine state.
    * \return The requests to prefill, together with their respective
    * state and input length.
    */
-  std::tuple<Array<Request>, Array<RequestState>, std::vector<int>> GetRequestsToPrefill(
+  std::tuple<Array<RequestStateEntry>, std::vector<int>> GetRequestStatesToPrefill(
       EngineState estate) {
     if (estate->waiting_queue.empty()) {
       // No request to prefill.
-      return {{}, {}, {}};
+      return {{}, {}};
     }
 
     // - Try to prefill pending requests.
-    std::vector<Request> prefill_requests;
-    std::vector<RequestState> rstates;
+    std::vector<RequestStateEntry> rsentries_to_prefill;
     std::vector<int> prefill_lengths;
     int total_input_length = 0;
     int total_required_pages = 0;
     int num_available_pages = models_[0]->GetNumAvailablePages();
+    int num_running_rsentries = GetRunningRequestStateEntries(estate).size();
 
-    for (int i = 1; i <= static_cast<int>(estate->waiting_queue.size()); ++i) {
-      Request request = estate->waiting_queue[i - 1];
+    int num_prefill_rsentries = 0;
+    for (const Request& request : estate->waiting_queue) {
       RequestState rstate = estate->GetRequestState(request);
-      int input_length = rstate->mstates[0]->GetInputLength();
-      int num_require_pages =
-          (input_length + kv_cache_config_->page_size - 1) / kv_cache_config_->page_size;
-      total_input_length += input_length;
-      total_required_pages += num_require_pages;
-      if (CanPrefill(estate, i, total_input_length, total_required_pages, num_available_pages)) {
-        prefill_requests.push_back(request);
-        rstates.push_back(rstate);
-        prefill_lengths.push_back(input_length);
-      } else {
-        total_input_length -= input_length;
-        total_required_pages -= num_require_pages;
+      bool prefill_stops = false;
+      for (const RequestStateEntry& rsentry : rstate) {
+        // A request state entry can be prefilled only when:
+        // - it has inputs, and
+        // - it is pending, and
+        // - it has no parent or its parent is alive.
+        if (rsentry->mstates[0]->inputs.empty() ||
+            rsentry->status != RequestStateStatus::kPending ||
+            (rsentry->parent_idx != -1 &&
+             rstate[rsentry->parent_idx]->status == RequestStateStatus::kPending)) {
+          continue;
+        }
+
+        int input_length = rsentry->mstates[0]->GetInputLength();
+        int num_require_pages =
+            (input_length + kv_cache_config_->page_size - 1) / kv_cache_config_->page_size;
+        total_input_length += input_length;
+        total_required_pages += num_require_pages;
+        if (CanPrefill(estate, num_prefill_rsentries + 1 + rsentry->children_idx.size(),
+                       total_input_length, total_required_pages, num_available_pages,
+                       num_running_rsentries)) {
+          rsentries_to_prefill.push_back(rsentry);
+          prefill_lengths.push_back(input_length);
+          ++num_prefill_rsentries;
+        } else {
+          total_input_length -= input_length;
+          total_required_pages -= num_require_pages;
+          prefill_stops = true;
+          break;
+        }
+      }
+      if (prefill_stops) {
         break;
       }
     }
 
-    return {prefill_requests, rstates, prefill_lengths};
+    return {rsentries_to_prefill, prefill_lengths};
   }
 
   /*! \brief Check if the input requests can be prefilled under conditions. */
-  bool CanPrefill(EngineState estate, int num_prefill_req, int total_input_length,
-                  int num_required_pages, int num_available_pages) {
-    int num_running_requests = estate->running_queue.size();
-    ICHECK_LE(num_running_requests, kv_cache_config_->max_num_sequence);
+  bool CanPrefill(EngineState estate, int num_prefill_rsentries, int total_input_length,
+                  int num_required_pages, int num_available_pages, int num_running_rsentries) {
+    ICHECK_LE(num_running_rsentries, kv_cache_config_->max_num_sequence);
 
     // No exceeding of the maximum allowed requests that can
     // run simultaneously.
-    if (num_running_requests + num_prefill_req > kv_cache_config_->max_num_sequence) {
+    int spec_factor = engine_mode_->enable_speculative ? engine_mode_->spec_draft_length : 1;
+    if ((num_running_rsentries + num_prefill_rsentries) * spec_factor >
+        kv_cache_config_->max_num_sequence) {
       return false;
     }
 
@@ -198,7 +306,7 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     // Cond 3: number of total tokens after 8 times of decode does not
     // exceed the limit, where 8 is a watermark number can
     // be configured and adjusted in the future.
-    int new_batch_size = num_running_requests + num_prefill_req;
+    int new_batch_size = num_running_rsentries + num_prefill_rsentries;
     return total_input_length <= kv_cache_config_->prefill_chunk_size &&
            num_required_pages + new_batch_size <= num_available_pages &&
            estate->stats.current_total_seq_len + total_input_length + 8 * new_batch_size <=
@@ -213,16 +321,19 @@ class NewRequestPrefillActionObj : public EngineActionObj {
   Sampler sampler_;
   /*! \brief The KV cache config to help decide prefill is doable. */
   KVCacheConfig kv_cache_config_;
+  /*! \brief The engine operation mode. */
+  EngineMode engine_mode_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
 };
 
 EngineAction EngineAction::NewRequestPrefill(Array<Model> models, LogitProcessor logit_processor,
                                              Sampler sampler, KVCacheConfig kv_cache_config,
+                                             EngineMode engine_mode,
                                              Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(make_object<NewRequestPrefillActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler), std::move(kv_cache_config),
-      std::move(trace_recorder)));
+      std::move(engine_mode), std::move(trace_recorder)));
 }
 
 }  // namespace serve

@@ -1,5 +1,6 @@
 """Classes denoting multi-modality data used in MLC LLM serving"""
 
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 import tvm._ffi
@@ -57,16 +58,13 @@ class TokenData(Data):
         return list(_ffi_api.TokenDataGetTokenIds(self))  # type: ignore  # pylint: disable=no-member
 
 
-@tvm._ffi.register_object("mlc.serve.RequestStreamOutput")  # pylint: disable=protected-access
-class RequestStreamOutput(Object):
-    """The generated delta request output that is streamed back
-    through callback stream function.
-    It contains four fields (in order):
+@dataclass
+class SingleRequestStreamOutput:
+    """The request stream output of a single request.
 
-    request_id : str
-        The id of the request that the function is invoked for.
-
-    delta_tokens : List[int]
+    Attributes
+    ----------
+    delta_token_ids : List[int]
         The new generated tokens since the last callback invocation
         for the input request.
 
@@ -77,6 +75,24 @@ class RequestStreamOutput(Object):
     finish_reason : Optional[str]
         The finish reason of the request when it is finished,
         of None if the request has not finished yet.
+    """
+
+    delta_token_ids: List[int]
+    delta_logprob_json_strs: Optional[List[str]]
+    finish_reason: Optional[str]
+
+
+@tvm._ffi.register_object("mlc.serve.RequestStreamOutput")  # pylint: disable=protected-access
+class RequestStreamOutput(Object):
+    """The generated delta request output that is streamed back
+    through callback stream function.
+    It contains four fields (in order):
+
+    request_id : str
+        The id of the request that the function is invoked for.
+
+    stream_outputs : List[SingleRequestStreamOutput]
+        The output instances, one for a request.
 
     Note
     ----
@@ -84,7 +100,7 @@ class RequestStreamOutput(Object):
     instantiates this class.
     """
 
-    def unpack(self) -> Tuple[str, List[int], Optional[List[str]], Optional[str]]:
+    def unpack(self) -> Tuple[str, List[SingleRequestStreamOutput]]:
         """Return the fields of the delta output in a tuple.
 
         Returns
@@ -92,26 +108,23 @@ class RequestStreamOutput(Object):
         request_id : str
             The id of the request that the function is invoked for.
 
-        delta_tokens : List[int]
-            The new generated tokens since the last callback invocation
-            for the input request.
-
-        delta_logprob_json_strs : Optional[List[str]]
-            The logprobs JSON strings of the new generated tokens
-            since last invocation.
-
-        finish_reason : Optional[str]
-            The finish reason of the request when it is finished,
-            of None if the request has not finished yet.
+        stream_outputs : List[SingleRequestStreamOutput]
+            The output instances, one for a request.
         """
         fields = _ffi_api.RequestStreamOutputUnpack(self)  # type: ignore  # pylint: disable=no-member
-        return (
-            str(fields[0]),
-            list(fields[1]),
-            (
-                [str(logprob_json_str) for logprob_json_str in fields[2]]
+        request_id = str(fields[0])
+        stream_outputs = []
+        for i, (delta_token_ids, finish_reason) in enumerate(zip(fields[1], fields[3])):
+            delta_logprob_json_strs = (
+                [str(logprob_json_str) for logprob_json_str in fields[2][i]]
                 if fields[2] is not None
                 else None
-            ),
-            str(fields[3]) if fields[3] is not None else None,
-        )
+            )
+            stream_outputs.append(
+                SingleRequestStreamOutput(
+                    delta_token_ids=list(delta_token_ids),
+                    delta_logprob_json_strs=delta_logprob_json_strs,
+                    finish_reason=str(finish_reason) if finish_reason is not None else None,
+                )
+            )
+        return request_id, stream_outputs

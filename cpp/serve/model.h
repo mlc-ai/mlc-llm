@@ -105,6 +105,9 @@ class ModelObj : public Object {
   /*! \brief Add a new sequence with the given sequence id to the KV cache. */
   virtual void AddNewSequence(int64_t seq_id) = 0;
 
+  /*! \brief Fork a sequence from a given parent sequence. */
+  virtual void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id) = 0;
+
   /*! \brief Remove the given sequence from the KV cache in the model. */
   virtual void RemoveSequence(int64_t seq_id) = 0;
 

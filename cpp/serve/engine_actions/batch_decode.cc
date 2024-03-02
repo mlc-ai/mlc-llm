@@ -37,42 +37,46 @@ class BatchDecodeActionObj : public EngineActionObj {
       return {};
     }
 
-    // Preempt requests when decode cannot apply.
-    int num_available_pages = models_[0]->GetNumAvailablePages();
-    while (!CanDecode(estate->running_queue.size())) {
-      PreemptLastRunningRequest(estate, models_, trace_recorder_);
+    // Preempt request state entries when decode cannot apply.
+    std::vector<RequestStateEntry> running_rsentries = GetRunningRequestStateEntries(estate);
+    while (!CanDecode(running_rsentries.size())) {
+      RequestStateEntry preempted =
+          PreemptLastRunningRequestStateEntry(estate, models_, trace_recorder_);
+      if (preempted.same_as(running_rsentries.back())) {
+        running_rsentries.pop_back();
+      }
     }
 
     auto tstart = std::chrono::high_resolution_clock::now();
 
-    // NOTE: Right now we only support decode all the running requests at a time.
-    int num_requests = estate->running_queue.size();
-    estate->stats.current_total_seq_len += num_requests;
+    // NOTE: Right now we only support decode all the running request states at a time.
+    int num_rsentries = running_rsentries.size();
+    estate->stats.current_total_seq_len += num_rsentries;
     // Collect
     // - the last committed token,
-    // - the request states,
-    // - the sampling parameters,
-    // of each request.
+    // - the request id,
+    // - the generation config,
+    // - the random number generator,
+    // of each request state entry.
     std::vector<int> input_tokens;
     Array<String> request_ids;
     std::vector<int64_t> request_internal_ids;
     Array<RequestModelState> mstates;
     Array<GenerationConfig> generation_cfg;
     std::vector<RandomGenerator*> rngs;
-    input_tokens.reserve(num_requests);
-    request_ids.reserve(num_requests);
-    request_internal_ids.reserve(num_requests);
-    mstates.reserve(num_requests);
-    generation_cfg.reserve(num_requests);
-    rngs.reserve(num_requests);
-    for (Request request : estate->running_queue) {
-      RequestState rstate = estate->GetRequestState(request);
-      input_tokens.push_back(rstate->mstates[0]->committed_tokens.back().sampled_token_id.first);
-      request_ids.push_back(request->id);
-      request_internal_ids.push_back(rstate->mstates[0]->internal_id);
-      mstates.push_back(rstate->mstates[0]);
-      generation_cfg.push_back(request->generation_cfg);
-      rngs.push_back(&rstate->rng);
+    input_tokens.reserve(num_rsentries);
+    request_ids.reserve(num_rsentries);
+    request_internal_ids.reserve(num_rsentries);
+    mstates.reserve(num_rsentries);
+    generation_cfg.reserve(num_rsentries);
+    rngs.reserve(num_rsentries);
+    for (const RequestStateEntry& rsentry : running_rsentries) {
+      input_tokens.push_back(rsentry->mstates[0]->committed_tokens.back().sampled_token_id.first);
+      request_ids.push_back(rsentry->request->id);
+      request_internal_ids.push_back(rsentry->mstates[0]->internal_id);
+      mstates.push_back(rsentry->mstates[0]);
+      generation_cfg.push_back(rsentry->request->generation_cfg);
+      rngs.push_back(&rsentry->rng);
     }
 
     // - Compute embeddings.
@@ -82,8 +86,8 @@ class BatchDecodeActionObj : public EngineActionObj {
     RECORD_EVENT(trace_recorder_, request_ids, "finish embedding");
     ICHECK_EQ(embeddings->ndim, 3);
     ICHECK_EQ(embeddings->shape[0], 1);
-    ICHECK_EQ(embeddings->shape[1], num_requests);
-    embeddings = embeddings.CreateView({num_requests, 1, embeddings->shape[2]}, embeddings->dtype);
+    ICHECK_EQ(embeddings->shape[1], num_rsentries);
+    embeddings = embeddings.CreateView({num_rsentries, 1, embeddings->shape[2]}, embeddings->dtype);
 
     // - Invoke model decode.
     RECORD_EVENT(trace_recorder_, request_ids, "start decode");
@@ -94,7 +98,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     ICHECK_EQ(logits->shape[1], 1);
 
     // - Update logits.
-    logits = logits.CreateView({num_requests, logits->shape[2]}, logits->dtype);
+    logits = logits.CreateView({num_rsentries, logits->shape[2]}, logits->dtype);
     logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
 
     // - Compute probability distributions.
@@ -104,10 +108,10 @@ class BatchDecodeActionObj : public EngineActionObj {
     // - Sample tokens.
     std::vector<SampleResult> sample_results =
         sampler_->BatchSampleTokens(probs_device, request_ids, generation_cfg, rngs);
-    ICHECK_EQ(sample_results.size(), num_requests);
+    ICHECK_EQ(sample_results.size(), num_rsentries);
 
     // - Update the committed tokens of states.
-    for (int i = 0; i < num_requests; ++i) {
+    for (int i = 0; i < num_rsentries; ++i) {
       mstates[i]->CommitToken(sample_results[i]);
     }
 
@@ -118,10 +122,10 @@ class BatchDecodeActionObj : public EngineActionObj {
   }
 
  private:
-  /*! \brief Check if the input requests can be decoded under conditions. */
-  bool CanDecode(int num_requests) {
+  /*! \brief Check if the input request state entries can be decoded under conditions. */
+  bool CanDecode(int num_rsentries) {
     int num_available_pages = models_[0]->GetNumAvailablePages();
-    return num_requests <= num_available_pages;
+    return num_rsentries <= num_available_pages;
   }
 
   /*!

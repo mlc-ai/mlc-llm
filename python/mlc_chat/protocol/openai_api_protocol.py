@@ -296,7 +296,6 @@ def openai_api_get_unsupported_fields(
     """Get the unsupported fields in the request."""
     unsupported_field_default_values: List[Tuple[str, Any]] = [
         ("best_of", 1),
-        ("n", 1),
     ]
 
     unsupported_fields: List[str] = []
@@ -312,6 +311,7 @@ def openai_api_get_generation_config(
     """Create the generation config from the given request."""
     kwargs: Dict[str, Any] = {}
     arg_names = [
+        "n",
         "temperature",
         "top_p",
         "max_tokens",

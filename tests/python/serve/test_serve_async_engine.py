@@ -26,15 +26,17 @@ async def test_engine_generate():
         "dist/Llama-2-7b-chat-hf-q0f16-MLC",
         model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
     )
-    kv_cache_config = KVCacheConfig(page_size=16)
+    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
     async_engine = AsyncThreadedEngine(model, kv_cache_config)
 
     num_requests = 10
     max_tokens = 256
-    generation_cfg = GenerationConfig(max_tokens=max_tokens)
+    generation_cfg = GenerationConfig(max_tokens=max_tokens, n=3)
 
-    outputs: List[str] = ["" for _ in range(num_requests)]
+    output_texts: List[List[str]] = [
+        ["" for _ in range(generation_cfg.n)] for _ in range(num_requests)
+    ]
 
     async def generate_task(
         async_engine: AsyncThreadedEngine,
@@ -44,10 +46,12 @@ async def test_engine_generate():
     ):
         print(f"generate task for request {request_id}")
         rid = int(request_id)
-        async for delta_text, _, _, _ in async_engine.generate(
+        async for delta_outputs in async_engine.generate(
             prompt, generation_cfg, request_id=request_id
         ):
-            outputs[rid] += delta_text
+            assert len(delta_outputs) == generation_cfg.n
+            for i, delta_output in enumerate(delta_outputs):
+                output_texts[rid][i] += delta_output.delta_text
 
     tasks = [
         asyncio.create_task(
@@ -60,9 +64,13 @@ async def test_engine_generate():
 
     # Print output.
     print("All finished")
-    for req_id, output in enumerate(outputs):
+    for req_id, outputs in enumerate(output_texts):
         print(f"Prompt {req_id}: {prompts[req_id]}")
-        print(f"Output {req_id}:{output}\n")
+        if len(outputs) == 1:
+            print(f"Output {req_id}:{outputs[0]}\n")
+        else:
+            for i, output in enumerate(outputs):
+                print(f"Output {req_id}({i}):{output}\n")
 
     async_engine.terminate()
     del async_engine
