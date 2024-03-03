@@ -10,7 +10,7 @@ from tvm.script import tir as T
 
 from ..quantization import ParamQuantKind, QuantizationScheme
 from .commons import create_metadata_func
-from .modules import ModuleList, Linear
+from .modules import Linear, ModuleList
 from .param_manager import ParamManager
 
 # Reference: https://github.com/BlinkDL/RWKV-LM/blob/main/RWKV-v4/src/model_run.py
@@ -66,7 +66,8 @@ def _load_state(state: Expr, hidden_size: int, dtype: str) -> Expr:
     cache = nn.emit(
         relax.call_pure_packed(
             f_load_cache,
-            args=[state, R.shape([1, hidden_size])],
+            state,
+            R.shape([1, hidden_size]),
             sinfo_args=[R.Tensor((1, hidden_size), dtype)],
         )
     )
@@ -80,7 +81,8 @@ def _store_state(state: Expr, value: Expr):
     return nn.emit(
         relax.op.call_inplace_packed(
             f_store_cache,
-            args=[state, value],
+            state,
+            value,
             inplace_indices=[0],
             sinfo_args=[R.Object()],
         )
@@ -179,9 +181,7 @@ class RWKV_Embedding(nn.Module):
     def __init__(self, num_embeddings, embedding_dim, dtype):
         self.num_embeddings = num_embeddings
         self.embedding_dim = embedding_dim
-        self.weight = nn.Parameter(
-            (num_embeddings, embedding_dim), dtype=dtype, name="weight"
-        )
+        self.weight = nn.Parameter((num_embeddings, embedding_dim), dtype=dtype, name="weight")
 
     def forward(self, x: relax.Expr) -> relax.Var:
         x = nn.emit(op.reshape(x, shape=[-1]))
@@ -195,9 +195,7 @@ class RWKV_LayerNorm(nn.Module):
         self.weight = nn.Parameter(
             (intermediate_size,), dtype=dtype, name=f"{name_prefix}_ln_weight"
         )
-        self.bias = nn.Parameter(
-            (intermediate_size,), dtype=dtype, name=f"{name_prefix}_ln_bias"
-        )
+        self.bias = nn.Parameter((intermediate_size,), dtype=dtype, name=f"{name_prefix}_ln_bias")
 
     def forward(self, x: relax.Expr) -> relax.Var:
         x = nn.emit(
@@ -227,9 +225,7 @@ class RWKV_FFN(nn.Module):
         self.key = Linear(
             self.hidden_size, config.intermediate_size, dtype=config.dtype, bias=False
         )
-        self.receptance = Linear(
-            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
-        )
+        self.receptance = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
         self.value = Linear(
             config.intermediate_size, self.hidden_size, dtype=config.dtype, bias=False
         )
@@ -244,9 +240,7 @@ class RWKV_FFN(nn.Module):
             saved_x = nn.emit_te(_te_concat_saved_x, saved_x, x)
         ones = nn.emit(relax.op.ones((hidden_size,), self.dtype))
         xk = nn.emit(x * self.time_mix_key + saved_x * (ones - self.time_mix_key))
-        xr = nn.emit(
-            x * self.time_mix_receptance + saved_x * (ones - self.time_mix_receptance)
-        )
+        xr = nn.emit(x * self.time_mix_receptance + saved_x * (ones - self.time_mix_receptance))
         if not is_one(context_length):
             x = nn.emit_te(_te_get_last_x, x)
         assert is_one(x.struct_info.shape[0])
@@ -279,18 +273,10 @@ class RWKV_Attention(nn.Module):
         self.time_mix_receptance = nn.Parameter(
             (self.hidden_size,), dtype=config.dtype, name=f"att_{index}_time_mix_r"
         )
-        self.key = Linear(
-            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
-        )
-        self.value = Linear(
-            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
-        )
-        self.receptance = Linear(
-            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
-        )
-        self.output = Linear(
-            self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False
-        )
+        self.key = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
+        self.value = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
+        self.receptance = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
+        self.output = Linear(self.hidden_size, self.hidden_size, dtype=config.dtype, bias=False)
 
     def forward(self, x: Expr, state: Expr) -> Expr:
         # Load current state
@@ -309,9 +295,7 @@ class RWKV_Attention(nn.Module):
 
         xk = nn.emit(x * self.time_mix_key + saved_x * (ones - self.time_mix_key))
         xv = nn.emit(x * self.time_mix_value + saved_x * (ones - self.time_mix_value))
-        xr = nn.emit(
-            x * self.time_mix_receptance + saved_x * (ones - self.time_mix_receptance)
-        )
+        xr = nn.emit(x * self.time_mix_receptance + saved_x * (ones - self.time_mix_receptance))
 
         r = nn.emit(op.sigmoid(self.receptance(xr)))
         k = nn.emit(op.astype(self.key(xk), "float32"))
@@ -395,9 +379,7 @@ class RWKVModel(nn.Module):
             embedding_dim=config.hidden_size,
             dtype=config.dtype,
         )
-        self.blocks = ModuleList(
-            [RWKVLayer(config, i) for i in range(config.num_hidden_layers)]
-        )
+        self.blocks = ModuleList([RWKVLayer(config, i) for i in range(config.num_hidden_layers)])
         self.ln_out = RWKV_LayerNorm(
             config.hidden_size,
             config.dtype,
@@ -423,9 +405,7 @@ class RWKVModel(nn.Module):
 class RWKVForCausalLM(nn.Module):
     def __init__(self, config: RWKVConfig):
         self.rwkv = RWKVModel(config)
-        self.head = Linear(
-            config.hidden_size, config.vocab_size, dtype=config.dtype, bias=False
-        )
+        self.head = Linear(config.hidden_size, config.vocab_size, dtype=config.dtype, bias=False)
         self.vocab_size = config.vocab_size
         ############ End ############
 
@@ -443,9 +423,7 @@ class RWKVForCausalLM(nn.Module):
         return logits, key_value_cache
 
 
-def get_param_quant_kind(
-    name: str, param_info: relax.TensorStructInfo
-) -> ParamQuantKind:
+def get_param_quant_kind(name: str, param_info: relax.TensorStructInfo) -> ParamQuantKind:
     if name.endswith("embeddings.weight"):
         return ParamQuantKind.embedding_table
     elif name == "head.weight":
@@ -469,9 +447,7 @@ def create_func(
 
     with bb.function(func_name):
         model = RWKVForCausalLM(config)
-        param_manager.register_params(
-            model, func_name, quant_scheme, get_param_quant_kind
-        )
+        param_manager.register_params(model, func_name, quant_scheme, get_param_quant_kind)
 
         input_ids = nn.Placeholder((1, seq_len), dtype="int32", name="input_ids")
         # Placeholder for compatibility to LLAMA
@@ -519,7 +495,9 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: RWKVConfig) -> None:
                         bb.emit(
                             relax.call_pure_packed(
                                 f_kv_cache_create,
-                                args=[init_value, init_shape, relax.PrimValue(1)],
+                                init_value,
+                                init_shape,
+                                relax.PrimValue(1),
                                 sinfo_args=[R.Object()],
                             ),
                             name_hint=f"{name}_state_{i}",
@@ -539,24 +517,18 @@ def create_kv_cache_reset_func(bb: relax.BlockBuilder, config: RWKVConfig) -> No
             fp32_neg_inf = bb.emit(fp32_zeros - relax.const(1e30, "float32"))
             caches = []
             for i in range(config.num_hidden_layers):
-                caches.append(
-                    _store_state(state[i * 5 + State.ATT_X], input_dtype_zeros)
-                )
+                caches.append(_store_state(state[i * 5 + State.ATT_X], input_dtype_zeros))
                 caches.append(_store_state(state[i * 5 + State.ATT_B], fp32_zeros))
                 caches.append(_store_state(state[i * 5 + State.ATT_A], fp32_zeros))
                 caches.append(_store_state(state[i * 5 + State.ATT_P], fp32_neg_inf))
-                caches.append(
-                    _store_state(state[i * 5 + State.FFN_X], input_dtype_zeros)
-                )
+                caches.append(_store_state(state[i * 5 + State.FFN_X], input_dtype_zeros))
             gv = bb.emit_output(caches)
         bb.emit_func_output(gv)
 
 
 def create_softmax_func(bb: relax.BlockBuilder, config: RWKVConfig) -> None:
     with bb.function("softmax_with_temperature"):
-        logits = nn.Placeholder(
-            (1, 1, config.vocab_size), dtype="float32", name="logits"
-        )
+        logits = nn.Placeholder((1, 1, config.vocab_size), dtype="float32", name="logits")
         temperature = nn.Placeholder((), dtype="float32", name="temperature")
         with bb.dataflow():
             div = bb.emit(relax.op.divide(logits, temperature))

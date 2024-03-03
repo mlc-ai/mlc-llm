@@ -3,27 +3,27 @@ from typing import Optional, Tuple
 import numpy as np
 import tvm
 from tvm import relax, te
-from tvm.relax.op import ccl, reshape, expand_dims, concat, zeros, repeat, take
+from tvm.ir import VDevice
+from tvm.relax.op import ccl, concat, expand_dims, repeat, reshape, take, zeros
 from tvm.relax.op.nn import attention_var_len
 from tvm.relax.testing import nn
-from tvm.ir import VDevice
 from tvm.script import relax as R
 from tvm.script.ir_builder import tir as T
 
 from ..quantization import QuantizationScheme
+from .llama import (
+    Embedding,
+    Linear,
+    LlamaAttentionBase,
+    LlamaConfig,
+    LlamaDecoderLayer,
+    LlamaRMSNorm,
+    get_param_quant_kind,
+    rotary_modulate_by_freq,
+    setup_params,
+)
 from .modules import ModuleList
 from .param_manager import ParamManager
-from .llama import (
-    LlamaConfig,
-    Linear,
-    Embedding,
-    LlamaRMSNorm,
-    LlamaAttentionBase,
-    LlamaDecoderLayer,
-    get_param_quant_kind,
-    setup_params,
-    rotary_modulate_by_freq,
-)
 
 
 def apply_rotary_pos_emb(q, k, positions, position_embedding_base):
@@ -95,7 +95,11 @@ class LlamaAttentionBatched(LlamaAttentionBase):
             kv = nn.emit(
                 relax.op.call_inplace_packed(
                     "tvm.contrib.vllm.reshape_and_cache",
-                    args=[keys_to_cache, values_to_cache, k_cache, v_cache, slot_mapping],
+                    keys_to_cache,
+                    values_to_cache,
+                    k_cache,
+                    v_cache,
+                    slot_mapping,
                     inplace_indices=[2, 3],
                     sinfo_args=[k_cache.struct_info, v_cache.struct_info],
                 )
