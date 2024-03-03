@@ -146,7 +146,7 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     .. image:: https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png
       :width: 135
-      :target: https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk
+      :target: https://github.com/mlc-ai/binary-mlc-llm-libs/releases/download/Android/mlc-chat.apk
 
     |
 
