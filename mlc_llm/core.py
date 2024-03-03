@@ -847,6 +847,7 @@ def build_model_from_args(args: argparse.Namespace):
             qspec_updater = qspec_updater_class(param_manager)
             qspec_updater.visit_module(mod)
         mod = param_manager.transform_dequantize()(mod)
+        mod = relax.transform.BundleModelParams()(mod)
 
         if not args.build_model_only:
             parameter_transforms = []
