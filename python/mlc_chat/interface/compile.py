@@ -155,7 +155,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         # Step 2. Exporting the model to TVM Unity
         logger.info("Exporting the model to TVM Unity compiler")
         mod, named_params, ext_mods = model.export_tvm(
-            spec=model.get_default_spec(), allow_extern=True # type: ignore
+            spec=model.get_default_spec(), allow_extern=True  # type: ignore
         )
         # Step 3. Running relax compilation pipeline
         logger.info("Running optimizations using TVM Unity")

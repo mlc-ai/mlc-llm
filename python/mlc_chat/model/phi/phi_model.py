@@ -9,7 +9,6 @@ from typing import Any, Dict, Optional, Union
 from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
-from tvm import relax
 
 from mlc_chat import op as op_ext
 from mlc_chat.nn import PagedKVCache, RopeMode
@@ -336,6 +335,7 @@ class PhiModel(nn.Module):
 
 
 class PhiForCausalLM(nn.Module):
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, config: Union[PhiConfig, Phi1Config]) -> None:
         super().__init__()
 
