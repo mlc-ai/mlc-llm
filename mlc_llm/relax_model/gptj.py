@@ -155,7 +155,8 @@ class GPTJAttention(nn.Module):
             k_cache = nn.emit(
                 relax.op.call_inplace_packed(
                     f_kv_cache_append,
-                    args=[k_cache, squeeze(k, axis=0)],
+                    k_cache,
+                    squeeze(k, axis=0),
                     inplace_indices=[0],
                     sinfo_args=[relax.ObjectStructInfo()],
                 )
@@ -163,7 +164,8 @@ class GPTJAttention(nn.Module):
             v_cache = nn.emit(
                 relax.op.call_inplace_packed(
                     f_kv_cache_append,
-                    args=[v_cache, squeeze(v, axis=0)],
+                    v_cache,
+                    squeeze(v, axis=0),
                     inplace_indices=[0],
                     sinfo_args=[relax.ObjectStructInfo()],
                 )
@@ -174,14 +176,16 @@ class GPTJAttention(nn.Module):
             k = nn.emit(
                 relax.call_pure_packed(
                     f_kv_cache_view,
-                    args=[k_cache, kv_cache_shape],
+                    k_cache,
+                    kv_cache_shape,
                     sinfo_args=[R.Tensor(kv_cache_shape, k.struct_info.dtype)],
                 )
             )
             v = nn.emit(
                 relax.call_pure_packed(
                     f_kv_cache_view,
-                    args=[v_cache, kv_cache_shape],
+                    v_cache,
+                    kv_cache_shape,
                     sinfo_args=[R.Tensor(kv_cache_shape, v.struct_info.dtype)],
                 )
             )

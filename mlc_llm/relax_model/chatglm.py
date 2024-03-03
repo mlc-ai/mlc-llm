@@ -286,7 +286,8 @@ class SelfAttention(nn.Module):
         k_cache = nn.emit(
             relax.op.call_inplace_packed(
                 f_kv_cache_append,
-                args=[k_cache, squeezed_k],
+                k_cache,
+                squeezed_k,
                 inplace_indices=[0],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
@@ -294,7 +295,8 @@ class SelfAttention(nn.Module):
         v_cache = nn.emit(
             relax.op.call_inplace_packed(
                 f_kv_cache_append,
-                args=[v_cache, squeezed_v],
+                v_cache,
+                squeezed_v,
                 inplace_indices=[0],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
@@ -308,14 +310,16 @@ class SelfAttention(nn.Module):
         k = nn.emit(
             relax.call_pure_packed(
                 f_kv_cache_view,
-                args=[k_cache, kv_cache_shape],
+                k_cache,
+                kv_cache_shape,
                 sinfo_args=[R.Tensor(kv_cache_shape, k.struct_info.dtype)],
             )
         )
         v = nn.emit(
             relax.call_pure_packed(
                 f_kv_cache_view,
-                args=[v_cache, kv_cache_shape],
+                v_cache,
+                kv_cache_shape,
                 sinfo_args=[R.Tensor(kv_cache_shape, v.struct_info.dtype)],
             )
         )
@@ -707,7 +711,9 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: ChatGLMConfig) -> None:
                     bb.emit(
                         relax.call_pure_packed(
                             f_kv_cache_create,
-                            args=[zeros, init_shape, relax.PrimValue(0)],
+                            zeros,
+                            init_shape,
+                            relax.PrimValue(0),
                             sinfo_args=[relax.ObjectStructInfo()],
                         )
                     )
@@ -731,7 +737,11 @@ def get_model(args: argparse.Namespace, hf_config):
     model = args.model
     dtype = args.quantization.model_dtype
 
-    if model.startswith("chatglm2") or model.startswith("codegeex2") or model.startswith("chatglm3"):
+    if (
+        model.startswith("chatglm2")
+        or model.startswith("codegeex2")
+        or model.startswith("chatglm3")
+    ):
         config = ChatGLMConfig(
             **hf_config,
             dtype=dtype,
