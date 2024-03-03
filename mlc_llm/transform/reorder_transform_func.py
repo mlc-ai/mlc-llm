@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Set, Tuple
+from typing import Callable, Dict, List, Set, Tuple, Optional
 
 import tvm
 from tvm import relax
@@ -87,14 +87,22 @@ def analyze_func(
         num_input = 0
 
     # Sanity check on the function pattern.
-    assert len(func.params) == num_input + 1
     assert isinstance(func.body, relax.SeqExpr)
     assert len(func.body.blocks) == 1
     assert isinstance(func.body.blocks[0], relax.DataflowBlock)
     assert func.body.blocks[0].bindings[-1].var.same_as(func.body.body)
 
-    model_param_tuple = func.params[num_input]
-    bindings = func.body.blocks[0].bindings
+    if isinstance(func.params[num_input].struct_info, relax.TupleStructInfo):
+        model_param_tuple = func.params[num_input]
+    else:
+        model_param_tuple = None
+        for i, var in enumerate(func.params[num_input:]):
+            binname = pidx2binname.get(i, var.name_hint)
+            if binname not in binname2get_param_bindings:
+                binname2get_param_bindings[binname] = []
+            binname2get_param_bindings[binname].append(var)
+
+    bindings = list(func.body.blocks[0].bindings)
 
     # Go through each binding except the last one. (The last one is the output
     # binding `gv = (lv, lv1, ...)`) which we ignore for analysis.
@@ -103,7 +111,11 @@ def analyze_func(
         binding_var_set.add(binding.var)
         var_users[binding.var] = []
 
-        if isinstance(value, relax.TupleGetItem) and value.tuple_value.same_as(model_param_tuple):
+        if (
+            model_param_tuple is not None
+            and isinstance(value, relax.TupleGetItem)
+            and value.tuple_value.same_as(model_param_tuple)
+        ):
             # For weight fetching bindings (`lv = params[idx]`), we group them
             # according to the binary file name.
             pidx = value.index
@@ -139,7 +151,7 @@ def analyze_func(
 
 def reorder_func(
     func: relax.Function,
-    pidx2binname: Dict[int, str],
+    pidx2binname: Optional[Dict[int, str]] = None,
 ) -> relax.Function:
     """Reorder the bindings of the input weight transform Relax function
     according the weight location in binary files.
@@ -153,51 +165,95 @@ def reorder_func(
     func : relax.Function
         The weight transform function to be analyzed.
 
-    pidx2binname : Dict[int, str]
-        The mapping from each raw tensor index to the name of the binary
-        file where it resides.
+    pidx2binname : Optional[Dict[int, str]]
+
+        The mapping from each raw tensor index to the name of the
+        binary file where it resides.  If a relax dataflow graph has
+        multiple valid topological sorts, the order that minimizes the
+        number of simultaneously open files will be produced
+
+        If `None` (default), the existing order of relax bindings is
+        preserved in these cases.
 
     Returns
     -------
     func_updated : relax.Function
         The returned function where the bindings are updated with the new order.
+
     """
-    get_param_bindings, var_users, num_depending_vars = analyze_func(func, pidx2binname)
 
-    # The bindings in the new order, output by the topological sort.
-    new_bindings: List[relax.Binding] = []
-    # The queue used in the topological sort.
-    binding_queue: List[relax.Binding] = []
+    if pidx2binname is None:
+        pidx2binname = {}
 
-    for binding, n_depending in list(num_depending_vars.items()):
-        if n_depending == 0:
-            binding_queue.append(binding)
-            del num_depending_vars[binding]
+    bindings_to_visit = list(func.body.blocks[0].bindings)
+    param_lookup = {param: i for i, param in enumerate(func.params)}
+    binding_lookup = {}
+    previously_defined = set(func.params)
+    new_binding_order = []
 
-    # Start topological sort:
-    #   each time we emit a weight fetching binding, and then adds all bindings
-    #   that depend on it.
-    for get_param_binding in get_param_bindings:
-        binding_queue.append(get_param_binding)
+    param_tuple = None
+    if len(func.params) == 1 and isinstance(func.params[0].struct_info, relax.TupleStructInfo):
+        param_tuple = func.params[0]
 
-        while len(binding_queue) > 0:
-            binding = binding_queue.pop(0)
-            new_bindings.append(binding)
-            for user_binding in var_users[binding.var]:
-                num_depending_vars[user_binding] -= 1
-                if num_depending_vars[user_binding] == 0:
-                    del num_depending_vars[user_binding]
-                    binding_queue.append(user_binding)
+    def sort_key(i):
+        binding = bindings_to_visit[i]
+        upstream_vars = relax.analysis.free_vars(binding.value)
 
-    # Add the output binding.
-    new_bindings.append(func.body.blocks[0].bindings[-1])
-    # Sanity check on the integrity.
-    assert len(new_bindings) == len(func.body.blocks[0].bindings)
-    assert len(num_depending_vars) == 0
+        valid_ordering = all(var in previously_defined for var in upstream_vars)
+        last_param_used = max(
+            (param_lookup[var] for var in upstream_vars if var in param_lookup), default=-1
+        )
+        earliest_binding_used = min(
+            (binding_lookup[var] for var in upstream_vars if var in binding_lookup), default=-1
+        )
+        if (
+            param_tuple
+            and isinstance(binding.value, relax.TupleGetItem)
+            and binding.value.tuple_value.same_as(param_tuple)
+            and binding.value.index in pidx2binname
+        ):
+            tuple_param_group = pidx2binname[binding.value.index]
+        else:
+            tuple_param_group = ""
+
+        return [
+            # First, sort by valid orderings, so the min element will
+            # always be a binding that would be legal to use.
+            -valid_ordering,
+            # Next, sort by the function parameter used by this
+            # binding, in increasing order.  That way, we start by
+            # computing everything that required just the first
+            # parameter, then move on to variables that can be
+            # computed with the first two parameters, and so on.
+            last_param_used,
+            # Next, sort by the other bindings used.  This way, for
+            # variables that are only used as input in a single
+            # downstream binding, the variable's required live range
+            # is minimized.
+            -earliest_binding_used,
+            # Finally, if this is a `TupleGetItem(param_tuple, i)`,
+            # select the option that uses an already-open file.  This
+            # is mainly used relevant when loading from pytorch, which
+            # require loading the entire file at once.
+            tuple_param_group,
+        ]
+
+    while bindings_to_visit:
+        i_binding = min(range(len(bindings_to_visit)), key=sort_key)
+        binding = bindings_to_visit.pop(i_binding)
+
+        assert all(var in previously_defined for var in relax.analysis.free_vars(binding.value))
+        new_binding_order.append(binding)
+        previously_defined.add(binding.var)
+
+    assert len(new_binding_order) == len(func.body.blocks[0].bindings)
 
     return relax.Function(
         func.params,
-        relax.SeqExpr(blocks=[relax.DataflowBlock(new_bindings)], body=func.body.body),
+        relax.SeqExpr(
+            blocks=[relax.DataflowBlock(new_binding_order)],
+            body=func.body.body,
+        ),
         func.ret_struct_info,
         func.is_pure,
         func.attrs,
@@ -206,17 +262,10 @@ def reorder_func(
 
 @tvm.transform.module_pass(opt_level=0, name="ReorderTransformFunc")
 class ReorderTransformFunc:
-    def __init__(
-        self,
-        pidx2pname: Dict[int, str],
-        pname2binname: Dict[str, str],
-        f_convert_pname_fwd: Callable[[str], List[str]],
-    ) -> None:
-        self.pidx2binname: Dict[int, str] = {
-            pidx: pname2binname[f_convert_pname_fwd(pname)[0]]
-            for pidx, pname in pidx2pname.items()
-            if f_convert_pname_fwd(pname)[0] in pname2binname
-        }
+    def __init__(self, pidx2binname: Optional[Dict[int, str]] = None):
+        if pidx2binname is None:
+            pidx2binname = {}
+        self.pidx2binname = pidx2binname
 
     def transform_module(
         self,
@@ -225,7 +274,7 @@ class ReorderTransformFunc:
     ) -> IRModule:
         mod = mod.clone()
         for gv, func in list(mod.functions.items()):
-            if isinstance(func, relax.Function):
+            if isinstance(func, relax.Function) and func.attrs and "global_symbol" in func.attrs:
                 assert gv.name_hint.endswith("transform_params")
                 func_updated = reorder_func(func, self.pidx2binname)
                 mod[gv] = func_updated

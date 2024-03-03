@@ -837,11 +837,13 @@ class ParamManager:
         tvm.transform.Pass
             The transformation
         """
-        return ReorderTransformFunc(
-            self.pidx2pname,
-            self.torch_pname2binname,
-            self.f_convert_pname_fwd,
-        )
+
+        pidx2binname: Dict[int, str] = {
+            pidx: self.torch_pname2binname[self.f_convert_pname_fwd(pname)[0]]
+            for pidx, pname in self.pidx2pname.items()
+            if self.f_convert_pname_fwd(pname)[0] in self.torch_pname2binname
+        }
+        return ReorderTransformFunc(pidx2binname)
 
 
 @mutator
