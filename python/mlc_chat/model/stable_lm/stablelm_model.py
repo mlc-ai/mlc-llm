@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class StableLMEpochConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class StableLmConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the StableLM model."""
 
     vocab_size: int
@@ -27,8 +27,8 @@ class StableLMEpochConfig(ConfigBase):  # pylint: disable=too-many-instance-attr
     num_hidden_layers: int
     num_attention_heads: int
     num_key_value_heads: int
-    norm_eps: float
-    rope_pct: float
+    layer_norm_eps: float
+    partial_rotary_factor: float
     rope_theta: int
     intermediate_size: int
     use_qkv_bias: bool = False  # Default to False for Stable-LM 3B model
@@ -78,16 +78,15 @@ class StableLMEpochConfig(ConfigBase):  # pylint: disable=too-many-instance-attr
 # pylint: disable=invalid-name,missing-docstring
 
 
-class StableLMAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
-    def __init__(self, config: StableLMEpochConfig):
+class StableLmAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+    def __init__(self, config: StableLmConfig):
         self.hidden_size = config.hidden_size
         self.rope_theta = config.rope_theta
-        self.rope_pct = config.rope_pct
         self.num_heads = config.num_attention_heads
         self.head_dim = self.hidden_size // self.num_heads
         self.num_key_value_heads = config.num_key_value_heads
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
-        self.rotary_ndims = int(self.head_dim * config.rope_pct)
+        self.rotary_ndims = int(config.partial_rotary_factor * self.head_dim)
 
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
@@ -130,8 +129,8 @@ class StableLMAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         return self.o_proj(output)
 
 
-class StalbeLMMLP(nn.Module):
-    def __init__(self, config: StableLMEpochConfig):
+class StableLmMLP(nn.Module):
+    def __init__(self, config: StableLmConfig):
         self.intermediate_size = config.intermediate_size
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
@@ -146,11 +145,11 @@ class StalbeLMMLP(nn.Module):
         return self.down_proj(op.silu(x1) * x2)
 
 
-class StableLMDecoderLayer(nn.Module):
-    def __init__(self, config: StableLMEpochConfig):
-        norm_eps = config.norm_eps
-        self.self_attn = StableLMAttention(config)
-        self.mlp = StalbeLMMLP(config)
+class StableLmDecoderLayer(nn.Module):
+    def __init__(self, config: StableLmConfig):
+        norm_eps = config.layer_norm_eps
+        self.self_attn = StableLmAttention(config)
+        self.mlp = StableLmMLP(config)
         self.input_layernorm = nn.LayerNorm(config.hidden_size, eps=norm_eps)
         self.post_attention_layernorm = nn.LayerNorm(config.hidden_size, eps=norm_eps)
 
@@ -162,14 +161,14 @@ class StableLMDecoderLayer(nn.Module):
         return hidden_states
 
 
-class StableLMEpochModel(nn.Module):
-    def __init__(self, config: StableLMEpochConfig):
+class StableLmModel(nn.Module):
+    def __init__(self, config: StableLmConfig):
         assert config.hidden_size % config.num_attention_heads == 0
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
-            [StableLMDecoderLayer(config) for _ in range(config.num_hidden_layers)]
+            [StableLmDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
-        self.norm = nn.LayerNorm(config.hidden_size, eps=config.norm_eps)
+        self.norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
     def forward(self, input_ids: Tensor, total_seq_len: tir.Var, attention_mask: Tensor):
         hidden_states = self.embed_tokens(input_ids)
@@ -179,9 +178,9 @@ class StableLMEpochModel(nn.Module):
         return hidden_states
 
 
-class StableLMEpochForCausalLM(nn.Module):
-    def __init__(self, config: StableLMEpochConfig):
-        self.model = StableLMEpochModel(config)
+class StableLmForCausalLM(nn.Module):
+    def __init__(self, config: StableLmConfig):
+        self.model = StableLmModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.vocab_size = config.vocab_size
         self.dtype = "float32"
