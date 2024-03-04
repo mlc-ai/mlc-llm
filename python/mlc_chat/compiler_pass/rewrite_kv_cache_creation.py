@@ -64,6 +64,11 @@ class RewriteKVCacheCreation:  # pylint: disable=too-many-instance-attributes
 
         flashinfer : bool
             A boolean indicating if flashinfer is enabled.
+
+        metadata : Dict[str, Any]
+            The model's metadata for KV cache creation.
+            Note that the metadata will be updated in this pass -- the
+            KV cache metadata will be attached.
         """
         self.target = target
         self.flashinfer = flashinfer
@@ -88,11 +93,21 @@ class RewriteKVCacheCreation:  # pylint: disable=too-many-instance-attributes
             new_mod = new_mod.with_attrs(mod.attrs)
 
         kwargs = extract_creation_args(creation_func)
+        self.attach_kv_cache_metadata(kwargs)
 
         bb = relax.BlockBuilder(new_mod)
         self.create_tir_paged_kv_cache(bb, kwargs)
         self.create_flashinfer_paged_kv_cache(bb, kwargs)
         return bb.finalize()
+
+    def attach_kv_cache_metadata(self, kwargs: Dict[str, Any]):
+        """Attach the KV cache metadata to model metadata."""
+        self.metadata["kv_cache"] = {
+            "num_hidden_layers": kwargs["num_hidden_layers"],
+            "num_attention_heads": kwargs["num_attention_heads"],
+            "num_key_value_heads": kwargs["num_key_value_heads"],
+            "head_dim": kwargs["head_dim"],
+        }
 
     def create_tir_paged_kv_cache(self, bb: relax.BlockBuilder, kwargs: Dict[str, Any]) -> None:
         """Create the TIR-based PagedKVCache"""

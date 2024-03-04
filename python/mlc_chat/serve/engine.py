@@ -166,18 +166,27 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
         params_bytes += usage_json["params_bytes"]
         temp_func_bytes = max(temp_func_bytes, usage_json["temp_func_bytes"])
 
+        cmd = [
+            sys.executable,
+            "-m",
+            "mlc_chat.cli.model_metadata",
+            model.model_lib_path,
+            "--print-kv-cache-metadata-in-json",
+        ]
+        kv_cache_metadata_str = subprocess.check_output(cmd, universal_newlines=True)
+        kv_cache_metadata = json.loads(kv_cache_metadata_str)
+
         # Read model config and compute the kv size per token.
         with open(config_file_path, mode="rt", encoding="utf-8") as file:
             json_object = json.load(file)
             model_config = json_object["model_config"]
-            num_layers = model_config["num_hidden_layers"]
-            hidden_size = model_config["hidden_size"]
-            head_dim = model_config["head_dim"]
             vocab_size = model_config["vocab_size"]
-            tensor_parallel_shards = model_config["tensor_parallel_shards"]
-            num_qo_heads = model_config["num_attention_heads"] / tensor_parallel_shards
-            num_kv_heads = model_config["num_key_value_heads"] / tensor_parallel_shards
             prefill_chunk_size = model_config["prefill_chunk_size"]
+            num_layers = kv_cache_metadata["num_hidden_layers"]
+            head_dim = kv_cache_metadata["head_dim"]
+            num_qo_heads = kv_cache_metadata["num_attention_heads"]
+            num_kv_heads = kv_cache_metadata["num_key_value_heads"]
+            hidden_size = head_dim * num_qo_heads
         kv_bytes_per_token += head_dim * num_kv_heads * num_layers * 4 + 1.25
         kv_aux_workspace_bytes += (
             (max_num_sequence + 1) * 88
