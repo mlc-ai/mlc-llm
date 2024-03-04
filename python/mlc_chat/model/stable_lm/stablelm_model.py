@@ -193,7 +193,7 @@ class StableLmModel(nn.Module):
         return hidden_states
 
 
-class StableLmForCausalLM(nn.Module):
+class StableLmForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: StableLmConfig):
         self.model = StableLmModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
