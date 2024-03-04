@@ -566,12 +566,10 @@ MODEL_PRESETS: Dict[str, Any] = {
         "vocab_size": 65536,
     },
     "orion": {
-        "architectures": [
-            "OrionForCausalLM"
-        ],
+        "architectures": ["OrionForCausalLM"],
         "auto_map": {
             "AutoConfig": "configuration_orion.OrionConfig",
-            "AutoModelForCausalLM": "modeling_orion.OrionForCausalLM"
+            "AutoModelForCausalLM": "modeling_orion.OrionForCausalLM",
         },
         "tokenizer_class": "OrionTokenizer",
         "bos_token_id": 1,
@@ -595,6 +593,6 @@ MODEL_PRESETS: Dict[str, Any] = {
         "torch_dtype": "bfloat16",
         "transformers_version": "4.34.0",
         "use_cache": True,
-        "vocab_size": 84608
+        "vocab_size": 84608,
     },
 }
