@@ -779,7 +779,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
         sch.reorder(xo, yo, xi, yi)
         t = sch.fuse(xo, yo)
-        ty, tx = sch.split(t, factors=[num_warps, bdx])
+        ty, tx = sch.split(t, factors=[None, bdx])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
@@ -791,7 +791,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
         sch.reorder(xo, yo, xi, yi)
         t = sch.fuse(xo, yo)
-        ty, tx = sch.split(t, factors=[num_warps, bdx])
+        ty, tx = sch.split(t, factors=[None, bdx])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
@@ -1425,7 +1425,7 @@ def _attention_prefill_ragged(
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
         sch.reorder(xo, yo, xi, yi)
         t = sch.fuse(xo, yo)
-        ty, tx = sch.split(t, factors=[num_warps, bdx])
+        ty, tx = sch.split(t, factors=[None, bdx])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
@@ -1437,7 +1437,7 @@ def _attention_prefill_ragged(
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
         sch.reorder(xo, yo, xi, yi)
         t = sch.fuse(xo, yo)
-        ty, tx = sch.split(t, factors=[num_warps, bdx])
+        ty, tx = sch.split(t, factors=[None, bdx])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
