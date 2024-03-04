@@ -127,6 +127,7 @@ class StableLmAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         attn_output = self.o_proj(output)
         return attn_output
 
+
 class StableLmMLP(nn.Module):
     def __init__(self, config: StableLmConfig):
         self.intermediate_size = config.intermediate_size
