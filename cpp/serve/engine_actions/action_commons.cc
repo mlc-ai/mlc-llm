@@ -16,12 +16,13 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<M
   }
 }
 
-void ProcessFinishedRequestStateEntries(RequestState finished_rsentries, EngineState estate,
-                                        Array<Model> models, int max_single_sequence_length) {
+void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_rsentries,
+                                        EngineState estate, Array<Model> models,
+                                        int max_single_sequence_length) {
   // - Remove the finished request state entries.
   for (const RequestStateEntry& rsentry : finished_rsentries) {
     // The finished entry must be a leaf.
-    ICHECK(rsentry->children_idx.empty());
+    ICHECK(rsentry->child_indices.empty());
     // Mark the status of this entry as finished.
     rsentry->status = RequestStateStatus::kFinished;
     // Remove the request state entry from all the models.
@@ -34,8 +35,8 @@ void ProcessFinishedRequestStateEntries(RequestState finished_rsentries, EngineS
     int parent_idx = rsentry->parent_idx;
     while (parent_idx != -1) {
       bool all_children_finished = true;
-      for (int child_idx : rstate[parent_idx]->children_idx) {
-        if (rstate[child_idx]->status != RequestStateStatus::kFinished) {
+      for (int child_idx : rstate->entries[parent_idx]->child_indices) {
+        if (rstate->entries[child_idx]->status != RequestStateStatus::kFinished) {
           all_children_finished = false;
           break;
         }
@@ -46,14 +47,14 @@ void ProcessFinishedRequestStateEntries(RequestState finished_rsentries, EngineS
 
       // All the children of the parent request state entry have finished.
       // So we mark the parent entry as finished.
-      rstate[parent_idx]->status = RequestStateStatus::kFinished;
+      rstate->entries[parent_idx]->status = RequestStateStatus::kFinished;
       // Remove the request state entry from all the models.
-      RemoveRequestFromModel(estate, rstate[parent_idx]->mstates[0]->internal_id, models);
-      estate->id_manager.RecycleId(rstate[parent_idx]->mstates[0]->internal_id);
+      RemoveRequestFromModel(estate, rstate->entries[parent_idx]->mstates[0]->internal_id, models);
+      estate->id_manager.RecycleId(rstate->entries[parent_idx]->mstates[0]->internal_id);
       estate->stats.current_total_seq_len -=
-          static_cast<int>(rstate[parent_idx]->mstates[0]->committed_tokens.size());
+          static_cast<int>(rstate->entries[parent_idx]->mstates[0]->committed_tokens.size());
       // Climb up to the parent.
-      parent_idx = rstate[parent_idx]->parent_idx;
+      parent_idx = rstate->entries[parent_idx]->parent_idx;
     }
 
     if (parent_idx == -1) {
@@ -68,14 +69,14 @@ void ProcessFinishedRequestStateEntries(RequestState finished_rsentries, EngineS
       estate->request_states.erase(rsentry->request->id);
 
       // Update engine statistics.
-      const RequestStateEntry& root_rsentry = rstate[0];
+      const RequestStateEntry& root_rsentry = rstate->entries[0];
       auto trequest_finish = std::chrono::high_resolution_clock::now();
       estate->stats.request_total_prefill_time +=
           static_cast<double>((root_rsentry->tprefill_finish - root_rsentry->tadd).count()) / 1e9;
       estate->stats.total_prefill_length += rsentry->request->input_total_length;
       estate->stats.request_total_decode_time +=
           static_cast<double>((trequest_finish - root_rsentry->tprefill_finish).count()) / 1e9;
-      for (const RequestStateEntry& entry : rstate) {
+      for (const RequestStateEntry& entry : rstate->entries) {
         estate->stats.total_decode_length += entry->mstates[0]->committed_tokens.size();
       }
       estate->stats.total_decode_length -= rsentry->request->generation_cfg->n;
@@ -106,7 +107,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
 
     bool invoke_callback = false;
     for (int i = 0; i < n; ++i) {
-      const RequestStateEntry& rsentry = n == 1 ? rstate[0] : rstate[i + 1];
+      const RequestStateEntry& rsentry = n == 1 ? rstate->entries[0] : rstate->entries[i + 1];
       const DeltaRequestReturn& delta_request_ret =
           rsentry->GetReturnTokenIds(tokenizer, max_single_sequence_length);
       group_delta_token_ids.push_back(IntTuple{delta_request_ret.delta_token_ids.begin(),
@@ -148,14 +149,14 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
   // Find the last alive request state entry, which is what we want to preempt.
   RequestState rstate = estate->GetRequestState(request);
   int preempt_rstate_idx = -1;
-  for (int i = static_cast<int>(rstate.size()) - 1; i >= 0; --i) {
-    if (rstate[i]->status == RequestStateStatus::kAlive) {
+  for (int i = static_cast<int>(rstate->entries.size()) - 1; i >= 0; --i) {
+    if (rstate->entries[i]->status == RequestStateStatus::kAlive) {
       preempt_rstate_idx = i;
       break;
     }
   }
   ICHECK_NE(preempt_rstate_idx, -1);
-  RequestStateEntry rsentry = rstate[preempt_rstate_idx];
+  RequestStateEntry rsentry = rstate->entries[preempt_rstate_idx];
 
   // Remove from models.
   // - Clear model speculation draft.
@@ -163,7 +164,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
   RECORD_EVENT(trace_recorder, rsentry->request->id, "preempt");
   rsentry->status = RequestStateStatus::kPending;
   estate->stats.current_total_seq_len -= rsentry->mstates[0]->committed_tokens.size();
-  if (rsentry->children_idx.empty()) {
+  if (rsentry->child_indices.empty()) {
     // The length was overly decreased by 1 when the entry has no child.
     ++estate->stats.current_total_seq_len;
   }
@@ -206,7 +207,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
     // Remove from running queue.
     estate->running_queue.erase(estate->running_queue.end() - 1);
   }
-  if (preempt_rstate_idx == static_cast<int>(rstate.size()) - 1) {
+  if (preempt_rstate_idx == static_cast<int>(rstate->entries.size()) - 1) {
     // Add to the front of waiting queue.
     estate->waiting_queue.insert(estate->waiting_queue.begin(), request);
   }

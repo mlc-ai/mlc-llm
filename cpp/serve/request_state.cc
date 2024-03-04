@@ -82,6 +82,8 @@ void RequestModelStateNode::RemoveAllDraftTokens() {
   }
 }
 
+/****************** RequestStateEntry ******************/
+
 TVM_REGISTER_OBJECT_TYPE(RequestStateEntryNode);
 
 RequestStateEntry::RequestStateEntry(
@@ -187,6 +189,16 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
     return {return_token_ids, logprob_json_strs, String("length")};
   }
   return {return_token_ids, logprob_json_strs, Optional<String>()};
+}
+
+/****************** RequestState ******************/
+
+TVM_REGISTER_OBJECT_TYPE(RequestStateNode);
+
+RequestState::RequestState(std::vector<RequestStateEntry> entries) {
+  ObjectPtr<RequestStateNode> n = make_object<RequestStateNode>();
+  n->entries = std::move(entries);
+  data_ = std::move(n);
 }
 
 }  // namespace serve
