@@ -43,9 +43,6 @@ def get_generation_config(
     else:
         raise RuntimeError("Cannot reach here")
 
-    response_format_dict = kwargs.get("response_format", {})
-    kwargs["response_format"] = ResponseFormat(**response_format_dict)
-
     if extra_stop_token_ids is not None:
         stop_token_ids = kwargs.get("stop_token_ids", [])
         assert isinstance(stop_token_ids, list)

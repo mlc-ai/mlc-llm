@@ -6,6 +6,7 @@ https://github.com/lm-sys/FastChat/blob/main/fastchat/protocol/openai_api_protoc
 # pylint: disable=missing-class-docstring
 import time
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from mlc_chat.serve.config import ResponseFormat
 
 import shortuuid
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -65,7 +66,7 @@ class ModelResponse(BaseModel):
 ################ v1/completions ################
 
 
-class ResponseFormat(BaseModel):
+class RequestResponseFormat(BaseModel):
     type: Literal["text", "json_object"] = "text"
     json_schema: Optional[str] = None
 
@@ -94,7 +95,7 @@ class CompletionRequest(BaseModel):
     top_p: float = 1.0
     user: Optional[str] = None
     ignore_eos: bool = False
-    response_format: ResponseFormat = ResponseFormat()
+    response_format: RequestResponseFormat = Field(default_factory=RequestResponseFormat)
 
     @field_validator("frequency_penalty", "presence_penalty")
     @classmethod
@@ -208,7 +209,7 @@ class ChatCompletionRequest(BaseModel):
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None
     user: Optional[str] = None
     ignore_eos: bool = False
-    response_format: ResponseFormat = ResponseFormat()
+    response_format: RequestResponseFormat = Field(default_factory=RequestResponseFormat)
 
     @field_validator("frequency_penalty", "presence_penalty")
     @classmethod
@@ -331,5 +332,5 @@ def openai_api_get_generation_config(
         kwargs["max_tokens"] = -1
     if request.stop is not None:
         kwargs["stop_strs"] = [request.stop] if isinstance(request.stop, str) else request.stop
-    kwargs["response_format"] = request.response_format.model_dump()
+    kwargs["response_format"] = ResponseFormat(**request.response_format.model_dump())
     return kwargs
