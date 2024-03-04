@@ -222,10 +222,10 @@ MODELS: Dict[str, Model] = {
             "ft-quant": qwen2_quantization.ft_quant,
         },
     ),
-    "stablelm_epoch": Model(
-        name="stablelm_epoch",
-        model=stablelm_model.StableLMEpochForCausalLM,
-        config=stablelm_model.StableLMEpochConfig,
+    "stablelm": Model(
+        name="stablelm",
+        model=stablelm_model.StableLmForCausalLM,
+        config=stablelm_model.StableLmConfig,
         source={
             "huggingface-torch": stablelm_loader.huggingface,
             "huggingface-safetensor": stablelm_loader.huggingface,
