@@ -719,6 +719,23 @@ Conversation GemmaInstruction() {
   return conv;
 }
 
+Conversation Orion() {
+  Conversation conv;
+  conv.name = "orion";
+  conv.system = "";
+  conv.roles = {"Human: ", "Assitant: </s>"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"\n\n", "</s>"};
+  conv.role_msg_sep = "";
+  conv.role_empty_sep = "";
+  conv.stop_tokens = {2};
+  conv.stop_str = "</s>";
+  conv.add_bos = true;
+  return conv;
+}
+
 }  // namespace
 
 using ConvFactory = Conversation (*)();
@@ -760,6 +777,7 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"baichuan", ChatML},
       {"gemma_instruction", GemmaInstruction},
       {"internlm", ChatML},
+      {"orion", Orion},
   };
   auto it = factory.find(name);
   if (it == factory.end()) {
