@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
-from ..serve.config import GenerationConfig, ResponseFormat
+from ..serve.config import GenerationConfig
 from . import RequestProtocol
 from .openai_api_protocol import ChatCompletionRequest as OpenAIChatCompletionRequest
 from .openai_api_protocol import CompletionRequest as OpenAICompletionRequest

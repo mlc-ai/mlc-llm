@@ -6,10 +6,11 @@ https://github.com/lm-sys/FastChat/blob/main/fastchat/protocol/openai_api_protoc
 # pylint: disable=missing-class-docstring
 import time
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
-from mlc_chat.serve.config import ResponseFormat
 
 import shortuuid
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from mlc_chat.serve.config import ResponseFormat
 
 ################ Commons ################
 

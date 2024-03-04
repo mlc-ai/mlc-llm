@@ -236,7 +236,7 @@ class GrammarStateMatcher(Object):
         terminated : bool
             Whether the matcher has terminated.
         """
-        return _ffi_api.GrammarStateMatcherIsTerminated(self)
+        return _ffi_api.GrammarStateMatcherIsTerminated(self)  # type: ignore  # pylint: disable=no-member
 
     def debug_accept_char(self, codepoint: int) -> bool:
         """Accept one unicode codepoint to the current state.
