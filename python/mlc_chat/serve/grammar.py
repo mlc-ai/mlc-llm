@@ -179,6 +179,15 @@ class GrammarStateMatcher(Object):
         -------
         accepted : bool
             Whether the token is accepted.
+
+        Note
+        ----
+        Termination state.
+
+        When the end of the main rule is reached, the matcher can only accept the stop token.
+        The matcher is terminated after accepting the stop token, i.e. no accept_token or
+        find_next_rejected_tokens operations can be performed. The termination state can be canceled
+        using Rollback().
         """
         return _ffi_api.GrammarStateMatcherAcceptToken(self, token_id)  # type: ignore  # pylint: disable=no-member
 
@@ -217,6 +226,17 @@ class GrammarStateMatcher(Object):
     def reset_state(self) -> None:
         """Reset the matcher to the initial state."""
         _ffi_api.GrammarStateMatcherResetState(self)  # type: ignore  # pylint: disable=no-member
+
+    def is_terminated(self) -> bool:
+        """Check if the matcher has accepted the stop token and terminated. See also
+        GrammarStateMatcher.accept_token.
+
+        Returns
+        -------
+        terminated : bool
+            Whether the matcher has terminated.
+        """
+        return _ffi_api.GrammarStateMatcherIsTerminated(self)  # type: ignore  # pylint: disable=no-member
 
     def debug_accept_char(self, codepoint: int) -> bool:
         """Accept one unicode codepoint to the current state.

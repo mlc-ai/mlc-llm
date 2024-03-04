@@ -63,8 +63,8 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
 inline std::vector<RequestStateEntry> GetRunningRequestStateEntries(const EngineState& estate) {
   std::vector<RequestStateEntry> rsentries;
   for (const Request& request : estate->running_queue) {
-    for (const RequestStateEntry& rsentry : estate->GetRequestState(request)) {
-      if (rsentry->status == RequestStateStatus::kAlive && rsentry->children_idx.empty()) {
+    for (const RequestStateEntry& rsentry : estate->GetRequestState(request)->entries) {
+      if (rsentry->status == RequestStateStatus::kAlive && rsentry->child_indices.empty()) {
         rsentries.push_back(rsentry);
       }
     }

@@ -58,6 +58,11 @@ class GrammarStateMatcherNode : public Object {
    * \brief Accept one token and update the state of the matcher.
    * \param token_id The id of the token to accept.
    * \return Whether the token is accepted.
+   * \note Termination state.
+   * When the end of the main rule is reached, the matcher can only accept the stop token.
+   * The matcher is terminated after accepting the stop token, i.e. no AcceptToken or
+   * FindNextTokenMask operations can be performed. The termination state can be canceled
+   * using Rollback().
    */
   virtual bool AcceptToken(int32_t token_id) = 0;
 
@@ -78,6 +83,12 @@ class GrammarStateMatcherNode : public Object {
 
   /*! \brief Get the maximum number of rollback steps allowed. */
   virtual int MaxRollbackSteps() const = 0;
+
+  /*!
+   * \brief Check if the matcher has accepted the stop token and terminated.
+   * \sa AcceptToken
+   */
+  virtual bool IsTerminated() const = 0;
 
   /*! \brief Reset the matcher to the initial state. */
   virtual void ResetState() = 0;

@@ -49,6 +49,14 @@ void RequestModelStateNode::FindNextTokenBitmask(DLTensor* bitmask) {
 void RequestModelStateNode::CommitToken(SampleResult sampled_token) {
   committed_tokens.push_back(std::move(sampled_token));
   appeared_token_ids[sampled_token.sampled_token_id.first] += 1;
+
+  // Update the grammar matcher state if it exists.
+  if (grammar_state_matcher) {
+    bool accepted =
+        grammar_state_matcher.value()->AcceptToken(sampled_token.sampled_token_id.first);
+    ICHECK(accepted) << "Token id " << sampled_token.sampled_token_id.first
+                     << " is not accepted by the grammar state matcher.";
+  }
 }
 
 void RequestModelStateNode::AddDraftToken(SampleResult sampled_token, NDArray prob_dist) {
@@ -73,6 +81,8 @@ void RequestModelStateNode::RemoveAllDraftTokens() {
     RemoveLastDraftToken();
   }
 }
+
+/****************** RequestStateEntry ******************/
 
 TVM_REGISTER_OBJECT_TYPE(RequestStateEntryNode);
 
@@ -179,6 +189,16 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
     return {return_token_ids, logprob_json_strs, String("length")};
   }
   return {return_token_ids, logprob_json_strs, Optional<String>()};
+}
+
+/****************** RequestState ******************/
+
+TVM_REGISTER_OBJECT_TYPE(RequestStateNode);
+
+RequestState::RequestState(std::vector<RequestStateEntry> entries) {
+  ObjectPtr<RequestStateNode> n = make_object<RequestStateNode>();
+  n->entries = std::move(entries);
+  data_ = std::move(n);
 }
 
 }  // namespace serve

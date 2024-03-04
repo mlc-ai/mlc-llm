@@ -3,7 +3,7 @@ import os
 
 import pytest
 import tvm.testing
-from tvm._ffi.base import TVMError
+from tvm import TVMError
 
 from mlc_chat.serve import BNFGrammar
 

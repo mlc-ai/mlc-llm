@@ -111,13 +111,16 @@ class BatchDraftActionObj : public EngineActionObj {
         logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
 
         // - Compute probability distributions.
-        NDArray probs_device =
+        NDArray probs_on_device =
             logit_processor_->ComputeProbsFromLogits(logits, generation_cfg, request_ids);
 
         // - Sample tokens.
+        // Fill range [0, num_rsentries) into `sample_indices`.
+        std::vector<int> sample_indices(num_rsentries);
+        std::iota(sample_indices.begin(), sample_indices.end(), 0);
         std::vector<NDArray> prob_dist;
         std::vector<SampleResult> sample_results = sampler_->BatchSampleTokens(
-            probs_device, request_ids, generation_cfg, rngs, /*prob_indices=*/nullptr, &prob_dist);
+            probs_on_device, sample_indices, request_ids, generation_cfg, rngs, &prob_dist);
         ICHECK_EQ(sample_results.size(), num_rsentries);
 
         // - Add draft token to the state.

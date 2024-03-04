@@ -100,7 +100,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // Update 3. Vocabulary mask.
     RECORD_EVENT(trace_recorder_, request_ids, "start apply logit mask");
-    UpdateWithMask(logits, mstates, cum_num_token, draft_tokens, request_ids);
+    UpdateWithMask(logits, mstates, cum_num_token, draft_tokens);
     RECORD_EVENT(trace_recorder_, request_ids, "finish apply logit mask");
 
     RECORD_EVENT(trace_recorder_, request_ids, "finish update logits");
@@ -302,8 +302,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
   void UpdateWithMask(NDArray logits, const Array<RequestModelState>& mstates,
                       const std::vector<int>* cum_num_token,
-                      const std::vector<std::vector<SampleResult>>* draft_tokens,
-                      const Array<String>& request_ids) {
+                      const std::vector<std::vector<SampleResult>>* draft_tokens) {
     // Construct:
     // - seq_ids (max_num_token,) int32
     // - bitmask (max_num_token, ceildiv(vocab_size, 32)), int32
@@ -311,8 +310,6 @@ class LogitProcessorImpl : public LogitProcessorObj {
     uint32_t* p_bitmask = static_cast<uint32_t*>(bitmask_host_->data);
 
     // - Set arrays.
-    ICHECK(mstates.size() == request_ids.size());
-
     int batch_size = logits->shape[0];
     ICHECK((cum_num_token == nullptr && batch_size == mstates.size()) ||
            (cum_num_token != nullptr && batch_size == cum_num_token->size()));
