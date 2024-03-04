@@ -10,17 +10,17 @@ import numpy as np
 from mlc_chat.loader import ExternMapping
 from mlc_chat.quantization import Quantization
 
-from .stablelm_model import StableLMEpochConfig, StableLMEpochForCausalLM
+from .stablelm_model import StableLmConfig, StableLmForCausalLM
 
 
-def huggingface(model_config: StableLMEpochConfig, quantization: Quantization) -> ExternMapping:
+def huggingface(model_config: StableLmConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
     Parameters
     ----------
-    model_config : GPT2Config
-        The configuration of the GPT-2 model.
+    model_config : StableLmConfig
+        The configuration of the StableLm model.
 
     quantization : Quantization
         The quantization configuration.
@@ -30,7 +30,7 @@ def huggingface(model_config: StableLMEpochConfig, quantization: Quantization) -
     param_map : ExternMapping
         The parameter mapping from MLC to HuggingFace PyTorch.
     """
-    model = StableLMEpochForCausalLM(model_config)
+    model = StableLmForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
     _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
