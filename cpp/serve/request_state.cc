@@ -49,6 +49,14 @@ void RequestModelStateNode::FindNextTokenBitmask(DLTensor* bitmask) {
 void RequestModelStateNode::CommitToken(SampleResult sampled_token) {
   committed_tokens.push_back(std::move(sampled_token));
   appeared_token_ids[sampled_token.sampled_token_id.first] += 1;
+
+  // Update the grammar matcher state if it exists.
+  if (grammar_state_matcher) {
+    bool accepted =
+        grammar_state_matcher.value()->AcceptToken(sampled_token.sampled_token_id.first);
+    ICHECK(accepted) << "Token id " << sampled_token.sampled_token_id.first
+                     << " is not accepted by the grammar state matcher.";
+  }
 }
 
 void RequestModelStateNode::AddDraftToken(SampleResult sampled_token, NDArray prob_dist) {

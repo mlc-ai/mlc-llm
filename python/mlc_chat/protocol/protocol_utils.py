@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
-from ..serve.config import GenerationConfig, ResponseFormat
+from ..serve.config import GenerationConfig
 from . import RequestProtocol
 from .openai_api_protocol import ChatCompletionRequest as OpenAIChatCompletionRequest
 from .openai_api_protocol import CompletionRequest as OpenAICompletionRequest
@@ -42,9 +42,6 @@ def get_generation_config(
         kwargs = openai_api_get_generation_config(request)
     else:
         raise RuntimeError("Cannot reach here")
-
-    response_format_dict = kwargs.get("response_format", {})
-    kwargs["response_format"] = ResponseFormat(**response_format_dict)
 
     if extra_stop_token_ids is not None:
         stop_token_ids = kwargs.get("stop_token_ids", [])
