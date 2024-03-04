@@ -437,7 +437,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "transformers_version": "4.38.0",
         "use_cache": True,
         "use_qkv_bias": False,
-        "vocab_size": 50304
+        "vocab_size": 50304,
     },
     "baichuan": {
         "architectures": ["BaichuanForCausalLM"],
