@@ -159,11 +159,14 @@ class StableLmDecoderLayer(nn.Module):
         return hidden_states
 
     def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn.batch_forward(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+        out = self.self_attn.batch_forward(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
+        )
         hidden_states = out + hidden_states
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = out + hidden_states
         return hidden_states
+
 
 class StableLmModel(nn.Module):
     def __init__(self, config: StableLmConfig):
