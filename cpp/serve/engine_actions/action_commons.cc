@@ -120,13 +120,6 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
 
       if (!delta_request_ret.delta_token_ids.empty()) {
         invoke_callback = true;
-        // Update the grammar matcher state if it exists.
-        if (rsentry->mstates[0]->grammar_state_matcher) {
-          const auto& grammar_state_matcher = rsentry->mstates[0]->grammar_state_matcher.value();
-          for (int32_t token_id : delta_request_ret.delta_token_ids) {
-            grammar_state_matcher->AcceptToken(token_id);
-          }
-        }
       }
     }
 

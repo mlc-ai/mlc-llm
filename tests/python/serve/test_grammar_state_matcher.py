@@ -6,6 +6,7 @@ from typing import List
 import pytest
 import tvm
 import tvm.testing
+from tvm import TVMError
 
 from mlc_chat.serve import BNFGrammar, GrammarStateMatcher
 from mlc_chat.tokenizer import Tokenizer
@@ -268,7 +269,8 @@ def test_find_next_rejected_tokens(
     assert real_sizes == expected_rejected_sizes
 
 
-def test_accept_token(json_grammar: BNFGrammar):
+def test_token_based_operations(json_grammar: BNFGrammar):
+    """Test accepting token and finding the next token mask."""
     token_table = [
         # fmt: off
         "<s>", "</s>", "a", "abc", 'b"', '"', ':"', "{", "}", ", ", "6", ":", "\n", " ", '"a":true',
@@ -278,8 +280,6 @@ def test_accept_token(json_grammar: BNFGrammar):
     input_ids = [token_table.index(t) for t in input_splitted]
 
     grammar_state_matcher = GrammarStateMatcher(json_grammar, token_table)
-
-    result = []
 
     expected = [
         ["{"],
@@ -294,6 +294,8 @@ def test_accept_token(json_grammar: BNFGrammar):
         ["}", ", ", "\n", " "],
         ["</s>"],
     ]
+
+    result = []
 
     for id in input_ids:
         rejected = grammar_state_matcher.find_next_rejected_tokens()
@@ -367,6 +369,37 @@ def test_reset(json_grammar: BNFGrammar):
         assert grammar_state_matcher.accept_token(i)
 
     assert orig_result == result_after_reset
+
+
+def test_termination(json_grammar: BNFGrammar):
+    token_table = [
+        # fmt: off
+        "<s>", "</s>", "a", "abc", 'b"', '"', ':"', "{", "}", ", ", "6", ":", "\n", " ", '"a":true',
+        # fmt: on
+    ]
+    input_splitted = ["{", '"', "abc", 'b"', ":", "6", ", ", " ", '"a":true', "}", "</s>"]
+    input_ids = [token_table.index(t) for t in input_splitted]
+
+    grammar_state_matcher = GrammarStateMatcher(json_grammar, token_table, 5)
+
+    orig_result = []
+
+    for i in input_ids:
+        orig_result.append(grammar_state_matcher.find_next_rejected_tokens())
+        assert grammar_state_matcher.accept_token(i)
+
+    assert grammar_state_matcher.is_terminated()
+
+    with pytest.raises(TVMError):
+        grammar_state_matcher.accept_token(0)
+
+    with pytest.raises(TVMError):
+        grammar_state_matcher.find_next_rejected_tokens()
+
+    grammar_state_matcher.rollback(2)
+
+    assert not grammar_state_matcher.is_terminated()
+    assert grammar_state_matcher.accept_token(input_ids[-2])
 
 
 if __name__ == "__main__":

@@ -86,9 +86,9 @@ inline bool GrammarStateMatcherBase::AcceptCodepoint(TCodepoint codepoint, bool 
   if (verbose) {
     std::cout << "Stack before accepting: " << PrintStackState() << std::endl;
   }
-  tmp_new_stack_tops_.clear();
-
   const auto& prev_stack_tops = stack_tops_history_.GetLatest();
+
+  tmp_new_stack_tops_.clear();
   for (auto old_top : prev_stack_tops) {
     const auto& rule_position = tree_[old_top];
     auto current_sequence = grammar_->GetRuleExpr(rule_position.sequence_id);
