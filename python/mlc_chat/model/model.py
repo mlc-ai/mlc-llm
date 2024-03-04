@@ -222,10 +222,10 @@ MODELS: Dict[str, Model] = {
             "ft-quant": qwen2_quantization.ft_quant,
         },
     ),
-    "stablelm_epoch": Model(
-        name="stablelm_epoch",
-        model=stablelm_model.StableLMEpochForCausalLM,
-        config=stablelm_model.StableLMEpochConfig,
+    "stablelm": Model(
+        name="stablelm",
+        model=stablelm_model.StableLmForCausalLM,
+        config=stablelm_model.StableLmConfig,
         source={
             "huggingface-torch": stablelm_loader.huggingface,
             "huggingface-safetensor": stablelm_loader.huggingface,
@@ -234,6 +234,20 @@ MODELS: Dict[str, Model] = {
             "no-quant": stablelm_quantization.no_quant,
             "group-quant": stablelm_quantization.group_quant,
             "ft-quant": stablelm_quantization.ft_quant,
+        },
+    ),
+    "baichuan": Model(
+        name="baichuan",
+        model=baichuan_model.BaichuanForCausalLM,
+        config=baichuan_model.BaichuanConfig,
+        source={
+            "huggingface-torch": baichuan_loader.huggingface,
+            "huggingface-safetensor": baichuan_loader.huggingface,
+        },
+        quantize={
+            "no-quant": baichuan_quantization.no_quant,
+            "group-quant": baichuan_quantization.group_quant,
+            "ft-quant": baichuan_quantization.ft_quant,
         },
     ),
     "baichuan": Model(
