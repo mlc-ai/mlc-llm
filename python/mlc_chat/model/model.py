@@ -250,20 +250,6 @@ MODELS: Dict[str, Model] = {
             "ft-quant": baichuan_quantization.ft_quant,
         },
     ),
-    "baichuan": Model(
-        name="baichuan",
-        model=baichuan_model.BaichuanForCausalLM,
-        config=baichuan_model.BaichuanConfig,
-        source={
-            "huggingface-torch": baichuan_loader.huggingface,
-            "huggingface-safetensor": baichuan_loader.huggingface,
-        },
-        quantize={
-            "no-quant": baichuan_quantization.no_quant,
-            "group-quant": baichuan_quantization.group_quant,
-            "ft-quant": baichuan_quantization.ft_quant,
-        },
-    ),
     "internlm": Model(
         name="internlm",
         model=internlm_model.InternLMForCausalLM,
