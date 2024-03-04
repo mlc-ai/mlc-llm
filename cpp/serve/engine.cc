@@ -142,23 +142,23 @@ class EngineImpl : public Engine {
     int n = request->generation_cfg->n;
     int rng_seed = request->generation_cfg->seed;
 
-    RequestState rstate;
+    std::vector<RequestStateEntry> rsentries;
     // Create the request state entry for the input.
-    rstate.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(), rng_seed,
-                        token_table_, json_grammar_state_init_ctx_);
+    rsentries.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(), rng_seed,
+                           token_table_, json_grammar_state_init_ctx_);
     if (n > 1) {
       // Then create a request state entry for each parallel generation branch.
       // We add a offset to the rng seed so that to make generations different.
-      rstate.reserve(n + 1);
-      rstate[0]->children_idx.reserve(n);
+      rsentries.reserve(n + 1);
+      rsentries[0]->child_indices.reserve(n);
       for (int i = 0; i < n; ++i) {
-        rstate[0]->children_idx.push_back(rstate.size());
-        rstate.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(),
-                            rng_seed + i + 1, token_table_, json_grammar_state_init_ctx_,
-                            /*parent_idx=*/0);
+        rsentries[0]->child_indices.push_back(rsentries.size());
+        rsentries.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(),
+                               rng_seed + i + 1, token_table_, json_grammar_state_init_ctx_,
+                               /*parent_idx=*/0);
       }
     }
-    estate_->request_states.emplace(request->id, rstate);
+    estate_->request_states.emplace(request->id, RequestState(std::move(rsentries)));
   }
 
   void AbortRequest(const String& request_id) final {
@@ -169,7 +169,7 @@ class EngineImpl : public Engine {
     }
 
     RequestState rstate = it_rstate->second;
-    Request request = rstate[0]->request;
+    Request request = rstate->entries[0]->request;
 
     // - Check if the request is running or pending.
     auto it_running =
@@ -177,7 +177,7 @@ class EngineImpl : public Engine {
     auto it_waiting =
         std::find(estate_->waiting_queue.begin(), estate_->waiting_queue.end(), request);
 
-    for (const RequestStateEntry& rsentry : rstate) {
+    for (const RequestStateEntry& rsentry : rstate->entries) {
       estate_->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
     }
     estate_->request_states.erase(request->id);
@@ -188,13 +188,14 @@ class EngineImpl : public Engine {
       // Reduce the input length.
       estate_->stats.current_total_seq_len -= request->input_total_length;
       // Reduce the generated length.
-      for (int i = 0; i < static_cast<int>(rstate.size()); ++i) {
-        if (rstate[i]->status != RequestStateStatus::kAlive) {
+      for (int i = 0; i < static_cast<int>(rstate->entries.size()); ++i) {
+        if (rstate->entries[i]->status != RequestStateStatus::kAlive) {
           continue;
         }
-        estate_->stats.current_total_seq_len -= rstate[i]->mstates[0]->committed_tokens.size();
-        RemoveRequestFromModel(estate_, rstate[i]->mstates[0]->internal_id, models_);
-        if (rstate[i]->children_idx.empty()) {
+        estate_->stats.current_total_seq_len -=
+            rstate->entries[i]->mstates[0]->committed_tokens.size();
+        RemoveRequestFromModel(estate_, rstate->entries[i]->mstates[0]->internal_id, models_);
+        if (rstate->entries[i]->child_indices.empty()) {
           // For each running leaf state, length 1 is over reduced since the last
           // token is not added into KV cache. So we add the length back.
           ++estate_->stats.current_total_seq_len;
