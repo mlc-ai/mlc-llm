@@ -5,7 +5,7 @@ from typing import Tuple
 from tvm.relax.frontend import nn
 
 from mlc_chat.loader import QuantizeMapping
-from mlc_chat.quantization import AWQQuantize, FTQuantize, GroupQuantize, NoQuantize
+from mlc_chat.quantization import GroupQuantize, NoQuantize
 
 from .orion_model import OrionConfig, OrionForCasualLM
 
