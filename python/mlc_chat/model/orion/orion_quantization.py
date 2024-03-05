@@ -26,38 +26,6 @@ def group_quant(
     return model, quant_map
 
 
-def ft_quant(
-    model_config: OrionConfig,
-    quantization: FTQuantize,
-) -> Tuple[nn.Module, QuantizeMapping]:
-    """Quantize a Orion-architecture model using FasterTransformer quantization."""
-    model: nn.Module = OrionForCasualLM(model_config)
-    model.to(quantization.model_dtype)
-    quant_map = QuantizeMapping({}, {})
-    model = quantization.quantize_model(
-        model,
-        quant_map,
-        "",
-    )
-    return model, quant_map
-
-
-def awq_quant(
-    model_config: OrionConfig,
-    quantization: AWQQuantize,
-) -> Tuple[nn.Module, QuantizeMapping]:
-    """Quantize a Orion-architecture model using Activation-aware Weight Quantization(AWQ)."""
-    model: nn.Module = OrionForCasualLM(model_config)
-    model.to(quantization.model_dtype)
-    quant_map = QuantizeMapping({}, {})
-    model = quantization.quantize_model(
-        model,
-        quant_map,
-        "",
-    )
-    return model, quant_map
-
-
 def no_quant(
     model_config: OrionConfig,
     quantization: NoQuantize,
