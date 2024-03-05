@@ -147,6 +147,8 @@ class RewriteKVCacheCreation:  # pylint: disable=too-many-instance-attributes
                 "gpt2"
                 in self.metadata["model_type"]
             )
+            # filter by attention group size
+            or kwargs["num_attention_heads"] // kwargs["num_key_value_heads"] not in [1, 4, 8]
         ):
             return
 
