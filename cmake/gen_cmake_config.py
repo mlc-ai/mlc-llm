@@ -31,17 +31,23 @@ if __name__ == "__main__":
         ),
     ]
 
+    enabled_backends = set()
+
     for backend in backends:
         while True:
             use_backend = input(backend.prompt_str)
             if use_backend in ["yes", "Y", "y"]:
                 cmake_config_str += f"set({backend.cmake_config_name} ON)\n"
+                enabled_backends.add(backend.name)
                 break
             elif use_backend in ["no", "N", "n"]:
                 cmake_config_str += f"set({backend.cmake_config_name} OFF)\n"
                 break
             else:
                 print(f"Invalid input: {use_backend}. Please input again.")
+
+    if "CUDA" in enabled_backends:
+        cmake_config_str += f"set(USE_THRUST ON)\n"
 
     # FlashInfer related
     use_flashInfer = False  # pylint: disable=invalid-name
