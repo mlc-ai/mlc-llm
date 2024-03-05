@@ -225,7 +225,7 @@ class GPTBigCodeModel(nn.Module):
         return hidden_states
 
 
-class GPTBigCodeForCausalLM(nn.Module):
+class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPTBigCodeConfig):
         self.transformer = GPTBigCodeModel(config)
         self.lm_head = nn.Linear(config.n_embd, "vocab_size", bias=False)
@@ -323,7 +323,6 @@ class GPTBigCodeForCausalLM(nn.Module):
         )
 
     def get_default_spec(self):
-        batch_size = 1
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
