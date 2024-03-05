@@ -35,6 +35,14 @@ OPENAI_V1_CHAT_COMPLETION_URL = "http://127.0.0.1:8000/v1/chat/completions"
 DEBUG_DUMP_EVENT_TRACE_URL = "http://127.0.0.1:8000/debug/dump_event_trace"
 
 
+def is_json_or_json_prefix(s: str) -> bool:
+    try:
+        json.loads(s)
+        return True
+    except json.JSONDecodeError as e:
+        return e.pos == len(s)
+
+
 def check_openai_nonstream_response(
     response: Dict,
     *,
@@ -48,37 +56,40 @@ def check_openai_nonstream_response(
     suffix: Optional[str] = None,
     stop: Optional[List[str]] = None,
     require_substr: Optional[List[str]] = None,
+    json_mode: bool = False,
 ):
     assert response["model"] == model
     assert response["object"] == object_str
 
     choices = response["choices"]
     assert isinstance(choices, list)
-    assert len(choices) == num_choices
-    for idx, choice in enumerate(choices):
-        assert choice["index"] == idx
+    assert len(choices) <= num_choices
+    texts: List[str] = ["" for _ in range(num_choices)]
+    for choice in choices:
+        idx = choice["index"]
         assert choice["finish_reason"] in finish_reasons
 
-        text: str
         if not is_chat_completion:
             assert isinstance(choice["text"], str)
-            text = choice["text"]
+            texts[idx] = choice["text"]
             if echo_prompt is not None:
-                assert text
+                assert texts[idx]
             if suffix is not None:
-                assert text
+                assert texts[idx]
         else:
             message = choice["message"]
             assert message["role"] == "assistant"
             assert isinstance(message["content"], str)
-            text = message["content"]
+            texts[idx] = message["content"]
 
         if stop is not None:
             for stop_str in stop:
-                assert stop_str not in text
+                assert stop_str not in texts[idx]
         if require_substr is not None:
             for substr in require_substr:
-                assert substr in text
+                assert substr in texts[idx]
+        if json_mode:
+            assert is_json_or_json_prefix(texts[idx])
 
     usage = response["usage"]
     assert isinstance(usage, dict)
@@ -101,6 +112,7 @@ def check_openai_stream_response(
     suffix: Optional[str] = None,
     stop: Optional[List[str]] = None,
     require_substr: Optional[List[str]] = None,
+    json_mode: bool = False,
 ):
     assert len(responses) > 0
 
@@ -112,9 +124,9 @@ def check_openai_stream_response(
 
         choices = response["choices"]
         assert isinstance(choices, list)
-        assert len(choices) == num_choices
-        for idx, choice in enumerate(choices):
-            assert choice["index"] == idx
+        assert len(choices) <= num_choices
+        for choice in choices:
+            idx = choice["index"]
 
             if not is_chat_completion:
                 assert isinstance(choice["text"], str)
@@ -143,7 +155,7 @@ def check_openai_stream_response(
         if completion_tokens is not None:
             assert responses[-1]["usage"]["completion_tokens"] == completion_tokens
 
-    for output in outputs:
+    for i, output in enumerate(outputs):
         if echo_prompt is not None:
             assert output.startswith(echo_prompt)
         if suffix is not None:
@@ -154,6 +166,8 @@ def check_openai_stream_response(
         if require_substr is not None:
             for substr in require_substr:
                 assert substr in output
+        if json_mode:
+            assert is_json_or_json_prefix(output)
 
 
 def expect_error(response_str: str, msg_prefix: Optional[str] = None):
@@ -484,6 +498,55 @@ def test_openai_v1_completions_temperature(
         )
 
 
+# TODO(yixin): support eos_token_id for tokenizer
+@pytest.mark.skip("JSON test for completion api requires internal eos_token_id support")
+@pytest.mark.parametrize("stream", [False, True])
+def test_openai_v1_completions_json(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    prompt = "Response with a json object:"
+    max_tokens = 128
+    payload = {
+        "model": served_model[0],
+        "prompt": prompt,
+        "max_tokens": max_tokens,
+        "stream": stream,
+        "response_format": {"type": "json_object"},
+    }
+
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
+    if not stream:
+        check_openai_nonstream_response(
+            response.json(),
+            is_chat_completion=False,
+            model=served_model[0],
+            object_str="text_completion",
+            num_choices=1,
+            finish_reasons=["length", "stop"],
+            json_mode=True,
+        )
+    else:
+        responses = []
+        for chunk in response.iter_lines(chunk_size=512):
+            if not chunk or chunk == b"data: [DONE]":
+                continue
+            responses.append(json.loads(chunk.decode("utf-8")[6:]))
+        check_openai_stream_response(
+            responses,
+            is_chat_completion=False,
+            model=served_model[0],
+            object_str="text_completion",
+            num_choices=1,
+            finish_reasons=["length", "stop"],
+            json_mode=True,
+        )
+
+
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_logit_bias(
     served_model: Tuple[str, str],
@@ -802,6 +865,51 @@ def test_openai_v1_chat_completions(
 
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("messages", CHAT_COMPLETION_MESSAGES)
+def test_openai_v1_chat_completions_n(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+    messages: List[Dict[str, str]],
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    n = 3
+    payload = {
+        "model": served_model[0],
+        "messages": messages,
+        "stream": stream,
+        "n": n,
+    }
+
+    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=180)
+    if not stream:
+        check_openai_nonstream_response(
+            response.json(),
+            is_chat_completion=True,
+            model=served_model[0],
+            object_str="chat.completion",
+            num_choices=n,
+            finish_reasons=["stop"],
+        )
+    else:
+        responses = []
+        for chunk in response.iter_lines(chunk_size=512):
+            if not chunk or chunk == b"data: [DONE]":
+                continue
+            responses.append(json.loads(chunk.decode("utf-8")[6:]))
+        check_openai_stream_response(
+            responses,
+            is_chat_completion=True,
+            model=served_model[0],
+            object_str="chat.completion.chunk",
+            num_choices=n,
+            finish_reasons=["stop"],
+        )
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("messages", CHAT_COMPLETION_MESSAGES)
 def test_openai_v1_chat_completions_openai_package(
     served_model: Tuple[str, str],
     launch_server,  # pylint: disable=unused-argument
@@ -885,6 +993,53 @@ def test_openai_v1_chat_completions_max_tokens(
             num_choices=1,
             finish_reasons=["length"],
             completion_tokens=max_tokens,
+        )
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_openai_v1_chat_completions_json(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    messages = [{"role": "user", "content": "Response with a json object:"}]
+    max_tokens = 128
+    payload = {
+        "model": served_model[0],
+        "messages": messages,
+        "stream": stream,
+        "max_tokens": max_tokens,
+        "response_format": {"type": "json_object"},
+    }
+
+    response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=60)
+    if not stream:
+        check_openai_nonstream_response(
+            response.json(),
+            is_chat_completion=True,
+            model=served_model[0],
+            object_str="chat.completion",
+            num_choices=1,
+            finish_reasons=["length", "stop"],
+            json_mode=True,
+        )
+    else:
+        responses = []
+        for chunk in response.iter_lines(chunk_size=512):
+            if not chunk or chunk == b"data: [DONE]":
+                continue
+            responses.append(json.loads(chunk.decode("utf-8")[6:]))
+        check_openai_stream_response(
+            responses,
+            is_chat_completion=True,
+            model=served_model[0],
+            object_str="chat.completion.chunk",
+            num_choices=1,
+            finish_reasons=["length", "stop"],
+            json_mode=True,
         )
 
 
@@ -1024,10 +1179,14 @@ if __name__ == "__main__":
     for msg in CHAT_COMPLETION_MESSAGES:
         test_openai_v1_chat_completions(MODEL, None, stream=False, messages=msg)
         test_openai_v1_chat_completions(MODEL, None, stream=True, messages=msg)
+        test_openai_v1_chat_completions_n(MODEL, None, stream=False, messages=msg)
+        test_openai_v1_chat_completions_n(MODEL, None, stream=True, messages=msg)
         test_openai_v1_chat_completions_openai_package(MODEL, None, stream=False, messages=msg)
         test_openai_v1_chat_completions_openai_package(MODEL, None, stream=True, messages=msg)
     test_openai_v1_chat_completions_max_tokens(MODEL, None, stream=False)
     test_openai_v1_chat_completions_max_tokens(MODEL, None, stream=True)
+    test_openai_v1_chat_completions_json(MODEL, None, stream=False)
+    test_openai_v1_chat_completions_json(MODEL, None, stream=True)
     test_openai_v1_chat_completions_ignore_eos(MODEL, None, stream=False)
     test_openai_v1_chat_completions_ignore_eos(MODEL, None, stream=True)
     test_openai_v1_chat_completions_system_prompt_wrong_pos(MODEL, None, stream=False)

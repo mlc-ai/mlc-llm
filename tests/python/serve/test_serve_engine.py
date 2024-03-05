@@ -87,8 +87,9 @@ def test_engine_basic():
     # Define the callback function for request generation results
     def fcallback(delta_outputs: List[RequestStreamOutput]):
         for delta_output in delta_outputs:
-            request_id, delta_token_ids, _, _ = delta_output.unpack()
-            outputs[int(request_id)] += delta_token_ids
+            request_id, stream_outputs = delta_output.unpack()
+            assert len(stream_outputs) == 1
+            outputs[int(request_id)] += stream_outputs[0].delta_token_ids
 
     # Create engine
     engine = Engine(model, kv_cache_config, request_stream_callback=fcallback)
@@ -153,10 +154,11 @@ def test_engine_continuous_batching_1():
         def callback_getter(self) -> Callable[[List[RequestStreamOutput]], None]:
             def fcallback(delta_outputs: List[RequestStreamOutput]):
                 for delta_output in delta_outputs:
-                    request_id, delta_token_ids, _, finish_reason = delta_output.unpack()
-                    if finish_reason is not None:
+                    request_id, stream_outputs = delta_output.unpack()
+                    assert len(stream_outputs) == 1
+                    if stream_outputs[0].finish_reason is not None:
                         print(f"Request {request_id} finished at step {self.timer}.")
-                    outputs[int(request_id)] += delta_token_ids
+                    outputs[int(request_id)] += stream_outputs[0].delta_token_ids
                     finish_time[int(request_id)] = self.timer
 
             return fcallback
@@ -231,10 +233,11 @@ def test_engine_continuous_batching_2():
         def callback_getter(self) -> Callable[[List[RequestStreamOutput]], None]:
             def fcallback(delta_outputs: List[RequestStreamOutput]):
                 for delta_output in delta_outputs:
-                    request_id, delta_token_ids, _, finish_reason = delta_output.unpack()
-                    if finish_reason is not None:
+                    request_id, stream_outputs = delta_output.unpack()
+                    assert len(stream_outputs) == 1
+                    if stream_outputs[0].finish_reason is not None:
                         print(f"Request {request_id} finished at step {self.timer}.")
-                    outputs[int(request_id)] += delta_token_ids
+                    outputs[int(request_id)] += stream_outputs[0].delta_token_ids
                     finish_time[int(request_id)] = self.timer
 
             return fcallback
@@ -312,11 +315,12 @@ def test_engine_continuous_batching_3():
         def callback_getter(self) -> Callable[[List[RequestStreamOutput]], None]:
             def fcallback(delta_outputs: List[RequestStreamOutput]):
                 for delta_output in delta_outputs:
-                    request_id, delta_token_ids, _, finish_reason = delta_output.unpack()
-                    if finish_reason is not None:
+                    request_id, stream_outputs = delta_output.unpack()
+                    assert len(stream_outputs) == 1
+                    if stream_outputs[0].finish_reason is not None:
                         print(f"Request {request_id} finished at step {self.timer}.")
                         self.finished_requests += 1
-                    outputs[int(request_id)] += delta_token_ids
+                    outputs[int(request_id)] += stream_outputs[0].delta_token_ids
                     finish_time[int(request_id)] = self.timer
 
             return fcallback
@@ -368,7 +372,7 @@ def test_engine_generate():
         "dist/Llama-2-7b-chat-hf-q0f16-MLC",
         model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
     )
-    kv_cache_config = KVCacheConfig(page_size=16)
+    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
     engine = Engine(model, kv_cache_config)
 
@@ -379,9 +383,13 @@ def test_engine_generate():
     output_texts, _ = engine.generate(
         prompts[:num_requests], GenerationConfig(max_tokens=max_tokens)
     )
-    for req_id, output in enumerate(output_texts):
+    for req_id, outputs in enumerate(output_texts):
         print(f"Prompt {req_id}: {prompts[req_id]}")
-        print(f"Output {req_id}:{output}\n")
+        if len(outputs) == 1:
+            print(f"Output {req_id}:{outputs[0]}\n")
+        else:
+            for i, output in enumerate(outputs):
+                print(f"Output {req_id}({i}):{output}\n")
 
 
 if __name__ == "__main__":

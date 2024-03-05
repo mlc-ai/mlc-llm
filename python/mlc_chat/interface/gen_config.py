@@ -194,6 +194,7 @@ TOKENIZER_FILES = [
     "added_tokens.json",
     "tokenizer_config.json",
 ]
+# FIXME: Copy RWKV tokenizer file # pylint: disable=fixme
 
 CONV_TEMPLATES = {
     "chatml",

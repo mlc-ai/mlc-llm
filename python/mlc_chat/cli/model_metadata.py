@@ -1,4 +1,5 @@
 """A tool that inspects the metadata of a model lib."""
+
 import json
 import math
 from dataclasses import asdict
@@ -120,6 +121,10 @@ def _print_memory_usage_in_json(metadata: Dict[str, Any], config: Dict) -> None:
     )
 
 
+def _print_kv_cache_metadata_in_json(metadata: Dict[str, Any]) -> None:
+    print(json.dumps(metadata["kv_cache"]))
+
+
 def main():
     """Entry point for the model metadata tool."""
     parser = ArgumentParser(description="A tool that inspects the metadata of a model lib.")
@@ -154,6 +159,11 @@ def main():
         action="store_true",
         help="""If set, only inspect the metadata in memory usage and print usage in raw JSON.""",
     )
+    parser.add_argument(
+        "--print-kv-cache-metadata-in-json-only",
+        action="store_true",
+        help="""If set, only inspect the metadata in KV cache and print usage in raw JSON.""",
+    )
     parsed = parser.parse_args()
     # Load metadata from model lib
     try:
@@ -174,6 +184,8 @@ def main():
         _print_memory_usage_in_json(metadata, cfg)
     elif parsed.memory_only:
         _report_memory_usage(metadata, cfg)
+    elif parsed.print_kv_cache_metadata_in_json_only:
+        _print_kv_cache_metadata_in_json(metadata)
     else:
         _report_all(metadata)
 

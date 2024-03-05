@@ -13,13 +13,21 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+using namespace tvm;
 using namespace tvm::runtime;
 
 /****************** GenerationConfig ******************/
 
+/*! \brief The response format of a request. */
+struct ResponseFormat {
+  String type = "text";
+  Optional<String> json_schema = NullOpt;
+};
+
 /*! \brief The generation configuration of a request. */
 class GenerationConfigNode : public Object {
  public:
+  int n = 1;
   double temperature = 0.8;
   double top_p = 0.95;
   double frequency_penalty = 0.0;
@@ -34,6 +42,8 @@ class GenerationConfigNode : public Object {
   int max_tokens = 128;
   Array<String> stop_strs;
   std::vector<int> stop_token_ids;
+
+  ResponseFormat response_format;
 
   String AsJSONString() const;
 

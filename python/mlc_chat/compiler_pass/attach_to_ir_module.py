@@ -12,7 +12,8 @@ class AttachVariableBounds:  # pylint: disable=too-few-public-methods
     """Attach variable bounds to each Relax function, which primarily helps with memory planning."""
 
     def __init__(self, variable_bounds: Dict[str, int]):
-        self.variable_bounds = variable_bounds
+        # Specifically for RWKV workloads, which contains -1 max_seq_len
+        self.variable_bounds = {k: v for k, v in variable_bounds.items() if v > 0}
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
@@ -144,7 +145,7 @@ def _apply_bitmask_inplace(
     num_seq = T.int32(is_size_var=True)
     logits = T.match_buffer(var_logits, (batch_size, vocab_size), "float32")
     seq_ids = T.match_buffer(var_seq_ids, (num_seq,), "int32")
-    bitmask = T.match_buffer(var_bitmask, (num_seq, (vocab_size + 31 // 32)), "int32")
+    bitmask = T.match_buffer(var_bitmask, (batch_size, (vocab_size + 31) // 32), "int32")
 
     for fused_s_v_0 in T.thread_binding(0, (num_seq * vocab_size + 1023) // 1024, "blockIdx.x"):
         for fused_s_v_1 in T.thread_binding(0, 1024, "threadIdx.x"):
@@ -153,7 +154,7 @@ def _apply_bitmask_inplace(
                 vv = T.axis.spatial(vocab_size, (fused_s_v_0 * 1024 + fused_s_v_1) % vocab_size)
                 T.where(fused_s_v_0 * 1024 + fused_s_v_1 < num_seq * vocab_size)
                 logits[seq_ids[vs], vv] = T.if_then_else(
-                    (bitmask[vs, vv // 32] >> (vv % 32)) & 1 == 1,
+                    (bitmask[seq_ids[vs], vv // 32] >> (vv % 32)) & 1 == 1,
                     logits[seq_ids[vs], vv],
                     T.float32(-1e10),
                 )

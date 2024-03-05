@@ -56,11 +56,13 @@ class EngineAction : public ObjectRef {
    * \param logit_processor The logit processor.
    * \param sampler The sampler to sample new tokens.
    * \param kv_cache_config The KV cache config to help decide prefill is doable.
+   * \param engine_mode The engine operation mode.
    * \param trace_recorder The event trace recorder for requests.
    * \return The created action object.
    */
   static EngineAction NewRequestPrefill(Array<Model> models, LogitProcessor logit_processor,
                                         Sampler sampler, KVCacheConfig kv_cache_config,
+                                        EngineMode engine_mode,
                                         Optional<EventTraceRecorder> trace_recorder);
   /*!
    * \brief Create the action that runs one-step decode for requests in the

@@ -137,7 +137,9 @@ class GrammarStateMatcherNodeImpl : public GrammarStateMatcherNode, public Gramm
 
   void Rollback(int num_tokens) final;
 
-  int MaxRollbackSteps() final { return max_rollback_steps_; }
+  int MaxRollbackSteps() const final { return max_rollback_steps_; }
+
+  bool IsTerminated() const { return stack_tops_history_.GetLatest().empty(); }
 
   void ResetState() final {
     stack_tops_history_.Reset();
@@ -161,6 +163,18 @@ class GrammarStateMatcherNodeImpl : public GrammarStateMatcherNode, public Gramm
   void SetTokenBitmask(DLTensor* next_token_bitmask, std::vector<int32_t>& accepted_indices,
                        std::vector<int32_t>& rejected_indices, bool can_reach_end);
 
+  /*! \brief Check if a token is a stop token. */
+  bool IsStopToken(int32_t token_id) const {
+    return std::find(init_ctx_->stop_token_ids.begin(), init_ctx_->stop_token_ids.end(),
+                     token_id) != init_ctx_->stop_token_ids.end();
+  }
+
+  /*!
+   * \brief Accept the stop token and terminates the matcher.
+   * \returns Whether the stop token can be accepted.
+   */
+  bool AcceptStopToken();
+
   friend IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher);
 
   std::shared_ptr<GrammarStateInitContext> init_ctx_;
@@ -175,9 +189,28 @@ class GrammarStateMatcherNodeImpl : public GrammarStateMatcherNode, public Gramm
   std::vector<bool> tmp_uncertain_tokens_bitset_;
 };
 
+bool GrammarStateMatcherNodeImpl::AcceptStopToken() {
+  if (!CanReachEnd()) {
+    return false;
+  }
+  stack_tops_history_.PushHistory({});  // Terminate the matcher by setting the stack to empty
+  return true;
+}
+
 bool GrammarStateMatcherNodeImpl::AcceptToken(int32_t token_id) {
-  CHECK(init_ctx_->codepoint_tokens_lookup.count(token_id) > 0);
-  const auto& token = init_ctx_->codepoint_tokens_lookup[token_id].token;
+  CHECK(!IsTerminated())
+      << "GrammarStateMatcher has terminated after accepting the stop token, but is trying to "
+         "accept another token id "
+      << token_id;
+
+  // Handle the stop token
+  if (IsStopToken(token_id)) {
+    return AcceptStopToken();
+  }
+
+  CHECK(init_ctx_->id_to_token_codepoints.count(token_id) > 0)
+      << "Token id " << token_id << " is not supported in generation";
+  const auto& token = init_ctx_->id_to_token_codepoints[token_id].token;
   for (auto codepoint : token) {
     if (!AcceptCodepoint(codepoint, false)) {
       return false;
@@ -192,7 +225,10 @@ bool GrammarStateMatcherNodeImpl::AcceptToken(int32_t token_id) {
 }
 
 void GrammarStateMatcherNodeImpl::FindNextTokenBitmask(DLTensor* next_token_bitmask) {
-  const auto& tokens_sorted_by_codepoint = init_ctx_->tokens_sorted_by_codepoint;
+  CHECK(!IsTerminated())
+      << "GrammarStateMatcher has terminated after accepting the stop token, but is trying to "
+         "find the next token mask";
+  const auto& sorted_token_codepoints = init_ctx_->sorted_token_codepoints;
   const auto& catagorized_tokens_for_grammar = init_ctx_->catagorized_tokens_for_grammar;
   const auto& latest_stack_tops = stack_tops_history_.GetLatest();
 
@@ -201,7 +237,7 @@ void GrammarStateMatcherNodeImpl::FindNextTokenBitmask(DLTensor* next_token_bitm
   // The final accepted token set is the union of the accepted token sets of all stacks.
   // The final rejected token set is the intersection of the rejected token sets of all stacks.
 
-  // Note these indices store the indices in tokens_sorted_by_codepoint, instead of the token ids.
+  // Note these indices store the indices in sorted_token_codepoints, instead of the token ids.
   tmp_accepted_indices_.clear();
   // {-1} means the universal set, i.e. all tokens initially
   tmp_rejected_indices_.assign({-1});
@@ -244,7 +280,7 @@ void GrammarStateMatcherNodeImpl::FindNextTokenBitmask(DLTensor* next_token_bitm
 
     if (!is_uncertain_saved) {
       // unc_tokens = all_tokens - accepted_tokens - rejected_tokens
-      tmp_uncertain_tokens_bitset_.assign(tokens_sorted_by_codepoint.size(), true);
+      tmp_uncertain_tokens_bitset_.assign(sorted_token_codepoints.size(), true);
       for (auto idx : catagorized_tokens.accepted_indices) {
         tmp_uncertain_tokens_bitset_[idx] = false;
       }
@@ -263,7 +299,7 @@ void GrammarStateMatcherNodeImpl::FindNextTokenBitmask(DLTensor* next_token_bitm
       if (idx == -1) {
         break;
       }
-      const auto& cur_token = tokens_sorted_by_codepoint[idx].token;
+      const auto& cur_token = sorted_token_codepoints[idx].token;
 
       // Step 2.2. Find the longest common prefix with the accepted part of the previous token.
       // We can reuse the previous matched size to avoid unnecessary matching.
@@ -323,7 +359,9 @@ void GrammarStateMatcherNodeImpl::FindNextTokenBitmask(DLTensor* next_token_bitm
 }
 
 void GrammarStateMatcherNodeImpl::Rollback(int num_tokens) {
-  CHECK(num_tokens <= token_size_history_.size());
+  CHECK(num_tokens <= token_size_history_.size())
+      << "Intended to rollback " << num_tokens << " tokens, but only the last "
+      << token_size_history_.size() << " steps of history are saved";
   while (num_tokens > 0) {
     int steps = token_size_history_.back();
     RollbackCodepoints(steps);
@@ -338,8 +376,9 @@ void GrammarStateMatcherNodeImpl::SetTokenBitmask(DLTensor* next_token_bitmask,
                                                   bool can_reach_end) {
   // accepted_ids = Union(accepted_indices, all_tokens - rejected_indices)
   // rejected_ids = Intersect(all_tokens - accepted_indices, rejected_indices)
-  DCHECK(next_token_bitmask->dtype.code == kDLUInt && next_token_bitmask->dtype.bits == 32 &&
-         next_token_bitmask->data && next_token_bitmask->ndim == 1 && next_token_bitmask->shape);
+  CHECK(next_token_bitmask->dtype.code == kDLUInt && next_token_bitmask->dtype.bits == 32 &&
+        next_token_bitmask->data && next_token_bitmask->ndim == 1 && next_token_bitmask->shape)
+      << "The provied bitmask's shape or dtype is not valid.";
 
   BitsetManager next_token_bitset(reinterpret_cast<uint32_t*>(next_token_bitmask->data),
                                   next_token_bitmask->shape[0]);
@@ -349,7 +388,7 @@ void GrammarStateMatcherNodeImpl::SetTokenBitmask(DLTensor* next_token_bitmask,
     // accepted_indices
     next_token_bitset.Reset(init_ctx_->vocab_size, false);
     for (int idx : accepted_indices) {
-      next_token_bitset.Set(init_ctx_->tokens_sorted_by_codepoint[idx].id, true);
+      next_token_bitset.Set(init_ctx_->sorted_token_codepoints[idx].id, true);
     }
 
     if (can_reach_end) {
@@ -368,7 +407,7 @@ void GrammarStateMatcherNodeImpl::SetTokenBitmask(DLTensor* next_token_bitmask,
         ++it_acc;
       }
       if (it_acc == accepted_indices.end() || *it_acc != i) {
-        next_token_bitset.Set(init_ctx_->tokens_sorted_by_codepoint[i].id, false);
+        next_token_bitset.Set(init_ctx_->sorted_token_codepoints[i].id, false);
       }
     }
 
@@ -411,7 +450,7 @@ GrammarStateMatcher::GrammarStateMatcher(std::shared_ptr<GrammarStateInitContext
 
 TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherFromTokenizer")
     .set_body_typed([](BNFGrammar grammar, Optional<Tokenizer> tokenizer, int max_rollback_steps) {
-      auto init_ctx = CreateInitContext(
+      auto init_ctx = GrammarStateMatcher::CreateInitContext(
           grammar, tokenizer ? tokenizer.value()->TokenTable() : std::vector<std::string>());
       return GrammarStateMatcher(init_ctx, max_rollback_steps);
     });
@@ -424,7 +463,7 @@ TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherFromTokenTable")
         token_table.push_back(args[i]);
       }
       int max_rollback_steps = args[args.size() - 1];
-      auto init_ctx = CreateInitContext(grammar, token_table);
+      auto init_ctx = GrammarStateMatcher::CreateInitContext(grammar, token_table);
       *rv = GrammarStateMatcher(init_ctx, max_rollback_steps);
     });
 
@@ -447,6 +486,9 @@ TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherRollback")
 
 TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherMaxRollbackSteps")
     .set_body_typed([](GrammarStateMatcher matcher) { return matcher->MaxRollbackSteps(); });
+
+TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherIsTerminated")
+    .set_body_typed([](GrammarStateMatcher matcher) { return matcher->IsTerminated(); });
 
 TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherResetState")
     .set_body_typed([](GrammarStateMatcher matcher) { matcher->ResetState(); });
@@ -474,7 +516,7 @@ TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherDebugMatchCompleteString")
     });
 
 /*!
- * \brief Find the ids of the rejected tokens for the next step.
+ * \brief Find the ids of the rejected tokens for the next step. For test purposes.
  * \returns A tuple of rejected token ids.
  */
 IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher) {
@@ -483,16 +525,15 @@ IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher) {
   auto bitset_size = BitsetManager::GetBitsetSize(vocab_size);
   auto ndarray = NDArray::Empty(ShapeTuple{static_cast<long>(bitset_size)},
                                 DLDataType{kDLUInt, 32, 1}, DLDevice{kDLCPU, 0});
-  auto dltensor_manager = ndarray.ToDLPack();
-  auto dltensor = ndarray.ToDLPack()->dl_tensor;
+  auto dltensor = const_cast<DLTensor*>(ndarray.operator->());
 
   auto start = std::chrono::high_resolution_clock::now();
-  matcher->FindNextTokenBitmask(&dltensor);
+  matcher->FindNextTokenBitmask(dltensor);
   auto end = std::chrono::high_resolution_clock::now();
-  std::cout << "FindNextTokenBitmask takes "
+  std::cerr << "FindNextTokenBitmask takes "
             << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us";
 
-  auto bitset = BitsetManager(reinterpret_cast<uint32_t*>(dltensor.data), bitset_size);
+  auto bitset = BitsetManager(reinterpret_cast<uint32_t*>(dltensor->data), bitset_size);
   std::vector<int64_t> rejected_ids;
   for (int i = 0; i < vocab_size; i++) {
     if (bitset[i] == 0) {
@@ -500,10 +541,8 @@ IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher) {
     }
   }
 
-  std::cout << ", found accepted: " << vocab_size - rejected_ids.size()
+  std::cerr << ", found accepted: " << vocab_size - rejected_ids.size()
             << ", rejected: " << rejected_ids.size() << std::endl;
-
-  dltensor_manager->deleter(dltensor_manager);
 
   auto ret = IntTuple(rejected_ids);
   return ret;

@@ -48,6 +48,7 @@ class MistralConfig:
         num_shards=1,
         **kwargs,
     ):
+        sliding_window = 4096 if sliding_window is None else sliding_window
         self.bos_token_id = bos_token_id
         self.eos_token_id = eos_token_id
         self.pad_token_id = pad_token_id
@@ -345,14 +346,16 @@ class MistralAttention(nn.Module):
         key_cached = nn.emit(
             relax.call_pure_packed(
                 f_kv_cache_view,
-                args=[k_cache, kv_cache_shape],
+                k_cache,
+                kv_cache_shape,
                 sinfo_args=[R.Tensor(kv_cache_shape, kv_cur_dtype)],
             )
         )
         value_cached = nn.emit(
             relax.call_pure_packed(
                 f_kv_cache_view,
-                args=[v_cache, kv_cache_shape],
+                v_cache,
+                kv_cache_shape,
                 sinfo_args=[R.Tensor(kv_cache_shape, kv_cur_dtype)],
             )
         )
@@ -402,12 +405,10 @@ class MistralAttention(nn.Module):
         k_cache = nn.emit(
             relax.op.call_inplace_packed(
                 f_kv_cache_override,
-                args=[
-                    k_cache,
-                    squeezed_key,
-                    relax.PrimValue(self.sliding_window),
-                    relax.PrimValue(attention_sink_size),
-                ],
+                k_cache,
+                squeezed_key,
+                relax.PrimValue(self.sliding_window),
+                relax.PrimValue(attention_sink_size),
                 inplace_indices=[0],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
@@ -415,12 +416,10 @@ class MistralAttention(nn.Module):
         v_cache = nn.emit(
             relax.op.call_inplace_packed(
                 f_kv_cache_override,
-                args=[
-                    v_cache,
-                    squeezed_value,
-                    relax.PrimValue(self.sliding_window),
-                    relax.PrimValue(attention_sink_size),
-                ],
+                v_cache,
+                squeezed_value,
+                relax.PrimValue(self.sliding_window),
+                relax.PrimValue(attention_sink_size),
                 inplace_indices=[0],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
@@ -960,7 +959,9 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: MistralConfig) -> None:
                     bb.emit(
                         relax.call_pure_packed(
                             f_kv_cache_create,
-                            args=[zeros, init_shape, relax.PrimValue(0)],
+                            zeros,
+                            init_shape,
+                            relax.PrimValue(0),
                             sinfo_args=[relax.ObjectStructInfo()],
                         )
                     )

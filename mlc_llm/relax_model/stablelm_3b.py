@@ -269,7 +269,8 @@ class StableLM3bAttention(nn.Module):
         k_cache = nn.emit(
             relax.op.call_inplace_packed(
                 f_kv_cache_append,
-                args=[k_cache, squeezed_key],
+                k_cache,
+                squeezed_key,
                 inplace_indices=[0],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
@@ -277,7 +278,8 @@ class StableLM3bAttention(nn.Module):
         v_cache = nn.emit(
             relax.op.call_inplace_packed(
                 f_kv_cache_append,
-                args=[v_cache, squeezed_value],
+                v_cache,
+                squeezed_value,
                 inplace_indices=[0],
                 sinfo_args=[relax.ObjectStructInfo()],
             )
@@ -287,14 +289,16 @@ class StableLM3bAttention(nn.Module):
         k_cache = nn.emit(
             relax.call_pure_packed(
                 f_kv_cache_view,
-                args=[k_cache, kv_cache_shape],
+                k_cache,
+                kv_cache_shape,
                 sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
             )
         )
         v_cache = nn.emit(
             relax.call_pure_packed(
                 f_kv_cache_view,
-                args=[v_cache, kv_cache_shape],
+                v_cache,
+                kv_cache_shape,
                 sinfo_args=[R.Tensor(kv_cache_shape, kv_states_dtype)],
             )
         )
@@ -721,7 +725,9 @@ def create_kv_cache_func(bb: relax.BlockBuilder, config: StableLM3bConfig) -> No
                     bb.emit(
                         relax.call_pure_packed(
                             f_kv_cache_create,
-                            args=[zeros, init_shape, relax.PrimValue(0)],
+                            zeros,
+                            init_shape,
+                            relax.PrimValue(0),
                             sinfo_args=[relax.ObjectStructInfo()],
                         )
                     )

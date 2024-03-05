@@ -1,21 +1,20 @@
-"""This file specifies how MLC's StableLM parameters are quantized using group quantization
+"""This file specifies how MLC's RWKV5 parameters are quantized using group quantization
 or other formats."""
 from typing import Tuple
 
 from tvm.relax.frontend import nn
 
-from mlc_chat.loader import QuantizeMapping
-from mlc_chat.quantization import FTQuantize, GroupQuantize, NoQuantize
-
-from .stablelm_model import StableLmConfig, StableLmForCausalLM
+from ...loader import QuantizeMapping
+from ...quantization import FTQuantize, GroupQuantize, NoQuantize
+from .rwkv5_model import RWKV5_ForCasualLM, RWKV5Config
 
 
 def group_quant(
-    model_config: StableLmConfig,
+    model_config: RWKV5Config,
     quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
-    """Quantize a StableLM-architecture model using group quantization."""
-    model: nn.Module = StableLmForCausalLM(model_config)
+    """Quantize a RWKV4-architecture model using group quantization."""
+    model: nn.Module = RWKV5_ForCasualLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     model = quantization.quantize_model(
@@ -27,11 +26,11 @@ def group_quant(
 
 
 def ft_quant(
-    model_config: StableLmConfig,
+    model_config: RWKV5Config,
     quantization: FTQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
-    """Quantize a StableLM model using FasterTransformer quantization."""
-    model: nn.Module = StableLmForCausalLM(model_config)
+    """Quantize a InternLM model using FasterTransformer quantization."""
+    model: nn.Module = RWKV5_ForCasualLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     model = quantization.quantize_model(
@@ -43,11 +42,11 @@ def ft_quant(
 
 
 def no_quant(
-    model_config: StableLmConfig,
+    model_config: RWKV5Config,
     quantization: NoQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
-    """Quantize a StableLM model without quantization."""
-    model: nn.Module = StableLmForCausalLM(model_config)
+    """Quantize a GPTBigCode model without quantization."""
+    model: nn.Module = RWKV5_ForCasualLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     return model, quant_map

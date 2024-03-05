@@ -581,11 +581,13 @@ def optimize_mod_pipeline(
         if max_seq_len:
             num_key_value_heads = config.get_num_key_value_heads()
             # pylint: disable=no-value-for-parameter
-            seq.append(fuse_split_rotary_embedding(
-                config.num_attention_heads // args.num_shards,
-                num_key_value_heads // args.num_shards,
-                config.hidden_size // args.num_shards,
-                config.position_embedding_base,
+            seq.append(
+                fuse_split_rotary_embedding(
+                    config.num_attention_heads // args.num_shards,
+                    num_key_value_heads // args.num_shards,
+                    config.hidden_size // args.num_shards,
+                    config.position_embedding_base,
+                )
             )
 
     if args.target_kind == "cuda":
@@ -845,6 +847,7 @@ def build_model_from_args(args: argparse.Namespace):
             qspec_updater = qspec_updater_class(param_manager)
             qspec_updater.visit_module(mod)
         mod = param_manager.transform_dequantize()(mod)
+        mod = relax.transform.BundleModelParams()(mod)
 
         if not args.build_model_only:
             parameter_transforms = []
@@ -857,7 +860,7 @@ def build_model_from_args(args: argparse.Namespace):
             # Run pre-sharding if required
             if args.num_shards > 1 and args.use_presharded_weights:
                 mod_shard = create_shard_transformation_func(param_manager, args, model_config)
-                mod_shard = transform_params_for_each_rank(mod_shard, num_shards=args.num_shards)
+                mod_shard = transform_params_for_each_rank(num_shards=args.num_shards)(mod_shard)
                 parameter_transforms.append(mod_shard)
 
             # Chain all parameter transforms together.  This allows

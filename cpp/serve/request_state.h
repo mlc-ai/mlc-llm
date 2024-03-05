@@ -13,6 +13,7 @@
 #include "../random.h"
 #include "../streamer.h"
 #include "config.h"
+#include "grammar/grammar_state_matcher.h"
 #include "request.h"
 
 namespace mlc {
@@ -70,13 +71,25 @@ class RequestModelStateNode : public Object {
   /*! \brief The appeared committed and draft tokens and their occurrence times. */
   std::unordered_map<int32_t, int32_t> appeared_token_ids;
 
+  /*!
+   * \brief The current state of the generated token matching the grammar. Used in grammar-guided
+   * generation, otherwise it's NullOpt.
+   */
+  Optional<GrammarStateMatcher> grammar_state_matcher;
+
   /*! \brief Return the total length of the input data. */
   int GetInputLength() const;
   /*!
-   * \brief Return the token bitmask induced by the current state.
-   * The returned vector should have size "ceildiv(vocab_size, 32)".
+   * \brief Return whether the next token bitmask is required, i.e. the grammar-guided generation is
+   * enabled.
    */
-  std::vector<int> GetTokenBitmask(int vocab_size) const;
+  bool RequireNextTokenBitmask();
+  /*!
+   * \brief Find the next token bitmask and store it in the given DLTensor.
+   * \param bitmask The DLTensor to store the next token bitmask. The bitmask should be a tensor
+   * with dtype uint32_t and shape (ceildiv(vocab_size, 32),).
+   */
+  void FindNextTokenBitmask(DLTensor* bitmask);
   /*! \brief Commit a new token into committed_tokens. Update appeared_token_ids. */
   void CommitToken(SampleResult sampled_token);
   /*! \brief Add a draft token into draft_output_tokens. Update appeared_token_ids. */
@@ -94,8 +107,8 @@ class RequestModelStateNode : public Object {
 
 class RequestModelState : public ObjectRef {
  public:
-  explicit RequestModelState(Request request, int model_id, int64_t internal_id,
-                             Array<Data> inputs);
+  explicit RequestModelState(Request request, int model_id, int64_t internal_id, Array<Data> inputs,
+                             std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestModelState, ObjectRef, RequestModelStateNode);
 };
@@ -106,18 +119,69 @@ struct DeltaRequestReturn {
   Optional<String> finish_reason;
 };
 
-class RequestStateNode : public Object {
+/****************** Request States ******************/
+
+/*!
+ * \brief For each request, we maintain its "request state" in the
+ * engine. Generally, the state of a request contains the information
+ * of the request's generation at the current moment, including
+ * the generated token ids, the grammar handler, etc.
+ *
+ * When a request has multiple parallel generations (e.g., the field
+ * `n` of its generation config is more than 1), each generation will
+ * have different states all the time.
+ *
+ * Therefore, to better support parallel generations, we denote the
+ * state of a single generation as a "RequestStateEntry" instance,
+ * and denote the state of a request's all generations using a vector,
+ * named as a "RequestState" instance.
+ *
+ * A request's all state entries are organized as a tree structure
+ * when there are parallel generations.
+ * - the request input has the root status entry,
+ * - each parallel generation is a child of the root.
+ * This tree structure may be further extended to more complicated
+ * cases in the future. As of now, for the case of `n > 1`, there
+ * will be (n + 1) entries in total. In a "RequestState", the root
+ * entry always has index 0. And we guarantee that the entry order
+ * from the vector begin to the end is always a topological order
+ * of the tree.
+ */
+
+/*! \brief Request state status. */
+enum class RequestStateStatus : int {
+  kPending = 0,
+  kAlive = 1,
+  kFinished = 2,
+};
+
+/*!
+ * \brief A request's state entry. It contains the state of a single
+ * generation of a request, or the state of a prompt prefix of a request.
+ */
+class RequestStateEntryNode : public Object {
  public:
+  /*! \brief The status of the request state entry. */
+  RequestStateStatus status;
   /*! \brief The request that this state corresponds to. */
   Request request;
+  /*!
+   * \brief The idx of the parent request state entry of this state.
+   * Being -1 means the state has no parent and is the foremost
+   * "prefix" entry or the only entry.
+   */
+  int parent_idx = -1;
+  /*! \brief The children indices of the request state entry. */
+  std::vector<int> child_indices;
+
   /*!
    * \brief The state with regard to each model.
    * \sa RequestModelState
    */
   Array<RequestModelState> mstates;
-  /*! \brief The random number generator of this request. */
+  /*! \brief The random number generator of this request state entry. */
   RandomGenerator rng;
-  /*! \brief The stop string handler of this request. */
+  /*! \brief The stop string handler of this request state entry. */
   StopStrHandler stop_str_handler;
   /*!
    * \brief The start position of the committed tokens in the
@@ -131,15 +195,36 @@ class RequestStateNode : public Object {
   std::chrono::high_resolution_clock::time_point tprefill_finish;
 
   /*!
-   * \brief Get the delta token ids and the logprob JSON strings for this
-   * request to return since the last time calling into this function,
-   * and return the finish reason if the request generation has finished.
+   * \brief Get the delta token ids and the logprob JSON strings for this request to return since
+   * the last time calling into this function, and return the finish reason if the request
+   * generation has finished.
    * \param tokenizer The tokenizer for logprob process.
    * \param max_single_sequence_length The maximum allowed single sequence length.
-   * \return The delta token ids to return, the logprob JSON strings of each
-   * delta token id, and the optional finish reason.
+   * \return The delta token ids to return, the logprob JSON strings of each delta token id, and
+   * the optional finish reason.
    */
   DeltaRequestReturn GetReturnTokenIds(const Tokenizer& tokenizer, int max_single_sequence_length);
+
+  static constexpr const char* _type_key = "mlc.serve.RequestStateEntry";
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  TVM_DECLARE_FINAL_OBJECT_INFO(RequestStateEntryNode, Object);
+};
+
+class RequestStateEntry : public ObjectRef {
+ public:
+  explicit RequestStateEntry(Request request, int num_models, int64_t internal_id, int rng_seed,
+                             const std::vector<std::string>& token_table,
+                             std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx,
+                             int parent_idx = -1);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestStateEntry, ObjectRef, RequestStateEntryNode);
+};
+
+/*! \brief A request's state, which groups all the request state entries. */
+class RequestStateNode : public Object {
+ public:
+  std::vector<RequestStateEntry> entries;
 
   static constexpr const char* _type_key = "mlc.serve.RequestState";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -149,8 +234,7 @@ class RequestStateNode : public Object {
 
 class RequestState : public ObjectRef {
  public:
-  explicit RequestState(Request request, int num_models, int64_t internal_id,
-                        const std::vector<std::string>& token_table);
+  explicit RequestState(std::vector<RequestStateEntry> entries);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestState, ObjectRef, RequestStateNode);
 };

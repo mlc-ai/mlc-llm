@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 import shortuuid
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from mlc_chat.serve.config import ResponseFormat
+
 ################ Commons ################
 
 
@@ -65,6 +67,11 @@ class ModelResponse(BaseModel):
 ################ v1/completions ################
 
 
+class RequestResponseFormat(BaseModel):
+    type: Literal["text", "json_object"] = "text"
+    json_schema: Optional[str] = None
+
+
 class CompletionRequest(BaseModel):
     """OpenAI completion request protocol.
     API reference: https://platform.openai.com/docs/api-reference/completions/create
@@ -89,6 +96,7 @@ class CompletionRequest(BaseModel):
     top_p: float = 1.0
     user: Optional[str] = None
     ignore_eos: bool = False
+    response_format: RequestResponseFormat = Field(default_factory=RequestResponseFormat)
 
     @field_validator("frequency_penalty", "presence_penalty")
     @classmethod
@@ -193,7 +201,6 @@ class ChatCompletionRequest(BaseModel):
     logit_bias: Optional[Dict[int, float]] = None
     max_tokens: Optional[int] = None
     n: int = 1
-    response_format: Literal["text", "json_object"] = "text"
     seed: Optional[int] = None
     stop: Optional[Union[str, List[str]]] = None
     stream: bool = False
@@ -203,6 +210,7 @@ class ChatCompletionRequest(BaseModel):
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None
     user: Optional[str] = None
     ignore_eos: bool = False
+    response_format: RequestResponseFormat = Field(default_factory=RequestResponseFormat)
 
     @field_validator("frequency_penalty", "presence_penalty")
     @classmethod
@@ -290,8 +298,6 @@ def openai_api_get_unsupported_fields(
     """Get the unsupported fields in the request."""
     unsupported_field_default_values: List[Tuple[str, Any]] = [
         ("best_of", 1),
-        ("n", 1),
-        ("response_format", "text"),
     ]
 
     unsupported_fields: List[str] = []
@@ -307,6 +313,7 @@ def openai_api_get_generation_config(
     """Create the generation config from the given request."""
     kwargs: Dict[str, Any] = {}
     arg_names = [
+        "n",
         "temperature",
         "top_p",
         "max_tokens",
@@ -326,4 +333,5 @@ def openai_api_get_generation_config(
         kwargs["max_tokens"] = -1
     if request.stop is not None:
         kwargs["stop_strs"] = [request.stop] if isinstance(request.stop, str) else request.stop
+    kwargs["response_format"] = ResponseFormat(**request.response_format.model_dump())
     return kwargs
