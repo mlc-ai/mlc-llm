@@ -114,3 +114,22 @@ ConvTemplateRegistry.register_conv_template(
         stop_token_ids=[2],
     )
 )
+
+# Phi-2
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="phi-2",
+        system_template=f"{MessagePlaceholders.SYSTEM.value}",
+        system_message="",
+        roles={
+            "user": "Instruct",
+            "assistant": "Output",
+            "tool": "Instruct",
+        },
+        seps=["\n"],
+        role_content_sep=": ",
+        role_empty_sep=":",
+        stop_str=["<|endoftext|>"],
+        stop_token_ids=[50256],
+    )
+)
