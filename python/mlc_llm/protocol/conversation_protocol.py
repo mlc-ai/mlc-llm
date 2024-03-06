@@ -1,9 +1,10 @@
 """The standard conversation protocol in MLC LLM"""
 
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field, field_validator
+from ..serve import data
 
 
 # The message placeholders in the message prompts according to roles.
@@ -132,5 +133,77 @@ class Conversation(BaseModel):
         prompt = self.function_string.join(prompt.rsplit(MessagePlaceholders.FUNCTION.value, 1))
         # Replace with remaining function string placeholders with empty string
         prompt = prompt.replace(MessagePlaceholders.FUNCTION.value, "")
+
+        return prompt
+
+    def as_prompt_list(self, embed_size=576) -> List[Union[str, data.ImageData]]:
+        """Convert the conversation template and history messages to
+        a list of prompts.
+
+        Returns:
+            List[Union[str, data.ImageData]]: The list of prompts.
+        """
+
+        from ..serve.entrypoints.entrypoint_utils import get_image_from_url
+
+        # - Get the system message.
+        system_msg = self.system_template.replace(
+            MessagePlaceholders.SYSTEM.value, self.system_message
+        )
+
+        # - Get the message strings.
+        message_list: List[Union[str, data.ImageData]] = []
+        separators = list(self.seps)
+        if len(separators) == 1:
+            separators.append(separators[0])
+        for role, content in self.messages:  # pylint: disable=not-an-iterable
+            if role not in self.roles.keys():
+                raise ValueError(f'Role "{role}" is not a supported role in {self.roles.keys()}')
+            separator = separators[role == "assistant"]  # check assistant role
+            if content is not None:
+                if isinstance(content, str):
+                    message_string = (
+                        self.roles[role]
+                        + self.role_content_sep
+                        + self.role_templates[role].replace(
+                            MessagePlaceholders[role.upper()].value, content
+                        )
+                        + separator
+                    )
+                    message_list.append(message_string)
+                else:
+                    assert isinstance(
+                        content, list
+                    ), "Content should be a string or a list of dicts"
+                    message_list.append(self.roles[role] + self.role_content_sep)
+                    for item in content:
+                        assert isinstance(
+                            item, dict
+                        ), "Content should be a string or a list of dicts"
+                        assert "type" in item, "Content item should have a type field"
+                        if item["type"] == "text":
+                            message_list.append(
+                                self.role_templates[role].replace(
+                                    MessagePlaceholders[role.upper()].value, item["text"]
+                                )
+                            )
+                        elif item["type"] == "image_url":
+                            message_list.append(
+                                data.ImageData(
+                                    image=get_image_from_url(item["image_url"]),
+                                    embed_size=embed_size,
+                                )
+                            )
+                        else:
+                            raise ValueError(f"Unsupported content type: {item['type']}")
+                    message_list.append(separator)
+
+            else:
+                message_string = self.roles[role] + self.role_empty_sep
+                message_list.append(message_string)
+
+        prompt = message_list
+
+        ## TODO: Support function calling
 
         return prompt
