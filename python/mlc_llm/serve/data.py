@@ -81,6 +81,9 @@ class ImageData(Data):
     def __len__(self):
         return self.embed_size
 
+    def __len__(self):
+        return self.embed_size
+
 
 @dataclass
 class SingleRequestStreamOutput:
