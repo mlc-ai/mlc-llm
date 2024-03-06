@@ -3,6 +3,9 @@
 import uuid
 from http import HTTPStatus
 from typing import Callable, List, Optional, Union
+import sys
+import subprocess
+import json
 
 import fastapi
 
@@ -90,3 +93,38 @@ def process_prompts(
             return create_error_response(HTTPStatus.BAD_REQUEST, message=error_msg)
         output_prompts.append(ftokenize(input_prompt) if is_str else input_prompt)  # type: ignore
     return output_prompts
+
+
+def get_image_from_url(url: str):
+    """Get the image from the given URL, process and return the image tensor as TVM NDArray."""
+    import tvm
+    from transformers import CLIPImageProcessor
+
+    from io import BytesIO
+
+    import requests
+    from PIL import Image
+
+    response = requests.get(url)
+    image_tensor = Image.open(BytesIO(response.content)).convert("RGB")
+
+    image_processor = CLIPImageProcessor(
+        size={"shortest_edge": 336}, crop_size={"height": 336, "width": 336}
+    )
+    image_features = tvm.nd.array(
+        image_processor.preprocess(image_tensor, return_tensors="np")["pixel_values"].astype(
+            "float16"
+        ),
+        device=tvm.runtime.ndarray.cuda(),
+    )
+    return image_features
+
+
+def get_image_embed_size(config_file_path: str) -> int:
+    """Get the image embedding size from the model config file."""
+    with open(config_file_path, "r") as file:
+        config = json.load(file)
+    image_size = config["model_config"]["vision_config"]["image_size"]
+    patch_size = config["model_config"]["vision_config"]["patch_size"]
+    embed_size = (image_size // patch_size) ** 2
+    return embed_size

@@ -6,6 +6,8 @@ from ...conversation_template import ConvTemplateRegistry
 from ...protocol.conversation_protocol import Conversation
 from .. import async_engine
 
+from ...chat_module import _get_model_path
+
 
 class ServerContext:
     """The global server context, including the running models
@@ -14,6 +16,7 @@ class ServerContext:
 
     _models: Dict[str, async_engine.AsyncThreadedEngine] = {}
     _conv_templates: Dict[str, Conversation] = {}
+    _model_config_paths: Dict[str, str] = {}
 
     @staticmethod
     def add_model(hosted_model: str, engine: async_engine.AsyncThreadedEngine) -> None:
@@ -27,6 +30,9 @@ class ServerContext:
             conv_template = ConvTemplateRegistry.get_conv_template(engine.conv_template_name)
             if conv_template is not None:
                 ServerContext._conv_templates[hosted_model] = conv_template
+
+        _, config_file_path = _get_model_path(hosted_model)
+        ServerContext._model_config_paths[hosted_model] = config_file_path
 
     @staticmethod
     def get_engine(model: str) -> Optional[async_engine.AsyncThreadedEngine]:
@@ -45,3 +51,8 @@ class ServerContext:
     def get_model_list() -> List[str]:
         """Get the list of models on serve."""
         return list(ServerContext._models.keys())
+
+    @staticmethod
+    def get_model_config_path(model: str) -> Optional[str]:
+        """Get the model config path of the requested model."""
+        return ServerContext._model_config_paths.get(model, None)

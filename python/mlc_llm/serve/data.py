@@ -70,12 +70,16 @@ class ImageData(Data):
     """
 
     def __init__(self, image: NDArray, embed_size: int):
+        self.embed_size = embed_size
         self.__init_handle_by_constructor__(_ffi_api.ImageData, image, embed_size)
 
     @property
     def image(self) -> NDArray:
         """Return the image data."""
         return _ffi_api.ImageDataGetImage(self)
+
+    def __len__(self):
+        return self.embed_size
 
 
 @dataclass
