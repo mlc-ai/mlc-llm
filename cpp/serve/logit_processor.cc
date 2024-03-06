@@ -312,7 +312,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
     // - Set arrays.
     int batch_size = logits->shape[0];
     ICHECK((cum_num_token == nullptr && batch_size == mstates.size()) ||
-           (cum_num_token != nullptr && batch_size == cum_num_token->size()));
+           (cum_num_token != nullptr && batch_size == cum_num_token->back()));
 
     std::memset(p_seq_ids, 0, batch_size * sizeof(int32_t));
 

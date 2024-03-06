@@ -13,12 +13,14 @@ from mlc_chat.support import logging
 
 from .attach_to_ir_module import (
     AttachAdditionalPrimFuncs,
+    AttachAllocEmbeddingTensorFunc,
     AttachLogitProcessFunc,
     AttachMemoryPlanAttr,
     AttachVariableBounds,
 )
 from .clean_up_tir_attrs import CleanUpTIRAttrs
 from .cublas_dispatch import CublasDispatch
+from .dispatch_kv_cache_creation import DispatchKVCacheCreation
 from .estimate_memory_usage import AttachMetadataWithMemoryUsage
 from .fuse_add_norm import FuseAddRMSNorm
 from .fuse_dequantize_matmul_ewise import FuseDequantizeMatmulEwise
@@ -27,7 +29,6 @@ from .fuse_dequantize_transpose import FuseDequantizeTranspose
 from .fuse_ft_dequantize_matmul_epilogue import FuseFTDequantizeEpilogue
 from .fuse_transpose_matmul import FuseTransposeMatmul
 from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
-from .rewrite_kv_cache_creation import RewriteKVCacheCreation
 from .scatter_tuple_get_item import ScatterTupleGetItem
 
 logger = logging.getLogger(__name__)
@@ -88,10 +89,11 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
         seq = tvm.transform.Sequential(
             [
                 # Phase 0. Add additional information for compilation and remove unused Relax func
-                RewriteKVCacheCreation(target, flashinfer, metadata),
+                DispatchKVCacheCreation(target, flashinfer, metadata),
                 AttachVariableBounds(variable_bounds),
                 AttachLogitProcessFunc(),
                 AttachAdditionalPrimFuncs(additional_tirs),
+                AttachAllocEmbeddingTensorFunc(metadata),
                 AttachMemoryPlanAttr(),
                 tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),

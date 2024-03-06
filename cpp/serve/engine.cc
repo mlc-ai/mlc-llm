@@ -63,6 +63,7 @@ class EngineImpl : public Engine {
     // Step 2. Initialize each model independently.
     //         Create the logit processor and sampler.
     this->models_.clear();
+    this->model_workspaces_.clear();
     for (const auto& model_info : model_infos) {
       TVMArgValue model_lib = std::get<0>(model_info);
       String model_path = std::get<1>(model_info);
@@ -75,6 +76,7 @@ class EngineImpl : public Engine {
           << ", is smaller than the pre-defined max single sequence length, "
           << this->max_single_sequence_length_;
       this->models_.push_back(model);
+      this->model_workspaces_.push_back(ModelWorkspace{model->AllocEmbeddingTensor()});
     }
     int max_logit_processor_num_token = kv_cache_config_->max_num_sequence;
     if (engine_mode_->enable_speculative) {
@@ -88,22 +90,24 @@ class EngineImpl : public Engine {
       // Speculative decoding is only possible for more than one model.
       ICHECK_GT(this->models_.size(), 1U);
       this->actions_ = {
-          EngineAction::NewRequestPrefill(this->models_,           //
-                                          logit_processor,         //
-                                          sampler,                 //
-                                          this->kv_cache_config_,  //
-                                          this->engine_mode_,      //
+          EngineAction::NewRequestPrefill(this->models_,            //
+                                          logit_processor,          //
+                                          sampler,                  //
+                                          this->model_workspaces_,  //
+                                          this->kv_cache_config_,   //
+                                          this->engine_mode_,       //
                                           this->trace_recorder_),
           EngineAction::BatchDraft(this->models_, logit_processor, sampler, this->trace_recorder_,
                                    this->engine_mode_->spec_draft_length),
           EngineAction::BatchVerify(this->models_, logit_processor, sampler, this->kv_cache_config_,
                                     this->trace_recorder_)};
     } else {
-      this->actions_ = {EngineAction::NewRequestPrefill(this->models_,           //
-                                                        logit_processor,         //
-                                                        sampler,                 //
-                                                        this->kv_cache_config_,  //
-                                                        this->engine_mode_,      //
+      this->actions_ = {EngineAction::NewRequestPrefill(this->models_,            //
+                                                        logit_processor,          //
+                                                        sampler,                  //
+                                                        this->model_workspaces_,  //
+                                                        this->kv_cache_config_,   //
+                                                        this->engine_mode_,       //
                                                         this->trace_recorder_),
                         EngineAction::BatchDecode(this->models_, logit_processor, sampler,
                                                   this->trace_recorder_)};
@@ -250,6 +254,8 @@ class EngineImpl : public Engine {
   std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx_;
   // Models
   Array<Model> models_;
+  // Workspace of each model.
+  std::vector<ModelWorkspace> model_workspaces_;
   // Request stream callback function
   Optional<PackedFunc> request_stream_callback_;
   // Engine actions.
