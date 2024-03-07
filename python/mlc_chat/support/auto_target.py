@@ -1,4 +1,5 @@
 """Helper functions for target auto-detection."""
+
 import os
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
@@ -42,6 +43,12 @@ def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[T
     if target.host is None:
         target = Target(target, host=_detect_target_host(host_hint))
     if target.kind.name == "cuda":
+        # Enable thrust for CUDA
+        target_dict = dict(target.export())
+        target_dict["libs"] = (
+            (target_dict["libs"] + ["thrust"]) if "libs" in target_dict else ["thrust"]
+        )
+        target = Target(target_dict)
         _register_cuda_hook(target)
     return target, build_func
 
