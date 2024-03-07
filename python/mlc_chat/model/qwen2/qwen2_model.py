@@ -105,7 +105,6 @@ class QWen2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.rope_theta = config.rope_theta
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-
         d, h_q, h_kv = self.head_dim, self.num_attention_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         qkv = self.c_attn(hidden_states)
@@ -117,6 +116,7 @@ class QWen2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
         attn_output = self.o_proj(output)
         return attn_output
 
+
 ACT2FN = {
     "gelu": partial(nn.gelu, approximate=False),
     "relu": nn.relu,
@@ -124,6 +124,7 @@ ACT2FN = {
     "swish": nn.silu,
     "gelu_new": partial(nn.gelu, approximate=True),
 }
+
 
 
 class QWen2MLP(nn.Module):
@@ -155,6 +156,7 @@ class QWen2DecoderLayer(nn.Module):
         out = self.mlp(out)
         hidden_states = out + hidden_states
         return hidden_states
+
 
 class QWen2Model(nn.Module):
     def __init__(self, config: QWen2Config):
