@@ -37,6 +37,7 @@ class Phi1Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     prefill_chunk_size: int = 0
     head_dim: int = 0
     tensor_parallel_shards: int = 1
+    max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -206,19 +207,6 @@ class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
         )
         return self.out_proj(output)
 
-    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        d, h_q, h_kv = self.head_dim, self.num_q_heads, self.n_head_kv
-        b, s, _ = hidden_states.shape
-        # QKV Projection
-        qkv = self.Wqkv(hidden_states)
-        qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
-        # Attention
-        output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
-            (b, s, h_q * d),
-        )
-        return self.out_proj(output)
-
 
 class PhiParallelBlock(nn.Module):
     def __init__(self, config: PhiConfig):
@@ -268,22 +256,6 @@ class PhiParallelBlock(nn.Module):
 
         return hidden_states
 
-    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        residual = hidden_states
-        hidden_states = self.ln(hidden_states)
-
-        with tp.shard_bias(self.mixer.out_proj, self.tensor_parallel_shards), tp.shard_bias(
-            self.mlp.fc2, self.tensor_parallel_shards
-        ):
-            attn_outputs = self.mixer.batch_forward(hidden_states, paged_kv_cache, layer_id)
-            feed_forward_hidden_states = self.mlp(hidden_states)
-
-        hidden_states = self._apply_parallel_residual(
-            attn_outputs, feed_forward_hidden_states, residual
-        )
-
-        return hidden_states
-
     def _apply_parallel_residual(self, attn_out, mlp_out, residual):
         if self.tensor_parallel_shards > 1:
             return op.ccl_allreduce(
@@ -313,23 +285,11 @@ class PhiModel(nn.Module):
         super().__init__()
         self.embd = nn.Embedding(config.vocab_size, config.n_embd)
         self.h = nn.ModuleList([PhiParallelBlock(config) for _ in range(config.n_layer)])
-        self.tensor_parallel_shards = config.tensor_parallel_shards
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        if self.tensor_parallel_shards > 1:
-            input_embed = op.ccl_broadcast_from_worker0(input_embed)
         hidden_states = input_embed
         for layer_id, layer in enumerate(self.h):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
-
-        return hidden_states
-
-    def batch_forward(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        if self.tensor_parallel_shards > 1:
-            input_embeds = op.ccl_broadcast_from_worker0(input_embeds)
-        hidden_states = input_embeds
-        for layer_id, layer in enumerate(self.h):
-            hidden_states = layer.batch_forward(hidden_states, paged_kv_cache, layer_id)
 
         return hidden_states
 
@@ -368,7 +328,7 @@ class PhiForCausalLM(nn.Module):
     ):
         op_ext.configure()
 
-        hidden_states = self.transformer.batch_forward(input_embeds, paged_kv_cache)
+        hidden_states = self.transformer(input_embeds, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         lm_logits = self.lm_head(hidden_states)
@@ -419,6 +379,8 @@ class PhiForCausalLM(nn.Module):
         return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
 
     def embed(self, input_ids: Tensor):
+        if self.tensor_parallel_shards > 1:
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
         embeds = self.transformer.embd(input_ids)
         return embeds
 

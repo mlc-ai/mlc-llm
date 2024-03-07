@@ -2,6 +2,7 @@
 Implementation for QWEN architecture.
 TODO: add docstring
 """
+
 import dataclasses
 from typing import Any, Dict, Optional
 
@@ -34,6 +35,7 @@ class QWenConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
+    max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -91,10 +93,6 @@ class QWenAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         )
         self.c_proj = nn.Linear(config.hidden_size, self.projection_size, bias=False)
 
-        # KV cache for single sequence
-        self.k_cache = nn.KVCache(config.context_window_size, [self.num_heads, self.head_dim])
-        self.v_cache = nn.KVCache(config.context_window_size, [self.num_heads, self.head_dim])
-
     def forward(  # pylint: disable=too-many-locals
         self,
         hidden_states: Tensor,
@@ -108,17 +106,6 @@ class QWenAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         qkv = op.reshape(qkv, (b, s, 3 * h, d))
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads), (b, s, h * d)
-        )
-        return self.c_proj(output)
-
-    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        b, s, _ = hidden_states.shape
-        qkv = self.c_attn(hidden_states)
-        qkv = op.reshape(qkv, (b, s, 3 * self.head_dim, self.num_heads))
-        # try batch forward
-        output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads),
-            (b, s, self.head_dim * self.num_heads),
         )
         return self.c_proj(output)
 
@@ -154,13 +141,6 @@ class QWenBlock(nn.Module):
         hidden_states = out + hidden_states
         return hidden_states
 
-    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.attn.batch_forward(self.ln_1(hidden_states), paged_kv_cache, layer_id)
-        hidden_states = out + hidden_states
-        out = self.mlp(self.ln_2(hidden_states))
-        hidden_states = out + hidden_states
-        return hidden_states
-
 
 class QWenModel(nn.Module):
     def __init__(self, config: QWenConfig):
@@ -170,18 +150,9 @@ class QWenModel(nn.Module):
         self.ln_f = nn.RMSNorm(config.hidden_size, -1, config.layer_norm_epsilon, bias=False)
 
     def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
-        # hidden_states = self.wte(input_ids)
         hidden_states = inputs
         for layer_id, layer in enumerate(self.h):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
-        hidden_states = self.ln_f(hidden_states)
-        return hidden_states
-
-    def batch_forward(self, inputs, paged_kv_cache: PagedKVCache):
-        # hidden_states = self.wte(input_ids)
-        hidden_states = inputs
-        for layer_id, layer in enumerate(self.h):
-            hidden_states = layer.batch_forward(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.ln_f(hidden_states)
         return hidden_states
 
@@ -211,7 +182,7 @@ class QWenLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
         logit_positions: Optional[Tensor] = None,
     ):
         op_ext.configure()
-        hidden_states = self.transformer.batch_forward(inputs, paged_kv_cache)
+        hidden_states = self.transformer(inputs, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         logits = self.lm_head(hidden_states)

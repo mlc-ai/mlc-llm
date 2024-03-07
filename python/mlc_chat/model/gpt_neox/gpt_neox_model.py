@@ -38,6 +38,7 @@ class GPTNeoXConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
     ffn_out_dtype: str = "float32"
+    max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -107,22 +108,6 @@ class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        # hidden_states: [batch_size, seq_len, hidden_size]
-        batch_size, seq_len, _ = hidden_states.shape
-
-        # q/k/v states: [batch_size, seq_len, hidden_size]
-        qkv = self.query_key_value(hidden_states)
-        qkv = op.reshape(qkv, (batch_size, seq_len, 3 * self.num_attention_heads, self.head_dim))
-
-        # Attention
-        output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_attention_heads),
-            (batch_size, seq_len, self.head_dim * self.num_attention_heads),
-        )
-        attn_output = self.dense(output)
-        return attn_output
-
-    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         # hidden_states: [batch_size, seq_len, hidden_size]
         batch_size, seq_len, _ = hidden_states.shape
 
@@ -223,27 +208,6 @@ class GPTNeoXLayer(nn.Module):
             hidden_states = self._apply_residual(mlp_output.astype(dtype), attn_output)
         return hidden_states
 
-    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        dtype = hidden_states.dtype
-        attn_input = self.input_layernorm(hidden_states)
-        with tp.shard_bias(self.attention.dense, self.tensor_parallel_shards):
-            attn_output = self.attention.batch_forward(
-                attn_input,
-                paged_kv_cache,
-                layer_id,
-            )
-        if self.use_parallel_residual:
-            mlp_input = self.post_attention_layernorm(hidden_states)
-            mlp_output = self.mlp(mlp_input)
-            hidden_states = mlp_output + attn_output + hidden_states
-        else:
-            attn_output = self._apply_residual(attn_output, hidden_states)
-            mlp_input = self.post_attention_layernorm(attn_output)
-            with tp.shard_bias(self.mlp.dense_4h_to_h, self.tensor_parallel_shards):
-                mlp_output = self.mlp(mlp_input)
-            hidden_states = self._apply_residual(mlp_output.astype(dtype), attn_output)
-        return hidden_states
-
     def _apply_residual(self, out, residual):
         if self.tensor_parallel_shards > 1:
             return op.ccl_allreduce(out + residual / self.tensor_parallel_shards, "sum")
@@ -255,25 +219,12 @@ class GPTNeoXModel(nn.Module):
         self.embed_in = nn.Embedding(num="vocab_size", dim=config.hidden_size)
         self.layers = nn.ModuleList([GPTNeoXLayer(config) for _ in range(config.num_hidden_layers)])
         self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.tensor_parallel_shards = config.tensor_parallel_shards
 
     def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
-        if self.tensor_parallel_shards > 1:
-            inputs = op.ccl_broadcast_from_worker0(inputs)
         hidden_states = inputs
 
         for layer_id, layer in enumerate(self.layers):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
-        hidden_states = self.final_layer_norm(hidden_states)
-        return hidden_states
-
-    def batch_forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
-        if self.tensor_parallel_shards > 1:
-            inputs = op.ccl_broadcast_from_worker0(inputs)
-        hidden_states = inputs
-
-        for layer_id, layer in enumerate(self.layers):
-            hidden_states = layer.batch_forward(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.final_layer_norm(hidden_states)
         return hidden_states
 
@@ -310,7 +261,7 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
     ):
         op_ext.configure()
 
-        hidden_states = self.gpt_neox.batch_forward(input_embeds, paged_kv_cache)
+        hidden_states = self.gpt_neox(input_embeds, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         logits = self.embed_out(hidden_states)
@@ -319,6 +270,8 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         return logits
 
     def embed(self, input_ids: Tensor):
+        if self.tensor_parallel_shards > 1:
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.gpt_neox.embed_in(input_ids)
 
     def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
