@@ -48,8 +48,8 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
     }
 
 
-@tvm.transform.module_pass(opt_level=0, name="RewriteKVCacheCreation")
-class RewriteKVCacheCreation:  # pylint: disable=too-many-instance-attributes
+@tvm.transform.module_pass(opt_level=0, name="DispatchKVCacheCreation")
+class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
     """Rewrite KV cache creation functions to IRModule."""
 
     def __init__(

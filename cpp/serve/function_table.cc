@@ -199,6 +199,7 @@ void FunctionTable::_InitFunctions() {
   this->apply_logit_bias_func_ = mod->GetFunction("apply_logit_bias_inplace", true);
   this->apply_penalty_func_ = mod->GetFunction("apply_penalty_inplace", true);
   this->apply_bitmask_func_ = mod->GetFunction("apply_bitmask_inplace", true);
+  this->alloc_embedding_tensor_func_ = mod_get_func("alloc_embedding_tensor");
   this->create_kv_cache_func_ = mod_get_func("create_flashinfer_paged_kv_cache");
   if (!this->create_kv_cache_func_.defined()) {
     this->create_kv_cache_func_ = mod_get_func("create_tir_paged_kv_cache");
@@ -219,7 +220,9 @@ void FunctionTable::_InitFunctions() {
   this->kv_cache_popn_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_popn");
   this->kv_cache_get_num_available_pages_func_ =
       get_global_func("vm.builtin.paged_attention_kv_cache_get_num_available_pages");
-  this->view_func_ = get_global_func("vm.builtin.reshape");
+  this->nd_view_func_ = get_global_func("vm.builtin.reshape");
+  this->nd_get_shape_func_ = get_global_func("vm.builtin.shape_of");
+  this->nd_copy_embedding_to_offset_func_ = get_global_func("mlc.copy_embedding_to_offset");
   support_backtracking_kv_ = true;
 }
 
@@ -245,7 +248,7 @@ ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String tensor_
       this->disco_buffers.Set(tensor_name, buffer);
     }
     ShapeTuple real_shape = host_array.Shape();
-    DRef buffer_view = view_func_(buffer, real_shape);
+    DRef buffer_view = nd_view_func_(buffer, real_shape);
     sess->CopyToWorker0(host_array, buffer_view);
     return buffer_view;
   } else {

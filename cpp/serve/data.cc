@@ -31,7 +31,7 @@ int TextDataNode::GetLength() const {
                 "Please tokenize the text and construct a TokenData object.";
 }
 
-NDArray TextDataNode::GetEmbedding(Model model) const {
+ObjectRef TextDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) const {
   LOG(FATAL) << "\"GetEmbedding\" for TextData is not supported. "
                 "Please tokenize the text and construct a TokenData object.";
 }
@@ -62,7 +62,9 @@ TokenData::TokenData(std::vector<int32_t> token_ids) {
 
 int TokenDataNode::GetLength() const { return token_ids.size(); }
 
-NDArray TokenDataNode::GetEmbedding(Model model) const { return model->TokenEmbed(token_ids); }
+ObjectRef TokenDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) const {
+  return model->TokenEmbed(token_ids, dst, offset);
+}
 
 TVM_REGISTER_GLOBAL("mlc.serve.TokenData").set_body([](TVMArgs args, TVMRetValue* rv) {
   std::vector<int32_t> token_ids;

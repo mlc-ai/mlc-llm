@@ -24,6 +24,20 @@ using tvm::Device;
 using namespace tvm::runtime;
 
 /*!
+ * \brief The workspace tensors that may be shared across different
+ * calls to Model. For example, the prefill action use the `embeddings`
+ * workspace for the concatenated embeddings of different sequences.
+ * The workspace tensor is created by Model but owned by engine.
+ */
+struct ModelWorkspace {
+  /*!
+   * \brief The embedding tensor. It can be either an NDArray when tensor
+   * model parallelism is not enabled, or a DRef when using tensor model parallelism.
+   */
+  ObjectRef embeddings{nullptr};
+};
+
+/*!
  * \brief The model module for LLM functions.
  * It runs an LLM, and has an internal KV cache that maintains
  * the history KV values of all processed tokens.
@@ -53,10 +67,18 @@ class ModelObj : public Object {
 
   /*!
    * \brief Compute embeddings for the input token ids.
+   * When the input destination pointer is defined, it in-place writes the
+   * embedding into the input destination array at the given offset.
+   * Otherwise, the embeddings will be directly returned back.
    * \param token_ids The token ids to compute embedding for.
-   * \return The computed embeddings.
+   * \param dst The destination array of the embedding lookup.
+   * \param offset The token offset where the computed embeddings will be written
+   * into the destination array.
+   * \return The updated destination embedding array or the computed embeddings.
+   * \note When `dst` is undefined, we require `offset` to be 0.
    */
-  virtual NDArray TokenEmbed(IntTuple batch_token_ids) = 0;
+  virtual ObjectRef TokenEmbed(IntTuple batch_token_ids, ObjectRef* dst = nullptr,
+                               int offset = 0) = 0;
 
   /*!
    * \brief Batch prefill function. Embedding in, logits out.
@@ -67,8 +89,7 @@ class ModelObj : public Object {
    * \param lengths The length of each sequence to prefill.
    * \return The logits for the next token.
    */
-  virtual NDArray BatchPrefill(const Array<NDArray>& embedding_arr,
-                               const std::vector<int64_t>& seq_ids,
+  virtual NDArray BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                                const std::vector<int>& lengths) = 0;
 
   /*!
@@ -79,7 +100,7 @@ class ModelObj : public Object {
    * \param seq_id The id of the sequence in the KV cache.
    * \return The logits for the next token for each sequence in the batch.
    */
-  virtual NDArray BatchDecode(const NDArray& embeddings, const std::vector<int64_t>& seq_ids) = 0;
+  virtual NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) = 0;
 
   /*!
    * \brief Batch verify function. Embedding in, logits out.
@@ -91,7 +112,7 @@ class ModelObj : public Object {
    * That is to say, it does not accept "running a verify step for a subset
    * of the full batch".
    */
-  virtual NDArray BatchVerify(const NDArray& embeddings, const std::vector<int64_t>& seq_ids,
+  virtual NDArray BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                               const std::vector<int>& lengths) = 0;
 
   /*********************** KV Cache Management  ***********************/
@@ -134,6 +155,9 @@ class ModelObj : public Object {
 
   /*! \brief Get the max window size of the model. */
   virtual int GetMaxWindowSize() const = 0;
+
+  /*! \brief Allocate an embedding tensor with the prefill chunk size. */
+  virtual ObjectRef AllocEmbeddingTensor() = 0;
 
   /*! \brief Reset the model KV cache and other statistics. */
   virtual void Reset() = 0;
