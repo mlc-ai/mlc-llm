@@ -8,6 +8,7 @@ from tvm import dlight as dl
 from tvm import relax, te, tir, topi
 from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
+from tvm.script import tir as T
 from tvm.target import Target
 
 from mlc_chat.loader import QuantizeMapping
@@ -155,8 +156,44 @@ def dequantize(
         raise ValueError("Unknown quantization kind")
 
 
+def inplace_maximum(scale: nn.Tensor, param: nn.Tensor):
+    @T.prim_func
+    def max_update(
+        scale_local: T.Buffer(scale.shape, scale.dtype),
+        scale_global: T.Buffer(param.shape, param.dtype),
+        # TODO(csullivan): consider using nn.op.tensor_ir_inplace_op
+        out_scale: T.Buffer(param.shape, param.dtype),
+    ):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        # TODO(csullivan): use index expansion
+        intermediate = T.alloc_buffer(scale_global.shape, dtype=scale_global.dtype)
+        for i in range(scale_global.shape[0]):
+            with T.block("read"):
+                vi = T.axis.remap("S", [i])
+                T.reads(scale_global[vi])
+                T.writes(intermediate[vi])
+                intermediate[vi] = scale_global[vi]
+        for i in range(scale_local.shape[0]):
+            with T.block("max_update"):
+                vi = T.axis.remap("S", [i])
+                T.reads(scale_local[vi], intermediate[vi])
+                T.writes(scale_global[vi], out_scale[vi])
+                scale_global[vi] = T.if_then_else(
+                    scale_local[vi] > intermediate[vi], scale_local[vi], intermediate[vi]
+                )
+                out_scale[vi] = scale_global[vi]
+
+    return nn.op.tensor_ir_op(
+        max_update,
+        name_hint="inplace_maximum",
+        args=[scale, param],
+        out=nn.Tensor.placeholder(scale.shape, scale.dtype),
+    )
+
+
 nn.op.quantize = quantize
 nn.op.dequantize = dequantize
+nn.op.maximum_inplace = inplace_maximum
 
 
 class GroupQuantizeLinearFP8E4M3CutlassScaleOnly(
@@ -255,9 +292,8 @@ class MixtralExpertsFP8(
         self.weight_config = weight_config
         self.max_int_value = 448 if "e4m3" in activation_dtype else 57344
 
-        # TODO(csullivan): Need param allocation before this will work
-        # if "max" in self.runtime:
-        #     self.q_scale_activation = nn.Parameter((1,), weight_config.model_dtype)
+        if "max" in self.runtime:
+            self.q_calibration_scale = nn.Parameter((1,), weight_config.model_dtype)
 
     @staticmethod
     def from_mixtral_experts(
@@ -304,16 +340,16 @@ class MixtralExpertsFP8(
 
     def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
         if self.runtime == "max-calibration":
-            x, scale = nn.op.quantize(
+            x, local_scale = nn.op.quantize(
                 x,
                 quantize_dtype=self.activation_dtype,
                 kind="fp8-max",
                 max_int_value=self.max_int_value,
             )
-            # TODO(csullivan): support weight update
-            # self.q_scale_activation = nn.op.maximum(self.q_scale_activation, scale)
+            local_scale = nn.op.maximum_inplace(local_scale, self.q_calibration_scale)
         elif self.runtime == "max":
-            x = x / self.q_scale_activation
+            local_scale = self.q_calibration_scale
+            x = x / local_scale
             x = nn.op.astype(x, dtype=self.activation_dtype)
         elif self.runtime == "cast":
             x = nn.op.astype(x, dtype=self.activation_dtype)
@@ -359,8 +395,8 @@ class MixtralExpertsFP8(
 
         # TODO(csullivan): absorb these scales into the group gemm
         if self.weight_dtype == "e4m3_float8":
-            total_scale = scale * self.q_scale
+            total_scale = local_scale * self.q_scale
         else:
-            total_scale = scale
+            total_scale = local_scale
 
         return nn.op.dequantize(output, total_scale)
