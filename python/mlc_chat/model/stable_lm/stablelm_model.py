@@ -36,6 +36,7 @@ class StableLmConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
+    max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -95,27 +96,8 @@ class StableLmAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
             bias=config.use_qkv_bias,
         )
         self.o_proj = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
-        # KV cache for single sequence
-        self.k_cache = nn.KVCache(
-            config.context_window_size, [self.num_key_value_heads, self.head_dim]
-        )
-        self.v_cache = nn.KVCache(
-            config.context_window_size, [self.num_key_value_heads, self.head_dim]
-        )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
-        b, s, _ = hidden_states.shape
-        qkv = self.qkv_proj(hidden_states)
-        qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
-        output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads),
-            (b, s, h_q * d),
-        )
-        attn_output = self.o_proj(output)
-        return attn_output
-
-    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         qkv = self.qkv_proj(hidden_states)
@@ -159,15 +141,6 @@ class StableLmDecoderLayer(nn.Module):
         hidden_states = out + hidden_states
         return hidden_states
 
-    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn.batch_forward(
-            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
-        )
-        hidden_states = out + hidden_states
-        out = self.mlp(self.post_attention_layernorm(hidden_states))
-        hidden_states = out + hidden_states
-        return hidden_states
-
 
 class StableLmModel(nn.Module):
     def __init__(self, config: StableLmConfig):
@@ -182,13 +155,6 @@ class StableLmModel(nn.Module):
         hidden_states = inputs
         for layer_id, layer in enumerate(self.layers):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
-        hidden_states = self.norm(hidden_states)
-        return hidden_states
-
-    def batch_forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
-        hidden_states = inputs
-        for layer_id, layer in enumerate(self.layers):
-            hidden_states = layer.batch_forward(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
@@ -222,7 +188,7 @@ class StableLmForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
     ):
         op_ext.configure()
 
-        hidden_states = self.model.batch_forward(input_embeds, paged_kv_cache)
+        hidden_states = self.model(input_embeds, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         logits = self.lm_head(hidden_states)
