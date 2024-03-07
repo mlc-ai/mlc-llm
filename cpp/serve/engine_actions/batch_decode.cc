@@ -3,6 +3,8 @@
  * \file serve/engine_actions/batch_decode.cc
  */
 
+#include <numeric>
+
 #include "../../random.h"
 #include "../config.h"
 #include "../model.h"

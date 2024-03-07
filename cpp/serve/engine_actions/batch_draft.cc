@@ -3,6 +3,8 @@
  * \file serve/engine_actions/batch_draft.cc
  */
 
+#include <numeric>
+
 #include "../config.h"
 #include "../model.h"
 #include "../sampler.h"
