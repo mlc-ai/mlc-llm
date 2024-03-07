@@ -126,7 +126,6 @@ ACT2FN = {
 }
 
 
-
 class QWen2MLP(nn.Module):
     def __init__(self, config: QWen2Config):
         self.gate_up_proj = nn.Linear(config.hidden_size, 2 * config.intermediate_size, bias=False)
