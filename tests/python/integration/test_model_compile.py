@@ -10,6 +10,8 @@ from itertools import product
 import tvm
 
 from mlc_chat.model import MODEL_PRESETS
+from mlc_chat.model import MODELS as SUPPORTED_MODELS
+from mlc_chat.quantization import QUANTIZATION as SUPPORTED_QUANTS
 from mlc_chat.support.constants import MLC_TEMP_DIR
 
 OPT_LEVEL = "O2"
@@ -103,6 +105,11 @@ def test_model_compile():  # pylint: disable=too-many-locals
                     TENSOR_PARALLEL_SHARDS,
                 )
             ):
+                if (
+                    SUPPORTED_QUANTS[quant].kind
+                    not in SUPPORTED_MODELS[MODEL_PRESETS[model]["model_type"]].quantize
+                ):
+                    continue
                 if not target.startswith("cuda") and quant == "q4f16_ft":
                     # FasterTransformer only works with cuda
                     continue
