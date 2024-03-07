@@ -6,6 +6,7 @@ from typing import Any, Callable, List, Literal, Optional, Tuple, Union
 from tvm import DataType, DataTypeCode, IRModule
 from tvm import dlight as dl
 from tvm import relax, te, tir, topi
+from tvm import nd
 from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
 from tvm.script import tir as T
@@ -181,7 +182,7 @@ def inplace_maximum(scale: nn.Tensor, param: nn.Tensor):
                 scale_global[vi] = T.if_then_else(
                     scale_local[vi] > intermediate[vi], scale_local[vi], intermediate[vi]
                 )
-                out_scale[vi] = scale_global[vi]
+                out_scale[vi] = scale_local[vi]
 
     return nn.op.tensor_ir_op(
         max_update,
@@ -295,6 +296,17 @@ class MixtralExpertsFP8(
         if "max" in self.runtime:
             self.q_calibration_scale = nn.Parameter((1,), weight_config.model_dtype)
 
+    def add_calibration_params(self, quant_map: QuantizeMapping, layer_name: str):
+        scale_name = f"{layer_name}.q_calibration_scale"
+
+        def alloc_scale():
+            return nd.empty(
+                shape=self.q_calibration_scale.shape, dtype=self.q_calibration_scale.dtype
+            )
+
+        quant_map.map_func[scale_name] = alloc_scale
+        return quant_map
+
     @staticmethod
     def from_mixtral_experts(
         src: "MixtralExperts",
@@ -372,6 +384,7 @@ class MixtralExpertsFP8(
         a_format = self.activation_dtype.split("_")[0]
         w_format = self.weight_dtype.split("_")[0]
 
+        # TODO(csullivan): use the fp16 group gemm for calibration
         output = nn.op.extern(
             f"cutlass.moe_gemm_{a_format}_{w_format}_fp16",
             [
