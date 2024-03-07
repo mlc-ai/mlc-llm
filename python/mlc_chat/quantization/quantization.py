@@ -162,4 +162,22 @@ QUANTIZATION: Dict[str, Quantization] = {
         model_dtype="float16",
         linear_weight_layout="NK",
     ),
+    "fp8_e4m3*_e5m2_0": GroupQuantize(
+        name="fp8_e4m3*_e5m2_0",
+        kind="group-quant",  # TODO(csullivan): Can I change this and still use GroupQuantize?
+        group_size=64,
+        quantize_dtype="e5m2_float8",
+        storage_dtype="uint32",
+        model_dtype="float16",
+        linear_weight_layout="NK",
+    ),
+    "fp8_e4m3*_e4m3_0": GroupQuantize(
+        name="fp8_e4m3*_e4m3_0",
+        kind="group-quant",  # TODO(csullivan): Can I change this and still use GroupQuantize?
+        group_size=64,
+        quantize_dtype="e4m3_float8",
+        storage_dtype="uint32",
+        model_dtype="float16",
+        linear_weight_layout="NK",
+    ),
 }
