@@ -147,41 +147,32 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if not self.config.no_scale else [f"{name}.q_weight",]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
-                    if self.config.name == "fp8_e4m3*_e5m2_0":
+                    if self.config.name == "fp8_e4m3_e5m2_max_calibration":
                         return fp8.MixtralExpertsFP8.from_mixtral_experts(
                             node,
                             self.config,
                             activation_dtype="e4m3_float8",
                             weight_dtype="e5m2_float8",
-                            calibration_kind="max",
+                            runtime="max-calibration",
                         )
-                    elif self.config.name == "fp8_e5m2_e5m2_0":
+                    elif self.config.name == "fp8_e4m3_e5m2_max_runtime":
+                        return fp8.MixtralExpertsFP8.from_mixtral_experts(
+                            node,
+                            self.config,
+                            activation_dtype="e4m3_float8",
+                            weight_dtype="e5m2_float8",
+                            runtime="max",
+                        )
+                    elif self.config.name == "fp8_e5m2_e5m2":
                         return fp8.MixtralExpertsFP8.from_mixtral_experts(
                             node,
                             self.config,
                             activation_dtype="e5m2_float8",
                             weight_dtype="e5m2_float8",
                         )
-                    elif self.config.name == "fp8_e4m3_e4m3_0":
-                        return fp8.MixtralExpertsFP8.from_mixtral_experts(
-                            node,
-                            self.config,
-                            activation_dtype="e4m3_float8",
-                            weight_dtype="e4m3_float8",
-                        )
-                    elif self.config.name == "fp8_e4m3_e5m2_0":
-                        return fp8.MixtralExpertsFP8.from_mixtral_experts(
-                            node,
-                            self.config,
-                            activation_dtype="e4m3_float8",
-                            weight_dtype="e5m2_float8",
-                        )
-                    elif self.config.name == "fp8_e5m2_e4m3_0":
-                        return fp8.MixtralExpertsFP8.from_mixtral_experts(
-                            node,
-                            self.config,
-                            activation_dtype="e5m2_float8",
-                            weight_dtype="e4m3_float8",
+                    elif "fp8" in self.config.name:
+                        raise NotImplementedError(
+                            f"Requested FP8 quantization config {self.config.name} is not implemented"
                         )
                     else:
                         return GroupQuantizeMixtralExperts.from_mixtral_experts(node, self.config)

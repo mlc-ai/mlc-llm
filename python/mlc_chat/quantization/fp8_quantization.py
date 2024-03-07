@@ -246,18 +246,18 @@ class MixtralExpertsFP8(
         weight_config: gq.GroupQuantize,
         activation_dtype: str = None,
         weight_dtype: str = None,
-        calibration_kind: str = None,
+        runtime: str = "cast",
     ):  # pylint: disable=too-many-arguments
         super().__init__(num_local_experts, in_features, out_features, weight_config)
         self.activation_dtype = activation_dtype
         self.weight_dtype = weight_dtype
-        self.calibration_kind = calibration_kind
+        self.runtime = runtime
         self.weight_config = weight_config
         self.max_int_value = 448 if "e4m3" in activation_dtype else 57344
 
-        # TODO(csullivan): need to get param allocation working before we can do this
-        # if self.calibration_kind:
-        #     self.scale_x = nn.Parameter((1,), weight_config.model_dtype)
+        # TODO(csullivan): Need param allocation before this will work
+        # if "max" in self.runtime:
+        #     self.q_scale_activation = nn.Parameter((1,), weight_config.model_dtype)
 
     @staticmethod
     def from_mixtral_experts(
@@ -265,7 +265,7 @@ class MixtralExpertsFP8(
         weight_config: gq.GroupQuantize,
         activation_dtype: str = None,
         weight_dtype: str = None,
-        calibration_kind: str = None,
+        runtime: str = "cast",
     ) -> "GroupQuantizeMixtralExperts":
         """
         Converts a non-quantized MixtralExperts to a group quantized GroupQuantizeMixtralExperts
@@ -290,23 +290,37 @@ class MixtralExpertsFP8(
             weight_config=weight_config,
             activation_dtype=activation_dtype,
             weight_dtype=weight_dtype,
-            calibration_kind=calibration_kind,
+            runtime=runtime,
         )
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
             gq._apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
             if weight_dtype == "e4m3_float8":
                 _apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
+            # TODO(csullivan): Consider if it is possible to use all reduce to reduce over multigpu
+            # calibration params. Probably doable with nn.op.ccl* directly
 
         return quantized_mistral_experts
 
     def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
-        x, scale = nn.op.quantize(
-            x,
-            quantize_dtype=self.activation_dtype,
-            kind="fp8-max",
-            max_int_value=self.max_int_value,
-        )
+        if self.runtime == "max-calibration":
+            x, scale = nn.op.quantize(
+                x,
+                quantize_dtype=self.activation_dtype,
+                kind="fp8-max",
+                max_int_value=self.max_int_value,
+            )
+            # TODO(csullivan): support weight update
+            # self.q_scale_activation = nn.op.maximum(self.q_scale_activation, scale)
+        elif self.runtime == "max":
+            x = x / self.q_scale_activation
+            x = nn.op.astype(x, dtype=self.activation_dtype)
+        elif self.runtime == "cast":
+            x = nn.op.astype(x, dtype=self.activation_dtype)
+        else:
+            raise NotImplementedError(
+                f"Only max and cast runtimes are supported for FP8 activations, {self.runtime} is unsupported."
+            )
 
         workspace = nn.op.wrap_nested(
             relax.op.builtin.alloc_tensor(
@@ -339,6 +353,9 @@ class MixtralExpertsFP8(
                 dtype=self.weight_config.model_dtype,
             ),
         )
+
+        if self.runtime == "cast":
+            return output
 
         # TODO(csullivan): absorb these scales into the group gemm
         if self.weight_dtype == "e4m3_float8":
