@@ -173,7 +173,7 @@ class QWen2Model(nn.Module):
         return hidden_states
 
 
-class QWen2LMHeadModel(nn.Module):
+class QWen2LMHeadModel(nn.Module):    # pylint: disable=too-many-instance-attributes
     def __init__(self, config: QWen2Config):
         self.model = QWen2Model(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
