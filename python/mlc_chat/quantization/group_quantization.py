@@ -121,6 +121,8 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 ret_node: Any
                     The new node to replace current node.
                 """
+                from . import fp8_quantization as fp8
+
                 if isinstance(node, nn.Linear) and (
                     not is_final_fc(name) or self.config.quantize_final_fc
                 ):
@@ -131,9 +133,9 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                         output_transpose=self.config.linear_weight_layout == "KN",
                     )
                     if False and self.config.quantize_dtype == "e4m3_float8":
-                        return GroupQuantizeLinearFP8E4M3ScaleOnly.from_linear(node, self.config)
-                    elif False and self.config.quantize_dtype == "e5m2_float8":
-                        return GroupQuantizeLinearFP8E5M2.from_linear(node, self.config)
+                        return fp8.GroupQuantizeLinearFP8E4M3CutlassScaleOnly.from_linear(
+                            node, self.config
+                        )
                     else:
                         return GroupQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding) and self.config.quantize_embedding:
@@ -146,28 +148,40 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if not self.config.no_scale else [f"{name}.q_weight",]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     if self.config.name == "fp8_e4m3*_e5m2_0":
-                        return MixtralExpertsFP8.from_mixtral_experts(
+                        return fp8.MixtralExpertsFP8.from_mixtral_experts(
                             node,
                             self.config,
-                            activation="e4m3_float8",
-                            weight="e5m2_float8",
+                            activation_dtype="e4m3_float8",
+                            weight_dtype="e5m2_float8",
                             calibration_kind="max",
                         )
                     elif self.config.name == "fp8_e5m2_e5m2_0":
-                        return MixtralExpertsFP8.from_mixtral_experts(
-                            node, self.config, activation="e5m2_float8", weight="e5m2_float8"
+                        return fp8.MixtralExpertsFP8.from_mixtral_experts(
+                            node,
+                            self.config,
+                            activation_dtype="e5m2_float8",
+                            weight_dtype="e5m2_float8",
                         )
                     elif self.config.name == "fp8_e4m3_e4m3_0":
-                        return MixtralExpertsFP8.from_mixtral_experts(
-                            node, self.config, activation="e4m3_float8", weight="e4m3_float8"
+                        return fp8.MixtralExpertsFP8.from_mixtral_experts(
+                            node,
+                            self.config,
+                            activation_dtype="e4m3_float8",
+                            weight_dtype="e4m3_float8",
                         )
                     elif self.config.name == "fp8_e4m3_e5m2_0":
-                        return MixtralExpertsFP8.from_mixtral_experts(
-                            node, self.config, activation="e4m3_float8", weight="e5m2_float8"
+                        return fp8.MixtralExpertsFP8.from_mixtral_experts(
+                            node,
+                            self.config,
+                            activation_dtype="e4m3_float8",
+                            weight_dtype="e5m2_float8",
                         )
                     elif self.config.name == "fp8_e5m2_e4m3_0":
-                        return MixtralExpertsFP8.from_mixtral_experts(
-                            node, self.config, activation="e5m2_float8", weight="e4m3_float8"
+                        return fp8.MixtralExpertsFP8.from_mixtral_experts(
+                            node,
+                            self.config,
+                            activation_dtype="e5m2_float8",
+                            weight_dtype="e4m3_float8",
                         )
                     else:
                         return GroupQuantizeMixtralExperts.from_mixtral_experts(node, self.config)
@@ -803,7 +817,7 @@ class GroupQuantizeEmbedding(nn.Module):
                 raise NotImplementedError()
         else:
             dequant_func = self.confg._dequantize
-        
+
         if not self.no_scale:
             w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
                 lambda weight, scale: dequant_func(  # pylint: disable=protected-access
@@ -978,279 +992,3 @@ def _apply_sharding(shard, name: str, weight: nn.Parameter):
         )
     else:
         raise NotImplementedError(f"Unknowing sharding strategy: {shard}")
-
-
-class GroupQuantizeLinearFP8E4M3ScaleOnly(
-    GroupQuantizeLinear,
-):  # pylint: disable=too-many-instance-attributes
-    """An nn.Linear module with group quantization"""
-
-    def forward(self, x: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
-        """
-        Forward method for group quantized linear layer.
-
-        Parameters
-        ----------
-        x : nn.Tensor
-            The input tensor.
-
-        Returns
-        -------
-        ret : nn.Tensor
-            The output tensor for the group quantized linear layer.
-        """
-        assert self.config.fp8_quant
-        assert DataType(self.config.quantize_dtype).type_code == DataTypeCode.E4M3Float
-        # For cutlass mixed-dtype gemm activation layout is row major w/ shape (M, K)
-        # and weight layout column major w/ shape (N, K) so no permute dims is needed
-        assert self.config.linear_weight_layout == "NK"
-
-        # TODO(csullivan): Add a workspace for static allocation and planning
-        # tmp_out = op.wrap_nested(
-        #     relax.op.builtin.alloc_tensor(
-        #         relax.ShapeExpr(
-        #             (num_tokens, num_q_heads, self.max_num_partitions, head_dim)
-        #         ),
-        #         dtype=query._expr.struct_info.dtype,
-        #         runtime_device_index=0,
-        #     ),
-        #     "relax.alloc_tensor",
-        # )
-
-        M, K = x.shape
-        N, _ = self.q_weight.shape
-        if self.bias:
-            return nn.op.extern(
-                "cutlass.mixed_dtype_gemm_fp16_fp8_scale",
-                [
-                    x,
-                    self.q_weight,
-                    self.bias,
-                    self.q_scale,
-                    M,
-                    N,
-                    K,
-                    1,
-                    self.config.group_size
-                    # tmp_out,
-                ],
-                x,
-            )
-        else:
-            return nn.op.extern(
-                "cutlass.mixed_dtype_matmul_fp16_fp8_scale",
-                [
-                    x,
-                    self.q_weight,
-                    self.q_scale,
-                    M,
-                    N,
-                    K,
-                    1,
-                    self.config.group_size
-                    # tmp_out,
-                ],
-                out=nn.Tensor.placeholder(
-                    (M, N), dtype=self.out_dtype if self.out_dtype else self.config.model_dtype
-                ),
-            )
-
-
-class MixtralExpertsFP8(
-    GroupQuantizeMixtralExperts
-):  # pylint: disable=too-many-instance-attributes
-    """An MixtralExperts module with group quantization"""
-
-    def __init__(
-        self,
-        num_local_experts,
-        in_features,
-        out_features,
-        config: GroupQuantize,
-        activation: str = None,
-        weight: str = None,
-        calibration_kind: str = None,
-    ):  # pylint: disable=too-many-arguments
-        super().__init__(num_local_experts, in_features, out_features, config)
-        self.activation_dtype = activation
-        self.weight_dtype = weight
-        self.calibration_kind = calibration_kind
-        self.max_int_value = 448 if "e4m3" in activation else 57344
-
-        # TODO(csullivan): need to get param allocation working before we can do this
-        # if self.calibration_kind:
-        #     self.scale_x = nn.Parameter((1,), config.model_dtype)
-
-    @staticmethod
-    def from_mixtral_experts(
-        src: "MixtralExperts",
-        config: GroupQuantize,
-        activation: str = None,
-        weight: str = None,
-        calibration_kind: str = None,
-    ) -> "GroupQuantizeMixtralExperts":
-        """
-        Converts a non-quantized MixtralExperts to a group quantized GroupQuantizeMixtralExperts
-
-        Parameters
-        ----------
-        src : MixtralExperts
-            The non-quantized MixtralExperts
-
-        config : GroupQuantize
-            The group quantization config.
-
-        Returns
-        -------
-        ret : GroupQuantizeMixtralExperts
-            The group quantized GroupQuantizeMixtralExperts layer.
-        """
-        quantized_mistral_experts = MixtralExpertsFP8(
-            num_local_experts=src.num_local_experts,
-            in_features=src.in_features,
-            out_features=src.out_features,
-            config=config,
-            activation=activation,
-            weight=weight,
-            calibration_kind=calibration_kind,
-        )
-        if "shard_strategy" in src.weight.attrs:
-            shard = src.weight.attrs["shard_strategy"]
-            _apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
-        return quantized_mistral_experts
-
-    def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
-        def fused_compute_scale_and_quantize(
-            tensor: te.Tensor, axis: int, out_shape: Optional[List[tir.PrimExpr]] = None
-        ):
-            max_int = tir.const(self.max_int_value, self.config.model_dtype)
-            min_scaling_factor = tir.const(
-                1.0 / (self.max_int_value * 512.0), self.config.model_dtype
-            )
-            r_idx = [te.reduce_axis((0, d)) for d in tensor.shape]
-            max_abs = te.compute(
-                shape=(1,),
-                fcompute=lambda *idx: te.max(
-                    te.abs(tensor(*r_idx)),
-                    axis=r_idx,
-                ),
-                name="max_abs_value",
-            )
-            scale = te.compute(
-                (1,),
-                lambda *idx: te.max(
-                    max_abs(*idx).astype(self.config.model_dtype) / max_int, min_scaling_factor
-                ),
-                name="scale",
-            )
-            scaled_act = te.compute(
-                shape=tensor.shape,
-                fcompute=lambda *idx: tir.Cast(
-                    self.activation_dtype,
-                    tensor(*idx) / scale[0],
-                ),
-            )
-
-            return scaled_act, scale
-
-        x, scale = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda tensor: fused_compute_scale_and_quantize(  # pylint: disable=protected-access
-                tensor,
-                axis=None,
-                out_shape=x.shape,
-            ),
-            name_hint="quantize_act",
-            args=[x],
-        )
-
-        # def compute_scales(
-        #     tensor: te.Tensor, axis: int, out_shape: Optional[List[tir.PrimExpr]] = None
-        # ):
-        #     max_int = tir.const(self.max_int_value, self.config.model_dtype)
-        #     min_scaling_factor = tir.const(
-        #         1.0 / (self.max_int_value * 512.0), self.config.model_dtype
-        #     )
-        #     r_idx = [te.reduce_axis((0, d)) for d in tensor.shape]
-        #     max_abs = te.compute(
-        #         shape=(1,),
-        #         fcompute=lambda *idx: te.max(
-        #             te.abs(tensor(*r_idx)),
-        #             axis=r_idx,
-        #         ),
-        #         name="max_abs_value",
-        #     )
-        #     scale = te.compute(
-        #         (1,),
-        #         lambda *idx: te.max(
-        #             max_abs(*idx).astype(self.config.model_dtype) / max_int, min_scaling_factor
-        #         ),
-        #         name="scale",
-        #     )
-        #     return scale
-        # scale = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-        #     lambda tensor: compute_scales(  # pylint: disable=protected-access
-        #         tensor,
-        #         axis=None,
-        #         out_shape=x.shape,
-        #     ),
-        #     name_hint="compute_scales",
-        #     args=[x],
-        # )
-        # # TODO(csullivan): use the fused te kernel above and delete these two lines
-        # # right now the profiling step goes really slow when using the fused function
-        # # for reasons unknown https://octoai.slack.com/archives/C05V4EKDZPG/p1709757775368679
-        # x /= scale
-        # x = nn.op.astype(x, dtype=self.activation_dtype)
-
-        # TODO(slm-team): make debug_func's actually work for the user
-        # nn.op.print_(scale)
-        # scale = nn.op.extern(
-        #     "vm.builtin.copy_and_print",
-        #     [scale, "scale"],
-        #     out=nn.Tensor.placeholder(scale.shape, dtype=scale.dtype),
-        # )
-
-        # x = nn.op.extern(
-        #     "vm.builtin.copy_and_print",
-        #     [x, "x"],
-        #     out=nn.Tensor.placeholder(x.shape, dtype=x.dtype),
-        # )
-
-        workspace = nn.op.wrap_nested(
-            relax.op.builtin.alloc_tensor(
-                relax.ShapeExpr((4096 * 1024,)),
-                dtype="uint8",
-                runtime_device_index=0,
-            ),
-            "relax.alloc_tensor",
-        )
-
-        batch_size, in_features = x.shape
-        num_local_experts, out_features, _ = self.q_weight.shape
-        a_format = self.activation_dtype.split("_")[0]
-        w_format = self.weight_dtype.split("_")[0]
-
-        output = nn.op.extern(
-            f"cutlass.moe_gemm_{a_format}_{w_format}_fp16",
-            [
-                x,
-                self.q_weight,
-                indptr,
-                workspace,
-                batch_size,
-                out_features,
-                in_features,
-                num_local_experts,
-            ],
-            out=nn.Tensor.placeholder(
-                (batch_size, out_features),
-                dtype=self.config.model_dtype,
-            ),
-        )
-
-        # TODO(csullivan): absorb these scales into alpha/beta in the kernel call
-        if "e4m3" in self.weight_dtype:
-            total_scale = scale * self.q_scale
-        else:
-            total_scale = scale
-        return output * total_scale
