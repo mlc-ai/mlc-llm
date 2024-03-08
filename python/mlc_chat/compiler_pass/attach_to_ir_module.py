@@ -86,7 +86,7 @@ class AttachAllocEmbeddingTensorFunc:  # pylint: disable=too-few-public-methods
             bb.emit_func_output(
                 bb.emit(
                     relax.op.builtin.alloc_tensor(
-                        relax.ShapeExpr([1, self.metadata["prefill_chunk_size"], hidden_size]),
+                        relax.ShapeExpr([self.metadata["prefill_chunk_size"], hidden_size]),
                         dtype,
                         runtime_device_index=0,
                     )

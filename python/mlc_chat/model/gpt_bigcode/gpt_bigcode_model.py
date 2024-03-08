@@ -285,7 +285,7 @@ class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
     def get_default_spec(self):
         mod_spec = {
             "embed": {
-                "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
+                "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",

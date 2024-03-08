@@ -260,7 +260,7 @@ class QWenLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
     def get_default_spec(self):
         mod_spec = {
             "embed": {
-                "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
+                "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
