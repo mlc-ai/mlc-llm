@@ -17,6 +17,7 @@ from .internlm import internlm_loader, internlm_model, internlm_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
+from .orion import orion_loader, orion_model, orion_quantization
 from .phi import phi_loader, phi_model, phi_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
 from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
@@ -276,6 +277,19 @@ MODELS: Dict[str, Model] = {
             "no-quant": rwkv5_quantization.no_quant,
             "group-quant": rwkv5_quantization.group_quant,
             "ft-quant": rwkv5_quantization.ft_quant,
+        },
+    ),
+    "orion": Model(
+        name="orion",
+        model=orion_model.OrionForCasualLM,
+        config=orion_model.OrionConfig,
+        source={
+            "huggingface-torch": orion_loader.huggingface,
+            "huggingface-safetensor": orion_loader.huggingface,
+        },
+        quantize={
+            "no-quant": orion_quantization.no_quant,
+            "group-quant": orion_quantization.group_quant,
         },
     ),
 }
